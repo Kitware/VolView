@@ -225,6 +225,20 @@ const legacyViewGroupDisplay = (view: any, groupId: string) => {
   };
 };
 
+// A 6.4.0 group rendered at the layer opacity default unless a view saved one.
+const LEGACY_GROUP_FILL_OPACITY_DEFAULT = 0.3;
+
+const legacyFillOpacity = (
+  display: ReturnType<typeof legacyViewGroupDisplay>
+) => display.fillOpacity ?? LEGACY_GROUP_FILL_OPACITY_DEFAULT;
+
+// A zero on the segmentation leaves nothing for a segment to be a share of, and
+// every group under it was hidden anyway.
+const fillShareOf = (
+  display: ReturnType<typeof legacyViewGroupDisplay>,
+  parentFill: number
+) => (parentFill === 0 ? 1 : legacyFillOpacity(display) / parentFill);
+
 const legacyGroupDisplay = (manifest: any, groupId: string) => {
   // These controls were synchronized across 2D views. Read the first value
   // each view supplies so a partially populated view does not hide another.
@@ -247,6 +261,7 @@ const migrateLegacyDisplay = (manifest: any) => {
     ReturnType<typeof legacyGroupDisplay>
   >();
   const outlineThicknessByParent = new Map<string, number>();
+  const fillByParent = new Map<string, number>();
   const artifacts: any[] = Array.isArray(manifest.segmentationArtifacts)
     ? manifest.segmentationArtifacts
     : [];
@@ -266,18 +281,21 @@ const migrateLegacyDisplay = (manifest: any) => {
         display.outlineThickness
       );
     }
-
-    if (!artifact.pendingDecode && !artifact.pendingSplit) return;
-    if (display.fillOpacity !== undefined) {
-      artifact.pendingFillOpacity = display.fillOpacity;
-    }
-    if (display.outlineOpacity !== undefined) {
-      artifact.pendingOutlineOpacity = display.outlineOpacity;
-    }
-    if (display.visible !== undefined) {
-      artifact.pendingVisibility = display.visible;
-    }
+    // Fill is a product of the segmentation's opacity and the segment's, and a
+    // legacy group's opacity has to survive as that product. The largest of the
+    // parent's groups goes on the segmentation, so every group's share of it
+    // stays a fraction the per-segment slider can hold.
+    fillByParent.set(
+      artifact.parentImage,
+      Math.max(
+        fillByParent.get(artifact.parentImage) ?? 0,
+        legacyFillOpacity(display)
+      )
+    );
   });
+
+  const parentFillOf = (parentImage: string) =>
+    fillByParent.get(parentImage) ?? LEGACY_GROUP_FILL_OPACITY_DEFAULT;
 
   const segmentations: any[] = Array.isArray(manifest.segmentations)
     ? manifest.segmentations
@@ -292,14 +310,15 @@ const migrateLegacyDisplay = (manifest: any) => {
       );
     }
 
+    const parentFill = parentFillOf(segmentation.parentImage);
+    segmentation.fillOpacity = parentFill;
+
     (Array.isArray(segmentation.segments) ? segmentation.segments : []).forEach(
       (segment: any) => {
         const artifactId = segment.representations?.labelmap?.artifactId;
         const display = displayByArtifact.get(artifactId);
         if (!display) return;
-        if (display.fillOpacity !== undefined) {
-          segment.fillOpacity = display.fillOpacity;
-        }
+        segment.fillOpacity = fillShareOf(display, parentFill);
         if (display.outlineOpacity !== undefined) {
           segment.outlineOpacity = display.outlineOpacity;
         }
@@ -308,6 +327,21 @@ const migrateLegacyDisplay = (manifest: any) => {
         }
       }
     );
+  });
+
+  artifacts.forEach((artifact) => {
+    if (!artifact.pendingDecode && !artifact.pendingSplit) return;
+    const display = displayByArtifact.get(artifact.id)!;
+    artifact.pendingFillOpacity = fillShareOf(
+      display,
+      parentFillOf(artifact.parentImage)
+    );
+    if (display.outlineOpacity !== undefined) {
+      artifact.pendingOutlineOpacity = display.outlineOpacity;
+    }
+    if (display.visible !== undefined) {
+      artifact.pendingVisibility = display.visible;
+    }
   });
 
   // These consumed view configs would otherwise restore under an unmapped

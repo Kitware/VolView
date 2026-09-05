@@ -13,6 +13,7 @@ import { completeStateFileRestore } from '@/src/io/import/processors/restoreStat
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
+import { segmentFillAlpha } from '@/src/components/vtk/segmentDisplay';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 
 // ---------------------------------------------------------------------------
@@ -89,6 +90,15 @@ const EDEMA: LegacyMask = {
 };
 // No `visible`/`locked` keys at all: the old schema defaulted them on parse.
 const BARE = { value: 3, name: '', color: [1, 2, 3, 4] } as LegacyMask;
+
+// What the slice renderer multiplies out for a visible, opaque-coloured
+// segment. A legacy group's opacity has to survive as this product, not as
+// either factor on its own.
+const effectiveFill = (segment: any, segmentation: any) =>
+  segmentFillAlpha(
+    { ...segment, visible: true, color: [0, 0, 0, 255] },
+    segmentation.fillOpacity
+  );
 
 const segmentationFor = (migrated: any, parentImage: string) =>
   migrated.segmentations.find(
@@ -401,20 +411,64 @@ describe('migrate640To700: structural stage', () => {
       },
     });
 
-    expect(
-      orderedSegments(segmentationFor(migrated, 'ds-ct'))[0]
-    ).toMatchObject({
+    const segmentation = segmentationFor(migrated, 'ds-ct');
+    expect(orderedSegments(segmentation)[0]).toMatchObject({
       visible: false,
-      fillOpacity: 0.4,
       outlineOpacity: 0.25,
     });
-    expect(segmentationFor(migrated, 'ds-ct').outlineThickness).toBe(5);
+    expect(
+      effectiveFill(orderedSegments(segmentation)[0], segmentation)
+    ).toBeCloseTo(0.4);
+    expect(segmentation.outlineThickness).toBe(5);
     expect(migrated.segmentationArtifacts[0]).toMatchObject({
-      pendingFillOpacity: 0.4,
+      pendingFillOpacity: 1,
       pendingOutlineOpacity: 0.25,
       pendingVisibility: false,
     });
     expect(migrated.viewByID.Axial.config['sg-1']).toBeUndefined();
+  });
+
+  it('keeps the legacy fill default when no view configured the group', () => {
+    const migrated = ManifestSchema.parse(
+      migrate({ segmentGroups: [legacyGroup('sg-1', 'ds-ct', [TUMOR])] })
+    ) as any;
+
+    const segmentation = segmentationFor(migrated, 'ds-ct');
+    expect(
+      effectiveFill(orderedSegments(segmentation)[0], segmentation)
+    ).toBeCloseTo(DEFAULT_SEGMENTATION_FILL_OPACITY);
+  });
+
+  it('keeps each merged group’s own fill when they disagree', () => {
+    const migrated = ManifestSchema.parse(
+      migrate({
+        segmentGroups: [
+          legacyGroup('sg-1', 'ds-ct', [TUMOR]),
+          legacyGroup('sg-2', 'ds-ct', [EDEMA]),
+        ],
+        viewByID: {
+          Axial: {
+            id: 'Axial',
+            name: 'Axial',
+            type: '2D',
+            config: {
+              'sg-1': { layers: { blendConfig: { opacity: 0.2 } } },
+              'sg-2': { layers: { blendConfig: { opacity: 0.8 } } },
+            },
+          },
+        },
+      })
+    ) as any;
+
+    const segmentation = segmentationFor(migrated, 'ds-ct');
+    const [tumor, edema] = orderedSegments(segmentation);
+    expect(effectiveFill(tumor, segmentation)).toBeCloseTo(0.2);
+    expect(effectiveFill(edema, segmentation)).toBeCloseTo(0.8);
+    // The per-segment slider only holds a fraction, so the larger of the two
+    // is what the segmentation carries.
+    expect(
+      orderedSegments(segmentation).map((s: any) => s.fillOpacity <= 1)
+    ).toEqual([true, true]);
   });
 
   it('uses the first configured thickness when legacy groups are merged', () => {
@@ -887,17 +941,14 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
       (id) => segmentation.segments[id]
     );
     expect([tumor, edema]).toEqual([
-      expect.objectContaining({
-        visible: false,
-        fillOpacity: 0.4,
-        outlineOpacity: 0.25,
-      }),
-      expect.objectContaining({
-        visible: false,
-        fillOpacity: 0.4,
-        outlineOpacity: 0.25,
-      }),
+      expect.objectContaining({ visible: false, outlineOpacity: 0.25 }),
+      expect.objectContaining({ visible: false, outlineOpacity: 0.25 }),
     ]);
+    // Both groups rendered at the legacy 0.4, and that is what the restored
+    // pair of opacities has to come to.
+    [tumor, edema].forEach((segment) =>
+      expect(effectiveFill(segment, segmentation)).toBeCloseTo(0.4)
+    );
     expect(drawn).toMatchObject({ fillOpacity: 1, outlineOpacity: 1 });
     expect(segmentation.outlineThickness).toBe(5);
   });

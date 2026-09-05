@@ -223,7 +223,11 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     const segmentation =
       useSegmentationStore().getSegmentationForImage('parent-store')!;
     const segments = segmentation.order.map((id) => segmentation.segments[id]);
-    expect(segments.map((segment) => segment.fillOpacity)).toEqual([0.4, 0.4]);
+    // Fill renders as the product of the two, and 0.4 is what the legacy group
+    // showed.
+    expect(
+      segments.map((segment) => segment.fillOpacity * segmentation.fillOpacity)
+    ).toEqual([0.4, 0.4]);
     expect(segments.map((segment) => segment.outlineOpacity)).toEqual([
       0.25, 0.25,
     ]);
