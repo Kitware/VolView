@@ -173,14 +173,12 @@ function calculateBoundingBox(
 
 function expandBoundingBox({
   bounds,
-  dimensions,
   maskExtent,
   parentDimensions,
   sigmaPixels,
   radiusFactor = 1.5,
 }: {
   bounds: number[];
-  dimensions: number[];
   maskExtent: GaussianSmoothInput['maskExtent'];
   parentDimensions: GaussianSmoothInput['parentDimensions'];
   sigmaPixels: [number, number, number];
@@ -188,15 +186,16 @@ function expandBoundingBox({
 }) {
   return sigmaPixels.flatMap((sigma, axis) => {
     const padding = Math.ceil(sigma * radiusFactor);
-    const lower = bounds[axis * 2] - padding;
-    const upper = bounds[axis * 2 + 1] + padding;
-    // Crop faces read as background. Parent-image faces keep the established
-    // mirrored boundary by ending the convolution volume at that face.
+    // The parent-image faces, stated in mask coordinates. Ending the
+    // convolution volume there keeps the established mirrored boundary
+    // wherever the mask sits, so the result does not depend on how much of
+    // the parent the mask happens to be allocated over. Crop faces are not
+    // clamped: outside the buffer reads as background.
+    const parentLow = -maskExtent[axis * 2];
+    const parentHigh = parentDimensions[axis] - 1 - maskExtent[axis * 2];
     return [
-      maskExtent[axis * 2] === 0 ? Math.max(0, lower) : lower,
-      maskExtent[axis * 2 + 1] === parentDimensions[axis] - 1
-        ? Math.min(dimensions[axis] - 1, upper)
-        : upper,
+      Math.max(parentLow, bounds[axis * 2] - padding),
+      Math.min(parentHigh, bounds[axis * 2 + 1] + padding),
     ];
   });
 }
@@ -249,9 +248,11 @@ function copySubVolumeBack(
     for (let y = minY; y <= maxY; y++) {
       const yInside = zInside && y >= 0 && y < dimY;
       for (let x = minX; x <= maxX; x++) {
-        // The padding ring has no voxel to write to. Nothing is lost: a
-        // thresholded Gaussian cannot turn on a voxel outside the label's own
-        // bounding box.
+        // The padding ring has no voxel to write to. Away from the parent
+        // faces nothing is lost, since a thresholded Gaussian cannot turn on a
+        // voxel outside the label's own bounding box; against a face the
+        // mirror can, and a mask whose box stops short of that face has
+        // nowhere to hold it.
         if (yInside && x >= 0 && x < dimX) {
           const origIndex = x + y * dimX + z * dimX * dimY;
           const origLabel = originalData[origIndex];
@@ -322,7 +323,6 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
 
   const expandedBounds = expandBoundingBox({
     bounds,
-    dimensions,
     maskExtent,
     parentDimensions,
     sigmaPixels,

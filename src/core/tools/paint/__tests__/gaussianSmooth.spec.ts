@@ -124,6 +124,19 @@ describe('gaussianSmoothLabelMapWorker', () => {
     expect(smoothed[13]).toBe(LABEL);
   });
 
+  it('matches the whole parent grid within the kernel radius of a face', () => {
+    // The mask stops one voxel short of the parent face, so its padding would
+    // reach past it. The mirror has to happen at the face all the same.
+    const box: Box = [
+      [1, 3],
+      [1, 3],
+      [1, 3],
+    ];
+    const { smoothed, parentCrop } = smoothCroppedBox(box);
+
+    expect(Array.from(smoothed)).toEqual(parentCrop);
+  });
+
   it('matches the whole parent grid where the segment touches its boundary', () => {
     const box: Box = [
       [0, 2],
@@ -143,6 +156,28 @@ describe('gaussianSmoothLabelMapWorker', () => {
 
     expect(Array.from(smoothed)).toEqual(parentCrop);
     expect(Array.from(smoothed)).not.toEqual(Array.from(zeroPadded));
+  });
+
+  it('keeps the mirrored growth a mask has no box to hold', () => {
+    // Against a parent face the mirror can turn on voxels beyond the label's
+    // own bounding box. A mask whose box stops short of that face has nowhere
+    // to write them, so it keeps everything it can address and no more.
+    const box: Box = [
+      [1, 4],
+      [1, 4],
+      [1, 4],
+    ];
+    const { parentDimensions, smoothed, parentCrop } = smoothCroppedBox(box);
+    const parent = smooth(withBox(parentDimensions, box), parentDimensions, 1);
+
+    expect(Array.from(smoothed)).toEqual(parentCrop);
+    expect(
+      crop(parent, parentDimensions, [
+        [0, 0],
+        [1, 4],
+        [1, 4],
+      ]).filter((value) => value === LABEL).length
+    ).toBeGreaterThan(0);
   });
 
   it('leaves a buffer with none of the label alone', () => {
