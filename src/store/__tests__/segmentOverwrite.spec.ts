@@ -15,10 +15,9 @@ import {
 import type { Extent3D } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
-// Overwrite-all across N masks. One shared labelmap gave one label per voxel
-// for free: writing a value there erased whatever value was in that voxel.
-// With a mask per segment nothing erases anything, so the write paths clear
-// the voxel in every OTHER mask of the same parent image themselves.
+// Overwrite-all across N masks. A mask per segment erases nothing on its own,
+// so the write paths clear the voxel in every OTHER mask of the same parent
+// image themselves.
 //
 // The claim is a factory because the sibling storage is resolved once per
 // stroke, not once per voxel: it is made for every voxel a brush writes. It

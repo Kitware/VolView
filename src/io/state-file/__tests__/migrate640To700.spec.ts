@@ -12,6 +12,7 @@ import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 
 // ---------------------------------------------------------------------------
@@ -192,7 +193,7 @@ describe('migrate640To700: structural stage', () => {
     // migration itself is otherwise lossless.
     const expectedSegmentations = migrated.segmentations.map((wire: any) => ({
       ...wire,
-      fillOpacity: 1,
+      fillOpacity: DEFAULT_SEGMENTATION_FILL_OPACITY,
       outlineOpacity: 1,
       outlineThickness: 2,
       segments: wire.segments.map((segment: any) => ({

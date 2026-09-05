@@ -8,6 +8,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import SegmentList from '@/src/components/SegmentList.vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import { useViewStore } from '@/src/store/views';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
 
@@ -687,6 +688,8 @@ describe('segmentation display section', () => {
     await setSlider(wrapper, 'Fill Opacity', 0.25);
 
     expect(store().getSegmentationForImage('img-1')!.fillOpacity).toBe(0.25);
-    expect(store().getSegmentationForImage('img-2')!.fillOpacity).toBe(1);
+    expect(store().getSegmentationForImage('img-2')!.fillOpacity).toBe(
+      DEFAULT_SEGMENTATION_FILL_OPACITY
+    );
   });
 });

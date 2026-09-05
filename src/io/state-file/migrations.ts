@@ -310,8 +310,8 @@ const migrateLegacyDisplay = (manifest: any) => {
     );
   });
 
-  // Artifact ids are no longer view layers. Keeping these consumed configs
-  // would restore them under an unmapped data id after the group is split.
+  // These consumed view configs would otherwise restore under an unmapped
+  // data id after the group is split.
   const artifactIds = new Set(artifacts.map((artifact) => artifact.id));
   Object.values(manifest.viewByID ?? {}).forEach((view: any) => {
     if (!view?.config) return;

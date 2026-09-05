@@ -26,10 +26,8 @@ import {
 // segment's own bounded mask. Storage is a mask per segment and a mask holds
 // one label, so there is no composite to run the algorithm over once.
 //
-// ACCEPTED BEHAVIOUR CHANGE: a hole used to be filled with the majority label
-// bordering it in the composite of every segment. Per segment, each segment
-// fills only what it encloses by itself, so a cavity two segments close
-// together is no longer filled at all.
+// Each segment fills only what it encloses by itself, so a cavity two segments
+// close together is not filled.
 //
 // A fill writes into empty space only. Both segment scopes stop at a voxel
 // another segment holds, locked or not, so no run of a process takes a voxel
@@ -254,6 +252,20 @@ describe('a process running over every segment', () => {
     expect(sparedMask.getMTime()).toBe(sparedTime);
   });
 
+  it('says so when no segment had anything for the pass to do', async () => {
+    segmentAt('Left', ringAround(1, 1));
+    segmentAt('Right', ringAround(5, 5));
+
+    await runOverEverySegment(async () => undefined);
+
+    expect(usePaintProcessStore().processState.step).toBe('start');
+    expect(
+      useMessageStore().messages.some((message) =>
+        message.title.includes('nothing to do')
+      )
+    ).toBe(true);
+  });
+
   it('keeps the preview when the selection moves to another segment', async () => {
     // The run covers every editable segment, so the selection it started under
     // is not part of its target and moving off it takes nothing away.
@@ -271,8 +283,8 @@ describe('a process running over every segment', () => {
   });
 
   it('drops the preview when a segment it holds a snapshot of is deleted', async () => {
-    // Nothing else watches for this now that an all-segments run outlives a
-    // selection change, and the preview would write back into dead storage.
+    // An all-segments run watches no segment, so a deleted one is caught here:
+    // the preview would otherwise write back into dead storage.
     const left = segmentAt('Left', ringAround(1, 1));
     const right = segmentAt('Right', ringAround(5, 5));
     store().setActiveSegment(left);

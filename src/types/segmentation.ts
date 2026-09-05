@@ -7,6 +7,9 @@ import type vtkLabelMap from '@/src/vtk/LabelMap';
 /** vtk.js index-space extent order: [iMin, iMax, jMin, jMax, kMin, kMax]. */
 export type Extent3D = [number, number, number, number, number, number];
 
+/** A fresh segmentation tints the anatomy under it rather than hiding it. */
+export const DEFAULT_SEGMENTATION_FILL_OPACITY = 0.3;
+
 export type LabelmapBinding = {
   artifactId: string;
   labelValue: number;
@@ -112,9 +115,12 @@ export type VoxelStorage = {
    * Ensures storage covers `extent`, growing to the union of what it has and
    * what it was asked for. Returns whether storage was invalidated
    * (scalars/dimensions/strides changed). An empty extent is already covered.
-   * Throws when the extent leaves the parent image, so callers clip.
+   * Throws when the extent leaves the parent image, so callers clip. When the
+   * extent is not already covered, the mask grows by `padding` voxels beyond
+   * it on every face (clipped to the parent), so nearby requests that follow
+   * grow nothing.
    */
-  ensureContains(extent: Extent3D): boolean;
+  ensureContains(extent: Extent3D, padding?: number): boolean;
 };
 
 /**
@@ -228,6 +234,18 @@ export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
     Math.max(a[3], b[3]),
     Math.min(a[4], b[4]),
     Math.max(a[5], b[5]),
+  ];
+}
+
+/** `extent` widened by `padding` voxels on every face. */
+export function padExtent(extent: Extent3D, padding: number): Extent3D {
+  return [
+    extent[0] - padding,
+    extent[1] + padding,
+    extent[2] - padding,
+    extent[3] + padding,
+    extent[4] - padding,
+    extent[5] + padding,
   ];
 }
 

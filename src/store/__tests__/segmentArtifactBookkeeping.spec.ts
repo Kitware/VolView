@@ -14,15 +14,10 @@ import {
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
-// A mask belongs to exactly one segment, so the per-parent artifact ORDER map
-// is a second copy of `segmentation.order` and goes away with the rest of the
-// group infrastructure. What it was actually doing has to survive without it:
-// no mask outlives the segment that owns it, no mask outlives its parent image,
-// and the state file still names every mask, each at its own archive path.
-//
-// The first test is the removal itself. The rest hold the invariants that map
-// was serving, addressed only through API that survives, so they say the same
-// thing before and after the deletion.
+// A mask belongs to exactly one segment, so `segmentation.order` is the only
+// order there is. The invariants: no mask outlives the segment that owns it,
+// no mask outlives its parent image, and the state file names every mask,
+// each at its own archive path.
 // ---------------------------------------------------------------------------
 
 const surface = () => store() as unknown as Record<string, unknown>;

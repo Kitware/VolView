@@ -9,6 +9,7 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
 // Display state on the wire: additive with zod defaults, so a 7.0.0 manifest
@@ -164,7 +165,7 @@ describe('segmentation display state on the wire', () => {
     const parsed = ManifestSchema.parse(manifest700());
     const wire = parsed.segmentations![0];
 
-    expect(wire.fillOpacity).toBe(1);
+    expect(wire.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
     expect(wire.outlineOpacity).toBe(1);
     expect(wire.outlineThickness).toBe(2);
     expect(wire.segments[0].fillOpacity).toBe(1);
@@ -184,7 +185,7 @@ describe('segmentation display state on the wire', () => {
     await nextTick();
 
     const restored = store().getSegmentationForImage('img-1')!;
-    expect(restored.fillOpacity).toBe(1);
+    expect(restored.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
     expect(restored.outlineOpacity).toBe(1);
     expect(restored.outlineThickness).toBe(2);
     const segment = restored.segments[restored.order[0]];

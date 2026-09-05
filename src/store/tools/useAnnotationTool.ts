@@ -142,12 +142,16 @@ export const useAnnotationTool = <
       .forEach((id) => removeTool(id));
   });
 
-  // updates props controlled by labels
+  // Labels recompute on any segment change, so only a tool whose label props
+  // actually differ is rewritten.
   watch(registry.allLabels, () => {
     toolIDs.value.forEach((id) => {
       const tool = toolByID.value[id];
       const propsFromLabel = makePropsFromLabel(tool.label);
-      updateTool(id, { ...tool, ...propsFromLabel });
+      const changed = Object.entries(propsFromLabel).some(
+        ([key, value]) => (tool as Record<string, unknown>)[key] !== value
+      );
+      if (changed) updateTool(id, { ...tool, ...propsFromLabel });
     });
   });
 

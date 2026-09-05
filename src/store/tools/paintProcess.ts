@@ -225,6 +225,19 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     activeProcessType.value = processType;
   }
 
+  // Distinguishes "every target's mask vanished mid-run" from "the algorithm
+  // looked and found nothing", which alone is worth telling the user about.
+  function warnIfNothingProcessed(
+    processType: ProcessType,
+    outputs: Awaited<ReturnType<ProcessAlgorithm>>[]
+  ) {
+    if (!outputs.every((output) => output === undefined)) return;
+    messageStore.addWarning(
+      `${processType} had nothing to do`,
+      'No segment has anything on this slice. Scroll to a slice a segment covers, then try again.'
+    );
+  }
+
   function targetFor(parentImageId: string, segmentId: string) {
     const parent = segmentationStore.getSegmentationForImage(parentImageId);
     const voxels = segmentationStore.segmentVoxels(segmentId);
@@ -353,6 +366,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       // while the algorithm ran, or the algorithm had nothing to do to any of
       // them. There is then nothing to preview and nothing to roll back.
       if (runs.length === 0) {
+        warnIfNothingProcessed(processType, outputs);
         resetState();
         paintStore.restoreModeAfterProcess();
         return;

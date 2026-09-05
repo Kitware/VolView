@@ -8,8 +8,9 @@ import { completeStateFileRestore } from '@/src/io/import/processors/restoreStat
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { isEmptyExtent, listSegments } from '@/src/types/segmentation';
-import type vtkLabelMap from '@/src/vtk/LabelMap';
+import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   addSegment,
   extentOf,
@@ -219,6 +220,66 @@ describe('bounded masks through the state file', () => {
         [2, 1, 1, 1],
       ],
     });
+  });
+
+  it('remaps label values when restored over a parent that already has segments', async () => {
+    await buildScene();
+    // Reading a file yields fresh bytes each time; the in-memory codec has to
+    // copy to say the same, or both restores would share one mask.
+    const shared = makeArtifactIO();
+    const io = {
+      ...shared,
+      read: async (file: File) => {
+        const { image } = await shared.read(file);
+        const copy = vtkLabelMap.newInstance(
+          image.get('spacing', 'origin', 'direction')
+        );
+        copy.setDimensions(image.getDimensions());
+        copy.getPointData().setScalars(
+          vtkDataArray.newInstance({
+            numberOfComponents: 1,
+            values: new Uint8Array(
+              image.getPointData().getScalars().getData() as Uint8Array
+            ),
+          })
+        );
+        copy.computeTransforms();
+        return { image: copy };
+      },
+    };
+    const zip = new JSZip();
+    const manifest = emptyManifest();
+    await store().serialize({ zip, manifest }, io);
+    const parsed = ManifestSchema.parse(manifest) as any;
+    const stateFiles = await Promise.all(
+      parsed.segmentationArtifacts.map(async (artifact: any) => ({
+        archivePath: artifact.path,
+        file: new File(
+          [await zip.file(artifact.path)!.async('string')],
+          'artifact.vti'
+        ),
+      }))
+    );
+    const dataIDMap = { 'img-1': 'img-1', 'img-2': 'img-2' };
+
+    setActivePinia(createPinia());
+    await seatImage('img-1', { ...GRID, name: 'CT A' });
+    await seatImage('img-2', { ...GRID, name: 'CT B' });
+    await store().deserialize(parsed, stateFiles, dataIDMap, {}, io);
+    await store().deserialize(parsed, stateFiles, dataIDMap, {}, io);
+    await nextTick();
+
+    const bound = listSegments(store().getSegmentationForImage('img-1')!)
+      .filter((segment) => segment.representations.labelmap)
+      .map((segment) => ({
+        labelValue: segment.representations.labelmap!.labelValue,
+        marks: markedVoxels(segment.id) ?? [],
+      }));
+    expect(bound).toHaveLength(6);
+    expect(new Set(bound.map(({ labelValue }) => labelValue)).size).toBe(6);
+    bound.forEach(({ labelValue, marks }) =>
+      marks.forEach((mark) => expect(mark[3]).toBe(labelValue))
+    );
   });
 
   it('keeps bindings distinct when wire segmentation and segment ids repeat', async () => {
@@ -443,6 +504,21 @@ describe('bounded masks through the state file', () => {
     expect(Object.keys(store().artifactMeta)).toHaveLength(3);
   });
 
+  it('refuses a wire label value that would turn background into a segment', async () => {
+    await buildScene();
+
+    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+      wireSegment(manifest, 'Tumor').representations.labelmap.labelValue = 0;
+    });
+
+    expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
+    expect(result.skipped).toContainEqual({
+      name: 'Tumor',
+      reason: 'invalid label value',
+    });
+    expect(markedVoxels(restoredSegment('Node').id)).toHaveLength(1);
+  });
+
   it('keeps a valid binding when another reference to its artifact is invalid', async () => {
     await buildScene();
 
@@ -488,6 +564,60 @@ describe('bounded masks through the state file', () => {
 describe('a legacy group restored as bounded masks', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+  });
+
+  it('enumerates a current-version artifact no segment binds', async () => {
+    await seatImage('parent-store', { ...GRID, name: 'CT Chest' });
+    const values = new Uint8Array(voxelCount(DIMENSIONS));
+    values[1 + 1 * 4 + 1 * 16] = 1;
+    values[3 + 3 * 4 + 3 * 16] = 2;
+    await seatImage('artifact-store', {
+      ...GRID,
+      name: 'Tumor.seg.nrrd',
+      values,
+    });
+
+    const manifest = ManifestSchema.parse(
+      migrateManifest(
+        JSON.stringify({
+          version: MANIFEST_VERSION,
+          dataSources: [
+            { id: 1, type: 'uri', uri: 'volview-backend:base/ct', name: 'CT' },
+            {
+              id: 3,
+              type: 'uri',
+              uri: 'volview-backend:artifact/tumor',
+              name: 'Tumor.seg.nrrd',
+              mime: 'application/octet-stream',
+            },
+          ],
+          datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
+          segmentationArtifacts: [
+            {
+              id: 'sa-tumor',
+              parentImage: 'ds-ct',
+              name: 'Tumor',
+              dataSourceId: 3,
+            },
+          ],
+        })
+      )
+    );
+
+    await completeStateFileRestore(manifest, [], {
+      'ds-ct': 'parent-store',
+      [leafStateId(3)]: 'artifact-store',
+    });
+
+    const segments = listSegments(
+      store().getSegmentationForImage('parent-store')!
+    );
+    expect(segments.map((segment) => segment.name)).toEqual([
+      'Tumor 1',
+      'Tumor 2',
+    ]);
+    expect(markedVoxels(segments[0].id)).toEqual([[1, 1, 1, 1]]);
+    expect(markedVoxels(segments[1].id)).toEqual([[3, 3, 3, 2]]);
   });
 
   it('bounds each decoded segment to the voxels its value covers', async () => {

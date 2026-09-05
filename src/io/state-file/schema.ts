@@ -41,6 +41,7 @@ import {
   type LayoutDirection,
   type LayoutItem,
 } from '@/src/types/layout';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 
 const FileSource = z.object({
   id: z.number(),
@@ -336,7 +337,7 @@ export const Segmentation = z.object({
   segments: Segment.array(),
   order: z.string().array(),
   activeSegment: z.string().optional(),
-  fillOpacity: z.number().default(1),
+  fillOpacity: z.number().default(DEFAULT_SEGMENTATION_FILL_OPACITY),
   outlineOpacity: z.number().default(1),
   outlineThickness: z.number().default(2),
 });

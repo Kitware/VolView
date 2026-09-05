@@ -7,8 +7,14 @@ import { CATEGORICAL_COLORS, DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
 import { createArtifactNamer } from '@/src/store/artifactNaming';
 import { nextUnusedLabelValue } from '@/src/store/segmentLabelValue';
-import { allocateMask, regrowMask } from '@/src/store/segmentMask';
-import { prepareRestoreBindings } from '@/src/store/segmentationRestore';
+import { allocateMask, regrowMask, relabelMask } from '@/src/store/segmentMask';
+import {
+  createLabelRemapper,
+  createParentImageLoader,
+  planArtifactRestore,
+  prepareRestoreBindings,
+  restoredLabelmapImage,
+} from '@/src/store/segmentationRestore';
 import {
   boundScalars,
   groupByLayer,
@@ -26,6 +32,7 @@ import {
   toLabelMap,
 } from '@/src/io/labelmapImport';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
+import { ensureSameSpace } from '@/src/io/resample/resample';
 import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
 import type {
   Manifest,
@@ -43,6 +50,8 @@ import {
   getSelectionStem,
 } from '@/src/utils/dataSelection';
 import {
+  clipExtent,
+  DEFAULT_SEGMENTATION_FILL_OPACITY,
   emptyExtent,
   extentContains,
   extentUnion,
@@ -51,6 +60,7 @@ import {
   listSegments,
   makeDefaultSegmentName,
   maskScalars,
+  padExtent,
   toLabelmapSegment,
   type ActiveSegmentIntent,
   type Extent3D,
@@ -63,7 +73,8 @@ import {
   type SegmentVoxelAccessor,
   type VoxelStorage,
 } from '@/src/types/segmentation';
-import { isRecord, removeFromArray } from '@/src/utils';
+import { arrayEquals, isRecord, removeFromArray } from '@/src/utils';
+import { cycleColors } from '@/src/utils/color';
 import { normalize } from '@/src/utils/path';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
@@ -86,8 +97,7 @@ export type SegmentPatch = Partial<Omit<Segment, 'id' | 'representations'>>;
  *
  * `aimed` is a gesture the user pointed at a place: paint and polygon CLAIM the
  * voxel, clearing it from every unlocked neighbour, so the write always lands.
- * One shared labelmap erased a voxel's old value for free and a mask per
- * segment does not, so an aimed write clears its neighbours itself. A locked
+ * Masks are per segment, so an aimed write clears its neighbours itself. A locked
  * segment is not editable and losing a voxel is an edit, so it keeps the voxel
  * and the two segments overlap: locking is the whole opt-in for overlap.
  *
@@ -134,7 +144,7 @@ const pickUniqueSegmentName = (taken: Iterable<string>) => {
 };
 
 const sameIdentity = (a: SegmentIdentity, b: SegmentIdentity) =>
-  a.name === b.name && a.color.every((channel, i) => channel === b.color[i]);
+  a.name === b.name && arrayEquals(a.color, b.color);
 
 // The manifest references this store's remove cascade keeps clean (see the
 // onImageDeleted registration below), declared for the dev-only save backstop.
@@ -196,7 +206,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const imageCacheStore = useImageCacheStore();
 
   const segmentations = reactive<Record<string, Segmentation>>({});
-  const byParentImage = reactive<Record<string, string>>({});
   // Internal storage layer: UI and tools reach it through this store's API only.
   const artifactIndex = reactive<Record<string, vtkLabelMap>>({});
   const artifactMeta = reactive<Record<string, ArtifactMetadata>>({});
@@ -232,10 +241,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segment;
   }
 
-  function getSegmentationForImage(parentImageId: string) {
-    const id = byParentImage[parentImageId];
-    return id ? segmentations[id] : undefined;
-  }
+  const getSegmentationForImage = (parentImageId: string) =>
+    Object.values(segmentations).find(
+      (segmentation) => segmentation.parentImageId === parentImageId
+    );
 
   function ensureSegmentationForImage(parentImageId: string) {
     const existing = getSegmentationForImage(parentImageId);
@@ -248,22 +257,16 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       parentImageId,
       segments: {},
       order: [],
-      fillOpacity: 1,
+      fillOpacity: DEFAULT_SEGMENTATION_FILL_OPACITY,
       outlineOpacity: 1,
       outlineThickness: 2,
     };
-    byParentImage[parentImageId] = id;
     return segmentations[id];
   }
 
   // Deliberately separate from the decode path's cursor: decoded catalogs must
   // be reproducible regardless of how many segments this session has created.
-  let nextColorIndex = 0;
-  function getNextColor(): RGBAColor {
-    const color = CATEGORICAL_COLORS[nextColorIndex];
-    nextColorIndex = (nextColorIndex + 1) % CATEGORICAL_COLORS.length;
-    return [...color, 255] as RGBAColor;
-  }
+  const getNextColor = cycleColors(CATEGORICAL_COLORS);
 
   function createSegment(segmentationId: string, init?: SegmentInit) {
     const segmentation = getSegmentation(segmentationId);
@@ -392,6 +395,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const created: Segment[] = [];
 
     splitLabelmap(labelmap, descriptors, (descriptor, extent) => {
+      // Claimed before the segment exists: exhausting the values throws, and a
+      // segment minted first would be left in the list with no mask.
+      const labelValue = nextLabelValue(segmentation, descriptor.value);
       const segment = createSegment(segmentation.id, {
         name: descriptor.name,
         color: [...descriptor.color] as RGBAColor,
@@ -401,7 +407,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       segment.fillOpacity = descriptor.fillOpacity ?? 1;
       segment.outlineOpacity = descriptor.outlineOpacity ?? 1;
 
-      const labelValue = nextLabelValue(segmentation, descriptor.value);
       const artifactId = createArtifactForImage(
         parentImageId,
         extent,
@@ -421,13 +426,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   // labelmap must decode to the same catalog whether it came from a cold
   // restore or a live conversion, regardless of how many segments this
   // session has otherwise created.
-  let nextDecodeColorIndex = 0;
-  function getNextDecodeColor() {
-    const color = CATEGORICAL_COLORS[nextDecodeColorIndex];
-    nextDecodeColorIndex =
-      (nextDecodeColorIndex + 1) % CATEGORICAL_COLORS.length;
-    return [...color, 255] as const;
-  }
+  const getNextDecodeColor = cycleColors(CATEGORICAL_COLORS);
 
   function decodeSegments(
     imageId: DataSelection | undefined,
@@ -511,14 +510,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return binding;
   }
 
-  /** Grows one mask, in place, to cover `extent` in parent index space. */
-  function ensureArtifactContains(artifactId: string, extent: Extent3D) {
+  /**
+   * Grows one mask, in place, to cover `extent` in parent index space, with
+   * `padding` voxels of room beyond it when it has to grow at all.
+   */
+  function ensureArtifactContains(
+    artifactId: string,
+    extent: Extent3D,
+    padding = 0
+  ) {
     if (isEmptyExtent(extent)) return false;
 
     const { mask, parent } = requireArtifactContext(artifactId);
     // Refused before anything is touched, so a rejected growth leaves the mask
     // exactly as it was.
-    if (!extentContains(fullExtent(parent.getDimensions()), extent))
+    const parentExtent = fullExtent(parent.getDimensions());
+    if (!extentContains(parentExtent, extent))
       throw new Error('Extent leaves the parent image');
 
     const binding = requireArtifactBinding(artifactId);
@@ -526,9 +533,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (!isEmptyExtent(current) && extentContains(current, extent))
       return false;
 
+    const requested = clipExtent(padExtent(extent, padding), parentExtent);
     const grown = isEmptyExtent(current)
-      ? ([...extent] as Extent3D)
-      : extentUnion(current, extent);
+      ? requested
+      : extentUnion(current, requested);
     regrowMask(mask, parent, current, grown);
     binding.extent = grown;
     return true;
@@ -565,9 +573,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         data.set(scalars);
         image.modified();
       },
-      ensureContains: (extent: Extent3D) => {
+      ensureContains: (extent: Extent3D, padding = 0) => {
         requireImage();
-        return ensureArtifactContains(findArtifactId()!, extent);
+        return ensureArtifactContains(findArtifactId()!, extent, padding);
       },
     };
   }
@@ -763,7 +771,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (!segmentation) return;
 
     const { parentImageId } = segmentation;
-    delete byParentImage[parentImageId];
     delete segmentations[segmentationId];
 
     removeArtifactsForImage(parentImageId);
@@ -1121,6 +1128,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       };
     }
 
+    const { boundArtifactIds, needsDecode, needsSplit } =
+      planArtifactRestore(manifest);
+    const loadedParentImage = createParentImageLoader(
+      dataIDMap,
+      untilLoaded,
+      (id) => imageCacheStore.getVtkImageData(id) ?? undefined
+    );
+
     // Skip BEFORE awaiting anything an artifact whose parent image is
     // unresolved, or a path-less one whose datasource never materialized;
     // `untilLoaded(undefined)` never times out and would hang restore forever.
@@ -1165,11 +1180,17 @@ export const useSegmentationStore = defineStore('segmentation', () => {
               artifact,
               storeId
             );
-            const labelmap = toLabelMap(image);
-            // A migrated group that carried no descriptors is enumerated here,
-            // through the same decode live import uses, while its source image
-            // is still loaded: the temp artifact dataset is dropped below.
-            const decoded = artifact.pendingDecode
+            const labelmap = toLabelMap(
+              await restoredLabelmapImage(artifact, image, {
+                needsSplit,
+                loadedParentImage,
+                ensureSameSpace,
+              })
+            );
+            // A group that carried no descriptors is enumerated here, through
+            // the same decode live import uses, while its source image is
+            // still loaded: the temp artifact dataset is dropped below.
+            const decoded = needsDecode(artifact)
               ? ((await decodeSegments(storeId, labelmap, {
                   headerMetadata,
                 })) as LabelmapSegment[])
@@ -1205,8 +1226,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     // placeholders until it is split below; nothing reshapes its mask.
     const artifactsToSplit = new Set(
       loaded.flatMap((result) =>
-        result &&
-        (result.artifact.pendingDecode || result.artifact.pendingSplit)
+        result && needsSplit(result.artifact)
           ? [artifactIdMap[result.artifact.id]]
           : []
       )
@@ -1227,6 +1247,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     });
     skipped.push(...prepared.skipped);
     const { acceptedBindings } = prepared;
+
+    const { relabels, remap } = createLabelRemapper(
+      artifactsToSplit,
+      nextLabelValue,
+      LABELMAP_MAX_VALUE
+    );
 
     (manifest.segmentations ?? []).forEach((wire) => {
       const parentImageId = dataIDMap[wire.parentImage];
@@ -1257,11 +1283,19 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         const binding = wireSegment.representations.labelmap;
         const accepted = acceptedBindings.get(wireSegment);
         if (binding && accepted) {
-          segment.representations.labelmap = {
-            artifactId: accepted.artifactId,
-            labelValue: binding.labelValue,
-            extent: accepted.extent,
-          };
+          const labelValue = remap(
+            segmentation,
+            accepted.artifactId,
+            binding.labelValue,
+            (reason) => skipped.push({ name: wireSegment.name, reason })
+          );
+          if (labelValue !== undefined) {
+            segment.representations.labelmap = {
+              artifactId: accepted.artifactId,
+              labelValue,
+              extent: accepted.extent,
+            };
+          }
         }
         segmentIdMap[wireSegmentId] = segment.id;
       });
@@ -1271,6 +1305,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         : undefined;
       if (restoredActiveId !== undefined) setActiveSegment(restoredActiveId);
     });
+
+    relabels.forEach((mapping, artifactId) =>
+      relabelMask(artifactIndex[artifactId], mapping)
+    );
 
     // Split after the wire segmentations so a legacy group's segments follow
     // the ones the manifest named, not precede them. A migrated group holds
@@ -1374,6 +1412,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         artifactMeta[artifactId] &&
         segmentsForArtifact(artifactId).length === 0
       ) {
+        // A bound artifact that lost every segment was already reported per
+        // binding; only one nothing referenced gets a notice here.
+        if (!boundArtifactIds.has(wireArtifactId)) {
+          skipped.push({
+            name: artifactMeta[artifactId].name,
+            reason: 'labelmap holds no segments',
+          });
+        }
         removeArtifact(artifactId);
         delete artifactIdMap[wireArtifactId];
       }
@@ -1387,7 +1433,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   onImageDeleted((deleted) => {
     deleted.forEach((parentImageId) => {
       artifactNamer.forget(parentImageId);
-      const id = byParentImage[parentImageId];
+      const id = getSegmentationForImage(parentImageId)?.id;
       if (id) removeSegmentation(id);
       else removeArtifactsForImage(parentImageId);
     });
@@ -1395,7 +1441,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   return {
     segmentations,
-    byParentImage,
     artifactIndex,
     artifactMeta,
     labelmapSegmentsByArtifact,

@@ -6,6 +6,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 // ---------------------------------------------------------------------------
@@ -62,12 +63,12 @@ describe('segmentation display state', () => {
       expect(segment.outlineOpacity).toBe(1);
     });
 
-    // 1 and 2 are what the per-view segment-group config defaulted to, so a
-    // restored scene keeps the look it had before display state moved here.
-    it('gives a new segmentation identity multipliers and a 2px outline', () => {
+    // A fresh segmentation tints the anatomy under it; the outline defaults
+    // match what a legacy per-view config carried.
+    it('gives a new segmentation a translucent fill and a 2px outline', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
 
-      expect(segmentation.fillOpacity).toBe(1);
+      expect(segmentation.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
       expect(segmentation.outlineOpacity).toBe(1);
       expect(segmentation.outlineThickness).toBe(2);
     });
@@ -136,7 +137,9 @@ describe('segmentation display state', () => {
       const sibling = store().getSegment(second.id);
       expect(sibling.fillOpacity).toBe(1);
       expect(sibling.outlineOpacity).toBe(1);
-      expect(store().segmentations[segmentation.id].fillOpacity).toBe(1);
+      expect(store().segmentations[segmentation.id].fillOpacity).toBe(
+        DEFAULT_SEGMENTATION_FILL_OPACITY
+      );
     });
   });
 

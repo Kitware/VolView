@@ -13,6 +13,7 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   markedVoxels,
   maskValueAt,
+  offsetOf,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 const DIMENSIONS: [number, number, number] = [4, 4, 2];
@@ -146,7 +147,9 @@ describe('paint edit target', () => {
     store().setActiveSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
     const foreignValue = bindingOf(foreign.id)!.labelValue;
-    store().segmentVoxels(active.id).scalars()[0] = foreignValue;
+    store().segmentVoxels(active.id).scalars()[
+      offsetOf(active.id, [1, 1, 0])!
+    ] = foreignValue;
 
     usePaintToolStore().setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);

@@ -77,7 +77,7 @@ const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   k <= extent[5];
 
 /** The mask offset a parent index maps to, or undefined when it is outside. */
-function offsetOf(segmentId: string, index: Index3) {
+export function offsetOf(segmentId: string, index: Index3) {
   const binding = bindingOf(segmentId);
   if (!binding || !containsIndex(binding.extent, index)) return undefined;
   const dimensions = store().segmentVoxels(segmentId).image().getDimensions();

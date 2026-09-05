@@ -102,7 +102,7 @@ describe('segmentation store', () => {
       expect(segmentation.parentImageId).toBe('img-1');
       expect(segmentation.segments).toEqual({});
       expect(segmentation.order).toEqual([]);
-      expect(store().byParentImage['img-1']).toBe(segmentation.id);
+      expect(store().getSegmentationForImage('img-1')).toBe(segmentation);
       expect(store().segmentations[segmentation.id]).toBeTruthy();
     });
 
@@ -134,10 +134,8 @@ describe('segmentation store', () => {
       const second = store().ensureSegmentationForImage('img-2');
 
       expect(second.id).not.toBe(first.id);
-      expect(store().byParentImage).toEqual({
-        'img-1': first.id,
-        'img-2': second.id,
-      });
+      expect(store().getSegmentationForImage('img-1')?.id).toBe(first.id);
+      expect(store().getSegmentationForImage('img-2')?.id).toBe(second.id);
     });
   });
 
@@ -405,6 +403,28 @@ describe('segmentation store', () => {
     });
   });
 
+  describe('label value exhaustion', () => {
+    it('leaves no segment behind when a split runs out of values', async () => {
+      await seatImage('parent-img', 'Chest CT');
+      const segmentation = store().ensureSegmentationForImage('parent-img');
+      for (let n = 0; n < 254; n += 1) makeBoundSegment(segmentation.id);
+      const values = new Uint8Array(VOXEL_COUNT);
+      values.fill(1, 4, 12);
+      values.fill(2, 12);
+      await seatLabelValues('child-img', values);
+
+      await expect(
+        store().convertImageToLabelmap('child-img', 'parent-img')
+      ).rejects.toThrow();
+
+      const segments = segmentsOfImage('parent-img');
+      expect(segments).toHaveLength(255);
+      expect(
+        segments.every((segment) => segment.representations.labelmap)
+      ).toBe(true);
+    });
+  });
+
   describe('deleteSegment', () => {
     it('leaves the neighbour mask alone', async () => {
       await seatImage('img-1');
@@ -472,7 +492,6 @@ describe('segmentation store', () => {
       store().removeSegmentation(segmentationId);
 
       expect(Object.keys(store().segmentations)).toEqual([]);
-      expect(store().byParentImage).toEqual({});
       expect(store().getSegmentationForImage('img-1')).toBeFalsy();
       expect(Object.keys(store().artifactIndex)).toEqual([]);
       expect(Object.keys(store().artifactMeta)).toEqual([]);
@@ -492,7 +511,6 @@ describe('segmentation store', () => {
 
       expect(store().getSegmentationForImage('img-1')).toBeFalsy();
       expect(Object.keys(store().segmentations)).toEqual([]);
-      expect(store().byParentImage).toEqual({});
       expect(Object.keys(store().artifactIndex)).toEqual([]);
       expect(Object.keys(store().artifactMeta)).toEqual([]);
     });
@@ -509,7 +527,7 @@ describe('segmentation store', () => {
       await nextTick();
 
       expect(Object.keys(store().segmentations)).toEqual([kept]);
-      expect(store().byParentImage).toEqual({ 'img-2': kept });
+      expect(store().getSegmentationForImage('img-2')?.id).toBe(kept);
       expect(Object.keys(store().artifactIndex)).toEqual([
         keptSegment.binding.artifactId,
       ]);

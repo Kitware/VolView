@@ -24,6 +24,10 @@ import { useViewCameraStore } from '../view-configs/camera';
 import { useImageCacheStore } from '../image-cache';
 
 const DEFAULT_BRUSH_SIZE = 4;
+
+// Growing a mask copies the whole of it, so a stroke that has to grow it asks
+// for room beyond its footprint and the samples that follow grow nothing.
+const STROKE_GROWTH_PADDING = 16;
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [
   Number.NEGATIVE_INFINITY,
   Number.POSITIVE_INFINITY,
@@ -178,7 +182,8 @@ export const usePaintToolStore = defineStore('paint', () => {
         clipExtent(
           this.$paint.strokeBounds(axisIndex, lastIndexPoint, prevIndexPoint),
           fullExtent(parentImage.getDimensions())
-        )
+        ),
+        STROKE_GROWTH_PADDING
       );
     }
 

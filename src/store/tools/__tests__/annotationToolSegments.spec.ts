@@ -120,6 +120,23 @@ describe('shared segment identity for polygons and rectangles', () => {
     expect(store.toolByID[id].color).toBe(rgbaToCssColor([0, 0, 255, 255]));
   });
 
+  it('leaves a tool untouched by a segment change its label does not show', async () => {
+    const store = usePolygonStore();
+    const segment = makeSegment('Tumor');
+    store.setActiveLabel(segment.id);
+    const id = store.addTool({
+      imageID: IMAGE_ID,
+      placing: false,
+      label: segment.id,
+    });
+    const before = store.toolByID[id];
+
+    useSegmentationStore().updateSegment(segment.id, { visible: false });
+    await nextTick();
+
+    expect(store.toolByID[id]).toBe(before);
+  });
+
   it('shares one segment catalog between polygons and rectangles', () => {
     const polygons = usePolygonStore();
     const rectangles = useRectangleStore();

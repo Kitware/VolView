@@ -46,6 +46,24 @@ export function allocateMask(parent: vtkImageData, extent: Extent3D) {
   return mask;
 }
 
+/**
+ * Rewrites the voxels holding each key of `mapping` to its value, in place and
+ * in one pass, so values a mask holds for several segments can swap without
+ * one rewrite feeding the next.
+ */
+export function relabelMask(
+  mask: vtkLabelMap,
+  mapping: ReadonlyMap<number, number>
+) {
+  if (Array.from(mapping).every(([from, to]) => from === to)) return;
+  const values = maskScalars(mask);
+  for (let i = 0; i < values.length; i += 1) {
+    const to = mapping.get(values[i]);
+    if (to !== undefined) values[i] = to;
+  }
+  mask.modified();
+}
+
 /** Preserves the vtk image instance while replacing its scalar storage. */
 export function regrowMask(
   mask: vtkLabelMap,

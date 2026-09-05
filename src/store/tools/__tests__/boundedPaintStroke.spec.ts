@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { createApp } from 'vue';
 
 import { PaintMode } from '@/src/core/tools/paint';
+import { extentContains, fullExtent } from '@/src/types/segmentation';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
@@ -22,7 +23,8 @@ import {
 // A paint stroke against bounded masks:
 //
 //  - the stroke grows its own storage first, for the region it is about to
-//    touch, and only then captures scalars/dimensions/strides;
+//    touch plus room around it, and only then captures
+//    scalars/dimensions/strides;
 //  - the threshold predicate reads the PARENT image, whose voxel offsets are
 //    not the mask's, so it converts through the mask's extent;
 //  - writing a voxel clears it in every other UNLOCKED mask of the image; a
@@ -72,7 +74,24 @@ describe('painting into bounded masks', () => {
       strokeAt('img-1', [1, 1, 0]);
 
       expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
-      expect(extentOf(active)).toEqual([1, 1, 1, 1, 0, 0]);
+      expect(extentContains(extentOf(active)!, [1, 1, 1, 1, 0, 0])).toBe(true);
+      expect(extentContains(fullExtent(DIMENSIONS), extentOf(active)!)).toBe(
+        true
+      );
+    });
+
+    it('asks for room beyond the stroke so the next sample grows nothing', async () => {
+      await seatImage('img-1', { dimensions: [64, 64, 8] });
+      const active = activeSegment('img-1', 'Tumor');
+
+      strokeAt('img-1', [20, 20, 4]);
+      const before = store().segmentVoxels(active).scalars();
+      strokeAt('img-1', [21, 21, 4]);
+
+      expect(store().segmentVoxels(active).scalars()).toBe(before);
+      expect(extentContains(fullExtent([64, 64, 8]), extentOf(active)!)).toBe(
+        true
+      );
     });
 
     it('covers the whole interpolated stroke, not just its ends', async () => {
@@ -97,7 +116,7 @@ describe('painting into bounded masks', () => {
       const labelValue = labelValueOf(active);
       expect(maskValueAt(active, [1, 1, 0])).toBe(labelValue);
       expect(maskValueAt(active, [3, 3, 2])).toBe(labelValue);
-      expect(extentOf(active)).toEqual([1, 3, 1, 3, 0, 2]);
+      expect(extentContains(extentOf(active)!, [1, 3, 1, 3, 0, 2])).toBe(true);
     });
 
     it('clips the growth to the parent image when the brush overhangs it', async () => {
@@ -110,8 +129,7 @@ describe('painting into bounded masks', () => {
       expect(maskValueAt(active, [0, 0, 0])).toBe(labelValueOf(active));
       expect(extent[0]).toBe(0);
       expect(extent[2]).toBe(0);
-      // A stroke on one slice touches one slice.
-      expect([extent[4], extent[5]]).toEqual([0, 0]);
+      expect(extentContains(fullExtent(DIMENSIONS), extent)).toBe(true);
     });
 
     it('allocates nothing when erasing where the segment has no voxels', async () => {
@@ -165,7 +183,6 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [2, 2, 0]);
 
-      expect(extentOf(active)).toEqual([2, 3, 2, 2, 0, 0]);
       expect(maskValueAt(active, [2, 2, 0])).toBe(labelValueOf(active));
     });
 
@@ -174,7 +191,6 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [3, 2, 0]);
 
-      expect(extentOf(active)).toEqual([2, 3, 2, 2, 0, 0]);
       expect(maskValueAt(active, [3, 2, 0])).toBeFalsy();
     });
   });

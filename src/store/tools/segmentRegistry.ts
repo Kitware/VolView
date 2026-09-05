@@ -310,10 +310,15 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
   const updateTemplate = (name: string, patch: ToolLabel) => {
     const { labelName, ...rest } = patch;
     const renamed = labelName ?? name;
-    const source = configLabels.value[name] ? configLabels : sessionLabels;
-    const { [name]: existing, ...others } = source.value;
-    source.value = {
-      ...others,
+    // Config overlays session by name, so neither record keeps the old name:
+    // a shadowed session copy would resurface under it.
+    const inConfig = Boolean(configLabels.value[name]);
+    const existing = configLabels.value[name] ?? sessionLabels.value[name];
+    sessionLabels.value = omit(sessionLabels.value, name);
+    configLabels.value = omit(configLabels.value, name);
+    const target = inConfig ? configLabels : sessionLabels;
+    target.value = {
+      ...target.value,
       [renamed]: { ...existing, ...rest },
     } as Labels<Props>;
     if (activeTemplateName.value === name) setActiveLabel(templateId(renamed));

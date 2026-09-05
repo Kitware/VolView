@@ -501,6 +501,25 @@ describe('config overlays restored labels', () => {
     });
   });
 
+  it('renames a config template that overlays a session one without leaving the old name', async () => {
+    const polygons = usePolygonStore();
+    await seatAndView('img-1');
+    polygons.addLabel({ labelName: 'Tumor', color: '#00ff00' });
+    applyPostStateConfig(
+      config.parse({
+        labels: { polygonLabels: { Tumor: { color: '#ff0000' } } },
+      })
+    );
+    await nextTick();
+
+    polygons.updateLabel(labelIdNamed(polygons.labels, 'Tumor'), {
+      labelName: 'Lesion',
+    });
+    await nextTick();
+
+    expect(labelNames(polygons.labels)).toEqual(['Lesion']);
+  });
+
   it('preserves a restored ruler label under a replaced config overlay', async () => {
     const rulers = useRulerStore();
     rulers.deserializeTools(
