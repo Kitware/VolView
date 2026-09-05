@@ -132,6 +132,7 @@ import { getErrorDetail, ensureError } from '@/src/utils';
 
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useMaskRevision } from '@/src/composables/useMaskRevision';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useCropStore } from '@/src/store/tools/crop';
 import type {
@@ -538,6 +539,7 @@ const segmentationOverlaps = (segmentGroupId: string) =>
 // sweep part of the render effect and pay it again on every mask growth, which
 // is once per stroke that leaves its box, in whatever tab the user is in.
 const flattensOverlap = ref(false);
+const maskRevision = useMaskRevision();
 
 const refreshFlattensOverlap = () => {
   const model = taskModel.value;
@@ -547,12 +549,13 @@ const refreshFlattensOverlap = () => {
   flattensOverlap.value = bound.flat().some(segmentationOverlaps);
 };
 
-// A mask's box is the only reactive trace a voxel write leaves: painting inside
-// one moves nothing, so this is as fresh as the store can make the notice.
-// Debounced because a stroke grows the box again and again.
+// Boxes move when a stroke leaves one; the store's revision is what a write
+// inside a box leaves behind. Debounced because a stroke bumps both again and
+// again, and the answer costs a voxel sweep.
 const overlapSignal = () =>
   [
     currentImageID.value,
+    maskRevision.value,
     ...Object.values(segmentationStore.segmentations).map((segmentation) =>
       listSegments(segmentation)
         .map((segment) => segment.representations.labelmap?.extent.join() ?? '')

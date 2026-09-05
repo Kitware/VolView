@@ -597,10 +597,11 @@ describe('JobsModule — segment group staging', () => {
     ).toBe(false);
   });
 
-  it('does not rescan the masks when a stroke grows one', async () => {
-    // The scan walks every pair of masks voxel by voxel. Growing a mask is the
-    // one segmentation edit the store publishes reactively, so a tracked scan
-    // would run on the render path while the user paints in another tab.
+  // A holds [0, 0, 0] and B holds [1, 1, 1], so nothing overlaps until B is
+  // written at [0, 0, 0]. `reach` decides whether that write grows B's box.
+  const seedDisjointPair = async (
+    reach?: [number, number, number, number, number, number]
+  ) => {
     seedActiveImage();
     const segmentStore = useSegmentationStore();
     const segmentation = segmentStore.ensureSegmentationForImage('image-1');
@@ -608,10 +609,25 @@ describe('JobsModule — segment group staging', () => {
     const second = segmentStore.createSegment(segmentation.id, { name: 'B' });
     seedVoxel(first.id, [0, 0, 0]);
     seedVoxel(second.id, [1, 1, 1]);
+    if (reach) segmentStore.segmentVoxels(second.id).ensureContains(reach);
     segmentStore.setActiveSegment(first.id);
 
     const wrapper = await mountWithSpec(labelmapSpec(false));
     expect(overlapNotice(wrapper).exists()).toBe(false);
+    return { segmentStore, second, wrapper };
+  };
+
+  const afterDebounce = async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 300);
+    });
+    await flushPromises();
+  };
+
+  it('does not rescan the masks when a stroke grows one', async () => {
+    // The scan walks every pair of masks voxel by voxel, so a tracked one would
+    // run on the render path while the user paints in another tab.
+    const { segmentStore, second, wrapper } = await seedDisjointPair();
 
     const scans = vi.spyOn(segmentStore, 'layeredSegments');
     // Grows B's box onto the voxel A holds, which is the overlap.
@@ -620,12 +636,29 @@ describe('JobsModule — segment group staging', () => {
 
     expect(scans).not.toHaveBeenCalled();
 
-    await new Promise((resolve) => {
-      setTimeout(resolve, 300);
-    });
-    await flushPromises();
+    await afterDebounce();
 
     expect(scans).toHaveBeenCalledTimes(1);
+    expect(overlapNotice(wrapper).exists()).toBe(true);
+  });
+
+  it('rescans when a stroke overlaps inside a box it already had', async () => {
+    // Painting inside a mask's own box moves no extent, so the notice has to
+    // follow the voxels themselves as well.
+    const { segmentStore, second, wrapper } = await seedDisjointPair([
+      0, 1, 0, 1, 0, 1,
+    ]);
+
+    const extentBefore = [
+      ...segmentStore.findSegmentBinding(second.id)!.extent,
+    ];
+    seedVoxel(second.id, [0, 0, 0]);
+    expect([...segmentStore.findSegmentBinding(second.id)!.extent]).toEqual(
+      extentBefore
+    );
+
+    await afterDebounce();
+
     expect(overlapNotice(wrapper).exists()).toBe(true);
   });
 
