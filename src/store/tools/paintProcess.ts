@@ -14,6 +14,7 @@ import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '../segmentations';
+import { useSegmentTypeStore } from '../segmentTypes';
 
 export enum ProcessType {
   FillHoles = 'fillHoles',
@@ -202,6 +203,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   const segmentationStore = useSegmentationStore();
+  const segmentTypes = useSegmentTypeStore().types;
   const imageCacheStore = useImageCacheStore();
   const paintStore = usePaintToolStore();
   const messageStore = useMessageStore();
@@ -267,7 +269,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError('No active segment selected');
       return undefined;
     }
-    if (segmentationStore.getSegment(segmentId).locked) {
+    if (segmentationStore.isLocked(segmentId)) {
       messageStore.addError('Cannot process locked segment');
       return undefined;
     }
@@ -287,7 +289,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   function nothingEditable(imageId: string) {
     const segments = segmentationStore.imageSegments(imageId);
     if (segments.length === 0) return 'No segmentation to process';
-    return segments.every((segment) => segment.locked)
+    return segments.every((segment) => segmentationStore.isLocked(segment.id))
       ? 'Every segment is locked'
       : 'No unlocked segment has anything to process';
   }
@@ -460,18 +462,23 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     if (gone) cancelProcess();
   });
 
-  // A segment-scoped run belongs to the segment it was started on, so moving
-  // off that segment throws it away. An all-segments run watches no segment and
-  // outlives the selection changing under it.
+  // A segment-scoped run belongs to the type it was started on, so selecting
+  // another throws it away. An all-segments run watches nothing and outlives
+  // the selection changing under it.
   watch(
-    () => segmentationStore.activeSegmentId,
-    (segmentId) => {
+    () => segmentTypes.selectedTypeId.value,
+    (typeId) => {
       const state = processState.value;
       if (state.step !== 'computing' && state.step !== 'previewing') {
         return;
       }
-      if (state.watchedSegmentId === undefined) return;
-      if (state.watchedSegmentId === segmentId) return;
+      const watched = state.watchedSegmentId;
+      if (watched === undefined) return;
+      if (
+        segmentationStore.segmentExists(watched) &&
+        segmentationStore.getSegment(watched).typeId === typeId
+      )
+        return;
       cancelProcess();
     }
   );

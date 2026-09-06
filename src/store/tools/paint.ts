@@ -123,7 +123,7 @@ export const usePaintToolStore = defineStore('paint', () => {
       ? segmentationStore.resolveEditTarget(imageID)
       : segmentationStore.findEditTarget(imageID);
     if (!segmentId) return undefined;
-    if (segmentationStore.getSegment(segmentId).locked) return undefined;
+    if (segmentationStore.isLocked(segmentId)) return undefined;
 
     const binding = allocate
       ? segmentationStore.ensureLabelmapBinding(segmentId)

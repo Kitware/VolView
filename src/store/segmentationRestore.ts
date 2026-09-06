@@ -202,8 +202,8 @@ function candidateFor(
   if (!binding || artifactId === undefined) return undefined;
 
   const extent = [...binding.extent] as Extent3D;
-  const name =
-    state.artifactNameByWireId.get(binding.artifactId) ?? wireSegment.name;
+  // The artifact is what the user recognizes; a record has no name of its own.
+  const name = state.artifactNameByWireId.get(binding.artifactId) ?? '';
   const reject = (reason: string) => state.skipped.push({ name, reason });
 
   if (state.artifactsToSplit.has(artifactId)) {

@@ -16,14 +16,14 @@ export type LabelmapBinding = {
   extent: Extent3D; // the mask's own bounds, in parent image index space
 };
 
+/**
+ * One image's mask for one segment type. Its id is its own, distinct from the
+ * type id: everything the user sees or sets, visibility and lock included,
+ * lives on the type, so this record is storage and nothing else.
+ */
 export type Segment = {
   id: string;
-  name: string;
-  color: RGBAColor;
-  visible: boolean;
-  locked: boolean;
-  fillOpacity: number;
-  outlineOpacity: number;
+  typeId: string;
   representations: {
     // absent until voxels are allocated
     labelmap?: LabelmapBinding;
@@ -51,17 +51,6 @@ export type LabelmapSegment = {
   fillOpacity?: number;
   outlineOpacity?: number;
 };
-
-/** The descriptor a segment projects onto the label value its mask holds. */
-export const toLabelmapSegment = (segment: Segment, labelValue: number) => ({
-  value: labelValue,
-  name: segment.name,
-  color: [...segment.color] as RGBAColor,
-  visible: segment.visible,
-  locked: segment.locked,
-  fillOpacity: segment.fillOpacity,
-  outlineOpacity: segment.outlineOpacity,
-});
 
 /** vtk declares getData() as number[] | TypedArray; mask storage is typed. */
 export const maskScalars = (mask: vtkLabelMap) =>
@@ -140,25 +129,6 @@ export type SegmentVoxelAccessor = VoxelStorage & {
 export function listSegments(segmentation: Segmentation) {
   return segmentation.order.map((id) => segmentation.segments[id]);
 }
-
-/** The name and color a new segment is minted with. */
-export type SegmentIdentity = {
-  name: string;
-  color: RGBAColor;
-};
-
-/**
- * Which segment the user means, and where that intent has already landed per
- * image. Identity is held by reference to the origin segment so a rename or a
- * recolor after selection carries into a later cross-image clone; a config
- * template has no segment yet, so it carries its identity directly until the
- * first edit materializes it.
- */
-export type ActiveSegmentIntent = {
-  originSegmentId?: string;
-  template?: SegmentIdentity;
-  targetByImageId: Record<string, string>;
-};
 
 export function emptyExtent(): Extent3D {
   return [0, -1, 0, -1, 0, -1];

@@ -7,7 +7,6 @@ import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { usePolygonStore } from '@/src/store/tools/polygons';
 import type { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
@@ -20,43 +19,32 @@ import {
 import { getLPSDirections } from '@/src/utils/lps';
 
 /**
- * The labelmap a polygon rasterizes into, absent when the segment it lands in
+ * The labelmap a polygon rasterizes into, absent when the record it lands in
  * is locked. Rasterizing is itself an edit, so it routes through the one entry
- * point that resolves and creates segments: a polygon carrying no segment, or
- * one whose segment was deleted, lands in the default segment rather than
- * failing.
+ * point that resolves and creates records: a polygon carrying no type, or one
+ * whose type was deleted, lands in the selected type rather than failing.
  */
-export function resolveRasterizeTarget(
-  imageId: string,
-  segmentId: Maybe<string>
-) {
+export function resolveRasterizeTarget(imageId: string, typeId: Maybe<string>) {
   const segmentationStore = useSegmentationStore();
 
-  // A live segment owned by another image is a real inconsistency. A stale id,
-  // left on the tool when its segment was deleted, is not: it falls through to
-  // the default segment below.
-  const owner = segmentationStore.getSegmentationForImage(imageId);
-  if (
-    segmentId &&
-    !owner?.segments[segmentId] &&
-    segmentationStore.segmentExists(segmentId)
-  ) {
-    throw new Error(`Segment ${segmentId} does not belong to image ${imageId}`);
-  }
-
-  const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
+  const resolved = segmentationStore.resolveEditTarget(imageId, typeId);
   // A locked segment is not editable, the same refusal paint and the processes
   // make. Checked before storage is allocated, so a refused polygon leaves no
   // empty mask behind. A locked neighbour is a different rule and keeps the
   // voxels a fill claims, which an aimed `voxelClaim` already honours.
-  if (segmentationStore.getSegment(resolved).locked) {
+  if (segmentationStore.isLocked(resolved)) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
   }
 
   const voxels = segmentationStore.segmentVoxels(resolved);
   const binding = voxels.materialize();
-  return { ...binding, voxels, segmentId: resolved };
+  return {
+    ...binding,
+    voxels,
+    segmentId: resolved,
+    typeId: segmentationStore.getSegment(resolved).typeId,
+  };
 }
 
 function createGridAccessor(
@@ -121,13 +109,13 @@ function polygonBounds(
  */
 export function rasterizePolygon({
   imageId,
-  segmentId,
+  typeId,
   points,
   slice,
   viewAxis,
 }: {
   imageId: string;
-  segmentId: Maybe<string>;
+  typeId: Maybe<string>;
   points: Vector3[];
   slice: number;
   viewAxis: LPSAxis;
@@ -136,11 +124,9 @@ export function rasterizePolygon({
   const parent = useImageCacheStore().getVtkImageData(imageId);
   if (!parent) throw new Error('No such parent image');
 
-  // A polygon labeled with an unmaterialized template names an identity, not a
-  // segment. Rasterizing is the edit that materializes it, on this image.
-  const wanted = usePolygonStore().resolveLabelForImage(imageId, segmentId);
-  const target = resolveRasterizeTarget(imageId, wanted);
-  if (!target) return { segmentId: wanted };
+  // A refusal names the type it was given and no record: nothing was written.
+  const target = resolveRasterizeTarget(imageId, typeId);
+  if (!target) return { typeId, segmentId: undefined };
 
   const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
   const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
@@ -154,7 +140,8 @@ export function rasterizePolygon({
 
   // Copied out of the reactive tree: `toParent` below runs per filled pixel.
   const extent = [...target.voxels.binding()!.extent] as Extent3D;
-  if (isEmptyExtent(extent)) return { segmentId: target.segmentId };
+  if (isEmptyExtent(extent))
+    return { typeId: target.typeId, segmentId: target.segmentId };
 
   const toParent = (ijk: Vector3): Vector3 => [
     ijk[0] + extent[0],
@@ -191,5 +178,5 @@ export function rasterizePolygon({
 
   fillPoly(grid, points2D, target.labelValue);
   mask.modified();
-  return { segmentId: target.segmentId };
+  return { typeId: target.typeId, segmentId: target.segmentId };
 }
