@@ -2,7 +2,7 @@ import { defineComponent } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
-import SegmentEditor from '@/src/components/SegmentEditor.vue';
+import SegmentTypeEditor from '@/src/components/SegmentTypeEditor.vue';
 
 const LabelEditorStub = defineComponent({
   name: 'LabelEditor',
@@ -18,7 +18,7 @@ const TextFieldStub = defineComponent({
 });
 
 const mountEditor = () =>
-  mount(SegmentEditor, {
+  mount(SegmentTypeEditor, {
     props: {
       name: 'Tumor',
       original: 'Tumor',
@@ -26,6 +26,7 @@ const mountEditor = () =>
       invalidNames: new Set(['Tumor', 'Node']),
       fillOpacity: 1,
       outlineOpacity: 1,
+      strokeWidth: 1,
     },
     global: {
       stubs: {
@@ -36,7 +37,7 @@ const mountEditor = () =>
     },
   });
 
-describe('segment editor name validation', () => {
+describe('segment type editor name validation', () => {
   it('allows an unchanged duplicate name', () => {
     const wrapper = mountEditor();
 
@@ -45,7 +46,7 @@ describe('segment editor name validation', () => {
     expect(rule('Tumor')).toBe(true);
   });
 
-  it('rejects changing to another segment’s name', async () => {
+  it('rejects changing to another type’s name', async () => {
     const wrapper = mountEditor();
 
     await wrapper.setProps({ name: ' Node ' });

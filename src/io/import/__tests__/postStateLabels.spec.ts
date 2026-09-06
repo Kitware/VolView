@@ -7,6 +7,7 @@ import {
   recordingRestoreProcessors,
   yields,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 
 const sessionFile = () =>
@@ -16,10 +17,8 @@ const configFile = () =>
   new File(
     [
       JSON.stringify({
-        labels: {
-          rectangleLabels: {
-            Configured: { color: '#0000ff', fillColor: '#0000ff33' },
-          },
+        segmentTypes: {
+          Configured: { color: '#0000ff' },
         },
       }),
     ],
@@ -27,42 +26,53 @@ const configFile = () =>
     { type: 'application/json' }
   );
 
+const RESTORED_MANIFEST = {
+  version: '7.0.0',
+  dataSources: [],
+  segmentTypes: [
+    {
+      id: 'wire-restored',
+      name: 'Restored',
+      color: [0, 255, 0, 255] as [number, number, number, number],
+      visible: true,
+      locked: false,
+    },
+  ],
+};
+
 const setup = yields({
   type: 'stateFileSetup',
   dataSources: [],
-  manifest: { version: '7.0.0', dataSources: [] },
+  manifest: RESTORED_MANIFEST,
   stateFiles: [],
   missingFiles: [],
 });
 
-describe('post-state label config', () => {
+describe('post-state segment type config', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('applies config labels after restored templates', async () => {
+  it('applies configured types after the restored registry', async () => {
     let configWasVisibleDuringRestore = false;
     const restore = recordingRestoreProcessors({
       setup,
       completion: async () => {
-        const rectangles = useRectangleStore();
-        configWasVisibleDuringRestore = Object.values(rectangles.labels).some(
-          (label) => label.labelName === 'Configured'
-        );
-        rectangles.deserializeTools(
+        const typeIdMap = useSegmentTypeStore().deserialize(RESTORED_MANIFEST);
+        configWasVisibleDuringRestore =
+          !!useSegmentTypeStore().types.findTypeByName('Configured');
+        useRectangleStore().deserializeTools(
           {
             tools: [
               {
                 imageID: 'img-1',
-                label: 'config-label:Restored',
+                typeId: 'wire-restored',
                 placing: false,
               },
             ],
-            templates: {
-              Restored: { color: '#00ff00', fillColor: '#00ff0033' },
-            },
           },
-          { 'img-1': 'img-1' }
+          { 'img-1': 'img-1' },
+          typeIdMap
         );
       },
     });
@@ -84,15 +94,17 @@ describe('post-state label config', () => {
     );
     await nextTick();
 
+    // Restore seats its registry first; the config layers on top of it.
     expect(configWasVisibleDuringRestore).toBe(false);
-    expect(
-      Object.values(useRectangleStore().labels).map((label) => label.labelName)
-    ).toEqual(['Restored', 'Configured']);
     const rectangles = useRectangleStore();
-    expect(rectangles.toolByID[rectangles.toolIDs[0]]).toMatchObject({
-      labelName: 'Restored',
-      color: '#00ff00',
-      fillColor: '#00ff0033',
+    expect(rectangles.types.typeList.value.map((type) => type.name)).toEqual([
+      'Restored',
+      'Configured',
+    ]);
+    const tool = rectangles.toolByID[rectangles.toolIDs[0]];
+    expect(rectangles.appearanceOfTool(tool.id)).toMatchObject({
+      name: 'Restored',
+      cssColor: '#00ff00',
     });
   });
 });

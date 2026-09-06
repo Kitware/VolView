@@ -17,6 +17,8 @@ import {
   store,
   voxelCount,
   type Index3,
+  selectSegment,
+  lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
@@ -55,7 +57,7 @@ function strokeFromTo(imageId: string, from: Index3, to: Index3) {
 
 const activeSegment = (imageId: string, name: string) => {
   const segmentId = addSegment(imageId, name);
-  store().setActiveSegment(segmentId);
+  selectSegment(segmentId);
   return segmentId;
 };
 
@@ -152,7 +154,7 @@ describe('painting into bounded masks', () => {
       strokeAt('img-1', [1, 1, 0]);
 
       expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-      expect(store().activeSegmentId).toBeUndefined();
+      expect(store().findEditTarget('img-1')).toBeUndefined();
       expect(Object.keys(store().artifactIndex)).toHaveLength(0);
     });
   });
@@ -256,7 +258,7 @@ describe('painting into bounded masks', () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
       const neighbor = addSegment('img-1', 'Neighbour');
       seedVoxel(neighbor, [1, 1, 0]);
-      store().updateSegment(neighbor, { locked: true });
+      lockSegment(neighbor, true);
       const active = activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0]);
@@ -271,7 +273,7 @@ describe('painting into bounded masks', () => {
       const unlocked = addSegment('img-1', 'Unlocked');
       seedVoxel(locked, [1, 1, 0]);
       seedVoxel(unlocked, [1, 1, 0]);
-      store().updateSegment(locked, { locked: true });
+      lockSegment(locked, true);
       const active = activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0]);

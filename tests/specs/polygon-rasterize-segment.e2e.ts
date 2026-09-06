@@ -53,8 +53,10 @@ describe('Polygon rasterize target', () => {
     await AppPage.paintStrokeOnView(views2D[0]);
     await AppPage.selectTool('mdi-pentagon-outline');
 
+    // The picker lists the shared registry, so the paint stroke's type is
+    // already there and the new one is the second.
     await addLabel();
-    await renameLabel('New Label', 'Lesion');
+    await renameLabel('Segment 2', 'Lesion');
     const lesionColor = await labelColor('Lesion');
 
     await drawSquare(centerX, centerY, half);

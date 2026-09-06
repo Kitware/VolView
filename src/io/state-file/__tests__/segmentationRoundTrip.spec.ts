@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { mintType, typeOf } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -9,6 +10,7 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 
 // ---------------------------------------------------------------------------
 // The 7.0.0 wire schema round trip: a scene serializes to `segmentations` +
@@ -60,17 +62,19 @@ const makeArtifactIO = () => {
 /** Everything the round trip must preserve for one parent image. */
 const snapshot = (imageId: string) => {
   const store = useSegmentationStore();
+  const types = useSegmentTypeStore().types;
   const segmentation = store.getSegmentationForImage(imageId)!;
   return {
     name: segmentation.name,
     segments: segmentation.order.map((segmentId) => {
       const segment = segmentation.segments[segmentId];
       const binding = segment.representations.labelmap;
+      const appearance = types.appearanceOf(segment.typeId);
       return {
-        name: segment.name,
-        color: [...segment.color],
-        visible: segment.visible,
-        locked: segment.locked,
+        name: appearance.name,
+        color: [...appearance.color],
+        visible: appearance.visible,
+        locked: appearance.locked,
         binding: binding && {
           labelValue: binding.labelValue,
           extent: [...binding.extent],
@@ -83,15 +87,21 @@ const snapshot = (imageId: string) => {
   };
 };
 
-const activeSegmentSummary = () => {
+const selectedTypeSummary = () => {
+  const types = useSegmentTypeStore().types;
+  const typeId = types.selectedTypeId.value;
+  if (!typeId) return undefined;
   const store = useSegmentationStore();
-  const segmentId = store.activeSegmentId;
-  if (!segmentId) return undefined;
   return {
-    parentImage: Object.values(store.segmentations).find(
-      (segmentation) => segmentId in segmentation.segments
-    )!.parentImageId,
-    name: store.getSegment(segmentId).name,
+    // The type is image-independent; this is where it currently has a mask.
+    parentImages: Object.values(store.segmentations)
+      .filter((segmentation) =>
+        Object.values(segmentation.segments).some(
+          (segment) => segment.typeId === typeId
+        )
+      )
+      .map((segmentation) => segmentation.parentImageId),
+    name: types.appearanceOf(typeId).name,
   };
 };
 
@@ -102,9 +112,12 @@ async function buildScene() {
 
   const first = store.ensureSegmentationForImage('img-1');
   // No binding: a segment created by "add" has no voxels until a first edit.
-  const planned = store.createSegment(first.id, { name: 'Planned' });
-  store.updateSegment(planned.id, { locked: true, visible: false });
-  const tumor = store.createSegment(first.id, { name: 'Tumor' });
+  const planned = store.createSegment(first.id, mintType({ name: 'Planned' }));
+  useSegmentTypeStore().types.updateType(typeOf(planned.id), {
+    locked: true,
+    visible: false,
+  });
+  const tumor = store.createSegment(first.id, mintType({ name: 'Tumor' }));
   store.ensureLabelmapBinding(tumor.id);
   const artifactId = store.getSegment(tumor.id).representations.labelmap!
     .artifactId;
@@ -112,10 +125,13 @@ async function buildScene() {
 
   // Same name on another image: still a distinct segment.
   const second = store.ensureSegmentationForImage('img-2');
-  const otherTumor = store.createSegment(second.id, { name: 'Tumor' });
+  const otherTumor = store.createSegment(
+    second.id,
+    mintType({ name: 'Tumor' })
+  );
   store.ensureLabelmapBinding(otherTumor.id);
 
-  store.setActiveSegment(tumor.id);
+  useSegmentTypeStore().types.selectType(store.getSegment(tumor.id).typeId);
   await nextTick();
   return { store };
 }
@@ -143,12 +159,15 @@ describe('segmentation state-file round trip', () => {
       datasetFilePath: {},
     } as unknown as Manifest;
 
+    // The registry writes before the records that reference it, as the app's
+    // serializer order does.
+    useSegmentTypeStore().serialize({ zip, manifest });
     await useSegmentationStore().serialize({ zip, manifest }, io);
 
     const before = {
       first: snapshot('img-1'),
       second: snapshot('img-2'),
-      active: activeSegmentSummary(),
+      selected: selectedTypeSummary(),
     };
 
     // The wire shape is what restore reads back, so parse it first.
@@ -170,10 +189,12 @@ describe('segmentation state-file round trip', () => {
     setActivePinia(createPinia());
     await seatImage('new-1', 'CT A');
     await seatImage('new-2', 'CT B');
+    const typeIdMap = useSegmentTypeStore().deserialize(parsed);
     await useSegmentationStore().deserialize(
       parsed,
       stateFiles,
       { 'img-1': 'new-1', 'img-2': 'new-2' },
+      typeIdMap,
       {},
       io
     );
@@ -199,9 +220,9 @@ describe('segmentation state-file round trip', () => {
         },
       })),
     });
-    expect(activeSegmentSummary()).toEqual({
-      parentImage: 'new-1',
-      name: before.active!.name,
+    expect(selectedTypeSummary()).toEqual({
+      parentImages: ['new-1'],
+      name: before.selected!.name,
     });
   });
 
@@ -217,17 +238,26 @@ describe('segmentation state-file round trip', () => {
       datasetFilePath: {},
     } as unknown as Manifest;
 
+    // The registry writes before the records that reference it, as the app's
+    // serializer order does.
+    useSegmentTypeStore().serialize({ zip, manifest });
     await useSegmentationStore().serialize({ zip, manifest }, io);
 
     const wire = (manifest as any).segmentations.find(
       (segmentation: any) => segmentation.parentImage === 'img-1'
     );
+    const typeIdByName = Object.fromEntries(
+      (manifest as any).segmentTypes.map((type: any) => [type.name, type.id])
+    );
     const planned = wire.segments.find(
-      (segment: any) => segment.name === 'Planned'
+      (segment: any) => segment.typeId === typeIdByName.Planned
     );
     expect(planned.representations.labelmap).toBeUndefined();
-    expect(planned.locked).toBe(true);
-    expect(planned.visible).toBe(false);
+    // Lock and visibility ride on the type, so the record carries neither.
+    const plannedType = (manifest as any).segmentTypes.find(
+      (type: any) => type.id === typeIdByName.Planned
+    );
+    expect(plannedType).toMatchObject({ locked: true, visible: false });
     // One artifact per image, not one per segment.
     expect(
       (manifest as any).segmentationArtifacts.filter(

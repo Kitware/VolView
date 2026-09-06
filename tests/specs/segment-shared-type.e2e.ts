@@ -39,8 +39,8 @@ const paintOnViewedImage = async () => {
   await volViewPage.paintStrokeOnView(views2D[0]);
 };
 
-// Every edit makes its own segment active, and the panel lists the active
-// segment's group, so no group has to be picked by hand.
+// The panel lists the shared registry, so the rows are the same on every
+// image; what differs is which of them this image has a mask for.
 const expectSegments = async (expected: string[]) => {
   await browser.waitUntil(
     async () => {
@@ -58,7 +58,7 @@ const expectSegments = async (expected: string[]) => {
 describe('Segment identity across images', function () {
   this.timeout(240_000);
 
-  it('clones the active segment on the first edit of another image, and nowhere else', async () => {
+  it('offers one type on every image and paints it into each', async () => {
     await openUrls([ONE_CT_SLICE_DICOM, MINIMAL_DICOM]);
     await browser.waitUntil(async () => (await volumeCards().length) === 2, {
       timeout: 30000,
@@ -69,49 +69,34 @@ describe('Segment identity across images', function () {
     expect(first).toBeGreaterThanOrEqual(0);
     const second = first === 0 ? 1 : 0;
 
-    // A named segment on the first image, then selected: selection is what
-    // states the intent the other image inherits.
+    // A named type, painted on the first image.
     await volViewPage.activatePaint();
     await paintOnViewedImage();
     await openAnnotationSegments();
     await expectSegments(['Segment 1']);
     await addSegment();
     await renameSegment('Segment 2', 'Tumor');
-    await selectSegment('Segment 1');
     await selectSegment('Tumor');
     const tumorColor = await segmentColor('Tumor');
 
-    // Viewing the other image is not an edit, so it gets nothing.
+    // The registry is image-independent, so viewing the other image offers
+    // exactly the same types, and creates nothing.
     await showImage(second);
-    expect(await segmentNames()).toEqual([]);
+    await expectSegments(['Segment 1', 'Tumor']);
     expect(await volViewPage.getNotificationsCount()).toEqual(0);
 
-    // The first edit there clones the name and color into a segment of its own.
-    await browser.waitUntil(
-      async () => {
-        await paintOnViewedImage();
-        return (await segmentNames()).length === 1;
-      },
-      {
-        timeout: 30000,
-        interval: 1000,
-        timeoutMsg: 'Expected painting to give this image a segment group',
-      }
-    );
-    await expectSegments(['Tumor']);
-    expect(await segmentColor('Tumor')).toEqual(tumorColor);
-
-    // Back on the first image the edit lands on the segment it already has.
-    await showImage(first);
+    // Painting there writes into this image's own mask for the same type.
     await paintOnViewedImage();
     await expectSegments(['Segment 1', 'Tumor']);
+    expect(await segmentColor('Tumor')).toEqual(tumorColor);
 
-    // The clone is its own segment, so renaming the source stays local.
+    // Renaming the type renames it everywhere, because it is one type.
     await renameSegment('Tumor', 'Tumor A');
     await expectSegments(['Segment 1', 'Tumor A']);
 
-    await showImage(second);
+    await showImage(first);
+    await expectSegments(['Segment 1', 'Tumor A']);
     await paintOnViewedImage();
-    await expectSegments(['Tumor']);
+    await expectSegments(['Segment 1', 'Tumor A']);
   });
 });

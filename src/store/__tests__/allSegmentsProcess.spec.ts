@@ -19,6 +19,8 @@ import {
   seatImage,
   store,
   type Index3,
+  selectSegment,
+  lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
@@ -161,7 +163,7 @@ describe('a process running over every segment', () => {
     async (_name, locked) => {
       const ring = segmentAt('Ring', ringAround(1, 1));
       const inside = segmentAt('Inside', [[1, 1]]);
-      store().updateSegment(inside, { locked });
+      lockSegment(inside, locked);
 
       await runOverEverySegment();
       usePaintProcessStore().confirmProcess();
@@ -189,7 +191,7 @@ describe('a process running over every segment', () => {
   it('skips a locked segment, which is not editable', async () => {
     const locked = segmentAt('Locked', ringAround(1, 1));
     const open = segmentAt('Open', ringAround(5, 5));
-    store().updateSegment(locked, { locked: true });
+    lockSegment(locked, true);
 
     await runOverEverySegment();
     usePaintProcessStore().confirmProcess();
@@ -271,10 +273,10 @@ describe('a process running over every segment', () => {
     // is not part of its target and moving off it takes nothing away.
     const left = segmentAt('Left', ringAround(1, 1));
     const right = segmentAt('Right', ringAround(5, 5));
-    store().setActiveSegment(left);
+    selectSegment(left);
 
     await runOverEverySegment();
-    store().setActiveSegment(right);
+    selectSegment(right);
     await nextTick();
 
     expect(usePaintProcessStore().processState.step).toBe('previewing');
@@ -287,7 +289,7 @@ describe('a process running over every segment', () => {
     // the preview would otherwise write back into dead storage.
     const left = segmentAt('Left', ringAround(1, 1));
     const right = segmentAt('Right', ringAround(5, 5));
-    store().setActiveSegment(left);
+    selectSegment(left);
 
     await runOverEverySegment();
     store().deleteSegment(right);

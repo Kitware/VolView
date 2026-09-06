@@ -60,8 +60,7 @@ const segmentationBoundTo = (artifactId: string) => ({
   segments: [
     {
       id: 'segment-1',
-      name: 'Tumor',
-      color: [255, 0, 0, 255],
+      typeId: 'type-1',
       visible: true,
       locked: false,
       representations: {
@@ -259,7 +258,7 @@ describe('state-file serialization resilience', () => {
     warnSpy.mockRestore();
   });
 
-  it('round-trips a locked segment and the active segment', () => {
+  it('round-trips a locked record, its registry and the selection', () => {
     const manifest = {
       version: MANIFEST_VERSION,
       datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
@@ -280,10 +279,7 @@ describe('state-file serialization resilience', () => {
           segments: [
             {
               id: 'segment-1',
-              name: 'Segment 1',
-              color: [255, 0, 0, 255],
-              visible: true,
-              locked: true,
+              typeId: 'type-1',
               representations: {
                 labelmap: {
                   artifactId: 'artifact-1',
@@ -294,20 +290,40 @@ describe('state-file serialization resilience', () => {
             },
           ],
           order: ['segment-1'],
-          activeSegment: 'segment-1',
         },
       ],
+      segmentTypes: [
+        {
+          id: 'type-1',
+          name: 'Segment 1',
+          color: [255, 0, 0, 255],
+          visible: true,
+          locked: true,
+        },
+      ],
+      selectedSegmentType: 'type-1',
     } as unknown as Manifest;
 
     const normalized = normalizeManifest(manifest, new JSZip()) as any;
     const segmentation = normalized.manifest.segmentations[0];
-    expect(segmentation.segments[0].locked).toBe(true);
+    expect(segmentation.segments[0].typeId).toBe('type-1');
     expect(segmentation.segments[0].representations.labelmap).toEqual({
       artifactId: 'artifact-1',
       labelValue: 1,
       extent: [0, 3, 0, 3, 0, 3],
     });
-    expect(segmentation.activeSegment).toBe('segment-1');
+    // The registry and the selection survive normalization beside the records.
+    // Lock rides on the type, so the record is storage and nothing else.
+    expect(normalized.manifest.segmentTypes).toEqual([
+      {
+        id: 'type-1',
+        name: 'Segment 1',
+        color: [255, 0, 0, 255],
+        visible: true,
+        locked: true,
+      },
+    ]);
+    expect(normalized.manifest.selectedSegmentType).toBe('type-1');
   });
 
   it('unbinds a segment whose artifact was omitted', () => {

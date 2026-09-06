@@ -11,6 +11,7 @@ import {
   seedVoxel,
   store,
   type Index3,
+  lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import type { Extent3D } from '@/src/types/segmentation';
 
@@ -146,7 +147,7 @@ describe('clearing the other segments of an image', () => {
 
   it('leaves a locked segment holding the voxel', () => {
     const { tumor, node } = pairAt([1, 1, 1]);
-    store().updateSegment(tumor, { locked: true });
+    lockSegment(tumor, true);
 
     clearFor(node)?.(1, 1, 1);
 
@@ -161,7 +162,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(locked, [1, 1, 1]);
     seedVoxel(unlocked, [1, 1, 1]);
     seedVoxel(painting, [1, 1, 1]);
-    store().updateSegment(locked, { locked: true });
+    lockSegment(locked, true);
 
     clearFor(painting)?.(1, 1, 1);
 
@@ -171,9 +172,9 @@ describe('clearing the other segments of an image', () => {
 
   it('reads the locks once, when the clearer is made', () => {
     const { tumor, node } = pairAt([1, 1, 1]);
-    store().updateSegment(tumor, { locked: true });
+    lockSegment(tumor, true);
     const clear = clearFor(node);
-    store().updateSegment(tumor, { locked: false });
+    lockSegment(tumor, false);
 
     clear?.(1, 1, 1);
 

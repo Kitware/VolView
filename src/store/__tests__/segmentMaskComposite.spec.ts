@@ -4,6 +4,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import {
   listSegments,
@@ -22,7 +23,12 @@ import {
   store,
   voxelCount,
   type Index3,
+  typeOf,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+
+/** A record shows the name and color of the type it references. */
+const appearanceOf = (segment: { typeId: string }) =>
+  useSegmentTypeStore().types.appearanceOf(segment.typeId);
 
 // ---------------------------------------------------------------------------
 // The two directions between N bounded masks and one parent-shaped labelmap.
@@ -146,6 +152,7 @@ describe('composing the segments of an image into one labelmap', () => {
     const { labelmap, segments } = store().compositeLabelmap('img-1');
     const scalars = maskScalars(labelmap);
 
+    // These are labelmap descriptors, which carry the resolved name already.
     expect(segments.map((segment) => segment.name)).toEqual([
       'Unbound',
       'Empty',
@@ -172,7 +179,7 @@ describe('composing the segments of an image into one labelmap', () => {
     const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
-    store().updateSegment(node, { visible: false });
+    useSegmentTypeStore().types.updateType(typeOf(node), { visible: false });
 
     const { segments } = store().compositeLabelmap('img-1');
 
@@ -254,9 +261,9 @@ describe('grouping the segments that cannot share one labelmap', () => {
 
     const groups = store().layeredSegments('img-1');
 
-    expect(groups.map((group) => group.map((segment) => segment.name))).toEqual(
-      [['Under'], ['Over']]
-    );
+    expect(
+      groups.map((group) => group.map((segment) => appearanceOf(segment).name))
+    ).toEqual([['Under'], ['Over']]);
     expect(compositeScalars('img-1', groups[0])[parentOffset(1, 1, 1)]).toBe(
       labelValueOf(under)
     );
@@ -277,7 +284,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     expect(
       store()
         .layeredSegments('img-1')
-        .map((group) => group.map((segment) => segment.name))
+        .map((group) => group.map((segment) => appearanceOf(segment).name))
     ).toEqual([['Under', 'Apart'], ['Over']]);
   });
 
@@ -360,10 +367,9 @@ describe('splitting an imported labelmap into bounded masks', () => {
     ]);
 
     const segmentation = store().getSegmentationForImage('parent-img')!;
-    expect(listSegments(segmentation).map((segment) => segment.name)).toEqual([
-      'Tumor 1',
-      'Tumor 3',
-    ]);
+    expect(
+      listSegments(segmentation).map((segment) => appearanceOf(segment).name)
+    ).toEqual(['Tumor 1', 'Tumor 3']);
     expect(segmentIdsOf('parent-img').map(labelValueOf)).toEqual([1, 3]);
   });
 

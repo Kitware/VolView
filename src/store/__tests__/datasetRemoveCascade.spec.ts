@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -7,6 +8,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { useCropStore } from '@/src/store/tools/crop';
@@ -61,7 +63,7 @@ const makeRuler = (imageID: string) =>
 const seatSegmentMask = (imageId: string) => {
   const segmentations = useSegmentationStore();
   const segmentationId = segmentations.ensureSegmentationForImage(imageId).id;
-  const segmentId = segmentations.createSegment(segmentationId).id;
+  const segmentId = segmentations.createSegment(segmentationId, mintType()).id;
   const { artifactId } = segmentations.segmentVoxels(segmentId).materialize();
   return { segmentationId, segmentId, artifactId };
 };
@@ -87,9 +89,12 @@ describe('dataset remove — synchronous reference cascade', () => {
     const segmentations = useSegmentationStore();
     const first = seatSegmentMask('img-1');
     const rest = ['A', 'B'].map((name) => {
-      const segment = segmentations.createSegment(first.segmentationId, {
-        name,
-      });
+      const segment = segmentations.createSegment(
+        first.segmentationId,
+        mintType({
+          name,
+        })
+      );
       return segmentations.segmentVoxels(segment.id).materialize().artifactId;
     });
     const artifactIds = [first.artifactId, ...rest];
@@ -184,16 +189,18 @@ describe('dataset remove — synchronous reference cascade', () => {
     expect('img-1' in cropStore.croppingByImageID).toBe(false);
   });
 
-  it('clears the active segment when its parent image is removed', () => {
+  it('removes the records of a deleted image and keeps their type', () => {
     seatImage('img-1', 'CT');
     const segmentationStore = useSegmentationStore();
     const { segmentId } = seatSegmentMask('img-1');
-    segmentationStore.setActiveSegment(segmentId);
-    expect(segmentationStore.activeSegmentId).toBe(segmentId);
+    const { typeId } = segmentationStore.getSegment(segmentId);
+    useSegmentTypeStore().types.selectType(typeId);
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentationStore.activeSegmentId).toBeUndefined();
+    expect(segmentationStore.segmentExists(segmentId)).toBe(false);
+    // A type outlives the images it was painted on, so it stays selected.
+    expect(useSegmentTypeStore().types.selectedTypeId.value).toBe(typeId);
   });
 
   it('leaves references to OTHER datasets intact', () => {

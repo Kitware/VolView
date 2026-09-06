@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -42,7 +43,7 @@ function addSegment(imageId: string, name?: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
   const segment = store().createSegment(
     segmentation.id,
-    name ? { name } : undefined
+    mintType(name ? { name } : undefined)
   );
   return { segmentationId: segmentation.id, segmentId: segment.id };
 }

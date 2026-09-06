@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -42,7 +43,10 @@ async function seatImage(id: string, name = 'CT') {
 /** A segment grown to the whole parent image, and the mask that holds it. */
 function seatArtifact(imageId: string, values = new Uint8Array(VOXEL_COUNT)) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  const segment = store().createSegment(segmentation.id, { name: 'Tumor' });
+  const segment = store().createSegment(
+    segmentation.id,
+    mintType({ name: 'Tumor' })
+  );
   const voxels = store().segmentVoxels(segment.id);
   const { artifactId } = voxels.materialize();
   voxels.ensureContains(FULL_EXTENT);

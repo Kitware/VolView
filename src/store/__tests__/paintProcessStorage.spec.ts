@@ -8,6 +8,11 @@ import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import {
+  selectSegment,
+  mintType,
+  lockSegment,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   usePaintProcessStore,
@@ -56,20 +61,26 @@ function addTestSegment(
   // Label values are minted per image, so the ones below the wanted value are
   // taken by placeholder segments.
   for (let value = 1; value < labelValue; value += 1) {
-    const filler = segmentationStore.createSegment(segmentation.id, {
-      name: `Filler ${value}`,
-    });
+    const filler = segmentationStore.createSegment(
+      segmentation.id,
+      mintType({
+        name: `Filler ${value}`,
+      })
+    );
     segmentationStore.segmentVoxels(filler.id).materialize();
   }
 
-  const segment = segmentationStore.createSegment(segmentation.id, {
-    name: 'Segment 1',
-  });
+  const segment = segmentationStore.createSegment(
+    segmentation.id,
+    mintType({
+      name: 'Segment 1',
+    })
+  );
   const voxels = segmentationStore.segmentVoxels(segment.id);
   const { artifactId } = voxels.materialize();
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
   voxels.apply(values);
-  segmentationStore.setActiveSegment(segment.id);
+  selectSegment(segment.id);
 
   return {
     segmentationId: segmentation.id,
@@ -82,7 +93,10 @@ function addTestSegment(
 /** Another segment of the same image, grown to the same two voxels. */
 function addBoundSegment(segmentationId: string, name: string) {
   const segmentationStore = useSegmentationStore();
-  const segment = segmentationStore.createSegment(segmentationId, { name });
+  const segment = segmentationStore.createSegment(
+    segmentationId,
+    mintType({ name })
+  );
   const voxels = segmentationStore.segmentVoxels(segment.id);
   const { labelValue } = voxels.materialize();
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
@@ -189,10 +203,13 @@ describe('paint process storage', () => {
         new Uint8Array([1, 0])
       );
       const locked = addBoundSegment(segmentationId, 'Locked');
-      segmentationStore.updateSegment(locked.segmentId, { locked: true });
-      const empty = segmentationStore.createSegment(segmentationId, {
-        name: 'Empty',
-      });
+      lockSegment(locked.segmentId, true);
+      const empty = segmentationStore.createSegment(
+        segmentationId,
+        mintType({
+          name: 'Empty',
+        })
+      );
       segmentationStore.segmentVoxels(empty.id).materialize();
 
       const seen = await allSegmentsTargets();

@@ -5,7 +5,9 @@ import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import type { Extent3D } from '@/src/types/segmentation';
+import type { SegmentTypeInit } from '@/src/types/segmentType';
 
 /** A point in the PARENT image's index space, which is where extents live. */
 export type Index3 = [number, number, number];
@@ -54,11 +56,37 @@ export async function seatImage(id: string, options: SeatOptions = {}) {
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 
-/** A segment with no storage: adding a segment never allocates voxels. */
+/** A type minted straight into the shared registry, named or not. */
+export const mintType = (init: SegmentTypeInit | string = {}) =>
+  useSegmentTypeStore().types.mintType(
+    typeof init === 'string' ? { name: init } : init
+  );
+
+/** A record with no storage: adding one never allocates voxels. */
 export function addSegment(imageId: string, name?: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  return store().createSegment(segmentation.id, name ? { name } : undefined).id;
+  return store().createSegment(segmentation.id, mintType(name)).id;
 }
+
+/** This image's record for a type, created without changing the selection. */
+export const recordFor = (imageId: string, typeId: string) =>
+  store().getSegment(store().resolveEditTarget(imageId, typeId));
+
+/** The type a record delineates. */
+export const typeOf = (segmentId: string) =>
+  store().getSegment(segmentId).typeId;
+
+/** Locks the type a record delineates, which is what refuses an edit. */
+export const lockSegment = (segmentId: string, locked = true) =>
+  useSegmentTypeStore().types.updateType(typeOf(segmentId), { locked });
+
+/** Selects the type a record delineates, which is what an edit targets. */
+export const selectSegment = (segmentId: string) =>
+  useSegmentTypeStore().types.selectType(store().getSegment(segmentId).typeId);
+
+/** The record an edit on this image would land in, without creating one. */
+export const selectedSegment = (imageId: string) =>
+  store().findEditTarget(imageId);
 
 export const bindingOf = (segmentId: string) =>
   store().segmentVoxels(segmentId).binding();

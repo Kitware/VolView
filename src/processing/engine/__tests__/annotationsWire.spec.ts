@@ -216,7 +216,6 @@ describe('encodeAnnotationsFile', () => {
               labelName: 'lesion',
               color: '#00ff00',
               strokeWidth: 1,
-              fillColor: '#00ff0033',
             },
           },
         },
@@ -227,23 +226,23 @@ describe('encodeAnnotationsFile', () => {
       lesion: { color: '#ff0000', strokeWidth: 2 },
     });
     expect(file.labels!.rectangles).toEqual({
-      lesion: { color: '#00ff00', strokeWidth: 1, fillColor: '#00ff0033' },
+      lesion: { color: '#00ff00', strokeWidth: 1 },
     });
   });
 
-  it('keeps a rectangle fill style in the label namespace, never on the tool', () => {
+  // Fill color is a per-shape prop, not something a segment type states, so
+  // neither the tool nor its label namespace carries one.
+  it('writes no rectangle fill style at all', () => {
     const file = encodeAnnotationsFile(
       viewOf({
         rectangles: {
           tools: [sessionRuler({ name: 'Rectangle' })],
-          labels: {
-            'rect-label': { labelName: 'lesion', fillColor: '#00ff0033' },
-          },
+          labels: { 'rect-label': { labelName: 'lesion', color: '#00ff00' } },
         },
       })
     );
     expect(file.tools.rectangles![0]).not.toHaveProperty('fillColor');
-    expect(file.labels!.rectangles!.lesion.fillColor).toBe('#00ff0033');
+    expect(file.labels!.rectangles!.lesion).not.toHaveProperty('fillColor');
   });
 
   it('prunes label namespaces to the names the tools reference', () => {
@@ -508,7 +507,7 @@ describe('decodeAnnotationsFile', () => {
       rectangles: {
         tools: [sessionRuler({ name: 'Rectangle' })],
         labels: {
-          'rect-label': { labelName: 'lesion', fillColor: '#00ff0033' },
+          'rect-label': { labelName: 'lesion', color: '#00ff00' },
         },
       },
       polygons: {

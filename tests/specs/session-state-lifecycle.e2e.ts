@@ -100,7 +100,7 @@ describe('Session state lifecycle', () => {
     await waitForNamedSegments();
   });
 
-  it('edited label strokeWidth persists through save/load cycle', async () => {
+  it('edited type strokeWidth persists through save/load cycle', async () => {
     await loadSession();
 
     const editedStrokeWidth = 9;
@@ -115,7 +115,7 @@ describe('Session state lifecycle', () => {
 
     await waitForElementCount('button[data-testid="edit-label-button"]');
 
-    // The list shows every segment on the image, so pick the one the session's
+    // The list shows every type in the registry, so pick the one the session's
     // rectangle actually carries rather than the first chip.
     const labelChip = await $(`.v-chip*=${RECTANGLE_LABEL_NAME}`);
     await labelChip.waitForDisplayed();
@@ -137,10 +137,18 @@ describe('Session state lifecycle', () => {
     await volViewPage.waitForViews();
 
     const { manifest: reloadedManifest } = await saveAndParseManifest();
+    // Stroke width belongs to the type the rectangle names, not to the shape.
     const tools = reloadedManifest.tools as {
-      rectangles: { tools: Array<{ strokeWidth: number }> };
+      rectangles: { tools: Array<{ typeId: string }> };
     };
-    expect(tools.rectangles.tools[0].strokeWidth).toEqual(editedStrokeWidth);
+    const segmentTypes = reloadedManifest.segmentTypes as Array<{
+      id: string;
+      strokeWidth?: number;
+    }>;
+    const carried = segmentTypes.find(
+      (type) => type.id === tools.rectangles.tools[0].typeId
+    );
+    expect(carried?.strokeWidth).toEqual(editedStrokeWidth);
   });
 
   it('sanitizes stored labelmap names when saving them into the session zip', async () => {

@@ -11,7 +11,9 @@ import {
   type Index3,
   seatImage as seatFixtureImage,
   store,
+  mintType,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useViewStore } from '@/src/store/views';
 
 // ---------------------------------------------------------------------------
@@ -53,8 +55,8 @@ const ChipListStub = defineComponent({
 
 const BtnStub = defineComponent({
   name: 'VBtn',
-  props: ['icon'],
-  template: `<button :data-icon="icon"><slot name="prepend" /><slot /></button>`,
+  props: ['icon', 'disabled'],
+  template: `<button :data-icon="icon" :disabled="disabled || undefined"><slot name="prepend" /><slot /></button>`,
 });
 
 const SaveDialogStub = defineComponent({
@@ -77,7 +79,7 @@ const DialogHostStub = (name: string) =>
 const globalOptions = {
   stubs: {
     EditableChipList: ChipListStub,
-    SegmentEditor: { template: '<div class="segment-editor" />' },
+    SegmentTypeEditor: { template: '<div class="segment-editor" />' },
     SaveSegmentGroupDialog: SaveDialogStub,
     IsolatedDialog: DialogHostStub('IsolatedDialog'),
     CloseableDialog: DialogHostStub('CloseableDialog'),
@@ -85,7 +87,7 @@ const globalOptions = {
     ColorDot: { props: ['color'], template: '<span class="color-dot" />' },
     VBtn: BtnStub,
     VIcon: { template: '<i class="icon"><slot /></i>' },
-    VTooltip: { template: '<span />' },
+    VTooltip: { template: '<span class="tooltip"><slot /></span>' },
     VMenu: {
       template: '<div><slot name="activator" :props="{}" /><slot /></div>',
     },
@@ -113,16 +115,18 @@ describe('saving from the flat segment panel', () => {
     await viewImage('img-1');
   });
 
-  it('offers no save affordance for an image with no segmentation', async () => {
+  it('offers the save affordance disabled, saying why, until something is painted', async () => {
     const wrapper = mountList();
     await nextTick();
 
-    expect(saveButton(wrapper).exists()).toBe(false);
+    expect(saveButton(wrapper).exists()).toBe(true);
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Nothing is painted on this image yet');
   });
 
   it('offers one save affordance once the viewed image has segments', async () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, { name: 'Tumor' });
+    store().createSegment(segmentation.id, mintType({ name: 'Tumor' }));
     const wrapper = mountList();
     await nextTick();
 
@@ -133,7 +137,7 @@ describe('saving from the flat segment panel', () => {
 
   it('opens the save dialog on the viewed image segmentation', async () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, { name: 'Tumor' });
+    store().createSegment(segmentation.id, mintType({ name: 'Tumor' }));
     const wrapper = mountList();
     await nextTick();
 
@@ -146,13 +150,16 @@ describe('saving from the flat segment panel', () => {
     expect(saveDialog(wrapper).props('id')).toBe(segmentation.id);
   });
 
-  it('follows the viewed image rather than the active segment', async () => {
+  it('follows the viewed image rather than the selected type', async () => {
     const first = store().ensureSegmentationForImage('img-1');
-    store().createSegment(first.id, { name: 'Tumor' });
+    store().createSegment(first.id, mintType({ name: 'Tumor' }));
     const second = store().ensureSegmentationForImage('img-2');
-    const onSecond = store().createSegment(second.id, { name: 'Node' });
-    // The active segment lives on the image that is NOT being viewed.
-    store().setActiveSegment(onSecond.id);
+    const onSecond = store().createSegment(
+      second.id,
+      mintType({ name: 'Node' })
+    );
+    // The selected type has its mask on the image that is NOT being viewed.
+    useSegmentTypeStore().types.selectType(onSecond.typeId);
     const wrapper = mountList();
     await nextTick();
 

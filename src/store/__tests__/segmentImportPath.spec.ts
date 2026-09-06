@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -10,8 +11,13 @@ import { applyPreStateConfig, config } from '@/src/io/import/configJson';
 import type { Manifest } from '@/src/io/state-file/schema';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { listSegments } from '@/src/types/segmentation';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
+
+/** A record shows the name and color of the type it references. */
+const appearanceOf = (segment: { typeId: string }) =>
+  useSegmentTypeStore().types.appearanceOf(segment.typeId);
 
 // ---------------------------------------------------------------------------
 // The import and decode path SURVIVES the deletion of the segment group store.
@@ -86,8 +92,8 @@ const segmentsOf = (imageId: string) => {
 
 const describedBy = (imageId: string) =>
   segmentsOf(imageId).map((segment) => ({
-    name: segment.name,
-    color: [...segment.color],
+    name: appearanceOf(segment).name,
+    color: [...appearanceOf(segment).color],
     labelValue: segment.representations.labelmap?.labelValue,
   }));
 
@@ -116,7 +122,9 @@ async function seatConvertible() {
 async function convertedColors() {
   await seatConvertible();
   await store().convertImageToLabelmap('child-img', 'parent-img');
-  return segmentsOf('parent-img').map((segment) => [...segment.color]);
+  return segmentsOf('parent-img').map((segment) => [
+    ...appearanceOf(segment).color,
+  ]);
 }
 
 describe('the import path answers on the segmentation store', () => {
@@ -130,7 +138,7 @@ describe('the import path answers on the segmentation store', () => {
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
     const segments = segmentsOf('parent-img');
-    expect(segments.map((segment) => segment.name)).toEqual([
+    expect(segments.map((segment) => appearanceOf(segment).name)).toEqual([
       'Tumor 1',
       'Tumor 2',
     ]);
@@ -205,10 +213,9 @@ describe('the import path answers on the segmentation store', () => {
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
-    expect(segmentsOf('parent-img').map((segment) => segment.name)).toEqual([
-      'liver 1',
-      'liver 2',
-    ]);
+    expect(
+      segmentsOf('parent-img').map((segment) => appearanceOf(segment).name)
+    ).toEqual(['liver 1', 'liver 2']);
   });
 
   it('numbers nothing when the import holds a single label value', async () => {
@@ -219,9 +226,9 @@ describe('the import path answers on the segmentation store', () => {
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
-    expect(segmentsOf('parent-img').map((segment) => segment.name)).toEqual([
-      'liver',
-    ]);
+    expect(
+      segmentsOf('parent-img').map((segment) => appearanceOf(segment).name)
+    ).toEqual(['liver']);
   });
 
   it('decodes a labelmap the restore path already holds', async () => {
@@ -276,7 +283,9 @@ describe('the decode colour cursor after the merge', () => {
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
     expect(
-      segmentsOf('parent-img').map((segment) => [...segment.color])
+      segmentsOf('parent-img').map((segment) => [
+        ...appearanceOf(segment).color,
+      ])
     ).toEqual([categorical(0), categorical(1)]);
   });
 
@@ -287,7 +296,7 @@ describe('the decode colour cursor after the merge', () => {
     await seat('other-img', 'MR');
     const other = store().ensureSegmentationForImage('other-img');
     ['A', 'B', 'C'].forEach((name) =>
-      store().createSegment(other.id, { name })
+      store().createSegment(other.id, mintType({ name }))
     );
     expect(await convertedColors()).toEqual([categorical(0), categorical(1)]);
   });
@@ -301,9 +310,9 @@ describe('the decode colour cursor after the merge', () => {
     await store().convertImageToLabelmap('child-a', 'parent-a');
     await store().convertImageToLabelmap('child-b', 'parent-b');
 
-    expect(segmentsOf('parent-b').map((segment) => [...segment.color])).toEqual(
-      [categorical(2), categorical(3)]
-    );
+    expect(
+      segmentsOf('parent-b').map((segment) => [...appearanceOf(segment).color])
+    ).toEqual([categorical(2), categorical(3)]);
 
     setActivePinia(createPinia());
 

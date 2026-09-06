@@ -34,7 +34,11 @@ import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { seedVoxel } from '@/src/store/__tests__/segmentMaskFixtures';
+import {
+  seedVoxel,
+  mintType,
+  selectSegment,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -494,18 +498,24 @@ describe('JobsModule — segment group staging', () => {
     const store = useSegmentationStore();
     const segmentation = store.ensureSegmentationForImage('image-1');
     segmentation.name = name;
-    const segment = store.createSegment(segmentation.id, { name: 'Tumor' });
+    const segment = store.createSegment(
+      segmentation.id,
+      mintType({ name: 'Tumor' })
+    );
     store.segmentVoxels(segment.id).materialize();
-    store.setActiveSegment(segment.id);
+    selectSegment(segment.id);
     return { segmentationId: segmentation.id, segmentId: segment.id };
   };
 
   // Two segments claiming one voxel: what a single staged file cannot carry.
   const seedOverlappingSegments = () => {
     const { segmentationId, segmentId } = seedSegmentation('Overlap');
-    const second = useSegmentationStore().createSegment(segmentationId, {
-      name: 'Node',
-    });
+    const second = useSegmentationStore().createSegment(
+      segmentationId,
+      mintType({
+        name: 'Node',
+      })
+    );
     seedVoxel(segmentId, [1, 1, 1]);
     seedVoxel(second.id, [1, 1, 1]);
   };
@@ -605,12 +615,18 @@ describe('JobsModule — segment group staging', () => {
     seedActiveImage();
     const segmentStore = useSegmentationStore();
     const segmentation = segmentStore.ensureSegmentationForImage('image-1');
-    const first = segmentStore.createSegment(segmentation.id, { name: 'A' });
-    const second = segmentStore.createSegment(segmentation.id, { name: 'B' });
+    const first = segmentStore.createSegment(
+      segmentation.id,
+      mintType({ name: 'A' })
+    );
+    const second = segmentStore.createSegment(
+      segmentation.id,
+      mintType({ name: 'B' })
+    );
     seedVoxel(first.id, [0, 0, 0]);
     seedVoxel(second.id, [1, 1, 1]);
     if (reach) segmentStore.segmentVoxels(second.id).ensureContains(reach);
-    segmentStore.setActiveSegment(first.id);
+    selectSegment(first.id);
 
     const wrapper = await mountWithSpec(labelmapSpec(false));
     expect(overlapNotice(wrapper).exists()).toBe(false);

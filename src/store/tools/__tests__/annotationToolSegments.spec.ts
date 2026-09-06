@@ -5,14 +5,17 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
-import { TOOL_COLORS } from '@/src/config';
+import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
 import { rgbaToCssColor } from '@/src/types/segmentation';
 
 const IMAGE_ID = 'img-1';
+
+const types = () => useSegmentTypeStore().types;
 
 const seatAndView = (id: string) => {
   useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
@@ -22,206 +25,173 @@ const seatAndView = (id: string) => {
   return useSegmentationStore().ensureSegmentationForImage(id);
 };
 
-const makeSegment = (name: string, color?: [number, number, number, number]) =>
-  useSegmentationStore().createSegment(
-    useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.id,
-    { name, ...(color ? { color } : {}) }
-  );
+const recordsOf = (imageId: string) =>
+  useSegmentationStore().getSegmentationForImage(imageId)!.order;
 
-describe('shared segment identity for polygons and rectangles', () => {
+describe('shape references to segment types', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);
   });
 
-  it('lists the viewed image’s segments', () => {
+  it('lists every type in the shared registry, content or not', () => {
     const store = usePolygonStore();
-    const segment = makeSegment('Tumor');
+    const typeId = types().addType({ name: 'Tumor' });
 
-    expect(Object.keys(store.labels)).toEqual([segment.id]);
-    expect(Object.values(store.labels).map((label) => label.labelName)).toEqual(
-      ['Tumor']
-    );
+    expect(store.types.typeList.value.map((type) => type.id)).toEqual([typeId]);
+    expect(store.types.appearanceOf(typeId).name).toBe('Tumor');
+    expect(recordsOf(IMAGE_ID)).toEqual([]);
   });
 
-  it('does not label a tool with a segment from another image', async () => {
+  it('keeps the selected type when the viewed image changes', async () => {
     const store = usePolygonStore();
-    const segment = makeSegment('Tumor');
-    store.setActiveLabel(segment.id);
-    expect(store.activeLabel).toBe(segment.id);
+    const typeId = types().addType({ name: 'Tumor' });
 
     seatAndView('img-2');
     await nextTick();
 
-    // The segment still belongs to img-1, so it must not label a tool placed
-    // on img-2.
-    expect(store.activeLabel).toBeUndefined();
+    expect(store.types.selectedTypeId.value).toBe(typeId);
     const id = store.addTool({ imageID: 'img-2', placing: false });
-    expect(store.toolByID[id].label).toBeFalsy();
+    expect(store.toolByID[id].typeId).toBe(typeId);
   });
 
-  it('captures the active segment id when a tool is added', () => {
+  it('captures the selected type when a tool is added', () => {
     const store = usePolygonStore();
-    const segment = makeSegment('Tumor');
-    store.setActiveLabel(segment.id);
+    const typeId = types().addType({ name: 'Tumor' });
 
     const id = store.addTool({ imageID: IMAGE_ID, placing: false });
 
-    expect(store.activeLabel).toBe(segment.id);
-    expect(store.toolByID[id].label).toBe(segment.id);
+    expect(store.toolByID[id].typeId).toBe(typeId);
   });
 
-  it('shows the segment name and color on the tool', () => {
+  it('resolves the type name and color for the tool', () => {
     const store = usePolygonStore();
-    const segment = makeSegment('Tumor', [214, 0, 0, 255]);
-    store.setActiveLabel(segment.id);
+    const typeId = types().addType({ name: 'Tumor', color: [214, 0, 0, 255] });
 
-    const id = store.addTool({
-      imageID: IMAGE_ID,
-      placing: false,
-      label: segment.id,
-    });
+    const id = store.addTool({ imageID: IMAGE_ID, placing: false, typeId });
 
-    expect(store.toolByID[id].labelName).toBe('Tumor');
-    expect(store.toolByID[id].color).toBe(rgbaToCssColor([214, 0, 0, 255]));
+    expect(store.appearanceOfTool(id).name).toBe('Tumor');
+    expect(store.appearanceOfTool(id).cssColor).toBe(
+      rgbaToCssColor([214, 0, 0, 255])
+    );
+    expect(store.appearanceOfTool(id).strokeWidth).toBe(
+      STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT
+    );
   });
 
-  it('updates a tool’s displayed name when the segment is renamed', async () => {
+  it('shows a rename without rewriting the tool', () => {
     const store = usePolygonStore();
-    const segment = makeSegment('Tumor');
-    store.setActiveLabel(segment.id);
-    const id = store.addTool({
-      imageID: IMAGE_ID,
-      placing: false,
-      label: segment.id,
-    });
-
-    useSegmentationStore().updateSegment(segment.id, {
-      name: 'Lesion',
-    });
-    await nextTick();
-
-    expect(store.toolByID[id].labelName).toBe('Lesion');
-  });
-
-  it('updates a tool’s color when the segment is recolored', async () => {
-    const store = usePolygonStore();
-    const segment = makeSegment('Tumor', [214, 0, 0, 255]);
-    store.setActiveLabel(segment.id);
-    const id = store.addTool({
-      imageID: IMAGE_ID,
-      placing: false,
-      label: segment.id,
-    });
-
-    useSegmentationStore().updateSegment(segment.id, {
-      color: [0, 0, 255, 255],
-    });
-    await nextTick();
-
-    expect(store.toolByID[id].color).toBe(rgbaToCssColor([0, 0, 255, 255]));
-  });
-
-  it('leaves a tool untouched by a segment change its label does not show', async () => {
-    const store = usePolygonStore();
-    const segment = makeSegment('Tumor');
-    store.setActiveLabel(segment.id);
-    const id = store.addTool({
-      imageID: IMAGE_ID,
-      placing: false,
-      label: segment.id,
-    });
+    const typeId = types().addType({ name: 'Tumor' });
+    const id = store.addTool({ imageID: IMAGE_ID, placing: false, typeId });
     const before = store.toolByID[id];
 
-    useSegmentationStore().updateSegment(segment.id, { visible: false });
-    await nextTick();
+    types().updateType(typeId, { name: 'Lesion' });
 
+    expect(store.appearanceOfTool(id).name).toBe('Lesion');
     expect(store.toolByID[id]).toBe(before);
+    expect(store.toolByID[id].typeId).toBe(typeId);
   });
 
-  it('shares one segment catalog between polygons and rectangles', () => {
+  it('shows a recolor through the resolver', () => {
+    const store = usePolygonStore();
+    const typeId = types().addType({ name: 'Tumor', color: [214, 0, 0, 255] });
+    const id = store.addTool({ imageID: IMAGE_ID, placing: false, typeId });
+
+    types().updateType(typeId, { color: [0, 0, 255, 255] });
+
+    expect(store.appearanceOfTool(id).cssColor).toBe(
+      rgbaToCssColor([0, 0, 255, 255])
+    );
+  });
+
+  it('shares one registry between polygons and rectangles', () => {
     const polygons = usePolygonStore();
     const rectangles = useRectangleStore();
-    const segment = makeSegment('Tumor');
+    const typeId = polygons.types.addType({ name: 'Tumor' });
 
-    expect(Object.keys(polygons.labels)).toEqual([segment.id]);
-    expect(Object.keys(rectangles.labels)).toEqual([segment.id]);
+    expect(rectangles.types.getType(typeId)?.name).toBe('Tumor');
+    expect(rectangles.types.selectedTypeId.value).toBe(typeId);
   });
 
-  it('keeps per-tool props out of the shared segment', () => {
+  it('lets several shapes reference one type', () => {
+    const polygons = usePolygonStore();
     const rectangles = useRectangleStore();
-    const segment = makeSegment('Tumor');
-    rectangles.setActiveLabel(segment.id);
+    const typeId = types().addType({ name: 'Tumor' });
 
-    const id = rectangles.addTool({
-      imageID: IMAGE_ID,
-      placing: false,
-      label: segment.id,
-    });
+    const first = polygons.addTool({ imageID: IMAGE_ID, placing: false });
+    const second = polygons.addTool({ imageID: IMAGE_ID, placing: false });
+    const third = rectangles.addTool({ imageID: IMAGE_ID, placing: false });
+
+    expect(polygons.toolByID[first].typeId).toBe(typeId);
+    expect(polygons.toolByID[second].typeId).toBe(typeId);
+    expect(rectangles.toolByID[third].typeId).toBe(typeId);
+    expect(first).not.toBe(second);
+  });
+
+  it('keeps the rectangle fill color a per-shape prop', () => {
+    const rectangles = useRectangleStore();
+    const typeId = types().addType({ name: 'Tumor' });
+
+    const id = rectangles.addTool({ imageID: IMAGE_ID, placing: false });
 
     expect(rectangles.toolByID[id].fillColor).toBe('transparent');
-    expect(segment).not.toHaveProperty('fillColor');
+    expect(types().getType(typeId)).not.toHaveProperty('fillColor');
   });
 
-  it('serializes props for a segment no tool references yet', () => {
-    const rectangles = useRectangleStore();
-    const segment = makeSegment('Tumor');
-    rectangles.updateLabel(segment.id, { fillColor: 'red' });
-
-    const serialized = rectangles.serializeTools();
-
-    expect(serialized.segmentProps?.[segment.id]).toMatchObject({
-      fillColor: 'red',
-    });
-  });
-
-  it('creates a segment in the segmentation store through the tool store', () => {
+  it('allocates no voxels and no geometry for a type', () => {
     const store = usePolygonStore();
 
-    const id = store.resolveLabelForImage(
-      IMAGE_ID,
-      store.addLabel({ labelName: 'Tumor' })
-    )!;
+    types().addType({ name: 'Tumor' });
 
-    const segmentation =
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!;
-    expect(segmentation.order).toEqual([id]);
-    expect(segmentation.segments[id].name).toBe('Tumor');
+    expect(recordsOf(IMAGE_ID)).toEqual([]);
+    expect(useSegmentationStore().artifactMeta).toEqual({});
+    expect(store.toolIDs).toEqual([]);
   });
 
-  it('restores a tool whose segment was deleted as unlabeled', () => {
+  it('restores a shape whose type did not come back as unlabeled', () => {
     const store = usePolygonStore();
-    const segment = makeSegment('Tumor');
-    store.setActiveLabel(segment.id);
-    store.addTool({ imageID: IMAGE_ID, placing: false, label: segment.id });
-    useSegmentationStore().deleteSegment(segment.id);
+    const typeId = types().addType({ name: 'Tumor' });
+    store.addTool({ imageID: IMAGE_ID, placing: false, typeId });
 
     const serialized = JSON.parse(JSON.stringify(store.serializeTools()));
-    expect(serialized.tools[0].label).toBe(segment.id);
-    expect(serialized.segmentProps).toEqual({});
+    expect(serialized.tools[0].typeId).toBe(typeId);
 
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);
     const restored = usePolygonStore();
     restored.deserializeTools(serialized, { [IMAGE_ID]: IMAGE_ID });
 
-    expect(restored.toolByID[restored.toolIDs[0]].label).toBe('');
-    expect(
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
-    ).toEqual([]);
+    expect(restored.toolByID[restored.toolIDs[0]].typeId).toBe('');
+    expect(recordsOf(IMAGE_ID)).toEqual([]);
   });
 
-  it('pre-creates no segments for an empty segmentation', () => {
+  it('remaps a restored shape onto the type the registry adopted', () => {
     const store = usePolygonStore();
+    const typeId = types().addType({ name: 'Tumor' });
+    store.addTool({ imageID: IMAGE_ID, placing: false, typeId });
+    const serialized = JSON.parse(JSON.stringify(store.serializeTools()));
 
-    expect(store.labels).toEqual({});
-    expect(
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
-    ).toEqual([]);
+    setActivePinia(createPinia());
+    seatAndView(IMAGE_ID);
+    const restored = usePolygonStore();
+    const adopted = types().adopt([
+      {
+        id: typeId,
+        name: 'Tumor',
+        color: [1, 2, 3, 255],
+        visible: true,
+        locked: false,
+      },
+    ]);
+    restored.deserializeTools(serialized, { [IMAGE_ID]: IMAGE_ID }, adopted);
+
+    const tool = restored.toolByID[restored.toolIDs[0]];
+    expect(tool.typeId).toBe(adopted[typeId]);
+    expect(restored.appearanceOfTool(tool.id).name).toBe('Tumor');
   });
 });
 
-describe('placing an annotation resolves its segment', () => {
+describe('placing an annotation names its type', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);
@@ -233,115 +203,85 @@ describe('placing an annotation resolves its segment', () => {
     return id;
   };
 
-  it('mints a segment for an annotation placed against nothing', () => {
+  it('mints a type for an annotation placed against nothing', () => {
     const store = useRectangleStore();
-    expect(store.activeLabel).toBeUndefined();
+    expect(store.types.selectedTypeId.value).toBeUndefined();
 
     const id = place(store);
 
-    const segmentation = useSegmentationStore().getSegmentationForImage(
-      IMAGE_ID
-    )!;
-    const [segmentId] = segmentation.order;
-    expect(segmentId).toBeTruthy();
-    expect(store.toolByID[id].label).toBe(segmentId);
-    expect(store.toolByID[id].labelName).toBe(
-      segmentation.segments[segmentId].name
-    );
-    expect(store.toolByID[id].color).toBe(
-      rgbaToCssColor(segmentation.segments[segmentId].color)
-    );
+    const typeId = store.toolByID[id].typeId!;
+    expect(types().getType(typeId)).toBeDefined();
+    expect(store.appearanceOfTool(id).name).toBe('Segment 1');
+    // Geometry only: the mask waits for an edit that writes voxels.
+    expect(recordsOf(IMAGE_ID)).toEqual([]);
   });
 
-  it('mints the segment while the annotation is still being placed', () => {
+  it('mints the type while the annotation is still being placed', () => {
     const store = useRectangleStore();
     const id = store.addTool({ imageID: IMAGE_ID, placing: true });
 
-    store.resolveToolLabel(id);
+    store.resolveToolType(id);
 
-    const segmentation = useSegmentationStore().getSegmentationForImage(
-      IMAGE_ID
-    )!;
-    const [segmentId] = segmentation.order;
     expect(store.toolByID[id].placing).toBe(true);
-    expect(store.toolByID[id].label).toBe(segmentId);
-    expect(store.toolByID[id].color).toBe(
-      rgbaToCssColor(segmentation.segments[segmentId].color)
-    );
+    expect(types().getType(store.toolByID[id].typeId!)).toBeDefined();
   });
 
   it('mints once however many gestures the placement takes', () => {
     const store = usePolygonStore();
     const id = store.addTool({ imageID: IMAGE_ID, placing: true });
 
-    store.resolveToolLabel(id);
-    store.resolveToolLabel(id);
+    store.resolveToolType(id);
+    store.resolveToolType(id);
     store.placeTool(id);
 
-    expect(
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
-    ).toHaveLength(1);
+    expect(types().typeList.value).toHaveLength(1);
   });
 
-  it('resolves a ruler being placed without touching the segmentation', () => {
-    const store = useRulerStore();
-    const id = store.addTool({ imageID: IMAGE_ID, placing: true });
-
-    store.resolveToolLabel(id);
-
-    expect(store.toolByID[id].color).toBe(TOOL_COLORS[0]);
-    expect(
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
-    ).toEqual([]);
-  });
-
-  it('leaves the placed annotation selected so the next one reuses it', () => {
+  it('leaves the placed type selected so the next one reuses it', () => {
     const store = useRectangleStore();
 
     const first = place(store);
     const second = place(store);
 
-    expect(store.toolByID[second].label).toBe(store.toolByID[first].label);
-    expect(
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
-    ).toHaveLength(1);
+    expect(store.toolByID[second].typeId).toBe(store.toolByID[first].typeId);
+    expect(types().typeList.value).toHaveLength(1);
   });
 
-  it('hands the minted segment to the other delineation tools', () => {
+  it('hands the minted type to the other delineation tools', () => {
     const rectangles = useRectangleStore();
     const polygons = usePolygonStore();
 
     const id = place(rectangles);
-    const label = rectangles.toolByID[id].label!;
+    const typeId = rectangles.toolByID[id].typeId!;
 
-    expect(polygons.labels[label]).toBeTruthy();
-    expect(polygons.activeLabel).toBe(label);
-    // Paint reads the same target off the segmentation store.
-    expect(useSegmentationStore().activeSegmentId).toBe(label);
+    expect(polygons.types.getType(typeId)).toBeDefined();
+    expect(polygons.types.selectedTypeId.value).toBe(typeId);
+    // Paint resolves the same type into this image's record.
+    expect(
+      useSegmentationStore().getSegment(
+        useSegmentationStore().resolveEditTarget(IMAGE_ID)
+      ).typeId
+    ).toBe(typeId);
   });
 
-  it('materializes the selected template rather than minting beside it', () => {
+  it('places against the selected type rather than minting beside it', () => {
     const store = useRectangleStore();
-    store.addLabel({ labelName: 'Tumor', color: '#00ff00ff' });
+    const typeId = types().addType({ name: 'Tumor' });
 
     const id = place(store);
 
-    const segmentation = useSegmentationStore().getSegmentationForImage(
-      IMAGE_ID
-    )!;
-    expect(segmentation.order).toEqual([store.toolByID[id].label]);
-    expect(segmentation.segments[segmentation.order[0]].name).toBe('Tumor');
+    expect(store.toolByID[id].typeId).toBe(typeId);
+    expect(types().typeList.value).toHaveLength(1);
   });
 
-  it('places a ruler without touching the segmentation', () => {
+  it('places a ruler in its own registry, touching no segmentation', () => {
     const store = useRulerStore();
 
     const id = store.addTool({ imageID: IMAGE_ID, placing: true });
     store.placeTool(id);
 
     expect(store.toolByID[id].placing).toBe(false);
-    expect(
-      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
-    ).toEqual([]);
+    expect(types().getType(store.toolByID[id].typeId!)).toBeUndefined();
+    expect(recordsOf(IMAGE_ID)).toEqual([]);
   });
 });

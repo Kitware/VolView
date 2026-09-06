@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
@@ -97,6 +98,7 @@ describe('migrated legacy manifests without `datasets`', () => {
       [],
       // Restore keys every fallback dataset by its stringified source id.
       { '1': 'store-ct', '3': 'store-seg' },
+      useSegmentTypeStore().deserialize(legacyManifest),
       resolveArtifactRestoreSources(legacyManifest)
     );
 
@@ -110,7 +112,7 @@ describe('migrated legacy manifests without `datasets`', () => {
     const segmentation = store.getSegmentationForImage('store-ct')!;
     expect(
       listSegments(segmentation).map((segment) => ({
-        name: segment.name,
+        name: useSegmentTypeStore().types.appearanceOf(segment.typeId).name,
         labelValue: segment.representations.labelmap!.labelValue,
       }))
     ).toEqual([{ name: 'Tumor', labelValue: 1 }]);

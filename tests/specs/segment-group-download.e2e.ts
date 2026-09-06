@@ -5,7 +5,7 @@ import { openUrls, waitForFileExists } from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { PROSTATEX_DATASET } from './configTestUtils';
-import { addSegment, openAnnotationSegments } from './segmentationTestUtils';
+import { openAnnotationSegments } from './segmentationTestUtils';
 
 const SAVE_TIMEOUT = 40000;
 
@@ -22,6 +22,16 @@ const prepareDownloadedFilePath = (fileName: string) => {
   return downloadedPath;
 };
 
+// A stroke is what gives the image a mask to save: adding a type creates
+// identity only. The name a download carries is the one typed into the save
+// dialog, since there is no group name to type any more.
+const paintOnViewedImage = async () => {
+  await volViewPage.activatePaint();
+  const views2D = await volViewPage.getViews2D();
+  await volViewPage.paintStrokeOnView(views2D[0]);
+  await openAnnotationSegments();
+};
+
 // The name a download carries is the one typed into the save dialog: the panel
 // is one flat list per image, so there is no group name to type any more.
 const expectDirectSegmentDownload = async (
@@ -30,7 +40,7 @@ const expectDirectSegmentDownload = async (
 ) => {
   await openUrls([PROSTATEX_DATASET]);
   await openAnnotationSegments();
-  await addSegment();
+  await paintOnViewedImage();
 
   await volViewPage.clickSaveSegmentsButton();
 
@@ -67,7 +77,7 @@ describe('Segment download', () => {
   it('names the download after the viewed image by default', async () => {
     await openUrls([PROSTATEX_DATASET]);
     await openAnnotationSegments();
-    await addSegment();
+    await paintOnViewedImage();
 
     await volViewPage.clickSaveSegmentsButton();
 

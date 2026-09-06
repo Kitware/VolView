@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
@@ -156,13 +157,18 @@ const catalogFor = (parentImageId: string) => {
   if (!segmentation) return [];
   return segmentation.order
     .map((id) => segmentation.segments[id])
-    .map((segment) => ({
-      name: segment.name,
-      color: [...segment.color],
-      visible: segment.visible,
-      locked: segment.locked,
-      labelValue: segment.representations.labelmap!.labelValue,
-    }));
+    .map((segment) => {
+      const appearance = useSegmentTypeStore().types.appearanceOf(
+        segment.typeId
+      );
+      return {
+        name: appearance.name,
+        color: [...appearance.color],
+        visible: appearance.visible,
+        locked: appearance.locked,
+        labelValue: segment.representations.labelmap!.labelValue,
+      };
+    });
 };
 
 // The LIVE path: what convertImageToLabelmap builds for this labelmap.
@@ -222,16 +228,25 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     const segmentation =
       useSegmentationStore().getSegmentationForImage('parent-store')!;
+    const types = useSegmentTypeStore().types;
     const segments = segmentation.order.map((id) => segmentation.segments[id]);
-    // Fill renders as the product of the two, and 0.4 is what the legacy group
-    // showed.
+    // Fill renders as the product of the type's share and the image's
+    // multiplier, and 0.4 is what the legacy group showed.
     expect(
-      segments.map((segment) => segment.fillOpacity * segmentation.fillOpacity)
+      segments.map(
+        (segment) =>
+          types.appearanceOf(segment.typeId).fillOpacity *
+          segmentation.fillOpacity
+      )
     ).toEqual([0.4, 0.4]);
-    expect(segments.map((segment) => segment.outlineOpacity)).toEqual([
-      0.25, 0.25,
-    ]);
-    expect(segments.map((segment) => segment.visible)).toEqual([false, false]);
+    expect(
+      segments.map(
+        (segment) => types.appearanceOf(segment.typeId).outlineOpacity
+      )
+    ).toEqual([0.25, 0.25]);
+    expect(
+      segments.map((segment) => types.appearanceOf(segment.typeId).visible)
+    ).toEqual([false, false]);
     expect(segmentation.outlineThickness).toBe(5);
   });
 

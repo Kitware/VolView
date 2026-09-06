@@ -4,16 +4,19 @@ import { createApp, nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { DEFAULT_SEGMENT_MASKS } from '@/src/config';
 import { PaintMode } from '@/src/core/tools/paint';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   markedVoxels,
   maskValueAt,
   offsetOf,
+  selectSegment,
+  mintType,
+  lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 const DIMENSIONS: [number, number, number] = [4, 4, 2];
@@ -41,7 +44,7 @@ const bindingOf = (segmentId: string) =>
 
 /** Creates a segment with voxel storage already allocated. */
 function boundSegment(segmentationId: string, name: string) {
-  const segment = store().createSegment(segmentationId, { name });
+  const segment = store().createSegment(segmentationId, mintType({ name }));
   store().ensureLabelmapBinding(segment.id);
   return segment;
 }
@@ -55,9 +58,9 @@ function strokeAt(imageId: string, point: [number, number, number]) {
 }
 
 function paintAndLock(segmentId: string) {
-  store().setActiveSegment(segmentId);
+  selectSegment(segmentId);
   strokeAt('img-1', [1, 1, 0]);
-  store().updateSegment(segmentId, { locked: true });
+  lockSegment(segmentId, true);
 }
 
 describe('paint edit target', () => {
@@ -72,7 +75,7 @@ describe('paint edit target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Other');
     const active = boundSegment(segmentation.id, 'Tumor');
-    store().setActiveSegment(active.id);
+    selectSegment(active.id);
 
     strokeAt('img-1', [1, 1, 0]);
 
@@ -86,18 +89,17 @@ describe('paint edit target', () => {
     await seatImage('img-2');
     const first = store().ensureSegmentationForImage('img-1');
     const source = boundSegment(first.id, 'Tumor');
-    store().setActiveSegment(source.id);
+    selectSegment(source.id);
 
     strokeAt('img-2', [1, 1, 0]);
 
-    const cloned = store().activeSegmentId!;
-    expect(
-      store().getSegmentationForImage('img-2')!.segments[cloned]
-    ).toBeDefined();
-    const clonedBinding = bindingOf(cloned)!;
+    // The type is shared; this image gets its own record and its own mask.
+    const painted = store().findEditTarget('img-2')!;
+    expect(store().getSegment(painted).typeId).toBe(source.typeId);
+    const paintedBinding = bindingOf(painted)!;
     const sourceBinding = bindingOf(source.id)!;
-    expect(clonedBinding.artifactId).not.toBe(sourceBinding.artifactId);
-    expect(maskValueAt(cloned, [1, 1, 0])).toBe(clonedBinding.labelValue);
+    expect(paintedBinding.artifactId).not.toBe(sourceBinding.artifactId);
+    expect(maskValueAt(painted, [1, 1, 0])).toBe(paintedBinding.labelValue);
     expect(markedVoxels(source.id)).toEqual([]);
   });
 
@@ -109,10 +111,11 @@ describe('paint edit target', () => {
     const segmentation = store().getSegmentationForImage('img-1')!;
     expect(segmentation.order).toHaveLength(1);
     const [segmentId] = segmentation.order;
-    expect(segmentation.segments[segmentId].name).toBe(
-      DEFAULT_SEGMENT_MASKS[0].name
+    const { typeId } = segmentation.segments[segmentId];
+    expect(useSegmentTypeStore().types.appearanceOf(typeId).name).toBe(
+      'Segment 1'
     );
-    expect(store().activeSegmentId).toBe(segmentId);
+    expect(useSegmentTypeStore().types.selectedTypeId.value).toBe(typeId);
     const binding = bindingOf(segmentId)!;
     expect(maskValueAt(segmentId, [1, 1, 0])).toBe(binding.labelValue);
   });
@@ -125,9 +128,9 @@ describe('paint edit target', () => {
     const paintStore = usePaintToolStore();
 
     paintAndLock(neighbor.id);
-    store().setActiveSegment(active.id);
+    selectSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
-    store().updateSegment(neighbor.id, { locked: false });
+    lockSegment(neighbor.id, false);
 
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
@@ -144,7 +147,7 @@ describe('paint edit target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     const foreign = boundSegment(segmentation.id, 'Foreign');
     const active = boundSegment(segmentation.id, 'Tumor');
-    store().setActiveSegment(active.id);
+    selectSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
     const foreignValue = bindingOf(foreign.id)!.labelValue;
     store().segmentVoxels(active.id).scalars()[
@@ -162,8 +165,8 @@ describe('paint edit target', () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
-    store().updateSegment(active.id, { locked: true });
-    store().setActiveSegment(active.id);
+    lockSegment(active.id, true);
+    selectSegment(active.id);
 
     strokeAt('img-1', [1, 1, 0]);
 
@@ -178,7 +181,7 @@ describe('paint edit target', () => {
 
     paintAndLock(neighbor.id);
 
-    store().setActiveSegment(active.id);
+    selectSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
     strokeAt('img-1', [3, 1, 0]);
 

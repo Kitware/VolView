@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -132,6 +133,9 @@ const catalogFor = (parentImageId: string) => {
     .filter((segment) => segment.representations.labelmap);
 };
 
+const nameOf = (segment: { typeId: string }) =>
+  useSegmentTypeStore().types.appearanceOf(segment.typeId).name;
+
 const restoreGroups = (
   manifest: Manifest,
   stateFiles: { archivePath: string; file: File }[],
@@ -141,6 +145,7 @@ const restoreGroups = (
     manifest,
     stateFiles,
     dataIDMap,
+    useSegmentTypeStore().deserialize(manifest),
     resolveArtifactRestoreSources(manifest)
   );
 
@@ -172,9 +177,11 @@ describe('migrated segment groups: resilient restore', () => {
       { name: 'sg-tumor', reason: 'artifact source unavailable' },
     ]);
     const restored = catalogFor('store-ct');
-    expect(restored.map((segment) => segment.name)).toEqual(['Tumor']);
+    expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor']);
     expect(restored[0].representations.labelmap!.labelValue).toBe(1);
-    expect([...restored[0].color]).toEqual([255, 0, 0, 255]);
+    expect([
+      ...useSegmentTypeStore().types.appearanceOf(restored[0].typeId).color,
+    ]).toEqual([255, 0, 0, 255]);
     expect(maskCount()).toBe(1);
   });
 
@@ -252,7 +259,7 @@ describe('migrated segment groups: resilient restore', () => {
     );
 
     // Only the survivor's segments attached.
-    expect(catalogFor('store-ct').map((segment) => segment.name)).toEqual([
+    expect(catalogFor('store-ct').map((segment) => nameOf(segment))).toEqual([
       'Tumor',
     ]);
     expect(maskCount()).toBe(1);

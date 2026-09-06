@@ -80,20 +80,20 @@ describe('config-by-shape recognition', () => {
     expect((await recognizeConfig({})).kind).toBe('data');
   });
 
-  // A mesh-shaped JSON carrying a `labels` key is classified as config. This is
-  // the deliberate forward-compat tradeoff: a known top-level section wins
-  // recognition even amid unknown keys, so the unknown keys are stripped rather
-  // than the whole config being dropped.
+  // A mesh-shaped JSON carrying a `segmentTypes` key is classified as config.
+  // This is the deliberate forward-compat tradeoff: a known top-level section
+  // wins recognition even amid unknown keys, so the unknown keys are stripped
+  // rather than the whole config being dropped.
   it('mixed JSON: applies the known section and strips the unknown top-level keys', async () => {
     const result = await recognizeConfig({
-      labels: { defaultLabels: { tumor: { color: '#ff0000' } } },
+      segmentTypes: { tumor: { color: '#ff0000' } },
       vertices: [[0, 0, 0]],
       cells: [[0, 1, 2]],
     });
     expect(result.kind).toBe('config');
     if (result.kind === 'config') {
-      expect(result.config.labels).toEqual({
-        defaultLabels: { tumor: { color: '#ff0000' } },
+      expect(result.config.segmentTypes).toEqual({
+        tumor: { color: '#ff0000' },
       });
       expect(result.ignoredKeys).toContain('vertices');
       expect(result.ignoredKeys).toContain('cells');

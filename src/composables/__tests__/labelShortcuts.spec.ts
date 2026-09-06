@@ -16,20 +16,20 @@ const seatAndView = (id: string) => {
   useViewStore().setDataForAllViews(id);
 };
 
-describe('next/previous label shortcuts', () => {
+describe('next/previous type shortcuts', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     useToolStore().setCurrentTool(Tools.Polygon);
   });
 
-  // Shared-registry tools have no segments until one is created.
-  it('is a no-op when the active tool has no labels', () => {
+  // The shared registry starts empty, so there is nothing to cycle.
+  it('is a no-op when the registry is empty', () => {
     seatAndView('img-1');
 
-    expect(usePolygonStore().labels).toEqual({});
+    expect(usePolygonStore().types.typeList.value).toEqual([]);
     expect(() => ACTION_TO_FUNC.incrementLabel()).not.toThrow();
     expect(() => ACTION_TO_FUNC.decrementLabel()).not.toThrow();
-    expect(usePolygonStore().activeLabel).toBeFalsy();
+    expect(usePolygonStore().types.selectedTypeId.value).toBeFalsy();
   });
 
   it('is a no-op when no image is viewed', () => {
@@ -37,20 +37,20 @@ describe('next/previous label shortcuts', () => {
     expect(() => ACTION_TO_FUNC.decrementLabel()).not.toThrow();
   });
 
-  it('cycles through the labels the active tool has', () => {
+  it('cycles through the registry the active tool reads', () => {
     seatAndView('img-1');
-    const store = usePolygonStore();
-    const first = store.addLabel({ labelName: 'Tumor' });
-    const second = store.addLabel({ labelName: 'Node' });
+    const { types } = usePolygonStore();
+    const first = types.addType({ name: 'Tumor' });
+    const second = types.addType({ name: 'Node' });
 
-    store.setActiveLabel(first);
+    types.selectType(first);
     ACTION_TO_FUNC.incrementLabel();
-    expect(store.activeLabel).toBe(second);
+    expect(types.selectedTypeId.value).toBe(second);
 
     ACTION_TO_FUNC.incrementLabel();
-    expect(store.activeLabel).toBe(first);
+    expect(types.selectedTypeId.value).toBe(first);
 
     ACTION_TO_FUNC.decrementLabel();
-    expect(store.activeLabel).toBe(second);
+    expect(types.selectedTypeId.value).toBe(second);
   });
 });

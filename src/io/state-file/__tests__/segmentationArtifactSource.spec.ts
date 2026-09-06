@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  SegmentType,
   ManifestSchema,
   Segmentation,
   SegmentationArtifact,
@@ -34,8 +35,7 @@ const segmentation = {
   segments: [
     {
       id: 'segment-1',
-      name: 'Bin 1',
-      color: [255, 0, 0, 255],
+      typeId: 'type-1',
       visible: true,
       locked: false,
       representations: {
@@ -48,8 +48,17 @@ const segmentation = {
     },
   ],
   order: ['segment-1'],
-  activeSegment: 'segment-1',
 };
+
+const segmentTypes = [
+  {
+    id: 'type-1',
+    name: 'Bin 1',
+    color: [255, 0, 0, 255],
+    visible: true,
+    locked: false,
+  },
+];
 
 describe('SegmentationArtifact.source', () => {
   it('accepts and round-trips structured provenance', () => {
@@ -86,51 +95,48 @@ describe('SegmentationArtifact.source', () => {
       dataSources: [],
       segmentationArtifacts: [artifactWithSource],
       segmentations: [segmentation],
+      segmentTypes,
     };
     const parsed = ManifestSchema.parse(manifest) as any;
     expect(parsed.segmentationArtifacts[0].source).toEqual(
       artifactWithSource.source
     );
+    expect(parsed.segmentTypes).toEqual(segmentTypes);
+    expect(parsed.segmentations[0].segments[0].typeId).toBe('type-1');
   });
 });
 
 describe('Segmentation wire shape', () => {
-  it('carries segment identity, order and the active segment', () => {
+  it('carries the record id, its type and the order', () => {
     const parsed = Segmentation.parse(segmentation);
     expect(parsed.segments[0].id).toBe('segment-1');
+    expect(parsed.segments[0].typeId).toBe('type-1');
     expect(parsed.segments[0].representations.labelmap).toEqual({
       artifactId: 'artifact-1',
       labelValue: 1,
       extent: [0, 3, 0, 3, 0, 1],
     });
     expect(parsed.order).toEqual(['segment-1']);
-    expect(parsed.activeSegment).toBe('segment-1');
   });
 
-  it('defaults visible to true and locked to false', () => {
-    const parsed = Segmentation.parse({
-      ...segmentation,
-      segments: [
-        {
-          id: 'segment-1',
-          name: 'Bin 1',
-          color: [255, 0, 0, 255],
-          representations: {},
-        },
-      ],
+  it('defaults a type to visible and unlocked', () => {
+    const parsed = SegmentType.parse({
+      id: 'type-1',
+      name: 'Bin 1',
+      color: [255, 0, 0, 255],
     });
-    expect(parsed.segments[0].visible).toBe(true);
-    expect(parsed.segments[0].locked).toBe(false);
+
+    expect(parsed.visible).toBe(true);
+    expect(parsed.locked).toBe(false);
   });
 
-  it('allows a segment with no labelmap binding', () => {
+  it('allows a record with no labelmap binding', () => {
     const parsed = Segmentation.parse({
       ...segmentation,
       segments: [
         {
           id: 'segment-1',
-          name: 'Planned',
-          color: [0, 255, 0, 255],
+          typeId: 'type-1',
           visible: true,
           locked: false,
           representations: {},
@@ -138,6 +144,14 @@ describe('Segmentation wire shape', () => {
       ],
     });
     expect(parsed.segments[0].representations.labelmap).toBeUndefined();
+  });
+
+  it('rejects a record with no type', () => {
+    const parsed = Segmentation.safeParse({
+      ...segmentation,
+      segments: [{ id: 'segment-1', representations: {} }],
+    });
+    expect(parsed.success).toBe(false);
   });
 });
 

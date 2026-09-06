@@ -9,6 +9,7 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { listSegments } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
@@ -96,10 +97,12 @@ const catalog = () => {
 const labelValues = () =>
   catalog().map((segment) => segment.representations.labelmap!.labelValue);
 
-const activeLabelValue = () => {
-  const store = useSegmentationStore();
-  return catalog().find((segment) => segment.id === store.activeSegmentId)
-    ?.representations.labelmap?.labelValue;
+// The selection is a type, so what it reactivates is read through the record
+// that type has on this image.
+const selectedLabelValue = () => {
+  const typeId = useSegmentTypeStore().types.selectedTypeId.value;
+  return catalog().find((segment) => segment.typeId === typeId)?.representations
+    .labelmap?.labelValue;
 };
 
 describe('restoring a descriptorless active group', () => {
@@ -117,18 +120,18 @@ describe('restoring a descriptorless active group', () => {
     await restoreTwoGroups(1);
 
     // Source value 1 of the second group, which had to become 3.
-    expect(activeLabelValue()).toBe(3);
+    expect(selectedLabelValue()).toBe(3);
   });
 
   it('activates the right segment when the pending value is the later one', async () => {
     await restoreTwoGroups(2);
 
-    expect(activeLabelValue()).toBe(4);
+    expect(selectedLabelValue()).toBe(4);
   });
 
   it('leaves the active segment alone when no source value matches', async () => {
     await restoreTwoGroups(7);
 
-    expect(useSegmentationStore().activeSegmentId).toBeUndefined();
+    expect(useSegmentTypeStore().types.selectedTypeId.value).toBeUndefined();
   });
 });

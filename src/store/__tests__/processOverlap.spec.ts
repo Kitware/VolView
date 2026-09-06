@@ -21,6 +21,8 @@ import {
   seedVoxel,
   store,
   type Index3,
+  selectSegment,
+  lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ const runFillBetween: SegmentAlgorithm = (target) => {
 /** The active segment as a solid cube with one background voxel at its centre. */
 function cubeWithHole(imageId: string) {
   const segmentId = addSegment(imageId, 'Tumor');
-  store().setActiveSegment(segmentId);
+  selectSegment(segmentId);
   const voxels = store().segmentVoxels(segmentId);
   const { labelValue } = voxels.materialize();
   voxels.ensureContains([0, 4, 0, 4, 0, 4]);
@@ -95,7 +97,7 @@ function cubeWithHole(imageId: string) {
 function neighbourOwningTheHole(imageId: string, locked: boolean) {
   const segmentId = addSegment(imageId, locked ? 'Locked' : 'Unlocked');
   seedVoxel(segmentId, HOLE);
-  store().updateSegment(segmentId, { locked });
+  lockSegment(segmentId, locked);
   return segmentId;
 }
 
@@ -184,7 +186,7 @@ describe('a process over a mask with no two dimensions alike', () => {
 
   it('stops at the one voxel a neighbour holds', async () => {
     const tumor = addSegment('img-1', 'Tumor');
-    store().setActiveSegment(tumor);
+    selectSegment(tumor);
     const voxels = store().segmentVoxels(tumor);
     voxels.materialize();
     voxels.ensureContains([0, 2, 0, 3, 0, 4]);

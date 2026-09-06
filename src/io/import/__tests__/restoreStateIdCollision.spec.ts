@@ -8,6 +8,7 @@ import {
 } from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useImageCacheStore } from '@/src/store/image-cache';
 
 // ---------------------------------------------------------------------------
@@ -170,6 +171,7 @@ describe('restore stateID namespaces (collision)', () => {
         setup.manifest,
         [],
         stateIDToStoreID,
+        useSegmentTypeStore().deserialize(setup.manifest),
         resolveArtifactRestoreSources(setup.manifest)
       );
 
@@ -221,6 +223,7 @@ describe('restore stateID namespaces (collision)', () => {
         },
       ],
       { '2': BASE_STORE_ID },
+      useSegmentTypeStore().deserialize(setup.manifest),
       resolveArtifactRestoreSources(setup.manifest)
     );
 

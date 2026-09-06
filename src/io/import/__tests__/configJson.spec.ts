@@ -9,9 +9,8 @@ import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
+import type { SegmentTypeRegistry } from '@/src/store/tools/segmentTypeRegistry';
 import { useViewStore } from '@/src/store/views';
-
-type LabelRecord = { labelName?: string; color?: string; fillColor?: string };
 
 describe('config schema', () => {
   describe('shortcuts', () => {
@@ -82,7 +81,7 @@ describe('config schema', () => {
   });
 });
 
-describe('label config', () => {
+describe('segment type config', () => {
   const seatAndView = (id: string) => {
     useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
       id,
@@ -90,18 +89,10 @@ describe('label config', () => {
     useViewStore().setDataForAllViews(id);
   };
 
-  const labelIdNamed = (labels: Record<string, LabelRecord>, name: string) => {
-    const found = Object.entries(labels).find(
-      ([, label]) => label.labelName === name
-    );
-    if (!found) throw new Error(`No label named "${name}"`);
-    return found[0];
-  };
-
-  const labelSummary = (store: { labels: Record<string, LabelRecord> }) =>
-    Object.values(store.labels).map(({ labelName, color }) => ({
-      labelName,
-      color,
+  const typeSummary = (registry: SegmentTypeRegistry) =>
+    registry.typeList.value.map((type) => ({
+      name: type.name,
+      color: registry.appearanceOf(type.id).cssColor,
     }));
 
   beforeEach(() => {
@@ -109,89 +100,61 @@ describe('label config', () => {
   });
 
   // Config is applied before the primary selection, so there is no current
-  // image when polygon and rectangle labels arrive.
-  it('applies polygon labels configured before an image loads', async () => {
+  // image when the types arrive.
+  it('applies the shared types configured before an image loads', async () => {
+    applyPostStateConfig(
+      config.parse({ segmentTypes: { Tumor: { color: '#00ff00' } } })
+    );
+
+    seatAndView('img-1');
+    await nextTick();
+
+    expect(typeSummary(usePolygonStore().types)).toEqual([
+      { name: 'Tumor', color: '#00ff00' },
+    ]);
+    expect(typeSummary(useRectangleStore().types)).toEqual([
+      { name: 'Tumor', color: '#00ff00' },
+    ]);
+  });
+
+  it('keeps the ruler registry to its own section', async () => {
     applyPostStateConfig(
       config.parse({
-        labels: { polygonLabels: { Tumor: { color: '#00ff00' } } },
+        segmentTypes: { Tumor: { color: '#00ff00' } },
+        rulerTypes: { Long: { color: '#0000ff' } },
       })
     );
 
     seatAndView('img-1');
     await nextTick();
 
-    expect(labelSummary(usePolygonStore())).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
+    expect(typeSummary(useRulerStore().types)).toEqual([
+      { name: 'Long', color: '#0000ff' },
     ]);
-  });
-
-  it('applies rectangle labels configured before an image loads', async () => {
-    applyPostStateConfig(
-      config.parse({
-        labels: {
-          rectangleLabels: {
-            Tumor: { color: '#00ff00', fillColor: '#00ff0033' },
-          },
-        },
-      })
-    );
-
-    seatAndView('img-1');
-    await nextTick();
-
-    const store = useRectangleStore();
-    expect(labelSummary(store)).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
+    expect(typeSummary(usePolygonStore().types)).toEqual([
+      { name: 'Tumor', color: '#00ff00' },
     ]);
-    expect(Object.values(store.labels).map((label) => label.fillColor)).toEqual(
-      ['#00ff0033']
+    expect(useRulerStore().types.selectedTypeId.value).toBe(
+      useRulerStore().types.findTypeByName('Long')?.id
     );
   });
 
-  it('falls back to defaultLabels for every tool kind', async () => {
-    applyPostStateConfig(
-      config.parse({
-        labels: { defaultLabels: { Tumor: { color: '#00ff00' } } },
-      })
-    );
-
-    seatAndView('img-1');
-    await nextTick();
-
-    expect(labelSummary(usePolygonStore())).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
-    ]);
-    expect(labelSummary(useRectangleStore())).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
-    ]);
-    expect(labelSummary(useRulerStore())).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
-    ]);
-    expect(useRulerStore().labels[useRulerStore().activeLabel!].labelName).toBe(
-      'Tumor'
-    );
-  });
-
-  it('applies config labels to an image that is already loaded', async () => {
+  it('applies types to an image that is already loaded', async () => {
     seatAndView('img-1');
     await nextTick();
 
     applyPostStateConfig(
-      config.parse({
-        labels: { polygonLabels: { Tumor: { color: '#00ff00' } } },
-      })
+      config.parse({ segmentTypes: { Tumor: { color: '#00ff00' } } })
     );
 
-    expect(labelSummary(usePolygonStore())).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
+    expect(typeSummary(usePolygonStore().types)).toEqual([
+      { name: 'Tumor', color: '#00ff00' },
     ]);
   });
 
-  it('applies config labels to each image the user views', async () => {
+  it('offers the same types on each image the user views', async () => {
     applyPostStateConfig(
-      config.parse({
-        labels: { polygonLabels: { Tumor: { color: '#00ff00' } } },
-      })
+      config.parse({ segmentTypes: { Tumor: { color: '#00ff00' } } })
     );
 
     seatAndView('img-1');
@@ -199,27 +162,21 @@ describe('label config', () => {
     seatAndView('img-2');
     await nextTick();
 
-    expect(labelSummary(usePolygonStore())).toEqual([
-      { labelName: 'Tumor', color: '#00ff00' },
+    expect(typeSummary(usePolygonStore().types)).toEqual([
+      { name: 'Tumor', color: '#00ff00' },
     ]);
-    // Offered, not minted: a config label becomes a segment on the first edit.
+    // Offered, not minted: a configured type gets a mask on the first edit.
     expect(
       useSegmentationStore().getSegmentationForImage('img-1')
     ).toBeUndefined();
   });
 
-  // Per-tool props are the tool store's own, so the segmentation store cannot
-  // carry them: they have to follow onto the segment the first edit mints. One
-  // selection materializes the template for every tool that declared it.
-  it('keeps configured props on the segment a label becomes', async () => {
+  // The type carries the appearance, so one configured entry reaches paint,
+  // rectangles and polygons alike.
+  it('keeps the configured appearance on the type an edit lands in', async () => {
     applyPostStateConfig(
       config.parse({
-        labels: {
-          polygonLabels: { Tumor: { color: '#00ff00', strokeWidth: 9 } },
-          rectangleLabels: {
-            Tumor: { color: '#00ff00', fillColor: '#00ff0033' },
-          },
-        },
+        segmentTypes: { Tumor: { color: '#00ff00', strokeWidth: 9 } },
       })
     );
     seatAndView('img-1');
@@ -227,28 +184,26 @@ describe('label config', () => {
 
     const polygons = usePolygonStore();
     const rectangles = useRectangleStore();
-    polygons.setActiveLabel(labelIdNamed(polygons.labels, 'Tumor'));
+    const typeId = polygons.types.findTypeByName('Tumor')!.id;
+    polygons.types.selectType(typeId);
     const segmentId = useSegmentationStore().resolveEditTarget('img-1');
 
-    expect(polygons.labels[segmentId]).toMatchObject({
-      labelName: 'Tumor',
-      color: '#00ff00',
+    expect(useSegmentationStore().getSegment(segmentId).typeId).toBe(typeId);
+    expect(polygons.types.appearanceOf(typeId)).toMatchObject({
+      name: 'Tumor',
+      cssColor: '#00ff00',
       strokeWidth: 9,
     });
-    expect(rectangles.labels[segmentId]).toMatchObject({
-      labelName: 'Tumor',
-      color: '#00ff00',
-      fillColor: '#00ff0033',
-    });
+    expect(rectangles.types.appearanceOf(typeId).name).toBe('Tumor');
   });
 
-  it('creates no segments when no labels are configured', async () => {
-    applyPostStateConfig(config.parse({ labels: {} }));
+  it('creates nothing when no types are configured', async () => {
+    applyPostStateConfig(config.parse({ segmentTypes: {} }));
 
     seatAndView('img-1');
     await nextTick();
 
-    expect(usePolygonStore().labels).toEqual({});
+    expect(usePolygonStore().types.typeList.value).toEqual([]);
     expect(
       useSegmentationStore().getSegmentationForImage('img-1')
     ).toBeUndefined();

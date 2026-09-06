@@ -10,12 +10,12 @@ import {
   rgbaToCssColor,
 } from '@/src/types/segmentation';
 import type {
-  ActiveSegmentIntent,
   Extent3D,
   LabelmapBinding,
   Segment,
   Segmentation,
 } from '@/src/types/segmentation';
+import { resolveSegmentType } from '@/src/types/segmentType';
 
 describe('emptyExtent', () => {
   it('is the pinned empty sentinel', () => {
@@ -98,16 +98,11 @@ describe('color conversion of existing label colors', () => {
   });
 });
 
-describe('segment model', () => {
+describe('labelmap record model', () => {
   it('holds no labelmap binding until voxels are allocated', () => {
     const segment: Segment = {
       id: 'segment-1',
-      name: 'Tumor',
-      color: [255, 0, 0, 255],
-      visible: true,
-      locked: false,
-      fillOpacity: 1,
-      outlineOpacity: 1,
+      typeId: 'type-1',
       representations: {},
     };
 
@@ -122,12 +117,7 @@ describe('segment model', () => {
     };
     const segment: Segment = {
       id: 'segment-1',
-      name: 'Tumor',
-      color: [255, 0, 0, 255],
-      visible: true,
-      locked: false,
-      fillOpacity: 1,
-      outlineOpacity: 1,
+      typeId: 'type-1',
       representations: { labelmap: binding },
     };
 
@@ -139,15 +129,10 @@ describe('segment model', () => {
     expect(isEmptyExtent(binding.extent)).toBe(false);
   });
 
-  it('keeps segment order separate from the segment records', () => {
-    const makeSegment = (id: string, name: string): Segment => ({
+  it('keeps record order separate from the records themselves', () => {
+    const makeSegment = (id: string, typeId: string): Segment => ({
       id,
-      name,
-      color: [0, 0, 0, 255],
-      visible: true,
-      locked: false,
-      fillOpacity: 1,
-      outlineOpacity: 1,
+      typeId,
       representations: {},
     });
     const segmentation: Segmentation = {
@@ -155,8 +140,8 @@ describe('segment model', () => {
       name: 'Segmentation',
       parentImageId: 'image-1',
       segments: {
-        'segment-1': makeSegment('segment-1', 'Tumor'),
-        'segment-2': makeSegment('segment-2', 'Tumor'),
+        'segment-1': makeSegment('segment-1', 'type-1'),
+        'segment-2': makeSegment('segment-2', 'type-2'),
       },
       order: ['segment-2', 'segment-1'],
       fillOpacity: 1,
@@ -172,18 +157,48 @@ describe('segment model', () => {
   });
 });
 
-describe('active segment intent', () => {
-  it('targets one segment per image, and holds its origin by reference', () => {
-    const intent: ActiveSegmentIntent = {
-      originSegmentId: 'segment-1',
-      targetByImageId: {
-        'image-1': 'segment-1',
-        'image-2': 'segment-7',
-      },
-    };
+describe('the appearance resolver', () => {
+  it('fills the app defaults for what a type leaves unset', () => {
+    const resolved = resolveSegmentType({
+      id: 'type-1',
+      name: 'Tumor',
+      color: [255, 0, 0, 255],
+      visible: true,
+      locked: false,
+    });
 
-    expect(intent.targetByImageId['image-1']).toBe(intent.originSegmentId);
-    expect(intent.targetByImageId['image-2']).toBe('segment-7');
+    expect(resolved).toMatchObject({
+      name: 'Tumor',
+      cssColor: '#ff0000',
+      fillOpacity: 1,
+      outlineOpacity: 1,
+    });
+  });
+
+  it('keeps what a type does state', () => {
+    const resolved = resolveSegmentType({
+      id: 'type-1',
+      name: 'Tumor',
+      color: [255, 0, 0, 255],
+      visible: false,
+      locked: true,
+      fillOpacity: 0.25,
+      strokeWidth: 3,
+    });
+
+    expect(resolved.fillOpacity).toBe(0.25);
+    expect(resolved.strokeWidth).toBe(3);
+    expect(resolved.visible).toBe(false);
+    expect(resolved.locked).toBe(true);
+  });
+
+  it('answers for a type that is gone', () => {
+    const resolved = resolveSegmentType(undefined);
+
+    expect(resolved.name).toBe('');
+    expect(resolved.fillOpacity).toBe(1);
+    expect(resolved.visible).toBe(true);
+    expect(resolved.locked).toBe(false);
   });
 
   describe('functional CSS colors', () => {

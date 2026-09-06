@@ -41,7 +41,7 @@ const recordingDependencies = () => ({
     convertImageToLabelmap: vi.fn(async () => [
       importedComponent({ 1: 'segment-1', 2: 'segment-2' }),
     ]),
-    updateSegment: vi.fn(),
+    describeSegment: vi.fn(),
   },
 });
 
@@ -143,15 +143,15 @@ describe('applyIntent', () => {
       'parent',
       undefined
     );
-    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledTimes(2);
-    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+    expect(deps.segmentGroups.describeSegment).toHaveBeenCalledTimes(2);
+    expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
       'liver-segment',
       {
         name: 'liver',
         color: [255, 0, 0, 255],
       }
     );
-    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+    expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
       'tumor-segment',
       {
         name: 'tumor',
@@ -182,15 +182,15 @@ describe('applyIntent', () => {
       context('parent')
     );
 
-    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledTimes(4);
+    expect(deps.segmentGroups.describeSegment).toHaveBeenCalledTimes(4);
     ['a-1', 'b-1'].forEach((segmentId) =>
-      expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+      expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
         segmentId,
         expect.objectContaining({ name: 'liver' })
       )
     );
     ['a-2', 'b-2'].forEach((segmentId) =>
-      expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+      expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
         segmentId,
         expect.objectContaining({ name: 'tumor' })
       )
@@ -237,7 +237,7 @@ describe('applyIntent', () => {
       'parent',
       undefined
     );
-    expect(deps.segmentGroups.updateSegment).not.toHaveBeenCalled();
+    expect(deps.segmentGroups.describeSegment).not.toHaveBeenCalled();
   });
 
   it('stamps structured provider-qualified provenance on the created group', async () => {
@@ -400,11 +400,11 @@ describe('applyIntent', () => {
       context('parent')
     );
     expect(deps.segmentGroups.convertImageToLabelmap).toHaveBeenCalledTimes(1);
-    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledWith(
+    expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
       'new-segment',
       expect.anything()
     );
-    expect(deps.segmentGroups.updateSegment).not.toHaveBeenCalledWith(
+    expect(deps.segmentGroups.describeSegment).not.toHaveBeenCalledWith(
       'existing-segment',
       expect.anything()
     );
@@ -435,7 +435,7 @@ describe('autoLoadProcessingResults', () => {
       'parent',
       { providerId: 'p1', jobId: 'j1', outputId: 'seg' }
     );
-    expect(deps.segmentGroups.updateSegment).toHaveBeenCalledTimes(1);
+    expect(deps.segmentGroups.describeSegment).toHaveBeenCalledTimes(1);
     expect(deps.openVolumeUrls).toHaveBeenCalledTimes(1);
     expect(deps.openVolumeUrls).toHaveBeenCalledWith({
       urls: [file.url],

@@ -15,6 +15,10 @@ import {
 } from '@/src/store/tools/paintProcess';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import {
+  selectSegment,
+  mintType,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
 import type { Extent3D } from '@/src/types/segmentation';
@@ -111,9 +115,12 @@ describe('Fill Holes store', () => {
 
     const segmentation =
       segmentationStore.ensureSegmentationForImage(parentImageID);
-    const segment = segmentationStore.createSegment(segmentation.id, {
-      name: 'Segment 1',
-    });
+    const segment = segmentationStore.createSegment(
+      segmentation.id,
+      mintType({
+        name: 'Segment 1',
+      })
+    );
     const voxels = segmentationStore.segmentVoxels(segment.id);
     const { artifactId } = voxels.materialize();
     voxels.ensureContains(extent);
@@ -128,7 +135,7 @@ describe('Fill Holes store', () => {
       slice: parentSlice,
     });
 
-    segmentationStore.setActiveSegment(segment.id);
+    selectSegment(segment.id);
 
     return {
       fillHolesStore,
@@ -319,9 +326,12 @@ describe('Fill Holes store', () => {
     first.apply(new Uint8Array([1, 1, 1, 1, 0, 1, 1, 1, 1]));
     const segmentation =
       segmentationStore.getSegmentationForImage(parentImageID)!;
-    const other = segmentationStore.createSegment(segmentation.id, {
-      name: 'Other',
-    });
+    const other = segmentationStore.createSegment(
+      segmentation.id,
+      mintType({
+        name: 'Other',
+      })
+    );
     const second = segmentationStore.segmentVoxels(other.id);
     const { labelValue: otherValue } = second.materialize();
     second.ensureContains([4, 6, 0, 2, 0, 0]);
