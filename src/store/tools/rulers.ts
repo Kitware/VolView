@@ -4,10 +4,10 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { RULER_LABEL_DEFAULTS } from '@/src/config';
+import { RULER_TYPE_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { createLocalSegmentRegistry } from './segmentRegistry';
+import { createSegmentTypeRegistry } from './segmentTypeRegistry';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -23,9 +23,18 @@ const rulerDefaults = () => ({
 });
 
 export const useRulerStore = defineAnnotationToolStore('ruler', () => {
+  // Rulers delineate nothing on an image, so they hold their own instance of
+  // the registry: its types are theirs alone, selection included.
+  const rulerTypes = createSegmentTypeRegistry({
+    namePrefix: 'Label',
+    defaults: RULER_TYPE_DEFAULTS,
+    hasReferences: (typeId) => annotationTool.hasToolsOfType(typeId),
+    removeReferences: (typeId) => annotationTool.removeToolsOfType(typeId),
+  });
+
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
-    segments: () => createLocalSegmentRegistry(RULER_LABEL_DEFAULTS),
+    types: () => rulerTypes,
   });
 
   // prefix some props with ruler
@@ -59,12 +68,17 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
+    state.manifest.rulerTypes = rulerTypes.serialize();
     if (!state.manifest.tools) return;
     state.manifest.tools.rulers = serializeTools();
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    deserializeTools(manifest.tools?.rulers, dataIDMap);
+    deserializeTools(
+      manifest.tools?.rulers,
+      dataIDMap,
+      rulerTypes.adopt(manifest.rulerTypes)
+    );
   }
 
   return {

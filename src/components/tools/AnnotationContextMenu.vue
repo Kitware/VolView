@@ -35,6 +35,10 @@ const tool = computed(() => {
   return props.toolStore.toolByID[contextMenu.forToolID];
 });
 
+const appearance = computed(() =>
+  props.toolStore.types.appearanceOf(tool.value?.typeId)
+);
+
 const deleteToolFromContextMenu = () => {
   props.toolStore.removeTool(contextMenu.forToolID);
 };
@@ -61,11 +65,11 @@ const hideToolFromContextMenu = () => {
         <template v-slot:prepend>
           <div
             class="color-dot v-icon"
-            :style="{ backgroundColor: tool.color }"
+            :style="{ backgroundColor: appearance.cssColor }"
           />
         </template>
         <v-list-item-title class="v-list-item--disabled">
-          {{ tool.labelName }}
+          {{ appearance.name }}
         </v-list-item-title>
       </v-list-item>
 

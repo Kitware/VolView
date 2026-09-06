@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import LabelControls from '@/src/components/LabelControls.vue';
+import SegmentTypeList from '@/src/components/SegmentTypeList.vue';
 
 const activeToolStore = useRectangleStore();
 </script>
 
 <template>
-  <label-controls :labels-store="activeToolStore" />
+  <segment-type-list :registry="activeToolStore.types" />
 </template>

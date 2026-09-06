@@ -58,11 +58,13 @@ export default defineComponent({
       () => imageMetadata.value.lpsOrientation[viewAxis.value]
     );
 
-    // Get the active labelmap for coordinate transforms. Scoped to this
-    // widget's own image: the active artifact can belong to another image after
-    // a switch, and its transforms would displace the brush.
+    // Get this image's mask for the selected type, for coordinate transforms.
+    // Scoped to the widget's own image: a mask of another image would displace
+    // the brush.
     const activeLabelmap = computed(() => {
-      const segmentId = segmentationStore.activeSegmentId;
+      const segmentId = imageId.value
+        ? segmentationStore.findEditTarget(imageId.value)
+        : undefined;
       const binding = segmentId
         ? segmentationStore.resolveLabelmapBinding(segmentId)
         : undefined;

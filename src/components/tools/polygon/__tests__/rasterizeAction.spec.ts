@@ -14,6 +14,8 @@ import {
   seedVoxel,
   store,
   type Index3,
+  selectSegment,
+  typeOf,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
@@ -31,13 +33,13 @@ function growMask(segmentId: string, extent: Extent3D) {
   const voxels = store().segmentVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains(extent);
-  store().setActiveSegment(segmentId);
+  selectSegment(segmentId);
 }
 
 function rasterize(segmentId: string) {
   return rasterizePolygonEdit({
     imageId: 'img-1',
-    segmentId,
+    typeId: typeOf(segmentId),
     points: SQUARE,
     slice: 0,
     viewAxis: 'Axial',

@@ -172,6 +172,9 @@ export default defineComponent({
     return {
       slice,
       tool,
+      appearance: computed(() =>
+        toolStore.types.appearanceOf(tool.value?.typeId)
+      ),
       editState,
       showHandles,
     };
@@ -183,8 +186,8 @@ export default defineComponent({
   <SVG2DComponent
     v-show="slice === tool.slice"
     :points="tool.points"
-    :color="tool.color"
-    :stroke-width="tool.strokeWidth"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :move-point="editState.movePoint"
     :placing="tool.placing"
     :finishable="editState.finishable"

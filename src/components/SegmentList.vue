@@ -1,29 +1,25 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 
-import ColorDot from '@/src/components/ColorDot.vue';
 import EditableChipList from '@/src/components/EditableChipList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
-import SegmentEditor from '@/src/components/SegmentEditor.vue';
+import SegmentTypeEditor from '@/src/components/SegmentTypeEditor.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { useSegmentTypeEditing } from '@/src/composables/useSegmentTypeEditing';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { Maybe } from '@/src/types';
-import {
-  cssColorToRGBA,
-  listSegments,
-  rgbaToCssColor,
-  type SegmentationDisplayPatch,
-} from '@/src/types/segmentation';
+import { type SegmentationDisplayPatch } from '@/src/types/segmentation';
 
 const segmentationStore = useSegmentationStore();
+const { types } = useSegmentTypeStore();
 const { currentImageID } = useCurrentImage();
 
-// Scoped to the viewed image, never to the active segment's image: after an
-// image switch the panel must show this image's segments, not the last edited
-// one's. Rendering creates nothing, so an image with no segmentation is empty.
+// Scoped to the viewed image: the per-image controls belong to this image's
+// masks. Rendering creates nothing, so an image with no masks has no sliders.
 const viewedSegmentation = computed(() => {
   const imageId = currentImageID.value;
   return imageId
@@ -31,8 +27,19 @@ const viewedSegmentation = computed(() => {
     : undefined;
 });
 
+// The registry is image-independent, and so is everything a row carries:
+// visibility and lock describe the type, not one image's copy of it.
 const segments = computed(() =>
-  viewedSegmentation.value ? listSegments(viewedSegmentation.value) : []
+  types.typeList.value.map((type) => {
+    const appearance = types.appearanceOf(type.id);
+    return {
+      id: type.id,
+      name: appearance.name,
+      color: appearance.cssColor,
+      visible: appearance.visible,
+      locked: appearance.locked,
+    };
+  })
 );
 
 // A clip is a stack of unrelated frames, so a segmentation drawn across it
@@ -59,52 +66,41 @@ const setDisplay = (patch: SegmentationDisplayPatch) => {
 
 const saveDialog = ref(false);
 
+// Saving writes this image's masks, so it stays offered and says why it
+// cannot run rather than disappearing.
+const savableReason = computed(() => {
+  if (viewingCine.value) return 'A clip has no segmentation to save';
+  if (!viewedSegmentation.value?.order.length)
+    return 'Nothing is painted on this image yet';
+  return '';
+});
+
 function openSaveDialog() {
+  if (savableReason.value) return;
   saveDialog.value = true;
 }
-
-const segmentById = (id: string) =>
-  segments.value.find((segment) => segment.id === id);
 
 // --- selection --- //
 
 const selectedSegment = computed({
-  get: () => {
-    const id = segmentationStore.activeSegmentId;
-    return id && segmentById(id) ? id : null;
-  },
-  set: (id: Maybe<string>) => {
-    if (!id) {
-      segmentationStore.clearActiveSegment();
-      return;
-    }
-    segmentationStore.setActiveSegment(id);
-  },
+  get: () => types.selectedTypeId.value ?? null,
+  set: (id: Maybe<string>) => types.selectType(id ?? undefined),
 });
 
-// Adding a row allocates no storage: the segment exists as identity until an
-// edit binds a labelmap to it.
+// Adding a row allocates no storage and touches no image: the type exists as
+// identity until an edit binds a mask to it.
 function addNewSegment() {
-  const imageId = currentImageID.value;
-  if (!imageId || viewingCine.value) return;
-  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
-  const segment = segmentationStore.createSegment(segmentation.id);
-  segmentationStore.setActiveSegment(segment.id);
+  if (viewingCine.value) return;
+  types.addType();
 }
 
 // --- row actions --- //
 
-const toggleVisible = (id: string) => {
-  const segment = segmentById(id);
-  if (!segment) return;
-  segmentationStore.updateSegment(id, { visible: !segment.visible });
-};
+const toggleVisible = (id: string) =>
+  types.updateType(id, { visible: !types.appearanceOf(id).visible });
 
-const toggleLock = (id: string) => {
-  const segment = segmentById(id);
-  if (!segment) return;
-  segmentationStore.updateSegment(id, { locked: !segment.locked });
-};
+const toggleLock = (id: string) =>
+  types.updateType(id, { locked: !types.appearanceOf(id).locked });
 
 // Locking is the whole opt-in for overlap, and nothing else on screen says so.
 const lockTooltip = (locked: boolean) =>
@@ -123,75 +119,29 @@ const allLocked = computed(() =>
 function toggleGlobalVisible() {
   const visible = !allVisible.value;
   segments.value.forEach((segment) =>
-    segmentationStore.updateSegment(segment.id, { visible })
+    types.updateType(segment.id, { visible })
   );
 }
 
 function toggleGlobalLocked() {
   const locked = !allLocked.value;
-  segments.value.forEach((segment) =>
-    segmentationStore.updateSegment(segment.id, { locked })
-  );
+  segments.value.forEach((segment) => types.updateType(segment.id, { locked }));
 }
 
 function deleteSegment(id: string) {
-  if (!segmentById(id)) return;
-  segmentationStore.deleteSegment(id);
+  types.deleteType(id);
 }
 
 // --- editing state --- //
 
-const editingSegmentId = ref<Maybe<string>>(null);
-const editState = reactive({
-  name: '',
-  color: '',
-  fillOpacity: 1,
-  outlineOpacity: 1,
-});
-const editDialog = ref(false);
-
-const editingSegment = computed(() =>
-  editingSegmentId.value ? segmentById(editingSegmentId.value) : undefined
-);
-
-const invalidNames = computed(() => {
-  const names = new Set(
-    segments.value
-      .filter((segment) => segment.id !== editingSegmentId.value)
-      .map((segment) => segment.name.trim())
-  );
-  return names;
-});
-
-function startEditing(id: string) {
-  const segment = segmentById(id);
-  if (!segment) return;
-  editingSegmentId.value = id;
-  editDialog.value = true;
-  editState.name = segment.name;
-  editState.color = rgbaToCssColor(segment.color);
-  editState.fillOpacity = segment.fillOpacity;
-  editState.outlineOpacity = segment.outlineOpacity;
-}
-
-function stopEditing(commit: boolean) {
-  const id = editingSegmentId.value;
-  if (id && commit && segmentById(id)) {
-    segmentationStore.updateSegment(id, {
-      name: editState.name,
-      color: cssColorToRGBA(editState.color),
-      fillOpacity: editState.fillOpacity,
-      outlineOpacity: editState.outlineOpacity,
-    });
-  }
-  editingSegmentId.value = null;
-  editDialog.value = false;
-}
-
-function deleteEditingSegment() {
-  if (editingSegmentId.value) deleteSegment(editingSegmentId.value);
-  stopEditing(false);
-}
+const editing = useSegmentTypeEditing(() => types);
+const {
+  editDialog,
+  editState,
+  editingType: editingSegment,
+  editingName,
+  invalidNames,
+} = editing;
 </script>
 
 <template>
@@ -220,13 +170,15 @@ function deleteEditingSegment() {
       </v-btn>
 
       <v-btn
-        v-if="viewedSegmentation"
         data-testid="save-segments-button"
         icon="mdi-content-save"
         class="my-1"
+        :disabled="!!savableReason"
         @click.stop="openSaveDialog"
       >
-        <v-tooltip location="top" activator="parent">Save</v-tooltip>
+        <v-tooltip location="top" activator="parent">{{
+          savableReason || 'Save'
+        }}</v-tooltip>
       </v-btn>
     </div>
 
@@ -260,11 +212,11 @@ function deleteEditingSegment() {
       <template #item-prepend="{ item }">
         <!-- dot container keeps overflowing name from squishing dot width  -->
         <div class="dot-container mr-3">
-          <ColorDot :color="item.color" />
+          <div class="color-dot" :style="{ background: item.color }" />
         </div>
       </template>
       <template #item-append="{ item }">
-        <!-- Lock/unlock segment button -->
+        <!-- Lock/unlock the type, which holds on every image -->
         <v-btn
           icon
           size="small"
@@ -302,7 +254,7 @@ function deleteEditingSegment() {
           density="compact"
           class="mr-1"
           variant="plain"
-          @click.stop="startEditing(item.id)"
+          @click.stop="editing.startEditing(item.id)"
           :disabled="item.locked"
         />
         <!-- Delete segment button (disabled when locked) -->
@@ -321,16 +273,17 @@ function deleteEditingSegment() {
   <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
 
   <isolated-dialog v-model="editDialog" @keydown.stop max-width="800px">
-    <segment-editor
+    <segment-type-editor
       v-if="!!editingSegment"
       v-model:name="editState.name"
-      :original="editingSegment.name"
+      :original="editingName"
       v-model:color="editState.color"
-      v-model:fillOpacity="editState.fillOpacity"
-      v-model:outlineOpacity="editState.outlineOpacity"
-      @delete="deleteEditingSegment"
-      @cancel="stopEditing(false)"
-      @done="stopEditing(true)"
+      v-model:fill-opacity="editState.fillOpacity"
+      v-model:outline-opacity="editState.outlineOpacity"
+      v-model:stroke-width="editState.strokeWidth"
+      @delete="editing.deleteEditingType()"
+      @cancel="editing.stopEditing(false)"
+      @done="editing.stopEditing(true)"
       :invalidNames="invalidNames"
     />
   </isolated-dialog>
@@ -349,6 +302,12 @@ function deleteEditingSegment() {
 </template>
 
 <style scoped>
+.color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 16px;
+  border: 1px solid #111;
+}
 .dot-container {
   width: 18px;
 }

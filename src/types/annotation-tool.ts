@@ -23,11 +23,8 @@ export type AnnotationTool = {
    */
   placing?: boolean;
 
-  label?: string;
-  labelName?: string;
-
-  color: string;
-  strokeWidth?: number;
+  /** The segment type this annotation delineates, in its own registry. */
+  typeId?: string;
 
   name: string;
 

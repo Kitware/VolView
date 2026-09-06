@@ -114,9 +114,29 @@ export function useInputStaging() {
       hasGeometry: <U extends AnnotationTool>(tool: U) => tool is U & T
     ): AnnotationKindView<AnnotationTool & T> => {
       const store = annotationToolStore(kind);
+      const { types } = store;
       return {
-        tools: onActiveImage(store.finishedTools).filter(hasGeometry),
-        labels: store.labels,
+        // The type's name travels with the tool: identity on the wire is the
+        // name, inside this kind's own namespace.
+        tools: onActiveImage(store.finishedTools)
+          .filter(hasGeometry)
+          .map((tool) => ({
+            ...tool,
+            labelName: types.appearanceOf(tool.typeId).name,
+          })),
+        labels: Object.fromEntries(
+          types.typeList.value.map((type) => {
+            const resolved = types.appearanceOf(type.id);
+            return [
+              type.id,
+              {
+                labelName: resolved.name,
+                color: resolved.cssColor,
+                strokeWidth: resolved.strokeWidth,
+              },
+            ];
+          })
+        ),
       };
     };
     return {
@@ -137,7 +157,9 @@ export function useInputStaging() {
   const sourceRefContext = (): SourceRefBindingContext => ({
     activeDataSource: activeDataSource(),
     backgroundImageId: currentImageID.value ?? undefined,
-    activeArtifactId: segmentationStore.activeSegmentationId,
+    activeArtifactId: currentImageID.value
+      ? segmentationStore.getSegmentationForImage(currentImageID.value)?.id
+      : undefined,
     segmentGroups: segmentGroupView(),
     hasFinishedAnnotations: finishedAnnotationCount.value > 0,
     getDataSource: (imageId) => datasetStore.getDataSource(imageId),

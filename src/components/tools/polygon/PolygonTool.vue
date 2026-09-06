@@ -52,7 +52,6 @@
 
 <script lang="ts">
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -102,7 +101,7 @@ export default defineComponent({
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
+    const { selectedTypeId } = activeToolStore.types;
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
@@ -118,8 +117,7 @@ export default defineComponent({
         return {
           imageID: imageId.value,
           ...locatorPatch(locator.value),
-          label: activeLabel.value,
-          ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
+          typeId: selectedTypeId.value ?? '',
         };
       })
     );
@@ -137,11 +135,11 @@ export default defineComponent({
 
     const mergeKey = useActionHeld('mergeNewPolygon');
 
-    // The annotation delineates a segment from the first point down, so it is
-    // drawn in that segment's color rather than changing color once placed.
+    // The annotation delineates a type from the first point down, so it is
+    // drawn in that type's color rather than changing color once placed.
     const onPlacementStarted = () => {
       const id = placingTool.id.value;
-      if (id) activeToolStore.resolveToolLabel(id);
+      if (id) activeToolStore.resolveToolType(id);
     };
 
     const onToolPlaced = () => {
@@ -211,17 +209,16 @@ export default defineComponent({
       const tool = activeToolStore.toolByID[toolId];
       const rasterized = rasterizePolygonEdit({
         imageId: imageId.value,
-        segmentId: tool?.label,
+        typeId: tool?.typeId,
         points: activeToolStore.getPoints(toolId),
         slice: slice.value,
         viewAxis: viewAxis.value,
       });
-      // The polygon records where its voxels actually landed. This covers an
-      // unlabeled polygon and one whose segment was deleted, whose stale id
-      // would otherwise outlive the segment it names. A refused rasterize
-      // hands back the label it was given, so nothing is renamed.
-      if (tool && rasterized.segmentId && tool.label !== rasterized.segmentId) {
-        activeToolStore.updateTool(toolId, { label: rasterized.segmentId });
+      // The polygon records the type its voxels actually landed in: an
+      // unlabeled one, and one whose type was deleted, are given the type the
+      // edit resolved. A refused rasterize hands back what it was given.
+      if (tool && rasterized.typeId && tool.typeId !== rasterized.typeId) {
+        activeToolStore.updateTool(toolId, { typeId: rasterized.typeId });
       }
     }
 

@@ -10,7 +10,8 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
-import { createSharedSegmentRegistry } from './segmentRegistry';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { declareSegmentTypeReferences } from './segmentTypeReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -38,7 +39,12 @@ const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {
 export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults,
-    segments: () => createSharedSegmentRegistry(),
+    types: () => useSegmentTypeStore().types,
+  });
+
+  declareSegmentTypeReferences('polygons', {
+    has: toolAPI.hasToolsOfType,
+    remove: toolAPI.removeToolsOfType,
   });
 
   function getPoints(id: ToolID) {
@@ -129,14 +135,14 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return mergedTool;
   };
 
-  const sameSliceAndLabel = (a: Tool, b: Tool) =>
-    a.label === b.label &&
+  const sameSliceAndType = (a: Tool, b: Tool) =>
+    a.typeId === b.typeId &&
     a.slice === b.slice &&
     a.frame === b.frame &&
     a.frameOfReference === b.frameOfReference;
 
   const mergable = (a: Tool, b: Tool) => {
-    if (!sameSliceAndLabel(a, b)) return false;
+    if (!sameSliceAndType(a, b)) return false;
     return polygonsOverlap(a, b);
   };
   // --- //
@@ -197,9 +203,9 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   function deserialize(
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string> = {}
+    typeIdMap: Record<string, string> = {}
   ) {
-    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap, segmentIdMap);
+    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap, typeIdMap);
   }
 
   return {

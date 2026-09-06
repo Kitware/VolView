@@ -30,9 +30,9 @@ export interface ISerializableTool {
   deserialize: (
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    // Save-time segment id -> restored segment id, for the tools that point at
-    // segments rather than owning their own labels.
-    segmentIdMap?: Record<string, string>
+    // Save-time type id -> restored type id, for the tools that share the
+    // delineation registry.
+    typeIdMap?: Record<string, string>
   ) => void;
 }
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import LabelControls from '@/src/components/LabelControls.vue';
+import SegmentTypeList from '@/src/components/SegmentTypeList.vue';
 
 const activeToolStore = usePolygonStore();
 </script>
 
 <template>
-  <label-controls :labels-store="activeToolStore" />
+  <segment-type-list :registry="activeToolStore.types" />
 </template>

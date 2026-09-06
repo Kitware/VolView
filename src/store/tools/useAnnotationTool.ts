@@ -1,10 +1,6 @@
-import { Ref, computed, ref, watch } from 'vue';
+import { Ref, computed, markRaw, ref } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { Maybe, PartialWithRequired, UnwrapAll } from '@/src/types';
-import {
-  STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
-  TOOL_COLORS,
-} from '@/src/config';
 import { isRecord, removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
@@ -14,7 +10,7 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
-import type { ToolSegmentRegistry, ToolWireIdentity } from './segmentRegistry';
+import type { SegmentTypeRegistry } from './segmentTypeRegistry';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
@@ -26,17 +22,29 @@ export const declareAnnotationToolManifestRefs = (
     const tools = isRecord(manifest.tools) ? manifest.tools : {};
     const section = tools[key];
     if (!isRecord(section) || !Array.isArray(section.tools)) return [];
-    return section.tools.flatMap((entry, index) =>
-      isRecord(entry) && typeof entry.imageID === 'string'
-        ? [
-            {
-              kind: 'dataset' as const,
-              id: entry.imageID,
-              where: `tools.${key}[${index}].imageID`,
-            },
-          ]
-        : []
-    );
+    return section.tools.flatMap((entry, index) => {
+      if (!isRecord(entry)) return [];
+      return [
+        ...(typeof entry.imageID === 'string'
+          ? [
+              {
+                kind: 'dataset' as const,
+                id: entry.imageID,
+                where: `tools.${key}[${index}].imageID`,
+              },
+            ]
+          : []),
+        ...(typeof entry.typeId === 'string' && entry.typeId
+          ? [
+              {
+                kind: 'segmentType' as const,
+                id: entry.typeId,
+                where: `tools.${key}[${index}].typeId`,
+              },
+            ]
+          : []),
+      ];
+    });
   });
 
 const makeAnnotationToolDefaults = () => ({
@@ -47,22 +55,20 @@ const makeAnnotationToolDefaults = () => ({
   slice: -1,
   imageID: '',
   placing: false,
-  color: TOOL_COLORS[0],
-  strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
+  typeId: '',
   name: 'baseAnnotationTool',
 });
 
 // Must return addTool in consuming Pinia store.
 export const useAnnotationTool = <
   MakeToolDefaults extends (...args: any) => any,
-  LabelProps,
 >({
   toolDefaults,
-  segments,
+  types,
 }: {
   toolDefaults: MakeToolDefaults;
   // Factory, not the invoked registry: tools are created inside store setup.
-  segments: () => ToolSegmentRegistry<LabelProps>;
+  types: () => SegmentTypeRegistry;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -83,17 +89,7 @@ export const useAnnotationTool = <
     tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
 
-  const registry = segments();
-
-  function makePropsFromLabel(label: Maybe<string>) {
-    if (!label) return { labelName: '' };
-
-    const labelProps = registry.allLabels.value[label];
-    if (labelProps) return labelProps;
-
-    // if label deleted, remove label name from tool
-    return { labelName: '' };
-  }
+  const registry = types();
 
   function addTool(tool: ToolPatch): ToolID {
     const id = useIdStore().nextId() as ToolID;
@@ -104,16 +100,18 @@ export const useAnnotationTool = <
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
       ...toolDefaults(),
-      label: registry.activeLabel.value,
+      typeId: registry.selectedTypeId.value ?? '',
       ...tool,
-      // updates label props if changed between sessions
-      ...makePropsFromLabel(tool.label),
       id,
     };
 
     toolIDs.value.push(id);
     return id;
   }
+
+  /** The appearance a tool draws with, resolved from its type. */
+  const appearanceOfTool = (id: ToolID) =>
+    registry.appearanceOf(toolByID.value[id]?.typeId);
 
   function removeTool(id: ToolID) {
     if (!(id in toolByID.value)) return;
@@ -131,23 +129,20 @@ export const useAnnotationTool = <
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
 
-  // Starting an annotation is the edit that resolves the segment it delineates:
-  // one begun against nothing mints a segment the way a first paint stroke
-  // does, so the annotation is drawn in that segment's color while it is still
-  // being placed. Idempotent, since the tool then names a live segment.
-  function resolveToolLabel(id: ToolID) {
+  // Starting an annotation is the gesture that names the type it delineates:
+  // one begun against nothing mints and selects a type the way a first paint
+  // stroke does, so it is drawn in that type's color while it is still being
+  // placed. Idempotent, since the tool then names a live type.
+  function resolveToolType(id: ToolID) {
     const tool = toolByID.value[id];
-    if (!tool) return;
-
-    const label = registry.resolveLabelForImage(tool.imageID, tool.label);
-    if (label === tool.label) return;
-    updateTool(id, { label, ...makePropsFromLabel(label) } as ToolPatch);
+    if (!tool || registry.getType(tool.typeId)) return;
+    updateTool(id, { typeId: registry.ensureSelectedType() } as ToolPatch);
   }
 
   // Placing resolves too, for an annotation that arrived without one of the
   // gestures that would have.
   function placeTool(id: ToolID) {
-    resolveToolLabel(id);
+    resolveToolType(id);
     updateTool(id, { placing: false } as ToolPatch);
   }
 
@@ -160,19 +155,6 @@ export const useAnnotationTool = <
     toolIDs.value
       .filter((id) => deleted.has(toolByID.value[id].imageID))
       .forEach((id) => removeTool(id));
-  });
-
-  // Labels recompute on any segment change, so only a tool whose label props
-  // actually differ is rewritten.
-  watch(registry.allLabels, () => {
-    toolIDs.value.forEach((id) => {
-      const tool = toolByID.value[id];
-      const propsFromLabel = makePropsFromLabel(tool.label);
-      const changed = Object.entries(propsFromLabel).some(
-        ([key, value]) => (tool as Record<string, unknown>)[key] !== value
-      );
-      if (changed) updateTool(id, { ...tool, ...propsFromLabel });
-    });
   });
 
   const { currentImageID } = useCurrentImage('global');
@@ -195,57 +177,45 @@ export const useAnnotationTool = <
         ...rest,
       }));
 
-    return {
-      tools: toolsSerialized,
-      ...registry.serializeIdentity(),
-    };
+    return { tools: toolsSerialized };
   };
 
   type Serialized = {
     tools: PartialWithRequired<Tool, 'imageID'>[];
-  } & ToolWireIdentity<Tool>;
+  };
+  // A type the restore did not recreate leaves the shape unlabeled, drawn in
+  // the app defaults; renaming a type never reaches here, since ids are stable.
   function deserializeTools(
     serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string> = {}
+    typeIdMap: Record<string, string> = {}
   ) {
-    const resolveLabel = registry.adoptIdentity(
-      serialized as Maybe<ToolWireIdentity<LabelProps>>,
-      segmentIdMap
-    );
-
     serialized?.tools
-      .map(({ imageID, label, ...rest }) => {
+      .map(({ imageID, typeId, ...rest }) => {
         const newImageID = dataIDMap[imageID];
         return {
           ...rest,
           imageID: newImageID,
-          label: resolveLabel(label),
+          typeId: (typeId && typeIdMap[typeId]) || '',
         } as ToolPatch;
       })
       .forEach((tool) => addTool(tool));
   }
 
-  // A template's id is derived from its name, so renaming one moves it. The
-  // annotations that named the old id follow, or they go unlabeled.
-  const updateLabel = (
-    id: string,
-    patch: Parameters<typeof registry.updateLabel>[1]
-  ) => {
-    const movedTo = registry.updateLabel(id, patch);
-    if (movedTo !== id) {
-      toolIDs.value
-        .filter((toolId) => toolByID.value[toolId].label === id)
-        .forEach((toolId) =>
-          updateTool(toolId, { label: movedTo } as ToolPatch)
-        );
-    }
-    return movedTo;
-  };
+  // Shapes reference a type; deleting one takes its shapes with it.
+  const removeToolsOfType = (typeId: string) =>
+    toolIDs.value
+      .filter((id) => toolByID.value[id].typeId === typeId)
+      .forEach((id) => removeTool(id));
+
+  const hasToolsOfType = (typeId: string) =>
+    toolIDs.value.some((id) => toolByID.value[id].typeId === typeId);
 
   return {
-    ...registry,
-    updateLabel,
+    types: markRaw(registry),
+    appearanceOfTool,
+    removeToolsOfType,
+    hasToolsOfType,
     toolIDs,
     toolByID,
     tools,
@@ -253,7 +223,7 @@ export const useAnnotationTool = <
     addTool,
     removeTool,
     updateTool,
-    resolveToolLabel,
+    resolveToolType,
     placeTool,
     jumpToTool,
     serializeTools,
@@ -264,7 +234,7 @@ export const useAnnotationTool = <
 type ToolFactory<T extends AnnotationTool> = (...args: any[]) => T;
 
 export type AnnotationToolAPI<T extends AnnotationTool> = ReturnType<
-  typeof useAnnotationTool<ToolFactory<T>, any>
+  typeof useAnnotationTool<ToolFactory<T>>
 > & {
   getPoints(id: ToolID): Vector3[];
 };

@@ -3,7 +3,8 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { createSharedSegmentRegistry } from './segmentRegistry';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { declareSegmentTypeReferences } from './segmentTypeReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -19,14 +20,15 @@ const rectangleDefaults = () => ({
   fillColor: 'transparent',
 });
 
-const newLabelDefault = {
-  fillColor: 'transparent',
-};
-
 export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults: rectangleDefaults,
-    segments: () => createSharedSegmentRegistry(newLabelDefault),
+    types: () => useSegmentTypeStore().types,
+  });
+
+  declareSegmentTypeReferences('rectangles', {
+    has: toolAPI.hasToolsOfType,
+    remove: toolAPI.removeToolsOfType,
   });
 
   function getPoints(id: ToolID) {
@@ -44,13 +46,9 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   function deserialize(
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string> = {}
+    typeIdMap: Record<string, string> = {}
   ) {
-    toolAPI.deserializeTools(
-      manifest.tools?.rectangles,
-      dataIDMap,
-      segmentIdMap
-    );
+    toolAPI.deserializeTools(manifest.tools?.rectangles, dataIDMap, typeIdMap);
   }
 
   return {

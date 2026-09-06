@@ -30,7 +30,8 @@ const metadata = computed(() => {
 
 const label = computed(() => {
   if (!props.info.visible) return '';
-  return props.toolStore.toolByID[props.info.toolID].labelName;
+  const { typeId } = props.toolStore.toolByID[props.info.toolID];
+  return props.toolStore.types.appearanceOf(typeId).name;
 });
 
 const tooltip = ref();

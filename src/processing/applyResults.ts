@@ -28,7 +28,7 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import type { LabelmapSegment } from '@/src/types/segmentation';
+import { cssColorToRGBA, type LabelmapSegment } from '@/src/types/segmentation';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
@@ -36,6 +36,7 @@ import {
   useSegmentationStore,
   type ImportedSegment,
 } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
@@ -97,7 +98,7 @@ function applySegmentDescriptors(
     // Descriptors may name a value the labelmap does not carry.
     const segmentId = segmentIdBySourceValue.get(seg.value);
     if (!segmentId) return;
-    segmentGroups.updateSegment(segmentId, {
+    segmentGroups.describeSegment(segmentId, {
       name: seg.name,
       color: seg.color,
       ...(seg.visible == null ? {} : { visible: seg.visible }),
@@ -266,40 +267,43 @@ const prepareAnnotations = (
     ])
   ) as PreparedAnnotations;
 
-// Label identity across the boundary is the NAME, inside its own tool-kind
-// namespace: merging returns the store id a tool must point at. Only names the
-// tools actually reference are merged — a declaration nothing uses would be
-// clutter in the label picker.
-const mergeReferencedLabels = (
+// Type identity across the boundary is the NAME, inside its own registry:
+// binding returns the type id a tool must point at, minting on a miss. Only
+// names the tools actually reference are bound — a declaration nothing uses
+// would be clutter in the picker.
+const bindReferencedTypes = (
   kind: AnnotationToolKind,
   tools: readonly PreparedCore[],
-  namespace: Record<string, AnnotationLabel>,
-  imageId: string
+  namespace: Record<string, AnnotationLabel>
 ): Record<string, string> => {
-  const store = annotationToolStore(kind);
+  const { types } = annotationToolStore(kind);
   const names = new Set(
     tools.flatMap((tool) => (tool.labelName ? [tool.labelName] : []))
   );
   return Object.fromEntries(
-    [...names].map((labelName) => [
-      labelName,
-      store.mergeLabelForImage(imageId, {
-        labelName,
-        ...(namespace[labelName] ?? {}),
-      }),
-    ])
+    [...names].map((name) => {
+      const style = namespace[name] ?? {};
+      return [
+        name,
+        types.typeNamed(name, {
+          ...(style.color ? { color: cssColorToRGBA(style.color) } : {}),
+          ...(style.strokeWidth === undefined
+            ? {}
+            : { strokeWidth: style.strokeWidth }),
+        }),
+      ];
+    })
   );
 };
 
-// `labelName` is deliberately NOT passed through: addTool re-derives it from
-// the label id, and passing a name without an id would silently blank it.
+// `labelName` names the type, which the tool carries by id.
 const toolPayload = (
   { labelName, ...core }: PreparedCore,
-  labelIds: Record<string, string>,
+  typeIds: Record<string, string>,
   source: ResultSource | undefined
 ) => ({
   ...core,
-  label: (labelName && labelIds[labelName]) || '',
+  typeId: (labelName && typeIds[labelName]) || '',
   ...(source ? { source } : {}),
 });
 
@@ -343,17 +347,12 @@ async function applyAnnotations(
     return { status: 'applied' };
   }
 
-  // Labels first for every kind, then the tools: a tool points at the store id
-  // its label merged to.
-  const labelIds = Object.fromEntries(
+  // Types first for every kind, then the tools: a tool points at the type id
+  // its name bound to.
+  const typeIds = Object.fromEntries(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
-      mergeReferencedLabels(
-        kind,
-        prepared[kind],
-        decoded.labels[kind],
-        parentSelection
-      ),
+      bindReferencedTypes(kind, prepared[kind], decoded.labels[kind]),
     ])
   ) as Record<AnnotationToolKind, Record<string, string>>;
 
@@ -364,7 +363,7 @@ async function applyAnnotations(
       // uniform tool type does not carry the per-kind geometry keys.
       const payload = {
         ...geometry,
-        ...toolPayload(core, labelIds[kind], intent.source),
+        ...toolPayload(core, typeIds[kind], intent.source),
       };
       store.addTool(payload);
     });
@@ -383,9 +382,10 @@ type SegmentGroupWriter = {
     parentSelection: string,
     source: ResultSource | undefined
   ) => Promise<ImportedSegment[][]>;
-  updateSegment: (
+  /** Describes the TYPE a record delineates, which is where identity lives. */
+  describeSegment: (
     segmentId: string,
-    segmentUpdate: Partial<Omit<LabelmapSegment, 'value'>>
+    description: Partial<Omit<LabelmapSegment, 'value'>>
   ) => void;
 };
 
@@ -423,11 +423,18 @@ export const appApplyDependencies = (): ApplyDependencies => ({
         parentSelection,
         source
       ),
-    updateSegment: (segmentId, segmentUpdate) => {
+    describeSegment: (segmentId, { name, color, visible }) => {
       const store = useSegmentationStore();
-      // The segment can be gone by the time a multi-component import lands.
+      // The record can be gone by the time a multi-component import lands.
       if (!store.segmentExists(segmentId)) return;
-      store.updateSegment(segmentId, segmentUpdate);
+      useSegmentTypeStore().types.updateType(
+        store.getSegment(segmentId).typeId,
+        {
+          ...(name === undefined ? {} : { name }),
+          ...(color === undefined ? {} : { color }),
+          ...(visible === undefined ? {} : { visible }),
+        }
+      );
     },
   },
 });

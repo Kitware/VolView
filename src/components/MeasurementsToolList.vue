@@ -58,6 +58,7 @@ const tools = computed(() => {
         id: tool.id,
         type,
         toolData: tool,
+        appearance: store.types.appearanceOf(tool.typeId),
         icon,
         details,
         remove: () => store.removeTool(tool.id),
@@ -180,10 +181,10 @@ function toggleGlobalHidden() {
 
         <div
           class="color-dot flex-shrink-0 mr-2"
-          :style="{ backgroundColor: tool.toolData.color }"
+          :style="{ backgroundColor: tool.appearance.cssColor }"
         />
         <v-list-item-title v-bind="$attrs">
-          {{ tool.toolData.labelName }}
+          {{ tool.appearance.name }}
         </v-list-item-title>
 
         <span class="ml-auto flex-shrink-0">

@@ -165,6 +165,9 @@ export default defineComponent({
     return {
       tool,
       slice,
+      appearance: computed(() =>
+        toolStore.types.appearanceOf(tool.value?.typeId)
+      ),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
       }),
@@ -182,8 +185,8 @@ export default defineComponent({
     :view-id="viewId"
     :point1="firstPoint"
     :point2="secondPoint"
-    :color="tool.color"
-    :stroke-width="tool.strokeWidth"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :fill-color="tool.fillColor"
   />
 </template>

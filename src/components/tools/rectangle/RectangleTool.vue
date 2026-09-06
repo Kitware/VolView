@@ -22,7 +22,6 @@
 
 <script lang="ts">
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -70,7 +69,7 @@ export default defineComponent({
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
+    const { selectedTypeId } = activeToolStore.types;
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
@@ -87,8 +86,7 @@ export default defineComponent({
         return {
           imageID: currentImageID.value,
           ...locatorPatch(locator.value),
-          label: activeLabel.value,
-          ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
+          typeId: selectedTypeId.value ?? '',
         };
       })
     );
@@ -111,7 +109,7 @@ export default defineComponent({
     // drawn in that segment's color rather than changing color once placed.
     const onPlacementStarted = () => {
       const id = placingTool.id.value;
-      if (id) activeToolStore.resolveToolLabel(id);
+      if (id) activeToolStore.resolveToolType(id);
     };
 
     const onToolPlaced = () => {

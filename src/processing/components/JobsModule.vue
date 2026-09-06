@@ -583,7 +583,9 @@ watchDebounced(
     return {
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
-      activeSegmentGroup: segmentationStore.activeSegmentationId,
+      activeSegmentGroup: id
+        ? segmentationStore.getSegmentationForImage(id)?.id
+        : undefined,
       groupCount: id
         ? (segmentationStore.getSegmentationForImage(id)?.order.length ?? 0)
         : 0,

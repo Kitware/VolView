@@ -30,10 +30,10 @@ const SEGMENT_OFFSET_FACTOR = -4;
 export const SEGMENT_ACTOR_OPACITY = 0.9999;
 
 /**
- * A segment's coincident-topology polygon offset, by its position in
- * `segmentation.order`. Overlap is representable, so segments sharing one
- * offset would z-fight. Later in the order draws in front: a segment is
- * appended when it is added, so the one just painted is on top.
+ * A segment's coincident-topology polygon offset, by its type's position in the
+ * registry. Overlap is representable, so segments sharing one offset would
+ * z-fight. Later in that order draws in front, and the flattened export
+ * resolves an overlap the same way, so two images stack one type alike.
  */
 export function segmentCoincidentOffset(stackIndex: number) {
   return [SEGMENT_OFFSET_FACTOR, -4 - stackIndex] as [number, number];

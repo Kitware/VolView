@@ -9,6 +9,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useProbeStore } from '@/src/store/probe';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { NO_NAME } from '@/src/constants';
@@ -33,6 +34,7 @@ const {
 } = useCurrentImage();
 const imageCacheStore = useImageCacheStore();
 const segmentationStore = useSegmentationStore();
+const { types: segmentTypes } = useSegmentTypeStore();
 const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
@@ -82,7 +84,7 @@ const getSegments = () => {
       return {
         type: 'segmentGroup',
         id: layer.artifactId,
-        name: segment.name,
+        name: segmentTypes.appearanceOf(segment.typeId).name,
         rep,
         nameByLabelValue: Object.fromEntries(
           catalog.map((entry) => [entry.value, entry.name])

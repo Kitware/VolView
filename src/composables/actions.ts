@@ -13,8 +13,9 @@ import { useDatasetStore } from '../store/datasets';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
+import type { SegmentType } from '../types/segmentType';
 
-const applyLabelOffset = (offset: number) => () => {
+const applyTypeOffset = (offset: number) => () => {
   const toolToStore = {
     [Tools.Rectangle]: useRectangleStore(),
     [Tools.Ruler]: useRulerStore(),
@@ -26,16 +27,13 @@ const applyLabelOffset = (offset: number) => () => {
   const activeToolStore = toolToStore[toolStore.currentTool];
   if (!activeToolStore) return;
 
-  const labels = Object.entries(activeToolStore.labels);
-  // Shared-registry tools start with no segments, so there is nothing to cycle.
-  if (labels.length === 0) return;
+  const { types } = activeToolStore;
+  const ids = types.typeList.value.map((type: SegmentType) => type.id);
+  // A registry starts empty, so there is nothing to cycle until a type exists.
+  if (ids.length === 0) return;
 
-  const activeLabelIndex = labels.findIndex(
-    ([name]) => name === activeToolStore.activeLabel
-  );
-
-  const [nextLabel] = labels.at((activeLabelIndex + offset) % labels.length)!;
-  activeToolStore.setActiveLabel(nextLabel);
+  const selectedIndex = ids.indexOf(types.selectedTypeId.value);
+  types.selectType(ids.at((selectedIndex + offset) % ids.length));
 };
 
 const setTool = (tool: Tools) => () => {
@@ -112,8 +110,8 @@ export const ACTION_TO_FUNC = {
   previousSlice: changeSlice(1),
   grabSlice: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
-  decrementLabel: applyLabelOffset(-1),
-  incrementLabel: applyLabelOffset(1),
+  decrementLabel: applyTypeOffset(-1),
+  incrementLabel: applyTypeOffset(1),
 
   deleteSelectedAnnotations: removeSelectedTools,
 

@@ -10,6 +10,7 @@ defineEmits([
   'update:color',
   'update:fillOpacity',
   'update:outlineOpacity',
+  'update:strokeWidth',
 ]);
 
 const props = defineProps<{
@@ -19,6 +20,7 @@ const props = defineProps<{
   invalidNames: Set<string>;
   fillOpacity: number;
   outlineOpacity: number;
+  strokeWidth: number;
 }>();
 
 function isUniqueEditingName(name: string) {
@@ -32,9 +34,7 @@ function uniqueNameRule(name: string) {
   return isUniqueEditingName(name) || 'Name is not unique';
 }
 
-const valid = computed(() => {
-  return isUniqueEditingName(props.name);
-});
+const valid = computed(() => isUniqueEditingName(props.name));
 </script>
 
 <template>
@@ -78,6 +78,14 @@ const valid = computed(() => {
         thumb-label
         :model-value="outlineOpacity"
         @update:model-value="$emit('update:outlineOpacity', $event)"
+      />
+      <v-text-field
+        label="Stroke Width"
+        type="number"
+        class="flex-grow-0 label-stroke-width-input"
+        :model-value="strokeWidth"
+        @update:model-value="$emit('update:strokeWidth', +$event)"
+        @keydown.stop.enter="done"
       />
     </template>
   </label-editor>
