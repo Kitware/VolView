@@ -319,16 +319,28 @@ const LabelmapBinding = z.object({
   extent: Extent3D,
 });
 
+// Everything the user sees or sets lives on the type; a record is one image's
+// mask for it.
 const Segment = z.object({
+  id: z.string(),
+  typeId: z.string(),
+  representations: z.object({ labelmap: LabelmapBinding.optional() }),
+});
+
+// Serialized as an ordered array, unused types included: the order is what the
+// picker lists and the renderer offsets by, and restore re-mints ids in it.
+export const SegmentType = z.object({
   id: z.string(),
   name: z.string(),
   color: RGBAColor,
   visible: z.boolean().default(true),
   locked: z.boolean().default(false),
-  fillOpacity: z.number().default(1),
-  outlineOpacity: z.number().default(1),
-  representations: z.object({ labelmap: LabelmapBinding.optional() }),
+  fillOpacity: z.number().optional(),
+  outlineOpacity: z.number().optional(),
+  strokeWidth: z.number().optional(),
 });
+
+export type SegmentTypeWire = z.infer<typeof SegmentType>;
 
 export const Segmentation = z.object({
   id: z.string(),
@@ -336,7 +348,6 @@ export const Segmentation = z.object({
   parentImage: z.string(),
   segments: Segment.array(),
   order: z.string().array(),
-  activeSegment: z.string().optional(),
   fillOpacity: z.number().default(DEFAULT_SEGMENTATION_FILL_OPACITY),
   outlineOpacity: z.number().default(1),
   outlineThickness: z.number().default(2),
@@ -396,10 +407,7 @@ const annotationTool = z.object({
   frame: z.number().optional(),
   id: z.string().optional() as unknown as z.ZodType<ToolID | undefined>,
   name: z.string().optional(),
-  color: z.string().optional(),
-  strokeWidth: z.number().optional(),
-  label: z.string().optional(),
-  labelName: z.string().optional(),
+  typeId: z.string().optional(),
   metadata: z.record(z.string(), z.string()).optional(),
   // Job provenance, present only on a tool applied from a result. Unknown keys
   // are stripped on parse, so restore would silently drop the idempotency key
@@ -407,22 +415,11 @@ const annotationTool = z.object({
   source: ProcessingResultSource.optional(),
 });
 
-// Rulers own their labels, so identity rides on the tool entry.
-const makeLabelledToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
+// Every shape names a type in its registry; the registries themselves are
+// manifest roots, so a tool entry carries geometry only.
+const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({
     tools: z.array(tool),
-    labels: z.record(z.string(), tool.partial()).optional(),
-  });
-
-// Polygons and rectangles point at segments: identity lives on the
-// segmentation, and only the per-tool props are keyed by segment id here. A
-// config template has no segment yet, so a tool labeled with one needs the
-// template itself on the wire, keyed by template name.
-const makeSegmentToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
-  z.object({
-    tools: z.array(tool),
-    segmentProps: z.record(z.string(), tool.partial()).optional(),
-    templates: z.record(z.string(), tool.partial()).optional(),
   });
 
 const Ruler = annotationTool.extend({
@@ -430,19 +427,19 @@ const Ruler = annotationTool.extend({
   secondPoint: Vector3,
 });
 
-const Rulers = makeLabelledToolEntry(Ruler);
+const Rulers = makeToolEntry(Ruler);
 
 const Rectangle = Ruler.extend({
   fillColor: z.string().optional(),
 });
 
-const Rectangles = makeSegmentToolEntry(Rectangle);
+const Rectangles = makeToolEntry(Rectangle);
 
 const Polygon = annotationTool.extend({
   points: z.array(Vector3),
 });
 
-const Polygons = makeSegmentToolEntry(Polygon);
+const Polygons = makeToolEntry(Polygon);
 
 const ToolsEnumNative = z.nativeEnum(ToolsEnum);
 
@@ -487,6 +484,9 @@ export const ManifestSchema = z.object({
   datasetFilePath: z.record(z.string(), z.string()).optional(),
   segmentations: Segmentation.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
+  segmentTypes: SegmentType.array().optional(),
+  rulerTypes: SegmentType.array().optional(),
+  selectedSegmentType: z.string().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),

@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -250,6 +251,17 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
           isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
         )
       ),
+      // Both registries: a shape's type id resolves in its own, and the
+      // backstop only asks whether the manifest declared it at all.
+      segmentType: new Set(
+        [candidate.segmentTypes, candidate.rulerTypes].flatMap((list) =>
+          Array.isArray(list)
+            ? list.flatMap((raw) =>
+                isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
+              )
+            : []
+        )
+      ),
       view: new Set(
         isRecord(candidate.viewByID) ? Object.keys(candidate.viewByID) : []
       ),
@@ -257,6 +269,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     const kindLabel: Record<ManifestRefKind, string> = {
       dataset: 'dataset',
       segmentationArtifact: 'segmentation artifact',
+      segmentType: 'segment type',
       view: 'view',
     };
     const dangling = collectManifestRefs(candidate)
@@ -295,6 +308,9 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   // deep-copied) twice.
   const optionalRoots = [
     'tools',
+    'segmentTypes',
+    'rulerTypes',
+    'selectedSegmentType',
     'activeView',
     'isActiveViewMaximized',
     'viewByID',
@@ -337,6 +353,7 @@ const serializingStoreHooks = [
   useDatasetStore,
   useViewStore,
   useViewConfigStore,
+  useSegmentTypeStore,
   useSegmentationStore,
   useToolStore,
   useLayersStore,
