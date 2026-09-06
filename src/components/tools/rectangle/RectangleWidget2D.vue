@@ -42,7 +42,7 @@ const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placing', 'placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
@@ -107,6 +107,12 @@ export default defineComponent({
         widget.resetInteractions();
         widget.setInteractionState(InteractionState.PlacingFirst);
       }
+    });
+
+    // While placing, the widget only starts an interaction when the first
+    // point lands: the states that would drag a handle are not reachable yet.
+    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+      if (isPlacing.value) emit('placing');
     });
 
     onVTKEvent(widget, 'onPlacedEvent', () => {

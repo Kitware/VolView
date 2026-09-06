@@ -131,6 +131,26 @@ export const useAnnotationTool = <
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
 
+  // Starting an annotation is the edit that resolves the segment it delineates:
+  // one begun against nothing mints a segment the way a first paint stroke
+  // does, so the annotation is drawn in that segment's color while it is still
+  // being placed. Idempotent, since the tool then names a live segment.
+  function resolveToolLabel(id: ToolID) {
+    const tool = toolByID.value[id];
+    if (!tool) return;
+
+    const label = registry.resolveLabelForImage(tool.imageID, tool.label);
+    if (label === tool.label) return;
+    updateTool(id, { label, ...makePropsFromLabel(label) } as ToolPatch);
+  }
+
+  // Placing resolves too, for an annotation that arrived without one of the
+  // gestures that would have.
+  function placeTool(id: ToolID) {
+    resolveToolLabel(id);
+    updateTool(id, { placing: false } as ToolPatch);
+  }
+
   // Delete-base cleanup: a removed image's tools
   // must not linger — they are invisible in the UI (tool lists filter to the
   // current image) and an orphaned imageID in the next save manifest is the
@@ -233,6 +253,8 @@ export const useAnnotationTool = <
     addTool,
     removeTool,
     updateTool,
+    resolveToolLabel,
+    placeTool,
     jumpToTool,
     serializeTools,
     deserializeTools,

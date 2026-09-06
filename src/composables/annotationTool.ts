@@ -224,7 +224,7 @@ export const usePlacingAnnotationTool = (
   const commit = () => {
     const id_ = id.value as Maybe<ToolID>;
     if (!id_) return;
-    store.updateTool(id_, { placing: false });
+    store.placeTool(id_);
     id.value = null;
   };
 

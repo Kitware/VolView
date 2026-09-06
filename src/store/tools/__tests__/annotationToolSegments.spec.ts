@@ -7,7 +7,9 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
+import { TOOL_COLORS } from '@/src/config';
 import { rgbaToCssColor } from '@/src/types/segmentation';
 
 const IMAGE_ID = 'img-1';
@@ -176,7 +178,7 @@ describe('shared segment identity for polygons and rectangles', () => {
   it('creates a segment in the segmentation store through the tool store', () => {
     const store = usePolygonStore();
 
-    const id = store.materializeLabelForImage(
+    const id = store.resolveLabelForImage(
       IMAGE_ID,
       store.addLabel({ labelName: 'Tumor' })
     )!;
@@ -213,6 +215,131 @@ describe('shared segment identity for polygons and rectangles', () => {
     const store = usePolygonStore();
 
     expect(store.labels).toEqual({});
+    expect(
+      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
+    ).toEqual([]);
+  });
+});
+
+describe('placing an annotation resolves its segment', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    seatAndView(IMAGE_ID);
+  });
+
+  const place = (store: ReturnType<typeof useRectangleStore>) => {
+    const id = store.addTool({ imageID: IMAGE_ID, placing: true });
+    store.placeTool(id);
+    return id;
+  };
+
+  it('mints a segment for an annotation placed against nothing', () => {
+    const store = useRectangleStore();
+    expect(store.activeLabel).toBeUndefined();
+
+    const id = place(store);
+
+    const segmentation = useSegmentationStore().getSegmentationForImage(
+      IMAGE_ID
+    )!;
+    const [segmentId] = segmentation.order;
+    expect(segmentId).toBeTruthy();
+    expect(store.toolByID[id].label).toBe(segmentId);
+    expect(store.toolByID[id].labelName).toBe(
+      segmentation.segments[segmentId].name
+    );
+    expect(store.toolByID[id].color).toBe(
+      rgbaToCssColor(segmentation.segments[segmentId].color)
+    );
+  });
+
+  it('mints the segment while the annotation is still being placed', () => {
+    const store = useRectangleStore();
+    const id = store.addTool({ imageID: IMAGE_ID, placing: true });
+
+    store.resolveToolLabel(id);
+
+    const segmentation = useSegmentationStore().getSegmentationForImage(
+      IMAGE_ID
+    )!;
+    const [segmentId] = segmentation.order;
+    expect(store.toolByID[id].placing).toBe(true);
+    expect(store.toolByID[id].label).toBe(segmentId);
+    expect(store.toolByID[id].color).toBe(
+      rgbaToCssColor(segmentation.segments[segmentId].color)
+    );
+  });
+
+  it('mints once however many gestures the placement takes', () => {
+    const store = usePolygonStore();
+    const id = store.addTool({ imageID: IMAGE_ID, placing: true });
+
+    store.resolveToolLabel(id);
+    store.resolveToolLabel(id);
+    store.placeTool(id);
+
+    expect(
+      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
+    ).toHaveLength(1);
+  });
+
+  it('resolves a ruler being placed without touching the segmentation', () => {
+    const store = useRulerStore();
+    const id = store.addTool({ imageID: IMAGE_ID, placing: true });
+
+    store.resolveToolLabel(id);
+
+    expect(store.toolByID[id].color).toBe(TOOL_COLORS[0]);
+    expect(
+      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
+    ).toEqual([]);
+  });
+
+  it('leaves the placed annotation selected so the next one reuses it', () => {
+    const store = useRectangleStore();
+
+    const first = place(store);
+    const second = place(store);
+
+    expect(store.toolByID[second].label).toBe(store.toolByID[first].label);
+    expect(
+      useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
+    ).toHaveLength(1);
+  });
+
+  it('hands the minted segment to the other delineation tools', () => {
+    const rectangles = useRectangleStore();
+    const polygons = usePolygonStore();
+
+    const id = place(rectangles);
+    const label = rectangles.toolByID[id].label!;
+
+    expect(polygons.labels[label]).toBeTruthy();
+    expect(polygons.activeLabel).toBe(label);
+    // Paint reads the same target off the segmentation store.
+    expect(useSegmentationStore().activeSegmentId).toBe(label);
+  });
+
+  it('materializes the selected template rather than minting beside it', () => {
+    const store = useRectangleStore();
+    store.addLabel({ labelName: 'Tumor', color: '#00ff00ff' });
+
+    const id = place(store);
+
+    const segmentation = useSegmentationStore().getSegmentationForImage(
+      IMAGE_ID
+    )!;
+    expect(segmentation.order).toEqual([store.toolByID[id].label]);
+    expect(segmentation.segments[segmentation.order[0]].name).toBe('Tumor');
+  });
+
+  it('places a ruler without touching the segmentation', () => {
+    const store = useRulerStore();
+
+    const id = store.addTool({ imageID: IMAGE_ID, placing: true });
+    store.placeTool(id);
+
+    expect(store.toolByID[id].placing).toBe(false);
     expect(
       useSegmentationStore().getSegmentationForImage(IMAGE_ID)!.order
     ).toEqual([]);

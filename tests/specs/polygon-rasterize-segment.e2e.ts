@@ -59,9 +59,11 @@ describe('Polygon rasterize target', () => {
 
     await drawSquare(centerX, centerY, half);
 
+    // Placing the polygon is itself an edit, so the label it carries becomes a
+    // segment before anything rasterizes.
     await openAnnotationSegments();
     await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Segment 1']);
+    expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
 
     // The context menu belongs to a placed polygon, and the polygon tool keeps
     // a placing one that would swallow the right click.
@@ -69,10 +71,8 @@ describe('Polygon rasterize target', () => {
     await openPolygonMenuAt(centerX + half, centerY - half);
     await $(RASTERIZE_ITEM).click();
 
-    await browser.waitUntil(
-      async () => (await segmentNames()).includes('Lesion'),
-      { timeoutMsg: 'Rasterizing should give the polygon label a labelmap' }
-    );
+    // Rasterizing lands in the polygon's own segment: it neither mints a
+    // second one nor borrows the segment the paint stroke made.
     expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
     expect(await segmentColor('Lesion')).toEqual(lesionColor);
   });

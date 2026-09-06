@@ -36,7 +36,7 @@ import SVG2DComponent from './PolygonSVG2D.vue';
 
 export default defineComponent({
   name: 'PolygonWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placing', 'placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
@@ -90,6 +90,12 @@ export default defineComponent({
         widget.resetInteractions();
         widget.getWidgetState().clearHandles();
       }
+    });
+
+    // Fires on every handle dropped into the polygon being placed; only the
+    // first has a segment to resolve.
+    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+      if (isPlacing.value) emit('placing');
     });
 
     onVTKEvent(widget, 'onPlacedEvent', () => {

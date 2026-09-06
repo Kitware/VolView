@@ -10,6 +10,7 @@
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(tool.id, $event)"
+        @placing="onPlacementStarted"
         @placed="onToolPlaced"
         @widgetHover="onHover(tool.id, $event)"
       />
@@ -106,6 +107,13 @@ export default defineComponent({
       placingTool.remove();
     });
 
+    // The annotation delineates a segment from the first point down, so it is
+    // drawn in that segment's color rather than changing color once placed.
+    const onPlacementStarted = () => {
+      const id = placingTool.id.value;
+      if (id) activeToolStore.resolveToolLabel(id);
+    };
+
     const onToolPlaced = () => {
       if (currentImageID.value) {
         placingTool.commit();
@@ -158,6 +166,7 @@ export default defineComponent({
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
+      onPlacementStarted,
       onToolPlaced,
       contextMenu,
       openContextMenu,

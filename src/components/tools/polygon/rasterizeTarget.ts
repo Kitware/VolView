@@ -138,7 +138,7 @@ export function rasterizePolygon({
 
   // A polygon labeled with an unmaterialized template names an identity, not a
   // segment. Rasterizing is the edit that materializes it, on this image.
-  const wanted = usePolygonStore().materializeLabelForImage(imageId, segmentId);
+  const wanted = usePolygonStore().resolveLabelForImage(imageId, segmentId);
   const target = resolveRasterizeTarget(imageId, wanted);
   if (!target) return { segmentId: wanted };
 

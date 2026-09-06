@@ -40,9 +40,10 @@ export type ToolSegmentRegistry<Props> = {
   clearDefaultLabels: () => void;
   replaceConfigLabels: (labels: Maybe<Labels<Props>>) => void;
   mergeLabelForImage: (imageId: Maybe<string>, label: Label<Props>) => string;
-  // The segment a label id stands for on an image, minting one for a template
-  // that has none there yet. Any other id is handed back untouched.
-  materializeLabelForImage: (
+  // The segment an edit on an image lands in: the label's own segment, one
+  // minted for a template that has none there yet, or a fresh segment when the
+  // edit carries no label at all.
+  resolveLabelForImage: (
     imageId: Maybe<string>,
     labelId: Maybe<string>
   ) => Maybe<string>;
@@ -403,16 +404,20 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
 
   // An annotation placed against a template carries the template's id until an
   // edit materializes it. That edit lands in the identity the annotation names,
-  // whatever the picker has selected by then.
-  const materializeLabelForImage = (
+  // whatever the picker has selected by then. An edit that names no identity
+  // mints the segment it lands in, the way a first paint stroke does.
+  const resolveLabelForImage = (
     imageId: Maybe<string>,
     labelId: Maybe<string>
   ) => {
+    if (!imageId) return labelId;
+
     const templateName = labelId ? templateNameOf(labelId) : undefined;
     const template = templateName
       ? effectiveTemplates.value[templateName]
       : undefined;
-    if (!imageId || !templateName || !template) return labelId;
+    if (!templateName || !template)
+      return labelId || segmentationStore.resolveEditTarget(imageId);
 
     const label = toTemplateLabel(templateName, template);
     const existing = findLabelForImage(imageId, templateName);
@@ -540,7 +545,7 @@ export const createSharedSegmentRegistry = <Props extends object = object>(
     clearDefaultLabels,
     replaceConfigLabels,
     mergeLabelForImage,
-    materializeLabelForImage,
+    resolveLabelForImage,
     serializeIdentity,
     adoptIdentity,
   };
@@ -616,11 +621,9 @@ export const createLocalSegmentRegistry = <Props extends object = object>(
     replaceConfigLabels,
     mergeLabelForImage: (_imageId: Maybe<string>, label: ToolLabel) =>
       labels.mergeLabelWithoutSelection(label),
-    // Local labels are the tool store's own, so there is no template to mint.
-    materializeLabelForImage: (
-      _imageId: Maybe<string>,
-      labelId: Maybe<string>
-    ) => labelId,
+    // Local labels are the tool store's own, so there is no segment to mint.
+    resolveLabelForImage: (_imageId: Maybe<string>, labelId: Maybe<string>) =>
+      labelId,
     adoptIdentity: (serialized: Maybe<ToolWireIdentity<Props>>) => {
       const serializedLabels = serialized?.labels;
       if (!serializedLabels) return () => '';

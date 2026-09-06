@@ -154,7 +154,7 @@ describe('shared segment registry', () => {
     viewImage('img-1');
     const registry = createSharedSegmentRegistry();
 
-    const id = registry.materializeLabelForImage(
+    const id = registry.resolveLabelForImage(
       'img-1',
       registry.addLabel({ labelName: 'Tumor' })
     );
@@ -168,7 +168,7 @@ describe('shared segment registry', () => {
     const segmentation = seatAndView('img-1');
     const registry = createSharedSegmentRegistry();
 
-    const id = registry.materializeLabelForImage(
+    const id = registry.resolveLabelForImage(
       'img-1',
       registry.addLabel({ labelName: 'Tumor' })
     )!;
@@ -253,7 +253,7 @@ describe('shared segment registry', () => {
       color: '#00ff00ff',
     });
 
-    const id = registry.materializeLabelForImage('img-1', template);
+    const id = registry.resolveLabelForImage('img-1', template);
 
     expect(segmentation.order).toEqual([id]);
     expect(segmentation.segments[id!].name).toBe('Lesion');
@@ -265,7 +265,7 @@ describe('shared segment registry', () => {
     const polygons = createSharedSegmentRegistry();
     const rectangles = createSharedSegmentRegistry();
 
-    const id = polygons.materializeLabelForImage(
+    const id = polygons.resolveLabelForImage(
       'img-1',
       polygons.addLabel({ labelName: 'Tumor' })
     )!;
