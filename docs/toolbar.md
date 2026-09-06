@@ -50,64 +50,33 @@ Polygon annotations can be tagged with a label. Use the palette in the upper lef
 
 When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
 
-Ruler annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+Ruler annotations name a segment type. Use the palette in the upper left or the `q` or `w` keys to select the active type.
 
 ![2D Annotations](./assets/11-volview-paint-notes.jpg)
 
-### Label Configuration
+### Segment type configuration
 
-If VolView loads a JSON file matching the schemas below, labels are added to the 2D annotation tools.
-Example configuration JSON:
+If VolView loads a JSON file matching the schema below, segment types are added to the
+registries. Paint, rectangles and polygons share `segmentTypes`; rulers have their own
+`rulerTypes`. Every appearance field is optional and means the app default when absent.
 
 ```json
 {
-  "labels": {
-    "rulerLabels": {
-      "big": { "color": "#ff0000" },
-      "small": { "color": "white" }
-    },
-    "rectangleLabels": {
-      "innocuous": { "color": "white", "fillColor": "#00ff0030" },
-      "lesion": { "color": "#ff0000", "fillColor": "transparent" },
-      "tumor": { "color": "green", "fillColor": "transparent" }
-    }
+  "segmentTypes": {
+    "innocuous": { "color": "white" },
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3 }
+  },
+  "rulerTypes": {
+    "big": { "color": "#ff0000" },
+    "small": { "color": "white" }
   }
 }
 ```
 
-Label sections could be null to disable labels for a tool.
-
-```json
-{
-  "labels": {
-    "rulerLabels": null,
-    "rectangleLabels": {
-      "innocuous": {
-        "color": "white",
-        "fillColor": "#00ff0030"
-      },
-      "lesion": {
-        "color": "#ff0000",
-        "fillColor": "transparent"
-      }
-    }
-  }
-}
-```
-
-Tools will fallback to `defaultLabels` section if the tool has no specific labels property,
-ie `rectangleLabels` or `rulerLabels`.
-
-```json
-{
-  "labels": {
-    "defaultLabels": {
-      "artifact": { "color": "gray" },
-      "needs-review": { "color": "#FFBF00" }
-    }
-  }
-}
-```
+A section can be `null` or `{}` to clear what an earlier config contributed. A type your
+content still references survives as a session type rather than taking its masks and
+shapes with it.
 
 ## 3D Crop
 

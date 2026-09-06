@@ -4,7 +4,7 @@ By loading a JSON file, you can set VolView's configuration:
 
 - View layouts (grid size, view types, or hierarchical layouts)
 - Disabled view types
-- Labels for tools
+- Segment types
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
@@ -149,20 +149,50 @@ Use `disabledViewTypes` to prevent certain view types from being available in th
 
 This removes the specified view types from the dropdown menu and replaces them in the default layout with allowed types. Valid values: `"2D"`, `"3D"`, `"Oblique"`
 
-## Labels for tools
+## Segment types
 
-Each tool type (Rectangle, Polygon, etc.) can have tool specific labels. To share labels
-across tools, define the `defaultLabels` key and don't provide labels for a tool that
-should use the default labels.
+Paint, rectangles and polygons share one registry of segment types, configured under
+`segmentTypes`. Rulers have their own, configured under `rulerTypes`. Each entry is keyed
+by name, and every appearance field is optional: an omitted one means the app default.
+
+```json
+{
+  "segmentTypes": {
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 }
+  },
+  "rulerTypes": {
+    "big": { "color": "#ff0000" }
+  }
+}
+```
+
+Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
+
+Omitting a key leaves that registry alone. An empty record (`{}`) or `null` clears what an
+earlier config contributed, keeping any type your content still references. A configured
+type keeps its id across config changes, so renaming or recoloring one never detaches the
+masks and shapes that reference it.
+
+Converting a pre-7.0 config: `defaultLabels`, `rectangleLabels` and `polygonLabels` all
+become `segmentTypes` entries, and `rulerLabels` becomes `rulerTypes`. A rectangle label's
+`fillColor` has no equivalent: fill color is a property of the rectangle, not of the type.
 
 ```json
 {
   "labels": {
-    "defaultLabels": {
-      "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green", "strokeWidth": 3 }
-    }
+    "defaultLabels": { "lesion": { "color": "#ff0000" } },
+    "rulerLabels": { "big": { "color": "#ff0000" } }
   }
+}
+```
+
+becomes
+
+```json
+{
+  "segmentTypes": { "lesion": { "color": "#ff0000" } },
+  "rulerTypes": { "big": { "color": "#ff0000" } }
 }
 ```
 
@@ -246,11 +276,9 @@ To configure a key for an action, add its action name and the key(s) under the `
 
 ```json
 {
-  "labels": {
-    "defaultLabels": {
-      "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green", "strokeWidth": 3 }
-    }
+  "segmentTypes": {
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3 }
   },
   "layouts": {
     "single-view": {
@@ -264,28 +292,14 @@ To configure a key for an action, add its action name and the key(s) under the `
 
 ```json
 {
-  "labels": {
-    "defaultLabels": {
-      "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green", "strokeWidth": 3 },
-      "innocuous": { "color": "white" }
-    },
-    "rulerLabels": {
-      "big": { "color": "#ff0000" },
-      "small": { "color": "white" }
-    },
-    "rectangleLabels": {
-      "red": { "color": "#ff0000", "fillColor": "transparent" },
-      "green": { "color": "green", "fillColor": "transparent" },
-      "white-yellow-fill": {
-        "color": "white",
-        "fillColor": "#00ff0030"
-      }
-    },
-    "polygonLabels": {
-      "poly1": { "color": "#ff0000" },
-      "poly2Label": { "color": "green" }
-    }
+  "segmentTypes": {
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 },
+    "innocuous": { "color": "white", "outlineOpacity": 0.8 }
+  },
+  "rulerTypes": {
+    "big": { "color": "#ff0000" },
+    "small": { "color": "white" }
   },
   "layouts": {
     "Volume primary": {

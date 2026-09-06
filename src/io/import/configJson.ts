@@ -9,9 +9,8 @@ import {
 import { ACTIONS } from '@/src/constants';
 import type { Action, Binding } from '@/src/constants';
 
-import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useSegmentTypeStore } from '@/src/store/segmentTypes';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
@@ -21,7 +20,6 @@ import {
 } from '@/src/composables/useKeyboardShortcuts';
 import { surfaceWarning } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import useLoadDataStore from '@/src/store/load-data';
 import { layoutConfig } from '@/src/utils/layoutParsing';
 
@@ -40,36 +38,23 @@ const shortcuts = z
   .optional();
 
 // --------------------------------------------------------------------------
-// Labels
+// Segment types
 
-const color = z.string();
-
-const label = z.object({
-  color,
+// Every appearance field is optional and absent means the app default, so a
+// configured type states only what it changes.
+const segmentType = z.object({
+  color: z.string().optional(),
+  fillOpacity: z.number().optional(),
+  outlineOpacity: z.number().optional(),
   strokeWidth: z.number().optional(),
 });
 
-const rulerLabel = label;
-const polygonLabel = label;
+// Keyed by name. Omitted leaves the registry alone; an empty record or null
+// clears what an earlier config contributed.
+const typeRecord = z.record(z.string(), segmentType).or(z.null()).optional();
 
-const rectangleLabel = z.intersection(
-  label,
-  z.object({
-    fillColor: color,
-  })
-);
-
-const labels = z
-  .object({
-    defaultLabels: z.record(z.string(), label).or(z.null()).optional(),
-    rulerLabels: z.record(z.string(), rulerLabel).or(z.null()).optional(),
-    rectangleLabels: z
-      .record(z.string(), rectangleLabel)
-      .or(z.null())
-      .optional(),
-    polygonLabels: z.record(z.string(), polygonLabel).or(z.null()).optional(),
-  })
-  .optional();
+const segmentTypes = typeRecord;
+const rulerTypes = typeRecord;
 
 // --------------------------------------------------------------------------
 // IO
@@ -96,7 +81,8 @@ const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 
 export const config = z.object({
   layouts,
-  labels,
+  segmentTypes,
+  rulerTypes,
   shortcuts,
   io,
   windowing,
@@ -188,28 +174,13 @@ export const recognizeConfigFile = async (
   return recognizeConfig(JSON.parse(await file.text()));
 };
 
-const applyLabels = (manifest: Config) => {
-  if (!manifest.labels) return;
-
-  // pass through null labels, use fallback labels if undefined
-  const defaultLabelsIfUndefined = <T>(toolLabels: T) => {
-    if (toolLabels === undefined) return manifest.labels?.defaultLabels;
-    return toolLabels;
-  };
-
-  const applyLabelsToStore = (
-    store: AnnotationToolStore,
-    maybeLabels: (typeof manifest.labels)[keyof typeof manifest.labels]
-  ) => {
-    const labelsOrFallback = defaultLabelsIfUndefined(maybeLabels);
-    if (!labelsOrFallback) return;
-    store.replaceConfigLabels(labelsOrFallback);
-  };
-
-  const { rulerLabels, rectangleLabels, polygonLabels } = manifest.labels;
-  applyLabelsToStore(useRulerStore(), rulerLabels);
-  applyLabelsToStore(useRectangleStore(), rectangleLabels);
-  applyLabelsToStore(usePolygonStore(), polygonLabels);
+// An omitted section leaves that registry alone; an empty record or null
+// clears what an earlier config contributed to it.
+const applySegmentTypes = (manifest: Config) => {
+  if (manifest.segmentTypes !== undefined)
+    useSegmentTypeStore().types.replaceConfigTypes(manifest.segmentTypes);
+  if (manifest.rulerTypes !== undefined)
+    useRulerStore().types.replaceConfigTypes(manifest.rulerTypes);
 };
 
 const applyLayout = (manifest: Config) => {
@@ -305,5 +276,5 @@ export const applyPreStateConfig = async (manifest: Config) => {
 };
 
 export const applyPostStateConfig = (manifest: Config) => {
-  applyLabels(manifest);
+  applySegmentTypes(manifest);
 };
