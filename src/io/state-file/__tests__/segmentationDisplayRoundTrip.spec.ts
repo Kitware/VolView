@@ -115,14 +115,13 @@ describe('segmentation display state on the wire', () => {
 
     setActivePinia(createPinia());
     await seatImage('new-1');
-    await store().deserialize(
-      parsed,
-      stateFiles,
-      { 'img-1': 'new-1' },
-      useSegmentStore().deserialize(parsed),
-      {},
-      io
-    );
+    await store().deserialize({
+      manifest: parsed,
+      stateFiles: stateFiles,
+      dataIDMap: { 'img-1': 'new-1' },
+      segmentIdMap: useSegmentStore().deserialize(parsed),
+      io: io,
+    });
     await nextTick();
 
     const restored = store().getSegmentationForImage('new-1')!;
@@ -151,14 +150,13 @@ describe('segmentation display state on the wire', () => {
   it('restores a 7.0.0 manifest with default display state', async () => {
     const parsed = ManifestSchema.parse(manifest700());
 
-    await store().deserialize(
-      parsed,
-      [],
-      { 'img-1': 'img-1' },
-      useSegmentStore().deserialize(parsed),
-      {},
-      inMemoryArtifactIO()
-    );
+    await store().deserialize({
+      manifest: parsed,
+      stateFiles: [],
+      dataIDMap: { 'img-1': 'img-1' },
+      segmentIdMap: useSegmentStore().deserialize(parsed),
+      io: inMemoryArtifactIO(),
+    });
     await nextTick();
 
     const restored = store().getSegmentationForImage('img-1')!;

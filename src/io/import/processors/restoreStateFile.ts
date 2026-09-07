@@ -255,13 +255,13 @@ export async function completeStateFileRestore(
   const segmentIdMap = useSegmentStore().deserialize(manifest);
 
   const { skipped: skippedArtifacts } =
-    await useSegmentationStore().deserialize(
+    await useSegmentationStore().deserialize({
       manifest,
       stateFiles,
-      stateIDToStoreID,
+      dataIDMap: stateIDToStoreID,
       segmentIdMap,
-      resolveArtifactRestoreSources(manifest)
-    );
+      artifactSources: resolveArtifactRestoreSources(manifest),
+    });
 
   useLayersStore().deserialize(manifest, stateIDToStoreID);
 

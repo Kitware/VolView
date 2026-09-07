@@ -134,17 +134,17 @@ const restoreOnto = async (
   setup: { manifest: Manifest },
   stateFiles: Parameters<
     ReturnType<typeof useSegmentationStore>['deserialize']
-  >[1],
+  >[0]['stateFiles'],
   dataIDMap: Record<string, string>
 ) => {
   const store = useSegmentationStore();
-  const { artifactIdMap: idMap } = await store.deserialize(
-    setup.manifest,
+  const { artifactIdMap: idMap } = await store.deserialize({
+    manifest: setup.manifest,
     stateFiles,
     dataIDMap,
-    useSegmentStore().deserialize(setup.manifest),
-    resolveArtifactRestoreSources(setup.manifest)
-  );
+    segmentIdMap: useSegmentStore().deserialize(setup.manifest),
+    artifactSources: resolveArtifactRestoreSources(setup.manifest),
+  });
   const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
   return { idMap, maskId };
 };

@@ -1007,14 +1007,13 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
 
     setActivePinia(createPinia());
     await seatImage('new-ct', 'CT');
-    await useSegmentationStore().deserialize(
-      saved,
+    await useSegmentationStore().deserialize({
+      manifest: saved,
       stateFiles,
-      { 'store-ct': 'new-ct' },
-      useSegmentStore().deserialize(saved),
-      {},
-      io
-    );
+      dataIDMap: { 'store-ct': 'new-ct' },
+      segmentIdMap: useSegmentStore().deserialize(saved),
+      io,
+    });
     await nextTick();
 
     expect(segmentationSnapshot('new-ct')).toEqual(before);

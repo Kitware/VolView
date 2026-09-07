@@ -82,14 +82,14 @@ describe('migrated legacy manifests without `datasets`', () => {
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
     const store = useSegmentationStore();
-    const { artifactIdMap: idMap, skipped } = await store.deserialize(
-      legacyManifest,
-      [],
+    const { artifactIdMap: idMap, skipped } = await store.deserialize({
+      manifest: legacyManifest,
+      stateFiles: [],
       // Restore keys every fallback dataset by its stringified source id.
-      { '1': 'store-ct', '3': 'store-seg' },
-      useSegmentStore().deserialize(legacyManifest),
-      resolveArtifactRestoreSources(legacyManifest)
-    );
+      dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
+      segmentIdMap: useSegmentStore().deserialize(legacyManifest),
+      artifactSources: resolveArtifactRestoreSources(legacyManifest),
+    });
 
     expect(skipped).toEqual([]);
     expect(idMap['sg-tumor']).toBeDefined();

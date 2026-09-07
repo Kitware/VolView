@@ -132,14 +132,13 @@ async function roundTrip(
   setActivePinia(createPinia());
   await seatImage('new-1', { ...GRID, name: 'CT A' });
   await seatImage('new-2', { ...GRID, name: 'CT B' });
-  const result = await store().deserialize(
-    parsed,
-    stateFiles,
-    { 'img-1': 'new-1', 'img-2': 'new-2' },
-    useSegmentStore().deserialize(parsed),
-    {},
-    io
-  );
+  const result = await store().deserialize({
+    manifest: parsed,
+    stateFiles: stateFiles,
+    dataIDMap: { 'img-1': 'new-1', 'img-2': 'new-2' },
+    segmentIdMap: useSegmentStore().deserialize(parsed),
+    io: io,
+  });
   await nextTick();
   return result;
 }
@@ -232,14 +231,13 @@ describe('bounded masks through the state file', () => {
     // Each import adopts the incoming registry afresh, so the second pass
     // brings its own segments rather than landing on the first pass's records.
     const restore = () =>
-      store().deserialize(
-        parsed,
-        stateFiles,
-        dataIDMap,
-        useSegmentStore().deserialize(parsed),
-        {},
-        io
-      );
+      store().deserialize({
+        manifest: parsed,
+        stateFiles: stateFiles,
+        dataIDMap: dataIDMap,
+        segmentIdMap: useSegmentStore().deserialize(parsed),
+        io: io,
+      });
     await restore();
     await restore();
     await nextTick();
@@ -277,14 +275,13 @@ describe('bounded masks through the state file', () => {
       outlineThickness: 7,
     });
 
-    await store().deserialize(
-      parsed,
-      stateFiles,
-      { 'img-1': 'img-1', 'img-2': 'img-2' },
-      useSegmentStore().deserialize(parsed),
-      {},
-      io
-    );
+    await store().deserialize({
+      manifest: parsed,
+      stateFiles: stateFiles,
+      dataIDMap: { 'img-1': 'img-1', 'img-2': 'img-2' },
+      segmentIdMap: useSegmentStore().deserialize(parsed),
+      io: io,
+    });
     await nextTick();
 
     expect(segmentation.fillOpacity).toBe(0.9);

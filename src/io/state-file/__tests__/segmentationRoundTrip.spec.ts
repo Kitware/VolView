@@ -104,14 +104,13 @@ describe('segmentation state-file round trip', () => {
     await seatImage('new-1', 'CT A');
     await seatImage('new-2', 'CT B');
     const segmentIdMap = useSegmentStore().deserialize(parsed);
-    await useSegmentationStore().deserialize(
-      parsed,
-      stateFiles,
-      { 'img-1': 'new-1', 'img-2': 'new-2' },
-      segmentIdMap,
-      {},
-      io
-    );
+    await useSegmentationStore().deserialize({
+      manifest: parsed,
+      stateFiles: stateFiles,
+      dataIDMap: { 'img-1': 'new-1', 'img-2': 'new-2' },
+      segmentIdMap: segmentIdMap,
+      io: io,
+    });
     await nextTick();
 
     expect(segmentationSnapshot('new-1')).toEqual(before.first);

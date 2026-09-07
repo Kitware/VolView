@@ -1,3 +1,6 @@
+/** Masks are Uint8Array, so a label value has to fit in one byte. */
+export const LABELMAP_MAX_VALUE = 255;
+
 import { LABELMAP_BACKGROUND_VALUE } from '@/src/types/segmentation';
 
 export function nextUnusedLabelValue(

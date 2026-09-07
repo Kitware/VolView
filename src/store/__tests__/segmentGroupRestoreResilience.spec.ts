@@ -141,13 +141,13 @@ const restoreGroups = (
   stateFiles: { archivePath: string; file: File }[],
   dataIDMap: Record<string, string>
 ) =>
-  useSegmentationStore().deserialize(
+  useSegmentationStore().deserialize({
     manifest,
     stateFiles,
     dataIDMap,
-    useSegmentStore().deserialize(manifest),
-    resolveArtifactRestoreSources(manifest)
-  );
+    segmentIdMap: useSegmentStore().deserialize(manifest),
+    artifactSources: resolveArtifactRestoreSources(manifest),
+  });
 
 /** A group whose parent base never resolved, restored against a seated mask. */
 const restoreOrphanedGroup = () =>
