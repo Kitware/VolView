@@ -137,11 +137,6 @@ export default defineComponent({
 
     // The annotation delineates a type from the first point down, so it is
     // drawn in that type's color rather than changing color once placed.
-    const onPlacementStarted = () => {
-      const id = placingTool.id.value;
-      if (id) activeToolStore.resolveToolType(id);
-    };
-
     const onToolPlaced = () => {
       if (imageId.value) {
         const newToolId = placingTool.id.value;
@@ -229,7 +224,7 @@ export default defineComponent({
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
-      onPlacementStarted,
+      onPlacementStarted: placingTool.beginPlacement,
       onToolPlaced,
       contextMenu,
       openContextMenu,

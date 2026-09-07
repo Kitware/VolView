@@ -25,6 +25,7 @@ import {
   useRightClickContextMenu,
   useHoverEvent,
   useWidgetVisibility,
+  useToolAppearance,
 } from '@/src/composables/annotationTool';
 import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 import { ToolID } from '@/src/types/annotation-tool';
@@ -165,9 +166,7 @@ export default defineComponent({
     return {
       tool,
       slice,
-      appearance: computed(() =>
-        toolStore.segments.appearanceOf(tool.value?.segmentId)
-      ),
+      appearance: useToolAppearance(toolStore, () => tool.value),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
       }),

@@ -86,6 +86,12 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
 
 // --- Context Menu --- //
 
+/** The appearance a shape draws itself in, resolved from the segment it names. */
+export const useToolAppearance = (
+  store: AnnotationToolStore,
+  tool: () => Maybe<{ segmentId?: string }>
+) => computed(() => store.segments.appearanceOf(tool()?.segmentId));
+
 export const useContextMenu = () => {
   const contextMenu = ref<{
     open: (id: ToolID, e: ContextMenuEvent) => void;
@@ -248,8 +254,16 @@ export const usePlacingAnnotationTool = (
     store.updateTool(id.value as ToolID, metadata.value);
   });
 
+  // The first gesture is what mints, so the shape resolves its segment as
+  // placement starts rather than when it lands.
+  const beginPlacement = () => {
+    const id_ = id.value as Maybe<ToolID>;
+    if (id_) store.resolveToolType(id_);
+  };
+
   return {
     id: readonly(id),
+    beginPlacement,
     commit,
     add,
     remove,

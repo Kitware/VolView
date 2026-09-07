@@ -19,6 +19,7 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import {
   useRightClickContextMenu,
   useWidgetVisibility,
+  useToolAppearance,
 } from '@/src/composables/annotationTool';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
@@ -172,9 +173,7 @@ export default defineComponent({
     return {
       slice,
       tool,
-      appearance: computed(() =>
-        toolStore.segments.appearanceOf(tool.value?.segmentId)
-      ),
+      appearance: useToolAppearance(toolStore, () => tool.value),
       editState,
       showHandles,
     };

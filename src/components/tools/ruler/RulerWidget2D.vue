@@ -27,6 +27,7 @@ import {
   useRightClickContextMenu,
   useHoverEvent,
   useWidgetVisibility,
+  useToolAppearance,
 } from '@/src/composables/annotationTool';
 import { ToolID } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
@@ -161,9 +162,7 @@ export default defineComponent({
     return {
       ruler,
       slice,
-      appearance: computed(() =>
-        rulerStore.segments.appearanceOf(ruler.value?.segmentId)
-      ),
+      appearance: useToolAppearance(rulerStore, () => ruler.value),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;
       }),

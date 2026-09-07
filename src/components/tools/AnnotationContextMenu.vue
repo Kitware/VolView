@@ -6,6 +6,7 @@ import {
   WidgetAction,
 } from '@/src/vtk/ToolWidgetUtils/types';
 import { ToolID } from '@/src/types/annotation-tool';
+import { useToolAppearance } from '@/src/composables/annotationTool';
 
 const props = defineProps<{
   toolStore: AnnotationToolStore;
@@ -35,9 +36,7 @@ const tool = computed(() => {
   return props.toolStore.toolByID[contextMenu.forToolID];
 });
 
-const appearance = computed(() =>
-  props.toolStore.segments.appearanceOf(tool.value?.segmentId)
-);
+const appearance = useToolAppearance(props.toolStore, () => tool.value);
 
 const deleteToolFromContextMenu = () => {
   props.toolStore.removeTool(contextMenu.forToolID);

@@ -107,11 +107,6 @@ export default defineComponent({
 
     // The annotation delineates a segment from the first point down, so it is
     // drawn in that segment's color rather than changing color once placed.
-    const onPlacementStarted = () => {
-      const id = placingTool.id.value;
-      if (id) activeToolStore.resolveToolType(id);
-    };
-
     const onToolPlaced = () => {
       if (currentImageID.value) {
         placingTool.commit();
@@ -164,7 +159,7 @@ export default defineComponent({
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
-      onPlacementStarted,
+      onPlacementStarted: placingTool.beginPlacement,
       onToolPlaced,
       contextMenu,
       openContextMenu,
