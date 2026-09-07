@@ -82,6 +82,7 @@
     "globals": "^16.2.0",
     "happy-dom": "^20.8.9",
     "itk-wasm": "^1.0.0-b.199",
+    "jscpd": "5.1.2",
     "jszip": "3.10.1",
     "lint-staged": "16.2.7",
     "mitt": "^3.0.1",
@@ -115,7 +116,7 @@
     "zod": "^4.1.13"
   },
   "gitHooks": {
-    "pre-commit": "lint-staged",
+    "pre-commit": "lint-staged && node scripts/checks/check.mjs",
     "commit-msg": "commitlint --edit $1"
   },
   "lint-staged": {

@@ -221,5 +221,44 @@ export default tseslint.config(
       },
     },
   ]),
+  // Tests are excluded so this block never matches a file the `vi.mock` block
+  // above matches: flat config replaces a rule's options wholesale, so overlap
+  // would erase that rule rather than add to it.
+  {
+    files: ['src/**/*.{ts,vue}'],
+    ignores: ['src/**/__tests__/**', 'src/**/*.{spec,test}.{js,ts}'],
+    rules: {
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector:
+            "CallExpression[callee.name='computed'][typeArguments.params.length>0]",
+          message:
+            'Let computed() infer its type. An explicit generic goes stale and hides the inference errors it was meant to document.',
+        },
+      ],
+    },
+  },
+  // Mirrors the limits scripts/checks/complexity.mjs enforces per commit. Warn
+  // level because the ratchet only fails a file whose debt grows, so existing
+  // files stay over these numbers without failing `npm run lint`.
+  {
+    files: ['src/**/*.{js,ts,vue}'],
+    ignores: [
+      'src/**/__tests__/**',
+      'src/**/*.{spec,test}.{js,ts}',
+      'src/**/*.d.ts',
+      '**/emscripten-build/**',
+    ],
+    rules: {
+      complexity: ['warn', 10],
+      'max-depth': ['warn', 3],
+      'max-params': ['warn', 4],
+      'max-lines': [
+        'warn',
+        { max: 600, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
   eslintConfigPrettier
 );
