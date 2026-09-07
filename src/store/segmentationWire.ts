@@ -12,7 +12,6 @@ import {
   prepareRestoreBindings,
   restoredLabelmapImage,
 } from '@/src/store/segmentationRestore';
-import type { ArtifactMetadata } from '@/src/store/segmentations';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
 import type {
@@ -32,6 +31,7 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   listMasks,
+  type ArtifactMetadata,
   type Extent3D,
   type LabelmapSegment,
   type SegmentMask,

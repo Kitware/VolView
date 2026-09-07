@@ -1,3 +1,4 @@
+import type { ProcessingResultSource } from '@/src/types';
 import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 import colorNames from 'color-name';
 
@@ -21,6 +22,13 @@ export type LabelmapBinding = {
  * type id: everything the user sees or sets, visibility and lock included,
  * lives on the type, so this record is storage and nothing else.
  */
+/** What an artifact is, apart from its voxels: whose it is and where from. */
+export type ArtifactMetadata = {
+  parentImage: string;
+  name: string;
+  source?: ProcessingResultSource;
+};
+
 export type SegmentMask = {
   id: string;
   segmentId: string;
