@@ -48,6 +48,12 @@ function pairAt(index: Index3) {
   return { tumor, node };
 }
 
+/** Nothing was cleared: each segment still holds its own value at the voxel. */
+const expectBothHold = (tumor: string, node: string) => {
+  expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
+  expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
+};
+
 describe('clearing the other segments of an image', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
@@ -151,8 +157,7 @@ describe('clearing the other segments of an image', () => {
 
     clearFor(node)?.(1, 1, 1);
 
-    expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
-    expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
+    expectBothHold(tumor, node);
   });
 
   it('clears the unlocked siblings and skips the locked ones', () => {
@@ -179,8 +184,7 @@ describe('clearing the other segments of an image', () => {
     clear?.(1, 1, 1);
 
     // A lock lifted mid-stroke takes effect on the next stroke.
-    expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
-    expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
+    expectBothHold(tumor, node);
   });
 
   it('addresses voxels in parent index space, not in mask offsets', () => {

@@ -149,6 +149,14 @@ const restoreGroups = (
     resolveArtifactRestoreSources(manifest)
   );
 
+/** A group whose parent base never resolved, restored against a seated mask. */
+const restoreOrphanedGroup = () =>
+  restoreGroups(
+    manifestWith([group('sg-tumor', { dataSourceId: 3 }, 'ds-missing')]),
+    [],
+    { [leafStateId(3)]: 'store-seg' }
+  );
+
 describe('migrated segment groups: resilient restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -188,11 +196,7 @@ describe('migrated segment groups: resilient restore', () => {
   it('skips a group whose parent base never resolved', async () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
 
-    const { artifactIdMap: idMap, skipped } = await restoreGroups(
-      manifestWith([group('sg-tumor', { dataSourceId: 3 }, 'ds-missing')]),
-      [],
-      { [leafStateId(3)]: 'store-seg' }
-    );
+    const { artifactIdMap: idMap, skipped } = await restoreOrphanedGroup();
 
     expect(idMap).toEqual({});
     expect(Object.keys(useSegmentationStore().artifactMeta)).toEqual([]);
@@ -354,11 +358,7 @@ describe('migrated segment groups: resilient restore', () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const { artifactIdMap: idMap, skipped } = await restoreGroups(
-      manifestWith([group('sg-tumor', { dataSourceId: 3 }, 'ds-missing')]),
-      [],
-      { [leafStateId(3)]: 'store-seg' }
-    );
+    const { artifactIdMap: idMap, skipped } = await restoreOrphanedGroup();
 
     expect(idMap).toEqual({});
     expect(skipped).toEqual([

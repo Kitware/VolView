@@ -10,6 +10,15 @@ function flatFromGrid(grid: number[][]) {
   return { data, dimensions: [dimI, dimJ, 1] as [number, number, number] };
 }
 
+/** fillHoles over the whole first axial slice, for label 1. */
+const fillAxialSlice = (
+  data: Uint8Array,
+  dimensions: [number, number, number]
+) => fillHoles({ data, dimensions, axis: 2, sliceIndex: 0, label: 1 });
+
+/** A grid as the flat buffer fillHoles returns, so the two compare directly. */
+const flatOf = (grid: number[][]) => Array.from(flatFromGrid(grid).data);
+
 describe('fillHoles', () => {
   it('fills a background hole enclosed by a single segment', () => {
     const { data, dimensions } = flatFromGrid([
@@ -17,21 +26,13 @@ describe('fillHoles', () => {
       [1, 0, 1],
       [1, 1, 1],
     ]);
-    const out = fillHoles({
-      data,
-      dimensions,
-      axis: 2,
-      sliceIndex: 0,
-      label: 1,
-    });
+    const out = fillAxialSlice(data, dimensions);
     expect(Array.from(out)).toEqual(
-      Array.from(
-        flatFromGrid([
-          [1, 1, 1],
-          [1, 1, 1],
-          [1, 1, 1],
-        ]).data
-      )
+      flatOf([
+        [1, 1, 1],
+        [1, 1, 1],
+        [1, 1, 1],
+      ])
     );
   });
 
@@ -41,22 +42,14 @@ describe('fillHoles', () => {
       [1, 0, 1],
       [1, 1, 1],
     ]);
-    const out = fillHoles({
-      data,
-      dimensions,
-      axis: 2,
-      sliceIndex: 0,
-      label: 1,
-    });
+    const out = fillAxialSlice(data, dimensions);
     // The top-left 0 reaches the border, so it stays 0; the center is enclosed.
     expect(Array.from(out)).toEqual(
-      Array.from(
-        flatFromGrid([
-          [0, 1, 1],
-          [1, 1, 1],
-          [1, 1, 1],
-        ]).data
-      )
+      flatOf([
+        [0, 1, 1],
+        [1, 1, 1],
+        [1, 1, 1],
+      ])
     );
   });
 
@@ -67,7 +60,7 @@ describe('fillHoles', () => {
       [1, 1, 1],
     ]);
     const before = Array.from(data);
-    fillHoles({ data, dimensions, axis: 2, sliceIndex: 0, label: 1 });
+    fillAxialSlice(data, dimensions);
     expect(Array.from(data)).toEqual(before);
   });
 
@@ -81,24 +74,16 @@ describe('fillHoles', () => {
       [1, 0, 2, 0, 1, 0, 0],
       [1, 1, 1, 1, 1, 0, 0],
     ]);
-    const out = fillHoles({
-      data,
-      dimensions,
-      axis: 2,
-      sliceIndex: 0,
-      label: 1,
-    });
+    const out = fillAxialSlice(data, dimensions);
     // Enclosed background (0) becomes 1; the enclosed 2s stay 2.
     expect(Array.from(out)).toEqual(
-      Array.from(
-        flatFromGrid([
-          [1, 1, 1, 1, 1, 0, 2],
-          [1, 1, 2, 1, 1, 0, 0],
-          [1, 2, 2, 2, 1, 0, 0],
-          [1, 1, 2, 1, 1, 0, 0],
-          [1, 1, 1, 1, 1, 0, 0],
-        ]).data
-      )
+      flatOf([
+        [1, 1, 1, 1, 1, 0, 2],
+        [1, 1, 2, 1, 1, 0, 0],
+        [1, 2, 2, 2, 1, 0, 0],
+        [1, 1, 2, 1, 1, 0, 0],
+        [1, 1, 1, 1, 1, 0, 0],
+      ])
     );
   });
 
@@ -111,24 +96,16 @@ describe('fillHoles', () => {
       [1, 0, 0, 0, 1],
       [1, 1, 1, 1, 1],
     ]);
-    const out = fillHoles({
-      data,
-      dimensions,
-      axis: 2,
-      sliceIndex: 0,
-      label: 1,
-    });
+    const out = fillAxialSlice(data, dimensions);
     // The background gap fills with 1; the encircled 2 is untouched.
     expect(Array.from(out)).toEqual(
-      Array.from(
-        flatFromGrid([
-          [1, 1, 1, 1, 1],
-          [1, 1, 1, 1, 1],
-          [1, 1, 2, 1, 1],
-          [1, 1, 1, 1, 1],
-          [1, 1, 1, 1, 1],
-        ]).data
-      )
+      flatOf([
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 2, 1, 1],
+        [1, 1, 1, 1, 1],
+        [1, 1, 1, 1, 1],
+      ])
     );
   });
 

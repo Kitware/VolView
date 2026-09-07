@@ -74,6 +74,31 @@ function makeBoundSegment(segmentationId: string, name?: string) {
   return { id: segment.id, binding };
 }
 
+/** Voxels carrying one label value, and voxels carrying two. */
+const oneLabelValues = () => {
+  const values = new Uint8Array(VOXEL_COUNT);
+  values.fill(1, 4, 12);
+  return values;
+};
+
+const twoLabelValues = () => {
+  const values = oneLabelValues();
+  values.fill(2, 12);
+  return values;
+};
+
+/** A parent image plus the child labelmaps a conversion reads. */
+const seatConversionSources = async (
+  childIds: string[],
+  values: Uint8Array
+) => {
+  await seatImage('parent-img', 'Chest CT');
+  // Sequential: each seat awaits its own tick before the next is cached.
+  for (const id of childIds) {
+    await seatLabelValues(id, values);
+  }
+};
+
 describe('segmentation store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -513,11 +538,7 @@ describe('segmentation store', () => {
 
   describe('conversion and decode', () => {
     it('creates one bound segment per discovered label value', async () => {
-      await seatImage('parent-img', 'Chest CT');
-      const values = new Uint8Array(VOXEL_COUNT);
-      values.fill(1, 4, 12);
-      values.fill(2, 12);
-      await seatLabelValues('child-img', values);
+      await seatConversionSources(['child-img'], twoLabelValues());
 
       await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -540,11 +561,7 @@ describe('segmentation store', () => {
     });
 
     it('binds each converted segment to a mask holding its own voxels', async () => {
-      await seatImage('parent-img', 'Chest CT');
-      const values = new Uint8Array(VOXEL_COUNT);
-      values.fill(1, 4, 12);
-      values.fill(2, 12);
-      await seatLabelValues('child-img', values);
+      await seatConversionSources(['child-img'], twoLabelValues());
 
       await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -595,11 +612,7 @@ describe('segmentation store', () => {
     });
 
     it('gives a second conversion of the same parent its own segments', async () => {
-      await seatImage('parent-img', 'Chest CT');
-      const values = new Uint8Array(VOXEL_COUNT);
-      values.fill(1, 4, 12);
-      await seatLabelValues('child-a', values);
-      await seatLabelValues('child-b', values);
+      await seatConversionSources(['child-a', 'child-b'], oneLabelValues());
       const segmentGroups = store();
 
       await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
@@ -614,11 +627,7 @@ describe('segmentation store', () => {
     });
 
     it('reports which segment each source label value became', async () => {
-      await seatImage('parent-img', 'Chest CT');
-      const values = new Uint8Array(VOXEL_COUNT);
-      values.fill(1, 4, 12);
-      await seatLabelValues('child-a', values);
-      await seatLabelValues('child-b', values);
+      await seatConversionSources(['child-a', 'child-b'], oneLabelValues());
       const segmentGroups = store();
 
       await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
