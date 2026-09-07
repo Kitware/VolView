@@ -200,38 +200,55 @@ function expandBoundingBox({
   });
 }
 
-function extractSubVolume(
-  data: TypedArray | number[],
+/**
+ * Visits every voxel of `bounds` that the volume actually holds, giving each
+ * its offset in the volume and its offset in the padded sub-volume. The
+ * padding ring outside the volume is skipped by clipping the loops, not tested
+ * per voxel.
+ */
+function forEachClippedVoxel(
   dimensions: number[],
-  bounds: number[]
+  bounds: number[],
+  visit: (origIndex: number, subIndex: number) => void
 ) {
   const [dimX, dimY, dimZ] = dimensions;
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
   const subDimX = maxX - minX + 1;
   const subDimY = maxY - minY + 1;
-  const subDimZ = maxZ - minZ + 1;
-  const subDims = [subDimX, subDimY, subDimZ];
-  // Zero filled, so everything outside the buffer stays background.
-  const subData = new Float32Array(subDimX * subDimY * subDimZ);
+  const lastX = Math.min(maxX, dimX - 1);
 
-  let subIndex = 0;
-  for (let z = minZ; z <= maxZ; z++) {
-    const zInside = z >= 0 && z < dimZ;
-    for (let y = minY; y <= maxY; y++) {
-      const yInside = zInside && y >= 0 && y < dimY;
-      for (let x = minX; x <= maxX; x++) {
-        if (yInside && x >= 0 && x < dimX) {
-          const origIndex = x + y * dimX + z * dimX * dimY;
-          subData[subIndex] = data[origIndex] as number;
-        }
-        subIndex++;
+  for (let z = Math.max(minZ, 0); z <= Math.min(maxZ, dimZ - 1); z += 1) {
+    for (let y = Math.max(minY, 0); y <= Math.min(maxY, dimY - 1); y += 1) {
+      const rowOrig = y * dimX + z * dimX * dimY;
+      const rowSub = (y - minY) * subDimX + (z - minZ) * subDimX * subDimY;
+      for (let x = Math.max(minX, 0); x <= lastX; x += 1) {
+        visit(x + rowOrig, x - minX + rowSub);
       }
     }
   }
+}
+
+function extractSubVolume(
+  data: TypedArray | number[],
+  dimensions: number[],
+  bounds: number[]
+) {
+  const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
+  const subDims = [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1];
+  // Zero filled, so everything outside the buffer stays background.
+  const subData = new Float32Array(subDims[0] * subDims[1] * subDims[2]);
+
+  forEachClippedVoxel(dimensions, bounds, (origIndex, subIndex) => {
+    subData[subIndex] = data[origIndex] as number;
+  });
 
   return { subData, subDims };
 }
 
+// The padding ring has no voxel to write to. Away from the parent faces
+// nothing is lost, since a thresholded Gaussian cannot turn on a voxel outside
+// the label's own bounding box; against a face the mirror can, and a mask
+// whose box stops short of that face has nowhere to hold it.
 function copySubVolumeBack(
   subData: Float32Array,
   originalData: TypedArray | number[],
@@ -239,33 +256,12 @@ function copySubVolumeBack(
   bounds: number[],
   label: number
 ) {
-  const [dimX, dimY, dimZ] = dimensions;
-  const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
-
-  let subIndex = 0;
-  for (let z = minZ; z <= maxZ; z++) {
-    const zInside = z >= 0 && z < dimZ;
-    for (let y = minY; y <= maxY; y++) {
-      const yInside = zInside && y >= 0 && y < dimY;
-      for (let x = minX; x <= maxX; x++) {
-        // The padding ring has no voxel to write to. Away from the parent
-        // faces nothing is lost, since a thresholded Gaussian cannot turn on a
-        // voxel outside the label's own bounding box; against a face the
-        // mirror can, and a mask whose box stops short of that face has
-        // nowhere to hold it.
-        if (yInside && x >= 0 && x < dimX) {
-          const origIndex = x + y * dimX + z * dimX * dimY;
-          const origLabel = originalData[origIndex];
-          const subValue = subData[subIndex];
-
-          if (origLabel === label || origLabel === 0) {
-            originalData[origIndex] = subValue > 127.5 ? label : 0;
-          }
-        }
-        subIndex++;
-      }
+  forEachClippedVoxel(dimensions, bounds, (origIndex, subIndex) => {
+    const origLabel = originalData[origIndex];
+    if (origLabel === label || origLabel === 0) {
+      originalData[origIndex] = subData[subIndex] > 127.5 ? label : 0;
     }
-  }
+  });
 }
 
 function createBinaryMask(data: TypedArray | number[], label: number) {
