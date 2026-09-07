@@ -9,9 +9,9 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import {
-  selectSegment,
   mintSegment,
   lockSegment,
+  addActiveSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
@@ -48,46 +48,6 @@ async function viewImage(
   useViewStore().setDataForAllViews(id);
   await nextTick();
   return id;
-}
-
-/** Seats one segment, grown to the first two voxels, and makes it active. */
-function addTestSegment(
-  values = new Uint8Array([0, 0]),
-  labelValue = 1,
-  imageId = 'image-1'
-) {
-  const segmentationStore = useSegmentationStore();
-  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
-  // Label values are minted per image, so the ones below the wanted value are
-  // taken by placeholder segments.
-  for (let value = 1; value < labelValue; value += 1) {
-    const filler = segmentationStore.createMask(
-      segmentation.id,
-      mintSegment({
-        name: `Filler ${value}`,
-      })
-    );
-    segmentationStore.maskVoxels(filler.id).materialize();
-  }
-
-  const segment = segmentationStore.createMask(
-    segmentation.id,
-    mintSegment({
-      name: 'Segment 1',
-    })
-  );
-  const voxels = segmentationStore.maskVoxels(segment.id);
-  const { artifactId } = voxels.materialize();
-  voxels.ensureContains([0, 1, 0, 0, 0, 0]);
-  voxels.apply(values);
-  selectSegment(segment.id);
-
-  return {
-    segmentationId: segmentation.id,
-    maskId: segment.id,
-    artifactId,
-    labelMap: voxels.image(),
-  };
 }
 
 /** Another segment of the same image, grown to the same two voxels. */
@@ -147,6 +107,15 @@ async function allSegmentsTargets() {
   return seen;
 }
 
+/** A process already running over a segment with only its first voxel marked. */
+const startedProcess = async () => {
+  const processStore = usePaintProcessStore();
+  const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
+  const original = buffer(labelMap);
+  await processStore.startProcess(async () => new Uint8Array([1, 1]));
+  return { processStore, labelMap, original };
+};
+
 describe('paint process storage', () => {
   beforeEach(async () => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
@@ -158,7 +127,7 @@ describe('paint process storage', () => {
   describe('the process target', () => {
     it('hands a segment-scoped process the segment it writes', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([0, 0]), 3);
+      const { labelMap } = addActiveSegment(new Uint8Array([0, 0]), 3);
       const { seen, algorithm } = recordingAlgorithm(
         () => new Uint8Array([3, 3])
       );
@@ -177,7 +146,7 @@ describe('paint process storage', () => {
     });
 
     it('runs an all-segments process once per editable segment', async () => {
-      const { segmentationId, maskId, labelMap } = addTestSegment(
+      const { segmentationId, maskId, labelMap } = addActiveSegment(
         new Uint8Array([1, 0])
       );
       const other = addBoundSegment(segmentationId, 'Other');
@@ -199,7 +168,9 @@ describe('paint process storage', () => {
 
     it('skips a locked segment and one with no voxels', async () => {
       const segmentationStore = useSegmentationStore();
-      const { segmentationId, maskId } = addTestSegment(new Uint8Array([1, 0]));
+      const { segmentationId, maskId } = addActiveSegment(
+        new Uint8Array([1, 0])
+      );
       const locked = addBoundSegment(segmentationId, 'Locked');
       lockSegment(locked.maskId, true);
       const empty = segmentationStore.createMask(
@@ -217,7 +188,7 @@ describe('paint process storage', () => {
 
     it('gives the target accessor the storage the process reads', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
+      const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       let live: unknown;
       let seenAtCall: number[] = [];
 
@@ -236,7 +207,7 @@ describe('paint process storage', () => {
   describe('preview', () => {
     it('writes the result through the live buffer instead of swapping it', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment();
+      const { labelMap } = addActiveSegment();
       const original = buffer(labelMap);
 
       await processStore.startProcess(async () => new Uint8Array([2, 2]));
@@ -248,7 +219,7 @@ describe('paint process storage', () => {
 
     it('copies the algorithm result instead of adopting it', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment();
+      const { labelMap } = addActiveSegment();
       const result = new Uint8Array([2, 2]);
 
       await processStore.startProcess(async () => result);
@@ -260,11 +231,7 @@ describe('paint process storage', () => {
 
   describe('toggling the preview', () => {
     it('swaps values in place in both directions', async () => {
-      const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
-      const original = buffer(labelMap);
-
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      const { processStore, labelMap, original } = await startedProcess();
       expect(values(labelMap)).toEqual([1, 1]);
 
       processStore.togglePreview();
@@ -283,11 +250,7 @@ describe('paint process storage', () => {
 
   describe('cancel', () => {
     it('restores the original values in place', async () => {
-      const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
-      const original = buffer(labelMap);
-
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      const { processStore, labelMap, original } = await startedProcess();
       processStore.cancelProcess();
 
       expect(processStore.processState.step).toBe('start');
@@ -298,11 +261,7 @@ describe('paint process storage', () => {
 
   describe('confirm', () => {
     it('keeps the processed result in place when the original is showing', async () => {
-      const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
-      const original = buffer(labelMap);
-
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      const { processStore, labelMap, original } = await startedProcess();
       processStore.togglePreview();
       processStore.confirmProcess();
 
@@ -317,7 +276,7 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { maskId } = addTestSegment();
+      const { maskId } = addActiveSegment();
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       expect(processStore.processState.step).toBe('previewing');
@@ -333,7 +292,7 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addTestSegment();
+      const { artifactId } = addActiveSegment();
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]), {
         requiresActiveSegment: false,
@@ -351,7 +310,7 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addTestSegment(new Uint8Array([1, 0]));
+      const { artifactId } = addActiveSegment(new Uint8Array([1, 0]));
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       processStore.togglePreview();
@@ -365,7 +324,7 @@ describe('paint process storage', () => {
     it('toggles the preview without a write when the storage is gone', async () => {
       const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addTestSegment(new Uint8Array([1, 0]));
+      const { artifactId } = addActiveSegment(new Uint8Array([1, 0]));
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       segmentationStore.removeArtifact(artifactId);
@@ -378,7 +337,7 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addTestSegment();
+      const { artifactId } = addActiveSegment();
 
       await processStore.startProcess(async () => {
         segmentationStore.removeArtifact(artifactId);
@@ -395,7 +354,7 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
       await viewImage('image-2', [4, 1, 1]);
-      const { maskId } = addTestSegment(new Uint8Array([1, 0]), 1, 'image-2');
+      const { maskId } = addActiveSegment(new Uint8Array([1, 0]), 1, 'image-2');
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       expect(processStore.processState.step).toBe('previewing');
@@ -411,7 +370,7 @@ describe('paint process storage', () => {
     it('cancels the preview when the paint tool is put down', async () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
+      const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       paintStore.activateTool();
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
@@ -428,7 +387,7 @@ describe('paint process storage', () => {
   describe('a result that is the storage buffer itself', () => {
     it('is refused, reported, and rolled back', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
+      const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       const original = buffer(labelMap);
 
       await processStore.startProcess(async (target) => {
@@ -444,7 +403,7 @@ describe('paint process storage', () => {
   describe('a result that does not fit the storage', () => {
     it('is refused, reported, and rolled back', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addTestSegment(new Uint8Array([1, 0]));
+      const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       const original = buffer(labelMap);
 
       await processStore.startProcess(async () => new Uint8Array([1, 1, 1]));

@@ -13,6 +13,7 @@ import {
   selectSegment,
   mintSegment,
   lockSegment,
+  addActiveSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
@@ -52,46 +53,6 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-/** Seats one segment, grown to the whole image, and makes it active. */
-function addTestSegment(
-  values = new Uint8Array([0, 0]),
-  labelValue = 1,
-  imageId = 'image-1'
-) {
-  const segmentationStore = useSegmentationStore();
-  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
-  // Label values are minted per image, so the ones below the wanted value are
-  // taken by placeholder segments.
-  for (let value = 1; value < labelValue; value += 1) {
-    const filler = segmentationStore.createMask(
-      segmentation.id,
-      mintSegment({
-        name: `Filler ${value}`,
-      })
-    );
-    segmentationStore.maskVoxels(filler.id).materialize();
-  }
-
-  const segment = segmentationStore.createMask(
-    segmentation.id,
-    mintSegment({
-      name: 'Segment 1',
-    })
-  );
-  const voxels = segmentationStore.maskVoxels(segment.id);
-  const { artifactId } = voxels.materialize();
-  voxels.ensureContains([0, values.length - 1, 0, 0, 0, 0]);
-  voxels.apply(values);
-  selectSegment(segment.id);
-
-  return {
-    segmentationId: segmentation.id,
-    maskId: segment.id,
-    artifactId,
-    labelMap: voxels.image(),
-  };
-}
-
 describe('Paint process store', () => {
   beforeEach(async () => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
@@ -115,7 +76,7 @@ describe('Paint process store', () => {
   it('uses process interaction mode only while previewing', async () => {
     const paintStore = usePaintToolStore();
     const processStore = usePaintProcessStore();
-    const { labelMap } = addTestSegment();
+    const { labelMap } = addActiveSegment();
 
     paintStore.setMode(PaintMode.Erase);
 
@@ -142,7 +103,7 @@ describe('Paint process store', () => {
   it('restores the paint interaction mode when preview is canceled', async () => {
     const paintStore = usePaintToolStore();
     const processStore = usePaintProcessStore();
-    const { labelMap } = addTestSegment();
+    const { labelMap } = addActiveSegment();
 
     paintStore.setMode(PaintMode.CirclePaint);
     paintStore.setProcessControlsOpen(true);
@@ -163,7 +124,7 @@ describe('Paint process store', () => {
 
   it('ignores stale async results after a newer process starts', async () => {
     const paintStore = usePaintToolStore();
-    const { labelMap } = addTestSegment();
+    const { labelMap } = addActiveSegment();
 
     paintStore.activeMode = PaintMode.Process;
     const processStore = usePaintProcessStore();
@@ -188,7 +149,7 @@ describe('Paint process store', () => {
 
   it('hands the algorithm the active segment’s resolved label value', async () => {
     const processStore = usePaintProcessStore();
-    const { labelMap } = addTestSegment(new Uint8Array([0, 0]), 3);
+    const { labelMap } = addActiveSegment(new Uint8Array([0, 0]), 3);
     let target: ProcessTarget | undefined;
     const algorithm = vi.fn(async (resolved: ProcessTarget) => {
       target = resolved;
@@ -205,7 +166,7 @@ describe('Paint process store', () => {
   it('refuses to process a locked segment', async () => {
     const processStore = usePaintProcessStore();
     const messageStore = useMessageStore();
-    const { maskId, labelMap } = addTestSegment();
+    const { maskId, labelMap } = addActiveSegment();
     lockSegment(maskId);
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]));
@@ -296,7 +257,7 @@ describe('Paint process store', () => {
   it('does not clone the active segment onto the image being viewed', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    const { labelMap: firstLabelMap } = addTestSegment();
+    const { labelMap: firstLabelMap } = addActiveSegment();
     const algorithm = vi.fn(async () => new Uint8Array([4, 4]));
 
     await viewImage('image-2');
@@ -312,7 +273,7 @@ describe('Paint process store', () => {
   it('cancels the preview when the active segment changes', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    const { segmentationId, labelMap } = addTestSegment();
+    const { segmentationId, labelMap } = addActiveSegment();
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]));
     expect(processStore.processState.step).toBe('previewing');
@@ -353,7 +314,7 @@ describe('Paint process store', () => {
   it('names the lock rather than reporting nothing to process', async () => {
     const processStore = usePaintProcessStore();
     const messageStore = useMessageStore();
-    const { maskId, labelMap } = addTestSegment(new Uint8Array([1, 1]));
+    const { maskId, labelMap } = addActiveSegment(new Uint8Array([1, 1]));
     lockSegment(maskId, true);
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]), {
@@ -371,7 +332,7 @@ describe('Paint process store', () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const messageStore = useMessageStore();
-    const { segmentationId, maskId } = addTestSegment(new Uint8Array([1, 1]));
+    const { segmentationId, maskId } = addActiveSegment(new Uint8Array([1, 1]));
     lockSegment(maskId, true);
     segmentationStore.createMask(
       segmentationId,
@@ -390,7 +351,7 @@ describe('Paint process store', () => {
   it('does not clone the active segment onto a merely viewed image', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    addTestSegment();
+    addActiveSegment();
     await viewImage('image-2');
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]), {

@@ -164,6 +164,46 @@ export const lockSegment = (maskId: string, locked = true) =>
 export const selectSegment = (maskId: string) =>
   useSegmentStore().segments.selectSegment(store().getMask(maskId).segmentId);
 
+/** Seats one segment, grown across `values`, and makes it active. */
+export function addActiveSegment(
+  values = new Uint8Array([0, 0]),
+  labelValue = 1,
+  imageId = 'image-1'
+) {
+  const segmentationStore = useSegmentationStore();
+  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
+  // Label values are minted per image, so the ones below the wanted value are
+  // taken by placeholder segments.
+  for (let value = 1; value < labelValue; value += 1) {
+    const filler = segmentationStore.createMask(
+      segmentation.id,
+      mintSegment({
+        name: `Filler ${value}`,
+      })
+    );
+    segmentationStore.maskVoxels(filler.id).materialize();
+  }
+
+  const segment = segmentationStore.createMask(
+    segmentation.id,
+    mintSegment({
+      name: 'Segment 1',
+    })
+  );
+  const voxels = segmentationStore.maskVoxels(segment.id);
+  const { artifactId } = voxels.materialize();
+  voxels.ensureContains([0, values.length - 1, 0, 0, 0, 0]);
+  voxels.apply(values);
+  selectSegment(segment.id);
+
+  return {
+    segmentationId: segmentation.id,
+    maskId: segment.id,
+    artifactId,
+    labelMap: voxels.image(),
+  };
+}
+
 /** The record an edit on this image would land in, without creating one. */
 export const selectedSegmentOn = (imageId: string) =>
   store().findEditTarget(imageId);
