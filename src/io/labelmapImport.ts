@@ -97,8 +97,18 @@ const growBox = (box: Extent3D, i: number, j: number, k: number) => {
   box[5] = Math.max(box[5], k);
 };
 
+// The decode and the split both need this sweep of the same buffer, and it is
+// the whole parent volume, so the result rides along until the buffer changes.
+const boundsCache = new WeakMap<
+  vtkLabelMap,
+  { mTime: number; bounds: Map<number, Extent3D> }
+>();
+
 /** The box a label value occupies, per value, in one sweep of the buffer. */
-export function labelValueBounds(labelmap: vtkLabelMap) {
+function labelValueBounds(labelmap: vtkLabelMap) {
+  const cached = boundsCache.get(labelmap);
+  if (cached?.mTime === labelmap.getMTime()) return cached.bounds;
+
   const scalars = maskScalars(labelmap);
   const [di, dj, dk] = labelmap.getDimensions();
   const bounds = new Map<number, Extent3D>();
@@ -116,6 +126,7 @@ export function labelValueBounds(labelmap: vtkLabelMap) {
   for (let k = 0; k < dk; k += 1)
     for (let j = 0; j < dj; j += 1) scanRow((j + k * dj) * di, j, k);
 
+  boundsCache.set(labelmap, { mTime: labelmap.getMTime(), bounds });
   return bounds;
 }
 
@@ -206,20 +217,8 @@ async function segBuildDescriptors(
 }
 
 /** Distinct nonzero voxel values, ascending: the segment spine. */
-function distinctLabelValues(image: vtkLabelMap) {
-  // Labelmap scalars are bytes, so a presence map yields ascending values.
-  const voxelValues = maskScalars(image);
-  const present = new Uint8Array(256);
-  for (let index = 0; index < voxelValues.length; index += 1) {
-    present[voxelValues[index]] = 1;
-  }
-  const values: number[] = [];
-  for (let value = 0; value < present.length; value += 1) {
-    if (present[value] && value !== LABELMAP_BACKGROUND_VALUE)
-      values.push(value);
-  }
-  return values;
-}
+const distinctLabelValues = (image: vtkLabelMap) =>
+  [...labelValueBounds(image).keys()].sort((first, second) => first - second);
 
 export type DecodeOptions = {
   /** Which component of a multi-component DICOM-SEG to read descriptors from. */

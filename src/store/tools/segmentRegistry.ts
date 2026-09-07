@@ -10,6 +10,7 @@ import {
   type SegmentInit,
 } from '@/src/types/segment';
 import { omit } from '@/src/utils';
+import { cleanUndefined } from '@/src/utils';
 
 /** A segment as a config file states it: css color, appearance all optional. */
 export type ConfiguredSegment = {
@@ -30,16 +31,11 @@ export type SegmentRegistryOptions = {
   removeReferences?: (segmentId: string) => void;
 };
 
-const withoutUndefined = (init: SegmentInit) =>
-  Object.fromEntries(
-    Object.entries(init).filter(([, value]) => value !== undefined)
-  ) as SegmentInit;
-
 const fromConfigured = (
   name: string,
   configured: ConfiguredSegment
 ): SegmentInit =>
-  withoutUndefined({
+  cleanUndefined({
     name,
     color: configured.color ? cssColorToRGBA(configured.color) : undefined,
     fillOpacity: configured.fillOpacity,
@@ -84,8 +80,16 @@ export const createSegmentRegistry = ({
   const appearanceOf = (id: Maybe<string>) =>
     resolveSegmentAppearance(getSegment(id));
 
+  // Cached: the renderer asks for one index per mask per re-render, and the
+  // export sort asks twice per comparison.
+  const orderIndex = computed(
+    () =>
+      new Map(Object.keys(segmentById.value).map((id, index) => [id, index]))
+  );
+
   const orderIndexOf = (id: Maybe<string>) =>
-    id ? Object.keys(segmentById.value).indexOf(id) : -1;
+    (id === undefined || id === null ? undefined : orderIndex.value.get(id)) ??
+    -1;
 
   const findSegmentByName = (name: Maybe<string>) =>
     segmentList.value.find((type) => type.name === name);
@@ -122,7 +126,7 @@ export const createSegmentRegistry = ({
         color: nextColor(),
         visible: true,
         locked: false,
-        ...withoutUndefined(init),
+        ...cleanUndefined(init),
         id,
       },
     };

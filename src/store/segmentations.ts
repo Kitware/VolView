@@ -72,7 +72,7 @@ import {
 import { toLabelmapSegment } from '@/src/types/segment';
 import { useSegmentStore } from '@/src/store/segments';
 import { declareSegmentReferences } from '@/src/store/tools/segmentReferences';
-import { isRecord, removeFromArray } from '@/src/utils';
+import { cleanUndefined, isRecord, removeFromArray } from '@/src/utils';
 import { cycleColors } from '@/src/utils/color';
 import { normalize } from '@/src/utils/path';
 import vtkLabelMap from '@/src/vtk/LabelMap';
@@ -358,16 +358,19 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return nextUnusedLabelValue(used, LABELMAP_MAX_VALUE, preferred);
   }
 
+  /** A mask is editable when the segment it delineates is unlocked. */
+  const maskLocked = (mask: SegmentMask) =>
+    segmentRegistry.appearanceOf(mask.segmentId).locked;
+
+  const isLocked = (maskId: string) =>
+    segmentRegistry.appearanceOf(findMask(maskId)?.segmentId).locked;
+
   /**
    * The segment a file's descriptor binds to: the one already carrying that
    * exact name, or a new one minted from the file. The registry's own color wins
    * on a match. A name already taken on this image mints a suffixed segment
    * instead, since one image holds at most one mask per segment.
    */
-  /** A mask is editable when the segment it delineates is unlocked. */
-  const isLocked = (maskId: string) =>
-    segmentRegistry.appearanceOf(findMask(maskId)?.segmentId).locked;
-
   function bindDescriptorSegment(
     parentImageId: string,
     descriptor: LabelmapSegment,
@@ -387,12 +390,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       color: [...descriptor.color] as RGBAColor,
       visible: descriptor.visible,
       locked: descriptor.locked ?? false,
-      ...(descriptor.fillOpacity === undefined
-        ? {}
-        : { fillOpacity: descriptor.fillOpacity }),
-      ...(descriptor.outlineOpacity === undefined
-        ? {}
-        : { outlineOpacity: descriptor.outlineOpacity }),
+      ...cleanUndefined({
+        fillOpacity: descriptor.fillOpacity,
+        outlineOpacity: descriptor.outlineOpacity,
+      }),
     });
   }
 
@@ -660,7 +661,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (!segmentation) return [];
     return listMasks(segmentation).flatMap((segment) => {
       if (segment.id === maskId) return [];
-      if (gesture === 'aimed' && isLocked(segment.id)) return [];
+      if (gesture === 'aimed' && maskLocked(segment)) return [];
       const bounded = boundedMask(segment.representations.labelmap);
       return bounded ? [bounded] : [];
     });
@@ -754,7 +755,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function editableMasks(parentImageId: string) {
     return imageMasks(parentImageId).flatMap((segment) => {
       const binding = segment.representations.labelmap;
-      if (isLocked(segment.id) || !binding || isEmptyExtent(binding.extent))
+      if (maskLocked(segment) || !binding || isEmptyExtent(binding.extent))
         return [];
       return [{ maskId: segment.id, labelValue: binding.labelValue }];
     });
@@ -1265,17 +1266,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       ).map((descriptor) => {
         const withDisplay = {
           ...descriptor,
-          ...(artifact.pendingFillOpacity === undefined
-            ? {}
-            : { fillOpacity: artifact.pendingFillOpacity }),
-          ...(artifact.pendingOutlineOpacity === undefined
-            ? {}
-            : { outlineOpacity: artifact.pendingOutlineOpacity }),
-          ...(artifact.pendingVisibility === undefined
-            ? {}
-            : {
-                visible: descriptor.visible && artifact.pendingVisibility,
-              }),
+          ...cleanUndefined({
+            fillOpacity: artifact.pendingFillOpacity,
+            outlineOpacity: artifact.pendingOutlineOpacity,
+            visible:
+              artifact.pendingVisibility === undefined
+                ? undefined
+                : descriptor.visible && artifact.pendingVisibility,
+          }),
         };
         const carried = carriedTypeIds.get(descriptor);
         if (carried) carriedTypeIds.set(withDisplay, carried);
