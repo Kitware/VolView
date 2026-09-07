@@ -30,6 +30,7 @@ export function useSegmentShapes() {
   const shapes = computed(() =>
     SHAPE_TOOLS.flatMap(({ type, icon }) => {
       const store = useAnnotationToolStore(type);
+      const rulers = useRulerStore();
       return store.finishedTools
         .filter((tool) => tool.imageID === currentImageID.value)
         .map((tool) => {
@@ -51,7 +52,7 @@ export function useSegmentShapes() {
             // Only a ruler carries a number a user reads off the list.
             measurement:
               type === AnnotationToolType.Ruler
-                ? `${useRulerStore().lengthByID[tool.id].toFixed(2)}mm`
+                ? `${rulers.lengthByID[tool.id].toFixed(2)}mm`
                 : '',
             jumpTo: () => store.jumpToTool(tool.id),
             remove: () => store.removeTool(tool.id),
@@ -64,8 +65,21 @@ export function useSegmentShapes() {
     })
   );
 
+  // Grouped once so a list of segments costs one pass over the shapes rather
+  // than one pass per segment.
+  const shapesBySegment = computed(() => {
+    const bySegment = new Map<string, typeof shapes.value>();
+    shapes.value.forEach((shape) => {
+      if (!shape.segmentId) return;
+      const group = bySegment.get(shape.segmentId);
+      if (group) group.push(shape);
+      else bySegment.set(shape.segmentId, [shape]);
+    });
+    return bySegment;
+  });
+
   const shapesOf = (segmentId: string) =>
-    shapes.value.filter((shape) => shape.segmentId === segmentId);
+    shapesBySegment.value.get(segmentId) ?? [];
 
   return { shapes, shapesOf };
 }
