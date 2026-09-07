@@ -9,6 +9,7 @@ import {
   recognizeConfig,
 } from '@/src/io/import/configJson';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { MessageType, useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
@@ -119,6 +120,26 @@ describe('segment type config', () => {
     expect(typeSummary(useRectangleStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
+  });
+
+  // Functional CSS notation is not parsed. Falling back to black would read as
+  // a deliberate colour, so the file's own boundary says what it could not use.
+  it('reports a config color it cannot parse instead of blackening it', () => {
+    applyPostStateConfig(
+      config.parse({
+        segments: {
+          Tumor: { color: 'rgb(214, 0, 0)' },
+          Node: { color: 'nonsense' },
+          Fine: { color: '#00ff00' },
+        },
+      })
+    );
+
+    const [message] = useMessageStore().messages;
+    expect(message.type).toBe(MessageType.Error);
+    expect(message.title).toContain('Tumor (rgb(214, 0, 0))');
+    expect(message.title).toContain('Node (nonsense)');
+    expect(message.title).not.toContain('Fine');
   });
 
   it('configures rulers out of the one segment section', async () => {

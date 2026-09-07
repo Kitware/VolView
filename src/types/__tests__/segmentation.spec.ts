@@ -202,17 +202,16 @@ describe('the appearance resolver', () => {
     expect(resolved.locked).toBe(false);
   });
 
-  describe('functional CSS colors', () => {
-    it('parses rgb and rgba, comma or space separated', () => {
-      expect(cssColorToRGBA('rgb(0, 255, 0)')).toEqual([0, 255, 0, 255]);
-      expect(cssColorToRGBA('rgb(0 255 0)')).toEqual([0, 255, 0, 255]);
-      expect(cssColorToRGBA('rgba(255, 0, 0, 0.5)')).toEqual([255, 0, 0, 128]);
-      expect(cssColorToRGBA('rgb(255 0 0 / 50%)')).toEqual([255, 0, 0, 128]);
-    });
-
-    it('parses hsl', () => {
-      expect(cssColorToRGBA('hsl(120, 100%, 50%)')).toEqual([0, 255, 0, 255]);
-      expect(cssColorToRGBA('hsl(0, 0%, 100%)')).toEqual([255, 255, 255, 255]);
+  describe('CSS colors', () => {
+    // Functional notation is not supported. A config using it is told so at the
+    // boundary that reads the file, rather than resolving to a plausible black.
+    it.each([
+      'rgb(0, 255, 0)',
+      'rgb(0 255 0)',
+      'rgba(255, 0, 0, 0.5)',
+      'hsl(120, 100%, 50%)',
+    ])('does not parse %s', (css) => {
+      expect(tryCssColorToRGBA(css)).toBeUndefined();
     });
 
     it('treats transparent as fully transparent, not black', () => {
@@ -221,7 +220,6 @@ describe('the appearance resolver', () => {
 
     it('reports unparseable input rather than silently blackening it', () => {
       expect(tryCssColorToRGBA('not-a-color')).toBeUndefined();
-      expect(tryCssColorToRGBA('rgb(1, 2)')).toBeUndefined();
       expect(cssColorToRGBA('not-a-color')).toEqual([0, 0, 0, 255]);
     });
 

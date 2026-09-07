@@ -299,76 +299,7 @@ const expandShorthandHex = (hex: string) =>
         .join('')
     : hex;
 
-const RGB_COLOR = /^rgba?\(([^)]+)\)$/;
-const HSL_COLOR = /^hsla?\(([^)]+)\)$/;
-
-const splitArgs = (body: string) =>
-  body
-    .replace(/\//g, ' ')
-    .split(/[\s,]+/)
-    .filter(Boolean);
-
-const toAlpha = (raw: string | undefined) => {
-  if (raw === undefined) return 255;
-  const value = raw.endsWith('%')
-    ? Number(raw.slice(0, -1)) / 100
-    : Number(raw);
-  return Number.isFinite(value)
-    ? Math.round(Math.min(Math.max(value, 0), 1) * 255)
-    : 255;
-};
-
-const toChannel = (raw: string) => {
-  const value = raw.endsWith('%')
-    ? (Number(raw.slice(0, -1)) / 100) * 255
-    : Number(raw);
-  return Math.round(Math.min(Math.max(value, 0), 255));
-};
-
-/** h in degrees, s and l in 0..1, per the CSS hsl() to rgb() conversion. */
-const hslToRGB = (h: number, s: number, l: number) => {
-  const chroma = (1 - Math.abs(2 * l - 1)) * s;
-  const hp = (((h % 360) + 360) % 360) / 60;
-  const x = chroma * (1 - Math.abs((hp % 2) - 1));
-  const [r, g, b] = (
-    [
-      [chroma, x, 0],
-      [x, chroma, 0],
-      [0, chroma, x],
-      [0, x, chroma],
-      [x, 0, chroma],
-      [chroma, 0, x],
-    ] as const
-  )[Math.floor(hp) % 6];
-  const m = l - chroma / 2;
-  return [r + m, g + m, b + m].map((c) =>
-    Math.round(Math.min(Math.max(c, 0), 1) * 255)
-  ) as [number, number, number];
-};
-
-const parseRgbColor = (value: string): RGBAColor | undefined => {
-  const match = RGB_COLOR.exec(value);
-  if (!match) return undefined;
-  const args = splitArgs(match[1]);
-  if (args.length < 3) return undefined;
-  const channels = args.slice(0, 3).map(toChannel);
-  if (channels.some((channel) => !Number.isFinite(channel))) return undefined;
-  return [...channels, toAlpha(args[3])] as RGBAColor;
-};
-
-const parseHslColor = (value: string): RGBAColor | undefined => {
-  const match = HSL_COLOR.exec(value);
-  if (!match) return undefined;
-  const args = splitArgs(match[1]);
-  if (args.length < 3) return undefined;
-  const hue = Number(args[0].replace(/deg$/, ''));
-  const sat = Number(args[1].replace(/%$/, '')) / 100;
-  const light = Number(args[2].replace(/%$/, '')) / 100;
-  if (![hue, sat, light].every(Number.isFinite)) return undefined;
-  return [...hslToRGB(hue, sat, light), toAlpha(args[3])] as RGBAColor;
-};
-
-/** Parses hex, named, rgb(a), and hsl(a) CSS colors. */
+/** Parses `transparent`, the CSS colour keywords, and hex. */
 export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const value = css.trim().toLowerCase();
   if (value === 'transparent') return [0, 0, 0, 0];
@@ -377,9 +308,7 @@ export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   if (named) return [...named, 255] as RGBAColor;
 
   const hex = HEX_COLOR.exec(value)?.[1];
-  if (hex) return hexaToRGBA(expandShorthandHex(hex));
-
-  return parseRgbColor(value) ?? parseHslColor(value);
+  return hex ? hexaToRGBA(expandShorthandHex(hex)) : undefined;
 }
 
 /** Falls back to opaque black for unparseable label colors. */

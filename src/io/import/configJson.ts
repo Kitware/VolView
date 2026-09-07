@@ -9,7 +9,9 @@ import {
 import { ACTIONS } from '@/src/constants';
 import type { Action, Binding } from '@/src/constants';
 
+import { useMessageStore } from '@/src/store/messages';
 import { useSegmentStore } from '@/src/store/segments';
+import { tryCssColorToRGBA } from '@/src/types/segmentation';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
@@ -223,12 +225,31 @@ const configuredSegments = (manifest: Config) => {
   return segmentsFromLabels(manifest.labels);
 };
 
+// A colour the parser does not know would otherwise resolve to opaque black,
+// which reads as a deliberate choice. Reported here, at the boundary that owns
+// the file, naming the segment and what it said.
+const reportUnparseableColors = (
+  configured: NonNullable<Config['segments']>
+) => {
+  const bad = Object.entries(configured).flatMap(([name, props]) =>
+    props.color && tryCssColorToRGBA(props.color) === undefined
+      ? [`${name} (${props.color})`]
+      : []
+  );
+  if (bad.length === 0) return;
+  useMessageStore().addError(
+    `Unrecognized ${plural(bad.length, 'color')} in config: ${bad.join(', ')}. ` +
+      'Use a hex value such as #d60000, or a CSS color keyword.'
+  );
+};
+
 // An omitted section leaves the registry alone; an empty record or null
 // clears what an earlier config contributed to it.
 const applySegments = (manifest: Config) => {
   const configured = configuredSegments(manifest);
-  if (configured !== undefined)
-    useSegmentStore().segments.replaceConfigSegments(configured);
+  if (configured === undefined) return;
+  if (configured) reportUnparseableColors(configured);
+  useSegmentStore().segments.replaceConfigSegments(configured);
 };
 
 const applyLayout = (manifest: Config) => {
