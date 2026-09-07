@@ -6,6 +6,7 @@ import {
   mintSegment,
   segmentOfMask,
   manifestForImages,
+  segmentationSnapshot,
   serializeToStateFiles,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
@@ -26,34 +27,6 @@ const SOURCE = {
   providerId: 'analysis-provider',
   jobId: 'job-abc',
   outputId: 'outputLabelmap',
-};
-
-/** Everything the round trip must preserve for one parent image. */
-const snapshot = (imageId: string) => {
-  const store = useSegmentationStore();
-  const segments = useSegmentStore().segments;
-  const segmentation = store.getSegmentationForImage(imageId)!;
-  return {
-    name: segmentation.name,
-    segments: segmentation.order.map((maskId) => {
-      const segment = segmentation.masks[maskId];
-      const binding = segment.representations.labelmap;
-      const appearance = segments.appearanceOf(segment.segmentId);
-      return {
-        name: appearance.name,
-        color: [...appearance.color],
-        visible: appearance.visible,
-        locked: appearance.locked,
-        binding: binding && {
-          labelValue: binding.labelValue,
-          extent: [...binding.extent],
-          artifactName: store.artifactMeta[binding.artifactId].name,
-          artifactSource: store.artifactMeta[binding.artifactId].source,
-          artifactParent: store.artifactMeta[binding.artifactId].parentImage,
-        },
-      };
-    }),
-  };
 };
 
 const selectedTypeSummary = () => {
@@ -115,8 +88,8 @@ describe('segmentation state-file round trip', () => {
 
     const io = inMemoryArtifactIO();
     const before = {
-      first: snapshot('img-1'),
-      second: snapshot('img-2'),
+      first: segmentationSnapshot('img-1'),
+      second: segmentationSnapshot('img-2'),
       selected: selectedTypeSummary(),
     };
     const { parsed, stateFiles } = await serializeToStateFiles(
@@ -141,26 +114,8 @@ describe('segmentation state-file round trip', () => {
     );
     await nextTick();
 
-    expect(snapshot('new-1')).toEqual({
-      ...before.first,
-      segments: before.first.segments.map((segment) => ({
-        ...segment,
-        binding: segment.binding && {
-          ...segment.binding,
-          artifactParent: 'new-1',
-        },
-      })),
-    });
-    expect(snapshot('new-2')).toEqual({
-      ...before.second,
-      segments: before.second.segments.map((segment) => ({
-        ...segment,
-        binding: segment.binding && {
-          ...segment.binding,
-          artifactParent: 'new-2',
-        },
-      })),
-    });
+    expect(segmentationSnapshot('new-1')).toEqual(before.first);
+    expect(segmentationSnapshot('new-2')).toEqual(before.second);
     expect(selectedTypeSummary()).toEqual({
       parentImages: ['new-1'],
       name: before.selected!.name,

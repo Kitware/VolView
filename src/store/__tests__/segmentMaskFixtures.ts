@@ -127,6 +127,46 @@ export const inMemoryArtifactIO = () => {
   };
 };
 
+/** Everything a round trip or a migration has to preserve for one image. */
+export const segmentationSnapshot = (imageId: string) => {
+  const segments = useSegmentStore().segments;
+  const segmentation = store().getSegmentationForImage(imageId)!;
+  const selectedSegmentId = segments.selectedSegmentId.value;
+  return {
+    name: segmentation.name,
+    segments: segmentation.order.map((maskId) => {
+      const mask = segmentation.masks[maskId];
+      const binding = mask.representations.labelmap;
+      const appearance = segments.appearanceOf(mask.segmentId);
+      return {
+        name: appearance.name,
+        color: [...appearance.color],
+        visible: appearance.visible,
+        locked: appearance.locked,
+        fillOpacity: appearance.fillOpacity,
+        outlineOpacity: appearance.outlineOpacity,
+        binding: binding && {
+          labelValue: binding.labelValue,
+          extent: [...binding.extent],
+          artifactName: store().artifactMeta[binding.artifactId].name,
+          artifactSource: store().artifactMeta[binding.artifactId].source,
+          // Relative, so a restore onto a different image still compares.
+          artifactParentIsSelf:
+            store().artifactMeta[binding.artifactId].parentImage === imageId,
+        },
+      };
+    }),
+    selectedTypeName: selectedSegmentId
+      ? segments.appearanceOf(selectedSegmentId).name
+      : undefined,
+    display: {
+      fillOpacity: segmentation.fillOpacity,
+      outlineOpacity: segmentation.outlineOpacity,
+      outlineThickness: segmentation.outlineThickness,
+    },
+  };
+};
+
 /** A manifest naming one dataset and one uri source per seated image. */
 export const manifestForImages = (
   imageIds: string[],

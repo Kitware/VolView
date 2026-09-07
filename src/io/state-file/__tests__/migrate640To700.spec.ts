@@ -18,6 +18,7 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
   inMemoryArtifactIO,
   manifestForImages,
+  segmentationSnapshot,
   serializeToStateFiles,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
@@ -822,43 +823,6 @@ const seatImage = async (id: string, name: string, image = makeImage()) => {
   return id;
 };
 
-const snapshot = (imageId: string) => {
-  const store = useSegmentationStore();
-  const segments = useSegmentStore().segments;
-  const segmentation = store.getSegmentationForImage(imageId)!;
-  const selectedSegmentId = segments.selectedSegmentId.value;
-  return {
-    name: segmentation.name,
-    segments: segmentation.order.map((maskId) => {
-      const segment = segmentation.masks[maskId];
-      const binding = segment.representations.labelmap;
-      const appearance = segments.appearanceOf(segment.segmentId);
-      return {
-        name: appearance.name,
-        color: [...appearance.color],
-        visible: appearance.visible,
-        locked: appearance.locked,
-        fillOpacity: appearance.fillOpacity,
-        outlineOpacity: appearance.outlineOpacity,
-        binding: binding && {
-          labelValue: binding.labelValue,
-          extent: [...binding.extent],
-          artifactName: store.artifactMeta[binding.artifactId].name,
-          artifactSource: store.artifactMeta[binding.artifactId].source,
-        },
-      };
-    }),
-    selectedTypeName: selectedSegmentId
-      ? segments.appearanceOf(selectedSegmentId).name
-      : undefined,
-    display: {
-      fillOpacity: segmentation.fillOpacity,
-      outlineOpacity: segmentation.outlineOpacity,
-      outlineThickness: segmentation.outlineThickness,
-    },
-  };
-};
-
 const legacyScene = () =>
   JSON.stringify({
     version: '6.4.0',
@@ -1050,7 +1014,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
 
   it('re-saves as 7.0.0 and reloads identically', async () => {
     await restoreLegacyScene(legacyLocalFileScene());
-    const before = snapshot('store-ct');
+    const before = segmentationSnapshot('store-ct');
     expect(before.name).toBe('patient.nrrd');
 
     const io = inMemoryArtifactIO();
@@ -1073,7 +1037,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     );
     await nextTick();
 
-    expect(snapshot('new-ct')).toEqual(before);
+    expect(segmentationSnapshot('new-ct')).toEqual(before);
   });
 
   it('keeps colliding legacy identifiers as distinct segments', () => {
