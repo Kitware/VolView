@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, markRaw, reactive, ref, toRaw } from 'vue';
+import { markRaw, reactive, ref, toRaw } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
@@ -12,6 +12,7 @@ import {
 import { allocateMask } from '@/src/store/segmentMask';
 import {} from '@/src/store/segmentationRestore';
 import { groupByLayer, writeMaskInto } from '@/src/store/segmentLayers';
+import { createSegmentProjection } from '@/src/store/segmentProjection';
 import { createVoxelAccess } from '@/src/store/segmentVoxelAccess';
 import {
   createSegmentationWire,
@@ -694,26 +695,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- render sync --- //
 
-  // The labelmap renderer colors by voxel value, so it reads the value-keyed
-  // projection of the segments bound to each artifact.
-  const labelmapSegmentsByArtifact = computed(() => {
-    const byArtifact: Record<string, LabelmapSegment[]> = {};
-    Object.keys(artifactMeta).forEach((artifactId) => {
-      byArtifact[artifactId] = [];
-    });
-    Object.values(segmentations).forEach((segmentation) => {
-      listMasks(segmentation).forEach((segment) => {
-        const binding = segment.representations.labelmap;
-        if (!binding || !byArtifact[binding.artifactId]) return;
-        byArtifact[binding.artifactId].push(
-          toLabelmapSegment(
-            segmentRegistry.getSegment(segment.segmentId),
-            binding.labelValue
-          )
-        );
-      });
-    });
-    return byArtifact;
+  const labelmapSegmentsByArtifact = createSegmentProjection({
+    segmentations,
+    artifactMeta,
+    segmentRegistry,
   });
 
   // --- state file --- //

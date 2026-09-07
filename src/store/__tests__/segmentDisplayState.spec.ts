@@ -164,5 +164,28 @@ describe('segmentation display state', () => {
         expect.objectContaining({ fillOpacity: 0.4, outlineOpacity: 0.25 }),
       ]);
     });
+
+    // A representation redraws when its artifact's list changes identity, so
+    // editing one segment must not hand every other artifact a new array.
+    it('leaves an untouched artifact its previous list', () => {
+      const segmentation = store().ensureSegmentationForImage('img-1');
+      const edited = store().createMask(segmentation.id, mintSegment());
+      const untouched = store().createMask(segmentation.id, mintSegment());
+      const editedArtifact = store()
+        .maskVoxels(edited.id)
+        .materialize().artifactId;
+      const otherArtifact = store()
+        .maskVoxels(untouched.id)
+        .materialize().artifactId;
+
+      const before = store().labelmapSegmentsByArtifact[otherArtifact];
+      segments().updateSegment(edited.segmentId, { fillOpacity: 0.4 });
+      const after = store().labelmapSegmentsByArtifact;
+
+      expect(after[otherArtifact]).toBe(before);
+      expect(after[editedArtifact]).toEqual([
+        expect.objectContaining({ fillOpacity: 0.4 }),
+      ]);
+    });
   });
 });
