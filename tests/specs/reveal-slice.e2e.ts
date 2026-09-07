@@ -7,12 +7,14 @@ import {
   getCineFrame,
   waitForFrame,
 } from './cineTestUtils';
-import { openMeasurements } from './segmentationTestUtils';
+import { openSegmentShapes } from './segmentationTestUtils';
 
 const waitForToolEntry = async (iconClass: string) => {
   await browser.waitUntil(
     async () => {
-      const entries = await $$(`.v-list-item i.${iconClass}.tool-icon`);
+      const entries = await $$(
+        `[data-testid="segment-shape-row"] i.${iconClass}`
+      );
       return (await entries.length) >= 1;
     },
     { timeoutMsg: `Tool entry with icon ${iconClass} not found` }
@@ -20,9 +22,10 @@ const waitForToolEntry = async (iconClass: string) => {
 };
 
 const clickRevealSliceButton = async () => {
-  // The reveal-slice button is the v-btn wrapping the mdi-target icon
-  // inside the measurement tool list entry.
-  const button = await $('.v-list-item button .mdi-target');
+  // The shape's own reveal, under its segment: the segment row carries one too.
+  const button = await $(
+    '[data-testid="segment-shape-row"] button[data-testid="reveal-shape-button"]'
+  );
   await button.waitForClickable();
   await button.click();
 };
@@ -94,7 +97,7 @@ describe('Reveal Slice on a volume image', () => {
     const movedSlice = await volViewPage.getFirst2DSlice();
     expect(movedSlice).not.toBe(placementSlice);
 
-    await openMeasurements();
+    await openSegmentShapes();
     await waitForToolEntry('mdi-ruler');
 
     await clickRevealSliceButton();
@@ -140,7 +143,7 @@ describe('Reveal Slice on cine ultrasound', () => {
         'Expected the placed ruler to be hidden on frames other than the placement frame',
     });
 
-    await openMeasurements();
+    await openSegmentShapes();
     await waitForToolEntry('mdi-ruler');
 
     await clickRevealSliceButton();

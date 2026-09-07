@@ -16,7 +16,7 @@ import {
   retreatCineFrame,
   waitForFrame,
 } from './cineTestUtils';
-import { openMeasurements } from './segmentationTestUtils';
+import { openSegmentShapes } from './segmentationTestUtils';
 
 const placeRulerAtCanvasCenter = async () => {
   const rulerToolButton = await $('button span i[class~=mdi-ruler]');
@@ -65,9 +65,10 @@ describe('Cine ruler survives save/reload at its placed frame', () => {
     // before asserting visibility on the canvas. The list entry proves
     // deserialization has completed, so the subsequent canvas checks
     // can't race the load.
-    await openMeasurements();
+    await openSegmentShapes();
     await browser.waitUntil(
-      async () => (await $$('.v-list-item i.mdi-ruler.tool-icon').length) >= 1,
+      async () =>
+        (await $$('[data-testid="segment-shape-row"] i.mdi-ruler').length) >= 1,
       {
         timeoutMsg:
           'Expected the deserialized ruler entry to appear in the list',

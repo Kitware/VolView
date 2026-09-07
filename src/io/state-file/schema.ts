@@ -485,7 +485,6 @@ export const ManifestSchema = z.object({
   segmentations: Segmentation.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
   segments: Segment.array().optional(),
-  rulerSegments: Segment.array().optional(),
   selectedSegment: z.string().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),

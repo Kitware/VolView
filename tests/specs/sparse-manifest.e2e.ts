@@ -13,7 +13,7 @@ import {
 import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 import {
   openAnnotationSegments,
-  openMeasurements,
+  openSegmentShapes,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 
@@ -78,12 +78,12 @@ describe('Sparse manifest.json', () => {
     await writeManifestToZip(sparseManifest, fileName);
     await openVolViewPage(fileName);
 
-    await openMeasurements();
+    await openSegmentShapes();
 
     await browser.waitUntil(
       async () => {
         const rectangleEntries = await $$(
-          '.v-list-item i.mdi-vector-square.tool-icon'
+          '[data-testid="segment-shape-row"] i.mdi-vector-square'
         );
         const count = await rectangleEntries.length;
         return count >= 1;

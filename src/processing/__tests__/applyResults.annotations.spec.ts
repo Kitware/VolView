@@ -16,6 +16,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
+import { cssColorToRGBA } from '@/src/types/segmentation';
 import {
   mintSegment,
   lockSegment,
@@ -312,47 +313,46 @@ describe('applyIntent — add-annotations', () => {
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 
-  it('keeps a type name that repeats across kinds in its own registry', async () => {
+  it('gives one segment to a name that repeats across kinds', async () => {
     await apply(intent(), context(IMAGE_ID));
 
     const rulers = useRulerStore();
     const rectangles = useRectangleStore();
+    const polygons = usePolygonStore();
     const ruler = onlyTool(rulers);
     const rectangle = onlyTool(rectangles);
-    expect(rulers.appearanceOfTool(ruler.id).name).toBe('roi');
-    expect(rectangles.appearanceOfTool(rectangle.id).name).toBe('roi');
-    // A ruler type is not a delineation type, whatever it is called.
-    expect(ruler.segmentId).not.toBe(rectangle.segmentId);
 
-    // The styles that landed are the ones each namespace declared.
-    expect(rulers.appearanceOfTool(ruler.id).cssColor).toBe('#ff0000');
-    expect(rulers.appearanceOfTool(ruler.id).strokeWidth).toBe(3);
-    expect(rectangles.appearanceOfTool(rectangle.id).cssColor).toBe('#00ff00');
-    const polygons = usePolygonStore();
-    expect(polygons.appearanceOfTool(onlyTool(polygons).id).cssColor).toBe(
-      '#0000ff'
-    );
+    // One registry: the name is the segment, whichever tool drew the shape.
+    expect(ruler.segmentId).toBe(rectangle.segmentId);
+    expect(rulers.appearanceOfTool(ruler.id).name).toBe('roi');
+    // A different name is still a different segment.
+    expect(onlyTool(polygons).segmentId).not.toBe(ruler.segmentId);
+
+    // Every kind declared a style for the name; the first to bind it wins.
+    expect(rectangles.appearanceOfTool(rectangle.id).cssColor).toBe('#ff0000');
+    expect(rectangles.appearanceOfTool(rectangle.id).strokeWidth).toBe(3);
   });
 
-  it('binds an existing type of the same name instead of minting one', async () => {
+  it('binds an existing segment of the same name instead of minting one', async () => {
     const rulerStore = useRulerStore();
-    // 'Ruler 1' ships as the ruler registry's default segment.
-    const existingId = rulerStore.segments.segmentList.value[0].id;
-    const before = rulerStore.segments.segmentList.value.length;
+    const registry = useSegmentStore().segments;
+    const existingId = registry.addSegment({
+      name: 'Measured',
+      color: cssColorToRGBA('#ff0000'),
+    });
+    const before = registry.segmentList.value.length;
 
     const file = annotationsFile();
-    file.labels.rulers = { 'Ruler 1': { color: '#123456', strokeWidth: 3 } };
-    file.tools.rulers[0].labelName = 'Ruler 1';
+    file.labels.rulers = { Measured: { color: '#123456', strokeWidth: 3 } };
+    file.tools.rulers[0].labelName = 'Measured';
     file.tools.rectangles = [];
     file.tools.polygons = [];
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(rulerStore.segments.segmentList.value).toHaveLength(before);
+    expect(registry.segmentList.value).toHaveLength(before);
     // The registry's own appearance wins on a name match.
-    expect(rulerStore.segments.appearanceOf(existingId).cssColor).toBe(
-      '#ff0000'
-    );
+    expect(registry.appearanceOf(existingId).cssColor).toBe('#ff0000');
     expect(onlyTool(rulerStore).segmentId).toBe(existingId);
   });
 
@@ -399,8 +399,9 @@ describe('applyIntent — add-annotations', () => {
 
   it('leaves the picker where the user left it', async () => {
     const rulerStore = useRulerStore();
-    const selectedBefore = rulerStore.segments.selectedSegmentId.value;
-    expect(selectedBefore).toBeTruthy();
+    const registry = useSegmentStore().segments;
+    const selectedBefore = registry.addSegment({ name: 'Chosen' });
+    expect(registry.selectedSegmentId.value).toBe(selectedBefore);
 
     const file = annotationsFile();
     // A name no type carries, so binding must MINT one, the case that could
@@ -410,7 +411,7 @@ describe('applyIntent — add-annotations', () => {
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(rulerStore.segments.selectedSegmentId.value).toBe(selectedBefore);
+    expect(registry.selectedSegmentId.value).toBe(selectedBefore);
     // The type still landed; only the picker was left alone.
     const ruler = onlyTool(rulerStore);
     expect(rulerStore.appearanceOfTool(ruler.id).name).toBe('fresh');

@@ -251,16 +251,12 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
           isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
         )
       ),
-      // Both registries: a shape's type id resolves in its own, and the
-      // backstop only asks whether the manifest declared it at all.
       segment: new Set(
-        [candidate.segments, candidate.rulerSegments].flatMap((list) =>
-          Array.isArray(list)
-            ? list.flatMap((raw) =>
-                isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
-              )
-            : []
-        )
+        Array.isArray(candidate.segments)
+          ? candidate.segments.flatMap((raw) =>
+              isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
+            )
+          : []
       ),
       view: new Set(
         isRecord(candidate.viewByID) ? Object.keys(candidate.viewByID) : []
@@ -309,7 +305,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   const optionalRoots = [
     'tools',
     'segments',
-    'rulerSegments',
     'selectedSegment',
     'activeView',
     'isActiveViewMaximized',

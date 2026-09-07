@@ -18,7 +18,7 @@ import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
   openAnnotationSegments,
-  openMeasurements,
+  openSegmentShapes,
   segmentColor,
   segmentNames,
   segmentRow,
@@ -86,10 +86,14 @@ describe('Session state lifecycle', () => {
     const notifications = await volViewPage.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    await openMeasurements();
+    await openSegmentShapes();
 
-    await waitForElementCount('.v-list-item i.mdi-vector-square.tool-icon');
-    await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
+    await waitForElementCount(
+      '[data-testid="segment-shape-row"] i.mdi-vector-square'
+    );
+    await waitForElementCount(
+      '[data-testid="segment-shape-row"] i.mdi-pentagon-outline'
+    );
 
     await openAnnotationSegments();
     await waitForNamedSegments();

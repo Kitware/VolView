@@ -4,10 +4,10 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { RULER_SEGMENT_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { createSegmentRegistry } from './segmentRegistry';
+import { useSegmentStore } from '@/src/store/segments';
+import { declareSegmentReferences } from './segmentReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -23,19 +23,14 @@ const rulerDefaults = () => ({
 });
 
 export const useRulerStore = defineAnnotationToolStore('ruler', () => {
-  // Rulers delineate nothing on an image, so they hold their own instance of
-  // the registry: its segments are theirs alone, selection included.
-  const rulerSegments = createSegmentRegistry({
-    namePrefix: 'Ruler',
-    defaults: RULER_SEGMENT_DEFAULTS,
-    hasReferences: (segmentId) => annotationTool.hasToolsOfSegment(segmentId),
-    removeReferences: (segmentId) =>
-      annotationTool.removeToolsOfSegment(segmentId),
-  });
-
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
-    segments: () => rulerSegments,
+    segments: () => useSegmentStore().segments,
+  });
+
+  declareSegmentReferences('rulers', {
+    has: annotationTool.hasToolsOfSegment,
+    remove: annotationTool.removeToolsOfSegment,
   });
 
   // prefix some props with ruler
@@ -69,21 +64,20 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.rulerSegments = rulerSegments.serialize();
     if (!state.manifest.tools) return;
     state.manifest.tools.rulers = serializeTools();
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    deserializeTools(
-      manifest.tools?.rulers,
-      dataIDMap,
-      rulerSegments.adopt(manifest.rulerSegments)
-    );
+  function deserialize(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
+  ) {
+    deserializeTools(manifest.tools?.rulers, dataIDMap, segmentIdMap);
   }
 
   return {
-    ...annotationTool, // support useAnnotationTool interface (for MeasurementsToolList)
+    ...annotationTool,
     rulerIDs,
     rulerByID,
     rulers,

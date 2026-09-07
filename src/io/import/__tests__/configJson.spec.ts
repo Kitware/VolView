@@ -117,25 +117,22 @@ describe('segment type config', () => {
     ]);
   });
 
-  it('keeps the ruler registry to its own section', async () => {
+  it('configures rulers out of the one segment section', async () => {
     applyPostStateConfig(
-      config.parse({
-        segments: { Tumor: { color: '#00ff00' } },
-        rulerSegments: { Long: { color: '#0000ff' } },
-      })
+      config.parse({ segments: { Tumor: { color: '#00ff00' } } })
     );
 
     seatAndView('img-1');
     await nextTick();
 
     expect(typeSummary(useRulerStore().segments)).toEqual([
-      { name: 'Long', color: '#0000ff' },
+      { name: 'Tumor', color: '#00ff00' },
     ]);
     expect(typeSummary(usePolygonStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
     expect(useRulerStore().segments.selectedSegmentId.value).toBe(
-      useRulerStore().segments.findSegmentByName('Long')?.id
+      useRulerStore().segments.findSegmentByName('Tumor')?.id
     );
   });
 

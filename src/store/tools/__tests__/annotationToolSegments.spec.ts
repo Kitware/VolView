@@ -318,16 +318,15 @@ describe('placing an annotation names its type', () => {
     expect(store.hasToolsOfSegment(segmentId)).toBe(false);
   });
 
-  it('places a ruler in its own registry, touching no segmentation', () => {
+  it('places a ruler in the shared registry, painting nothing', () => {
     const store = useRulerStore();
 
     const id = store.addTool({ imageID: IMAGE_ID, placing: true });
     store.placeTool(id);
 
     expect(store.toolByID[id].placing).toBe(false);
-    expect(
-      segments().getSegment(store.toolByID[id].segmentId!)
-    ).toBeUndefined();
+    // A ruler names a segment like any other annotation, and marks no voxels.
+    expect(segments().getSegment(store.toolByID[id].segmentId!)).toBeDefined();
     expect(recordsOf(IMAGE_ID)).toEqual([]);
   });
 });

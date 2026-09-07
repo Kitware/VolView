@@ -9,7 +9,6 @@ import {
 import { ACTIONS } from '@/src/constants';
 import type { Action, Binding } from '@/src/constants';
 
-import { useRulerStore } from '@/src/store/tools/rulers';
 import { useSegmentStore } from '@/src/store/segments';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
@@ -54,7 +53,6 @@ const segment = z.object({
 const segmentRecord = z.record(z.string(), segment).or(z.null()).optional();
 
 const segments = segmentRecord;
-const rulerSegments = segmentRecord;
 
 // --------------------------------------------------------------------------
 // IO
@@ -82,7 +80,6 @@ const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 export const config = z.object({
   layouts,
   segments,
-  rulerSegments,
   shortcuts,
   io,
   windowing,
@@ -174,13 +171,11 @@ export const recognizeConfigFile = async (
   return recognizeConfig(JSON.parse(await file.text()));
 };
 
-// An omitted section leaves that registry alone; an empty record or null
+// An omitted section leaves the registry alone; an empty record or null
 // clears what an earlier config contributed to it.
 const applySegments = (manifest: Config) => {
   if (manifest.segments !== undefined)
     useSegmentStore().segments.replaceConfigSegments(manifest.segments);
-  if (manifest.rulerSegments !== undefined)
-    useRulerStore().segments.replaceConfigSegments(manifest.rulerSegments);
 };
 
 const applyLayout = (manifest: Config) => {

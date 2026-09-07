@@ -151,32 +151,29 @@ This removes the specified view types from the dropdown menu and replaces them i
 
 ## Segments
 
-Paint, rectangles and polygons share one registry of segments, configured under
-`segments`. Rulers have their own, configured under `rulerSegments`. Each entry is keyed
-by name, and every appearance field is optional: an omitted one means the app default.
+Paint, rectangles, polygons and rulers share one registry of segments, configured under
+`segments`. Each entry is keyed by name, and every appearance field is optional: an
+omitted one means the app default.
 
 ```json
 {
   "segments": {
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 }
-  },
-  "rulerSegments": {
-    "big": { "color": "#ff0000" }
   }
 }
 ```
 
 Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
 
-Omitting a key leaves that registry alone. An empty record (`{}`) or `null` clears what an
+Omitting the key leaves the registry alone. An empty record (`{}`) or `null` clears what an
 earlier config contributed, keeping any segment your content still references. A configured
 segment keeps its id across config changes, so renaming or recoloring one never detaches
 the masks and shapes that reference it.
 
-Converting a pre-7.0 config: `defaultLabels`, `rectangleLabels` and `polygonLabels` all
-become `segments` entries, and `rulerLabels` becomes `rulerSegments`. A rectangle label's
-`fillColor` has no equivalent: fill color is a property of the rectangle, not of the segment.
+Converting a pre-7.0 config: `defaultLabels`, `rectangleLabels`, `polygonLabels` and
+`rulerLabels` all become `segments` entries. A rectangle label's `fillColor` has no
+equivalent: fill color is a property of the rectangle, not of the segment.
 
 ```json
 {
@@ -191,8 +188,10 @@ becomes
 
 ```json
 {
-  "segments": { "lesion": { "color": "#ff0000" } },
-  "rulerSegments": { "big": { "color": "#ff0000" } }
+  "segments": {
+    "lesion": { "color": "#ff0000" },
+    "big": { "color": "#ff0000" }
+  }
 }
 ```
 
@@ -296,10 +295,6 @@ To configure a key for an action, add its action name and the key(s) under the `
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 },
     "innocuous": { "color": "white", "outlineOpacity": 0.8 }
-  },
-  "rulerSegments": {
-    "big": { "color": "#ff0000" },
-    "small": { "color": "white" }
   },
   "layouts": {
     "Volume primary": {

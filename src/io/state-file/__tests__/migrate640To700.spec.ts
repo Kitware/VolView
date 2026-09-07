@@ -689,7 +689,7 @@ describe('migrate640To700: structural stage', () => {
     ]);
   });
 
-  it('keeps ruler labels in the ruler registry, apart from the shared one', () => {
+  it('migrates ruler labels into the one segment list', () => {
     const migrated = migrate({
       tools: {
         rulers: {
@@ -712,19 +712,19 @@ describe('migrate640To700: structural stage', () => {
     });
 
     expect(migrated.version).toBe(MANIFEST_VERSION);
-    expect(migrated.rulerSegments).toEqual([
+    expect(migrated.segments).toEqual([
       {
         id: expect.any(String),
         name: 'Long axis',
         color: [255, 0, 0, 255],
       },
     ]);
+    expect(migrated.rulerSegments).toBeUndefined();
     expect(migrated.tools.rulers.labels).toBeUndefined();
     expect(migrated.tools.rulers.tools[0].segmentId).toBe(
-      migrated.rulerSegments[0].id
+      migrated.segments[0].id
     );
-    // Rulers delineate nothing: no shared type and no record is minted.
-    expect(migrated.segments).toBeUndefined();
+    // Rulers delineate nothing, so no mask is minted for the segment.
     expect(
       (migrated.segmentations ?? []).flatMap((entry: any) => entry.masks)
     ).toEqual([]);

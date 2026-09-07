@@ -170,10 +170,6 @@ export const TOOL_COLORS = [
 
 export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
 
-export const RULER_SEGMENT_DEFAULTS = {
-  'Ruler 1': { color: 'red' },
-};
-
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
   MR: 'CT-Coronary-Arteries-2',

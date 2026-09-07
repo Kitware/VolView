@@ -1,7 +1,7 @@
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
-const RULER_LIST = '[data-testid="ruler-list"]';
+const SHAPE_ROW = '[data-testid="segment-shape-row"]';
 
 // Only a row standing for a real item carries a title; the trailing "create"
 // row does not.
@@ -46,7 +46,6 @@ const renameInOpenDialog = async (to: string) => {
 };
 
 export const segmentNames = () => namesIn(SEGMENT_LIST);
-export const rulerNames = () => namesIn(RULER_LIST);
 
 export const segmentRow = (name: string) => rowNamed(SEGMENT_LIST, name);
 
@@ -79,7 +78,7 @@ const deleteIn = async (root: string, name: string) => {
   });
 };
 
-export const deleteRuler = (name: string) => deleteIn(RULER_LIST, name);
+export const deleteSegment = (name: string) => deleteIn(SEGMENT_LIST, name);
 
 /** Puts the 2D views on the middle of what this image stores for a segment. */
 export const revealSegment = async (name: string) => {
@@ -107,27 +106,34 @@ export const openAnnotationSegments = async () => {
   await $(SEGMENT_LIST).waitForDisplayed();
 };
 
-const expandSection = async (testid: string) => {
+/**
+ * Opens the shapes under every segment that has any: the rulers, rectangles and
+ * polygons drawn on the viewed image sit under the segment each one names.
+ */
+export const openSegmentShapes = async () => {
   await volViewPage.annotationsModuleTab.click();
-  const title = await $(`[data-testid="${testid}"]`);
-  await title.waitForClickable();
-  if ((await title.getAttribute('aria-expanded')) !== 'true') {
-    await title.click();
-  }
-};
-
-/** Rulers is a collapsible section and starts closed. */
-export const openRulers = async () => {
-  await expandSection('rulers-section');
-  await $(RULER_LIST).waitForDisplayed();
-  // A row measures as empty text while the panel is still animating open.
-  await browser.waitUntil(
-    async () => (await rulerNames()).every((name) => name.length > 0),
-    { timeoutMsg: 'Expected the Rulers list to settle' }
+  const chevrons = await $$(
+    `${SEGMENT_LIST} button[data-testid="expand-segment-button"]`
   );
+  for (const chevron of chevrons) {
+    await chevron.waitForClickable();
+    const icon = await chevron.$('i');
+    const classes = (await icon.getAttribute('class')) ?? '';
+    if (classes.includes('mdi-chevron-right')) await chevron.click();
+  }
+  await $(SHAPE_ROW).waitForDisplayed();
 };
 
-export const openMeasurements = () => expandSection('measurements-section');
+/** One line per shape: where it sits, and a ruler's length. */
+export const shapeRowTexts = () => $$(SHAPE_ROW).map((row) => row.getText());
+
+export const shapeRowWithIcon = async (iconClass: string) => {
+  const rows = await $$(SHAPE_ROW);
+  for (const row of rows) {
+    if (await row.$(`i[class~="${iconClass}"]`).isExisting()) return row;
+  }
+  throw new Error(`No shape row carrying ${iconClass}`);
+};
 
 /** Waits for the viewed image to render at least one named segment. */
 export const waitForNamedSegments = async (timeout?: number) => {

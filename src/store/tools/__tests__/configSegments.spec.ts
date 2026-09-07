@@ -119,8 +119,8 @@ describe('a configured type creates nothing', () => {
     expect(typeNames()).toEqual(['Tumor', 'Node']);
   });
 
-  it('reaches every delineation tool and leaves rulers alone', () => {
-    applyConfig({ ...TWO_TYPES, rulerSegments: { Long: { color: 'blue' } } });
+  it('reaches every annotation tool, rulers included', () => {
+    applyConfig(TWO_TYPES);
 
     expect(
       usePolygonStore().segments.segmentList.value.map((t) => t.name)
@@ -130,7 +130,7 @@ describe('a configured type creates nothing', () => {
     ).toEqual(['Tumor', 'Node']);
     expect(
       useRulerStore().segments.segmentList.value.map((t) => t.name)
-    ).toEqual(['Long']);
+    ).toEqual(['Tumor', 'Node']);
   });
 });
 
@@ -205,7 +205,7 @@ describe('a second config replaces the first', () => {
   it('leaves the registry alone when the section is omitted', () => {
     applyConfig(TWO_TYPES);
 
-    applyConfig({ rulerSegments: { Long: { color: 'blue' } } });
+    applyConfig({ layouts: {} });
 
     expect(typeNames()).toEqual(['Tumor', 'Node']);
   });

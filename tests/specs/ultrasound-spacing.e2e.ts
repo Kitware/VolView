@@ -1,7 +1,7 @@
 import { US_MULTIFRAME_DICOM } from './configTestUtils';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
-import { openMeasurements } from './segmentationTestUtils';
+import { openSegmentShapes } from './segmentationTestUtils';
 
 // The exact ruler length depends on platform-specific viewport geometry, but
 // the unspaced fallback is roughly twice as large because the DICOM fixture's
@@ -26,12 +26,12 @@ describe('Ultrasound image spacing', () => {
     await canvas.click({ x: 0, y: -CLICK_DY / 2 });
     await canvas.click({ x: 0, y: CLICK_DY / 2 });
 
-    await openMeasurements();
+    await openSegmentShapes();
 
     let lengthMm = 0;
     await browser.waitUntil(
       async () => {
-        const spans = await $$('.v-list-item .value');
+        const spans = await $$('[data-testid="segment-shape-row"]');
         for (const span of spans) {
           const text = await span.getText();
           const match = text.match(/([\d.]+)\s*mm/);

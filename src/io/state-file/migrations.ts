@@ -378,7 +378,6 @@ const migrate640To700 = (inputManifest: any) => {
   // vector-tool labels in the order their tools reference them.
   const recordsByParent = new Map<string, any[]>();
   const segments: any[] = [];
-  const rulerSegments: any[] = [];
 
   // Ids are built by joining legacy identifiers with '-', which those
   // identifiers may themselves contain, so distinct sources can produce the
@@ -474,9 +473,12 @@ const migrate640To700 = (inputManifest: any) => {
     };
   });
 
-  // A ruler label goes to the ruler registry, a rectangle or polygon label to
-  // the shared one. Every label becomes a type, referenced or not: the picker
+  // Every annotation kind draws out of one registry, so one name is one
+  // segment however many kinds declared it; the first to declare it sets the
+  // appearance. Every label becomes a segment, referenced or not: the picker
   // offered it before and goes on offering it.
+  const segmentIdByName: Record<string, string> = {};
+
   const toolSegmentIds = (key: string, into: any[]) => {
     const entry = manifest.tools?.[key];
     if (!entry) return {} as Record<string, string>;
@@ -485,15 +487,15 @@ const migrate640To700 = (inputManifest: any) => {
     const segmentIdByLabel: Record<string, string> = {};
     Object.entries(labels).forEach(([labelId, label]: [string, any]) => {
       const { labelName, color, strokeWidth } = label;
-      segmentIdByLabel[labelId] = addSegment(
-        into,
-        uniqueId(`${key}-${labelId}`),
-        {
-          name: labelName || labelId,
+      const name = labelName || labelId;
+      segmentIdByLabel[labelId] =
+        segmentIdByName[name] ??
+        addSegment(into, uniqueId(`${key}-${labelId}`), {
+          name,
           color: cssColorToRGBA(color ?? ''),
           ...(strokeWidth === undefined ? {} : { strokeWidth }),
-        }
-      );
+        });
+      segmentIdByName[name] = segmentIdByLabel[labelId];
     });
 
     entry.tools = (Array.isArray(entry.tools) ? entry.tools : []).map(
@@ -509,8 +511,9 @@ const migrate640To700 = (inputManifest: any) => {
     return segmentIdByLabel;
   };
 
-  toolSegmentIds('rulers', rulerSegments);
-  ['rectangles', 'polygons'].forEach((key) => toolSegmentIds(key, segments));
+  ['rulers', 'rectangles', 'polygons'].forEach((key) =>
+    toolSegmentIds(key, segments)
+  );
 
   const segmentations = [...recordsByParent.entries()].map(
     ([parentImage, records]) => ({
@@ -525,7 +528,6 @@ const migrate640To700 = (inputManifest: any) => {
   if (artifacts.length > 0) manifest.segmentationArtifacts = artifacts;
   if (segmentations.length > 0) manifest.segmentations = segmentations;
   if (segments.length > 0) manifest.segments = segments;
-  if (rulerSegments.length > 0) manifest.rulerSegments = rulerSegments;
   if (selectedSegmentId) manifest.selectedSegment = selectedSegmentId;
   delete manifest.segmentGroups;
 

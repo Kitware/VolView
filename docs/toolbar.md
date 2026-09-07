@@ -57,8 +57,8 @@ Ruler annotations name a segment. Use the palette in the upper left or the `q` o
 ### Segment configuration
 
 If VolView loads a JSON file matching the schema below, segments are added to the
-registries. Paint, rectangles and polygons share `segments`; rulers have their own
-`rulerSegments`. Every appearance field is optional and means the app default when absent.
+registry. Paint, rectangles, polygons and rulers all share `segments`. Every appearance
+field is optional and means the app default when absent.
 
 ```json
 {
@@ -66,15 +66,11 @@ registries. Paint, rectangles and polygons share `segments`; rulers have their o
     "innocuous": { "color": "white" },
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3 }
-  },
-  "rulerSegments": {
-    "big": { "color": "#ff0000" },
-    "small": { "color": "white" }
   }
 }
 ```
 
-A section can be `null` or `{}` to clear what an earlier config contributed. A segment your
+The section can be `null` or `{}` to clear what an earlier config contributed. A segment your
 content still references survives as a session segment rather than taking its masks and
 shapes with it.
 

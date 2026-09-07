@@ -852,7 +852,7 @@ describe('Reveal Slice on a segment row', () => {
     await nextTick();
 
     expect(revealButton(wrapper, segment.id).find('.tooltip').text()).toMatch(
-      /nothing is painted on this image/i
+      /nothing on this image/i
     );
   });
 

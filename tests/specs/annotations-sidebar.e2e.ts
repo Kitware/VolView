@@ -4,17 +4,15 @@ import { downloadFile, openUrls } from './utils';
 import { nudgeTo, pressAtPointer, setupTest } from './annotationTestUtils';
 import {
   addSegment,
-  deleteRuler,
   openAnnotationSegments,
-  openMeasurements,
-  openRulers,
+  openSegmentShapes,
   renameSegment,
   revealSegment,
-  rulerNames,
   segmentListTop,
   segmentNames,
   selectSegment,
   selectedSegmentName,
+  shapeRowTexts,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 
@@ -53,16 +51,12 @@ describe('Annotations sidebar', () => {
     }
   });
 
-  it('mints a Rulers entry when a ruler is placed with nothing selected', async () => {
+  it('mints a segment when a ruler is placed with nothing selected', async () => {
     const { centerX, centerY } = await setupTest();
 
     await volViewPage.selectTool('mdi-ruler');
-    await openRulers();
-
-    // The configured entry starts selected, so removing it is what leaves the
-    // ruler registry with nothing for a placement to name itself after.
-    expect(await rulerNames()).toEqual(['Ruler 1']);
-    await deleteRuler('Ruler 1');
+    await openAnnotationSegments();
+    expect(await segmentNames()).toEqual([]);
 
     // vtk.js ignores the first pointer move after an idle period, and the
     // sidebar work above is one, so each end is nudged onto and then pressed.
@@ -71,21 +65,14 @@ describe('Annotations sidebar', () => {
     await nudgeTo(centerX + 40, centerY);
     await pressAtPointer();
 
-    await openMeasurements();
-    await browser.waitUntil(
-      async () => (await $$('.v-list-item i.mdi-ruler.tool-icon').length) >= 1,
-      { timeoutMsg: 'Expected the ruler to be placed' }
-    );
-    await openRulers();
+    await waitForNamedSegments();
+    expect(await segmentNames()).toEqual(['Segment 1']);
 
-    await browser.waitUntil(
-      async () => {
-        const names = await rulerNames();
-        return names.length === 1 && names[0].length > 0;
-      },
-      { timeoutMsg: 'Expected placing a ruler to mint a Rulers entry' }
-    );
-    expect(await rulerNames()).toEqual(['Ruler 1']);
+    // The ruler is listed under the segment it named, with its length.
+    await openSegmentShapes();
+    const shapes = await shapeRowTexts();
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0]).toMatch(/mm/);
   });
 });
 

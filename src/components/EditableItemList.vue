@@ -5,7 +5,7 @@
 >
 /* global T, KeyProp, TitleProp */
 
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Maybe } from '@/src/types';
 
 defineEmits(['create', 'update:model-value']);
@@ -18,10 +18,13 @@ const props = withDefaults(
     createText?: string;
     hideCreate?: boolean;
     modelValue: Maybe<T[KeyProp]>;
+    /** Whether an item has anything to show under it. */
+    expandable?: (item: T) => boolean;
   }>(),
   {
     createText: 'Create',
     hideCreate: false,
+    expandable: () => false,
   }
 );
 
@@ -29,33 +32,68 @@ const itemsToRender = computed(() =>
   props.items.map((item) => ({
     key: item[props.itemKey] as string | number | symbol,
     title: item[props.itemTitle] as string | undefined,
+    expandable: props.expandable(item),
   }))
 );
+
+const openKeys = ref(new Set<string | number | symbol>());
+
+const toggleOpen = (key: string | number | symbol) => {
+  const open = new Set(openKeys.value);
+  if (!open.delete(key)) open.add(key);
+  openKeys.value = open;
+};
 </script>
 
 <template>
   <v-list density="compact" bg-color="transparent" class="py-0">
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
-    <v-list-item
-      v-for="({ key, title }, idx) in itemsToRender"
+    <template
+      v-for="({ key, title, expandable: hasMore }, idx) in itemsToRender"
       :key="key"
-      class="item-row"
-      :active="key === modelValue"
-      @click="$emit('update:model-value', key)"
     >
-      <div class="d-flex align-center flex-nowrap">
-        <slot name="item-prepend" :key="key" :item="items[idx]"></slot>
-        <v-tooltip :text="title" location="end">
-          <template #activator="{ props: tooltip }">
-            <v-list-item-title v-bind="tooltip">{{ title }}</v-list-item-title>
-          </template>
-        </v-tooltip>
-        <span class="ml-auto flex-shrink-0 d-flex align-center">
-          <slot name="item-append" :key="key" :item="items[idx]"></slot>
-        </span>
+      <v-list-item
+        class="item-row"
+        :active="key === modelValue"
+        @click="$emit('update:model-value', key)"
+      >
+        <div class="d-flex align-center flex-nowrap">
+          <!-- The chevron keeps its width when there is nothing under a row,
+               so the dots below it stay in one column. -->
+          <v-btn
+            v-if="hasMore"
+            icon
+            size="x-small"
+            density="compact"
+            variant="plain"
+            class="expand-button mr-1"
+            data-testid="expand-segment-button"
+            @click.stop="toggleOpen(key)"
+          >
+            <v-icon>{{
+              openKeys.has(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
+            }}</v-icon>
+          </v-btn>
+          <span v-else class="expand-button mr-1" />
+          <slot name="item-prepend" :key="key" :item="items[idx]"></slot>
+          <v-tooltip :text="title" location="end">
+            <template #activator="{ props: tooltip }">
+              <v-list-item-title v-bind="tooltip">{{
+                title
+              }}</v-list-item-title>
+            </template>
+          </v-tooltip>
+          <span class="ml-auto flex-shrink-0 d-flex align-center">
+            <slot name="item-append" :key="key" :item="items[idx]"></slot>
+          </span>
+        </div>
+      </v-list-item>
+
+      <div v-if="hasMore && openKeys.has(key)" class="item-expansion">
+        <slot name="item-expansion" :key="key" :item="items[idx]"></slot>
       </div>
-    </v-list-item>
+    </template>
 
     <v-list-item v-if="!hideCreate" class="create-row" @click="$emit('create')">
       <div class="d-flex align-center">
@@ -90,5 +128,14 @@ const itemsToRender = computed(() =>
 
 .create-row {
   opacity: var(--v-medium-emphasis-opacity);
+}
+
+.expand-button {
+  width: 20px;
+  flex: 0 0 20px;
+}
+
+.item-expansion {
+  margin-left: 28px;
 }
 </style>

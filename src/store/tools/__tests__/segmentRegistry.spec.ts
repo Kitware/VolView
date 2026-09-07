@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { maskOn } from '@/src/store/__tests__/segmentMaskFixtures';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { RULER_SEGMENT_DEFAULTS, TOOL_COLORS } from '@/src/config';
+import { TOOL_COLORS } from '@/src/config';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
@@ -180,35 +180,32 @@ describe('segment type registry', () => {
   });
 });
 
-describe('shared and ruler registries', () => {
+describe('the shared registry', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     seatImage('img-1');
   });
 
-  it('shares one registry across paint, rectangles and polygons', () => {
+  it('shares one registry across paint, rectangles, polygons and rulers', () => {
     const shared = useSegmentStore().segments;
     const id = usePolygonStore().segments.addSegment({ name: 'Tumor' });
 
     expect(useRectangleStore().segments.getSegment(id)?.name).toBe('Tumor');
+    expect(useRulerStore().segments.getSegment(id)?.name).toBe('Tumor');
     expect(shared.selectedSegmentId.value).toBe(id);
     expect(maskOn('img-1', id).segmentId).toBe(id);
   });
 
-  it('keeps ruler segments out of the shared registry', () => {
-    const rulerId = useRulerStore().segments.addSegment({ name: 'Ruler type' });
-    const sharedId = useSegmentStore().segments.addSegment({ name: 'Tumor' });
+  it('lets a ruler and a mask name the same segment', () => {
+    const shared = useSegmentStore().segments;
+    const id = shared.addSegment({ name: 'Tumor' });
+    const rulerId = useRulerStore().addTool({ imageID: 'img-1', segmentId: id });
+    const record = maskOn('img-1', id);
 
-    expect(useSegmentStore().segments.getSegment(rulerId)).toBeUndefined();
-    expect(useRulerStore().segments.getSegment(sharedId)).toBeUndefined();
-    expect(useRulerStore().segments.selectedSegmentId.value).toBe(rulerId);
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(sharedId);
-  });
+    shared.deleteSegment(id);
 
-  it('seeds the ruler registry from the app defaults', () => {
-    expect(namesOf(useRulerStore().segments)).toEqual(
-      Object.keys(RULER_SEGMENT_DEFAULTS)
-    );
+    expect(useRulerStore().toolByID[rulerId]).toBeUndefined();
+    expect(useSegmentationStore().maskExists(record.id)).toBe(false);
   });
 
   it('starts the shared registry empty, so viewing creates nothing', () => {

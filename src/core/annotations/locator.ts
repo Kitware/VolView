@@ -123,10 +123,38 @@ export function applyLocator(imageID: string, tool: AnnotationTool) {
 }
 
 /**
- * Puts every 2D view of `imageID` on the slice through the middle of `extent`.
- * Slice only: pan and zoom stay where the user left them.
+ * The slice nearest the middle of everything `intervals` cover, snapped into an
+ * interval. Content split across distant slices has an empty middle, and a view
+ * put there shows nothing of what the user asked to see.
  */
-export function revealExtent(imageID: string, extent: Extent3D) {
+export function snappedCenter(intervals: Array<[number, number]>) {
+  if (intervals.length === 0) return undefined;
+  const middle =
+    (Math.min(...intervals.map(([low]) => low)) +
+      Math.max(...intervals.map(([, high]) => high))) /
+    2;
+  const nearest = intervals
+    .map(([low, high]) => Math.min(Math.max(middle, low), high))
+    .reduce((best, slice) =>
+      Math.abs(slice - middle) < Math.abs(best - middle) ? slice : best
+    );
+  return Math.round(nearest);
+}
+
+/** Where one segment sits on the viewed image, per view axis. */
+export type SegmentContent = {
+  /** Bounds of the segment's painted voxels, in image index space. */
+  extent?: Extent3D;
+  /** The slice each shape of the segment was drawn on, by the axis it faces. */
+  slicesByAxis: Partial<Record<LPSAxis, number[]>>;
+};
+
+/**
+ * Puts every 2D view of `imageID` on the middle of what the segment holds along
+ * that view's axis. Slice only: pan and zoom stay where the user left them. A
+ * view whose axis holds nothing does not move.
+ */
+export function revealSegmentContent(imageID: string, content: SegmentContent) {
   const { metadata } = useImage(imageID);
   const { lpsOrientation } = metadata.value;
   const viewSliceStore = useViewSliceStore();
@@ -134,9 +162,15 @@ export function revealExtent(imageID: string, extent: Extent3D) {
   volume2DViewsOfImage(imageID, useViewStore().getAllViews()).forEach(
     ({ viewId, axis }) => {
       const ijk = lpsOrientation[axis];
-      viewSliceStore.updateConfig(viewId, imageID, {
-        slice: Math.round((extent[2 * ijk] + extent[2 * ijk + 1]) / 2),
-      });
+      const painted: Array<[number, number]> = content.extent
+        ? [[content.extent[2 * ijk], content.extent[2 * ijk + 1]]]
+        : [];
+      const drawn = (content.slicesByAxis[axis] ?? []).map(
+        (slice) => [slice, slice] as [number, number]
+      );
+      const slice = snappedCenter([...painted, ...drawn]);
+      if (slice == null) return;
+      viewSliceStore.updateConfig(viewId, imageID, { slice });
     }
   );
 }
