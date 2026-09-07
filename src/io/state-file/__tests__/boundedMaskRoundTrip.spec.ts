@@ -7,7 +7,7 @@ import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useSegmentStore } from '@/src/store/segments';
-import { ManifestSchema } from '@/src/io/state-file/schema';
+import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { isEmptyExtent, listMasks } from '@/src/types/segmentation';
@@ -571,114 +571,101 @@ describe('bounded masks through the state file', () => {
 // A pre-7.0.0 group: one labelmap file, no segment descriptors. Restore decodes
 // its voxel values into segments, and each of those gets its own bounded mask
 // like any other import.
+/** A parent image and a two-value labelmap, seated as separate imports. */
+const seatLegacyPair = async () => {
+  await seatImage('parent-store', { ...GRID, name: 'CT Chest' });
+  const values = new Uint8Array(voxelCount(DIMENSIONS));
+  values[1 + 1 * 4 + 1 * 16] = 1;
+  values[3 + 3 * 4 + 3 * 16] = 2;
+  return seatImage('artifact-store', {
+    ...GRID,
+    name: 'Tumor.seg.nrrd',
+    values,
+  });
+};
+
+/** The sources both legacy restores read, migrated to the current schema. */
+const legacyPairManifest = (scene: Record<string, unknown>) =>
+  ManifestSchema.parse(
+    migrateManifest(
+      JSON.stringify({
+        dataSources: [
+          { id: 1, type: 'uri', uri: 'volview-backend:base/ct', name: 'CT' },
+          {
+            id: 3,
+            type: 'uri',
+            uri: 'volview-backend:artifact/tumor',
+            name: 'Tumor.seg.nrrd',
+            mime: 'application/octet-stream',
+          },
+        ],
+        datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
+        ...scene,
+      })
+    )
+  );
+
+/** Restores onto the seated pair and lists what the parent ended up with. */
+const restoreLegacyPair = async (manifest: Manifest) => {
+  await completeStateFileRestore(manifest, [], {
+    'ds-ct': 'parent-store',
+    [leafStateId(3)]: 'artifact-store',
+  });
+  return listMasks(store().getSegmentationForImage('parent-store')!);
+};
+
+/** Both restores split the labelmap into the same two named segments. */
+const expectTumorSegments = (
+  segments: Array<{ id: string; segmentId: string }>
+) => {
+  expect(segments.map(nameOf)).toEqual(['Tumor 1', 'Tumor 2']);
+  expect(markedVoxels(segments[0].id)).toEqual([[1, 1, 1, 1]]);
+  expect(markedVoxels(segments[1].id)).toEqual([[3, 3, 3, 2]]);
+};
+
 describe('a legacy group restored as bounded masks', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
   it('enumerates a current-version artifact no segment binds', async () => {
-    await seatImage('parent-store', { ...GRID, name: 'CT Chest' });
-    const values = new Uint8Array(voxelCount(DIMENSIONS));
-    values[1 + 1 * 4 + 1 * 16] = 1;
-    values[3 + 3 * 4 + 3 * 16] = 2;
-    await seatImage('artifact-store', {
-      ...GRID,
-      name: 'Tumor.seg.nrrd',
-      values,
-    });
-
-    const manifest = ManifestSchema.parse(
-      migrateManifest(
-        JSON.stringify({
-          version: MANIFEST_VERSION,
-          dataSources: [
-            { id: 1, type: 'uri', uri: 'volview-backend:base/ct', name: 'CT' },
-            {
-              id: 3,
-              type: 'uri',
-              uri: 'volview-backend:artifact/tumor',
-              name: 'Tumor.seg.nrrd',
-              mime: 'application/octet-stream',
-            },
-          ],
-          datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
-          segmentationArtifacts: [
-            {
-              id: 'sa-tumor',
-              parentImage: 'ds-ct',
-              name: 'Tumor',
-              dataSourceId: 3,
-            },
-          ],
-        })
-      )
+    await seatLegacyPair();
+    const segments = await restoreLegacyPair(
+      legacyPairManifest({
+        version: MANIFEST_VERSION,
+        segmentationArtifacts: [
+          {
+            id: 'sa-tumor',
+            parentImage: 'ds-ct',
+            name: 'Tumor',
+            dataSourceId: 3,
+          },
+        ],
+      })
     );
-
-    await completeStateFileRestore(manifest, [], {
-      'ds-ct': 'parent-store',
-      [leafStateId(3)]: 'artifact-store',
-    });
-
-    const segments = listMasks(
-      store().getSegmentationForImage('parent-store')!
-    );
-    expect(segments.map(nameOf)).toEqual(['Tumor 1', 'Tumor 2']);
-    expect(markedVoxels(segments[0].id)).toEqual([[1, 1, 1, 1]]);
-    expect(markedVoxels(segments[1].id)).toEqual([[3, 3, 3, 2]]);
+    expectTumorSegments(segments);
   });
 
   it('bounds each decoded segment to the voxels its value covers', async () => {
-    await seatImage('parent-store', { ...GRID, name: 'CT Chest' });
-    const values = new Uint8Array(voxelCount(DIMENSIONS));
-    values[1 + 1 * 4 + 1 * 16] = 1;
-    values[3 + 3 * 4 + 3 * 16] = 2;
-    const labelmap = await seatImage('artifact-store', {
-      ...GRID,
-      name: 'Tumor.seg.nrrd',
-      values,
-    });
+    const labelmap = await seatLegacyPair();
     expect(labelmap.getPointData().getScalars().getData()).toHaveLength(
       voxelCount(DIMENSIONS)
     );
 
-    const manifest = ManifestSchema.parse(
-      migrateManifest(
-        JSON.stringify({
-          version: '6.4.0',
-          dataSources: [
-            { id: 1, type: 'uri', uri: 'volview-backend:base/ct', name: 'CT' },
-            {
-              id: 3,
-              type: 'uri',
-              uri: 'volview-backend:artifact/tumor',
-              name: 'Tumor.seg.nrrd',
-              mime: 'application/octet-stream',
-            },
-          ],
-          datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
-          segmentGroups: [
-            {
-              id: 'sg-tumor',
-              dataSourceId: 3,
-              metadata: { name: 'Tumor', parentImage: 'ds-ct' },
-            },
-          ],
-        })
-      )
+    const segments = await restoreLegacyPair(
+      legacyPairManifest({
+        version: '6.4.0',
+        segmentGroups: [
+          {
+            id: 'sg-tumor',
+            dataSourceId: 3,
+            metadata: { name: 'Tumor', parentImage: 'ds-ct' },
+          },
+        ],
+      })
     );
-
-    await completeStateFileRestore(manifest, [], {
-      'ds-ct': 'parent-store',
-      [leafStateId(3)]: 'artifact-store',
-    });
-
-    const segments = listMasks(
-      store().getSegmentationForImage('parent-store')!
-    );
-    expect(segments.map(nameOf)).toEqual(['Tumor 1', 'Tumor 2']);
+    expectTumorSegments(segments);
     expect(extentOf(segments[0].id)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(extentOf(segments[1].id)).toEqual([3, 3, 3, 3, 3, 3]);
-    expect(markedVoxels(segments[0].id)).toEqual([[1, 1, 1, 1]]);
-    expect(markedVoxels(segments[1].id)).toEqual([[3, 3, 3, 2]]);
   });
 });
