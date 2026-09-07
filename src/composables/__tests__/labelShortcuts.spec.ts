@@ -26,10 +26,10 @@ describe('next/previous type shortcuts', () => {
   it('is a no-op when the registry is empty', () => {
     seatAndView('img-1');
 
-    expect(usePolygonStore().types.typeList.value).toEqual([]);
+    expect(usePolygonStore().segments.segmentList.value).toEqual([]);
     expect(() => ACTION_TO_FUNC.incrementLabel()).not.toThrow();
     expect(() => ACTION_TO_FUNC.decrementLabel()).not.toThrow();
-    expect(usePolygonStore().types.selectedTypeId.value).toBeFalsy();
+    expect(usePolygonStore().segments.selectedSegmentId.value).toBeFalsy();
   });
 
   it('is a no-op when no image is viewed', () => {
@@ -39,18 +39,18 @@ describe('next/previous type shortcuts', () => {
 
   it('cycles through the registry the active tool reads', () => {
     seatAndView('img-1');
-    const { types } = usePolygonStore();
-    const first = types.addType({ name: 'Tumor' });
-    const second = types.addType({ name: 'Node' });
+    const { segments } = usePolygonStore();
+    const first = segments.addSegment({ name: 'Tumor' });
+    const second = segments.addSegment({ name: 'Node' });
 
-    types.selectType(first);
+    segments.selectSegment(first);
     ACTION_TO_FUNC.incrementLabel();
-    expect(types.selectedTypeId.value).toBe(second);
+    expect(segments.selectedSegmentId.value).toBe(second);
 
     ACTION_TO_FUNC.incrementLabel();
-    expect(types.selectedTypeId.value).toBe(first);
+    expect(segments.selectedSegmentId.value).toBe(first);
 
     ACTION_TO_FUNC.decrementLabel();
-    expect(types.selectedTypeId.value).toBe(second);
+    expect(segments.selectedSegmentId.value).toBe(second);
   });
 });

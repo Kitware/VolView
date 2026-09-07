@@ -3,11 +3,11 @@ import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, nextTick } from 'vue';
 
-import SegmentTypeList from '@/src/components/SegmentTypeList.vue';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import SegmentPicker from '@/src/components/SegmentPicker.vue';
+import { useSegmentStore } from '@/src/store/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import type { SegmentTypeRegistry } from '@/src/store/tools/segmentTypeRegistry';
+import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
 
 const ChipListStub = defineComponent({
   name: 'EditableChipList',
@@ -25,7 +25,7 @@ const ChipListStub = defineComponent({
 });
 
 const EditorStub = defineComponent({
-  name: 'SegmentTypeEditor',
+  name: 'SegmentEditor',
   props: [
     'name',
     'original',
@@ -43,7 +43,7 @@ const global = {
   stubs: {
     EditableChipList: ChipListStub,
     IsolatedDialog: { template: '<div><slot /></div>' },
-    SegmentTypeEditor: EditorStub,
+    SegmentEditor: EditorStub,
     VCard: { template: '<div><slot /></div>' },
     VCardSubtitle: { template: '<div><slot /></div>' },
     VContainer: { template: '<div><slot /></div>' },
@@ -54,8 +54,8 @@ const global = {
   },
 };
 
-const mountList = (registry: SegmentTypeRegistry) =>
-  mount(SegmentTypeList, { props: { registry }, global });
+const mountList = (registry: SegmentRegistry) =>
+  mount(SegmentPicker, { props: { registry }, global });
 
 describe('the segment type picker', () => {
   beforeEach(() => {
@@ -63,12 +63,12 @@ describe('the segment type picker', () => {
   });
 
   it('lists every type in the registry it was given', async () => {
-    const types = useSegmentTypeStore().types;
-    const tumor = types.addType({ name: 'Tumor' });
-    const node = types.addType({ name: 'Node' });
+    const segments = useSegmentStore().segments;
+    const tumor = segments.addSegment({ name: 'Tumor' });
+    const node = segments.addSegment({ name: 'Node' });
     await nextTick();
 
-    const wrapper = mountList(usePolygonStore().types);
+    const wrapper = mountList(usePolygonStore().segments);
 
     expect(
       wrapper.findAll('[data-id]').map((row) => row.attributes('data-id'))
@@ -80,10 +80,10 @@ describe('the segment type picker', () => {
   });
 
   it('offers editing for every type', () => {
-    const types = usePolygonStore().types;
-    types.addType({ name: 'Tumor' });
+    const segments = usePolygonStore().segments;
+    segments.addSegment({ name: 'Tumor' });
 
-    const wrapper = mountList(types);
+    const wrapper = mountList(segments);
 
     expect(wrapper.find('[data-testid="edit-label-button"]').exists()).toBe(
       true
@@ -91,18 +91,20 @@ describe('the segment type picker', () => {
   });
 
   it('adds a type without touching any image', async () => {
-    const types = usePolygonStore().types;
-    const wrapper = mountList(types);
+    const segments = usePolygonStore().segments;
+    const wrapper = mountList(segments);
 
     await wrapper.find('.create-chip').trigger('click');
 
-    expect(types.typeList.value).toHaveLength(1);
-    expect(types.selectedTypeId.value).toBe(types.typeList.value[0].id);
+    expect(segments.segmentList.value).toHaveLength(1);
+    expect(segments.selectedSegmentId.value).toBe(
+      segments.segmentList.value[0].id
+    );
   });
 
   it('shows the ruler registry when given it, and only that', () => {
-    useSegmentTypeStore().types.addType({ name: 'Tumor' });
-    const rulers = useRulerStore().types;
+    useSegmentStore().segments.addSegment({ name: 'Tumor' });
+    const rulers = useRulerStore().segments;
 
     const wrapper = mountList(rulers);
 

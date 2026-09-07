@@ -228,7 +228,7 @@ function autoLayerByName(
   });
 }
 
-// Loads other DataSources as Segment Groups:
+// Loads other DataSources as SegmentMask Groups:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(

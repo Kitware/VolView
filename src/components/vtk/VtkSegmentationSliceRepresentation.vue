@@ -26,23 +26,21 @@ import { isEmptyExtent } from '@/src/types/segmentation';
 
 interface Props {
   viewId: string;
-  segmentId: string;
+  maskId: string;
   // Position in `segmentation.order`, which is what the actors stack by.
   stackIndex: number;
   axis: LPSAxis;
 }
 
 const props = defineProps<Props>();
-const { viewId, segmentId, stackIndex, axis } = toRefs(props);
+const { viewId, maskId, stackIndex, axis } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const segmentationStore = useSegmentationStore();
 // Where the mask sits in the parent image, and what it covers.
-const binding = computed(() =>
-  segmentationStore.findSegmentBinding(segmentId.value)
-);
+const binding = computed(() => segmentationStore.findMaskBinding(maskId.value));
 const artifactId = computed(() => binding.value?.artifactId);
 const extent = computed(() => binding.value?.extent);
 const metadata = computed(() =>

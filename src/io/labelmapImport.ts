@@ -34,7 +34,7 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 const LabelmapArrayType = Uint8Array;
 
 /** A segment an import created, and the source label value it was split from. */
-export type ImportedSegment = { sourceValue: number; segmentId: string };
+export type ImportedSegment = { sourceValue: number; maskId: string };
 
 function convertToUint8(array: number[] | TypedArray): Uint8Array {
   const uint8Array = new Uint8Array(array.length);
@@ -337,9 +337,9 @@ export async function importLabelmapImage(
     const labelmapImage = toLabelMap(matchingParentSpace);
     const descriptors = await hooks.decode(labelmapImage, component);
     created.push(
-      hooks.split(labelmapImage, descriptors).map((segmentId, index) => ({
+      hooks.split(labelmapImage, descriptors).map((maskId, index) => ({
         sourceValue: descriptors[index].value,
-        segmentId,
+        maskId,
       }))
     );
   }

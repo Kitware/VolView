@@ -21,13 +21,16 @@ import { getLPSDirections } from '@/src/utils/lps';
 /**
  * The labelmap a polygon rasterizes into, absent when the record it lands in
  * is locked. Rasterizing is itself an edit, so it routes through the one entry
- * point that resolves and creates records: a polygon carrying no type, or one
- * whose type was deleted, lands in the selected type rather than failing.
+ * point that resolves and creates masks: a polygon carrying no segment, or one
+ * whose segment was deleted, lands in the selected segment rather than failing.
  */
-export function resolveRasterizeTarget(imageId: string, typeId: Maybe<string>) {
+export function resolveRasterizeTarget(
+  imageId: string,
+  segmentId: Maybe<string>
+) {
   const segmentationStore = useSegmentationStore();
 
-  const resolved = segmentationStore.resolveEditTarget(imageId, typeId);
+  const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
   // A locked segment is not editable, the same refusal paint and the processes
   // make. Checked before storage is allocated, so a refused polygon leaves no
   // empty mask behind. A locked neighbour is a different rule and keeps the
@@ -37,13 +40,13 @@ export function resolveRasterizeTarget(imageId: string, typeId: Maybe<string>) {
     return undefined;
   }
 
-  const voxels = segmentationStore.segmentVoxels(resolved);
+  const voxels = segmentationStore.maskVoxels(resolved);
   const binding = voxels.materialize();
   return {
     ...binding,
     voxels,
-    segmentId: resolved,
-    typeId: segmentationStore.getSegment(resolved).typeId,
+    maskId: resolved,
+    segmentId: segmentationStore.getMask(resolved).segmentId,
   };
 }
 
@@ -109,13 +112,13 @@ function polygonBounds(
  */
 export function rasterizePolygon({
   imageId,
-  typeId,
+  segmentId,
   points,
   slice,
   viewAxis,
 }: {
   imageId: string;
-  typeId: Maybe<string>;
+  segmentId: Maybe<string>;
   points: Vector3[];
   slice: number;
   viewAxis: LPSAxis;
@@ -124,9 +127,9 @@ export function rasterizePolygon({
   const parent = useImageCacheStore().getVtkImageData(imageId);
   if (!parent) throw new Error('No such parent image');
 
-  // A refusal names the type it was given and no record: nothing was written.
-  const target = resolveRasterizeTarget(imageId, typeId);
-  if (!target) return { typeId, segmentId: undefined };
+  // A refusal names the segment it was given and no mask: nothing was written.
+  const target = resolveRasterizeTarget(imageId, segmentId);
+  if (!target) return { segmentId, maskId: undefined };
 
   const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
   const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
@@ -141,7 +144,7 @@ export function rasterizePolygon({
   // Copied out of the reactive tree: `toParent` below runs per filled pixel.
   const extent = [...target.voxels.binding()!.extent] as Extent3D;
   if (isEmptyExtent(extent))
-    return { typeId: target.typeId, segmentId: target.segmentId };
+    return { segmentId: target.segmentId, maskId: target.maskId };
 
   const toParent = (ijk: Vector3): Vector3 => [
     ijk[0] + extent[0],
@@ -160,7 +163,7 @@ export function rasterizePolygon({
 
   // A polygon is aimed at a place, so filling it takes the voxel.
   const claimVoxel = segmentationStore.voxelClaim(
-    target.segmentId,
+    target.maskId,
     'aimed',
     extent
   );
@@ -178,5 +181,5 @@ export function rasterizePolygon({
 
   fillPoly(grid, points2D, target.labelValue);
   mask.modified();
-  return { typeId: target.typeId, segmentId: target.segmentId };
+  return { segmentId: target.segmentId, maskId: target.maskId };
 }

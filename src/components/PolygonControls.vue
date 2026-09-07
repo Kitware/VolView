@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import SegmentTypeList from '@/src/components/SegmentTypeList.vue';
+import SegmentPicker from '@/src/components/SegmentPicker.vue';
 
 const activeToolStore = usePolygonStore();
 </script>
 
 <template>
-  <segment-type-list :registry="activeToolStore.types" />
+  <segment-picker :registry="activeToolStore.segments" />
 </template>

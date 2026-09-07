@@ -19,7 +19,7 @@ export enum FillHolesSliceScope {
 
 export enum FillHolesSegmentScope {
   AllSegments = 'allSegments',
-  SelectedSegment = 'selectedSegment',
+  SelectedSegment = 'selectedSegmentOn',
 }
 
 type WorkerApi = {

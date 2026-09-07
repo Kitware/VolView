@@ -36,7 +36,7 @@ import {
   useSegmentationStore,
   type ImportedSegment,
 } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
@@ -91,14 +91,14 @@ function applySegmentDescriptors(
   segments: SegmentDescriptor[],
   segmentGroups: SegmentGroupWriter
 ) {
-  const segmentIdBySourceValue = new Map(
-    imported.map(({ sourceValue, segmentId }) => [sourceValue, segmentId])
+  const maskIdBySourceValue = new Map(
+    imported.map(({ sourceValue, maskId }) => [sourceValue, maskId])
   );
   segments.forEach((seg) => {
     // Descriptors may name a value the labelmap does not carry.
-    const segmentId = segmentIdBySourceValue.get(seg.value);
-    if (!segmentId) return;
-    segmentGroups.describeSegment(segmentId, {
+    const maskId = maskIdBySourceValue.get(seg.value);
+    if (!maskId) return;
+    segmentGroups.describeSegment(maskId, {
       name: seg.name,
       color: seg.color,
       ...(seg.visible == null ? {} : { visible: seg.visible }),
@@ -271,12 +271,12 @@ const prepareAnnotations = (
 // binding returns the type id a tool must point at, minting on a miss. Only
 // names the tools actually reference are bound — a declaration nothing uses
 // would be clutter in the picker.
-const bindReferencedTypes = (
+const bindReferencedSegments = (
   kind: AnnotationToolKind,
   tools: readonly PreparedCore[],
   namespace: Record<string, AnnotationLabel>
 ): Record<string, string> => {
-  const { types } = annotationToolStore(kind);
+  const { segments } = annotationToolStore(kind);
   const names = new Set(
     tools.flatMap((tool) => (tool.labelName ? [tool.labelName] : []))
   );
@@ -285,7 +285,7 @@ const bindReferencedTypes = (
       const style = namespace[name] ?? {};
       return [
         name,
-        types.typeNamed(name, {
+        segments.segmentNamed(name, {
           ...(style.color ? { color: cssColorToRGBA(style.color) } : {}),
           ...(style.strokeWidth === undefined
             ? {}
@@ -299,11 +299,11 @@ const bindReferencedTypes = (
 // `labelName` names the type, which the tool carries by id.
 const toolPayload = (
   { labelName, ...core }: PreparedCore,
-  typeIds: Record<string, string>,
+  segmentIds: Record<string, string>,
   source: ResultSource | undefined
 ) => ({
   ...core,
-  typeId: (labelName && typeIds[labelName]) || '',
+  segmentId: (labelName && segmentIds[labelName]) || '',
   ...(source ? { source } : {}),
 });
 
@@ -349,10 +349,10 @@ async function applyAnnotations(
 
   // Types first for every kind, then the tools: a tool points at the type id
   // its name bound to.
-  const typeIds = Object.fromEntries(
+  const segmentIds = Object.fromEntries(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
-      bindReferencedTypes(kind, prepared[kind], decoded.labels[kind]),
+      bindReferencedSegments(kind, prepared[kind], decoded.labels[kind]),
     ])
   ) as Record<AnnotationToolKind, Record<string, string>>;
 
@@ -363,7 +363,7 @@ async function applyAnnotations(
       // uniform tool type does not carry the per-kind geometry keys.
       const payload = {
         ...geometry,
-        ...toolPayload(core, typeIds[kind], intent.source),
+        ...toolPayload(core, segmentIds[kind], intent.source),
       };
       store.addTool(payload);
     });
@@ -384,7 +384,7 @@ type SegmentGroupWriter = {
   ) => Promise<ImportedSegment[][]>;
   /** Describes the TYPE a record delineates, which is where identity lives. */
   describeSegment: (
-    segmentId: string,
+    maskId: string,
     description: Partial<Omit<LabelmapSegment, 'value'>>
   ) => void;
 };
@@ -423,12 +423,12 @@ export const appApplyDependencies = (): ApplyDependencies => ({
         parentSelection,
         source
       ),
-    describeSegment: (segmentId, { name, color, visible }) => {
+    describeSegment: (maskId, { name, color, visible }) => {
       const store = useSegmentationStore();
       // The record can be gone by the time a multi-component import lands.
-      if (!store.segmentExists(segmentId)) return;
-      useSegmentTypeStore().types.updateType(
-        store.getSegment(segmentId).typeId,
+      if (!store.maskExists(maskId)) return;
+      useSegmentStore().segments.updateSegment(
+        store.getMask(maskId).segmentId,
         {
           ...(name === undefined ? {} : { name }),
           ...(color === undefined ? {} : { color }),

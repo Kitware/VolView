@@ -10,7 +10,7 @@ import { ACTIONS } from '@/src/constants';
 import type { Action, Binding } from '@/src/constants';
 
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
@@ -38,11 +38,11 @@ const shortcuts = z
   .optional();
 
 // --------------------------------------------------------------------------
-// Segment types
+// SegmentMask types
 
 // Every appearance field is optional and absent means the app default, so a
-// configured type states only what it changes.
-const segmentType = z.object({
+// configured segment states only what it changes.
+const segment = z.object({
   color: z.string().optional(),
   fillOpacity: z.number().optional(),
   outlineOpacity: z.number().optional(),
@@ -51,10 +51,10 @@ const segmentType = z.object({
 
 // Keyed by name. Omitted leaves the registry alone; an empty record or null
 // clears what an earlier config contributed.
-const typeRecord = z.record(z.string(), segmentType).or(z.null()).optional();
+const segmentRecord = z.record(z.string(), segment).or(z.null()).optional();
 
-const segmentTypes = typeRecord;
-const rulerTypes = typeRecord;
+const segments = segmentRecord;
+const rulerSegments = segmentRecord;
 
 // --------------------------------------------------------------------------
 // IO
@@ -81,8 +81,8 @@ const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 
 export const config = z.object({
   layouts,
-  segmentTypes,
-  rulerTypes,
+  segments,
+  rulerSegments,
   shortcuts,
   io,
   windowing,
@@ -176,11 +176,11 @@ export const recognizeConfigFile = async (
 
 // An omitted section leaves that registry alone; an empty record or null
 // clears what an earlier config contributed to it.
-const applySegmentTypes = (manifest: Config) => {
-  if (manifest.segmentTypes !== undefined)
-    useSegmentTypeStore().types.replaceConfigTypes(manifest.segmentTypes);
-  if (manifest.rulerTypes !== undefined)
-    useRulerStore().types.replaceConfigTypes(manifest.rulerTypes);
+const applySegments = (manifest: Config) => {
+  if (manifest.segments !== undefined)
+    useSegmentStore().segments.replaceConfigSegments(manifest.segments);
+  if (manifest.rulerSegments !== undefined)
+    useRulerStore().segments.replaceConfigSegments(manifest.rulerSegments);
 };
 
 const applyLayout = (manifest: Config) => {
@@ -276,5 +276,5 @@ export const applyPreStateConfig = async (manifest: Config) => {
 };
 
 export const applyPostStateConfig = (manifest: Config) => {
-  applySegmentTypes(manifest);
+  applySegments(manifest);
 };

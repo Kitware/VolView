@@ -2,38 +2,38 @@
 import { computed } from 'vue';
 import EditableChipList from '@/src/components/EditableChipList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
-import SegmentTypeEditor from '@/src/components/SegmentTypeEditor.vue';
-import { useSegmentTypeEditing } from '@/src/composables/useSegmentTypeEditing';
-import type { SegmentTypeRegistry } from '@/src/store/tools/segmentTypeRegistry';
+import SegmentEditor from '@/src/components/SegmentEditor.vue';
+import { useSegmentEditing } from '@/src/composables/useSegmentEditing';
+import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
 import { Maybe } from '@/src/types';
 import { NO_NAME } from '@/src/constants';
 
-const props = defineProps<{ registry: SegmentTypeRegistry }>();
+const props = defineProps<{ registry: SegmentRegistry }>();
 
-const types = computed(() =>
-  props.registry.typeList.value.map((type) => {
-    const appearance = props.registry.appearanceOf(type.id);
+const rows = computed(() =>
+  props.registry.segmentList.value.map((segment) => {
+    const appearance = props.registry.appearanceOf(segment.id);
     return {
-      id: type.id,
+      id: segment.id,
       name: appearance.name || NO_NAME,
       color: appearance.cssColor,
     };
   })
 );
 
-const selectedType = computed({
-  get: () => props.registry.selectedTypeId.value,
+const selectedSegment = computed({
+  get: () => props.registry.selectedSegmentId.value,
   set: (id: Maybe<string>) => {
-    if (id != null) props.registry.selectType(id);
+    if (id != null) props.registry.selectSegment(id);
   },
 });
 
-const createType = () => {
-  editing.editingTypeId.value = props.registry.addType();
+const createSegment = () => {
+  editing.editingSegmentId.value = props.registry.addSegment();
 };
 
-const editing = useSegmentTypeEditing(() => props.registry);
-const { editDialog, editState, editingType, editingName, invalidNames } =
+const editing = useSegmentEditing(() => props.registry);
+const { editDialog, editState, editingSegment, editingName, invalidNames } =
   editing;
 </script>
 
@@ -42,12 +42,12 @@ const { editDialog, editState, editingType, editingName, invalidNames } =
     <v-card-subtitle>Labels</v-card-subtitle>
     <v-container>
       <editable-chip-list
-        v-model="selectedType"
-        :items="types"
+        v-model="selectedSegment"
+        :items="rows"
         item-key="id"
         item-title="name"
         create-label-text="New label"
-        @create="createType"
+        @create="createSegment"
       >
         <template #item-prepend="{ item }">
           <!-- dot-container class keeps overflowing name from squishing dot width  -->
@@ -71,15 +71,15 @@ const { editDialog, editState, editingType, editingName, invalidNames } =
   </v-card>
 
   <isolated-dialog v-model="editDialog" max-width="800px">
-    <segment-type-editor
-      v-if="editingType"
+    <segment-editor
+      v-if="editingSegment"
       v-model:name="editState.name"
       :original="editingName"
       v-model:color="editState.color"
       v-model:fill-opacity="editState.fillOpacity"
       v-model:outline-opacity="editState.outlineOpacity"
       v-model:stroke-width="editState.strokeWidth"
-      @delete="editing.deleteEditingType()"
+      @delete="editing.deleteEditingSegment()"
       @cancel="editing.stopEditing(false)"
       @done="editing.stopEditing(true)"
       :invalidNames="invalidNames"

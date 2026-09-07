@@ -8,14 +8,14 @@ import { PaintMode } from '@/src/core/tools/paint';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   markedVoxels,
   maskValueAt,
   offsetOf,
   selectSegment,
-  mintType,
+  mintSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
@@ -39,12 +39,11 @@ async function seatImage(id: string, name = 'CT') {
 
 const store = () => useSegmentationStore();
 
-const bindingOf = (segmentId: string) =>
-  store().resolveLabelmapBinding(segmentId);
+const bindingOf = (maskId: string) => store().resolveLabelmapBinding(maskId);
 
 /** Creates a segment with voxel storage already allocated. */
 function boundSegment(segmentationId: string, name: string) {
-  const segment = store().createSegment(segmentationId, mintType({ name }));
+  const segment = store().createMask(segmentationId, mintSegment({ name }));
   store().ensureLabelmapBinding(segment.id);
   return segment;
 }
@@ -57,10 +56,10 @@ function strokeAt(imageId: string, point: [number, number, number]) {
   paintStore.endStroke(point, 2, imageId);
 }
 
-function paintAndLock(segmentId: string) {
-  selectSegment(segmentId);
+function paintAndLock(maskId: string) {
+  selectSegment(maskId);
   strokeAt('img-1', [1, 1, 0]);
-  lockSegment(segmentId, true);
+  lockSegment(maskId, true);
 }
 
 describe('paint edit target', () => {
@@ -95,7 +94,7 @@ describe('paint edit target', () => {
 
     // The type is shared; this image gets its own record and its own mask.
     const painted = store().findEditTarget('img-2')!;
-    expect(store().getSegment(painted).typeId).toBe(source.typeId);
+    expect(store().getMask(painted).segmentId).toBe(source.segmentId);
     const paintedBinding = bindingOf(painted)!;
     const sourceBinding = bindingOf(source.id)!;
     expect(paintedBinding.artifactId).not.toBe(sourceBinding.artifactId);
@@ -110,14 +109,14 @@ describe('paint edit target', () => {
 
     const segmentation = store().getSegmentationForImage('img-1')!;
     expect(segmentation.order).toHaveLength(1);
-    const [segmentId] = segmentation.order;
-    const { typeId } = segmentation.segments[segmentId];
-    expect(useSegmentTypeStore().types.appearanceOf(typeId).name).toBe(
+    const [maskId] = segmentation.order;
+    const { segmentId } = segmentation.masks[maskId];
+    expect(useSegmentStore().segments.appearanceOf(segmentId).name).toBe(
       'Segment 1'
     );
-    expect(useSegmentTypeStore().types.selectedTypeId.value).toBe(typeId);
-    const binding = bindingOf(segmentId)!;
-    expect(maskValueAt(segmentId, [1, 1, 0])).toBe(binding.labelValue);
+    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
+    const binding = bindingOf(maskId)!;
+    expect(maskValueAt(maskId, [1, 1, 0])).toBe(binding.labelValue);
   });
 
   it('erases only the active segment’s voxels', async () => {
@@ -150,9 +149,8 @@ describe('paint edit target', () => {
     selectSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
     const foreignValue = bindingOf(foreign.id)!.labelValue;
-    store().segmentVoxels(active.id).scalars()[
-      offsetOf(active.id, [1, 1, 0])!
-    ] = foreignValue;
+    store().maskVoxels(active.id).scalars()[offsetOf(active.id, [1, 1, 0])!] =
+      foreignValue;
 
     usePaintToolStore().setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
@@ -200,6 +198,6 @@ describe('paint edit target', () => {
     paintStore.activateTool();
 
     expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-    expect(store().segmentLayersForImage('img-1')).toEqual([]);
+    expect(store().maskLayersForImage('img-1')).toEqual([]);
   });
 });

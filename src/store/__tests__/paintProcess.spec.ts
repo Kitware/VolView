@@ -11,7 +11,7 @@ import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import {
   selectSegment,
-  mintType,
+  mintSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
@@ -63,22 +63,22 @@ function addTestSegment(
   // Label values are minted per image, so the ones below the wanted value are
   // taken by placeholder segments.
   for (let value = 1; value < labelValue; value += 1) {
-    const filler = segmentationStore.createSegment(
+    const filler = segmentationStore.createMask(
       segmentation.id,
-      mintType({
+      mintSegment({
         name: `Filler ${value}`,
       })
     );
-    segmentationStore.segmentVoxels(filler.id).materialize();
+    segmentationStore.maskVoxels(filler.id).materialize();
   }
 
-  const segment = segmentationStore.createSegment(
+  const segment = segmentationStore.createMask(
     segmentation.id,
-    mintType({
+    mintSegment({
       name: 'Segment 1',
     })
   );
-  const voxels = segmentationStore.segmentVoxels(segment.id);
+  const voxels = segmentationStore.maskVoxels(segment.id);
   const { artifactId } = voxels.materialize();
   voxels.ensureContains([0, values.length - 1, 0, 0, 0, 0]);
   voxels.apply(values);
@@ -86,7 +86,7 @@ function addTestSegment(
 
   return {
     segmentationId: segmentation.id,
-    segmentId: segment.id,
+    maskId: segment.id,
     artifactId,
     labelMap: voxels.image(),
   };
@@ -205,8 +205,8 @@ describe('Paint process store', () => {
   it('refuses to process a locked segment', async () => {
     const processStore = usePaintProcessStore();
     const messageStore = useMessageStore();
-    const { segmentId, labelMap } = addTestSegment();
-    lockSegment(segmentId);
+    const { maskId, labelMap } = addTestSegment();
+    lockSegment(maskId);
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]));
 
@@ -244,9 +244,9 @@ describe('Paint process store', () => {
     const messageStore = useMessageStore();
     const segmentation =
       segmentationStore.ensureSegmentationForImage('image-1');
-    const segment = segmentationStore.createSegment(
+    const segment = segmentationStore.createMask(
       segmentation.id,
-      mintType({
+      mintSegment({
         name: 'Empty',
       })
     );
@@ -256,7 +256,7 @@ describe('Paint process store', () => {
     await processStore.startProcess(algorithm);
 
     expect(algorithm).not.toHaveBeenCalled();
-    expect(segmentationStore.findSegmentBinding(segment.id)).toBeUndefined();
+    expect(segmentationStore.findMaskBinding(segment.id)).toBeUndefined();
     expect(Object.keys(segmentationStore.artifactIndex)).toHaveLength(0);
     expect(processStore.processState.step).toBe('start');
     expect(messageStore.messages.map(({ title }) => title)).toContain(
@@ -270,13 +270,13 @@ describe('Paint process store', () => {
     const messageStore = useMessageStore();
     const segmentation =
       segmentationStore.ensureSegmentationForImage('image-1');
-    const segment = segmentationStore.createSegment(
+    const segment = segmentationStore.createMask(
       segmentation.id,
-      mintType({
+      mintSegment({
         name: 'Empty',
       })
     );
-    const voxels = segmentationStore.segmentVoxels(segment.id);
+    const voxels = segmentationStore.maskVoxels(segment.id);
     const binding = voxels.materialize();
     selectSegment(segment.id);
     const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
@@ -317,9 +317,9 @@ describe('Paint process store', () => {
     await processStore.startProcess(async () => new Uint8Array([2, 2]));
     expect(processStore.processState.step).toBe('previewing');
 
-    const other = segmentationStore.createSegment(
+    const other = segmentationStore.createMask(
       segmentationId,
-      mintType({
+      mintSegment({
         name: 'Other',
       })
     );
@@ -353,8 +353,8 @@ describe('Paint process store', () => {
   it('names the lock rather than reporting nothing to process', async () => {
     const processStore = usePaintProcessStore();
     const messageStore = useMessageStore();
-    const { segmentId, labelMap } = addTestSegment(new Uint8Array([1, 1]));
-    lockSegment(segmentId, true);
+    const { maskId, labelMap } = addTestSegment(new Uint8Array([1, 1]));
+    lockSegment(maskId, true);
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]), {
       requiresActiveSegment: false,
@@ -371,13 +371,11 @@ describe('Paint process store', () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const messageStore = useMessageStore();
-    const { segmentationId, segmentId } = addTestSegment(
-      new Uint8Array([1, 1])
-    );
-    lockSegment(segmentId, true);
-    segmentationStore.createSegment(
+    const { segmentationId, maskId } = addTestSegment(new Uint8Array([1, 1]));
+    lockSegment(maskId, true);
+    segmentationStore.createMask(
       segmentationId,
-      mintType({ name: 'Empty' })
+      mintSegment({ name: 'Empty' })
     );
 
     await processStore.startProcess(async () => new Uint8Array([2, 2]), {

@@ -23,8 +23,8 @@ export type AnnotationTool = {
    */
   placing?: boolean;
 
-  /** The segment type this annotation delineates, in its own registry. */
-  typeId?: string;
+  /** The segment this annotation delineates, in its own registry. */
+  segmentId?: string;
 
   name: string;
 

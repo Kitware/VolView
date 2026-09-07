@@ -58,7 +58,7 @@ const tools = computed(() => {
         id: tool.id,
         type,
         toolData: tool,
-        appearance: store.types.appearanceOf(tool.typeId),
+        appearance: store.segments.appearanceOf(tool.segmentId),
         icon,
         details,
         remove: () => store.removeTool(tool.id),

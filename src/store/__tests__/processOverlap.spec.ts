@@ -12,7 +12,7 @@ import {
 } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import {
-  addSegment,
+  addMask,
   flatIndex,
   labelValueOf,
   markedVoxels,
@@ -81,24 +81,24 @@ const runFillBetween: SegmentAlgorithm = (target) => {
 
 /** The active segment as a solid cube with one background voxel at its centre. */
 function cubeWithHole(imageId: string) {
-  const segmentId = addSegment(imageId, 'Tumor');
-  selectSegment(segmentId);
-  const voxels = store().segmentVoxels(segmentId);
+  const maskId = addMask(imageId, 'Tumor');
+  selectSegment(maskId);
+  const voxels = store().maskVoxels(maskId);
   const { labelValue } = voxels.materialize();
   voxels.ensureContains([0, 4, 0, 4, 0, 4]);
   const scalars = voxels.scalars();
   scalars.fill(labelValue);
   scalars[offsetOf(...HOLE)] = 0;
   voxels.image().modified();
-  return segmentId;
+  return maskId;
 }
 
 /** A second segment owning the one voxel the process is about to turn on. */
 function neighbourOwningTheHole(imageId: string, locked: boolean) {
-  const segmentId = addSegment(imageId, locked ? 'Locked' : 'Unlocked');
-  seedVoxel(segmentId, HOLE);
-  lockSegment(segmentId, locked);
-  return segmentId;
+  const maskId = addMask(imageId, locked ? 'Locked' : 'Unlocked');
+  seedVoxel(maskId, HOLE);
+  lockSegment(maskId, locked);
+  return maskId;
 }
 
 describe.each([
@@ -157,7 +157,7 @@ describe.each([
   it('leaves the voxels it did not turn on with their owners', async () => {
     // An overlap the user already has, inside the cube so no algorithm here
     // rounds it away: a process that turned it on for neither keeps both.
-    const neighbour = addSegment('img-1', 'Elsewhere');
+    const neighbour = addMask('img-1', 'Elsewhere');
     seedVoxel(neighbour, INSIDE);
     seedVoxel(neighbour, [0, 0, 0]);
 
@@ -185,14 +185,14 @@ describe('a process over a mask with no two dimensions alike', () => {
   });
 
   it('stops at the one voxel a neighbour holds', async () => {
-    const tumor = addSegment('img-1', 'Tumor');
+    const tumor = addMask('img-1', 'Tumor');
     selectSegment(tumor);
-    const voxels = store().segmentVoxels(tumor);
+    const voxels = store().maskVoxels(tumor);
     voxels.materialize();
     voxels.ensureContains([0, 2, 0, 3, 0, 4]);
     seedVoxel(tumor, [0, 0, 0]);
 
-    const neighbour = addSegment('img-1', 'Neighbour');
+    const neighbour = addMask('img-1', 'Neighbour');
     seedVoxel(neighbour, OWNED);
 
     const processStore = usePaintProcessStore();

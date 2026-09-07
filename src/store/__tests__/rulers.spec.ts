@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, expect } from 'vitest';
 
 import { setActivePinia, createPinia } from 'pinia';
-import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import {
   RULER_TYPE_DEFAULTS,
@@ -17,7 +17,7 @@ import { ToolID } from '@/src/types/annotation-tool';
 
 function createRuler(): RequiredWithPartial<
   Ruler,
-  'id' | 'typeId' | 'hidden' | 'metadata' | 'frame' | 'source'
+  'id' | 'segmentId' | 'hidden' | 'metadata' | 'frame' | 'source'
 > {
   return {
     firstPoint: [1, 1, 1],
@@ -86,22 +86,22 @@ describe('Ruler store', () => {
   // TODO testing (de)serialize requires store integration
 });
 
-describe('Ruler segment types', () => {
+describe('Ruler segment segments', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  const selectedTypeId = (store: ReturnType<typeof useRulerStore>) =>
-    store.types.selectedTypeId.value as string;
+  const selectedSegmentId = (store: ReturnType<typeof useRulerStore>) =>
+    store.segments.selectedSegmentId.value as string;
 
-  it('seeds the configured default types', () => {
+  it('seeds the configured default segments', () => {
     const store = useRulerStore();
 
-    expect(store.types.typeList.value.map((type) => type.name)).toEqual(
+    expect(store.segments.segmentList.value.map((type) => type.name)).toEqual(
       Object.keys(RULER_TYPE_DEFAULTS)
     );
     expect(
-      store.types.appearanceOf(store.types.typeList.value[0].id)
+      store.segments.appearanceOf(store.segments.segmentList.value[0].id)
     ).toMatchObject({
       name: 'Label 1',
       cssColor: rgbaToCssColor(cssColorToRGBA('red')),
@@ -111,11 +111,11 @@ describe('Ruler segment types', () => {
 
   it('adds a ruler carrying the type it was given', () => {
     const store = useRulerStore();
-    const typeId = store.types.addType({ name: 'Tumor' });
+    const segmentId = store.segments.addSegment({ name: 'Tumor' });
 
-    const id = store.addRuler({ ...createRuler(), typeId });
+    const id = store.addRuler({ ...createRuler(), segmentId });
 
-    expect(store.rulerByID[id].typeId).toBe(typeId);
+    expect(store.rulerByID[id].segmentId).toBe(segmentId);
     expect(store.appearanceOfTool(id).name).toBe('Tumor');
   });
 
@@ -123,32 +123,32 @@ describe('Ruler segment types', () => {
     const store = useRulerStore();
     const id = store.addRuler(createRuler());
 
-    expect(store.rulerByID[id].typeId).toBe(selectedTypeId(store));
+    expect(store.rulerByID[id].segmentId).toBe(selectedSegmentId(store));
   });
 
-  it('continues the tool color cycle past the seeded types', () => {
+  it('continues the tool color cycle past the seeded segments', () => {
     const store = useRulerStore();
 
-    const id = store.types.addType({ name: 'Tumor' });
+    const id = store.segments.addSegment({ name: 'Tumor' });
 
-    expect(store.types.appearanceOf(id).cssColor).toBe(
+    expect(store.segments.appearanceOf(id).cssColor).toBe(
       rgbaToCssColor(cssColorToRGBA(TOOL_COLORS[1]))
     );
-    expect(store.types.selectedTypeId.value).toBe(id);
+    expect(store.segments.selectedSegmentId.value).toBe(id);
   });
 
   it('shows a rename on the rulers that reference the type', async () => {
     const store = useRulerStore();
-    const typeId = selectedTypeId(store);
-    const id = store.addRuler({ ...createRuler(), typeId });
+    const segmentId = selectedSegmentId(store);
+    const id = store.addRuler({ ...createRuler(), segmentId });
 
-    store.types.updateType(typeId, {
+    store.segments.updateSegment(segmentId, {
       name: 'Lesion',
       color: cssColorToRGBA('blue'),
     });
     await nextTick();
 
-    expect(store.rulerByID[id].typeId).toBe(typeId);
+    expect(store.rulerByID[id].segmentId).toBe(segmentId);
     expect(store.appearanceOfTool(id)).toMatchObject({
       name: 'Lesion',
       cssColor: rgbaToCssColor(cssColorToRGBA('blue')),
@@ -157,10 +157,10 @@ describe('Ruler segment types', () => {
 
   it('takes the rulers of a deleted type with it', async () => {
     const store = useRulerStore();
-    const typeId = selectedTypeId(store);
-    const id = store.addRuler({ ...createRuler(), typeId });
+    const segmentId = selectedSegmentId(store);
+    const id = store.addRuler({ ...createRuler(), segmentId });
 
-    store.types.deleteType(typeId);
+    store.segments.deleteSegment(segmentId);
     await nextTick();
 
     expect(store.rulerByID[id]).toBeUndefined();
@@ -169,54 +169,56 @@ describe('Ruler segment types', () => {
   it('binds a name to the type already carrying it', () => {
     const store = useRulerStore();
 
-    const id = store.types.typeNamed('Label 1');
+    const id = store.segments.segmentNamed('Label 1');
 
-    expect(store.types.typeList.value).toHaveLength(1);
-    expect(id).toBe(store.types.typeList.value[0].id);
+    expect(store.segments.segmentList.value).toHaveLength(1);
+    expect(id).toBe(store.segments.segmentList.value[0].id);
   });
 
-  it('drops the seeded types when a config clears them', () => {
+  it('drops the seeded segments when a config clears them', () => {
     const store = useRulerStore();
 
-    store.types.replaceConfigTypes({});
+    store.segments.replaceConfigSegments({});
 
-    expect(store.types.typeList.value).toEqual([]);
+    expect(store.segments.segmentList.value).toEqual([]);
   });
 
   it('selects a type, including back to unset', () => {
     const store = useRulerStore();
-    const typeId = selectedTypeId(store);
+    const segmentId = selectedSegmentId(store);
 
-    store.types.selectType(undefined);
-    expect(store.types.selectedTypeId.value).toBeUndefined();
+    store.segments.selectSegment(undefined);
+    expect(store.segments.selectedSegmentId.value).toBeUndefined();
 
-    store.types.selectType(typeId);
-    expect(store.types.selectedTypeId.value).toBe(typeId);
+    store.segments.selectSegment(segmentId);
+    expect(store.segments.selectedSegmentId.value).toBe(segmentId);
   });
 
   it('serializes its own registry beside its tools', () => {
     const store = useRulerStore();
-    const typeId = selectedTypeId(store);
-    store.addRuler({ ...createRuler(), typeId });
+    const segmentId = selectedSegmentId(store);
+    store.addRuler({ ...createRuler(), segmentId });
 
-    const manifest = { rulerTypes: undefined } as any;
+    const manifest = { rulerSegments: undefined } as any;
     store.serialize({ zip: {} as any, manifest });
     const { tools } = store.serializeTools();
 
-    expect(manifest.rulerTypes.map((type: any) => type.id)).toEqual([typeId]);
-    expect(tools[0].typeId).toBe(typeId);
+    expect(manifest.rulerSegments.map((type: any) => type.id)).toEqual([
+      segmentId,
+    ]);
+    expect(tools[0].segmentId).toBe(segmentId);
   });
 
-  it('keeps ruler types out of the shared registry', () => {
+  it('keeps ruler segments out of the shared registry', () => {
     const store = useRulerStore();
     const segmentation = useSegmentationStore().ensureSegmentationForImage('4');
 
-    useSegmentationStore().createSegment(
+    useSegmentationStore().createMask(
       segmentation.id,
-      mintType({ name: 'Tumor' })
+      mintSegment({ name: 'Tumor' })
     );
 
-    expect(store.types.typeList.value.map((type) => type.name)).toEqual([
+    expect(store.segments.segmentList.value.map((type) => type.name)).toEqual([
       'Label 1',
     ]);
   });

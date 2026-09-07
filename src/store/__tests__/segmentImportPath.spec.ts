@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -11,13 +11,13 @@ import { applyPreStateConfig, config } from '@/src/io/import/configJson';
 import type { Manifest } from '@/src/io/state-file/schema';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
-import { listSegments } from '@/src/types/segmentation';
+import { useSegmentStore } from '@/src/store/segments';
+import { listMasks } from '@/src/types/segmentation';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 
 /** A record shows the name and color of the type it references. */
-const appearanceOf = (segment: { typeId: string }) =>
-  useSegmentTypeStore().types.appearanceOf(segment.typeId);
+const appearanceOf = (segment: { segmentId: string }) =>
+  useSegmentStore().segments.appearanceOf(segment.segmentId);
 
 // ---------------------------------------------------------------------------
 // The import and decode path SURVIVES the deletion of the segment group store.
@@ -87,7 +87,7 @@ const categorical = (index: number) => [
 /** The image's segments, in segmentation order. */
 const segmentsOf = (imageId: string) => {
   const segmentation = store().getSegmentationForImage(imageId);
-  return segmentation ? listSegments(segmentation) : [];
+  return segmentation ? listMasks(segmentation) : [];
 };
 
 const describedBy = (imageId: string) =>
@@ -150,9 +150,9 @@ describe('the import path answers on the segmentation store', () => {
     // Each mask is cropped to the box its own value spans, not the parent's grid.
     expect([...bindings[0].extent]).toEqual([1, 2, 1, 1, 1, 1]);
     expect([...bindings[1].extent]).toEqual([3, 3, 3, 3, 3, 3]);
-    expect(
-      store().segmentVoxels(segments[0].id).image().getDimensions()
-    ).toEqual([2, 1, 1]);
+    expect(store().maskVoxels(segments[0].id).image().getDimensions()).toEqual([
+      2, 1, 1,
+    ]);
   });
 
   it('hands back the source label value every created segment came from', async () => {
@@ -166,7 +166,7 @@ describe('the import path answers on the segmentation store', () => {
     // One entry per component of the source image; the common case is one.
     expect(created).toHaveLength(1);
     expect(created[0].map((entry) => entry.sourceValue)).toEqual([1, 2]);
-    expect(created[0].map((entry) => entry.segmentId)).toEqual(
+    expect(created[0].map((entry) => entry.maskId)).toEqual(
       segmentsOf('parent-img').map((segment) => segment.id)
     );
   });
@@ -296,7 +296,7 @@ describe('the decode colour cursor after the merge', () => {
     await seat('other-img', 'MR');
     const other = store().ensureSegmentationForImage('other-img');
     ['A', 'B', 'C'].forEach((name) =>
-      store().createSegment(other.id, mintType({ name }))
+      store().createMask(other.id, mintSegment({ name }))
     );
     expect(await convertedColors()).toEqual([categorical(0), categorical(1)]);
   });

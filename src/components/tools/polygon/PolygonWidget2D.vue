@@ -173,7 +173,7 @@ export default defineComponent({
       slice,
       tool,
       appearance: computed(() =>
-        toolStore.types.appearanceOf(tool.value?.typeId)
+        toolStore.segments.appearanceOf(tool.value?.segmentId)
       ),
       editState,
       showHandles,

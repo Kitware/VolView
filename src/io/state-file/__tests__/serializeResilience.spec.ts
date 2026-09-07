@@ -57,10 +57,10 @@ const segmentationBoundTo = (artifactId: string) => ({
   name: 'Seg',
   parentImage: 'dataset-1',
   order: ['segment-1'],
-  segments: [
+  masks: [
     {
       id: 'segment-1',
-      typeId: 'type-1',
+      segmentId: 'segment-1',
       visible: true,
       locked: false,
       representations: {
@@ -122,7 +122,7 @@ describe('state-file serialization resilience', () => {
           id: 'orphan-segmentation',
           name: 'Orphan',
           parentImage: 'missing-dataset',
-          segments: [],
+          masks: [],
           order: [],
         },
       ],
@@ -276,10 +276,10 @@ describe('state-file serialization resilience', () => {
           id: 'segmentation-1',
           name: 'CT',
           parentImage: 'dataset-1',
-          segments: [
+          masks: [
             {
               id: 'segment-1',
-              typeId: 'type-1',
+              segmentId: 'segment-1',
               representations: {
                 labelmap: {
                   artifactId: 'artifact-1',
@@ -292,38 +292,38 @@ describe('state-file serialization resilience', () => {
           order: ['segment-1'],
         },
       ],
-      segmentTypes: [
+      segments: [
         {
-          id: 'type-1',
+          id: 'segment-1',
           name: 'Segment 1',
           color: [255, 0, 0, 255],
           visible: true,
           locked: true,
         },
       ],
-      selectedSegmentType: 'type-1',
+      selectedSegment: 'segment-1',
     } as unknown as Manifest;
 
     const normalized = normalizeManifest(manifest, new JSZip()) as any;
     const segmentation = normalized.manifest.segmentations[0];
-    expect(segmentation.segments[0].typeId).toBe('type-1');
-    expect(segmentation.segments[0].representations.labelmap).toEqual({
+    expect(segmentation.masks[0].segmentId).toBe('segment-1');
+    expect(segmentation.masks[0].representations.labelmap).toEqual({
       artifactId: 'artifact-1',
       labelValue: 1,
       extent: [0, 3, 0, 3, 0, 3],
     });
     // The registry and the selection survive normalization beside the records.
     // Lock rides on the type, so the record is storage and nothing else.
-    expect(normalized.manifest.segmentTypes).toEqual([
+    expect(normalized.manifest.segments).toEqual([
       {
-        id: 'type-1',
+        id: 'segment-1',
         name: 'Segment 1',
         color: [255, 0, 0, 255],
         visible: true,
         locked: true,
       },
     ]);
-    expect(normalized.manifest.selectedSegmentType).toBe('type-1');
+    expect(normalized.manifest.selectedSegment).toBe('segment-1');
   });
 
   it('unbinds a segment whose artifact was omitted', () => {
@@ -346,7 +346,7 @@ describe('state-file serialization resilience', () => {
 
     expect(normalized.manifest.segmentationArtifacts).toEqual([]);
     expect(
-      normalized.manifest.segmentations[0].segments[0].representations
+      normalized.manifest.segmentations[0].masks[0].representations
     ).toEqual({});
     expect(normalized.omitted.join('\n')).toMatch(
       /segmentation artifact artifact-1 is missing/
@@ -381,7 +381,7 @@ describe('state-file serialization resilience', () => {
     // images goes.
     expect(normalized.manifest.segmentationArtifacts).toHaveLength(1);
     expect(
-      normalized.manifest.segmentations[0].segments[0].representations
+      normalized.manifest.segmentations[0].masks[0].representations
     ).toEqual({});
     expect(normalized.omitted.join('\n')).toMatch(
       /segmentation artifact artifact-2 belongs to dataset-2/

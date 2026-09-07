@@ -32,7 +32,7 @@ export interface ISerializableTool {
     dataIDMap: Record<string, string>,
     // Save-time type id -> restored type id, for the tools that share the
     // delineation registry.
-    typeIdMap?: Record<string, string>
+    segmentIdMap?: Record<string, string>
   ) => void;
 }
 

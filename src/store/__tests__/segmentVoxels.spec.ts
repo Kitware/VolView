@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -39,13 +39,13 @@ async function seatImage(id: string, name = 'CT') {
 }
 
 /** A segment with no storage: "add segment" never allocates voxels. */
-function addSegment(imageId: string, name?: string) {
+function addMask(imageId: string, name?: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  const segment = store().createSegment(
+  const segment = store().createMask(
     segmentation.id,
-    mintType(name ? { name } : undefined)
+    mintSegment(name ? { name } : undefined)
   );
-  return { segmentationId: segmentation.id, segmentId: segment.id };
+  return { segmentationId: segmentation.id, maskId: segment.id };
 }
 
 /**
@@ -53,21 +53,21 @@ function addSegment(imageId: string, name?: string) {
  * image, so identity assertions have a labelmap reference to compare against.
  */
 function seatArtifactSegment(imageId: string, values: Uint8Array) {
-  const first = addSegment(imageId, 'Tumor');
-  const second = addSegment(imageId, 'Node');
+  const first = addMask(imageId, 'Tumor');
+  const second = addMask(imageId, 'Node');
 
-  const grow = (target: { segmentId: string }) => {
-    const voxels = store().segmentVoxels(target.segmentId);
+  const grow = (target: { maskId: string }) => {
+    const voxels = store().maskVoxels(target.maskId);
     const { artifactId } = voxels.materialize();
     voxels.ensureContains(FULL_EXTENT);
     return artifactId;
   };
   const artifactId = grow(first);
   grow(second);
-  store().segmentVoxels(first.segmentId).apply(values);
+  store().maskVoxels(first.maskId).apply(values);
 
   return {
-    labelmap: store().segmentVoxels(first.segmentId).image(),
+    labelmap: store().maskVoxels(first.maskId).image(),
     artifactId,
     segmentationId: first.segmentationId,
     first,
@@ -75,8 +75,8 @@ function seatArtifactSegment(imageId: string, values: Uint8Array) {
   };
 }
 
-const voxelsOf = (target: { segmentationId: string; segmentId: string }) =>
-  store().segmentVoxels(target.segmentId);
+const voxelsOf = (target: { segmentationId: string; maskId: string }) =>
+  store().maskVoxels(target.maskId);
 
 const scalarsOf = (labelmap: vtkLabelMap) =>
   labelmap.getPointData().getScalars().getData();
@@ -90,11 +90,11 @@ describe('segment voxel accessor', () => {
   describe('resolution', () => {
     it('throws for a segment that does not exist', () => {
       store().ensureSegmentationForImage('img-1');
-      expect(() => store().segmentVoxels('nope')).toThrow(/No such segment/);
+      expect(() => store().maskVoxels('nope')).toThrow(/No such segment/);
     });
 
     it('resolves the segment on every call rather than capturing it', () => {
-      const target = addSegment('img-1');
+      const target = addMask('img-1');
       const voxels = voxelsOf(target);
       expect(voxels.binding()).toBeUndefined();
 
@@ -102,39 +102,39 @@ describe('segment voxel accessor', () => {
       voxelsOf(target).materialize();
       expect(voxels.binding()?.labelValue).toBeGreaterThan(0);
 
-      store().deleteSegment(target.segmentId);
+      store().deleteMask(target.maskId);
       expect(() => voxels.binding()).toThrow();
     });
   });
 
   describe('before materialize', () => {
     it('reports no storage and allocates none', () => {
-      const target = addSegment('img-1');
+      const target = addMask('img-1');
 
       expect(voxelsOf(target).binding()).toBeUndefined();
-      expect(store().segmentLayersForImage('img-1')).toHaveLength(0);
+      expect(store().maskLayersForImage('img-1')).toHaveLength(0);
     });
 
     it('refuses voxel access instead of allocating on read', () => {
-      const target = addSegment('img-1');
+      const target = addMask('img-1');
       const voxels = voxelsOf(target);
 
       expect(() => voxels.image()).toThrow();
       expect(() => voxels.snapshot()).toThrow();
       expect(() => voxels.apply(new Uint8Array(VOXEL_COUNT))).toThrow();
       expect(() => voxels.ensureContains(FULL_EXTENT)).toThrow();
-      expect(store().segmentLayersForImage('img-1')).toHaveLength(0);
+      expect(store().maskLayersForImage('img-1')).toHaveLength(0);
     });
   });
 
   describe('materialize', () => {
     it('allocates a mask that covers nothing and binds the segment to it', () => {
-      const target = addSegment('img-1');
+      const target = addMask('img-1');
       const binding = voxelsOf(target).materialize();
 
-      expect(store().segmentLayersForImage('img-1')).toHaveLength(1);
+      expect(store().maskLayersForImage('img-1')).toHaveLength(1);
       expect(binding.artifactId).toBe(
-        store().segmentLayersForImage('img-1')[0].artifactId
+        store().maskLayersForImage('img-1')[0].artifactId
       );
       expect(binding.labelValue).toBeGreaterThan(0);
       expect(isEmptyExtent(binding.extent)).toBe(true);
@@ -143,24 +143,24 @@ describe('segment voxel accessor', () => {
     });
 
     it('is idempotent', () => {
-      const target = addSegment('img-1');
+      const target = addMask('img-1');
       const first = voxelsOf(target).materialize();
       const image = voxelsOf(target).image();
       const second = voxelsOf(target).materialize();
 
       expect(second).toEqual(first);
-      expect(store().segmentLayersForImage('img-1')).toHaveLength(1);
+      expect(store().maskLayersForImage('img-1')).toHaveLength(1);
       expect(voxelsOf(target).image()).toBe(image);
     });
 
     it('gives each segment of an image its own mask, with distinct label values', () => {
-      const first = addSegment('img-1', 'Tumor');
-      const second = addSegment('img-1', 'Node');
+      const first = addMask('img-1', 'Tumor');
+      const second = addMask('img-1', 'Node');
 
       const a = voxelsOf(first).materialize();
       const b = voxelsOf(second).materialize();
 
-      expect(store().segmentLayersForImage('img-1')).toHaveLength(2);
+      expect(store().maskLayersForImage('img-1')).toHaveLength(2);
       expect(b.artifactId).not.toBe(a.artifactId);
       expect(b.labelValue).not.toBe(a.labelValue);
       expect(voxelsOf(second).image()).not.toBe(voxelsOf(first).image());
@@ -202,10 +202,10 @@ describe('segment voxel accessor', () => {
     });
 
     it('refuses before materialize', () => {
-      const target = addSegment('img-1');
+      const target = addMask('img-1');
 
       expect(() => voxelsOf(target).scalars()).toThrow(/No storage/);
-      expect(store().segmentLayersForImage('img-1')).toHaveLength(0);
+      expect(store().maskLayersForImage('img-1')).toHaveLength(0);
     });
   });
 

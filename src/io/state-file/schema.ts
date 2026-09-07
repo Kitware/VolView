@@ -321,15 +321,15 @@ const LabelmapBinding = z.object({
 
 // Everything the user sees or sets lives on the type; a record is one image's
 // mask for it.
-const Segment = z.object({
+const SegmentMask = z.object({
   id: z.string(),
-  typeId: z.string(),
+  segmentId: z.string(),
   representations: z.object({ labelmap: LabelmapBinding.optional() }),
 });
 
 // Serialized as an ordered array, unused types included: the order is what the
 // picker lists and the renderer offsets by, and restore re-mints ids in it.
-export const SegmentType = z.object({
+export const Segment = z.object({
   id: z.string(),
   name: z.string(),
   color: RGBAColor,
@@ -340,13 +340,13 @@ export const SegmentType = z.object({
   strokeWidth: z.number().optional(),
 });
 
-export type SegmentTypeWire = z.infer<typeof SegmentType>;
+export type SegmentWire = z.infer<typeof Segment>;
 
 export const Segmentation = z.object({
   id: z.string(),
   name: z.string(),
   parentImage: z.string(),
-  segments: Segment.array(),
+  masks: SegmentMask.array(),
   order: z.string().array(),
   fillOpacity: z.number().default(DEFAULT_SEGMENTATION_FILL_OPACITY),
   outlineOpacity: z.number().default(1),
@@ -407,7 +407,7 @@ const annotationTool = z.object({
   frame: z.number().optional(),
   id: z.string().optional() as unknown as z.ZodType<ToolID | undefined>,
   name: z.string().optional(),
-  typeId: z.string().optional(),
+  segmentId: z.string().optional(),
   metadata: z.record(z.string(), z.string()).optional(),
   // Job provenance, present only on a tool applied from a result. Unknown keys
   // are stripped on parse, so restore would silently drop the idempotency key
@@ -484,9 +484,9 @@ export const ManifestSchema = z.object({
   datasetFilePath: z.record(z.string(), z.string()).optional(),
   segmentations: Segmentation.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
-  segmentTypes: SegmentType.array().optional(),
-  rulerTypes: SegmentType.array().optional(),
-  selectedSegmentType: z.string().optional(),
+  segments: Segment.array().optional(),
+  rulerSegments: Segment.array().optional(),
+  selectedSegment: z.string().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),

@@ -62,11 +62,11 @@ export default defineComponent({
     // Scoped to the widget's own image: a mask of another image would displace
     // the brush.
     const activeLabelmap = computed(() => {
-      const segmentId = imageId.value
+      const maskId = imageId.value
         ? segmentationStore.findEditTarget(imageId.value)
         : undefined;
-      const binding = segmentId
-        ? segmentationStore.resolveLabelmapBinding(segmentId)
+      const binding = maskId
+        ? segmentationStore.resolveLabelmapBinding(maskId)
         : undefined;
       if (!binding) return null;
       if (

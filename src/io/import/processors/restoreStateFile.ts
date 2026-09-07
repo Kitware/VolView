@@ -18,7 +18,7 @@ import {
 } from '@/src/io/state-file/dataSourceDisplayName';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
@@ -250,22 +250,22 @@ export async function completeStateFileRestore(
 
   useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
 
-  // Registries first: labelmap records and shapes both name a type, and the
+  // Registries first: masks and shapes both name a type, and the
   // ids they name are minted here.
-  const typeIdMap = useSegmentTypeStore().deserialize(manifest);
+  const segmentIdMap = useSegmentStore().deserialize(manifest);
 
   const { skipped: skippedArtifacts } =
     await useSegmentationStore().deserialize(
       manifest,
       stateFiles,
       stateIDToStoreID,
-      typeIdMap,
+      segmentIdMap,
       resolveArtifactRestoreSources(manifest)
     );
 
   useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-  useToolStore().deserialize(manifest, typeIdMap, stateIDToStoreID);
+  useToolStore().deserialize(manifest, segmentIdMap, stateIDToStoreID);
 
   const missingBases = unresolvedDatasets.map((ds) =>
     summarizeDataSource(

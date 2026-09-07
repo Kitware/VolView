@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import SegmentTypeList from '@/src/components/SegmentTypeList.vue';
+import SegmentPicker from '@/src/components/SegmentPicker.vue';
 
 const activeToolStore = useRectangleStore();
 </script>
 
 <template>
-  <segment-type-list :registry="activeToolStore.types" />
+  <segment-picker :registry="activeToolStore.segments" />
 </template>

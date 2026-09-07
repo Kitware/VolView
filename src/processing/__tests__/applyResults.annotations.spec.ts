@@ -15,9 +15,9 @@ import type {
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import {
-  mintType,
+  mintSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -322,7 +322,7 @@ describe('applyIntent — add-annotations', () => {
     expect(rulers.appearanceOfTool(ruler.id).name).toBe('roi');
     expect(rectangles.appearanceOfTool(rectangle.id).name).toBe('roi');
     // A ruler type is not a delineation type, whatever it is called.
-    expect(ruler.typeId).not.toBe(rectangle.typeId);
+    expect(ruler.segmentId).not.toBe(rectangle.segmentId);
 
     // The styles that landed are the ones each namespace declared.
     expect(rulers.appearanceOfTool(ruler.id).cssColor).toBe('#ff0000');
@@ -337,8 +337,8 @@ describe('applyIntent — add-annotations', () => {
   it('binds an existing type of the same name instead of minting one', async () => {
     const rulerStore = useRulerStore();
     // 'Label 1' ships as the ruler registry's default type.
-    const existingId = rulerStore.types.typeList.value[0].id;
-    const before = rulerStore.types.typeList.value.length;
+    const existingId = rulerStore.segments.segmentList.value[0].id;
+    const before = rulerStore.segments.segmentList.value.length;
 
     const file = annotationsFile();
     file.labels.rulers = { 'Label 1': { color: '#123456', strokeWidth: 3 } };
@@ -348,18 +348,23 @@ describe('applyIntent — add-annotations', () => {
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(rulerStore.types.typeList.value).toHaveLength(before);
+    expect(rulerStore.segments.segmentList.value).toHaveLength(before);
     // The registry's own appearance wins on a name match.
-    expect(rulerStore.types.appearanceOf(existingId).cssColor).toBe('#ff0000');
-    expect(onlyTool(rulerStore).typeId).toBe(existingId);
+    expect(rulerStore.segments.appearanceOf(existingId).cssColor).toBe(
+      '#ff0000'
+    );
+    expect(onlyTool(rulerStore).segmentId).toBe(existingId);
   });
 
   it('binds a locked segment’s type without touching its mask', async () => {
     const segmentationStore = useSegmentationStore();
     const segmentation = segmentationStore.ensureSegmentationForImage(IMAGE_ID);
-    const lockedType = mintType({ name: 'roi', color: [17, 34, 51, 255] });
-    const locked = segmentationStore.createSegment(segmentation.id, lockedType);
-    const voxels = segmentationStore.segmentVoxels(locked.id);
+    const lockedSegment = mintSegment({
+      name: 'roi',
+      color: [17, 34, 51, 255],
+    });
+    const locked = segmentationStore.createMask(segmentation.id, lockedSegment);
+    const voxels = segmentationStore.maskVoxels(locked.id);
     const { labelValue } = voxels.materialize();
     voxels.ensureContains([2, 2, 3, 3, 4, 4]);
     voxels.scalars()[0] = labelValue;
@@ -379,22 +384,22 @@ describe('applyIntent — add-annotations', () => {
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     expect(segmentation.order).toEqual([locked.id]);
-    expect(segmentationStore.getSegment(locked.id)).toMatchObject({
-      typeId: lockedType,
+    expect(segmentationStore.getMask(locked.id)).toMatchObject({
+      segmentId: lockedSegment,
       representations: { labelmap: bindingBefore },
     });
-    expect(useSegmentTypeStore().types.appearanceOf(lockedType).locked).toBe(
+    expect(useSegmentStore().segments.appearanceOf(lockedSegment).locked).toBe(
       true
     );
     expect(voxels.image()).toBe(maskBefore);
     expect(Array.from(voxels.snapshot())).toEqual(scalarsBefore);
-    // The shape names the type, not this image's record for it.
-    expect(onlyTool(useRectangleStore()).typeId).toBe(lockedType);
+    // The shape names the type, not this image's mask for it.
+    expect(onlyTool(useRectangleStore()).segmentId).toBe(lockedSegment);
   });
 
   it('leaves the picker where the user left it', async () => {
     const rulerStore = useRulerStore();
-    const selectedBefore = rulerStore.types.selectedTypeId.value;
+    const selectedBefore = rulerStore.segments.selectedSegmentId.value;
     expect(selectedBefore).toBeTruthy();
 
     const file = annotationsFile();
@@ -405,29 +410,31 @@ describe('applyIntent — add-annotations', () => {
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(rulerStore.types.selectedTypeId.value).toBe(selectedBefore);
+    expect(rulerStore.segments.selectedSegmentId.value).toBe(selectedBefore);
     // The type still landed; only the picker was left alone.
     const ruler = onlyTool(rulerStore);
     expect(rulerStore.appearanceOfTool(ruler.id).name).toBe('fresh');
   });
 
-  it('preserves the user’s selected type while result types land', async () => {
+  it('preserves the user’s selected type while result segments land', async () => {
     seatImage('origin-image');
     seatImage('next-image');
     const segmentationStore = useSegmentationStore();
     const originSegmentation =
       segmentationStore.ensureSegmentationForImage('origin-image');
-    const selectedType = mintType({ name: 'User selection' });
-    segmentationStore.createSegment(originSegmentation.id, selectedType);
-    useSegmentTypeStore().types.selectType(selectedType);
+    const selectedSegment = mintSegment({ name: 'User selection' });
+    segmentationStore.createMask(originSegmentation.id, selectedSegment);
+    useSegmentStore().segments.selectSegment(selectedSegment);
     useViewStore().setDataForAllViews(IMAGE_ID);
     await nextTick();
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(useSegmentTypeStore().types.selectedTypeId.value).toBe(selectedType);
+    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(
+      selectedSegment
+    );
 
     const next = segmentationStore.resolveEditTarget('next-image');
-    expect(segmentationStore.getSegment(next).typeId).toBe(selectedType);
+    expect(segmentationStore.getMask(next).segmentId).toBe(selectedSegment);
   });
 
   it('leaves an unlabeled tool unlabeled', async () => {
@@ -446,7 +453,7 @@ describe('applyIntent — add-annotations', () => {
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     const ruler = onlyTool(useRulerStore());
-    expect(ruler.typeId).toBe('');
+    expect(ruler.segmentId).toBe('');
     expect(useRulerStore().appearanceOfTool(ruler.id).name).toBe('');
   });
 
@@ -500,7 +507,7 @@ describe('applyIntent — add-annotations', () => {
 
   it('rejects the whole result when any frame is not axis-aligned, before mutating', async () => {
     const rulerStore = useRulerStore();
-    const typesBefore = rulerStore.types.typeList.value.map((type) => ({
+    const typesBefore = rulerStore.segments.segmentList.value.map((type) => ({
       ...type,
     }));
 
@@ -520,7 +527,7 @@ describe('applyIntent — add-annotations', () => {
     // All-or-nothing: not even the rulers that WOULD have placed, and not the
     // registry, since binding a name mints or restyles a type.
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
-    expect(rulerStore.types.typeList.value).toEqual(typesBefore);
+    expect(rulerStore.segments.segmentList.value).toEqual(typesBefore);
   });
 
   it('places a plane past the image bounds, as the renderer already does', async () => {

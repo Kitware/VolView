@@ -139,14 +139,14 @@ describe('Session state lifecycle', () => {
     const { manifest: reloadedManifest } = await saveAndParseManifest();
     // Stroke width belongs to the type the rectangle names, not to the shape.
     const tools = reloadedManifest.tools as {
-      rectangles: { tools: Array<{ typeId: string }> };
+      rectangles: { tools: Array<{ segmentId: string }> };
     };
-    const segmentTypes = reloadedManifest.segmentTypes as Array<{
+    const segments = reloadedManifest.segments as Array<{
       id: string;
       strokeWidth?: number;
     }>;
-    const carried = segmentTypes.find(
-      (type) => type.id === tools.rectangles.tools[0].typeId
+    const carried = segments.find(
+      (segment) => segment.id === tools.rectangles.tools[0].segmentId
     );
     expect(carried?.strokeWidth).toEqual(editedStrokeWidth);
   });

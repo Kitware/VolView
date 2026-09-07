@@ -294,8 +294,8 @@ const migrateLegacyDisplay = (manifest: any) => {
   const parentFillOf = (parentImage: string) =>
     fillByParent.get(parentImage) ?? LEGACY_GROUP_FILL_OPACITY_DEFAULT;
 
-  const typeById = new Map<string, any>(
-    (Array.isArray(manifest.segmentTypes) ? manifest.segmentTypes : []).map(
+  const segmentById = new Map<string, any>(
+    (Array.isArray(manifest.segments) ? manifest.segments : []).map(
       (type: any) => [type.id, type]
     )
   );
@@ -318,11 +318,11 @@ const migrateLegacyDisplay = (manifest: any) => {
 
     // A legacy group described what it showed, so its opacity and its
     // visibility both land on the type the group became.
-    (Array.isArray(segmentation.segments) ? segmentation.segments : []).forEach(
+    (Array.isArray(segmentation.masks) ? segmentation.masks : []).forEach(
       (segment: any) => {
         const artifactId = segment.representations?.labelmap?.artifactId;
         const display = displayByArtifact.get(artifactId);
-        const type = typeById.get(segment.typeId);
+        const type = segmentById.get(segment.segmentId);
         if (!display || !type) return;
         type.fillOpacity = fillShareOf(display, parentFill);
         if (display.outlineOpacity !== undefined) {
@@ -366,7 +366,7 @@ const migrateLegacyDisplay = (manifest: any) => {
 };
 
 // 6.4.0 -> 7.0.0 moves identity off segment groups and off the vector tools'
-// label records and onto segment types, with one per-image labelmap record per
+// label records and onto segment types, with one per-image mask per
 // type. JSON only: no voxels are read here, so a group is marked for the loaded
 // restore stage to divide into one bounded mask per segment, enumerating its
 // voxel values first when it carried no descriptors. Every binding's extent is
@@ -377,8 +377,8 @@ const migrate640To700 = (inputManifest: any) => {
   // Insertion order is the migrated order: groups in manifest order, then the
   // vector-tool labels in the order their tools reference them.
   const recordsByParent = new Map<string, any[]>();
-  const segmentTypes: any[] = [];
-  const rulerTypes: any[] = [];
+  const segments: any[] = [];
+  const rulerSegments: any[] = [];
 
   // Ids are built by joining legacy identifiers with '-', which those
   // identifiers may themselves contain, so distinct sources can produce the
@@ -394,7 +394,7 @@ const migrate640To700 = (inputManifest: any) => {
 
   // One type per old segment and per old label: identity is never merged by
   // name, so two images that both carried "Tumor" keep two types.
-  const addType = (into: any[], id: string, type: any) => {
+  const addSegment = (into: any[], id: string, type: any) => {
     into.push({ id, ...type });
     return id;
   };
@@ -418,7 +418,7 @@ const migrate640To700 = (inputManifest: any) => {
   }
   // Captured as the type is emitted, because uniqueId may have suffixed the id
   // that the legacy pair would have interpolated to.
-  let selectedTypeId: string | undefined;
+  let selectedSegmentId: string | undefined;
 
   const artifacts = groups.map((group) => {
     const metadata = group.metadata ?? {};
@@ -431,19 +431,19 @@ const migrate640To700 = (inputManifest: any) => {
 
     descriptorValues(descriptors).forEach((value) => {
       const mask = descriptors.byValue[String(value)];
-      const typeId = uniqueId(`${group.id}-${value}`);
-      addType(segmentTypes, typeId, {
+      const segmentId = uniqueId(`${group.id}-${value}`);
+      addSegment(segments, segmentId, {
         name: mask.name,
         color: mask.color,
         visible: mask.visible ?? true,
         locked: mask.locked ?? false,
       });
       if (group.id === activeGroupId && value === activeValue) {
-        selectedTypeId = typeId;
+        selectedSegmentId = segmentId;
       }
       addRecord(parentImage, {
-        id: uniqueId(`record-${typeId}`),
-        typeId,
+        id: uniqueId(`record-${segmentId}`),
+        segmentId,
         representations: {
           labelmap: {
             artifactId: group.id,
@@ -477,52 +477,56 @@ const migrate640To700 = (inputManifest: any) => {
   // A ruler label goes to the ruler registry, a rectangle or polygon label to
   // the shared one. Every label becomes a type, referenced or not: the picker
   // offered it before and goes on offering it.
-  const toolTypeIds = (key: string, into: any[]) => {
+  const toolSegmentIds = (key: string, into: any[]) => {
     const entry = manifest.tools?.[key];
     if (!entry) return {} as Record<string, string>;
 
     const labels = entry.labels ?? {};
-    const typeIdByLabel: Record<string, string> = {};
+    const segmentIdByLabel: Record<string, string> = {};
     Object.entries(labels).forEach(([labelId, label]: [string, any]) => {
       const { labelName, color, strokeWidth } = label;
-      typeIdByLabel[labelId] = addType(into, uniqueId(`${key}-${labelId}`), {
-        name: labelName || labelId,
-        color: cssColorToRGBA(color ?? ''),
-        ...(strokeWidth === undefined ? {} : { strokeWidth }),
-      });
+      segmentIdByLabel[labelId] = addSegment(
+        into,
+        uniqueId(`${key}-${labelId}`),
+        {
+          name: labelName || labelId,
+          color: cssColorToRGBA(color ?? ''),
+          ...(strokeWidth === undefined ? {} : { strokeWidth }),
+        }
+      );
     });
 
     entry.tools = (Array.isArray(entry.tools) ? entry.tools : []).map(
       (tool: any) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { label, labelName, color, strokeWidth, ...rest } = tool;
-        const typeId = typeIdByLabel[label];
-        return typeId === undefined ? rest : { ...rest, typeId };
+        const segmentId = segmentIdByLabel[label];
+        return segmentId === undefined ? rest : { ...rest, segmentId };
       }
     );
 
     delete entry.labels;
-    return typeIdByLabel;
+    return segmentIdByLabel;
   };
 
-  toolTypeIds('rulers', rulerTypes);
-  ['rectangles', 'polygons'].forEach((key) => toolTypeIds(key, segmentTypes));
+  toolSegmentIds('rulers', rulerSegments);
+  ['rectangles', 'polygons'].forEach((key) => toolSegmentIds(key, segments));
 
   const segmentations = [...recordsByParent.entries()].map(
     ([parentImage, records]) => ({
       id: `segmentation-${parentImage}`,
       name: datasetDisplayName(manifest, parentImage),
       parentImage,
-      segments: records,
+      masks: records,
       order: records.map((record) => record.id),
     })
   );
 
   if (artifacts.length > 0) manifest.segmentationArtifacts = artifacts;
   if (segmentations.length > 0) manifest.segmentations = segmentations;
-  if (segmentTypes.length > 0) manifest.segmentTypes = segmentTypes;
-  if (rulerTypes.length > 0) manifest.rulerTypes = rulerTypes;
-  if (selectedTypeId) manifest.selectedSegmentType = selectedTypeId;
+  if (segments.length > 0) manifest.segments = segments;
+  if (rulerSegments.length > 0) manifest.rulerSegments = rulerSegments;
+  if (selectedSegmentId) manifest.selectedSegment = selectedSegmentId;
   delete manifest.segmentGroups;
 
   migrateLegacyDisplay(manifest);

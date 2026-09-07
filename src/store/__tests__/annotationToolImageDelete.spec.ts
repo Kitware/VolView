@@ -34,7 +34,7 @@ const makeRuler = (
   imageID: string
 ): RequiredWithPartial<
   Ruler,
-  'id' | 'typeId' | 'hidden' | 'metadata' | 'frame' | 'source'
+  'id' | 'segmentId' | 'hidden' | 'metadata' | 'frame' | 'source'
 > => ({
   firstPoint: [1, 1, 1],
   secondPoint: [2, 2, 2],

@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -197,22 +197,22 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     }
 
     // An artifact pruned above must not be left referenced: restore would
-    // silently recreate the segment with no storage. Nor may one belong to
+    // silently recreate the mask with no storage. Nor may one belong to
     // another image: a mask sits on its parent's grid, so a binding across
-    // images points the segment at storage of the wrong shape.
-    const segments = parsed.data.segments.map((segment) => {
-      const binding = segment.representations.labelmap;
-      if (!binding) return segment;
+    // images points it at storage of the wrong shape.
+    const masks = parsed.data.masks.map((mask) => {
+      const binding = mask.representations.labelmap;
+      if (!binding) return mask;
       const artifactParent = artifactParentById.get(binding.artifactId);
-      if (artifactParent === parsed.data.parentImage) return segment;
+      if (artifactParent === parsed.data.parentImage) return mask;
       omitted.push(
         artifactParent === undefined
-          ? `${name}.segments[${segment.id}]: segmentation artifact ${binding.artifactId} is missing`
-          : `${name}.segments[${segment.id}]: segmentation artifact ${binding.artifactId} belongs to ${artifactParent}`
+          ? `${name}.masks[${mask.id}]: segmentation artifact ${binding.artifactId} is missing`
+          : `${name}.masks[${mask.id}]: segmentation artifact ${binding.artifactId} belongs to ${artifactParent}`
       );
-      return { ...segment, representations: {} };
+      return { ...mask, representations: {} };
     });
-    return [{ ...parsed.data, segments }];
+    return [{ ...parsed.data, masks }];
   });
 
   let validLayers: ParentToLayers | undefined;
@@ -253,8 +253,8 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       ),
       // Both registries: a shape's type id resolves in its own, and the
       // backstop only asks whether the manifest declared it at all.
-      segmentType: new Set(
-        [candidate.segmentTypes, candidate.rulerTypes].flatMap((list) =>
+      segment: new Set(
+        [candidate.segments, candidate.rulerSegments].flatMap((list) =>
           Array.isArray(list)
             ? list.flatMap((raw) =>
                 isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
@@ -269,7 +269,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     const kindLabel: Record<ManifestRefKind, string> = {
       dataset: 'dataset',
       segmentationArtifact: 'segmentation artifact',
-      segmentType: 'segment type',
+      segment: 'segment type',
       view: 'view',
     };
     const dangling = collectManifestRefs(candidate)
@@ -308,9 +308,9 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   // deep-copied) twice.
   const optionalRoots = [
     'tools',
-    'segmentTypes',
-    'rulerTypes',
-    'selectedSegmentType',
+    'segments',
+    'rulerSegments',
+    'selectedSegment',
     'activeView',
     'isActiveViewMaximized',
     'viewByID',
@@ -353,7 +353,7 @@ const serializingStoreHooks = [
   useDatasetStore,
   useViewStore,
   useViewConfigStore,
-  useSegmentTypeStore,
+  useSegmentStore,
   useSegmentationStore,
   useToolStore,
   useLayersStore,

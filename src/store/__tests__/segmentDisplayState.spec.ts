@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
@@ -22,7 +22,7 @@ const DIMENSIONS = [4, 4, 2] as const;
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
 
 const store = () => useSegmentationStore();
-const types = () => useSegmentTypeStore().types;
+const segments = () => useSegmentStore().segments;
 
 async function seatImage(id: string, name = 'CT') {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
@@ -61,13 +61,15 @@ describe('segmentation display state', () => {
   describe('defaults', () => {
     it('resolves an unset type to fully opaque fill and outline', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createSegment(segmentation.id, mintType());
+      const segment = store().createMask(segmentation.id, mintSegment());
 
-      const appearance = types().appearanceOf(segment.typeId);
+      const appearance = segments().appearanceOf(segment.segmentId);
       expect(appearance.fillOpacity).toBe(1);
       expect(appearance.outlineOpacity).toBe(1);
       // Absent, not stored: the wire carries only what was set.
-      expect(types().getType(segment.typeId)?.fillOpacity).toBeUndefined();
+      expect(
+        segments().getSegment(segment.segmentId)?.fillOpacity
+      ).toBeUndefined();
     });
 
     // A fresh segmentation tints the anatomy under it; the outline defaults
@@ -81,15 +83,15 @@ describe('segmentation display state', () => {
     });
 
     it('gives a type minted by the edit path the same defaults', () => {
-      const segment = store().getSegment(store().resolveEditTarget('img-1'));
+      const segment = store().getMask(store().resolveEditTarget('img-1'));
 
-      const appearance = types().appearanceOf(segment.typeId);
+      const appearance = segments().appearanceOf(segment.segmentId);
       expect(appearance.fillOpacity).toBe(1);
       expect(appearance.outlineOpacity).toBe(1);
     });
 
     it('takes display state from a decoded segment descriptor', () => {
-      const [segment] = store().splitLabelmapIntoSegments(
+      const [segment] = store().splitLabelmapIntoMasks(
         'img-1',
         makeImportedLabelmap(),
         [
@@ -106,7 +108,7 @@ describe('segmentation display state', () => {
       );
 
       // Opacity describes the thing shown, so it lands on the type it minted.
-      const appearance = types().appearanceOf(segment.typeId);
+      const appearance = segments().appearanceOf(segment.segmentId);
       expect(appearance.fillOpacity).toBe(0.4);
       expect(appearance.outlineOpacity).toBe(0.25);
       // Visibility and lock describe the thing, so they land on the type.
@@ -118,34 +120,37 @@ describe('segmentation display state', () => {
   describe('editing', () => {
     it('patches display state through the type without disturbing identity', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createSegment(
+      const segment = store().createMask(
         segmentation.id,
-        mintType({ name: 'Tumor' })
+        mintSegment({ name: 'Tumor' })
       );
-      expect(types().appearanceOf(segment.typeId).fillOpacity).toBe(1);
+      expect(segments().appearanceOf(segment.segmentId).fillOpacity).toBe(1);
 
-      types().updateType(segment.typeId, { fillOpacity: 0.4 });
-      types().updateType(segment.typeId, { outlineOpacity: 0.25 });
+      segments().updateSegment(segment.segmentId, { fillOpacity: 0.4 });
+      segments().updateSegment(segment.segmentId, { outlineOpacity: 0.25 });
 
-      const updated = store().getSegment(segment.id);
-      const appearance = types().appearanceOf(updated.typeId);
+      const updated = store().getMask(segment.id);
+      const appearance = segments().appearanceOf(updated.segmentId);
       expect(appearance.fillOpacity).toBe(0.4);
       expect(appearance.outlineOpacity).toBe(0.25);
       expect(updated.id).toBe(segment.id);
-      expect(updated.typeId).toBe(segment.typeId);
+      expect(updated.segmentId).toBe(segment.segmentId);
       expect(appearance.name).toBe('Tumor');
       expect(appearance.visible).toBe(true);
     });
 
     it('keeps display state per type', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const first = store().createSegment(segmentation.id, mintType());
-      const second = store().createSegment(segmentation.id, mintType());
+      const first = store().createMask(segmentation.id, mintSegment());
+      const second = store().createMask(segmentation.id, mintSegment());
 
-      types().updateType(first.typeId, { fillOpacity: 0, outlineOpacity: 0.5 });
+      segments().updateSegment(first.segmentId, {
+        fillOpacity: 0,
+        outlineOpacity: 0.5,
+      });
 
-      const sibling = types().appearanceOf(
-        store().getSegment(second.id).typeId
+      const sibling = segments().appearanceOf(
+        store().getMask(second.id).segmentId
       );
       expect(sibling.fillOpacity).toBe(1);
       expect(sibling.outlineOpacity).toBe(1);
@@ -159,13 +164,13 @@ describe('segmentation display state', () => {
   describe('reaching the renderer', () => {
     it('projects each segment’s opacities onto its mask', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createSegment(
+      const segment = store().createMask(
         segmentation.id,
-        mintType({ name: 'Tumor' })
+        mintSegment({ name: 'Tumor' })
       );
-      const { artifactId } = store().segmentVoxels(segment.id).materialize();
+      const { artifactId } = store().maskVoxels(segment.id).materialize();
 
-      types().updateType(segment.typeId, {
+      segments().updateSegment(segment.segmentId, {
         fillOpacity: 0.4,
         outlineOpacity: 0.25,
       });

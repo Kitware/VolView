@@ -36,7 +36,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import {
   seedVoxel,
-  mintType,
+  mintSegment,
   selectSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { useMessageStore } from '@/src/store/messages';
@@ -498,25 +498,25 @@ describe('JobsModule — segment group staging', () => {
     const store = useSegmentationStore();
     const segmentation = store.ensureSegmentationForImage('image-1');
     segmentation.name = name;
-    const segment = store.createSegment(
+    const segment = store.createMask(
       segmentation.id,
-      mintType({ name: 'Tumor' })
+      mintSegment({ name: 'Tumor' })
     );
-    store.segmentVoxels(segment.id).materialize();
+    store.maskVoxels(segment.id).materialize();
     selectSegment(segment.id);
-    return { segmentationId: segmentation.id, segmentId: segment.id };
+    return { segmentationId: segmentation.id, maskId: segment.id };
   };
 
   // Two segments claiming one voxel: what a single staged file cannot carry.
   const seedOverlappingSegments = () => {
-    const { segmentationId, segmentId } = seedSegmentation('Overlap');
-    const second = useSegmentationStore().createSegment(
+    const { segmentationId, maskId } = seedSegmentation('Overlap');
+    const second = useSegmentationStore().createMask(
       segmentationId,
-      mintType({
+      mintSegment({
         name: 'Node',
       })
     );
-    seedVoxel(segmentId, [1, 1, 1]);
+    seedVoxel(maskId, [1, 1, 1]);
     seedVoxel(second.id, [1, 1, 1]);
   };
 
@@ -615,17 +615,17 @@ describe('JobsModule — segment group staging', () => {
     seedActiveImage();
     const segmentStore = useSegmentationStore();
     const segmentation = segmentStore.ensureSegmentationForImage('image-1');
-    const first = segmentStore.createSegment(
+    const first = segmentStore.createMask(
       segmentation.id,
-      mintType({ name: 'A' })
+      mintSegment({ name: 'A' })
     );
-    const second = segmentStore.createSegment(
+    const second = segmentStore.createMask(
       segmentation.id,
-      mintType({ name: 'B' })
+      mintSegment({ name: 'B' })
     );
     seedVoxel(first.id, [0, 0, 0]);
     seedVoxel(second.id, [1, 1, 1]);
-    if (reach) segmentStore.segmentVoxels(second.id).ensureContains(reach);
+    if (reach) segmentStore.maskVoxels(second.id).ensureContains(reach);
     selectSegment(first.id);
 
     const wrapper = await mountWithSpec(labelmapSpec(false));
@@ -665,11 +665,9 @@ describe('JobsModule — segment group staging', () => {
       0, 1, 0, 1, 0, 1,
     ]);
 
-    const extentBefore = [
-      ...segmentStore.findSegmentBinding(second.id)!.extent,
-    ];
+    const extentBefore = [...segmentStore.findMaskBinding(second.id)!.extent];
     seedVoxel(second.id, [0, 0, 0]);
-    expect([...segmentStore.findSegmentBinding(second.id)!.extent]).toEqual(
+    expect([...segmentStore.findMaskBinding(second.id)!.extent]).toEqual(
       extentBefore
     );
 

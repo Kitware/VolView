@@ -119,21 +119,21 @@ export const usePaintToolStore = defineStore('paint', () => {
    * into existence and refuses when there is nothing stored to take from.
    */
   function resolveStrokeTarget(imageID: string, allocate: boolean) {
-    const segmentId = allocate
+    const maskId = allocate
       ? segmentationStore.resolveEditTarget(imageID)
       : segmentationStore.findEditTarget(imageID);
-    if (!segmentId) return undefined;
-    if (segmentationStore.isLocked(segmentId)) return undefined;
+    if (!maskId) return undefined;
+    if (segmentationStore.isLocked(maskId)) return undefined;
 
     const binding = allocate
-      ? segmentationStore.ensureLabelmapBinding(segmentId)
-      : segmentationStore.findSegmentBinding(segmentId);
+      ? segmentationStore.ensureLabelmapBinding(maskId)
+      : segmentationStore.findMaskBinding(maskId);
     if (!binding) return undefined;
 
     return {
-      segmentId,
+      maskId,
       labelValue: binding.labelValue,
-      voxels: segmentationStore.segmentVoxels(segmentId),
+      voxels: segmentationStore.maskVoxels(maskId),
     };
   }
 
@@ -152,7 +152,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;
 
-    const { voxels, labelValue, segmentId } = target;
+    const { voxels, labelValue, maskId } = target;
     this.$paint.setBrushValue(labelValue);
 
     const parentImage = useImageCacheStore().getVtkImageData(imageID);
@@ -194,7 +194,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     // Resolved once per stroke: the claim below is made for every voxel the
     // brush touches. A stroke is aimed at a place, so it takes the voxel.
-    const claimVoxel = segmentationStore.voxelClaim(segmentId, 'aimed', extent);
+    const claimVoxel = segmentationStore.voxelClaim(maskId, 'aimed', extent);
     const parentDimensions = parentImage.getDimensions();
     const maskData = voxels.scalars();
     const [minThreshold, maxThreshold] = thresholdRange.value;

@@ -114,21 +114,21 @@ export function useInputStaging() {
       hasGeometry: <U extends AnnotationTool>(tool: U) => tool is U & T
     ): AnnotationKindView<AnnotationTool & T> => {
       const store = annotationToolStore(kind);
-      const { types } = store;
+      const { segments } = store;
       return {
-        // The type's name travels with the tool: identity on the wire is the
-        // name, inside this kind's own namespace.
+        // The segment's name travels with the tool: identity on the wire is
+        // the name, inside this kind's own namespace.
         tools: onActiveImage(store.finishedTools)
           .filter(hasGeometry)
           .map((tool) => ({
             ...tool,
-            labelName: types.appearanceOf(tool.typeId).name,
+            labelName: segments.appearanceOf(tool.segmentId).name,
           })),
         labels: Object.fromEntries(
-          types.typeList.value.map((type) => {
-            const resolved = types.appearanceOf(type.id);
+          segments.segmentList.value.map((segment) => {
+            const resolved = segments.appearanceOf(segment.id);
             return [
-              type.id,
+              segment.id,
               {
                 labelName: resolved.name,
                 color: resolved.cssColor,

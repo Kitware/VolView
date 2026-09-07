@@ -173,14 +173,14 @@ export const useToolStore = defineStore('tool', () => {
 
   function deserialize(
     manifest: Manifest,
-    typeIdMap: Record<string, string>,
+    segmentIdMap: Record<string, string>,
     dataIDMap: Record<string, string>
   ) {
     Object.values(ToolStoreMap)
       .map((useStore) => useStore?.())
       .filter((store): store is IToolStore => !!store)
       .forEach((store) => {
-        store.deserialize?.(manifest, dataIDMap, typeIdMap);
+        store.deserialize?.(manifest, dataIDMap, segmentIdMap);
       });
 
     if (manifest.tools?.current) {

@@ -3,13 +3,13 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
-import { listSegments } from '@/src/types/segmentation';
+import { listMasks } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
 // Backward compatibility: manifests saved before `datasets` existed (and
@@ -98,7 +98,7 @@ describe('migrated legacy manifests without `datasets`', () => {
       [],
       // Restore keys every fallback dataset by its stringified source id.
       { '1': 'store-ct', '3': 'store-seg' },
-      useSegmentTypeStore().deserialize(legacyManifest),
+      useSegmentStore().deserialize(legacyManifest),
       resolveArtifactRestoreSources(legacyManifest)
     );
 
@@ -111,8 +111,8 @@ describe('migrated legacy manifests without `datasets`', () => {
     // The migrated descriptor restored as a segment with its own bounded mask.
     const segmentation = store.getSegmentationForImage('store-ct')!;
     expect(
-      listSegments(segmentation).map((segment) => ({
-        name: useSegmentTypeStore().types.appearanceOf(segment.typeId).name,
+      listMasks(segmentation).map((segment) => ({
+        name: useSegmentStore().segments.appearanceOf(segment.segmentId).name,
         labelValue: segment.representations.labelmap!.labelValue,
       }))
     ).toEqual([{ name: 'Tumor', labelValue: 1 }]);

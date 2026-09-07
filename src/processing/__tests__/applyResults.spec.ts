@@ -25,9 +25,9 @@ import { useMessageStore } from '@/src/store/messages';
  * only handle a descriptor can match on.
  */
 const importedComponent = (bySourceValue: Record<number, string>) =>
-  Object.entries(bySourceValue).map(([sourceValue, segmentId]) => ({
+  Object.entries(bySourceValue).map(([sourceValue, maskId]) => ({
     sourceValue: Number(sourceValue),
-    segmentId,
+    maskId,
   }));
 
 const recordingDependencies = () => ({
@@ -183,15 +183,15 @@ describe('applyIntent', () => {
     );
 
     expect(deps.segmentGroups.describeSegment).toHaveBeenCalledTimes(4);
-    ['a-1', 'b-1'].forEach((segmentId) =>
+    ['a-1', 'b-1'].forEach((maskId) =>
       expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
-        segmentId,
+        maskId,
         expect.objectContaining({ name: 'liver' })
       )
     );
-    ['a-2', 'b-2'].forEach((segmentId) =>
+    ['a-2', 'b-2'].forEach((maskId) =>
       expect(deps.segmentGroups.describeSegment).toHaveBeenCalledWith(
-        segmentId,
+        maskId,
         expect.objectContaining({ name: 'tumor' })
       )
     );

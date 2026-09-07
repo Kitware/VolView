@@ -5,9 +5,9 @@ import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import type { Extent3D } from '@/src/types/segmentation';
-import type { SegmentTypeInit } from '@/src/types/segmentType';
+import type { SegmentInit } from '@/src/types/segment';
 
 /** A point in the PARENT image's index space, which is where extents live. */
 export type Index3 = [number, number, number];
@@ -57,44 +57,43 @@ export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 
 /** A type minted straight into the shared registry, named or not. */
-export const mintType = (init: SegmentTypeInit | string = {}) =>
-  useSegmentTypeStore().types.mintType(
+export const mintSegment = (init: SegmentInit | string = {}) =>
+  useSegmentStore().segments.mintSegment(
     typeof init === 'string' ? { name: init } : init
   );
 
 /** A record with no storage: adding one never allocates voxels. */
-export function addSegment(imageId: string, name?: string) {
+export function addMask(imageId: string, name?: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  return store().createSegment(segmentation.id, mintType(name)).id;
+  return store().createMask(segmentation.id, mintSegment(name)).id;
 }
 
 /** This image's record for a type, created without changing the selection. */
-export const recordFor = (imageId: string, typeId: string) =>
-  store().getSegment(store().resolveEditTarget(imageId, typeId));
+export const maskOn = (imageId: string, segmentId: string) =>
+  store().getMask(store().resolveEditTarget(imageId, segmentId));
 
 /** The type a record delineates. */
-export const typeOf = (segmentId: string) =>
-  store().getSegment(segmentId).typeId;
+export const segmentOfMask = (maskId: string) =>
+  store().getMask(maskId).segmentId;
 
 /** Locks the type a record delineates, which is what refuses an edit. */
-export const lockSegment = (segmentId: string, locked = true) =>
-  useSegmentTypeStore().types.updateType(typeOf(segmentId), { locked });
+export const lockSegment = (maskId: string, locked = true) =>
+  useSegmentStore().segments.updateSegment(segmentOfMask(maskId), { locked });
 
 /** Selects the type a record delineates, which is what an edit targets. */
-export const selectSegment = (segmentId: string) =>
-  useSegmentTypeStore().types.selectType(store().getSegment(segmentId).typeId);
+export const selectSegment = (maskId: string) =>
+  useSegmentStore().segments.selectSegment(store().getMask(maskId).segmentId);
 
 /** The record an edit on this image would land in, without creating one. */
-export const selectedSegment = (imageId: string) =>
+export const selectedSegmentOn = (imageId: string) =>
   store().findEditTarget(imageId);
 
-export const bindingOf = (segmentId: string) =>
-  store().segmentVoxels(segmentId).binding();
+export const bindingOf = (maskId: string) =>
+  store().maskVoxels(maskId).binding();
 
-export const extentOf = (segmentId: string) => bindingOf(segmentId)?.extent;
+export const extentOf = (maskId: string) => bindingOf(maskId)?.extent;
 
-export const labelValueOf = (segmentId: string) =>
-  bindingOf(segmentId)?.labelValue;
+export const labelValueOf = (maskId: string) => bindingOf(maskId)?.labelValue;
 
 const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   i >= extent[0] &&
@@ -105,10 +104,10 @@ const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   k <= extent[5];
 
 /** The mask offset a parent index maps to, or undefined when it is outside. */
-export function offsetOf(segmentId: string, index: Index3) {
-  const binding = bindingOf(segmentId);
+export function offsetOf(maskId: string, index: Index3) {
+  const binding = bindingOf(maskId);
   if (!binding || !containsIndex(binding.extent, index)) return undefined;
-  const dimensions = store().segmentVoxels(segmentId).image().getDimensions();
+  const dimensions = store().maskVoxels(maskId).image().getDimensions();
   const { extent } = binding;
   return (
     index[0] -
@@ -123,15 +122,15 @@ export function offsetOf(segmentId: string, index: Index3) {
  * outside the mask. Reads through the binding's extent, so it says the same
  * thing whatever the mask's own bounds are.
  */
-export function maskValueAt(segmentId: string, index: Index3) {
-  const offset = offsetOf(segmentId, index);
+export function maskValueAt(maskId: string, index: Index3) {
+  const offset = offsetOf(maskId, index);
   if (offset === undefined) return undefined;
-  return store().segmentVoxels(segmentId).scalars()[offset];
+  return store().maskVoxels(maskId).scalars()[offset];
 }
 
 /** Marks one parent-index voxel for a segment, through the growth path. */
-export function seedVoxel(segmentId: string, index: Index3, value?: number) {
-  const voxels = store().segmentVoxels(segmentId);
+export function seedVoxel(maskId: string, index: Index3, value?: number) {
+  const voxels = store().maskVoxels(maskId);
   const binding = voxels.materialize();
   voxels.ensureContains([
     index[0],
@@ -141,7 +140,7 @@ export function seedVoxel(segmentId: string, index: Index3, value?: number) {
     index[2],
     index[2],
   ]);
-  const offset = offsetOf(segmentId, index)!;
+  const offset = offsetOf(maskId, index)!;
   voxels.scalars()[offset] = value ?? binding.labelValue;
   voxels.image().modified();
 }
@@ -150,10 +149,10 @@ export function seedVoxel(segmentId: string, index: Index3, value?: number) {
  * Every marked voxel of a segment as `[i, j, k, value]` in PARENT index space,
  * so two masks with different bounds are still comparable.
  */
-export function markedVoxels(segmentId: string) {
-  const binding = bindingOf(segmentId);
+export function markedVoxels(maskId: string) {
+  const binding = bindingOf(maskId);
   if (!binding) return undefined;
-  const voxels = store().segmentVoxels(segmentId);
+  const voxels = store().maskVoxels(maskId);
   const [di, dj, dk] = voxels.image().getDimensions();
   const scalars = voxels.scalars();
   const marks: Array<[number, number, number, number]> = [];

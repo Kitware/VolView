@@ -10,8 +10,8 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
-import { declareSegmentTypeReferences } from './segmentTypeReferences';
+import { useSegmentStore } from '@/src/store/segments';
+import { declareSegmentReferences } from './segmentReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -39,12 +39,12 @@ const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {
 export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults,
-    types: () => useSegmentTypeStore().types,
+    segments: () => useSegmentStore().segments,
   });
 
-  declareSegmentTypeReferences('polygons', {
-    has: toolAPI.hasToolsOfType,
-    remove: toolAPI.removeToolsOfType,
+  declareSegmentReferences('polygons', {
+    has: toolAPI.hasToolsOfSegment,
+    remove: toolAPI.removeToolsOfSegment,
   });
 
   function getPoints(id: ToolID) {
@@ -135,14 +135,14 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return mergedTool;
   };
 
-  const sameSliceAndType = (a: Tool, b: Tool) =>
-    a.typeId === b.typeId &&
+  const sameSliceAndSegment = (a: Tool, b: Tool) =>
+    a.segmentId === b.segmentId &&
     a.slice === b.slice &&
     a.frame === b.frame &&
     a.frameOfReference === b.frameOfReference;
 
   const mergable = (a: Tool, b: Tool) => {
-    if (!sameSliceAndType(a, b)) return false;
+    if (!sameSliceAndSegment(a, b)) return false;
     return polygonsOverlap(a, b);
   };
   // --- //
@@ -203,9 +203,9 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   function deserialize(
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    typeIdMap: Record<string, string> = {}
+    segmentIdMap: Record<string, string> = {}
   ) {
-    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap, typeIdMap);
+    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap, segmentIdMap);
   }
 
   return {

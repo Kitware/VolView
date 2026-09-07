@@ -4,15 +4,15 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import {
-  listSegments,
+  listMasks,
   maskScalars,
-  type Segment,
+  type SegmentMask,
 } from '@/src/types/segmentation';
 import {
-  addSegment,
+  addMask,
   extentOf,
   flatIndex,
   labelValueOf,
@@ -23,12 +23,12 @@ import {
   store,
   voxelCount,
   type Index3,
-  typeOf,
+  segmentOfMask,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 /** A record shows the name and color of the type it references. */
-const appearanceOf = (segment: { typeId: string }) =>
-  useSegmentTypeStore().types.appearanceOf(segment.typeId);
+const appearanceOf = (segment: { segmentId: string }) =>
+  useSegmentStore().segments.appearanceOf(segment.segmentId);
 
 // ---------------------------------------------------------------------------
 // The two directions between N bounded masks and one parent-shaped labelmap.
@@ -52,11 +52,11 @@ const DIMENSIONS: Index3 = [4, 4, 4];
 const parentOffset = flatIndex(DIMENSIONS);
 
 /** The composite of an image's segments, or of just the named members. */
-const compositeScalars = (imageId: string, members?: Segment[]) =>
+const compositeScalars = (imageId: string, members?: SegmentMask[]) =>
   maskScalars(store().compositeLabelmap(imageId, members).labelmap);
 
 const segmentIdsOf = (imageId: string) =>
-  listSegments(store().getSegmentationForImage(imageId)!).map(
+  listMasks(store().getSegmentationForImage(imageId)!).map(
     (segment) => segment.id
   );
 
@@ -91,7 +91,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('is shaped and placed like the parent image', () => {
-    const tumor = addSegment('img-1', 'Tumor');
+    const tumor = addMask('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const { labelmap } = store().compositeLabelmap('img-1');
@@ -110,8 +110,8 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('writes every segment at its own label value, at its own parent voxels', () => {
-    const tumor = addSegment('img-1', 'Tumor');
-    const node = addSegment('img-1', 'Node');
+    const tumor = addMask('img-1', 'Tumor');
+    const node = addMask('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
@@ -122,7 +122,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('leaves everything no segment covers at the background value', () => {
-    const tumor = addSegment('img-1', 'Tumor');
+    const tumor = addMask('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const scalars = compositeScalars('img-1');
@@ -132,8 +132,8 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('gives the later segment the voxel where two overlap', () => {
-    const under = addSegment('img-1', 'Under');
-    const over = addSegment('img-1', 'Over');
+    const under = addMask('img-1', 'Under');
+    const over = addMask('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
 
@@ -143,10 +143,10 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('describes segments with no voxels without allocating storage', () => {
-    const unbound = addSegment('img-1', 'Unbound');
-    const empty = addSegment('img-1', 'Empty');
-    store().segmentVoxels(empty).materialize();
-    const tumor = addSegment('img-1', 'Tumor');
+    const unbound = addMask('img-1', 'Unbound');
+    const empty = addMask('img-1', 'Empty');
+    store().maskVoxels(empty).materialize();
+    const tumor = addMask('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const { labelmap, segments } = store().compositeLabelmap('img-1');
@@ -166,7 +166,7 @@ describe('composing the segments of an image into one labelmap', () => {
 
   it('refuses more segment descriptors than a byte labelmap can encode', () => {
     Array.from({ length: 256 }, (_, index) =>
-      addSegment('img-1', `Segment ${index + 1}`)
+      addMask('img-1', `Segment ${index + 1}`)
     );
 
     expect(() => store().compositeLabelmap('img-1')).toThrow(
@@ -175,11 +175,13 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('describes the image’s segments in order, keyed by label value', () => {
-    const tumor = addSegment('img-1', 'Tumor');
-    const node = addSegment('img-1', 'Node');
+    const tumor = addMask('img-1', 'Tumor');
+    const node = addMask('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
-    useSegmentTypeStore().types.updateType(typeOf(node), { visible: false });
+    useSegmentStore().segments.updateSegment(segmentOfMask(node), {
+      visible: false,
+    });
 
     const { segments } = store().compositeLabelmap('img-1');
 
@@ -205,7 +207,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('copies the voxels out rather than aliasing the masks', () => {
-    const tumor = addSegment('img-1', 'Tumor');
+    const tumor = addMask('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const scalars = compositeScalars('img-1');
@@ -236,8 +238,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
       );
 
   it('leaves segments that do not overlap composed as one', () => {
-    const tumor = addSegment('img-1', 'Tumor');
-    const node = addSegment('img-1', 'Node');
+    const tumor = addMask('img-1', 'Tumor');
+    const node = addMask('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
@@ -253,8 +255,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('composes an overlapping segment into one of its own', () => {
-    const under = addSegment('img-1', 'Under');
-    const over = addSegment('img-1', 'Over');
+    const under = addMask('img-1', 'Under');
+    const over = addMask('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(over, [2, 2, 2]);
@@ -274,9 +276,9 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('keeps a third segment with the first one it does not overlap', () => {
-    const under = addSegment('img-1', 'Under');
-    const over = addSegment('img-1', 'Over');
-    const apart = addSegment('img-1', 'Apart');
+    const under = addMask('img-1', 'Under');
+    const over = addMask('img-1', 'Over');
+    const apart = addMask('img-1', 'Apart');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(apart, [3, 3, 3]);
@@ -289,8 +291,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('describes each of them as a self-contained layer', () => {
-    const under = addSegment('img-1', 'Under');
-    const over = addSegment('img-1', 'Over');
+    const under = addMask('img-1', 'Under');
+    const over = addMask('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
 
@@ -368,7 +370,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
 
     const segmentation = store().getSegmentationForImage('parent-img')!;
     expect(
-      listSegments(segmentation).map((segment) => appearanceOf(segment).name)
+      listMasks(segmentation).map((segment) => appearanceOf(segment).name)
     ).toEqual(['Tumor 1', 'Tumor 3']);
     expect(segmentIdsOf('parent-img').map(labelValueOf)).toEqual([1, 3]);
   });
@@ -377,7 +379,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
     await importLabelmap([{ value: 1, at: [1, 2, 3] }]);
 
     const [only] = segmentIdsOf('parent-img');
-    const mask = store().segmentVoxels(only).image();
+    const mask = store().maskVoxels(only).image();
     expect(Array.from(mask.indexToWorld([0, 0, 0] as never))).toEqual(
       Array.from(parentImage('parent-img').indexToWorld([1, 2, 3] as never))
     );

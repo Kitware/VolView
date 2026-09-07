@@ -12,7 +12,7 @@ import {
 } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import {
-  addSegment,
+  addMask,
   labelValueOf,
   markedVoxels,
   maskValueAt,
@@ -41,8 +41,8 @@ const DIMENSIONS: Index3 = [SIZE, SIZE, 1];
 
 /** A segment covering the whole slice, marked at the named cells. */
 function segmentAt(name: string, cells: Array<[number, number]>) {
-  const segmentId = addSegment('img-1', name);
-  const voxels = store().segmentVoxels(segmentId);
+  const maskId = addMask('img-1', name);
+  const voxels = store().maskVoxels(maskId);
   const { labelValue } = voxels.materialize();
   voxels.ensureContains([0, SIZE - 1, 0, SIZE - 1, 0, 0]);
   const scalars = voxels.scalars();
@@ -50,7 +50,7 @@ function segmentAt(name: string, cells: Array<[number, number]>) {
     scalars[i + j * SIZE] = labelValue;
   });
   voxels.image().modified();
-  return segmentId;
+  return maskId;
 }
 
 /** A ring of eight cells around its centre. */
@@ -237,12 +237,12 @@ describe('a process running over every segment', () => {
     // written back, and the renderer is not told its mask changed.
     const filled = segmentAt('Filled', ringAround(1, 1));
     const spared = segmentAt('Spared', ringAround(5, 5));
-    const sparedMask = store().segmentVoxels(spared).image();
+    const sparedMask = store().maskVoxels(spared).image();
     const held = markedVoxels(spared);
     const sparedTime = sparedMask.getMTime();
 
     await runOverEverySegment(async (target) =>
-      target.segmentId === spared ? undefined : fillHolesOn(target)
+      target.maskId === spared ? undefined : fillHolesOn(target)
     );
 
     expect(maskValueAt(filled, [1, 1, 0])).toBe(labelValueOf(filled));
@@ -292,7 +292,7 @@ describe('a process running over every segment', () => {
     selectSegment(left);
 
     await runOverEverySegment();
-    store().deleteSegment(right);
+    store().deleteMask(right);
     await nextTick();
 
     expect(usePaintProcessStore().processState.step).toBe('start');

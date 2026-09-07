@@ -14,7 +14,7 @@ import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '../segmentations';
-import { useSegmentTypeStore } from '../segmentTypes';
+import { useSegmentStore } from '../segments';
 
 export enum ProcessType {
   FillHoles = 'fillHoles',
@@ -30,7 +30,7 @@ type TargetedState = {
   activeParentImageID: string;
   // The segment whose selection owns the run, absent for an all-segments run:
   // that run belongs to no one segment, so no selection change is about it.
-  watchedSegmentId?: string;
+  watchedMaskId?: string;
 };
 
 type ComputingState = TargetedState & {
@@ -61,7 +61,7 @@ type ProcessState = StartState | ComputingState | PreviewingState;
 export type ProcessTarget = {
   parentImageId: string;
   parentDimensions: [number, number, number];
-  segmentId: string;
+  maskId: string;
   voxels: VoxelStorage;
   maskExtent: Extent3D;
   labelValue: number;
@@ -70,7 +70,7 @@ export type ProcessTarget = {
 /** What a resolved start has to run, and whose selection owns it. */
 type ResolvedRun = {
   targets: ProcessTarget[];
-  watchedSegmentId?: string;
+  watchedMaskId?: string;
 };
 
 /**
@@ -118,7 +118,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
    * is read here because `target.voxels` carries none and growth moves it.
    */
   function runMaskBounds(run: PreviewRun) {
-    const binding = segmentationStore.findSegmentBinding(run.target.segmentId);
+    const binding = segmentationStore.findMaskBinding(run.target.maskId);
     if (!binding || isEmptyExtent(binding.extent)) return undefined;
     const extent = [...binding.extent] as Extent3D;
     const [mi, mj, mk] = extentSize(extent);
@@ -141,7 +141,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     // Absent when no other segment's box reaches this one, which is the common
     // case: nothing can then be dropped, so the result is not walked at all.
     const claimVoxel = segmentationStore.voxelClaim(
-      run.target.segmentId,
+      run.target.maskId,
       'sweep',
       bounds.extent
     );
@@ -203,7 +203,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   const segmentationStore = useSegmentationStore();
-  const segmentTypes = useSegmentTypeStore().types;
+  const segmentRegistry = useSegmentStore().segments;
   const imageCacheStore = useImageCacheStore();
   const paintStore = usePaintToolStore();
   const messageStore = useMessageStore();
@@ -240,9 +240,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     );
   }
 
-  function targetFor(parentImageId: string, segmentId: string) {
+  function targetFor(parentImageId: string, maskId: string) {
     const parent = segmentationStore.getSegmentationForImage(parentImageId);
-    const voxels = segmentationStore.segmentVoxels(segmentId);
+    const voxels = segmentationStore.maskVoxels(maskId);
     const binding = voxels.binding();
     const image = parent && imageCacheStore.getVtkImageData(parentImageId);
     if (
@@ -256,7 +256,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     return {
       parentImageId,
       parentDimensions: [...image.getDimensions()] as [number, number, number],
-      segmentId,
+      maskId,
       voxels,
       maskExtent: [...binding.extent] as Extent3D,
       labelValue: binding.labelValue,
@@ -264,32 +264,32 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   function resolveSegmentScoped(imageId: string): ResolvedRun | undefined {
-    const segmentId = segmentationStore.findEditTarget(imageId);
-    if (!segmentId) {
+    const maskId = segmentationStore.findEditTarget(imageId);
+    if (!maskId) {
       messageStore.addError('No active segment selected');
       return undefined;
     }
-    if (segmentationStore.isLocked(segmentId)) {
+    if (segmentationStore.isLocked(maskId)) {
       messageStore.addError('Cannot process locked segment');
       return undefined;
     }
-    const target = targetFor(imageId, segmentId);
+    const target = targetFor(imageId, maskId);
     if (!target) {
       messageStore.addError('No segment content to process');
       return undefined;
     }
     return {
       targets: [target],
-      watchedSegmentId: segmentId,
+      watchedMaskId: maskId,
     };
   }
 
   // An image with segments on it and nothing editable is refusing for a reason
   // the user can act on, so it does not get the empty image's message.
   function nothingEditable(imageId: string) {
-    const segments = segmentationStore.imageSegments(imageId);
-    if (segments.length === 0) return 'No segmentation to process';
-    return segments.every((segment) => segmentationStore.isLocked(segment.id))
+    const masks = segmentationStore.imageMasks(imageId);
+    if (masks.length === 0) return 'No segmentation to process';
+    return masks.every((mask) => segmentationStore.isLocked(mask.id))
       ? 'Every segment is locked'
       : 'No unlocked segment has anything to process';
   }
@@ -299,9 +299,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // process.
   function resolveEverySegment(imageId: string): ResolvedRun | undefined {
     const targets = segmentationStore
-      .editableSegments(imageId)
-      .flatMap(({ segmentId }) => {
-        const target = targetFor(imageId, segmentId);
+      .editableMasks(imageId)
+      .flatMap(({ maskId }) => {
+        const target = targetFor(imageId, maskId);
         return target ? [target] : [];
       });
     if (targets.length === 0) {
@@ -337,7 +337,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       ? resolveSegmentScoped(imageId)
       : resolveEverySegment(imageId);
     if (!resolved) return;
-    const { targets, watchedSegmentId } = resolved;
+    const { targets, watchedMaskId } = resolved;
 
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
@@ -348,7 +348,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     processState.value = {
       step: 'computing',
       activeParentImageID: imageId,
-      watchedSegmentId,
+      watchedMaskId,
     };
 
     try {
@@ -384,7 +384,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       processState.value = {
         step: 'previewing',
         activeParentImageID: imageId,
-        watchedSegmentId,
+        watchedMaskId,
         runs,
         showingOriginal: false,
       };
@@ -466,17 +466,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // another throws it away. An all-segments run watches nothing and outlives
   // the selection changing under it.
   watch(
-    () => segmentTypes.selectedTypeId.value,
-    (typeId) => {
+    () => segmentRegistry.selectedSegmentId.value,
+    (segmentId) => {
       const state = processState.value;
       if (state.step !== 'computing' && state.step !== 'previewing') {
         return;
       }
-      const watched = state.watchedSegmentId;
+      const watched = state.watchedMaskId;
       if (watched === undefined) return;
       if (
-        segmentationStore.segmentExists(watched) &&
-        segmentationStore.getSegment(watched).typeId === typeId
+        segmentationStore.maskExists(watched) &&
+        segmentationStore.getMask(watched).segmentId === segmentId
       )
         return;
       cancelProcess();

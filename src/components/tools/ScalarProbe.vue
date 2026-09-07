@@ -9,7 +9,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useProbeStore } from '@/src/store/probe';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { NO_NAME } from '@/src/constants';
@@ -34,7 +34,7 @@ const {
 } = useCurrentImage();
 const imageCacheStore = useImageCacheStore();
 const segmentationStore = useSegmentationStore();
-const { types: segmentTypes } = useSegmentTypeStore();
+const { segments: segments } = useSegmentStore();
 const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
@@ -71,12 +71,12 @@ const getLayers = () =>
 // same ordered list.
 const getSegments = () => {
   if (!currentImageID.value) return [];
-  const layers = segmentationStore.segmentLayersForImage(currentImageID.value);
+  const layers = segmentationStore.maskLayersForImage(currentImageID.value);
   return segmentGroupsReps.value
     .map((rep, index) => {
       const layer = layers[index];
       if (!layer) return null;
-      const segment = segmentationStore.getSegment(layer.segmentId);
+      const segment = segmentationStore.getMask(layer.maskId);
       const voxels = segmentationStore.artifactVoxels(layer.artifactId);
       if (!voxels.exists()) return null;
       const catalog =
@@ -84,7 +84,7 @@ const getSegments = () => {
       return {
         type: 'segmentGroup',
         id: layer.artifactId,
-        name: segmentTypes.appearanceOf(segment.typeId).name,
+        name: segments.appearanceOf(segment.segmentId).name,
         rep,
         nameByLabelValue: Object.fromEntries(
           catalog.map((entry) => [entry.value, entry.name])

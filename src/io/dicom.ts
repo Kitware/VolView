@@ -189,14 +189,14 @@ export async function readVolumeSlice(
   return result.outputs[0].data as Image;
 }
 
-export type Segment = {
+export type SegmentMask = {
   SegmentLabel: string;
   labelID: number;
   recommendedDisplayRGBValue: [number, number, number];
 };
 
 export type ReadOverlappingSegmentationMeta = {
-  segmentAttributes: Segment[][];
+  segmentAttributes: SegmentMask[][];
 };
 
 type ReadOverlappingSegmentationResultWithRealMeta =

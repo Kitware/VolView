@@ -11,9 +11,9 @@ import {
   type Index3,
   seatImage as seatFixtureImage,
   store,
-  mintType,
+  mintSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useViewStore } from '@/src/store/views';
 
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ const DialogHostStub = (name: string) =>
 const globalOptions = {
   stubs: {
     EditableChipList: ChipListStub,
-    SegmentTypeEditor: { template: '<div class="segment-editor" />' },
+    SegmentEditor: { template: '<div class="segment-editor" />' },
     SaveSegmentGroupDialog: SaveDialogStub,
     IsolatedDialog: DialogHostStub('IsolatedDialog'),
     CloseableDialog: DialogHostStub('CloseableDialog'),
@@ -126,7 +126,7 @@ describe('saving from the flat segment panel', () => {
 
   it('offers one save affordance once the viewed image has segments', async () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, mintType({ name: 'Tumor' }));
+    store().createMask(segmentation.id, mintSegment({ name: 'Tumor' }));
     const wrapper = mountList();
     await nextTick();
 
@@ -137,7 +137,7 @@ describe('saving from the flat segment panel', () => {
 
   it('opens the save dialog on the viewed image segmentation', async () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createSegment(segmentation.id, mintType({ name: 'Tumor' }));
+    store().createMask(segmentation.id, mintSegment({ name: 'Tumor' }));
     const wrapper = mountList();
     await nextTick();
 
@@ -152,14 +152,14 @@ describe('saving from the flat segment panel', () => {
 
   it('follows the viewed image rather than the selected type', async () => {
     const first = store().ensureSegmentationForImage('img-1');
-    store().createSegment(first.id, mintType({ name: 'Tumor' }));
+    store().createMask(first.id, mintSegment({ name: 'Tumor' }));
     const second = store().ensureSegmentationForImage('img-2');
-    const onSecond = store().createSegment(
+    const onSecond = store().createMask(
       second.id,
-      mintType({ name: 'Node' })
+      mintSegment({ name: 'Node' })
     );
     // The selected type has its mask on the image that is NOT being viewed.
-    useSegmentTypeStore().types.selectType(onSecond.typeId);
+    useSegmentStore().segments.selectSegment(onSecond.segmentId);
     const wrapper = mountList();
     await nextTick();
 

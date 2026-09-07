@@ -12,7 +12,7 @@ import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import { segmentFillAlpha } from '@/src/components/vtk/segmentDisplay';
 import { usePolygonStore } from '@/src/store/tools/polygons';
@@ -20,7 +20,7 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 // ---------------------------------------------------------------------------
 // The 6.4.0 -> 7.0.0 structural migration. JSON only: every old segment group
 // becomes one `SegmentationArtifact`, every `{group, value}` becomes one
-// segment type plus one per-image record, and every old tool label becomes one
+// segment type plus one per-image mask, and every old tool label becomes one
 // type in its own registry. Identity is NEVER merged by name.
 // ---------------------------------------------------------------------------
 
@@ -100,7 +100,7 @@ const effectiveFill = (migrated: any, record: any, segmentation: any) =>
     {
       visible: true,
       color: [0, 0, 0, 255],
-      fillOpacity: typeOfRecord(migrated, record)?.fillOpacity ?? 1,
+      fillOpacity: segmentOfMask(migrated, record)?.fillOpacity ?? 1,
     } as any,
     segmentation.fillOpacity
   );
@@ -110,25 +110,25 @@ const segmentationFor = (migrated: any, parentImage: string) =>
     (entry: any) => entry.parentImage === parentImage
   );
 
-/** The type a migrated record references, off the manifest's own registry. */
-const typeOfRecord = (migrated: any, record: any) =>
-  migrated.segmentTypes.find((type: any) => type.id === record.typeId);
+/** The segment a migrated mask references, off the manifest's own registry. */
+const segmentOfMask = (migrated: any, mask: any) =>
+  migrated.segments.find((segment: any) => segment.id === mask.segmentId);
 
-/** Wire records of one segmentation with their type, in `order`. */
-const namedSegments = (migrated: any, segmentation: any) =>
-  orderedSegments(segmentation).map((record: any) => ({
-    ...record,
-    type: typeOfRecord(migrated, record),
+/** Wire masks of one segmentation with their segment, in `order`. */
+const namedMasks = (migrated: any, segmentation: any) =>
+  orderedMasks(segmentation).map((mask: any) => ({
+    ...mask,
+    segment: segmentOfMask(migrated, mask),
   }));
 
-/** Wire segments of one segmentation, in `order`. */
-const orderedSegments = (segmentation: any) =>
+/** Wire masks of one segmentation, in `order`. */
+const orderedMasks = (segmentation: any) =>
   segmentation.order.map((id: string) =>
-    segmentation.segments.find((segment: any) => segment.id === id)
+    segmentation.masks.find((segment: any) => segment.id === id)
   );
 
 const boundTo = (segmentation: any, artifactId: string, labelValue: number) =>
-  orderedSegments(segmentation).find(
+  orderedMasks(segmentation).find(
     (segment: any) =>
       segment.representations.labelmap?.artifactId === artifactId &&
       segment.representations.labelmap?.labelValue === labelValue
@@ -172,13 +172,13 @@ describe('migrate640To700: structural stage', () => {
     expect(segmentation.parentImage).toBe('ds-ct');
     expect(segmentation.order).toHaveLength(3);
 
-    const segments = namedSegments(migrated, segmentation);
+    const segments = namedMasks(migrated, segmentation);
     expect(
       segments.map((segment: any) => ({
-        name: segment.type.name,
-        color: segment.type.color,
-        visible: segment.type.visible,
-        locked: segment.type.locked,
+        name: segment.segment.name,
+        color: segment.segment.color,
+        visible: segment.segment.visible,
+        locked: segment.segment.locked,
         labelValue: segment.representations.labelmap.labelValue,
         artifactId: segment.representations.labelmap.artifactId,
       }))
@@ -224,7 +224,7 @@ describe('migrate640To700: structural stage', () => {
       outlineThickness: 2,
     }));
     expect(parsed.segmentations).toEqual(expectedSegmentations);
-    expect(parsed.segmentTypes).toEqual(migrated.segmentTypes);
+    expect(parsed.segments).toEqual(migrated.segments);
     expect(parsed.segmentationArtifacts![0]).toMatchObject({ id: 'sg-1' });
   });
 
@@ -320,8 +320,8 @@ describe('migrate640To700: structural stage', () => {
 
     const ct = segmentationFor(migrated, 'ds-ct');
     expect(
-      namedSegments(migrated, ct).map((segment: any) => [
-        segment.type.name,
+      namedMasks(migrated, ct).map((segment: any) => [
+        segment.segment.name,
         segment.representations.labelmap.artifactId,
       ])
     ).toEqual([
@@ -345,16 +345,16 @@ describe('migrate640To700: structural stage', () => {
     });
 
     const ct = segmentationFor(migrated, 'ds-ct');
-    const segments = namedSegments(migrated, ct);
-    expect(segments.map((segment: any) => segment.type.name)).toEqual([
+    const segments = namedMasks(migrated, ct);
+    expect(segments.map((segment: any) => segment.segment.name)).toEqual([
       'Segment 1',
       'Segment 1',
     ]);
     expect(new Set(segments.map((segment: any) => segment.id)).size).toBe(2);
     // One type per legacy segment: an equal name is not the same identity.
-    expect(new Set(segments.map((segment: any) => segment.typeId)).size).toBe(
-      2
-    );
+    expect(
+      new Set(segments.map((segment: any) => segment.segmentId)).size
+    ).toBe(2);
     expect(
       segments.map(
         (segment: any) => segment.representations.labelmap.artifactId
@@ -374,7 +374,7 @@ describe('migrate640To700: structural stage', () => {
       pendingDecode: true,
     });
     expect(
-      (migrated.segmentations ?? []).flatMap((entry: any) => entry.segments)
+      (migrated.segmentations ?? []).flatMap((entry: any) => entry.masks)
     ).toEqual([]);
 
     // The marker must survive the schema, or the loaded stage never sees it.
@@ -390,7 +390,7 @@ describe('migrate640To700: structural stage', () => {
 
     // No segment exists to activate yet, so the value travels on the artifact.
     expect(
-      (migrated.segmentations ?? []).flatMap((entry: any) => entry.segments)
+      (migrated.segmentations ?? []).flatMap((entry: any) => entry.masks)
     ).toEqual([]);
     expect(migrated.segmentationArtifacts[0].pendingActiveValue).toBe(2);
 
@@ -428,9 +428,9 @@ describe('migrate640To700: structural stage', () => {
     });
 
     const segmentation = segmentationFor(migrated, 'ds-ct');
-    const [record] = orderedSegments(segmentation);
+    const [record] = orderedMasks(segmentation);
     // A legacy group described what it showed, so both land on its type.
-    expect(typeOfRecord(migrated, record)).toMatchObject({
+    expect(segmentOfMask(migrated, record)).toMatchObject({
       visible: false,
       outlineOpacity: 0.25,
     });
@@ -451,7 +451,7 @@ describe('migrate640To700: structural stage', () => {
 
     const segmentation = segmentationFor(migrated, 'ds-ct');
     expect(
-      effectiveFill(migrated, orderedSegments(segmentation)[0], segmentation)
+      effectiveFill(migrated, orderedMasks(segmentation)[0], segmentation)
     ).toBeCloseTo(DEFAULT_SEGMENTATION_FILL_OPACITY);
   });
 
@@ -477,14 +477,14 @@ describe('migrate640To700: structural stage', () => {
     ) as any;
 
     const segmentation = segmentationFor(migrated, 'ds-ct');
-    const [tumor, edema] = orderedSegments(segmentation);
+    const [tumor, edema] = orderedMasks(segmentation);
     expect(effectiveFill(migrated, tumor, segmentation)).toBeCloseTo(0.2);
     expect(effectiveFill(migrated, edema, segmentation)).toBeCloseTo(0.8);
     // The per-type share only holds a fraction, so the larger of the two is
     // what the segmentation carries.
     expect(
-      orderedSegments(segmentation).map(
-        (record: any) => typeOfRecord(migrated, record).fillOpacity <= 1
+      orderedMasks(segmentation).map(
+        (record: any) => segmentOfMask(migrated, record).fillOpacity <= 1
       )
     ).toEqual([true, true]);
   });
@@ -564,7 +564,7 @@ describe('migrate640To700: structural stage', () => {
 
     const ct = segmentationFor(migrated, 'ds-ct');
     // The selection is a type now, and it is the one that legacy pair became.
-    expect(migrated.selectedSegmentType).toBe(boundTo(ct, 'sg-b', 2).typeId);
+    expect(migrated.selectedSegment).toBe(boundTo(ct, 'sg-b', 2).segmentId);
 
     // Identity left the paint block entirely; its own settings survive.
     expect(migrated.tools.paint.activeSegmentGroupID).toBeUndefined();
@@ -601,15 +601,15 @@ describe('migrate640To700: structural stage', () => {
     });
 
     // One type, referenced by both shapes: identity is no longer per image.
-    const [typeId] = migrated.segmentTypes.map((type: any) => type.id);
-    expect(migrated.segmentTypes).toEqual([
-      { id: typeId, name: 'Tumor', color: [255, 0, 0, 255], strokeWidth: 3 },
+    const [segmentId] = migrated.segments.map((segment: any) => segment.id);
+    expect(migrated.segments).toEqual([
+      { id: segmentId, name: 'Tumor', color: [255, 0, 0, 255], strokeWidth: 3 },
     ]);
     expect(
-      migrated.tools.polygons.tools.map((tool: any) => tool.typeId)
-    ).toEqual([typeId, typeId]);
+      migrated.tools.polygons.tools.map((tool: any) => tool.segmentId)
+    ).toEqual([segmentId, segmentId]);
     expect(migrated.tools.polygons.labels).toBeUndefined();
-    // A label has no voxels, so it brings no per-image record with it.
+    // A label has no voxels, so it brings no per-image mask with it.
     expect(migrated.segmentations).toBeUndefined();
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
@@ -642,15 +642,18 @@ describe('migrate640To700: structural stage', () => {
       },
     });
 
-    // Both labels became types; the picker offered them before and still does.
+    // Both labels became segments; the picker offered them before and still does.
     expect(
-      migrated.segmentTypes.map((type: any) => [type.name, type.strokeWidth])
+      migrated.segments.map((segment: any) => [
+        segment.name,
+        segment.strokeWidth,
+      ])
     ).toEqual([
       ['Tumor', 3],
       ['Node', 1],
     ]);
-    const [tumorType] = migrated.segmentTypes;
-    expect(migrated.tools.polygons.tools[0].typeId).toBe(tumorType.id);
+    const [tumorType] = migrated.segments;
+    expect(migrated.tools.polygons.tools[0].segmentId).toBe(tumorType.id);
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
 
@@ -678,7 +681,7 @@ describe('migrate640To700: structural stage', () => {
     });
 
     expect(
-      migrated.segmentTypes.map((type: any) => [type.name, type.color])
+      migrated.segments.map((segment: any) => [segment.name, segment.color])
     ).toEqual([
       ['Named', [0, 0, 255, 255]],
       ['Hex', [0, 255, 0, 255]],
@@ -709,7 +712,7 @@ describe('migrate640To700: structural stage', () => {
     });
 
     expect(migrated.version).toBe(MANIFEST_VERSION);
-    expect(migrated.rulerTypes).toEqual([
+    expect(migrated.rulerSegments).toEqual([
       {
         id: expect.any(String),
         name: 'Long axis',
@@ -717,13 +720,13 @@ describe('migrate640To700: structural stage', () => {
       },
     ]);
     expect(migrated.tools.rulers.labels).toBeUndefined();
-    expect(migrated.tools.rulers.tools[0].typeId).toBe(
-      migrated.rulerTypes[0].id
+    expect(migrated.tools.rulers.tools[0].segmentId).toBe(
+      migrated.rulerSegments[0].id
     );
     // Rulers delineate nothing: no shared type and no record is minted.
-    expect(migrated.segmentTypes).toBeUndefined();
+    expect(migrated.segments).toBeUndefined();
     expect(
-      (migrated.segmentations ?? []).flatMap((entry: any) => entry.segments)
+      (migrated.segmentations ?? []).flatMap((entry: any) => entry.masks)
     ).toEqual([]);
   });
 });
@@ -771,15 +774,15 @@ const makeArtifactIO = () => {
 
 const snapshot = (imageId: string) => {
   const store = useSegmentationStore();
-  const types = useSegmentTypeStore().types;
+  const segments = useSegmentStore().segments;
   const segmentation = store.getSegmentationForImage(imageId)!;
-  const selectedTypeId = types.selectedTypeId.value;
+  const selectedSegmentId = segments.selectedSegmentId.value;
   return {
     name: segmentation.name,
-    segments: segmentation.order.map((segmentId) => {
-      const segment = segmentation.segments[segmentId];
+    segments: segmentation.order.map((maskId) => {
+      const segment = segmentation.masks[maskId];
       const binding = segment.representations.labelmap;
-      const appearance = types.appearanceOf(segment.typeId);
+      const appearance = segments.appearanceOf(segment.segmentId);
       return {
         name: appearance.name,
         color: [...appearance.color],
@@ -795,8 +798,8 @@ const snapshot = (imageId: string) => {
         },
       };
     }),
-    selectedTypeName: selectedTypeId
-      ? types.appearanceOf(selectedTypeId).name
+    selectedTypeName: selectedSegmentId
+      ? segments.appearanceOf(selectedSegmentId).name
       : undefined,
     display: {
       fillOpacity: segmentation.fillOpacity,
@@ -918,10 +921,10 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     const store = useSegmentationStore();
     const segmentation = store.getSegmentationForImage('store-ct')!;
     const bindings = segmentation.order.map(
-      (id) => segmentation.segments[id].representations.labelmap
+      (id) => segmentation.masks[id].representations.labelmap
     );
     // A polygon's type brings no record with it, so this image holds only the
-    // two labelmap records the group split into.
+    // two masks the group split into.
     expect(bindings.map((binding) => binding?.labelValue)).toEqual([1, 2]);
     expect(bindings.map((binding) => binding && [...binding.extent])).toEqual([
       [0, 3, 1, 2, 0, 0],
@@ -933,12 +936,14 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     await restoreLegacyScene();
 
     const store = useSegmentationStore();
-    const types = useSegmentTypeStore().types;
+    const segments = useSegmentStore().segments;
     const segmentation = store.getSegmentationForImage('store-ct')!;
-    expect(types.appearanceOf(types.selectedTypeId.value).name).toBe('Edema');
+    expect(segments.appearanceOf(segments.selectedSegmentId.value).name).toBe(
+      'Edema'
+    );
     expect(
       segmentation.order.map(
-        (id) => types.appearanceOf(segmentation.segments[id].typeId).name
+        (id) => segments.appearanceOf(segmentation.masks[id].segmentId).name
       )
     ).toEqual(['Tumor', 'Edema']);
 
@@ -947,19 +952,19 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     expect(polygons.appearanceOfTool(tool.id).name).toBe('Drawn');
   });
 
-  it('restores legacy display state onto the types and the records', async () => {
+  it('restores legacy display state onto the segments and the records', async () => {
     await restoreLegacyScene();
 
-    const types = useSegmentTypeStore().types;
+    const segments = useSegmentStore().segments;
     const segmentation =
       useSegmentationStore().getSegmentationForImage('store-ct')!;
-    const records = segmentation.order.map((id) => segmentation.segments[id]);
+    const records = segmentation.order.map((id) => segmentation.masks[id]);
     // A legacy group described the thing, so its visibility is the type's.
     expect(
-      records.map((record) => types.appearanceOf(record.typeId).visible)
+      records.map((record) => segments.appearanceOf(record.segmentId).visible)
     ).toEqual([false, false]);
     records.forEach((record) => {
-      const appearance = types.appearanceOf(record.typeId);
+      const appearance = segments.appearanceOf(record.segmentId);
       expect(appearance.outlineOpacity).toBeCloseTo(0.25);
       // Both groups rendered at the legacy 0.4, and that is what the restored
       // pair of opacities has to come to.
@@ -967,8 +972,8 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
         0.4
       );
     });
-    const drawn = types.findTypeByName('Drawn')!;
-    expect(types.appearanceOf(drawn.id)).toMatchObject({
+    const drawn = segments.findSegmentByName('Drawn')!;
+    expect(segments.appearanceOf(drawn.id)).toMatchObject({
       fillOpacity: 1,
       outlineOpacity: 1,
     });
@@ -978,15 +983,17 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
   it('offers a legacy label no tool used as a type with no content', async () => {
     await restoreLegacyScene();
 
-    const types = usePolygonStore().types;
-    expect(types.typeList.value.map((type) => type.name)).toContain('Planned');
+    const segments = usePolygonStore().segments;
+    expect(segments.segmentList.value.map((segment) => segment.name)).toContain(
+      'Planned'
+    );
 
     // Offered, not painted: nothing was drawn with it.
     const segmentation =
       useSegmentationStore().getSegmentationForImage('store-ct')!;
     expect(
       segmentation.order.map(
-        (id) => types.appearanceOf(segmentation.segments[id].typeId).name
+        (id) => segments.appearanceOf(segmentation.masks[id].segmentId).name
       )
     ).not.toContain('Planned');
   });
@@ -1006,7 +1013,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
       tools: {},
     } as unknown as Manifest;
 
-    useSegmentTypeStore().serialize({ zip, manifest });
+    useSegmentStore().serialize({ zip, manifest });
     await useSegmentationStore().serialize({ zip, manifest }, io);
     const saved = ManifestSchema.parse(manifest) as any;
     expect(saved.version).toBe(MANIFEST_VERSION);
@@ -1028,7 +1035,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
       saved,
       stateFiles,
       { 'store-ct': 'new-ct' },
-      useSegmentTypeStore().deserialize(saved),
+      useSegmentStore().deserialize(saved),
       {},
       io
     );
@@ -1037,7 +1044,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     expect(snapshot('new-ct')).toEqual(before);
   });
 
-  it('keeps colliding legacy identifiers as distinct types', () => {
+  it('keeps colliding legacy identifiers as distinct segments', () => {
     // Group 'polygons' value 1 and a polygon label '1' both interpolate to
     // 'polygons-1'.
     const migrated: any = migrateManifest(
@@ -1070,11 +1077,11 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
       })
     );
 
-    const typeIds = migrated.segmentTypes.map((type: any) => type.id);
+    const segmentIds = migrated.segments.map((segment: any) => segment.id);
     // Both sources interpolate to 'polygons-1'; the second is suffixed.
-    expect(typeIds).toEqual(['polygons-1', 'polygons-1-2']);
-    expect(migrated.tools.polygons.tools[0].typeId).toBe('polygons-1-2');
+    expect(segmentIds).toEqual(['polygons-1', 'polygons-1-2']);
+    expect(migrated.tools.polygons.tools[0].segmentId).toBe('polygons-1-2');
     // The record that group became keeps an id of its own.
-    expect(migrated.segmentations[0].segments[0].typeId).toBe('polygons-1');
+    expect(migrated.segmentations[0].masks[0].segmentId).toBe('polygons-1');
   });
 });

@@ -28,8 +28,8 @@ type WireVector3 = [number, number, number];
 // view accepts any 3-number-indexable so callers need no casts.
 type PointLike = ArrayLike<number>;
 
-// A segment type as its registry holds it, keyed by type id. Fill color is a
-// per-shape prop now, so it is not part of what a type states.
+// A segment as its registry holds it, keyed by segment id. Fill color is a
+// per-shape prop now, so it is not part of what a segment states.
 export type AnnotationLabelView = {
   labelName?: string;
   color?: string;

@@ -12,10 +12,10 @@ import {
 import type {
   Extent3D,
   LabelmapBinding,
-  Segment,
+  SegmentMask,
   Segmentation,
 } from '@/src/types/segmentation';
-import { resolveSegmentType } from '@/src/types/segmentType';
+import { resolveSegmentAppearance } from '@/src/types/segment';
 
 describe('emptyExtent', () => {
   it('is the pinned empty sentinel', () => {
@@ -98,11 +98,11 @@ describe('color conversion of existing label colors', () => {
   });
 });
 
-describe('labelmap record model', () => {
+describe('mask model', () => {
   it('holds no labelmap binding until voxels are allocated', () => {
-    const segment: Segment = {
+    const segment: SegmentMask = {
       id: 'segment-1',
-      typeId: 'type-1',
+      segmentId: 'segment-1',
       representations: {},
     };
 
@@ -115,9 +115,9 @@ describe('labelmap record model', () => {
       labelValue: 3,
       extent: [0, 9, 0, 19, 0, 29],
     };
-    const segment: Segment = {
+    const segment: SegmentMask = {
       id: 'segment-1',
-      typeId: 'type-1',
+      segmentId: 'segment-1',
       representations: { labelmap: binding },
     };
 
@@ -130,18 +130,18 @@ describe('labelmap record model', () => {
   });
 
   it('keeps record order separate from the records themselves', () => {
-    const makeSegment = (id: string, typeId: string): Segment => ({
+    const makeMask = (id: string, segmentId: string): SegmentMask => ({
       id,
-      typeId,
+      segmentId,
       representations: {},
     });
     const segmentation: Segmentation = {
       id: 'segmentation-1',
       name: 'Segmentation',
       parentImageId: 'image-1',
-      segments: {
-        'segment-1': makeSegment('segment-1', 'type-1'),
-        'segment-2': makeSegment('segment-2', 'type-2'),
+      masks: {
+        'segment-1': makeMask('segment-1', 'segment-1'),
+        'segment-2': makeMask('segment-2', 'segment-2'),
       },
       order: ['segment-2', 'segment-1'],
       fillOpacity: 1,
@@ -150,7 +150,7 @@ describe('labelmap record model', () => {
     };
 
     expect(segmentation.order).toEqual(['segment-2', 'segment-1']);
-    expect(Object.keys(segmentation.segments).sort()).toEqual([
+    expect(Object.keys(segmentation.masks).sort()).toEqual([
       'segment-1',
       'segment-2',
     ]);
@@ -159,8 +159,8 @@ describe('labelmap record model', () => {
 
 describe('the appearance resolver', () => {
   it('fills the app defaults for what a type leaves unset', () => {
-    const resolved = resolveSegmentType({
-      id: 'type-1',
+    const resolved = resolveSegmentAppearance({
+      id: 'segment-1',
       name: 'Tumor',
       color: [255, 0, 0, 255],
       visible: true,
@@ -176,8 +176,8 @@ describe('the appearance resolver', () => {
   });
 
   it('keeps what a type does state', () => {
-    const resolved = resolveSegmentType({
-      id: 'type-1',
+    const resolved = resolveSegmentAppearance({
+      id: 'segment-1',
       name: 'Tumor',
       color: [255, 0, 0, 255],
       visible: false,
@@ -193,7 +193,7 @@ describe('the appearance resolver', () => {
   });
 
   it('answers for a type that is gone', () => {
-    const resolved = resolveSegmentType(undefined);
+    const resolved = resolveSegmentAppearance(undefined);
 
     expect(resolved.name).toBe('');
     expect(resolved.fillOpacity).toBe(1);

@@ -166,7 +166,7 @@ export default defineComponent({
       tool,
       slice,
       appearance: computed(() =>
-        toolStore.types.appearanceOf(tool.value?.typeId)
+        toolStore.segments.appearanceOf(tool.value?.segmentId)
       ),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;

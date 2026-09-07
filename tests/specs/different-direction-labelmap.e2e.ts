@@ -19,7 +19,7 @@ import {
  *
  * The prostate DICOM and TotalSegmenter segment group have different direction matrices:
  *   Base image:     [1, 0, 0,  0,  0.97, -0.24,  0, 0.24, 0.97]
- *   Segment group:  [1, 0, 0,  0, -0.97,  0.24,  0, 0.24, 0.97]
+ *   SegmentMask group:  [1, 0, 0,  0, -0.97,  0.24,  0, 0.24, 0.97]
  *
  * This caused bugs where paint tool painted at wrong location and
  * coronal slice didn't show segment overlay.

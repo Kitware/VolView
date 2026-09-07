@@ -4,7 +4,7 @@ By loading a JSON file, you can set VolView's configuration:
 
 - View layouts (grid size, view types, or hierarchical layouts)
 - Disabled view types
-- Segment types
+- Segments
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
@@ -149,19 +149,19 @@ Use `disabledViewTypes` to prevent certain view types from being available in th
 
 This removes the specified view types from the dropdown menu and replaces them in the default layout with allowed types. Valid values: `"2D"`, `"3D"`, `"Oblique"`
 
-## Segment types
+## Segments
 
-Paint, rectangles and polygons share one registry of segment types, configured under
-`segmentTypes`. Rulers have their own, configured under `rulerTypes`. Each entry is keyed
+Paint, rectangles and polygons share one registry of segments, configured under
+`segments`. Rulers have their own, configured under `rulerSegments`. Each entry is keyed
 by name, and every appearance field is optional: an omitted one means the app default.
 
 ```json
 {
-  "segmentTypes": {
+  "segments": {
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 }
   },
-  "rulerTypes": {
+  "rulerSegments": {
     "big": { "color": "#ff0000" }
   }
 }
@@ -170,13 +170,13 @@ by name, and every appearance field is optional: an omitted one means the app de
 Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
 
 Omitting a key leaves that registry alone. An empty record (`{}`) or `null` clears what an
-earlier config contributed, keeping any type your content still references. A configured
-type keeps its id across config changes, so renaming or recoloring one never detaches the
-masks and shapes that reference it.
+earlier config contributed, keeping any segment your content still references. A configured
+segment keeps its id across config changes, so renaming or recoloring one never detaches
+the masks and shapes that reference it.
 
 Converting a pre-7.0 config: `defaultLabels`, `rectangleLabels` and `polygonLabels` all
-become `segmentTypes` entries, and `rulerLabels` becomes `rulerTypes`. A rectangle label's
-`fillColor` has no equivalent: fill color is a property of the rectangle, not of the type.
+become `segments` entries, and `rulerLabels` becomes `rulerSegments`. A rectangle label's
+`fillColor` has no equivalent: fill color is a property of the rectangle, not of the segment.
 
 ```json
 {
@@ -191,8 +191,8 @@ becomes
 
 ```json
 {
-  "segmentTypes": { "lesion": { "color": "#ff0000" } },
-  "rulerTypes": { "big": { "color": "#ff0000" } }
+  "segments": { "lesion": { "color": "#ff0000" } },
+  "rulerSegments": { "big": { "color": "#ff0000" } }
 }
 ```
 
@@ -276,7 +276,7 @@ To configure a key for an action, add its action name and the key(s) under the `
 
 ```json
 {
-  "segmentTypes": {
+  "segments": {
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3 }
   },
@@ -292,12 +292,12 @@ To configure a key for an action, add its action name and the key(s) under the `
 
 ```json
 {
-  "segmentTypes": {
+  "segments": {
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 },
     "innocuous": { "color": "white", "outlineOpacity": 0.8 }
   },
-  "rulerTypes": {
+  "rulerSegments": {
     "big": { "color": "#ff0000" },
     "small": { "color": "white" }
   },

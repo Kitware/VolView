@@ -36,7 +36,7 @@ const tool = computed(() => {
 });
 
 const appearance = computed(() =>
-  props.toolStore.types.appearanceOf(tool.value?.typeId)
+  props.toolStore.segments.appearanceOf(tool.value?.segmentId)
 );
 
 const deleteToolFromContextMenu = () => {

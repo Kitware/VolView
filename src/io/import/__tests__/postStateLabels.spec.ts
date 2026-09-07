@@ -7,7 +7,7 @@ import {
   recordingRestoreProcessors,
   yields,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 
 const sessionFile = () =>
@@ -17,7 +17,7 @@ const configFile = () =>
   new File(
     [
       JSON.stringify({
-        segmentTypes: {
+        segments: {
           Configured: { color: '#0000ff' },
         },
       }),
@@ -29,7 +29,7 @@ const configFile = () =>
 const RESTORED_MANIFEST = {
   version: '7.0.0',
   dataSources: [],
-  segmentTypes: [
+  segments: [
     {
       id: 'wire-restored',
       name: 'Restored',
@@ -53,26 +53,26 @@ describe('post-state segment type config', () => {
     setActivePinia(createPinia());
   });
 
-  it('applies configured types after the restored registry', async () => {
+  it('applies configured segments after the restored registry', async () => {
     let configWasVisibleDuringRestore = false;
     const restore = recordingRestoreProcessors({
       setup,
       completion: async () => {
-        const typeIdMap = useSegmentTypeStore().deserialize(RESTORED_MANIFEST);
+        const segmentIdMap = useSegmentStore().deserialize(RESTORED_MANIFEST);
         configWasVisibleDuringRestore =
-          !!useSegmentTypeStore().types.findTypeByName('Configured');
+          !!useSegmentStore().segments.findSegmentByName('Configured');
         useRectangleStore().deserializeTools(
           {
             tools: [
               {
                 imageID: 'img-1',
-                typeId: 'wire-restored',
+                segmentId: 'wire-restored',
                 placing: false,
               },
             ],
           },
           { 'img-1': 'img-1' },
-          typeIdMap
+          segmentIdMap
         );
       },
     });
@@ -97,10 +97,9 @@ describe('post-state segment type config', () => {
     // Restore seats its registry first; the config layers on top of it.
     expect(configWasVisibleDuringRestore).toBe(false);
     const rectangles = useRectangleStore();
-    expect(rectangles.types.typeList.value.map((type) => type.name)).toEqual([
-      'Restored',
-      'Configured',
-    ]);
+    expect(
+      rectangles.segments.segmentList.value.map((type) => type.name)
+    ).toEqual(['Restored', 'Configured']);
     const tool = rectangles.toolByID[rectangles.toolIDs[0]];
     expect(rectangles.appearanceOfTool(tool.id)).toMatchObject({
       name: 'Restored',

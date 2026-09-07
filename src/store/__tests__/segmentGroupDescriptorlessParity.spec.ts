@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
@@ -156,10 +156,10 @@ const catalogFor = (parentImageId: string) => {
     useSegmentationStore().getSegmentationForImage(parentImageId);
   if (!segmentation) return [];
   return segmentation.order
-    .map((id) => segmentation.segments[id])
+    .map((id) => segmentation.masks[id])
     .map((segment) => {
-      const appearance = useSegmentTypeStore().types.appearanceOf(
-        segment.typeId
+      const appearance = useSegmentStore().segments.appearanceOf(
+        segment.segmentId
       );
       return {
         name: appearance.name,
@@ -228,24 +228,24 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     const segmentation =
       useSegmentationStore().getSegmentationForImage('parent-store')!;
-    const types = useSegmentTypeStore().types;
-    const segments = segmentation.order.map((id) => segmentation.segments[id]);
-    // Fill renders as the product of the type's share and the image's
+    const registry = useSegmentStore().segments;
+    const masks = segmentation.order.map((id) => segmentation.masks[id]);
+    // Fill renders as the product of the segment's share and the image's
     // multiplier, and 0.4 is what the legacy group showed.
     expect(
-      segments.map(
+      masks.map(
         (segment) =>
-          types.appearanceOf(segment.typeId).fillOpacity *
+          registry.appearanceOf(segment.segmentId).fillOpacity *
           segmentation.fillOpacity
       )
     ).toEqual([0.4, 0.4]);
     expect(
-      segments.map(
-        (segment) => types.appearanceOf(segment.typeId).outlineOpacity
+      masks.map(
+        (segment) => registry.appearanceOf(segment.segmentId).outlineOpacity
       )
     ).toEqual([0.25, 0.25]);
     expect(
-      segments.map((segment) => types.appearanceOf(segment.typeId).visible)
+      masks.map((segment) => registry.appearanceOf(segment.segmentId).visible)
     ).toEqual([false, false]);
     expect(segmentation.outlineThickness).toBe(5);
   });
@@ -293,10 +293,10 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       { 'ds-ct': 'parent-store' }
     );
 
-    const segments = catalogFor('parent-store');
-    expect(segments.map((segment) => segment.labelValue)).toEqual([1, 2]);
-    expect(segments[0].name).toBe('Segment 1');
-    expect(segments[1]).toMatchObject({
+    const catalog = catalogFor('parent-store');
+    expect(catalog.map((entry) => entry.labelValue)).toEqual([1, 2]);
+    expect(catalog[0].name).toBe('Segment 1');
+    expect(catalog[1]).toMatchObject({
       name: 'Tumor core',
       color: [255, 0, 0, 255],
     });

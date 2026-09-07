@@ -7,7 +7,7 @@ import { ToolID } from '@/src/types/annotation-tool';
 import { RULER_TYPE_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { createSegmentTypeRegistry } from './segmentTypeRegistry';
+import { createSegmentRegistry } from './segmentRegistry';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -24,17 +24,18 @@ const rulerDefaults = () => ({
 
 export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   // Rulers delineate nothing on an image, so they hold their own instance of
-  // the registry: its types are theirs alone, selection included.
-  const rulerTypes = createSegmentTypeRegistry({
+  // the registry: its segments are theirs alone, selection included.
+  const rulerSegments = createSegmentRegistry({
     namePrefix: 'Label',
     defaults: RULER_TYPE_DEFAULTS,
-    hasReferences: (typeId) => annotationTool.hasToolsOfType(typeId),
-    removeReferences: (typeId) => annotationTool.removeToolsOfType(typeId),
+    hasReferences: (segmentId) => annotationTool.hasToolsOfSegment(segmentId),
+    removeReferences: (segmentId) =>
+      annotationTool.removeToolsOfSegment(segmentId),
   });
 
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
-    types: () => rulerTypes,
+    segments: () => rulerSegments,
   });
 
   // prefix some props with ruler
@@ -68,7 +69,7 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   // --- serialization --- //
 
   function serialize(state: StateFile) {
-    state.manifest.rulerTypes = rulerTypes.serialize();
+    state.manifest.rulerSegments = rulerSegments.serialize();
     if (!state.manifest.tools) return;
     state.manifest.tools.rulers = serializeTools();
   }
@@ -77,7 +78,7 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     deserializeTools(
       manifest.tools?.rulers,
       dataIDMap,
-      rulerTypes.adopt(manifest.rulerTypes)
+      rulerSegments.adopt(manifest.rulerSegments)
     );
   }
 

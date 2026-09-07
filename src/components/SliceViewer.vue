@@ -98,9 +98,9 @@
           ></vtk-base-slice-representation>
           <vtk-segmentation-slice-representation
             v-for="layer in segmentLayers"
-            :key="`seg-${layer.segmentId}`"
+            :key="`seg-${layer.maskId}`"
             :view-id="viewId"
-            :segment-id="layer.segmentId"
+            :mask-id="layer.maskId"
             :stack-index="layer.stackIndex"
             :axis="viewAxis"
             ref="segSliceReps"
@@ -269,7 +269,7 @@ onVTKEvent(currentImageData, 'onModified', () => {
 // One actor per segment, stacked by its place in `segmentation.order`.
 const segmentLayers = computed(() => {
   if (!currentImageID.value) return [];
-  return useSegmentationStore().segmentLayersForImage(currentImageID.value);
+  return useSegmentationStore().maskLayersForImage(currentImageID.value);
 });
 
 // --- selection points --- //

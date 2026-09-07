@@ -161,7 +161,7 @@ import {
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { listSegments } from '@/src/types/segmentation';
+import { listMasks } from '@/src/types/segmentation';
 import { useMessageStore } from '@/src/store/messages';
 
 import TaskPicker from './TaskPicker.vue';
@@ -557,7 +557,7 @@ const overlapSignal = () =>
     currentImageID.value,
     maskRevision.value,
     ...Object.values(segmentationStore.segmentations).map((segmentation) =>
-      listSegments(segmentation)
+      listMasks(segmentation)
         .map((segment) => segment.representations.labelmap?.extent.join() ?? '')
         .join(',')
     ),

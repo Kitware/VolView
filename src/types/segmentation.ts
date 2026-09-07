@@ -21,9 +21,9 @@ export type LabelmapBinding = {
  * type id: everything the user sees or sets, visibility and lock included,
  * lives on the type, so this record is storage and nothing else.
  */
-export type Segment = {
+export type SegmentMask = {
   id: string;
-  typeId: string;
+  segmentId: string;
   representations: {
     // absent until voxels are allocated
     labelmap?: LabelmapBinding;
@@ -60,7 +60,7 @@ export type Segmentation = {
   id: string;
   name: string;
   parentImageId: string;
-  segments: Record<string, Segment>;
+  masks: Record<string, SegmentMask>;
   order: string[];
   fillOpacity: number;
   outlineOpacity: number;
@@ -118,7 +118,7 @@ export type VoxelStorage = {
  * deletion or a growth sees the current state, not a stale one. `exists()` is
  * false, and every storage method throws, before `materialize()`.
  */
-export type SegmentVoxelAccessor = VoxelStorage & {
+export type MaskVoxelAccessor = VoxelStorage & {
   /** The current binding, or undefined before any voxels are allocated. */
   binding(): LabelmapBinding | undefined;
   /** Allocates storage if needed and returns the binding. Idempotent. */
@@ -126,8 +126,8 @@ export type SegmentVoxelAccessor = VoxelStorage & {
 };
 
 /** Segments in display order. `order` is the authority, `segments` the store. */
-export function listSegments(segmentation: Segmentation) {
-  return segmentation.order.map((id) => segmentation.segments[id]);
+export function listMasks(segmentation: Segmentation) {
+  return segmentation.order.map((id) => segmentation.masks[id]);
 }
 
 export function emptyExtent(): Extent3D {

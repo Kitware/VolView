@@ -69,7 +69,7 @@ export default defineComponent({
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { selectedTypeId } = activeToolStore.types;
+    const { selectedSegmentId } = activeToolStore.segments;
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
@@ -86,7 +86,7 @@ export default defineComponent({
         return {
           imageID: currentImageID.value,
           ...locatorPatch(locator.value),
-          typeId: selectedTypeId.value ?? '',
+          segmentId: selectedSegmentId.value ?? '',
         };
       })
     );

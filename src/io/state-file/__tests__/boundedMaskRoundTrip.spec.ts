@@ -6,14 +6,14 @@ import JSZip from 'jszip';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { migrateManifest } from '@/src/io/state-file/migrations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { isEmptyExtent, listSegments } from '@/src/types/segmentation';
+import { isEmptyExtent, listMasks } from '@/src/types/segmentation';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
-  addSegment,
+  addMask,
   extentOf,
   markedVoxels,
   parentImage,
@@ -61,18 +61,18 @@ const makeArtifactIO = () => {
 };
 
 /** The name the record shows, which lives on the type it references. */
-const nameOf = (segment: { typeId: string }) =>
-  useSegmentTypeStore().types.appearanceOf(segment.typeId).name;
+const nameOf = (segment: { segmentId: string }) =>
+  useSegmentStore().segments.appearanceOf(segment.segmentId).name;
 
 /** Everything about a segment's voxels the round trip has to preserve. */
 const snapshot = (imageId: string) =>
-  listSegments(store().getSegmentationForImage(imageId)!).map((segment) => ({
+  listMasks(store().getSegmentationForImage(imageId)!).map((segment) => ({
     name: nameOf(segment),
     extent: segment.representations.labelmap
       ? [...segment.representations.labelmap.extent]
       : undefined,
     dimensions: segment.representations.labelmap
-      ? store().segmentVoxels(segment.id).image().getDimensions()
+      ? store().maskVoxels(segment.id).image().getDimensions()
       : undefined,
     marks: markedVoxels(segment.id),
   }));
@@ -80,12 +80,12 @@ const snapshot = (imageId: string) =>
 const wireSegmentation = (manifest: any) =>
   manifest.segmentations.find((entry: any) => entry.parentImage === 'img-1');
 
-const wireTypeId = (manifest: any, name: string) =>
-  manifest.segmentTypes.find((type: any) => type.name === name)?.id;
+const wireSegmentId = (manifest: any, name: string) =>
+  manifest.segments.find((type: any) => type.name === name)?.id;
 
-const wireSegment = (manifest: any, name: string) =>
-  wireSegmentation(manifest).segments.find(
-    (segment: any) => segment.typeId === wireTypeId(manifest, name)
+const wireMask = (manifest: any, name: string) =>
+  wireSegmentation(manifest).masks.find(
+    (segment: any) => segment.segmentId === wireSegmentId(manifest, name)
   );
 
 function wireArtifactFor(manifest: any, segment: any) {
@@ -98,8 +98,8 @@ function wireArtifactFor(manifest: any, segment: any) {
 
 function pointNodeAtTumorArtifact(manifest: any) {
   const segmentation = wireSegmentation(manifest);
-  const tumor = wireSegment(manifest, 'Tumor');
-  const node = wireSegment(manifest, 'Node');
+  const tumor = wireMask(manifest, 'Tumor');
+  const node = wireMask(manifest, 'Node');
   const tumorArtifact = wireArtifactFor(manifest, tumor);
   const nodeArtifactId = node.representations.labelmap.artifactId;
   node.representations.labelmap.artifactId = tumorArtifact.id;
@@ -107,7 +107,7 @@ function pointNodeAtTumorArtifact(manifest: any) {
 }
 
 const restoredSegment = (name: string) =>
-  listSegments(store().getSegmentationForImage('new-1')!).find(
+  listMasks(store().getSegmentationForImage('new-1')!).find(
     (segment) => nameOf(segment) === name
   )!;
 
@@ -115,18 +115,18 @@ async function buildScene() {
   await seatImage('img-1', { ...GRID, name: 'CT A' });
   await seatImage('img-2', { ...GRID, name: 'CT B' });
 
-  const tumor = addSegment('img-1', 'Tumor');
+  const tumor = addMask('img-1', 'Tumor');
   seedVoxel(tumor, [1, 1, 1]);
   seedVoxel(tumor, [2, 1, 1]);
-  const node = addSegment('img-1', 'Node');
+  const node = addMask('img-1', 'Node');
   seedVoxel(node, [3, 3, 3]);
   // Materialized and never drawn on: storage exists and covers nothing.
-  const planned = addSegment('img-1', 'Planned');
-  store().segmentVoxels(planned).materialize();
+  const planned = addMask('img-1', 'Planned');
+  store().maskVoxels(planned).materialize();
   // No storage at all.
-  addSegment('img-1', 'Unbound');
+  addMask('img-1', 'Unbound');
 
-  const other = addSegment('img-2', 'Tumor');
+  const other = addMask('img-2', 'Tumor');
   seedVoxel(other, [0, 0, 0]);
   await nextTick();
 }
@@ -151,7 +151,7 @@ async function roundTrip(
 ) {
   const zip = new JSZip();
   const manifest = emptyManifest();
-  useSegmentTypeStore().serialize({ zip, manifest });
+  useSegmentStore().serialize({ zip, manifest });
   await store().serialize({ zip, manifest }, io);
 
   const parsed = ManifestSchema.parse(manifest) as any;
@@ -173,7 +173,7 @@ async function roundTrip(
     parsed,
     stateFiles,
     { 'img-1': 'new-1', 'img-2': 'new-2' },
-    useSegmentTypeStore().deserialize(parsed),
+    useSegmentStore().deserialize(parsed),
     {},
     io
   );
@@ -259,7 +259,7 @@ describe('bounded masks through the state file', () => {
     };
     const zip = new JSZip();
     const manifest = emptyManifest();
-    useSegmentTypeStore().serialize({ zip, manifest });
+    useSegmentStore().serialize({ zip, manifest });
     await store().serialize({ zip, manifest }, io);
     const parsed = ManifestSchema.parse(manifest) as any;
     const stateFiles = await Promise.all(
@@ -277,13 +277,13 @@ describe('bounded masks through the state file', () => {
     await seatImage('img-1', { ...GRID, name: 'CT A' });
     await seatImage('img-2', { ...GRID, name: 'CT B' });
     // Each import adopts the incoming registry afresh, so the second pass
-    // brings its own types rather than landing on the first pass's records.
+    // brings its own segments rather than landing on the first pass's records.
     const restore = () =>
       store().deserialize(
         parsed,
         stateFiles,
         dataIDMap,
-        useSegmentTypeStore().deserialize(parsed),
+        useSegmentStore().deserialize(parsed),
         {},
         io
       );
@@ -291,7 +291,7 @@ describe('bounded masks through the state file', () => {
     await restore();
     await nextTick();
 
-    const bound = listSegments(store().getSegmentationForImage('img-1')!)
+    const bound = listMasks(store().getSegmentationForImage('img-1')!)
       .filter((segment) => segment.representations.labelmap)
       .map((segment) => ({
         labelValue: segment.representations.labelmap!.labelValue,
@@ -309,7 +309,7 @@ describe('bounded masks through the state file', () => {
     const io = makeArtifactIO();
     const zip = new JSZip();
     const manifest = emptyManifest();
-    useSegmentTypeStore().serialize({ zip, manifest });
+    useSegmentStore().serialize({ zip, manifest });
     await store().serialize({ zip, manifest }, io);
     const parsed = ManifestSchema.parse(manifest) as any;
     const stateFiles = await Promise.all(
@@ -326,7 +326,7 @@ describe('bounded masks through the state file', () => {
     setActivePinia(createPinia());
     await seatImage('img-1', { ...GRID, name: 'CT A' });
     await seatImage('img-2', { ...GRID, name: 'CT B' });
-    const mine = addSegment('img-1', 'Mine');
+    const mine = addMask('img-1', 'Mine');
     seedVoxel(mine, [0, 0, 0]);
     const segmentation = store().getSegmentationForImage('img-1')!;
     store().updateSegmentationDisplay(segmentation.id, {
@@ -338,7 +338,7 @@ describe('bounded masks through the state file', () => {
       parsed,
       stateFiles,
       { 'img-1': 'img-1', 'img-2': 'img-2' },
-      useSegmentTypeStore().deserialize(parsed),
+      useSegmentStore().deserialize(parsed),
       {},
       io
     );
@@ -364,12 +364,12 @@ describe('bounded masks through the state file', () => {
       const second = manifest.segmentations.find(
         (entry: any) => entry.parentImage === 'img-2'
       );
-      const tumorTypeIds = manifest.segmentTypes
+      const tumorTypeIds = manifest.segments
         .filter((type: any) => type.name === 'Tumor')
         .map((type: any) => type.id);
       const findTumor = (segmentation: any) =>
-        segmentation.segments.find((segment: any) =>
-          tumorTypeIds.includes(segment.typeId)
+        segmentation.masks.find((segment: any) =>
+          tumorTypeIds.includes(segment.segmentId)
         );
       const firstTumor = findTumor(first);
       const secondTumor = findTumor(second);
@@ -388,10 +388,10 @@ describe('bounded masks through the state file', () => {
       secondTumor.id = 'duplicate-segment';
     });
 
-    const firstTumor = listSegments(
+    const firstTumor = listMasks(
       store().getSegmentationForImage('new-1')!
     ).find((segment) => nameOf(segment) === 'Tumor')!;
-    const secondTumor = listSegments(
+    const secondTumor = listMasks(
       store().getSegmentationForImage('new-2')!
     ).find((segment) => nameOf(segment) === 'Tumor')!;
     expect(firstTumor.representations.labelmap?.artifactId).toBe(
@@ -415,12 +415,12 @@ describe('bounded masks through the state file', () => {
 
     await roundTrip(makeArtifactIO());
 
-    const planned = listSegments(
-      store().getSegmentationForImage('new-1')!
-    ).find((segment) => nameOf(segment) === 'Planned')!;
+    const planned = listMasks(store().getSegmentationForImage('new-1')!).find(
+      (segment) => nameOf(segment) === 'Planned'
+    )!;
     expect(planned.representations.labelmap).toBeDefined();
     expect(isEmptyExtent(extentOf(planned.id)!)).toBe(true);
-    expect(store().segmentVoxels(planned.id).scalars()).toHaveLength(0);
+    expect(store().maskVoxels(planned.id).scalars()).toHaveLength(0);
   });
 
   it('leaves a segment that never had storage without any', async () => {
@@ -428,9 +428,9 @@ describe('bounded masks through the state file', () => {
 
     await roundTrip(makeArtifactIO());
 
-    const unbound = listSegments(
-      store().getSegmentationForImage('new-1')!
-    ).find((segment) => nameOf(segment) === 'Unbound')!;
+    const unbound = listMasks(store().getSegmentationForImage('new-1')!).find(
+      (segment) => nameOf(segment) === 'Unbound'
+    )!;
     expect(unbound.representations.labelmap).toBeUndefined();
   });
 
@@ -446,13 +446,13 @@ describe('bounded masks through the state file', () => {
       const segmentation = manifest.segmentations.find(
         (entry: any) => entry.parentImage === 'img-1'
       );
-      const tumor = segmentation.segments.find(
-        (segment: any) => segment.typeId === wireTypeId(manifest, 'Tumor')
+      const tumor = segmentation.masks.find(
+        (segment: any) => segment.segmentId === wireSegmentId(manifest, 'Tumor')
       );
       tumor.representations.labelmap.artifactId = foreign.id;
     });
 
-    const restored = listSegments(store().getSegmentationForImage('new-1')!);
+    const restored = listMasks(store().getSegmentationForImage('new-1')!);
     const named = (name: string) =>
       restored.find((segment) => nameOf(segment) === name)!;
     expect(named('Tumor').representations.labelmap).toBeUndefined();
@@ -466,7 +466,7 @@ describe('bounded masks through the state file', () => {
 
     let artifact: ReturnType<typeof wireArtifactFor>;
     const result = await roundTrip(makeArtifactIO(), (manifest) => {
-      const tumor = wireSegment(manifest, 'Tumor');
+      const tumor = wireMask(manifest, 'Tumor');
       artifact = wireArtifactFor(manifest, tumor);
       tumor.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
     });
@@ -490,7 +490,7 @@ describe('bounded masks through the state file', () => {
       refs.node.representations.labelmap.extent = [0, 1, 0, 0, 0, 0];
     });
 
-    const restored = listSegments(store().getSegmentationForImage('new-1')!);
+    const restored = listMasks(store().getSegmentationForImage('new-1')!);
     expect(
       restored.find((segment) => nameOf(segment) === 'Tumor')!.representations
         .labelmap
@@ -530,7 +530,7 @@ describe('bounded masks through the state file', () => {
     expect(tumor.representations.labelmap?.artifactId).toBe(
       result.artifactIdMap[refs!.tumorArtifact.id]
     );
-    expect(store().segmentVoxels(tumor.id).image().getDimensions()).toEqual([
+    expect(store().maskVoxels(tumor.id).image().getDimensions()).toEqual([
       2, 1, 1,
     ]);
     expect(markedVoxels(tumor.id)).toEqual([
@@ -560,7 +560,7 @@ describe('bounded masks through the state file', () => {
 
     let artifact: ReturnType<typeof wireArtifactFor>;
     const result = await roundTrip(makeArtifactIO(), (manifest) => {
-      const tumor = wireSegment(manifest, 'Tumor');
+      const tumor = wireMask(manifest, 'Tumor');
       artifact = wireArtifactFor(manifest, tumor);
       tumor.representations.labelmap.extent = extent;
     });
@@ -575,7 +575,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
 
     const result = await roundTrip(makeArtifactIO(), (manifest) => {
-      wireSegment(manifest, 'Tumor').representations.labelmap.labelValue = 0;
+      wireMask(manifest, 'Tumor').representations.labelmap.labelValue = 0;
     });
 
     expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
@@ -612,10 +612,10 @@ describe('bounded masks through the state file', () => {
 
     await roundTrip(makeArtifactIO());
 
-    const tumor = listSegments(store().getSegmentationForImage('new-1')!).find(
+    const tumor = listMasks(store().getSegmentationForImage('new-1')!).find(
       (segment) => nameOf(segment) === 'Tumor'
     )!;
-    const mask = store().segmentVoxels(tumor.id).image();
+    const mask = store().maskVoxels(tumor.id).image();
     expect(Array.from(mask.indexToWorld([0, 0, 0] as never))).toEqual(
       Array.from(parentImage('new-1').indexToWorld([1, 1, 1] as never))
     );
@@ -676,7 +676,7 @@ describe('a legacy group restored as bounded masks', () => {
       [leafStateId(3)]: 'artifact-store',
     });
 
-    const segments = listSegments(
+    const segments = listMasks(
       store().getSegmentationForImage('parent-store')!
     );
     expect(segments.map(nameOf)).toEqual(['Tumor 1', 'Tumor 2']);
@@ -729,7 +729,7 @@ describe('a legacy group restored as bounded masks', () => {
       [leafStateId(3)]: 'artifact-store',
     });
 
-    const segments = listSegments(
+    const segments = listMasks(
       store().getSegmentationForImage('parent-store')!
     );
     expect(segments.map(nameOf)).toEqual(['Tumor 1', 'Tumor 2']);

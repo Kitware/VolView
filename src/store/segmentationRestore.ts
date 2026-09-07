@@ -18,8 +18,8 @@ import {
 import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 
-type WireSegmentation = NonNullable<Manifest['segmentations']>[number];
-type WireSegment = WireSegmentation['segments'][number];
+type WireMaskation = NonNullable<Manifest['segmentations']>[number];
+type WireMask = WireMaskation['masks'][number];
 
 /**
  * An artifact no segment binds is enumerated like a legacy descriptor-less
@@ -28,7 +28,7 @@ type WireSegment = WireSegmentation['segments'][number];
 export function planArtifactRestore(manifest: Manifest) {
   const boundArtifactIds = new Set(
     (manifest.segmentations ?? []).flatMap((wire) =>
-      wire.segments.flatMap((segment) =>
+      wire.masks.flatMap((segment) =>
         segment.representations.labelmap
           ? [segment.representations.labelmap.artifactId]
           : []
@@ -134,7 +134,7 @@ export type AcceptedRestoreBinding = {
 export type SkippedRestoreItem = { name: string; reason: string };
 
 type BindingCandidate = {
-  wireSegment: WireSegment;
+  wireMask: WireMask;
   artifactId: string;
   name: string;
   extent: Extent3D;
@@ -153,7 +153,7 @@ type RestoreBindingInput = {
 
 type RestoreBindingState = RestoreBindingInput & {
   artifactNameByWireId: Map<string, string>;
-  acceptedBindings: WeakMap<WireSegment, AcceptedRestoreBinding>;
+  acceptedBindings: WeakMap<WireMask, AcceptedRestoreBinding>;
   skipped: SkippedRestoreItem[];
 };
 
@@ -190,12 +190,12 @@ function validExtent(
 }
 
 function candidateFor(
-  wireSegment: WireSegment,
+  wireMask: WireMask,
   parentImageId: string,
   parentImage: vtkImageData | undefined,
   state: RestoreBindingState
 ) {
-  const binding = wireSegment.representations.labelmap;
+  const binding = wireMask.representations.labelmap;
   const artifactId = binding
     ? state.artifactIdMap[binding.artifactId]
     : undefined;
@@ -207,7 +207,7 @@ function candidateFor(
   const reject = (reason: string) => state.skipped.push({ name, reason });
 
   if (state.artifactsToSplit.has(artifactId)) {
-    state.acceptedBindings.set(wireSegment, { artifactId, extent });
+    state.acceptedBindings.set(wireMask, { artifactId, extent });
     return undefined;
   }
   if (state.artifactParentById[artifactId] !== parentImageId) {
@@ -223,25 +223,18 @@ function candidateFor(
   ) {
     return undefined;
   }
-  return { wireSegment, artifactId, name, extent, parentImage };
+  return { wireMask, artifactId, name, extent, parentImage };
 }
 
-function collectCandidates(wire: WireSegmentation, state: RestoreBindingState) {
+function collectCandidates(wire: WireMaskation, state: RestoreBindingState) {
   const parentImageId = state.dataIDMap[wire.parentImage];
   if (parentImageId === undefined) return [];
   const parentImage = state.getParentImage(parentImageId);
-  const wireById = new Map(
-    wire.segments.map((segment) => [segment.id, segment])
-  );
-  return wire.order.flatMap((wireSegmentId) => {
-    const wireSegment = wireById.get(wireSegmentId);
-    if (!wireSegment) return [];
-    const candidate = candidateFor(
-      wireSegment,
-      parentImageId,
-      parentImage,
-      state
-    );
+  const wireById = new Map(wire.masks.map((segment) => [segment.id, segment]));
+  return wire.order.flatMap((wireMaskId) => {
+    const wireMask = wireById.get(wireMaskId);
+    if (!wireMask) return [];
+    const candidate = candidateFor(wireMask, parentImageId, parentImage, state);
     return candidate ? [candidate] : [];
   });
 }
@@ -268,8 +261,8 @@ function acceptCandidates(
 
   placeMask(labelmap, candidates[0].parentImage, extent);
   if (isEmptyExtent(extent)) setMaskScalars(labelmap, new Uint8Array(0));
-  candidates.forEach(({ wireSegment, extent: acceptedExtent }) =>
-    state.acceptedBindings.set(wireSegment, {
+  candidates.forEach(({ wireMask, extent: acceptedExtent }) =>
+    state.acceptedBindings.set(wireMask, {
       artifactId,
       extent: acceptedExtent,
     })
@@ -277,7 +270,7 @@ function acceptCandidates(
 }
 
 export function prepareRestoreBindings(input: RestoreBindingInput) {
-  const acceptedBindings = new WeakMap<WireSegment, AcceptedRestoreBinding>();
+  const acceptedBindings = new WeakMap<WireMask, AcceptedRestoreBinding>();
   const skipped: SkippedRestoreItem[] = [];
   const state: RestoreBindingState = {
     ...input,

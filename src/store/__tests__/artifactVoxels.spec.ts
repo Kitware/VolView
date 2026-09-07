@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -13,7 +13,7 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 // ---------------------------------------------------------------------------
 // The artifact-scoped half of the voxel accessor seam. The renderer, the paint
 // widget, the probe and all-segments processes hold a mask id and no segment,
-// so they cannot route through segmentVoxels(). Unlike the segment accessor,
+// so they cannot route through maskVoxels(). Unlike the segment accessor,
 // this one is constructible for an artifact that is gone: two of its consumers
 // are Vue computeds keyed on an id that can vanish a tick before the component
 // does.
@@ -43,11 +43,11 @@ async function seatImage(id: string, name = 'CT') {
 /** A segment grown to the whole parent image, and the mask that holds it. */
 function seatArtifact(imageId: string, values = new Uint8Array(VOXEL_COUNT)) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  const segment = store().createSegment(
+  const segment = store().createMask(
     segmentation.id,
-    mintType({ name: 'Tumor' })
+    mintSegment({ name: 'Tumor' })
   );
-  const voxels = store().segmentVoxels(segment.id);
+  const voxels = store().maskVoxels(segment.id);
   const { artifactId } = voxels.materialize();
   voxels.ensureContains(FULL_EXTENT);
   voxels.apply(values);
@@ -56,8 +56,8 @@ function seatArtifact(imageId: string, values = new Uint8Array(VOXEL_COUNT)) {
     labelmap: voxels.image(),
     artifactId,
     segmentationId: segmentation.id,
-    first: { segmentationId: segmentation.id, segmentId: segment.id },
-    second: { segmentationId: segmentation.id, segmentId: segment.id },
+    first: { segmentationId: segmentation.id, maskId: segment.id },
+    second: { segmentationId: segmentation.id, maskId: segment.id },
   };
 }
 
@@ -111,7 +111,7 @@ describe('artifact voxel accessor', () => {
       const seat = seatArtifact('img-1');
 
       expect(store().artifactVoxels(seat.artifactId).image()).toBe(
-        store().segmentVoxels(seat.first.segmentId).image()
+        store().maskVoxels(seat.first.maskId).image()
       );
     });
   });
@@ -235,7 +235,7 @@ describe('artifact voxel accessor', () => {
   describe('shared storage', () => {
     it('shows a segment accessor write through the artifact accessor', () => {
       const seat = seatArtifact('img-1');
-      const segment = store().segmentVoxels(seat.first.segmentId);
+      const segment = store().maskVoxels(seat.first.maskId);
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[2] = 1;
@@ -252,7 +252,7 @@ describe('artifact voxel accessor', () => {
       store().artifactVoxels(seat.artifactId).scalars()[6] = 2;
 
       expect(
-        Array.from(store().segmentVoxels(seat.second.segmentId).snapshot())[6]
+        Array.from(store().maskVoxels(seat.second.maskId).snapshot())[6]
       ).toBe(2);
     });
   });

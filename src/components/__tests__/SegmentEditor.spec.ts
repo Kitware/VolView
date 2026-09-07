@@ -2,7 +2,7 @@ import { defineComponent } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 
-import SegmentTypeEditor from '@/src/components/SegmentTypeEditor.vue';
+import SegmentEditor from '@/src/components/SegmentEditor.vue';
 
 const LabelEditorStub = defineComponent({
   name: 'LabelEditor',
@@ -18,7 +18,7 @@ const TextFieldStub = defineComponent({
 });
 
 const mountEditor = () =>
-  mount(SegmentTypeEditor, {
+  mount(SegmentEditor, {
     props: {
       name: 'Tumor',
       original: 'Tumor',

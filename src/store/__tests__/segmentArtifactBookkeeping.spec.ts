@@ -7,7 +7,7 @@ import type { Manifest } from '@/src/io/state-file/schema';
 import { useDatasetStore } from '@/src/store/datasets';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
-  addSegment,
+  addMask,
   seatImage,
   seedVoxel,
   store,
@@ -41,14 +41,14 @@ async function buildScene() {
   await seatImage('img-1', { name: 'CT A' });
   await seatImage('img-2', { name: 'CT B' });
 
-  const tumor = addSegment('img-1', 'Tumor');
+  const tumor = addMask('img-1', 'Tumor');
   seedVoxel(tumor, [1, 1, 1]);
-  const node = addSegment('img-1', 'Node');
+  const node = addMask('img-1', 'Node');
   seedVoxel(node, [2, 2, 2]);
   // Identity with no storage: it owns no mask and names no archive entry.
-  const planned = addSegment('img-1', 'Planned');
+  const planned = addMask('img-1', 'Planned');
 
-  const other = addSegment('img-2', 'Tumor');
+  const other = addMask('img-2', 'Tumor');
   seedVoxel(other, [0, 0, 0]);
 
   return { tumor, node, planned, other };
@@ -71,7 +71,7 @@ const artifactNames = () =>
   Object.values(store().artifactMeta).map((meta) => meta.name);
 
 const split = (name?: string) =>
-  store().splitLabelmapIntoSegments(
+  store().splitLabelmapIntoMasks(
     'img-1',
     importedLabelmap(),
     [{ value: 1, name: 'Liver', color: [255, 0, 0, 255], visible: true }],
@@ -113,15 +113,15 @@ describe('artifact bookkeeping without the per-parent order map', () => {
   it('releases a segment mask with the segment that owns it', async () => {
     const { tumor, node } = await buildScene();
     const tumorArtifact =
-      store().getSegment(tumor).representations.labelmap!.artifactId;
+      store().getMask(tumor).representations.labelmap!.artifactId;
 
-    store().deleteSegment(tumor);
+    store().deleteMask(tumor);
 
     expect(artifactIds()).not.toContain(tumorArtifact);
     expect(store().artifactIndex).not.toHaveProperty(tumorArtifact);
     // The sibling on the same image is untouched.
     expect(artifactIds()).toContain(
-      store().getSegment(node).representations.labelmap!.artifactId
+      store().getMask(node).representations.labelmap!.artifactId
     );
   });
 
@@ -159,7 +159,7 @@ describe('artifact bookkeeping without the per-parent order map', () => {
     const segmentation = store().getSegmentationForImage('img-1')!;
     segmentation.outlineOpacity = 0.25;
     segmentation.outlineThickness = 5;
-    const { artifactId } = store().getSegment(tumor).representations.labelmap!;
+    const { artifactId } = store().getMask(tumor).representations.labelmap!;
 
     expect(store().getSegmentationForArtifact(artifactId)).toMatchObject({
       outlineOpacity: 0.25,
@@ -188,7 +188,7 @@ describe('artifact bookkeeping without the per-parent order map', () => {
     // Every binding the manifest carries points at an artifact it also carries.
     const named = new Set(artifacts.map((artifact) => artifact.id));
     manifest.segmentations!.forEach((segmentation) =>
-      segmentation.segments.forEach((segment) => {
+      segmentation.masks.forEach((segment) => {
         const binding = segment.representations.labelmap;
         if (binding) expect(named).toContain(binding.artifactId);
       })

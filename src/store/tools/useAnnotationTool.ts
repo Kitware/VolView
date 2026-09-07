@@ -10,7 +10,7 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
-import type { SegmentTypeRegistry } from './segmentTypeRegistry';
+import type { SegmentRegistry } from './segmentRegistry';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
@@ -34,12 +34,12 @@ export const declareAnnotationToolManifestRefs = (
               },
             ]
           : []),
-        ...(typeof entry.typeId === 'string' && entry.typeId
+        ...(typeof entry.segmentId === 'string' && entry.segmentId
           ? [
               {
-                kind: 'segmentType' as const,
-                id: entry.typeId,
-                where: `tools.${key}[${index}].typeId`,
+                kind: 'segment' as const,
+                id: entry.segmentId,
+                where: `tools.${key}[${index}].segmentId`,
               },
             ]
           : []),
@@ -55,7 +55,7 @@ const makeAnnotationToolDefaults = () => ({
   slice: -1,
   imageID: '',
   placing: false,
-  typeId: '',
+  segmentId: '',
   name: 'baseAnnotationTool',
 });
 
@@ -64,11 +64,11 @@ export const useAnnotationTool = <
   MakeToolDefaults extends (...args: any) => any,
 >({
   toolDefaults,
-  types,
+  segments,
 }: {
   toolDefaults: MakeToolDefaults;
   // Factory, not the invoked registry: tools are created inside store setup.
-  types: () => SegmentTypeRegistry;
+  segments: () => SegmentRegistry;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -89,7 +89,7 @@ export const useAnnotationTool = <
     tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
 
-  const registry = types();
+  const registry = segments();
 
   function addTool(tool: ToolPatch): ToolID {
     const id = useIdStore().nextId() as ToolID;
@@ -100,7 +100,7 @@ export const useAnnotationTool = <
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
       ...toolDefaults(),
-      typeId: registry.selectedTypeId.value ?? '',
+      segmentId: registry.selectedSegmentId.value ?? '',
       ...tool,
       id,
     };
@@ -109,9 +109,9 @@ export const useAnnotationTool = <
     return id;
   }
 
-  /** The appearance a tool draws with, resolved from its type. */
+  /** The appearance a tool draws with, resolved from its segment. */
   const appearanceOfTool = (id: ToolID) =>
-    registry.appearanceOf(toolByID.value[id]?.typeId);
+    registry.appearanceOf(toolByID.value[id]?.segmentId);
 
   function removeTool(id: ToolID) {
     if (!(id in toolByID.value)) return;
@@ -129,14 +129,16 @@ export const useAnnotationTool = <
     toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
   }
 
-  // Starting an annotation is the gesture that names the type it delineates:
-  // one begun against nothing mints and selects a type the way a first paint
-  // stroke does, so it is drawn in that type's color while it is still being
-  // placed. Idempotent, since the tool then names a live type.
+  // Starting an annotation is the gesture that names the segment it delineates:
+  // one begun against nothing mints and selects a segment the way a first paint
+  // stroke does, so it is drawn in that segment's color while it is still being
+  // placed. Idempotent, since the tool then names a live segment.
   function resolveToolType(id: ToolID) {
     const tool = toolByID.value[id];
-    if (!tool || registry.getType(tool.typeId)) return;
-    updateTool(id, { typeId: registry.ensureSelectedType() } as ToolPatch);
+    if (!tool || registry.getSegment(tool.segmentId)) return;
+    updateTool(id, {
+      segmentId: registry.ensureSelectedSegment(),
+    } as ToolPatch);
   }
 
   // Placing resolves too, for an annotation that arrived without one of the
@@ -183,39 +185,39 @@ export const useAnnotationTool = <
   type Serialized = {
     tools: PartialWithRequired<Tool, 'imageID'>[];
   };
-  // A type the restore did not recreate leaves the shape unlabeled, drawn in
-  // the app defaults; renaming a type never reaches here, since ids are stable.
+  // A segment the restore did not recreate leaves the shape unnamed, drawn in
+  // the app defaults; renaming never reaches here, since ids are stable.
   function deserializeTools(
     serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>,
-    typeIdMap: Record<string, string> = {}
+    segmentIdMap: Record<string, string> = {}
   ) {
     serialized?.tools
-      .map(({ imageID, typeId, ...rest }) => {
+      .map(({ imageID, segmentId, ...rest }) => {
         const newImageID = dataIDMap[imageID];
         return {
           ...rest,
           imageID: newImageID,
-          typeId: (typeId && typeIdMap[typeId]) || '',
+          segmentId: (segmentId && segmentIdMap[segmentId]) || '',
         } as ToolPatch;
       })
       .forEach((tool) => addTool(tool));
   }
 
-  // Shapes reference a type; deleting one takes its shapes with it.
-  const removeToolsOfType = (typeId: string) =>
+  // Shapes reference a segment; deleting one takes its shapes with it.
+  const removeToolsOfSegment = (segmentId: string) =>
     toolIDs.value
-      .filter((id) => toolByID.value[id].typeId === typeId)
+      .filter((id) => toolByID.value[id].segmentId === segmentId)
       .forEach((id) => removeTool(id));
 
-  const hasToolsOfType = (typeId: string) =>
-    toolIDs.value.some((id) => toolByID.value[id].typeId === typeId);
+  const hasToolsOfSegment = (segmentId: string) =>
+    toolIDs.value.some((id) => toolByID.value[id].segmentId === segmentId);
 
   return {
-    types: markRaw(registry),
+    segments: markRaw(registry),
     appearanceOfTool,
-    removeToolsOfType,
-    hasToolsOfType,
+    removeToolsOfSegment,
+    hasToolsOfSegment,
     toolIDs,
     toolByID,
     tools,

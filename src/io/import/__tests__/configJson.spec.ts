@@ -9,7 +9,7 @@ import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import type { SegmentTypeRegistry } from '@/src/store/tools/segmentTypeRegistry';
+import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
 import { useViewStore } from '@/src/store/views';
 
 describe('config schema', () => {
@@ -89,8 +89,8 @@ describe('segment type config', () => {
     useViewStore().setDataForAllViews(id);
   };
 
-  const typeSummary = (registry: SegmentTypeRegistry) =>
-    registry.typeList.value.map((type) => ({
+  const typeSummary = (registry: SegmentRegistry) =>
+    registry.segmentList.value.map((type) => ({
       name: type.name,
       color: registry.appearanceOf(type.id).cssColor,
     }));
@@ -100,19 +100,19 @@ describe('segment type config', () => {
   });
 
   // Config is applied before the primary selection, so there is no current
-  // image when the types arrive.
-  it('applies the shared types configured before an image loads', async () => {
+  // image when the segments arrive.
+  it('applies the shared segments configured before an image loads', async () => {
     applyPostStateConfig(
-      config.parse({ segmentTypes: { Tumor: { color: '#00ff00' } } })
+      config.parse({ segments: { Tumor: { color: '#00ff00' } } })
     );
 
     seatAndView('img-1');
     await nextTick();
 
-    expect(typeSummary(usePolygonStore().types)).toEqual([
+    expect(typeSummary(usePolygonStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
-    expect(typeSummary(useRectangleStore().types)).toEqual([
+    expect(typeSummary(useRectangleStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
   });
@@ -120,41 +120,41 @@ describe('segment type config', () => {
   it('keeps the ruler registry to its own section', async () => {
     applyPostStateConfig(
       config.parse({
-        segmentTypes: { Tumor: { color: '#00ff00' } },
-        rulerTypes: { Long: { color: '#0000ff' } },
+        segments: { Tumor: { color: '#00ff00' } },
+        rulerSegments: { Long: { color: '#0000ff' } },
       })
     );
 
     seatAndView('img-1');
     await nextTick();
 
-    expect(typeSummary(useRulerStore().types)).toEqual([
+    expect(typeSummary(useRulerStore().segments)).toEqual([
       { name: 'Long', color: '#0000ff' },
     ]);
-    expect(typeSummary(usePolygonStore().types)).toEqual([
+    expect(typeSummary(usePolygonStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
-    expect(useRulerStore().types.selectedTypeId.value).toBe(
-      useRulerStore().types.findTypeByName('Long')?.id
+    expect(useRulerStore().segments.selectedSegmentId.value).toBe(
+      useRulerStore().segments.findSegmentByName('Long')?.id
     );
   });
 
-  it('applies types to an image that is already loaded', async () => {
+  it('applies segments to an image that is already loaded', async () => {
     seatAndView('img-1');
     await nextTick();
 
     applyPostStateConfig(
-      config.parse({ segmentTypes: { Tumor: { color: '#00ff00' } } })
+      config.parse({ segments: { Tumor: { color: '#00ff00' } } })
     );
 
-    expect(typeSummary(usePolygonStore().types)).toEqual([
+    expect(typeSummary(usePolygonStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
   });
 
-  it('offers the same types on each image the user views', async () => {
+  it('offers the same segments on each image the user views', async () => {
     applyPostStateConfig(
-      config.parse({ segmentTypes: { Tumor: { color: '#00ff00' } } })
+      config.parse({ segments: { Tumor: { color: '#00ff00' } } })
     );
 
     seatAndView('img-1');
@@ -162,7 +162,7 @@ describe('segment type config', () => {
     seatAndView('img-2');
     await nextTick();
 
-    expect(typeSummary(usePolygonStore().types)).toEqual([
+    expect(typeSummary(usePolygonStore().segments)).toEqual([
       { name: 'Tumor', color: '#00ff00' },
     ]);
     // Offered, not minted: a configured type gets a mask on the first edit.
@@ -176,7 +176,7 @@ describe('segment type config', () => {
   it('keeps the configured appearance on the type an edit lands in', async () => {
     applyPostStateConfig(
       config.parse({
-        segmentTypes: { Tumor: { color: '#00ff00', strokeWidth: 9 } },
+        segments: { Tumor: { color: '#00ff00', strokeWidth: 9 } },
       })
     );
     seatAndView('img-1');
@@ -184,26 +184,26 @@ describe('segment type config', () => {
 
     const polygons = usePolygonStore();
     const rectangles = useRectangleStore();
-    const typeId = polygons.types.findTypeByName('Tumor')!.id;
-    polygons.types.selectType(typeId);
-    const segmentId = useSegmentationStore().resolveEditTarget('img-1');
+    const segmentId = polygons.segments.findSegmentByName('Tumor')!.id;
+    polygons.segments.selectSegment(segmentId);
+    const maskId = useSegmentationStore().resolveEditTarget('img-1');
 
-    expect(useSegmentationStore().getSegment(segmentId).typeId).toBe(typeId);
-    expect(polygons.types.appearanceOf(typeId)).toMatchObject({
+    expect(useSegmentationStore().getMask(maskId).segmentId).toBe(segmentId);
+    expect(polygons.segments.appearanceOf(segmentId)).toMatchObject({
       name: 'Tumor',
       cssColor: '#00ff00',
       strokeWidth: 9,
     });
-    expect(rectangles.types.appearanceOf(typeId).name).toBe('Tumor');
+    expect(rectangles.segments.appearanceOf(segmentId).name).toBe('Tumor');
   });
 
-  it('creates nothing when no types are configured', async () => {
-    applyPostStateConfig(config.parse({ segmentTypes: {} }));
+  it('creates nothing when no segments are configured', async () => {
+    applyPostStateConfig(config.parse({ segments: {} }));
 
     seatAndView('img-1');
     await nextTick();
 
-    expect(usePolygonStore().types.typeList.value).toEqual([]);
+    expect(usePolygonStore().segments.segmentList.value).toEqual([]);
     expect(
       useSegmentationStore().getSegmentationForImage('img-1')
     ).toBeUndefined();

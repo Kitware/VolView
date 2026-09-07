@@ -101,7 +101,7 @@ export default defineComponent({
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { selectedTypeId } = activeToolStore.types;
+    const { selectedSegmentId } = activeToolStore.segments;
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
@@ -117,7 +117,7 @@ export default defineComponent({
         return {
           imageID: imageId.value,
           ...locatorPatch(locator.value),
-          typeId: selectedTypeId.value ?? '',
+          segmentId: selectedSegmentId.value ?? '',
         };
       })
     );
@@ -209,7 +209,7 @@ export default defineComponent({
       const tool = activeToolStore.toolByID[toolId];
       const rasterized = rasterizePolygonEdit({
         imageId: imageId.value,
-        typeId: tool?.typeId,
+        segmentId: tool?.segmentId,
         points: activeToolStore.getPoints(toolId),
         slice: slice.value,
         viewAxis: viewAxis.value,
@@ -217,8 +217,12 @@ export default defineComponent({
       // The polygon records the type its voxels actually landed in: an
       // unlabeled one, and one whose type was deleted, are given the type the
       // edit resolved. A refused rasterize hands back what it was given.
-      if (tool && rasterized.typeId && tool.typeId !== rasterized.typeId) {
-        activeToolStore.updateTool(toolId, { typeId: rasterized.typeId });
+      if (
+        tool &&
+        rasterized.segmentId &&
+        tool.segmentId !== rasterized.segmentId
+      ) {
+        activeToolStore.updateTool(toolId, { segmentId: rasterized.segmentId });
       }
     }
 

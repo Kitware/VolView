@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -129,12 +129,12 @@ const catalogFor = (parentImageId: string) => {
     useSegmentationStore().getSegmentationForImage(parentImageId);
   if (!segmentation) return [];
   return segmentation.order
-    .map((id) => segmentation.segments[id])
+    .map((id) => segmentation.masks[id])
     .filter((segment) => segment.representations.labelmap);
 };
 
-const nameOf = (segment: { typeId: string }) =>
-  useSegmentTypeStore().types.appearanceOf(segment.typeId).name;
+const nameOf = (segment: { segmentId: string }) =>
+  useSegmentStore().segments.appearanceOf(segment.segmentId).name;
 
 const restoreGroups = (
   manifest: Manifest,
@@ -145,7 +145,7 @@ const restoreGroups = (
     manifest,
     stateFiles,
     dataIDMap,
-    useSegmentTypeStore().deserialize(manifest),
+    useSegmentStore().deserialize(manifest),
     resolveArtifactRestoreSources(manifest)
   );
 
@@ -180,7 +180,7 @@ describe('migrated segment groups: resilient restore', () => {
     expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor']);
     expect(restored[0].representations.labelmap!.labelValue).toBe(1);
     expect([
-      ...useSegmentTypeStore().types.appearanceOf(restored[0].typeId).color,
+      ...useSegmentStore().segments.appearanceOf(restored[0].segmentId).color,
     ]).toEqual([255, 0, 0, 255]);
     expect(maskCount()).toBe(1);
   });

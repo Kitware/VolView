@@ -8,7 +8,7 @@ import {
 } from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 
 // ---------------------------------------------------------------------------
@@ -171,20 +171,20 @@ describe('restore stateID namespaces (collision)', () => {
         setup.manifest,
         [],
         stateIDToStoreID,
-        useSegmentTypeStore().deserialize(setup.manifest),
+        useSegmentStore().deserialize(setup.manifest),
         resolveArtifactRestoreSources(setup.manifest)
       );
 
       // The group attached, parented on the BASE dataset's store id.
       expect(idMap['sg-tumor']).toBeDefined();
-      const [segmentId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
-      const { artifactId } = store.resolveLabelmapBinding(segmentId)!;
+      const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
+      const { artifactId } = store.resolveLabelmapBinding(maskId)!;
       expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
 
       // Its mask was built from the ARTIFACT's voxels, not the base's.
-      expect(
-        Array.from(new Set(store.segmentVoxels(segmentId).scalars()))
-      ).toEqual([1]);
+      expect(Array.from(new Set(store.maskVoxels(maskId).scalars()))).toEqual([
+        1,
+      ]);
 
       // The base dataset survived; only the consumed temp dataset is gone.
       expect(imageCache.getVtkImageData(BASE_STORE_ID)).toBeTruthy();
@@ -223,13 +223,13 @@ describe('restore stateID namespaces (collision)', () => {
         },
       ],
       { '2': BASE_STORE_ID },
-      useSegmentTypeStore().deserialize(setup.manifest),
+      useSegmentStore().deserialize(setup.manifest),
       resolveArtifactRestoreSources(setup.manifest)
     );
 
     expect(idMap['sg-tumor']).toBeDefined();
-    const [segmentId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
-    const { artifactId } = store.resolveLabelmapBinding(segmentId)!;
+    const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
+    const { artifactId } = store.resolveLabelmapBinding(maskId)!;
     expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
     expect(ioMocks.readImage).toHaveBeenCalledTimes(1);
   });

@@ -162,7 +162,7 @@ export default defineComponent({
       ruler,
       slice,
       appearance: computed(() =>
-        rulerStore.types.appearanceOf(ruler.value?.typeId)
+        rulerStore.segments.appearanceOf(ruler.value?.segmentId)
       ),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;

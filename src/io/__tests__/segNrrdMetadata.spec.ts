@@ -42,7 +42,7 @@ describe('buildSegNrrdMetadata embeds segment names + colors', () => {
     expect(m.get('Segment0_Color')).toBe('1.000000 0.000000 0.000000');
     expect(m.get('Segment0_LabelValue')).toBe('1');
 
-    // Segment 1 (label value 2) — 128/255 → 0.501961, 255/255 → 1.
+    // SegmentMask 1 (label value 2) — 128/255 → 0.501961, 255/255 → 1.
     expect(m.get('Segment1_Name')).toBe('Edema');
     expect(m.get('Segment1_Color')).toBe('0.000000 0.501961 1.000000');
     expect(m.get('Segment1_LabelValue')).toBe('2');
@@ -234,7 +234,7 @@ describe('overlaySegmentMetadata merges embedded metadata over the enumeration',
   });
 
   it('does NOT duplicate an out-of-enumeration value described twice (dedup)', () => {
-    // A foreign / hand-edited header with two Segment blocks sharing a LabelValue
+    // A foreign / hand-edited header with two SegmentMask blocks sharing a LabelValue
     // outside the voxel range must yield ONE segment (last-wins), not two rows
     // with a colliding `order`/Vue `:key`.
     const described: ParsedSegment[] = [

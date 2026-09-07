@@ -15,7 +15,7 @@
 export type ManifestRefKind =
   | 'dataset'
   | 'segmentationArtifact'
-  | 'segmentType'
+  | 'segment'
   | 'view';
 
 export type ManifestRef = {

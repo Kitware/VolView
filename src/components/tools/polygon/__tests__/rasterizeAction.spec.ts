@@ -6,7 +6,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { rasterizePolygonEdit } from '@/src/components/tools/polygon/rasterizeAction';
 import {
-  addSegment,
+  addMask,
   extentOf,
   labelValueOf,
   maskValueAt,
@@ -15,7 +15,7 @@ import {
   store,
   type Index3,
   selectSegment,
-  typeOf,
+  segmentOfMask,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
@@ -29,17 +29,17 @@ const SQUARE: Vector3[] = [
   [1, 4, 0],
 ];
 
-function growMask(segmentId: string, extent: Extent3D) {
-  const voxels = store().segmentVoxels(segmentId);
+function growMask(maskId: string, extent: Extent3D) {
+  const voxels = store().maskVoxels(maskId);
   voxels.materialize();
   voxels.ensureContains(extent);
-  selectSegment(segmentId);
+  selectSegment(maskId);
 }
 
-function rasterize(segmentId: string) {
+function rasterize(maskId: string) {
   return rasterizePolygonEdit({
     imageId: 'img-1',
-    typeId: typeOf(segmentId),
+    segmentId: segmentOfMask(maskId),
     points: SQUARE,
     slice: 0,
     viewAxis: 'Axial',
@@ -56,9 +56,9 @@ async function setUpRasterizeView() {
 }
 
 function setUpOverlappingSegments(extent: Extent3D) {
-  const target = addSegment('img-1', 'Target');
+  const target = addMask('img-1', 'Target');
   growMask(target, extent);
-  const neighbor = addSegment('img-1', 'Neighbor');
+  const neighbor = addMask('img-1', 'Neighbor');
   seedVoxel(neighbor, [2, 3, 0]);
   return { target, neighbor, labelValue: labelValueOf(target)! };
 }

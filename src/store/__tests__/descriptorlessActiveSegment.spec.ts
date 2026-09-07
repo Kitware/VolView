@@ -9,8 +9,8 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
-import { listSegments } from '@/src/types/segmentation';
+import { useSegmentStore } from '@/src/store/segments';
+import { listMasks } from '@/src/types/segmentation';
 
 // ---------------------------------------------------------------------------
 // A pre-7 group with no descriptors has no segments to activate when
@@ -91,7 +91,7 @@ async function restoreTwoGroups(activeValue: number) {
 const catalog = () => {
   const store = useSegmentationStore();
   const segmentation = store.getSegmentationForImage('parent-store')!;
-  return listSegments(segmentation);
+  return listMasks(segmentation);
 };
 
 const labelValues = () =>
@@ -100,9 +100,9 @@ const labelValues = () =>
 // The selection is a type, so what it reactivates is read through the record
 // that type has on this image.
 const selectedLabelValue = () => {
-  const typeId = useSegmentTypeStore().types.selectedTypeId.value;
-  return catalog().find((segment) => segment.typeId === typeId)?.representations
-    .labelmap?.labelValue;
+  const segmentId = useSegmentStore().segments.selectedSegmentId.value;
+  return catalog().find((segment) => segment.segmentId === segmentId)
+    ?.representations.labelmap?.labelValue;
 };
 
 describe('restoring a descriptorless active group', () => {
@@ -132,6 +132,6 @@ describe('restoring a descriptorless active group', () => {
   it('leaves the active segment alone when no source value matches', async () => {
     await restoreTwoGroups(7);
 
-    expect(useSegmentTypeStore().types.selectedTypeId.value).toBeUndefined();
+    expect(useSegmentStore().segments.selectedSegmentId.value).toBeUndefined();
   });
 });

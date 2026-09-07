@@ -15,7 +15,7 @@ import { cssColorToRGBA, rgbaToCssColor } from '@/src/types/segmentation';
  * type that states nothing follows the default and a ruler type carries no
  * meaningless opacity.
  */
-export type SegmentType = {
+export type Segment = {
   id: string;
   name: string;
   color: RGBAColor;
@@ -27,9 +27,9 @@ export type SegmentType = {
   strokeWidth?: number;
 };
 
-export type SegmentTypeInit = Partial<Omit<SegmentType, 'id'>>;
+export type SegmentInit = Partial<Omit<Segment, 'id'>>;
 
-export const DEFAULT_SEGMENT_TYPE_COLOR = cssColorToRGBA(TOOL_COLORS[0]);
+export const DEFAULT_SEGMENT_COLOR = cssColorToRGBA(TOOL_COLORS[0]);
 
 const APPEARANCE_DEFAULTS = {
   fillOpacity: 1,
@@ -42,8 +42,8 @@ const APPEARANCE_DEFAULTS = {
  * it; nothing reads the optional fields directly, so an absent field means the
  * app default in exactly one place.
  */
-export const resolveSegmentType = (type: Maybe<SegmentType>) => {
-  const color = type?.color ?? DEFAULT_SEGMENT_TYPE_COLOR;
+export const resolveSegmentAppearance = (type: Maybe<Segment>) => {
+  const color = type?.color ?? DEFAULT_SEGMENT_COLOR;
   return {
     name: type?.name ?? '',
     color,
@@ -56,18 +56,18 @@ export const resolveSegmentType = (type: Maybe<SegmentType>) => {
   };
 };
 
-export type ResolvedSegmentType = ReturnType<typeof resolveSegmentType>;
+export type SegmentAppearance = ReturnType<typeof resolveSegmentAppearance>;
 
 /**
  * The descriptor a record projects onto the label value its mask holds, all of
- * it resolved from the type. The labelmap renderer and the .seg.nrrd writer
+ * it resolved from the segment. The labelmap renderer and the .seg.nrrd writer
  * consume it.
  */
 export const toLabelmapSegment = (
-  type: Maybe<SegmentType>,
+  type: Maybe<Segment>,
   labelValue: number
 ): LabelmapSegment => {
-  const resolved = resolveSegmentType(type);
+  const resolved = resolveSegmentAppearance(type);
   return {
     value: labelValue,
     name: resolved.name,

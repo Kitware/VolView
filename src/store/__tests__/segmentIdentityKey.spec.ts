@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintType } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 
 // ---------------------------------------------------------------------------
 // Record ids are globally unique and one segmentation per image is enforced,
-// so a (segmentationId, recordId) pair carries no more information than the
-// record id alone. Every record-addressed store entry point takes the bare id,
+// so a (segmentationId, maskId) pair carries no more information than the
+// mask id alone. Every record-addressed store entry point takes the bare id,
 // and what an edit targets is the selected type on the image being edited.
 // ---------------------------------------------------------------------------
 
@@ -20,7 +20,7 @@ const DIMENSIONS = [4, 4, 2] as const;
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
 
 const store = () => useSegmentationStore();
-const types = () => useSegmentTypeStore().types;
+const segments = () => useSegmentStore().segments;
 
 async function seatImage(id: string, name = 'CT') {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
@@ -37,11 +37,11 @@ async function seatImage(id: string, name = 'CT') {
   return id;
 }
 
-const makeSegment = (imageId: string, name?: string) => {
+const makeMask = (imageId: string, name?: string) => {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  return store().createSegment(
+  return store().createMask(
     segmentation.id,
-    mintType(name === undefined ? undefined : { name })
+    mintSegment(name === undefined ? undefined : { name })
   );
 };
 
@@ -52,32 +52,32 @@ describe('segment addressing by id alone', () => {
   });
 
   it('reads a segment by its id', () => {
-    const segment = makeSegment('img-1', 'Tumor');
+    const segment = makeMask('img-1', 'Tumor');
 
-    expect(store().getSegment(segment.id).typeId).toBe(segment.typeId);
-    expect(types().appearanceOf(segment.typeId).name).toBe('Tumor');
+    expect(store().getMask(segment.id).segmentId).toBe(segment.segmentId);
+    expect(segments().appearanceOf(segment.segmentId).name).toBe('Tumor');
   });
 
   it('updates a segment by its id', () => {
-    const segment = makeSegment('img-1', 'Tumor');
+    const segment = makeMask('img-1', 'Tumor');
 
-    types().updateType(segment.typeId, { visible: false });
+    segments().updateSegment(segment.segmentId, { visible: false });
 
-    expect(types().appearanceOf(segment.typeId).visible).toBe(false);
+    expect(segments().appearanceOf(segment.segmentId).visible).toBe(false);
   });
 
   it('deletes a segment by its id', () => {
-    const segment = makeSegment('img-1', 'Tumor');
+    const segment = makeMask('img-1', 'Tumor');
     const segmentation = store().getSegmentationForImage('img-1')!;
 
-    store().deleteSegment(segment.id);
+    store().deleteMask(segment.id);
 
     expect(segmentation.order).toEqual([]);
-    expect(segmentation.segments[segment.id]).toBeUndefined();
+    expect(segmentation.masks[segment.id]).toBeUndefined();
   });
 
   it('binds and resolves storage by segment id', () => {
-    const segment = makeSegment('img-1', 'Tumor');
+    const segment = makeMask('img-1', 'Tumor');
 
     const binding = store().ensureLabelmapBinding(segment.id);
 
@@ -87,9 +87,9 @@ describe('segment addressing by id alone', () => {
   });
 
   it('hands out a voxel accessor by segment id', () => {
-    const segment = makeSegment('img-1', 'Tumor');
+    const segment = makeMask('img-1', 'Tumor');
 
-    const voxels = store().segmentVoxels(segment.id);
+    const voxels = store().maskVoxels(segment.id);
 
     expect(voxels.exists()).toBe(false);
     voxels.materialize();
@@ -113,61 +113,61 @@ describe('the edit target of a selected type', () => {
   });
 
   it('finds this image record for the selected type', () => {
-    const segment = makeSegment('img-1', 'Tumor');
+    const segment = makeMask('img-1', 'Tumor');
 
-    types().selectType(segment.typeId);
+    segments().selectSegment(segment.segmentId);
 
     expect(store().findEditTarget('img-1')).toBe(segment.id);
   });
 
   it('finds no target once the record is deleted', () => {
-    const segment = makeSegment('img-1', 'Tumor');
-    types().selectType(segment.typeId);
+    const segment = makeMask('img-1', 'Tumor');
+    segments().selectSegment(segment.segmentId);
 
-    store().deleteSegment(segment.id);
+    store().deleteMask(segment.id);
 
     expect(store().findEditTarget('img-1')).toBeUndefined();
-    expect(types().getType(segment.typeId)).toBeDefined();
+    expect(segments().getSegment(segment.segmentId)).toBeDefined();
   });
 
   it('finds no target with nothing selected', () => {
-    const segment = makeSegment('img-1', 'Tumor');
-    types().selectType(segment.typeId);
+    const segment = makeMask('img-1', 'Tumor');
+    segments().selectSegment(segment.segmentId);
 
-    types().selectType(undefined);
+    segments().selectSegment(undefined);
 
     expect(store().findEditTarget('img-1')).toBeUndefined();
-    expect(types().appearanceOf(segment.typeId).name).toBe('Tumor');
+    expect(segments().appearanceOf(segment.segmentId).name).toBe('Tumor');
   });
 
-  it('resolves an edit target to a record id', async () => {
+  it('resolves an edit target to a mask id', async () => {
     await seatImage('img-2');
-    const segment = makeSegment('img-1', 'Tumor');
-    types().selectType(segment.typeId);
+    const segment = makeMask('img-1', 'Tumor');
+    segments().selectSegment(segment.segmentId);
 
     const resolved = store().resolveEditTarget('img-1');
 
     expect(resolved).toBe(segment.id);
-    expect(types().selectedTypeId.value).toBe(segment.typeId);
+    expect(segments().selectedSegmentId.value).toBe(segment.segmentId);
   });
 
   it('resolves an edit target on an image with no records to a new id', () => {
     const resolved = store().resolveEditTarget('img-1');
 
     expect(typeof resolved).toBe('string');
-    const { typeId } = store().getSegment(resolved);
-    expect(types().appearanceOf(typeId).name).toBe('Segment 1');
-    expect(types().selectedTypeId.value).toBe(typeId);
+    const { segmentId } = store().getMask(resolved);
+    expect(segments().appearanceOf(segmentId).name).toBe('Segment 1');
+    expect(segments().selectedSegmentId.value).toBe(segmentId);
   });
 
   it('honors a preferred type without changing the selection', () => {
-    const active = makeSegment('img-1', 'Tumor');
-    const other = makeSegment('img-1', 'Node');
-    types().selectType(active.typeId);
+    const active = makeMask('img-1', 'Tumor');
+    const other = makeMask('img-1', 'Node');
+    segments().selectSegment(active.segmentId);
 
-    const resolved = store().resolveEditTarget('img-1', other.typeId);
+    const resolved = store().resolveEditTarget('img-1', other.segmentId);
 
     expect(resolved).toBe(other.id);
-    expect(types().selectedTypeId.value).toBe(active.typeId);
+    expect(segments().selectedSegmentId.value).toBe(active.segmentId);
   });
 });

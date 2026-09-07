@@ -10,7 +10,7 @@ import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import {
   selectSegment,
-  mintType,
+  mintSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
@@ -61,22 +61,22 @@ function addTestSegment(
   // Label values are minted per image, so the ones below the wanted value are
   // taken by placeholder segments.
   for (let value = 1; value < labelValue; value += 1) {
-    const filler = segmentationStore.createSegment(
+    const filler = segmentationStore.createMask(
       segmentation.id,
-      mintType({
+      mintSegment({
         name: `Filler ${value}`,
       })
     );
-    segmentationStore.segmentVoxels(filler.id).materialize();
+    segmentationStore.maskVoxels(filler.id).materialize();
   }
 
-  const segment = segmentationStore.createSegment(
+  const segment = segmentationStore.createMask(
     segmentation.id,
-    mintType({
+    mintSegment({
       name: 'Segment 1',
     })
   );
-  const voxels = segmentationStore.segmentVoxels(segment.id);
+  const voxels = segmentationStore.maskVoxels(segment.id);
   const { artifactId } = voxels.materialize();
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
   voxels.apply(values);
@@ -84,7 +84,7 @@ function addTestSegment(
 
   return {
     segmentationId: segmentation.id,
-    segmentId: segment.id,
+    maskId: segment.id,
     artifactId,
     labelMap: voxels.image(),
   };
@@ -93,14 +93,14 @@ function addTestSegment(
 /** Another segment of the same image, grown to the same two voxels. */
 function addBoundSegment(segmentationId: string, name: string) {
   const segmentationStore = useSegmentationStore();
-  const segment = segmentationStore.createSegment(
+  const segment = segmentationStore.createMask(
     segmentationId,
-    mintType({ name })
+    mintSegment({ name })
   );
-  const voxels = segmentationStore.segmentVoxels(segment.id);
+  const voxels = segmentationStore.maskVoxels(segment.id);
   const { labelValue } = voxels.materialize();
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
-  return { segmentId: segment.id, labelValue };
+  return { maskId: segment.id, labelValue };
 }
 
 const buffer = (labelMap: vtkLabelMap) =>
@@ -177,16 +177,16 @@ describe('paint process storage', () => {
     });
 
     it('runs an all-segments process once per editable segment', async () => {
-      const { segmentationId, segmentId, labelMap } = addTestSegment(
+      const { segmentationId, maskId, labelMap } = addTestSegment(
         new Uint8Array([1, 0])
       );
       const other = addBoundSegment(segmentationId, 'Other');
 
       const seen = await allSegmentsTargets();
 
-      expect(seen.map((target) => target.segmentId)).toEqual([
-        segmentId,
-        other.segmentId,
+      expect(seen.map((target) => target.maskId)).toEqual([
+        maskId,
+        other.maskId,
       ]);
       // Each run gets that segment's own mask, not a composite of them all.
       expect(seen[0].voxels.image()).toBe(labelMap);
@@ -199,22 +199,20 @@ describe('paint process storage', () => {
 
     it('skips a locked segment and one with no voxels', async () => {
       const segmentationStore = useSegmentationStore();
-      const { segmentationId, segmentId } = addTestSegment(
-        new Uint8Array([1, 0])
-      );
+      const { segmentationId, maskId } = addTestSegment(new Uint8Array([1, 0]));
       const locked = addBoundSegment(segmentationId, 'Locked');
-      lockSegment(locked.segmentId, true);
-      const empty = segmentationStore.createSegment(
+      lockSegment(locked.maskId, true);
+      const empty = segmentationStore.createMask(
         segmentationId,
-        mintType({
+        mintSegment({
           name: 'Empty',
         })
       );
-      segmentationStore.segmentVoxels(empty.id).materialize();
+      segmentationStore.maskVoxels(empty.id).materialize();
 
       const seen = await allSegmentsTargets();
 
-      expect(seen.map((target) => target.segmentId)).toEqual([segmentId]);
+      expect(seen.map((target) => target.maskId)).toEqual([maskId]);
     });
 
     it('gives the target accessor the storage the process reads', async () => {
@@ -319,12 +317,12 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { segmentId } = addTestSegment();
+      const { maskId } = addTestSegment();
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       expect(processStore.processState.step).toBe('previewing');
 
-      segmentationStore.deleteSegment(segmentId);
+      segmentationStore.deleteMask(maskId);
       await nextTick();
 
       expect(processStore.processState.step).toBe('start');
@@ -397,20 +395,14 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
       await viewImage('image-2', [4, 1, 1]);
-      const { segmentId } = addTestSegment(
-        new Uint8Array([1, 0]),
-        1,
-        'image-2'
-      );
+      const { maskId } = addTestSegment(new Uint8Array([1, 0]), 1, 'image-2');
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       expect(processStore.processState.step).toBe('previewing');
 
       // A polygon on the same segment grows the mask, so the snapshot the
       // preview holds no longer has the shape the storage does.
-      segmentationStore
-        .segmentVoxels(segmentId)
-        .ensureContains([0, 3, 0, 0, 0, 0]);
+      segmentationStore.maskVoxels(maskId).ensureContains([0, 3, 0, 0, 0, 0]);
 
       expect(() => processStore.cancelProcess()).not.toThrow();
       expect(processStore.processState.step).toBe('start');

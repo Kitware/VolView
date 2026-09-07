@@ -57,21 +57,21 @@ import {
   extentUnion,
   fullExtent,
   isEmptyExtent,
-  listSegments,
+  listMasks,
   maskScalars,
   padExtent,
   type Extent3D,
   type LabelmapBinding,
   type LabelmapSegment,
-  type Segment,
+  type SegmentMask,
   type Segmentation,
   type SegmentationDisplayPatch,
-  type SegmentVoxelAccessor,
+  type MaskVoxelAccessor,
   type VoxelStorage,
 } from '@/src/types/segmentation';
-import { toLabelmapSegment } from '@/src/types/segmentType';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
-import { declareSegmentTypeReferences } from '@/src/store/tools/segmentTypeReferences';
+import { toLabelmapSegment } from '@/src/types/segment';
+import { useSegmentStore } from '@/src/store/segments';
+import { declareSegmentReferences } from '@/src/store/tools/segmentReferences';
 import { isRecord, removeFromArray } from '@/src/utils';
 import { cycleColors } from '@/src/utils/color';
 import { normalize } from '@/src/utils/path';
@@ -142,7 +142,7 @@ declareManifestRefs('segmentations', (manifest) => {
     ...segmentations.flatMap((raw, index) => {
       if (!isRecord(raw)) return [];
       const where = `segmentations[${index}]`;
-      const segments = Array.isArray(raw.segments) ? raw.segments : [];
+      const masks = Array.isArray(raw.masks) ? raw.masks : [];
       return [
         ...(typeof raw.parentImage === 'string'
           ? [
@@ -153,18 +153,18 @@ declareManifestRefs('segmentations', (manifest) => {
               },
             ]
           : []),
-        ...segments.flatMap((segment, segmentIndex) => {
-          const binding = isRecord(segment)
-            ? (segment.representations as Record<string, unknown> | undefined)
+        ...masks.flatMap((mask, maskIndex) => {
+          const binding = isRecord(mask)
+            ? (mask.representations as Record<string, unknown> | undefined)
                 ?.labelmap
             : undefined;
           return [
-            ...(isRecord(segment) && typeof segment.typeId === 'string'
+            ...(isRecord(mask) && typeof mask.segmentId === 'string'
               ? [
                   {
-                    kind: 'segmentType' as const,
-                    id: segment.typeId,
-                    where: `${where}.segments[${segmentIndex}].typeId`,
+                    kind: 'segment' as const,
+                    id: mask.segmentId,
+                    where: `${where}.masks[${maskIndex}].segmentId`,
                   },
                 ]
               : []),
@@ -173,7 +173,7 @@ declareManifestRefs('segmentations', (manifest) => {
                   {
                     kind: 'segmentationArtifact' as const,
                     id: binding.artifactId,
-                    where: `${where}.segments[${segmentIndex}].representations.labelmap.artifactId`,
+                    where: `${where}.masks[${maskIndex}].representations.labelmap.artifactId`,
                   },
                 ]
               : []),
@@ -197,7 +197,7 @@ declareManifestRefs('segmentations', (manifest) => {
 
 export const useSegmentationStore = defineStore('segmentation', () => {
   const imageCacheStore = useImageCacheStore();
-  const segmentTypes = useSegmentTypeStore().types;
+  const segmentRegistry = useSegmentStore().segments;
 
   const segmentations = reactive<Record<string, Segmentation>>({});
   // Internal storage layer: UI and tools reach it through this store's API only.
@@ -213,24 +213,24 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentation;
   }
 
-  // Segment ids are globally unique and one segmentation per image is
+  // SegmentMask ids are globally unique and one segmentation per image is
   // enforced, so a segment addresses itself; the segmentation is looked up.
-  const segmentationOf = (segmentId: string) =>
+  const segmentationOfMask = (maskId: string) =>
     Object.values(segmentations).find(
-      (segmentation) => segmentId in segmentation.segments
+      (segmentation) => maskId in segmentation.masks
     );
 
-  const findSegment = (segmentId: string) =>
-    segmentationOf(segmentId)?.segments[segmentId];
+  const findMask = (maskId: string) =>
+    segmentationOfMask(maskId)?.masks[maskId];
 
-  function getSegmentationOf(segmentId: string) {
-    const segmentation = segmentationOf(segmentId);
+  function getSegmentationOfMask(maskId: string) {
+    const segmentation = segmentationOfMask(maskId);
     if (!segmentation) throw new Error('No such segment');
     return segmentation;
   }
 
-  function getSegment(segmentId: string) {
-    const segment = findSegment(segmentId);
+  function getMask(maskId: string) {
+    const segment = findMask(maskId);
     if (!segment) throw new Error('No such segment');
     return segment;
   }
@@ -249,7 +249,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       id,
       name: imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME,
       parentImageId,
-      segments: {},
+      masks: {},
       order: [],
       fillOpacity: DEFAULT_SEGMENTATION_FILL_OPACITY,
       outlineOpacity: 1,
@@ -258,13 +258,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentations[id];
   }
 
-  /** One record per (image, type); the caller has checked there is none. */
-  function createSegment(segmentationId: string, typeId: string) {
+  /** One mask per (image, segment); the caller has checked there is none. */
+  function createMask(segmentationId: string, segmentId: string) {
     const segmentation = getSegmentation(segmentationId);
     const id = useIdStore().nextId();
-    segmentation.segments[id] = { id, typeId, representations: {} };
+    segmentation.masks[id] = { id, segmentId, representations: {} };
     segmentation.order.push(id);
-    return segmentation.segments[id];
+    return segmentation.masks[id];
   }
 
   function getSegmentationForArtifact(artifactId: string) {
@@ -273,10 +273,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /** The ordered segments whose labelmap binding points at one artifact. */
-  function segmentsForArtifact(artifactId: string) {
+  function masksForArtifact(artifactId: string) {
     const segmentation = getSegmentationForArtifact(artifactId);
     if (!segmentation) return [];
-    return listSegments(segmentation).filter(
+    return listMasks(segmentation).filter(
       (segment) => segment.representations.labelmap?.artifactId === artifactId
     );
   }
@@ -322,9 +322,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     artifactMeta[artifactId] = { ...meta, ...patch };
   }
 
-  function detachSegment(segmentation: Segmentation, segmentId: string) {
-    removeFromArray(segmentation.order, segmentId);
-    delete segmentation.segments[segmentId];
+  function detachMask(segmentation: Segmentation, maskId: string) {
+    removeFromArray(segmentation.order, maskId);
+    delete segmentation.masks[maskId];
   }
 
   function removeArtifact(artifactId: string) {
@@ -333,8 +333,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
     const segmentation = getSegmentationForImage(meta.parentImage);
     if (segmentation) {
-      segmentsForArtifact(artifactId).forEach((segment) =>
-        detachSegment(segmentation, segment.id)
+      masksForArtifact(artifactId).forEach((segment) =>
+        detachMask(segmentation, segment.id)
       );
     }
 
@@ -349,7 +349,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    */
   function nextLabelValue(segmentation: Segmentation, preferred?: number) {
     const used = new Set(
-      listSegments(segmentation).flatMap((segment) =>
+      listMasks(segmentation).flatMap((segment) =>
         segment.representations.labelmap
           ? [segment.representations.labelmap.labelValue]
           : []
@@ -359,31 +359,31 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * The type a file's descriptor binds to: the one already carrying that exact
-   * name, or a new one minted from the file. The registry's own color wins on
-   * a match. A name already taken on this image mints a suffixed type instead,
-   * since one image holds at most one mask per type.
+   * The segment a file's descriptor binds to: the one already carrying that
+   * exact name, or a new one minted from the file. The registry's own color wins
+   * on a match. A name already taken on this image mints a suffixed segment
+   * instead, since one image holds at most one mask per segment.
    */
-  /** A record is editable when the type it delineates is unlocked. */
-  const isLocked = (segmentId: string) =>
-    segmentTypes.appearanceOf(findSegment(segmentId)?.typeId).locked;
+  /** A mask is editable when the segment it delineates is unlocked. */
+  const isLocked = (maskId: string) =>
+    segmentRegistry.appearanceOf(findMask(maskId)?.segmentId).locked;
 
-  function bindDescriptorType(
+  function bindDescriptorSegment(
     parentImageId: string,
     descriptor: LabelmapSegment,
-    preferredTypeId?: Maybe<string>
+    preferredSegmentId?: Maybe<string>
   ) {
-    const usable = (typeId: Maybe<string>) =>
-      !!typeId &&
-      !!segmentTypes.getType(typeId) &&
-      !findRecord(parentImageId, typeId);
-    if (usable(preferredTypeId)) return preferredTypeId!;
-    const existing = segmentTypes.findTypeByName(descriptor.name);
+    const usable = (segmentId: Maybe<string>) =>
+      !!segmentId &&
+      !!segmentRegistry.getSegment(segmentId) &&
+      !maskFor(parentImageId, segmentId);
+    if (usable(preferredSegmentId)) return preferredSegmentId!;
+    const existing = segmentRegistry.findSegmentByName(descriptor.name);
     if (existing && usable(existing.id)) return existing.id;
-    // A minted type takes the file's whole description; a matched one keeps
+    // A minted segment takes the file's whole description; a matched one keeps
     // what the registry already says, its visibility and lock included.
-    return segmentTypes.mintType({
-      name: segmentTypes.uniqueName(descriptor.name),
+    return segmentRegistry.mintSegment({
+      name: segmentRegistry.uniqueName(descriptor.name),
       color: [...descriptor.color] as RGBAColor,
       visible: descriptor.visible,
       locked: descriptor.locked ?? false,
@@ -397,11 +397,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * Mints one record per descriptor and fills its bounded mask. The records
+   * Mints one mask per descriptor and fills it. The masks
    * share one segmentation, so label values are assigned against what is
    * already in it and a taken value gets remapped.
    */
-  function splitLabelmapIntoSegments(
+  function splitLabelmapIntoMasks(
     parentImageId: string,
     labelmap: vtkLabelMap,
     descriptors: LabelmapSegment[],
@@ -409,23 +409,23 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       source?: ProcessingResultSource;
       artifactName?: string;
       // The type a descriptor already belongs to, for a split that replaces
-      // records rather than importing a file.
-      typeIdFor?: (descriptor: LabelmapSegment) => Maybe<string>;
+      // masks rather than importing a file.
+      segmentIdFor?: (descriptor: LabelmapSegment) => Maybe<string>;
     } = {}
   ) {
     const segmentation = ensureSegmentationForImage(parentImageId);
-    const created: Segment[] = [];
+    const created: SegmentMask[] = [];
 
     splitLabelmap(labelmap, descriptors, (descriptor, extent) => {
       // Claimed before the segment exists: exhausting the values throws, and a
       // segment minted first would be left in the list with no mask.
       const labelValue = nextLabelValue(segmentation, descriptor.value);
-      const segment = createSegment(
+      const segment = createMask(
         segmentation.id,
-        bindDescriptorType(
+        bindDescriptorSegment(
           parentImageId,
           descriptor,
-          options.typeIdFor?.(descriptor)
+          options.segmentIdFor?.(descriptor)
         )
       );
 
@@ -444,7 +444,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return created;
   }
 
-  // Deliberately separate from createSegment's cursor: a descriptor-less
+  // Deliberately separate from createMask's cursor: a descriptor-less
   // labelmap must decode to the same catalog whether it came from a cold
   // restore or a live conversion, regardless of how many segments this
   // session has otherwise created.
@@ -476,7 +476,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           LabelmapSegment[]
         >,
       split: (labelmap, descriptors) =>
-        splitLabelmapIntoSegments(parentID, labelmap, descriptors, {
+        splitLabelmapIntoMasks(parentID, labelmap, descriptors, {
           source,
         }).map((segment) => segment.id),
     });
@@ -485,9 +485,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const saveFormat = ref('vti');
 
   /** The single voxel-allocation point: no other operation creates storage. */
-  function ensureLabelmapBinding(segmentId: string) {
-    const segmentation = getSegmentationOf(segmentId);
-    const segment = segmentation.segments[segmentId];
+  function ensureLabelmapBinding(maskId: string) {
+    const segmentation = getSegmentationOfMask(maskId);
+    const segment = segmentation.masks[maskId];
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
@@ -503,15 +503,15 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /** The binding of a segment that may already be gone. */
-  const findSegmentBinding = (segmentId: string) =>
-    findSegment(segmentId)?.representations.labelmap;
+  const findMaskBinding = (maskId: string) =>
+    findMask(maskId)?.representations.labelmap;
 
   /**
    * A copy of a segment's binding, or undefined when it has none. No live
    * buffer travels with it: the copied extent would go stale beside one.
    */
-  function resolveLabelmapBinding(segmentId: string) {
-    const binding = getSegment(segmentId).representations.labelmap;
+  function resolveLabelmapBinding(maskId: string) {
+    const binding = getMask(maskId).representations.labelmap;
     if (!binding) return undefined;
     return { ...toRaw(binding) };
   }
@@ -526,7 +526,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   function requireArtifactBinding(artifactId: string) {
-    const segment = segmentsForArtifact(artifactId)[0];
+    const segment = masksForArtifact(artifactId)[0];
     const binding = segment?.representations.labelmap;
     if (!binding) throw new Error('No segment bound to this artifact');
     return binding;
@@ -606,18 +606,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * The accessor every labelmap consumer that holds a segment routes through.
    * The binding is re-resolved on every call rather than captured.
    */
-  function segmentVoxels(segmentId: string): SegmentVoxelAccessor {
+  function maskVoxels(maskId: string): MaskVoxelAccessor {
     // Validates eagerly: an accessor for a nonexistent segment is refused up
     // front, not just on first use.
-    getSegment(segmentId);
+    getMask(maskId);
 
-    const binding = () => getSegment(segmentId).representations.labelmap;
+    const binding = () => getMask(maskId).representations.labelmap;
 
     // Deliberately tolerant where binding() is not: the segment itself can be
     // deleted out from under an accessor, and that is an absent storage, not a
     // lookup error.
     const findArtifactId = () =>
-      findSegment(segmentId)?.representations.labelmap?.artifactId;
+      findMask(maskId)?.representations.labelmap?.artifactId;
 
     const onMissing = (): never => {
       if (!binding()) throw new Error('No storage: call materialize() first');
@@ -626,7 +626,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
     return {
       binding,
-      materialize: () => ensureLabelmapBinding(segmentId),
+      materialize: () => ensureLabelmapBinding(maskId),
       ...voxelStorage(findArtifactId, onMissing),
     };
   }
@@ -655,11 +655,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * locked segment is not editable, so an aimed gesture is not offered its mask
    * at all.
    */
-  function siblingMasks(segmentId: string, gesture: VoxelGesture) {
-    const segmentation = segmentationOf(segmentId);
+  function siblingMasks(maskId: string, gesture: VoxelGesture) {
+    const segmentation = segmentationOfMask(maskId);
     if (!segmentation) return [];
-    return listSegments(segmentation).flatMap((segment) => {
-      if (segment.id === segmentId) return [];
+    return listMasks(segmentation).flatMap((segment) => {
+      if (segment.id === maskId) return [];
       if (gesture === 'aimed' && isLocked(segment.id)) return [];
       const bounded = boundedMask(segment.representations.labelmap);
       return bounded ? [bounded] : [];
@@ -674,21 +674,17 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    *
    * `gesture` is the whole of the policy, so see {@link VoxelGesture}.
    */
-  function voxelClaim(
-    segmentId: string,
-    gesture: VoxelGesture,
-    within: Extent3D
-  ) {
-    const masks = siblingMasks(segmentId, gesture);
+  function voxelClaim(maskId: string, gesture: VoxelGesture, within: Extent3D) {
+    const masks = siblingMasks(maskId, gesture);
     if (gesture === 'aimed') return masksClearing(masks, within);
     const held = masksHolding(masks, within);
     return held && ((i: number, j: number, k: number) => !held(i, j, k));
   }
 
   /** The image's segments in `order`, or none when it has no segmentation. */
-  function imageSegments(parentImageId: string) {
+  function imageMasks(parentImageId: string) {
     const segmentation = getSegmentationForImage(parentImageId);
-    return segmentation ? listSegments(segmentation) : [];
+    return segmentation ? listMasks(segmentation) : [];
   }
 
   /**
@@ -699,7 +695,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * overlap the way the screen did. `members` defaults to the image's segments;
    * an export passes one group so no overlap is flattened away.
    */
-  function compositeLabelmap(parentImageId: string, members?: Segment[]) {
+  function compositeLabelmap(parentImageId: string, members?: SegmentMask[]) {
     const parent = imageCacheStore.getVtkImageData(parentImageId);
     if (!parent) throw new Error('No such parent image');
 
@@ -707,10 +703,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const labelmap = allocateMask(parent, fullExtent(dimensions));
     const values = maskScalars(labelmap);
 
-    const included = [...(members ?? imageSegments(parentImageId))].sort(
+    const included = [...(members ?? imageMasks(parentImageId))].sort(
       (first, second) =>
-        segmentTypes.orderIndexOf(first.typeId) -
-        segmentTypes.orderIndexOf(second.typeId)
+        segmentRegistry.orderIndexOf(first.segmentId) -
+        segmentRegistry.orderIndexOf(second.segmentId)
     );
     const used = new Set(
       included.flatMap((segment) => {
@@ -725,7 +721,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         binding?.labelValue ?? nextUnusedLabelValue(used, LABELMAP_MAX_VALUE);
       used.add(labelValue);
       segments.push(
-        toLabelmapSegment(segmentTypes.getType(segment.typeId), labelValue)
+        toLabelmapSegment(
+          segmentRegistry.getSegment(segment.segmentId),
+          labelValue
+        )
       );
       if (!binding) return;
       const bounded = boundedMask(binding);
@@ -741,7 +740,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * at least one group: an image with no segments still exports one file.
    */
   function layeredSegments(parentImageId: string) {
-    const groups = groupByLayer(imageSegments(parentImageId), (segment) =>
+    const groups = groupByLayer(imageMasks(parentImageId), (segment) =>
       boundedMask(segment.representations.labelmap)
     );
     return groups.length ? groups : [[]];
@@ -752,29 +751,29 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * is not editable, and holding voxels, since an empty mask has no content to
    * process.
    */
-  function editableSegments(parentImageId: string) {
-    return imageSegments(parentImageId).flatMap((segment) => {
+  function editableMasks(parentImageId: string) {
+    return imageMasks(parentImageId).flatMap((segment) => {
       const binding = segment.representations.labelmap;
       if (isLocked(segment.id) || !binding || isEmptyExtent(binding.extent))
         return [];
-      return [{ segmentId: segment.id, labelValue: binding.labelValue }];
+      return [{ maskId: segment.id, labelValue: binding.labelValue }];
     });
   }
 
   /**
-   * The segments of an image that have a mask, with their place in the type
-   * registry: that order is what the renderer offsets by, so two images show
-   * one type at the same depth.
+   * The masks of an image, with their segment's place in the registry: that
+   * order is what the renderer offsets by, so two images show one segment at
+   * the same depth.
    */
-  function segmentLayersForImage(parentImageId: string) {
-    return imageSegments(parentImageId).flatMap((segment) => {
+  function maskLayersForImage(parentImageId: string) {
+    return imageMasks(parentImageId).flatMap((segment) => {
       const { artifactId } = segment.representations.labelmap ?? {};
       return artifactId
         ? [
             {
-              segmentId: segment.id,
+              maskId: segment.id,
               artifactId,
-              stackIndex: segmentTypes.orderIndexOf(segment.typeId),
+              stackIndex: segmentRegistry.orderIndexOf(segment.segmentId),
             },
           ]
         : [];
@@ -790,11 +789,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegmentation(segmentationId).order = [...order];
   }
 
-  function deleteSegment(segmentId: string) {
-    const segmentation = getSegmentationOf(segmentId);
-    const binding = segmentation.segments[segmentId].representations.labelmap;
+  function deleteMask(maskId: string) {
+    const segmentation = getSegmentationOfMask(maskId);
+    const binding = segmentation.masks[maskId].representations.labelmap;
 
-    detachSegment(segmentation, segmentId);
+    detachMask(segmentation, maskId);
 
     // The mask holds this segment and nothing else, so it goes with it.
     if (binding) removeArtifact(binding.artifactId);
@@ -820,62 +819,71 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- edit targets --- //
 
-  /** This image's record for a type, absent when the type has no mask here. */
-  const findRecord = (imageId: Maybe<string>, typeId: Maybe<string>) => {
-    if (!imageId || !typeId) return undefined;
+  /** This image's mask for a segment, absent when it has none here. */
+  const maskFor = (imageId: Maybe<string>, segmentId: Maybe<string>) => {
+    if (!imageId || !segmentId) return undefined;
     const segmentation = getSegmentationForImage(imageId);
     return segmentation
-      ? listSegments(segmentation).find((segment) => segment.typeId === typeId)
+      ? listMasks(segmentation).find(
+          (segment) => segment.segmentId === segmentId
+        )
       : undefined;
   };
 
-  /** The record for (image, type). Creates identity only, never voxels. */
-  function ensureRecord(imageId: string, typeId: string) {
-    const existing = findRecord(imageId, typeId);
+  /** The mask for (image, segment). Creates identity only, never voxels. */
+  function ensureMask(imageId: string, segmentId: string) {
+    const existing = maskFor(imageId, segmentId);
     if (existing) return existing;
     const segmentation = ensureSegmentationForImage(imageId);
-    return createSegment(segmentation.id, typeId);
+    return createMask(segmentation.id, segmentId);
   }
 
   /** Whether a segment id is live anywhere, used to tell stale ids from foreign ones. */
-  const segmentExists = (segmentId: string) => !!findSegment(segmentId);
+  const maskExists = (maskId: string) => !!findMask(maskId);
 
-  // A type the caller named that no longer exists is a stale reference, not a
-  // target: the edit falls through to the selected type.
-  const liveTypeId = (typeId: Maybe<string>) =>
-    typeId && segmentTypes.getType(typeId) ? typeId : undefined;
+  // A segment the caller named that no longer exists is a stale reference, not
+  // a target: the edit falls through to the selected one.
+  const liveSegmentId = (segmentId: Maybe<string>) =>
+    segmentId && segmentRegistry.getSegment(segmentId) ? segmentId : undefined;
 
   /**
-   * The record an edit would land in, if it already exists. Creates nothing, so
+   * The mask an edit would land in, if it already exists. Creates nothing, so
    * an operation with nothing to allocate for, erasing above all, can refuse
-   * before a record is created.
+   * before a mask is created.
    */
-  function findEditTarget(imageId: string, preferredTypeId?: Maybe<string>) {
-    const typeId =
-      liveTypeId(preferredTypeId) ?? segmentTypes.selectedTypeId.value;
-    return findRecord(imageId, typeId)?.id;
+  function findEditTarget(imageId: string, preferredSegmentId?: Maybe<string>) {
+    const segmentId =
+      liveSegmentId(preferredSegmentId) ??
+      segmentRegistry.selectedSegmentId.value;
+    return maskFor(imageId, segmentId)?.id;
   }
 
   /**
-   * Resolves or creates the record an edit targets. With nothing selected the
-   * first edit mints and selects a type, then takes this image's record for it.
+   * Resolves or creates the mask an edit targets. With nothing selected the
+   * first edit mints and selects a segment, then takes this image's mask of it.
    */
-  function resolveEditTarget(imageId: string, preferredTypeId?: Maybe<string>) {
-    const typeId =
-      liveTypeId(preferredTypeId) ?? segmentTypes.ensureSelectedType();
-    return ensureRecord(imageId, typeId).id;
+  function resolveEditTarget(
+    imageId: string,
+    preferredSegmentId?: Maybe<string>
+  ) {
+    const segmentId =
+      liveSegmentId(preferredSegmentId) ??
+      segmentRegistry.ensureSelectedSegment();
+    return ensureMask(imageId, segmentId).id;
   }
 
-  /** Every image's record for a type, for the referenced-type deletion. */
-  const recordsOfType = (typeId: string) =>
+  /** Every image's mask of a segment, for the referenced-segment deletion. */
+  const masksOfSegment = (segmentId: string) =>
     Object.values(segmentations).flatMap((segmentation) =>
-      listSegments(segmentation).filter((segment) => segment.typeId === typeId)
+      listMasks(segmentation).filter(
+        (segment) => segment.segmentId === segmentId
+      )
     );
 
-  declareSegmentTypeReferences('labelmaps', {
-    has: (typeId) => recordsOfType(typeId).length > 0,
-    remove: (typeId) =>
-      recordsOfType(typeId).forEach((segment) => deleteSegment(segment.id)),
+  declareSegmentReferences('labelmaps', {
+    has: (segmentId) => masksOfSegment(segmentId).length > 0,
+    remove: (segmentId) =>
+      masksOfSegment(segmentId).forEach((segment) => deleteMask(segment.id)),
   });
 
   // --- render sync --- //
@@ -888,12 +896,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       byArtifact[artifactId] = [];
     });
     Object.values(segmentations).forEach((segmentation) => {
-      listSegments(segmentation).forEach((segment) => {
+      listMasks(segmentation).forEach((segment) => {
         const binding = segment.representations.labelmap;
         if (!binding || !byArtifact[binding.artifactId]) return;
         byArtifact[binding.artifactId].push(
           toLabelmapSegment(
-            segmentTypes.getType(segment.typeId),
+            segmentRegistry.getSegment(segment.segmentId),
             binding.labelValue
           )
         );
@@ -954,11 +962,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         fillOpacity: segmentation.fillOpacity,
         outlineOpacity: segmentation.outlineOpacity,
         outlineThickness: segmentation.outlineThickness,
-        segments: listSegments(segmentation).map((segment) => {
+        masks: listMasks(segmentation).map((segment) => {
           const binding = segment.representations.labelmap;
           return {
             id: segment.id,
-            typeId: segment.typeId,
+            segmentId: segment.segmentId,
             representations: binding
               ? {
                   labelmap: {
@@ -992,8 +1000,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     manifest: Manifest,
     stateFiles: FileEntry[],
     dataIDMap: Record<string, string>,
-    // Ids the type registry minted for the incoming types, keyed by wire id.
-    typeIdMap: Record<string, string> = {},
+    // Ids the registry minted for the incoming segments, keyed by wire id.
+    segmentIdMap: Record<string, string> = {},
     // Per-artifact restore source, resolved by the restore setup (see
     // resolveArtifactRestoreSources in restoreStateFile.ts, the single owner of
     // the synthesized-leaf and ownership policy). Mapped through dataIDMap here.
@@ -1002,7 +1010,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   ) {
     const wireArtifacts = manifest.segmentationArtifacts ?? [];
     const artifactIdMap: Record<string, string> = {};
-    const segmentIdMap: Record<string, string> = {};
+    const maskIdMap: Record<string, string> = {};
     // Non-silent drops: every artifact left out of the restore is recorded with
     // a concrete reason so the caller can surface it.
     const skipped: Array<{ name: string; reason: string }> = [];
@@ -1185,21 +1193,21 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       }
 
       const wireById = new Map(
-        wire.segments.map((segment) => [segment.id, segment])
+        wire.masks.map((segment) => [segment.id, segment])
       );
-      wire.order.forEach((wireSegmentId) => {
-        const wireSegment = wireById.get(wireSegmentId);
-        if (!wireSegment) return;
+      wire.order.forEach((wireMaskId) => {
+        const wireMask = wireById.get(wireMaskId);
+        if (!wireMask) return;
 
-        // A record whose type did not restore has no identity to show, and a
-        // second record for a type already on this image cannot exist.
-        const typeId = typeIdMap[wireSegment.typeId];
-        if (!typeId || findRecord(parentImageId, typeId)) return;
+        // A mask whose segment did not restore has no identity to show, and a
+        // second mask for a segment already on this image cannot exist.
+        const segmentId = segmentIdMap[wireMask.segmentId];
+        if (!segmentId || maskFor(parentImageId, segmentId)) return;
 
-        const segment = createSegment(segmentation.id, typeId);
+        const segment = createMask(segmentation.id, segmentId);
 
-        const binding = wireSegment.representations.labelmap;
-        const accepted = acceptedBindings.get(wireSegment);
+        const binding = wireMask.representations.labelmap;
+        const accepted = acceptedBindings.get(wireMask);
         if (binding && accepted) {
           const labelValue = remap(
             segmentation,
@@ -1207,7 +1215,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
             binding.labelValue,
             (reason) =>
               skipped.push({
-                name: segmentTypes.appearanceOf(typeId).name,
+                name: segmentRegistry.appearanceOf(segmentId).name,
                 reason,
               })
           );
@@ -1219,7 +1227,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
             };
           }
         }
-        segmentIdMap[wireSegmentId] = segment.id;
+        maskIdMap[wireMaskId] = segment.id;
       });
     });
 
@@ -1239,19 +1247,19 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
       // `decoded` names the segments when the group carried no descriptors;
       // otherwise the bindings the manifest just restored do.
-      const migrated = segmentsForArtifact(artifactId);
-      // A descriptor built from a record carries that record's type, so the
-      // split lands in the type the manifest named rather than matching by
-      // name against a type another record already holds.
+      const migrated = masksForArtifact(artifactId);
+      // A descriptor built from a mask carries that mask's segment, so the
+      // split lands in the segment the manifest named rather than matching by
+      // name against a segment another mask already holds.
       const carriedTypeIds = new Map<LabelmapSegment, string>();
       const descriptors = (
         result.decoded ??
         migrated.map((segment) => {
           const descriptor = toLabelmapSegment(
-            segmentTypes.getType(segment.typeId),
+            segmentRegistry.getSegment(segment.segmentId),
             segment.representations.labelmap!.labelValue
           );
-          carriedTypeIds.set(descriptor, segment.typeId);
+          carriedTypeIds.set(descriptor, segment.segmentId);
           return descriptor;
         })
       ).map((descriptor) => {
@@ -1282,53 +1290,50 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       const labelmap = artifactIndex[artifactId];
       const migratedIds = migrated.map((segment) => segment.id);
       const wireIdByStoreId = new Map(
-        Object.entries(segmentIdMap).map(([wireId, storeId]) => [
-          storeId,
-          wireId,
-        ])
+        Object.entries(maskIdMap).map(([wireId, storeId]) => [storeId, wireId])
       );
-      const selectedBefore = segmentTypes.selectedTypeId.value;
+      const selectedBefore = segmentRegistry.selectedSegmentId.value;
       const migratedTypeIds = new Map(
-        migrated.map((segment) => [segment.id, segment.typeId])
+        migrated.map((segment) => [segment.id, segment.segmentId])
       );
       removeArtifact(artifactId);
 
-      const created = splitLabelmapIntoSegments(
+      const created = splitLabelmapIntoMasks(
         parentImageId,
         labelmap,
         descriptors,
         {
           source: artifact.source,
           artifactName: artifact.name,
-          typeIdFor: (descriptor) => carriedTypeIds.get(descriptor),
+          segmentIdFor: (descriptor) => carriedTypeIds.get(descriptor),
         }
       );
 
       // Every reference to a segment that went with the source artifact moves
       // onto the split one that replaced it, its place in the order included.
       const replacementOf = new Map<string, string>();
-      migratedIds.forEach((segmentId, index) => {
+      migratedIds.forEach((maskId, index) => {
         const replacement = created[index];
         if (!replacement) return;
-        replacementOf.set(segmentId, replacement.id);
-        const wireId = wireIdByStoreId.get(segmentId);
-        if (wireId) segmentIdMap[wireId] = replacement.id;
+        replacementOf.set(maskId, replacement.id);
+        const wireId = wireIdByStoreId.get(maskId);
+        if (wireId) maskIdMap[wireId] = replacement.id;
         // The split mints its own types, so a selection on the source type
-        // follows onto the type its replacement landed in.
-        if (selectedBefore === migratedTypeIds.get(segmentId))
-          segmentTypes.selectType(replacement.typeId);
+        // follows onto the segment its replacement landed in.
+        if (selectedBefore === migratedTypeIds.get(maskId))
+          segmentRegistry.selectSegment(replacement.segmentId);
       });
 
-      const placed = orderBefore.flatMap((segmentId) => {
-        const replacement = replacementOf.get(segmentId);
+      const placed = orderBefore.flatMap((maskId) => {
+        const replacement = replacementOf.get(maskId);
         if (replacement) return [replacement];
-        return segmentation.segments[segmentId] ? [segmentId] : [];
+        return segmentation.masks[maskId] ? [maskId] : [];
       });
       segmentation.order = [
         ...placed,
         ...created
           .map((segment) => segment.id)
-          .filter((segmentId) => !placed.includes(segmentId)),
+          .filter((maskId) => !placed.includes(maskId)),
       ];
 
       // A migrated legacy group carried its active paint value here, because
@@ -1342,13 +1347,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         (descriptor) => descriptor.value === pendingActiveValue
       );
       const active = activeIndex === -1 ? undefined : created[activeIndex];
-      if (active) segmentTypes.selectType(active.typeId);
+      if (active) segmentRegistry.selectSegment(active.segmentId);
     });
 
     Object.entries(artifactIdMap).forEach(([wireArtifactId, artifactId]) => {
       if (
         artifactMeta[artifactId] &&
-        segmentsForArtifact(artifactId).length === 0
+        masksForArtifact(artifactId).length === 0
       ) {
         // A bound artifact that lost every segment was already reported per
         // binding; only one nothing referenced gets a notice here.
@@ -1363,7 +1368,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       }
     });
 
-    return { artifactIdMap, segmentIdMap, skipped };
+    return { artifactIdMap, maskIdMap, skipped };
   }
 
   // --- handle deletions --- //
@@ -1382,39 +1387,39 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     artifactIndex,
     artifactMeta,
     labelmapSegmentsByArtifact,
-    findRecord,
+    maskFor,
     findEditTarget,
     resolveEditTarget,
-    segmentExists,
+    maskExists,
     getSegmentationForImage,
     ensureSegmentationForImage,
-    getSegment,
+    getMask,
     resolveLabelmapBinding,
-    findSegmentBinding,
-    segmentVoxels,
+    findMaskBinding,
+    maskVoxels,
     artifactVoxels,
-    createSegment,
+    createMask,
     ensureLabelmapBinding,
     isLocked,
     updateSegmentationDisplay,
     reorderSegments,
-    deleteSegment,
+    deleteMask,
     removeSegmentation,
     getSegmentationForArtifact,
-    segmentsForArtifact,
+    masksForArtifact,
     registerArtifact,
     createArtifactForImage,
     updateArtifactMeta,
-    splitLabelmapIntoSegments,
+    splitLabelmapIntoMasks,
     decodeSegments,
     convertImageToLabelmap,
     saveFormat,
     voxelClaim,
     compositeLabelmap,
     layeredSegments,
-    imageSegments,
-    editableSegments,
-    segmentLayersForImage,
+    imageMasks,
+    editableMasks,
+    maskLayersForImage,
     removeArtifact,
     serialize,
     deserialize,

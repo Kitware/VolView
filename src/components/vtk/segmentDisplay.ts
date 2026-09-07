@@ -30,8 +30,8 @@ const SEGMENT_OFFSET_FACTOR = -4;
 export const SEGMENT_ACTOR_OPACITY = 0.9999;
 
 /**
- * A segment's coincident-topology polygon offset, by its type's position in the
- * registry. Overlap is representable, so segments sharing one offset would
+ * A mask's coincident-topology polygon offset, by its segment's position in
+ * the registry. Overlap is representable, so segments sharing one offset would
  * z-fight. Later in that order draws in front, and the flattened export
  * resolves an overlap the same way, so two images stack one type alike.
  */

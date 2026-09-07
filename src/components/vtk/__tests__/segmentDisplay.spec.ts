@@ -7,7 +7,7 @@ import {
 } from '@/src/components/vtk/segmentDisplay';
 import type { LabelmapSegment } from '@/src/types/segmentation';
 
-const makeSegment = (
+const makeMask = (
   value: number,
   overrides: Partial<LabelmapSegment> = {}
 ): LabelmapSegment => ({
@@ -20,35 +20,33 @@ const makeSegment = (
 
 describe('segmentFillAlpha', () => {
   it('is the segment alpha when the fill is fully opaque', () => {
-    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 1 }))).toBe(1);
+    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 1 }))).toBe(1);
   });
 
   it('scales the segment alpha by the fill opacity', () => {
-    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 0.5 }))).toBe(0.5);
+    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 0.5 }))).toBe(0.5);
   });
 
   it('hides a fill the user set to zero', () => {
-    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 0 }))).toBe(0);
+    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 0 }))).toBe(0);
   });
 
   it('hides an invisible segment whatever its fill opacity', () => {
     expect(
-      segmentFillAlpha(makeSegment(1, { visible: false, fillOpacity: 1 }))
+      segmentFillAlpha(makeMask(1, { visible: false, fillOpacity: 1 }))
     ).toBe(0);
   });
 
   it('treats a descriptor without a fill opacity as opaque', () => {
-    expect(segmentFillAlpha(makeSegment(1))).toBe(1);
+    expect(segmentFillAlpha(makeMask(1))).toBe(1);
   });
 
   it('scales the segment alpha by the segmentation\u2019s fill opacity', () => {
-    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 0.5 }), 0.5)).toBe(
-      0.25
-    );
+    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 0.5 }), 0.5)).toBe(0.25);
   });
 
   it('hides every fill when the segmentation\u2019s fill opacity is zero', () => {
-    expect(segmentFillAlpha(makeSegment(1, { fillOpacity: 1 }), 0)).toBe(0);
+    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 1 }), 0)).toBe(0);
   });
 });
 
@@ -56,8 +54,8 @@ describe('segmentOutlineTables', () => {
   it('indexes both tables by label value minus one', () => {
     const tables = segmentOutlineTables(
       [
-        makeSegment(1, { outlineOpacity: 0.25 }),
-        makeSegment(2, { outlineOpacity: 0.5 }),
+        makeMask(1, { outlineOpacity: 0.25 }),
+        makeMask(2, { outlineOpacity: 0.5 }),
       ],
       2,
       1
@@ -69,7 +67,7 @@ describe('segmentOutlineTables', () => {
 
   it('hides an outline the user set to zero', () => {
     const tables = segmentOutlineTables(
-      [makeSegment(1, { outlineOpacity: 0 })],
+      [makeMask(1, { outlineOpacity: 0 })],
       2,
       1
     );
@@ -79,7 +77,7 @@ describe('segmentOutlineTables', () => {
 
   it('scales every segment by the group outline opacity', () => {
     const tables = segmentOutlineTables(
-      [makeSegment(1, { outlineOpacity: 0.5 })],
+      [makeMask(1, { outlineOpacity: 0.5 })],
       2,
       0.5
     );
@@ -89,7 +87,7 @@ describe('segmentOutlineTables', () => {
 
   it('leaves values no segment claims at the group defaults', () => {
     const tables = segmentOutlineTables(
-      [makeSegment(3, { outlineOpacity: 0.5 })],
+      [makeMask(3, { outlineOpacity: 0.5 })],
       2,
       1
     );
@@ -100,7 +98,7 @@ describe('segmentOutlineTables', () => {
 
   it('drops the thickness of an invisible segment', () => {
     const tables = segmentOutlineTables(
-      [makeSegment(1, { visible: false }), makeSegment(2)],
+      [makeMask(1, { visible: false }), makeMask(2)],
       2,
       1
     );

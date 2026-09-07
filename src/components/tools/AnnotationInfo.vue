@@ -30,8 +30,8 @@ const metadata = computed(() => {
 
 const label = computed(() => {
   if (!props.info.visible) return '';
-  const { typeId } = props.toolStore.toolByID[props.info.toolID];
-  return props.toolStore.types.appearanceOf(typeId).name;
+  const { segmentId } = props.toolStore.toolByID[props.info.toolID];
+  return props.toolStore.segments.appearanceOf(segmentId).name;
 });
 
 const tooltip = ref();

@@ -6,7 +6,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useViewStore } from '@/src/store/views';
@@ -14,7 +14,7 @@ import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterize
 
 // ---------------------------------------------------------------------------
 // One type, every image. The registry is independent of the viewed image, so
-// switching images keeps the selection and an edit takes this image's record
+// switching images keeps the selection and an edit takes this image's mask
 // for the selected type. Nothing is cloned and no identity is matched by name.
 // ---------------------------------------------------------------------------
 
@@ -22,7 +22,7 @@ const DIMENSIONS = [4, 4, 2] as const;
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
 
 const store = () => useSegmentationStore();
-const types = () => useSegmentTypeStore().types;
+const segments = () => useSegmentStore().segments;
 
 async function seatImage(id: string, name = 'CT') {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
@@ -47,8 +47,8 @@ const viewImage = async (id: string) => {
 const recordIdsOf = (imageId: string) =>
   store().getSegmentationForImage(imageId)?.order ?? [];
 
-const nameOn = (imageId: string, recordId: string) =>
-  types().appearanceOf(store().getSegment(recordId).typeId).name;
+const nameOn = (imageId: string, maskId: string) =>
+  segments().appearanceOf(store().getMask(maskId).segmentId).name;
 
 describe('one type across images', () => {
   beforeEach(async () => {
@@ -58,39 +58,39 @@ describe('one type across images', () => {
   });
 
   it('paints the same type on a second image without cloning it', () => {
-    const typeId = types().addType({ name: 'Tumor' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
 
     const first = store().resolveEditTarget('img-1');
     const second = store().resolveEditTarget('img-2');
 
     expect(second).not.toBe(first);
-    expect(store().getSegment(first).typeId).toBe(typeId);
-    expect(store().getSegment(second).typeId).toBe(typeId);
-    expect(types().typeList.value).toHaveLength(1);
+    expect(store().getMask(first).segmentId).toBe(segmentId);
+    expect(store().getMask(second).segmentId).toBe(segmentId);
+    expect(segments().segmentList.value).toHaveLength(1);
   });
 
   it('shows a rename on every image at once', () => {
-    const typeId = types().addType({ name: 'Tumor' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
     const first = store().resolveEditTarget('img-1');
     const second = store().resolveEditTarget('img-2');
 
-    types().updateType(typeId, { name: 'Lesion' });
+    segments().updateSegment(segmentId, { name: 'Lesion' });
 
     expect(nameOn('img-1', first)).toBe('Lesion');
     expect(nameOn('img-2', second)).toBe('Lesion');
   });
 
   it('keeps the selection when the viewed image changes', async () => {
-    const typeId = types().addType({ name: 'Tumor' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
 
     await viewImage('img-2');
 
-    expect(types().selectedTypeId.value).toBe(typeId);
+    expect(segments().selectedSegmentId.value).toBe(segmentId);
     expect(recordIdsOf('img-2')).toEqual([]);
   });
 
   it('reuses this image record on a second edit', () => {
-    types().addType({ name: 'Tumor' });
+    segments().addSegment({ name: 'Tumor' });
 
     const first = store().resolveEditTarget('img-2');
     const second = store().resolveEditTarget('img-2');
@@ -100,20 +100,20 @@ describe('one type across images', () => {
   });
 
   it('mints a type when the selected one was deleted', () => {
-    const typeId = types().addType({ name: 'Tumor' });
-    types().deleteType(typeId);
+    const segmentId = segments().addSegment({ name: 'Tumor' });
+    segments().deleteSegment(segmentId);
 
     const target = store().resolveEditTarget('img-2');
 
-    expect(types().getType(typeId)).toBeUndefined();
-    expect(store().getSegment(target).typeId).not.toBe(typeId);
+    expect(segments().getSegment(segmentId)).toBeUndefined();
+    expect(store().getMask(target).segmentId).not.toBe(segmentId);
     expect(nameOn('img-2', target)).toBe('Segment 1');
   });
 
   it('takes a reselected type as the one an edit lands in', () => {
-    types().addType({ name: 'Tumor' });
-    const node = types().addType({ name: 'Node' });
-    types().updateType(node, { name: 'Renamed node' });
+    segments().addSegment({ name: 'Tumor' });
+    const node = segments().addSegment({ name: 'Node' });
+    segments().updateSegment(node, { name: 'Renamed node' });
 
     const target = store().resolveEditTarget('img-2');
 
@@ -121,29 +121,29 @@ describe('one type across images', () => {
   });
 
   it('hides and locks the type on every image at once', () => {
-    const typeId = types().addType({ name: 'Tumor' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
     const first = store().resolveEditTarget('img-1');
     const second = store().resolveEditTarget('img-2');
 
-    types().updateType(typeId, { visible: false, locked: true });
+    segments().updateSegment(segmentId, { visible: false, locked: true });
 
     // Both describe the thing, so a record cannot disagree with its type.
-    [first, second].forEach((recordId) => {
-      const appearance = types().appearanceOf(
-        store().getSegment(recordId).typeId
+    [first, second].forEach((maskId) => {
+      const appearance = segments().appearanceOf(
+        store().getMask(maskId).segmentId
       );
       expect(appearance.visible).toBe(false);
       expect(appearance.locked).toBe(true);
-      expect(store().isLocked(recordId)).toBe(true);
+      expect(store().isLocked(maskId)).toBe(true);
     });
   });
 
   it('deletes the type on every image at once', () => {
-    const typeId = types().addType({ name: 'Tumor' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
     store().resolveEditTarget('img-1');
     store().resolveEditTarget('img-2');
 
-    types().deleteType(typeId);
+    segments().deleteSegment(segmentId);
 
     expect(recordIdsOf('img-1')).toEqual([]);
     expect(recordIdsOf('img-2')).toEqual([]);
@@ -159,48 +159,50 @@ describe('placing and rasterizing on another image', () => {
   });
 
   it('places an annotation on another image against the selected type', async () => {
-    const typeId = types().addType({ name: 'Tumor' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
     const polygons = usePolygonStore();
 
     await viewImage('img-2');
     const toolId = polygons.addTool({ imageID: 'img-2', placing: false });
 
-    expect(polygons.toolByID[toolId].typeId).toBe(typeId);
-    expect(types().selectedTypeId.value).toBe(typeId);
+    expect(polygons.toolByID[toolId].segmentId).toBe(segmentId);
+    expect(segments().selectedSegmentId.value).toBe(segmentId);
   });
 
   it('shares the selection with the other delineation tools', () => {
-    const typeId = useRectangleStore().types.addType({ name: 'Tumor' });
+    const segmentId = useRectangleStore().segments.addSegment({
+      name: 'Tumor',
+    });
 
-    expect(usePolygonStore().types.selectedTypeId.value).toBe(typeId);
-    expect(useSegmentTypeStore().types.selectedTypeId.value).toBe(typeId);
+    expect(usePolygonStore().segments.selectedSegmentId.value).toBe(segmentId);
+    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
   });
 
   it('rasterizes into this image record for the selected type', async () => {
-    const typeId = types().addType({ name: 'Tumor' });
-    types().updateType(typeId, { name: 'Lesion' });
+    const segmentId = segments().addSegment({ name: 'Tumor' });
+    segments().updateSegment(segmentId, { name: 'Lesion' });
     const origin = store().resolveEditTarget('img-1');
 
     await viewImage('img-2');
     const target = resolveRasterizeTarget('img-2', '')!;
 
-    expect(target.typeId).toBe(typeId);
-    expect(nameOn('img-2', target.segmentId)).toBe('Lesion');
-    expect(recordIdsOf('img-2')).toEqual([target.segmentId]);
+    expect(target.segmentId).toBe(segmentId);
+    expect(nameOn('img-2', target.maskId)).toBe('Lesion');
+    expect(recordIdsOf('img-2')).toEqual([target.maskId]);
     expect(recordIdsOf('img-1')).toEqual([origin]);
   });
 
   it('never rasterizes into the other image mask', async () => {
-    types().addType({ name: 'Tumor' });
+    segments().addSegment({ name: 'Tumor' });
     const origin = store().resolveEditTarget('img-1');
     store().ensureLabelmapBinding(origin);
 
     await viewImage('img-2');
     const target = resolveRasterizeTarget('img-2', '')!;
 
-    expect(target.segmentId).not.toBe(origin);
+    expect(target.maskId).not.toBe(origin);
     expect(target.artifactId).not.toBe(
-      store().getSegment(origin).representations.labelmap!.artifactId
+      store().getMask(origin).representations.labelmap!.artifactId
     );
   });
 });

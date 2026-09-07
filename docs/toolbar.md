@@ -50,32 +50,32 @@ Polygon annotations can be tagged with a label. Use the palette in the upper lef
 
 When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
 
-Ruler annotations name a segment type. Use the palette in the upper left or the `q` or `w` keys to select the active type.
+Ruler annotations name a segment. Use the palette in the upper left or the `q` or `w` keys to select the active one.
 
 ![2D Annotations](./assets/11-volview-paint-notes.jpg)
 
-### Segment type configuration
+### Segment configuration
 
-If VolView loads a JSON file matching the schema below, segment types are added to the
-registries. Paint, rectangles and polygons share `segmentTypes`; rulers have their own
-`rulerTypes`. Every appearance field is optional and means the app default when absent.
+If VolView loads a JSON file matching the schema below, segments are added to the
+registries. Paint, rectangles and polygons share `segments`; rulers have their own
+`rulerSegments`. Every appearance field is optional and means the app default when absent.
 
 ```json
 {
-  "segmentTypes": {
+  "segments": {
     "innocuous": { "color": "white" },
     "lesion": { "color": "#ff0000" },
     "tumor": { "color": "green", "strokeWidth": 3 }
   },
-  "rulerTypes": {
+  "rulerSegments": {
     "big": { "color": "#ff0000" },
     "small": { "color": "white" }
   }
 }
 ```
 
-A section can be `null` or `{}` to clear what an earlier config contributed. A type your
-content still references survives as a session type rather than taking its masks and
+A section can be `null` or `{}` to clear what an earlier config contributed. A segment your
+content still references survives as a session segment rather than taking its masks and
 shapes with it.
 
 ## 3D Crop

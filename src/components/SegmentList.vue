@@ -5,17 +5,17 @@ import EditableChipList from '@/src/components/EditableChipList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue';
-import SegmentTypeEditor from '@/src/components/SegmentTypeEditor.vue';
+import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useSegmentTypeEditing } from '@/src/composables/useSegmentTypeEditing';
+import { useSegmentEditing } from '@/src/composables/useSegmentEditing';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentTypeStore } from '@/src/store/segmentTypes';
+import { useSegmentStore } from '@/src/store/segments';
 import { Maybe } from '@/src/types';
 import { type SegmentationDisplayPatch } from '@/src/types/segmentation';
 
 const segmentationStore = useSegmentationStore();
-const { types } = useSegmentTypeStore();
+const { segments } = useSegmentStore();
 const { currentImageID } = useCurrentImage();
 
 // Scoped to the viewed image: the per-image controls belong to this image's
@@ -28,12 +28,12 @@ const viewedSegmentation = computed(() => {
 });
 
 // The registry is image-independent, and so is everything a row carries:
-// visibility and lock describe the type, not one image's copy of it.
-const segments = computed(() =>
-  types.typeList.value.map((type) => {
-    const appearance = types.appearanceOf(type.id);
+// visibility and lock describe the segment, not one image's mask of it.
+const rows = computed(() =>
+  segments.segmentList.value.map((segment) => {
+    const appearance = segments.appearanceOf(segment.id);
     return {
-      id: type.id,
+      id: segment.id,
       name: appearance.name,
       color: appearance.cssColor,
       visible: appearance.visible,
@@ -82,25 +82,25 @@ function openSaveDialog() {
 
 // --- selection --- //
 
-const selectedSegment = computed({
-  get: () => types.selectedTypeId.value ?? null,
-  set: (id: Maybe<string>) => types.selectType(id ?? undefined),
+const selectedSegmentOn = computed({
+  get: () => segments.selectedSegmentId.value ?? null,
+  set: (id: Maybe<string>) => segments.selectSegment(id ?? undefined),
 });
 
-// Adding a row allocates no storage and touches no image: the type exists as
-// identity until an edit binds a mask to it.
+// Adding a row allocates no storage and touches no image: the segment exists
+// as identity until an edit binds a mask to it.
 function addNewSegment() {
   if (viewingCine.value) return;
-  types.addType();
+  segments.addSegment();
 }
 
 // --- row actions --- //
 
 const toggleVisible = (id: string) =>
-  types.updateType(id, { visible: !types.appearanceOf(id).visible });
+  segments.updateSegment(id, { visible: !segments.appearanceOf(id).visible });
 
 const toggleLock = (id: string) =>
-  types.updateType(id, { locked: !types.appearanceOf(id).locked });
+  segments.updateSegment(id, { locked: !segments.appearanceOf(id).locked });
 
 // Locking is the whole opt-in for overlap, and nothing else on screen says so.
 const lockTooltip = (locked: boolean) =>
@@ -109,39 +109,34 @@ const lockTooltip = (locked: boolean) =>
     : 'Lock. Painting over this segment shares its voxels instead of taking them.';
 
 const allVisible = computed(() =>
-  segments.value.every((segment) => segment.visible)
+  rows.value.every((segment) => segment.visible)
 );
 
-const allLocked = computed(() =>
-  segments.value.every((segment) => segment.locked)
-);
+const allLocked = computed(() => rows.value.every((segment) => segment.locked));
 
 function toggleGlobalVisible() {
   const visible = !allVisible.value;
-  segments.value.forEach((segment) =>
-    types.updateType(segment.id, { visible })
+  rows.value.forEach((segment) =>
+    segments.updateSegment(segment.id, { visible })
   );
 }
 
 function toggleGlobalLocked() {
   const locked = !allLocked.value;
-  segments.value.forEach((segment) => types.updateType(segment.id, { locked }));
+  rows.value.forEach((segment) =>
+    segments.updateSegment(segment.id, { locked })
+  );
 }
 
-function deleteSegment(id: string) {
-  types.deleteType(id);
+function deleteMask(id: string) {
+  segments.deleteSegment(id);
 }
 
 // --- editing state --- //
 
-const editing = useSegmentTypeEditing(() => types);
-const {
-  editDialog,
-  editState,
-  editingType: editingSegment,
-  editingName,
-  invalidNames,
-} = editing;
+const editing = useSegmentEditing(() => segments);
+const { editDialog, editState, editingSegment, editingName, invalidNames } =
+  editing;
 </script>
 
 <template>
@@ -200,8 +195,8 @@ const {
     </div>
 
     <editable-chip-list
-      v-model="selectedSegment"
-      :items="segments"
+      v-model="selectedSegmentOn"
+      :items="rows"
       item-key="id"
       item-title="name"
       create-label-text="New segment"
@@ -216,7 +211,7 @@ const {
         </div>
       </template>
       <template #item-append="{ item }">
-        <!-- Lock/unlock the type, which holds on every image -->
+        <!-- Lock/unlock the segment, which holds on every image -->
         <v-btn
           icon
           size="small"
@@ -264,7 +259,7 @@ const {
           density="compact"
           class="ml-auto"
           variant="plain"
-          @click.stop="deleteSegment(item.id)"
+          @click.stop="deleteMask(item.id)"
           :disabled="item.locked"
         />
       </template>
@@ -273,7 +268,7 @@ const {
   <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
 
   <isolated-dialog v-model="editDialog" @keydown.stop max-width="800px">
-    <segment-type-editor
+    <segment-editor
       v-if="!!editingSegment"
       v-model:name="editState.name"
       :original="editingName"
@@ -281,7 +276,7 @@ const {
       v-model:fill-opacity="editState.fillOpacity"
       v-model:outline-opacity="editState.outlineOpacity"
       v-model:stroke-width="editState.strokeWidth"
-      @delete="editing.deleteEditingType()"
+      @delete="editing.deleteEditingSegment()"
       @cancel="editing.stopEditing(false)"
       @done="editing.stopEditing(true)"
       :invalidNames="invalidNames"

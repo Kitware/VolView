@@ -103,7 +103,7 @@ describe('fillHoles', () => {
   });
 
   it('does not override a segment it fully encircles', () => {
-    // Segment 1 forms a ring around segment 2 with a background gap between.
+    // SegmentMask 1 forms a ring around segment 2 with a background gap between.
     const { data, dimensions } = flatFromGrid([
       [1, 1, 1, 1, 1],
       [1, 0, 0, 0, 1],

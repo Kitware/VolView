@@ -13,9 +13,9 @@ import { useDatasetStore } from '../store/datasets';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
-import type { SegmentType } from '../types/segmentType';
+import type { Segment } from '../types/segment';
 
-const applyTypeOffset = (offset: number) => () => {
+const applySegmentOffset = (offset: number) => () => {
   const toolToStore = {
     [Tools.Rectangle]: useRectangleStore(),
     [Tools.Ruler]: useRulerStore(),
@@ -27,13 +27,13 @@ const applyTypeOffset = (offset: number) => () => {
   const activeToolStore = toolToStore[toolStore.currentTool];
   if (!activeToolStore) return;
 
-  const { types } = activeToolStore;
-  const ids = types.typeList.value.map((type: SegmentType) => type.id);
-  // A registry starts empty, so there is nothing to cycle until a type exists.
+  const { segments } = activeToolStore;
+  const ids = segments.segmentList.value.map((segment: Segment) => segment.id);
+  // A registry starts empty, so there is nothing to cycle until one exists.
   if (ids.length === 0) return;
 
-  const selectedIndex = ids.indexOf(types.selectedTypeId.value);
-  types.selectType(ids.at((selectedIndex + offset) % ids.length));
+  const selectedIndex = ids.indexOf(segments.selectedSegmentId.value);
+  segments.selectSegment(ids.at((selectedIndex + offset) % ids.length));
 };
 
 const setTool = (tool: Tools) => () => {
@@ -110,8 +110,8 @@ export const ACTION_TO_FUNC = {
   previousSlice: changeSlice(1),
   grabSlice: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
-  decrementLabel: applyTypeOffset(-1),
-  incrementLabel: applyTypeOffset(1),
+  decrementLabel: applySegmentOffset(-1),
+  incrementLabel: applySegmentOffset(1),
 
   deleteSelectedAnnotations: removeSelectedTools,
 
