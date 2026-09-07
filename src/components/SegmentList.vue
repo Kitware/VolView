@@ -75,6 +75,10 @@ type Row = (typeof rows.value)[number];
 // means nothing and saves as an empty 2D file.
 const viewingCine = computed(() => isCineImage(currentImageID.value));
 
+const heading = computed(
+  () => `${props.noun[0].toUpperCase()}${props.noun.slice(1)}s`
+);
+
 // --- display --- //
 
 // One multiplier each for fill and outline, scaling every segment of the
@@ -197,8 +201,7 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
     :data-testid="`${noun}-list`"
   >
     <div v-if="masked" class="d-flex align-center ga-1 pt-1">
-      <span class="text-overline text-medium-emphasis">{{ noun }}s</span>
-      <span class="text-caption text-medium-emphasis">{{ rows.length }}</span>
+      <span class="text-subtitle-2 text-medium-emphasis">{{ heading }}</span>
       <v-spacer />
       <v-btn
         data-testid="toggle-segments-visible-button"
@@ -275,7 +278,17 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
       <template #item-prepend="{ item }">
         <!-- dot container keeps overflowing name from squishing dot width  -->
         <div class="dot-container mr-3">
-          <div class="color-dot" :style="{ background: item.color }" />
+          <button
+            type="button"
+            class="color-dot"
+            data-testid="segment-color-button"
+            :style="{ background: item.color }"
+            @click.stop="editing.startEditing(item.id)"
+          >
+            <v-tooltip location="right" activator="parent">
+              Change color
+            </v-tooltip>
+          </button>
         </div>
       </template>
       <template #item-append="{ item }">
@@ -388,6 +401,8 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
   height: 18px;
   border-radius: 16px;
   border: 1px solid #111;
+  padding: 0;
+  cursor: pointer;
 }
 .dot-container {
   width: 18px;
