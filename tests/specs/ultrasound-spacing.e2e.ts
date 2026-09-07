@@ -1,6 +1,7 @@
 import { US_MULTIFRAME_DICOM } from './configTestUtils';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
+import { openMeasurements } from './segmentationTestUtils';
 
 // The exact ruler length depends on platform-specific viewport geometry, but
 // the unspaced fallback is roughly twice as large because the DICOM fixture's
@@ -25,12 +26,7 @@ describe('Ultrasound image spacing', () => {
     await canvas.click({ x: 0, y: -CLICK_DY / 2 });
     await canvas.click({ x: 0, y: CLICK_DY / 2 });
 
-    const annotationsTab = await volViewPage.annotationsModuleTab;
-    await annotationsTab.click();
-
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
+    await openMeasurements();
 
     let lengthMm = 0;
     await browser.waitUntil(

@@ -336,13 +336,13 @@ describe('applyIntent — add-annotations', () => {
 
   it('binds an existing type of the same name instead of minting one', async () => {
     const rulerStore = useRulerStore();
-    // 'Label 1' ships as the ruler registry's default type.
+    // 'Ruler 1' ships as the ruler registry's default segment.
     const existingId = rulerStore.segments.segmentList.value[0].id;
     const before = rulerStore.segments.segmentList.value.length;
 
     const file = annotationsFile();
-    file.labels.rulers = { 'Label 1': { color: '#123456', strokeWidth: 3 } };
-    file.tools.rulers[0].labelName = 'Label 1';
+    file.labels.rulers = { 'Ruler 1': { color: '#123456', strokeWidth: 3 } };
+    file.tools.rulers[0].labelName = 'Ruler 1';
     file.tools.rectangles = [];
     file.tools.polygons = [];
     serveFile(file);

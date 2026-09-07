@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { maskOn, lockSegment } from '@/src/store/__tests__/segmentMaskFixtures';
+import {
+  type Index3,
+  maskOn,
+  lockSegment,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { defineComponent, nextTick } from 'vue';
 import { mount, VueWrapper } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -10,8 +14,13 @@ import SegmentList from '@/src/components/SegmentList.vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
-import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
+import {
+  DEFAULT_SEGMENTATION_FILL_OPACITY,
+  extentSize,
+  maskOffset,
+} from '@/src/types/segmentation';
 import { useViewStore } from '@/src/store/views';
+import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
 
 // ---------------------------------------------------------------------------
@@ -22,18 +31,21 @@ import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS = [4, 4, 2] as const;
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
 
 const store = () => useSegmentationStore();
 const segments = () => useSegmentStore().segments;
 
-async function seatImage(id: string, name = 'CT') {
+async function seatImage(
+  id: string,
+  name = 'CT',
+  dimensions: readonly [number, number, number] = DIMENSIONS
+) {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS as unknown as [number, number, number]);
+  image.setDimensions(dimensions as unknown as [number, number, number]);
   image.getPointData().setScalars(
     vtkDataArray.newInstance({
       numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
+      values: new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]),
     })
   );
   image.computeTransforms();
@@ -57,40 +69,40 @@ const makeMask = (imageId: string, name: string) => {
 /** A type with no mask anywhere, which the list still offers. */
 const makeSegment = (name: string) => segments().mintSegment({ name });
 
-// The chip list stands in for the real one so the per-row slot renders without
+// The item list stands in for the real one so the per-row slot renders without
 // Vuetify: rows carry their segment id, and the row buttons keep the icon names
 // the list uses today.
-const ChipListStub = defineComponent({
-  name: 'EditableChipList',
+const ItemListStub = defineComponent({
+  name: 'EditableItemList',
   props: [
     'items',
     'itemKey',
     'itemTitle',
     'modelValue',
-    'createLabelText',
+    'createText',
     'hideCreate',
   ],
   emits: ['update:model-value', 'create', 'select', 'edit'],
   template: `
-    <div class="chip-list">
+    <div class="item-list">
       <div
         v-for="item in items"
         :key="item.id"
-        class="chip-row"
+        class="item-row"
         :data-id="item.id"
       >
         <slot name="item-prepend" :key="item.id" :item="item" />
         <slot name="item-append" :key="item.id" :item="item" />
       </div>
-      <button v-if="!hideCreate" class="create-chip" @click="$emit('create')" />
+      <button v-if="!hideCreate" class="create-row" @click="$emit('create')" />
     </div>
   `,
 });
 
 const BtnStub = defineComponent({
   name: 'VBtn',
-  props: ['icon'],
-  template: `<button :data-icon="icon"><slot name="prepend" /><slot /></button>`,
+  props: ['icon', 'disabled'],
+  template: `<button :data-icon="icon" :disabled="disabled || undefined"><slot name="prepend" /><slot /></button>`,
 });
 
 const IconStub = defineComponent({
@@ -140,7 +152,7 @@ const SliderStub = defineComponent({
 const globalOptions = {
   stubs: {
     VSlider: SliderStub,
-    EditableChipList: ChipListStub,
+    EditableItemList: ItemListStub,
     SegmentEditor: SegmentEditorStub,
     IsolatedDialog: { template: '<div class="dialog"><slot /></div>' },
     CloseableDialog: {
@@ -152,16 +164,24 @@ const globalOptions = {
     ColorDot: { props: ['color'], template: '<span class="color-dot" />' },
     VBtn: BtnStub,
     VIcon: IconStub,
+    VSpacer: { template: '<span />' },
     VTooltip: { template: '<span />' },
   },
 };
 
-const mountList = () => mount(SegmentList, { global: globalOptions });
+const listProps = () => ({
+  registry: segments(),
+  noun: 'segment',
+  masked: true,
+});
 
-const chipList = (wrapper: VueWrapper) => wrapper.findComponent(ChipListStub);
+const mountList = () =>
+  mount(SegmentList, { props: listProps(), global: globalOptions });
+
+const itemList = (wrapper: VueWrapper) => wrapper.findComponent(ItemListStub);
 
 const rowIds = (wrapper: VueWrapper) =>
-  wrapper.findAll('.chip-row').map((row) => row.attributes('data-id'));
+  wrapper.findAll('.item-row').map((row) => row.attributes('data-id'));
 
 const rowButton = (wrapper: VueWrapper, id: string, icons: string[]) => {
   const row = wrapper.find(`[data-id="${id}"]`);
@@ -180,6 +200,16 @@ const rowButton = (wrapper: VueWrapper, id: string, icons: string[]) => {
 const editor = (wrapper: VueWrapper) =>
   wrapper.findComponent(SegmentEditorStub);
 
+// Reveal carries its icon in the slot beside its tooltip, so the icon-name
+// lookup the other row buttons use does not reach it.
+const revealButton = (wrapper: VueWrapper, id: string) => {
+  const button = wrapper.find(
+    `[data-id="${id}"] [data-testid="reveal-segment-button"]`
+  );
+  if (!button.exists()) throw new Error(`No reveal button on row ${id}`);
+  return button;
+};
+
 describe('flat segment list', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
@@ -196,9 +226,9 @@ describe('flat segment list', () => {
     await nextTick();
 
     expect(rowIds(wrapper)).toEqual([first.id, second.id]);
-    expect(chipList(wrapper).props('itemKey')).toBe('id');
+    expect(itemList(wrapper).props('itemKey')).toBe('id');
     expect(
-      chipList(wrapper)
+      itemList(wrapper)
         .props('items')
         .map((item: { name: string }) => item.name)
     ).toEqual(['Tumor', 'Node']);
@@ -305,7 +335,7 @@ describe('flat segment list selection', () => {
     const wrapper = mountList();
     await nextTick();
 
-    expect(chipList(wrapper).props('modelValue')).toBe(second.segmentId);
+    expect(itemList(wrapper).props('modelValue')).toBe(second.segmentId);
   });
 
   it('selects a type by id when a row is picked', async () => {
@@ -315,7 +345,7 @@ describe('flat segment list selection', () => {
     const wrapper = mountList();
     await nextTick();
 
-    chipList(wrapper).vm.$emit('update:model-value', second.segmentId);
+    itemList(wrapper).vm.$emit('update:model-value', second.segmentId);
     await nextTick();
 
     expect(segments().selectedSegmentId.value).toBe(second.segmentId);
@@ -331,7 +361,7 @@ describe('flat segment list selection', () => {
     const wrapper = mountList();
     await nextTick();
 
-    expect(chipList(wrapper).props('modelValue')).toBe(onOne.segmentId);
+    expect(itemList(wrapper).props('modelValue')).toBe(onOne.segmentId);
     expect(store().getSegmentationForImage('img-2')).toBeUndefined();
   });
 });
@@ -347,7 +377,7 @@ describe('flat segment list row creation', () => {
     const wrapper = mountList();
     await nextTick();
 
-    chipList(wrapper).vm.$emit('create');
+    itemList(wrapper).vm.$emit('create');
     await nextTick();
 
     expect(segments().segmentList.value).toHaveLength(1);
@@ -360,7 +390,7 @@ describe('flat segment list row creation', () => {
     const wrapper = mountList();
     await nextTick();
 
-    chipList(wrapper).vm.$emit('create');
+    itemList(wrapper).vm.$emit('create');
     await nextTick();
 
     expect(segments().selectedSegmentId.value).toBe(
@@ -374,7 +404,7 @@ describe('flat segment list row creation', () => {
     const wrapper = mountList();
     await nextTick();
 
-    chipList(wrapper).vm.$emit('create');
+    itemList(wrapper).vm.$emit('create');
     await nextTick();
 
     expect(rowIds(wrapper)).toHaveLength(2);
@@ -422,6 +452,7 @@ describe('flat segment list row actions', () => {
   // shared stub drops its content, so this mounts one that renders it.
   const mountWithTooltips = () =>
     mount(SegmentList, {
+      props: listProps(),
       global: {
         stubs: {
           ...globalOptions.stubs,
@@ -506,10 +537,9 @@ describe('flat segment list row actions', () => {
     const wrapper = mountList();
     await nextTick();
 
-    const toggleAll = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('Toggle Segments'));
-    await toggleAll!.trigger('click');
+    await wrapper
+      .find('[data-testid="toggle-segments-visible-button"]')
+      .trigger('click');
 
     expect(segments().appearanceOf(first.segmentId).visible).toBe(false);
     expect(segments().appearanceOf(second.segmentId).visible).toBe(false);
@@ -622,7 +652,7 @@ describe('flat segment list on a cine image', () => {
     const wrapper = mountList();
     await nextTick();
 
-    chipList(wrapper).vm.$emit('create');
+    itemList(wrapper).vm.$emit('create');
     await nextTick();
 
     expect(store().getSegmentationForImage('cine-1')).toBeUndefined();
@@ -635,7 +665,7 @@ describe('flat segment list on a cine image', () => {
     const wrapper = mountList();
     await nextTick();
 
-    expect(wrapper.find('.create-chip').exists()).toBe(false);
+    expect(wrapper.find('.create-row').exists()).toBe(false);
   });
 
   it('still offers the create affordance on a plain image', async () => {
@@ -643,9 +673,9 @@ describe('flat segment list on a cine image', () => {
     const wrapper = mountList();
     await nextTick();
 
-    expect(wrapper.find('.create-chip').exists()).toBe(true);
+    expect(wrapper.find('.create-row').exists()).toBe(true);
 
-    await wrapper.find('.create-chip').trigger('click');
+    await wrapper.find('.create-row').trigger('click');
     await nextTick();
 
     expect(segments().segmentList.value).toHaveLength(1);
@@ -748,5 +778,137 @@ describe('segmentation display section', () => {
     expect(store().getSegmentationForImage('img-2')!.fillOpacity).toBe(
       DEFAULT_SEGMENTATION_FILL_OPACITY
     );
+  });
+});
+
+// Reveal Slice is the only row control that reads the viewed image's storage,
+// so it is the one that has to say when this image holds nothing for the row.
+describe('Reveal Slice on a segment row', () => {
+  const REVEAL_DIMENSIONS = [4, 4, 8] as const;
+
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1', 'CT', REVEAL_DIMENSIONS);
+    await viewImage('img-1');
+  });
+
+  const viewFor = (orientation: string) => {
+    const view = useViewStore()
+      .getAllViews()
+      .find(
+        (candidate) =>
+          candidate.type === '2D' &&
+          candidate.options.orientation === orientation
+      );
+    if (!view) throw new Error(`No ${orientation} view`);
+    return view;
+  };
+
+  const sliceOn = (orientation: string) =>
+    useViewSliceStore().getConfig(viewFor(orientation).id, 'img-1')!.slice;
+
+  const setSliceOn = (orientation: string, slice: number) =>
+    useViewSliceStore().updateConfig(viewFor(orientation).id, 'img-1', {
+      slice,
+    });
+
+  // Paint grows the allocation with padding and clips it to the volume, so the
+  // binding's extent is wider than what is marked and its middle is not the
+  // segment's. Marking through that same path is what keeps the reveal honest.
+  const STROKE_PADDING = 16;
+
+  const paintVoxel = (maskId: string, index: Index3) => {
+    const voxels = store().maskVoxels(maskId);
+    const { labelValue } = voxels.materialize();
+    const [i, j, k] = index;
+    voxels.ensureContains([i, i, j, j, k, k], STROKE_PADDING);
+    const { extent } = voxels.binding()!;
+    const [mi, mj] = extentSize(extent);
+    voxels.scalars()[maskOffset({ extent, mi, mj }, i, j, k)] = labelValue;
+    voxels.image().modified();
+  };
+
+  it('is offered disabled, saying why, on a row this image stores nothing for', async () => {
+    const segment = makeMask('img-1', 'Tumor');
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(
+      revealButton(wrapper, segment.id).attributes('disabled')
+    ).toBeDefined();
+  });
+
+  it('says on the disabled control that this image holds nothing for the row', async () => {
+    const segment = makeMask('img-1', 'Tumor');
+    const wrapper = mount(SegmentList, {
+      props: listProps(),
+      global: {
+        stubs: {
+          ...globalOptions.stubs,
+          VTooltip: { template: '<span class="tooltip"><slot /></span>' },
+        },
+      },
+    });
+    await nextTick();
+
+    expect(revealButton(wrapper, segment.id).find('.tooltip').text()).toMatch(
+      /nothing is painted on this image/i
+    );
+  });
+
+  it('puts each 2D view on the middle of what the segment marks here', async () => {
+    const segment = makeMask('img-1', 'Tumor');
+    paintVoxel(segment.maskId, [1, 1, 6]);
+    const wrapper = mountList();
+    await nextTick();
+
+    // The padded allocation spans the whole volume, so its own middle is the
+    // slice each view already shows.
+    expect(sliceOn('Axial')).toBe(4);
+    expect(sliceOn('Sagittal')).toBe(2);
+
+    await revealButton(wrapper, segment.id).trigger('click');
+
+    expect(sliceOn('Axial')).toBe(6);
+    expect(sliceOn('Sagittal')).toBe(1);
+    expect(sliceOn('Coronal')).toBe(1);
+  });
+
+  it('centers on the whole of what the segment marks, not one voxel', async () => {
+    const segment = makeMask('img-1', 'Tumor');
+    paintVoxel(segment.maskId, [1, 1, 1]);
+    paintVoxel(segment.maskId, [1, 1, 5]);
+    const wrapper = mountList();
+    await nextTick();
+
+    await revealButton(wrapper, segment.id).trigger('click');
+
+    expect(sliceOn('Axial')).toBe(3);
+  });
+
+  it('is offered on a row the image does store voxels for', async () => {
+    const segment = makeMask('img-1', 'Tumor');
+    paintVoxel(segment.maskId, [1, 1, 1]);
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(
+      revealButton(wrapper, segment.id).attributes('disabled')
+    ).toBeUndefined();
+  });
+
+  it('leaves the views where they are when the mask marks nothing', async () => {
+    const segment = makeMask('img-1', 'Tumor');
+    paintVoxel(segment.maskId, [1, 1, 6]);
+    const voxels = store().maskVoxels(segment.maskId);
+    voxels.scalars().fill(0);
+    voxels.image().modified();
+    const wrapper = mountList();
+    await nextTick();
+    setSliceOn('Axial', 7);
+
+    await revealButton(wrapper, segment.id).trigger('click');
+
+    expect(sliceOn('Axial')).toBe(7);
   });
 });

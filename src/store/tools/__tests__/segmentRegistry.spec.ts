@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { maskOn } from '@/src/store/__tests__/segmentMaskFixtures';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { RULER_TYPE_DEFAULTS, TOOL_COLORS } from '@/src/config';
+import { RULER_SEGMENT_DEFAULTS, TOOL_COLORS } from '@/src/config';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
@@ -47,10 +47,10 @@ describe('segment type registry', () => {
   });
 
   it('names a minted type after the registry prefix', () => {
-    const registry = createSegmentRegistry({ namePrefix: 'Label' });
+    const registry = createSegmentRegistry({ namePrefix: 'Ruler' });
 
-    expect(registry.getSegment(registry.addSegment())?.name).toBe('Label 1');
-    expect(registry.getSegment(registry.addSegment())?.name).toBe('Label 2');
+    expect(registry.getSegment(registry.addSegment())?.name).toBe('Ruler 1');
+    expect(registry.getSegment(registry.addSegment())?.name).toBe('Ruler 2');
   });
 
   it('cycles the tool colors for minted segments', () => {
@@ -207,7 +207,7 @@ describe('shared and ruler registries', () => {
 
   it('seeds the ruler registry from the app defaults', () => {
     expect(namesOf(useRulerStore().segments)).toEqual(
-      Object.keys(RULER_TYPE_DEFAULTS)
+      Object.keys(RULER_SEGMENT_DEFAULTS)
     );
   });
 

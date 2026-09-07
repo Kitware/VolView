@@ -18,13 +18,15 @@ import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
   openAnnotationSegments,
+  openMeasurements,
   segmentColor,
   segmentNames,
+  segmentRow,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 
-// The 5.0.1 fixture's rectangle carries this label.
-const RECTANGLE_LABEL_NAME = 'Label 1';
+// The 5.0.1 fixture's rectangle carries this name.
+const RECTANGLE_SEGMENT_NAME = 'Label 1';
 
 const waitForElementCount = async (selector: string, minCount = 1) => {
   await browser.waitUntil(async () => {
@@ -84,14 +86,7 @@ describe('Session state lifecycle', () => {
     const notifications = await volViewPage.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
+    await openMeasurements();
 
     await waitForElementCount('.v-list-item i.mdi-vector-square.tool-icon');
     await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
@@ -105,23 +100,17 @@ describe('Session state lifecycle', () => {
 
     const editedStrokeWidth = 9;
 
-    // Activate rectangle tool to show RectangleControls with LabelControls
+    // Rectangle draws with the entry selected in the Segments list, which is
+    // where the session's rectangle segment shows up.
     await volViewPage.activateRectangle();
+    await openAnnotationSegments();
+    await waitForNamedSegments();
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    await waitForElementCount('button[data-testid="edit-label-button"]');
-
-    // The list shows every type in the registry, so pick the one the session's
-    // rectangle actually carries rather than the first chip.
-    const labelChip = await $(`.v-chip*=${RECTANGLE_LABEL_NAME}`);
-    await labelChip.waitForDisplayed();
-    const editButton = await labelChip.$(
-      'button[data-testid="edit-label-button"]'
-    );
+    // The list shows every segment in the registry, so pick the one the
+    // session's rectangle actually carries rather than the first row.
+    const row = await segmentRow(RECTANGLE_SEGMENT_NAME);
+    await row.waitForDisplayed();
+    const editButton = await row.$('button[data-testid="edit-segment-button"]');
     await editButton.click();
 
     const input = await volViewPage.labelStrokeWidthInput;

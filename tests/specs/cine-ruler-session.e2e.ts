@@ -16,6 +16,7 @@ import {
   retreatCineFrame,
   waitForFrame,
 } from './cineTestUtils';
+import { openMeasurements } from './segmentationTestUtils';
 
 const placeRulerAtCanvasCenter = async () => {
   const rulerToolButton = await $('button span i[class~=mdi-ruler]');
@@ -64,13 +65,7 @@ describe('Cine ruler survives save/reload at its placed frame', () => {
     // before asserting visibility on the canvas. The list entry proves
     // deserialization has completed, so the subsequent canvas checks
     // can't race the load.
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
+    await openMeasurements();
     await browser.waitUntil(
       async () => (await $$('.v-list-item i.mdi-ruler.tool-icon').length) >= 1,
       {

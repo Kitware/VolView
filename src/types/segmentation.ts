@@ -196,6 +196,44 @@ export const maskOffset = (
   (j - bounds.extent[2]) * bounds.mi +
   (k - bounds.extent[4]) * bounds.mi * bounds.mj;
 
+/**
+ * The box `labelValue` actually occupies inside a mask bounded by `extent`,
+ * empty when it occupies nothing. A binding's extent is the allocation, padded
+ * and never shrunk by an erase, so it is not the segment's bounds.
+ */
+export function markedExtent(
+  scalars: ArrayLike<number>,
+  extent: Extent3D,
+  labelValue: number
+): Extent3D {
+  const bounds = emptyExtent();
+  let found = false;
+  let offset = 0;
+  for (let k = extent[4]; k <= extent[5]; k += 1) {
+    for (let j = extent[2]; j <= extent[3]; j += 1) {
+      for (let i = extent[0]; i <= extent[1]; i += 1, offset += 1) {
+        if (scalars[offset] !== labelValue) continue;
+        if (!found) {
+          bounds[0] = i;
+          bounds[1] = i;
+          bounds[2] = j;
+          bounds[3] = j;
+          bounds[4] = k;
+          bounds[5] = k;
+          found = true;
+        } else {
+          bounds[0] = Math.min(bounds[0], i);
+          bounds[1] = Math.max(bounds[1], i);
+          bounds[2] = Math.min(bounds[2], j);
+          bounds[3] = Math.max(bounds[3], j);
+          bounds[5] = k;
+        }
+      }
+    }
+  }
+  return bounds;
+}
+
 export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
   return [
     Math.min(a[0], b[0]),

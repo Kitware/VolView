@@ -7,6 +7,7 @@ import {
   tryCssColorToRGBA,
   emptyExtent,
   isEmptyExtent,
+  markedExtent,
   rgbaToCssColor,
 } from '@/src/types/segmentation';
 import type {
@@ -233,5 +234,66 @@ describe('the appearance resolver', () => {
         expect(cssColorToRGBA(name)).toEqual([0, 0, 0, 255]);
       }
     );
+  });
+});
+
+// A binding's extent is the allocation: paint pads it on growth and an erase
+// never shrinks it, so the box a segment occupies has to be read off the voxels.
+describe('markedExtent', () => {
+  const VALUE = 3;
+
+  // A mask bounded to `extent`, holding VALUE at each parent index in `marks`.
+  const scalarsOf = (
+    extent: Extent3D,
+    marks: Array<[number, number, number]>
+  ) => {
+    const si = extent[1] - extent[0] + 1;
+    const sj = extent[3] - extent[2] + 1;
+    const sk = extent[5] - extent[4] + 1;
+    const scalars = new Uint8Array(si * sj * sk);
+    marks.forEach(([i, j, k]) => {
+      scalars[
+        i - extent[0] + (j - extent[2]) * si + (k - extent[4]) * si * sj
+      ] = VALUE;
+    });
+    return scalars;
+  };
+
+  it('bounds the marked voxels, not the allocation they sit in', () => {
+    const extent: Extent3D = [0, 5, 0, 5, 0, 5];
+    const scalars = scalarsOf(extent, [
+      [1, 2, 3],
+      [4, 2, 3],
+      [2, 5, 1],
+    ]);
+
+    expect(markedExtent(scalars, extent, VALUE)).toEqual([1, 4, 2, 5, 1, 3]);
+  });
+
+  it('reads a single voxel as its own box', () => {
+    const extent: Extent3D = [2, 4, 2, 4, 2, 4];
+    const scalars = scalarsOf(extent, [[3, 3, 3]]);
+
+    expect(markedExtent(scalars, extent, VALUE)).toEqual([3, 3, 3, 3, 3, 3]);
+  });
+
+  it('reports an empty box for a mask holding nothing of that value', () => {
+    const extent: Extent3D = [0, 3, 0, 3, 0, 3];
+    const scalars = scalarsOf(extent, [[1, 1, 1]]);
+
+    expect(isEmptyExtent(markedExtent(scalars, extent, VALUE + 1))).toBe(true);
+    expect(isEmptyExtent(markedExtent(new Uint8Array(64), extent, VALUE))).toBe(
+      true
+    );
+  });
+
+  it('reads a mask whose own origin is not the image origin', () => {
+    const extent: Extent3D = [4, 6, 7, 9, 1, 2];
+    const scalars = scalarsOf(extent, [
+      [5, 8, 1],
+      [6, 9, 2],
+    ]);
+
+    expect(markedExtent(scalars, extent, VALUE)).toEqual([5, 6, 8, 9, 1, 2]);
   });
 });

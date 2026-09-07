@@ -4,7 +4,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { RULER_TYPE_DEFAULTS } from '@/src/config';
+import { RULER_SEGMENT_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
 import { createSegmentRegistry } from './segmentRegistry';
@@ -26,8 +26,8 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   // Rulers delineate nothing on an image, so they hold their own instance of
   // the registry: its segments are theirs alone, selection included.
   const rulerSegments = createSegmentRegistry({
-    namePrefix: 'Label',
-    defaults: RULER_TYPE_DEFAULTS,
+    namePrefix: 'Ruler',
+    defaults: RULER_SEGMENT_DEFAULTS,
     hasReferences: (segmentId) => annotationTool.hasToolsOfSegment(segmentId),
     removeReferences: (segmentId) =>
       annotationTool.removeToolsOfSegment(segmentId),

@@ -14,7 +14,9 @@ import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
 import {
   computeEffectiveView,
   EffectiveView,
+  volume2DViewsOfImage,
 } from '@/src/core/views/effectiveView';
+import type { Extent3D } from '@/src/types/segmentation';
 
 type Locator =
   | { kind: 'none' }
@@ -118,4 +120,23 @@ export function applyLocator(imageID: string, tool: AnnotationTool) {
     if (effective.axis !== toolImageFrame.axis) return;
     viewSliceStore.updateConfig(view.id, imageID, { slice: tool.slice });
   });
+}
+
+/**
+ * Puts every 2D view of `imageID` on the slice through the middle of `extent`.
+ * Slice only: pan and zoom stay where the user left them.
+ */
+export function revealExtent(imageID: string, extent: Extent3D) {
+  const { metadata } = useImage(imageID);
+  const { lpsOrientation } = metadata.value;
+  const viewSliceStore = useViewSliceStore();
+
+  volume2DViewsOfImage(imageID, useViewStore().getAllViews()).forEach(
+    ({ viewId, axis }) => {
+      const ijk = lpsOrientation[axis];
+      viewSliceStore.updateConfig(viewId, imageID, {
+        slice: Math.round((extent[2 * ijk] + extent[2 * ijk + 1]) / 2),
+      });
+    }
+  );
 }

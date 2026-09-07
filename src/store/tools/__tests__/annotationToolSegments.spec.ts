@@ -284,6 +284,40 @@ describe('placing an annotation names its type', () => {
     expect(segments().segmentList.value).toHaveLength(1);
   });
 
+  it('keeps the stub a widget is placing into when its segment is deleted', () => {
+    const store = useRulerStore();
+    const segmentId = store.segments.addSegment({ name: 'Long axis' });
+    const stub = store.addTool({ imageID: IMAGE_ID, placing: true, segmentId });
+    const placed = store.addTool({ imageID: IMAGE_ID, segmentId });
+
+    store.segments.deleteSegment(segmentId);
+
+    // The placed ruler goes with its segment; the stub the widget still holds
+    // stays, and naming it is deferred to the placement that commits it.
+    expect(store.toolByID[placed]).toBeUndefined();
+    expect(store.toolByID[stub].placing).toBe(true);
+
+    store.placeTool(stub);
+
+    expect(
+      store.segments.getSegment(store.toolByID[stub].segmentId!)
+    ).toBeDefined();
+  });
+
+  it('does not count a stub as a reference that keeps a segment alive', () => {
+    const store = useRulerStore();
+    const segmentId = store.segments.addSegment({ name: 'Long axis' });
+    store.addTool({ imageID: IMAGE_ID, placing: true, segmentId });
+
+    expect(store.hasToolsOfSegment(segmentId)).toBe(false);
+
+    const placed = store.addTool({ imageID: IMAGE_ID, segmentId });
+
+    expect(store.hasToolsOfSegment(segmentId)).toBe(true);
+    store.removeTool(placed);
+    expect(store.hasToolsOfSegment(segmentId)).toBe(false);
+  });
+
   it('places a ruler in its own registry, touching no segmentation', () => {
     const store = useRulerStore();
 

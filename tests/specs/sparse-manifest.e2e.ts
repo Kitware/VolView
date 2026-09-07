@@ -13,6 +13,7 @@ import {
 import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 import {
   openAnnotationSegments,
+  openMeasurements,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 
@@ -77,14 +78,7 @@ describe('Sparse manifest.json', () => {
     await writeManifestToZip(sparseManifest, fileName);
     await openVolViewPage(fileName);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
+    await openMeasurements();
 
     await browser.waitUntil(
       async () => {

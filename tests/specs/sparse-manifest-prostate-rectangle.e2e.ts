@@ -1,5 +1,6 @@
 import { PROSTATEX_DATASET } from './configTestUtils';
 import { downloadFile, openVolViewPage, writeManifestToZip } from './utils';
+import { openMeasurements } from './segmentationTestUtils';
 
 describe('Sparse manifest with prostate rectangle', () => {
   it('loads prostate dataset with lesion rectangle annotation', async () => {
@@ -54,14 +55,7 @@ describe('Sparse manifest with prostate rectangle', () => {
     await writeManifestToZip(sparseManifest, fileName);
     await openVolViewPage(fileName);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
+    await openMeasurements();
 
     await browser.waitUntil(
       async () => {

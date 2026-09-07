@@ -39,13 +39,13 @@ const viewImage = async (id: string) => {
   await nextTick();
 };
 
-const ChipListStub = defineComponent({
-  name: 'EditableChipList',
-  props: ['items', 'itemKey', 'itemTitle', 'modelValue', 'createLabelText'],
+const ItemListStub = defineComponent({
+  name: 'EditableItemList',
+  props: ['items', 'itemKey', 'itemTitle', 'modelValue', 'createText'],
   emits: ['update:model-value', 'create'],
   template: `
-    <div class="chip-list">
-      <div v-for="item in items" :key="item.id" class="chip-row" :data-id="item.id">
+    <div class="item-list">
+      <div v-for="item in items" :key="item.id" class="item-row" :data-id="item.id">
         <slot name="item-prepend" :key="item.id" :item="item" />
         <slot name="item-append" :key="item.id" :item="item" />
       </div>
@@ -78,7 +78,7 @@ const DialogHostStub = (name: string) =>
 
 const globalOptions = {
   stubs: {
-    EditableChipList: ChipListStub,
+    EditableItemList: ItemListStub,
     SegmentEditor: { template: '<div class="segment-editor" />' },
     SaveSegmentGroupDialog: SaveDialogStub,
     IsolatedDialog: DialogHostStub('IsolatedDialog'),
@@ -99,7 +99,15 @@ const globalOptions = {
   },
 };
 
-const mountList = () => mount(SegmentList, { global: globalOptions });
+const mountList = () =>
+  mount(SegmentList, {
+    props: {
+      registry: useSegmentStore().segments,
+      noun: 'segment',
+      masked: true,
+    },
+    global: globalOptions,
+  });
 
 const saveButton = (wrapper: VueWrapper) =>
   wrapper.find('[data-testid="save-segments-button"]');
@@ -150,6 +158,17 @@ describe('saving from the flat segment panel', () => {
     expect(saveDialog(wrapper).props('id')).toBe(segmentation.id);
   });
 
+  // The create affordance names the row it adds, and it reads as an expression
+  // rather than a literal attribute, so the source scan below cannot see it.
+  it('names what the create affordance adds without a storage word', async () => {
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(wrapper.findComponent(ItemListStub).props('createText')).toBe(
+      'New segment'
+    );
+  });
+
   it('follows the viewed image rather than the selected type', async () => {
     const first = store().ensureSegmentationForImage('img-1');
     store().createMask(first.id, mintSegment({ name: 'Tumor' }));
@@ -191,7 +210,7 @@ const VISIBLE_ATTRIBUTES = [
   'text',
   'subtitle',
   'aria-label',
-  'create-label-text',
+  'create-text',
 ];
 
 /**

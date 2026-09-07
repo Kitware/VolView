@@ -6,10 +6,9 @@ import {
   setupTest,
 } from './annotationTestUtils';
 import {
-  addLabel,
-  labelColor,
+  addSegment,
   openAnnotationSegments,
-  renameLabel,
+  renameSegment,
   segmentColor,
   segmentNames,
   waitForNamedSegments,
@@ -42,7 +41,7 @@ const openPolygonMenuAt = (x: number, y: number) =>
   );
 
 describe('Polygon rasterize target', () => {
-  it('rasterizes into a segment carrying the polygon label name and color', async () => {
+  it('rasterizes into the segment the polygon was drawn with', async () => {
     const { centerX, centerY } = await setupTest();
     const half = 60;
 
@@ -53,18 +52,16 @@ describe('Polygon rasterize target', () => {
     await AppPage.paintStrokeOnView(views2D[0]);
     await AppPage.selectTool('mdi-pentagon-outline');
 
-    // The picker lists the shared registry, so the paint stroke's type is
-    // already there and the new one is the second.
-    await addLabel();
-    await renameLabel('Segment 2', 'Lesion');
-    const lesionColor = await labelColor('Lesion');
+    // Polygon draws with the entry selected in the Segments list, so the paint
+    // stroke's segment is already there and the new one is the second.
+    await openAnnotationSegments();
+    await waitForNamedSegments();
+    await addSegment();
+    await renameSegment('Segment 2', 'Lesion');
+    const lesionColor = await segmentColor('Lesion');
 
     await drawSquare(centerX, centerY, half);
 
-    // Placing the polygon is itself an edit, so the label it carries becomes a
-    // segment before anything rasterizes.
-    await openAnnotationSegments();
-    await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
 
     // The context menu belongs to a placed polygon, and the polygon tool keeps
@@ -79,12 +76,12 @@ describe('Polygon rasterize target', () => {
     expect(await segmentColor('Lesion')).toEqual(lesionColor);
   });
 
-  it('rasterizes an unlabeled polygon into a default segment', async () => {
+  it('rasterizes a polygon drawn against an empty registry', async () => {
     const { centerX, centerY } = await setupTest();
     const half = 60;
 
-    // No paint stroke and no added label, so the image holds no segment and the
-    // polygon carries no label. Rasterize still has to work.
+    // No paint stroke and no added entry, so the registry is empty and the
+    // polygon mints the segment it needs. Rasterize still has to work.
     await AppPage.selectTool('mdi-pentagon-outline');
     await drawSquare(centerX, centerY, half);
 
@@ -96,7 +93,7 @@ describe('Polygon rasterize target', () => {
     await waitForNamedSegments();
     await browser.waitUntil(async () => (await segmentNames()).length === 1, {
       timeoutMsg:
-        'Rasterizing without a label should create one default segment',
+        'Rasterizing against an empty registry should create one segment',
     });
   });
 });

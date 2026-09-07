@@ -17,7 +17,7 @@ describe('Segment list', () => {
     const list = await volViewPage.segmentList;
     await list.waitForDisplayed();
 
-    const segments = await list.$$('.v-chip .text-truncate');
+    const segments = await list.$$('.item-row .v-list-item-title');
     expect(segments.length).toEqual(SEGMENT_COUNT);
 
     const panel = await $('#module-container');

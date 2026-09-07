@@ -7,17 +7,7 @@ import {
   getCineFrame,
   waitForFrame,
 } from './cineTestUtils';
-
-const openMeasurementsTab = async () => {
-  const annotationsTab = await $(
-    'button[data-testid="module-tab-Annotations"]'
-  );
-  await annotationsTab.click();
-
-  const measurementsTab = await $('button.v-tab*=Measurements');
-  await measurementsTab.waitForClickable();
-  await measurementsTab.click();
-};
+import { openMeasurements } from './segmentationTestUtils';
 
 const waitForToolEntry = async (iconClass: string) => {
   await browser.waitUntil(
@@ -104,7 +94,7 @@ describe('Reveal Slice on a volume image', () => {
     const movedSlice = await volViewPage.getFirst2DSlice();
     expect(movedSlice).not.toBe(placementSlice);
 
-    await openMeasurementsTab();
+    await openMeasurements();
     await waitForToolEntry('mdi-ruler');
 
     await clickRevealSliceButton();
@@ -150,7 +140,7 @@ describe('Reveal Slice on cine ultrasound', () => {
         'Expected the placed ruler to be hidden on frames other than the placement frame',
     });
 
-    await openMeasurementsTab();
+    await openMeasurements();
     await waitForToolEntry('mdi-ruler');
 
     await clickRevealSliceButton();

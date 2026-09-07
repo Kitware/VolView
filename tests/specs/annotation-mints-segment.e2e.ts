@@ -1,25 +1,21 @@
 import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
 import { clickAt, setupTest } from './annotationTestUtils';
-import { openAnnotationSegments, segmentNames } from './segmentationTestUtils';
+import {
+  openAnnotationSegments,
+  segmentNames,
+  segmentRow,
+} from './segmentationTestUtils';
 
 const hexOf = async (element: ChainablePromiseElement, property: string) => {
   const { parsed } = await element.getCSSProperty(property);
   return parsed.hex;
 };
 
-const segmentDotHex = async (name: string) => {
-  const chips = await $$('[data-testid="segment-list"] .v-chip');
-  for (const chip of chips) {
-    const title = await chip.$('.text-truncate');
-    if ((await title.isExisting()) && (await title.getText()) === name) {
-      return hexOf(chip.$('.color-dot'), 'background-color');
-    }
-  }
-  throw new Error(`No segment named "${name}"`);
-};
+const segmentDotHex = async (name: string) =>
+  hexOf((await segmentRow(name)).$('.color-dot'), 'background-color');
 
-// A chip renders before its title does, so a name-less chip is not yet a
+// A row renders before its title does, so a name-less row is not yet a
 // segment the caller can read.
 const waitForSegmentCount = (expected: number, timeoutMsg: string) =>
   browser.waitUntil(

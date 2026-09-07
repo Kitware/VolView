@@ -204,14 +204,22 @@ export const useAnnotationTool = <
       .forEach((tool) => addTool(tool));
   }
 
+  // A tool still being placed is the widget's own stub, not content: taking it
+  // with a deleted segment would leave the widget holding a dead id and no way
+  // to place anything, and placing re-resolves the segment anyway.
+  const referencesSegment = (id: ToolID, segmentId: string) => {
+    const tool = toolByID.value[id];
+    return tool.segmentId === segmentId && !tool.placing;
+  };
+
   // Shapes reference a segment; deleting one takes its shapes with it.
   const removeToolsOfSegment = (segmentId: string) =>
     toolIDs.value
-      .filter((id) => toolByID.value[id].segmentId === segmentId)
+      .filter((id) => referencesSegment(id, segmentId))
       .forEach((id) => removeTool(id));
 
   const hasToolsOfSegment = (segmentId: string) =>
-    toolIDs.value.some((id) => toolByID.value[id].segmentId === segmentId);
+    toolIDs.value.some((id) => referencesSegment(id, segmentId));
 
   return {
     segments: markRaw(registry),

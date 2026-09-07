@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { storeToRefs } from 'pinia';
-import { AnnotationToolType, Tools } from '@/src/store/tools/types';
-import { useToolStore } from '@/src/store/tools';
+import { ref } from 'vue';
+import { AnnotationToolType } from '@/src/store/tools/types';
+import { useRulerStore } from '@/src/store/tools/rulers';
+import { useSegmentStore } from '@/src/store/segments';
 import MeasurementsToolList from './MeasurementsToolList.vue';
 import SegmentList from './SegmentList.vue';
 import ToolControls from './ToolControls.vue';
 import MeasurementRulerDetails from './MeasurementRulerDetails.vue';
-
-const Tabs = {
-  Measurements: 'measurements',
-  Segments: 'segments',
-};
 
 const MeasurementTools = [
   {
@@ -29,56 +24,64 @@ const MeasurementTools = [
   },
 ];
 
-const MeasurementToolTypes = new Set<string>(
-  MeasurementTools.map(({ type }) => type)
-);
+// Paint, rectangle and polygon draw into the shared registry; rulers name
+// their measurements out of their own.
+const { segments } = useSegmentStore();
+const { segments: rulerSegments } = useRulerStore();
 
-const tab = ref(Tabs.Segments);
-const { currentTool } = storeToRefs(useToolStore());
-
-function autoFocusTab() {
-  if (currentTool.value === Tools.Paint) {
-    tab.value = Tabs.Segments;
-  } else if (MeasurementToolTypes.has(currentTool.value)) {
-    tab.value = Tabs.Measurements;
-  }
-}
-
-watch(
-  currentTool,
-  () => {
-    autoFocusTab();
-  },
-  { immediate: true }
-);
+// Rulers start collapsed: the list below them is the one a measurement shows
+// up in, and naming one is the rarer gesture.
+const rulerSection = ref<string[]>([]);
+const measurementSection = ref(['measurements']);
 </script>
 
 <template>
   <div>
+    <segment-list :registry="segments" noun="segment" masked />
+
+    <v-expansion-panels
+      v-model="rulerSection"
+      multiple
+      variant="accordion"
+      class="annotation-section"
+    >
+      <v-expansion-panel value="rulers">
+        <v-expansion-panel-title data-testid="rulers-section">
+          Rulers
+        </v-expansion-panel-title>
+        <v-expansion-panel-text class="section-body">
+          <segment-list :registry="rulerSegments" noun="ruler" />
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
+
     <tool-controls />
-    <v-tabs v-model="tab" density="compact" grow class="annotation-tabs my-1">
-      <v-tab value="segments" class="tab-header">Segments</v-tab>
-      <v-tab value="measurements" class="tab-header">Measurements</v-tab>
-    </v-tabs>
-    <v-window v-model="tab">
-      <v-window-item value="segments">
-        <segment-list />
-      </v-window-item>
-      <v-window-item value="measurements">
-        <measurements-tool-list :tools="MeasurementTools" />
-      </v-window-item>
-    </v-window>
+
+    <v-expansion-panels
+      v-model="measurementSection"
+      multiple
+      variant="accordion"
+      class="annotation-section"
+    >
+      <v-expansion-panel value="measurements">
+        <v-expansion-panel-title data-testid="measurements-section">
+          Measurements
+        </v-expansion-panel-title>
+        <v-expansion-panel-text class="section-body">
+          <measurements-tool-list :tools="MeasurementTools" />
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
   </div>
 </template>
 
 <style scoped>
-.annotation-tabs :deep(.v-tab.v-tab) {
-  flex: 1 1 0;
-  min-width: 0;
+.annotation-section {
+  width: 100%;
 }
 
-.tab-header {
-  font-size: 0.8rem;
+.section-body :deep(.v-expansion-panel-text__wrapper) {
+  padding: 4px 0 12px;
 }
 </style>
 

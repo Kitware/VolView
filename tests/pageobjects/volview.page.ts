@@ -226,11 +226,6 @@ class VolViewPage extends Page {
     return $('span[data-testid="save-session-confirm-button"]');
   }
 
-  get segmentsTab() {
-    // "Measurements" is the only sibling tab and does not contain "Segments".
-    return $('button.v-tab*=Segments');
-  }
-
   get saveSegmentsButtons() {
     return $$('button[data-testid="save-segments-button"]');
   }

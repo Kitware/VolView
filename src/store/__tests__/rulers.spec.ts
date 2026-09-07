@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import {
-  RULER_TYPE_DEFAULTS,
+  RULER_SEGMENT_DEFAULTS,
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
 } from '@/src/config';
@@ -98,12 +98,12 @@ describe('Ruler segment segments', () => {
     const store = useRulerStore();
 
     expect(store.segments.segmentList.value.map((type) => type.name)).toEqual(
-      Object.keys(RULER_TYPE_DEFAULTS)
+      Object.keys(RULER_SEGMENT_DEFAULTS)
     );
     expect(
       store.segments.appearanceOf(store.segments.segmentList.value[0].id)
     ).toMatchObject({
-      name: 'Label 1',
+      name: 'Ruler 1',
       cssColor: rgbaToCssColor(cssColorToRGBA('red')),
       strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
     });
@@ -169,7 +169,7 @@ describe('Ruler segment segments', () => {
   it('binds a name to the type already carrying it', () => {
     const store = useRulerStore();
 
-    const id = store.segments.segmentNamed('Label 1');
+    const id = store.segments.segmentNamed('Ruler 1');
 
     expect(store.segments.segmentList.value).toHaveLength(1);
     expect(id).toBe(store.segments.segmentList.value[0].id);
@@ -219,7 +219,7 @@ describe('Ruler segment segments', () => {
     );
 
     expect(store.segments.segmentList.value.map((type) => type.name)).toEqual([
-      'Label 1',
+      'Ruler 1',
     ]);
   });
 });

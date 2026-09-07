@@ -1,37 +1,36 @@
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
-const LABEL_LIST = '[data-testid="tool-label-list"]';
+const RULER_LIST = '[data-testid="ruler-list"]';
 
-// Only a chip standing for a real item carries a title span; the trailing
-// "create" chip does not.
+// Only a row standing for a real item carries a title; the trailing "create"
+// row does not.
 const namesIn = (root: string) =>
-  $$(`${root} .v-chip .text-truncate`).map((title) => title.getText());
+  $$(`${root} .item-row .v-list-item-title`).map((title) => title.getText());
 
-const chipNamed = async (root: string, name: string) => {
-  const chips = await $$(`${root} .v-chip`);
-  for (const chip of chips) {
-    const title = await chip.$('.text-truncate');
+const rowNamed = async (root: string, name: string) => {
+  const rows = await $$(`${root} .item-row`);
+  for (const row of rows) {
+    const title = await row.$('.v-list-item-title');
     if ((await title.isExisting()) && (await title.getText()) === name) {
-      return chip;
+      return row;
     }
   }
-  throw new Error(`No chip named "${name}" under ${root}`);
+  throw new Error(`No row named "${name}" under ${root}`);
 };
 
 const dotColor = async (root: string, name: string) => {
-  const chip = await chipNamed(root, name);
-  const dot = await chip.$('.color-dot');
+  const row = await rowNamed(root, name);
+  const dot = await row.$('.color-dot');
   return (await dot.getCSSProperty('background-color')).value;
 };
 
-// The list's trailing "create" chip is the one carrying the plus icon.
-const addChip = async (root: string) => {
+const addRow = async (root: string) => {
   const before = await namesIn(root);
-  await $(`${root} .v-chip i[class~="mdi-plus"]`).click();
+  await $(`${root} .create-row`).click();
   await browser.waitUntil(
     async () => (await namesIn(root)).length === before.length + 1,
-    { timeoutMsg: `Expected the create chip to add an item under ${root}` }
+    { timeoutMsg: `Expected the create row to add an item under ${root}` }
   );
 };
 
@@ -40,55 +39,100 @@ const editDialog = () => $('div[role="dialog"]');
 const renameInOpenDialog = async (to: string) => {
   const dialog = editDialog();
   await dialog.waitForDisplayed();
-  // Name is the first text field in both the segment and the tool-label editor.
+  // Name is the first text field in the editor both lists open.
   await setValueVueInput(dialog.$('.v-text-field input'), to);
   await volViewPage.editLabelModalDoneButton.click();
   await dialog.waitForDisplayed({ reverse: true });
 };
 
 export const segmentNames = () => namesIn(SEGMENT_LIST);
-const labelNames = () => namesIn(LABEL_LIST);
+export const rulerNames = () => namesIn(RULER_LIST);
+
+export const segmentRow = (name: string) => rowNamed(SEGMENT_LIST, name);
 
 export const segmentColor = (name: string) => dotColor(SEGMENT_LIST, name);
-export const labelColor = (name: string) => dotColor(LABEL_LIST, name);
 
-export const addSegment = () => addChip(SEGMENT_LIST);
-export const addLabel = () => addChip(LABEL_LIST);
+export const addSegment = () => addRow(SEGMENT_LIST);
 
 export const selectSegment = async (name: string) => {
-  const chip = await chipNamed(SEGMENT_LIST, name);
-  await chip.click();
+  const row = await rowNamed(SEGMENT_LIST, name);
+  // Clicking the title rather than the row keeps the hit away from the
+  // right-aligned controls on a narrow sidebar.
+  await row.$('.v-list-item-title').click();
 };
 
-export const renameSegment = async (from: string, to: string) => {
-  const chip = await chipNamed(SEGMENT_LIST, from);
-  await chip.$('button i[class~="mdi-pencil"]').click();
-  await renameInOpenDialog(to);
-  await browser.waitUntil(async () => (await segmentNames()).includes(to), {
-    timeoutMsg: `Expected the segment list to show "${to}"`,
+/** The row the list marks active, which is what a tool draws with. */
+export const selectedSegmentName = () =>
+  $(
+    `${SEGMENT_LIST} .item-row.v-list-item--active .v-list-item-title`
+  ).getText();
+
+/** Page-coordinate top of the Segments list, for asserting it has not moved. */
+export const segmentListTop = async () =>
+  (await $(SEGMENT_LIST).getLocation()).y;
+
+const deleteIn = async (root: string, name: string) => {
+  const row = await rowNamed(root, name);
+  await row.$('button i[class~="mdi-delete"]').click();
+  await browser.waitUntil(async () => !(await namesIn(root)).includes(name), {
+    timeoutMsg: `Expected "${name}" to leave ${root}`,
   });
 };
 
-export const renameLabel = async (from: string, to: string) => {
-  const chip = await chipNamed(LABEL_LIST, from);
-  await chip.$('button[data-testid="edit-label-button"]').click();
+export const deleteRuler = (name: string) => deleteIn(RULER_LIST, name);
+
+/** Puts the 2D views on the middle of what this image stores for a segment. */
+export const revealSegment = async (name: string) => {
+  const row = await rowNamed(SEGMENT_LIST, name);
+  const button = await row.$('button[data-testid="reveal-segment-button"]');
+  await button.waitForClickable();
+  await button.click();
+};
+
+const renameIn = async (root: string, from: string, to: string) => {
+  const row = await rowNamed(root, from);
+  await row.$('button[data-testid="edit-segment-button"]').click();
   await renameInOpenDialog(to);
-  await browser.waitUntil(async () => (await labelNames()).includes(to), {
-    timeoutMsg: `Expected the label list to show "${to}"`,
+  await browser.waitUntil(async () => (await namesIn(root)).includes(to), {
+    timeoutMsg: `Expected ${root} to show "${to}"`,
   });
 };
 
+export const renameSegment = (from: string, to: string) =>
+  renameIn(SEGMENT_LIST, from, to);
+
+/** The Segments list is pinned at the top of the Annotations panel. */
 export const openAnnotationSegments = async () => {
   await volViewPage.annotationsModuleTab.click();
-  const tab = volViewPage.segmentsTab;
-  await tab.waitForClickable();
-  await tab.click();
+  await $(SEGMENT_LIST).waitForDisplayed();
 };
+
+const expandSection = async (testid: string) => {
+  await volViewPage.annotationsModuleTab.click();
+  const title = await $(`[data-testid="${testid}"]`);
+  await title.waitForClickable();
+  if ((await title.getAttribute('aria-expanded')) !== 'true') {
+    await title.click();
+  }
+};
+
+/** Rulers is a collapsible section and starts closed. */
+export const openRulers = async () => {
+  await expandSection('rulers-section');
+  await $(RULER_LIST).waitForDisplayed();
+  // A row measures as empty text while the panel is still animating open.
+  await browser.waitUntil(
+    async () => (await rulerNames()).every((name) => name.length > 0),
+    { timeoutMsg: 'Expected the Rulers list to settle' }
+  );
+};
+
+export const openMeasurements = () => expandSection('measurements-section');
 
 /** Waits for the viewed image to render at least one named segment. */
 export const waitForNamedSegments = async (timeout?: number) => {
   await $(SEGMENT_LIST).waitForDisplayed(timeout ? { timeout } : undefined);
-  // A chip renders before its title does, so a name-less chip is not yet a
+  // A row renders before its title does, so a name-less row is not yet a
   // segment the caller can read.
   await browser.waitUntil(
     async () => {
@@ -107,9 +151,9 @@ export const waitForNamedSegments = async (timeout?: number) => {
  * keeps the voxels a later stroke paints over it.
  */
 export const lockSegment = async (name: string) => {
-  const chip = await chipNamed(SEGMENT_LIST, name);
-  await chip.$('button i[class~="mdi-lock-open"]').click();
-  await chip.$('button i[class~="mdi-lock"]').waitForExist({
+  const row = await rowNamed(SEGMENT_LIST, name);
+  await row.$('button i[class~="mdi-lock-open"]').click();
+  await row.$('button i[class~="mdi-lock"]').waitForExist({
     timeoutMsg: `Expected "${name}" to show as locked`,
   });
 };
