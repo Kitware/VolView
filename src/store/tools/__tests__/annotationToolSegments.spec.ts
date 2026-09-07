@@ -28,6 +28,24 @@ const seatAndView = (id: string) => {
 const recordsOf = (imageId: string) =>
   useSegmentationStore().getSegmentationForImage(imageId)!.order;
 
+/** A polygon store holding one red 'Tumor' type, not yet placed. */
+const colouredSegment = () => ({
+  store: usePolygonStore(),
+  segmentId: segments().addSegment({ name: 'Tumor', color: [214, 0, 0, 255] }),
+});
+
+/** One placed shape referencing a 'Tumor' type, serialized to the wire. */
+const serializedToolForSegment = () => {
+  const store = usePolygonStore();
+  const segmentId = segments().addSegment({ name: 'Tumor' });
+  store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
+  return {
+    store,
+    segmentId,
+    serialized: JSON.parse(JSON.stringify(store.serializeTools())),
+  };
+};
+
 describe('shape references to segment segments', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -67,11 +85,7 @@ describe('shape references to segment segments', () => {
   });
 
   it('resolves the type name and color for the tool', () => {
-    const store = usePolygonStore();
-    const segmentId = segments().addSegment({
-      name: 'Tumor',
-      color: [214, 0, 0, 255],
-    });
+    const { store, segmentId } = colouredSegment();
 
     const id = store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
 
@@ -98,11 +112,7 @@ describe('shape references to segment segments', () => {
   });
 
   it('shows a recolor through the resolver', () => {
-    const store = usePolygonStore();
-    const segmentId = segments().addSegment({
-      name: 'Tumor',
-      color: [214, 0, 0, 255],
-    });
+    const { store, segmentId } = colouredSegment();
     const id = store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
 
     segments().updateSegment(segmentId, { color: [0, 0, 255, 255] });
@@ -157,11 +167,7 @@ describe('shape references to segment segments', () => {
   });
 
   it('restores a shape whose type did not come back as unlabeled', () => {
-    const store = usePolygonStore();
-    const segmentId = segments().addSegment({ name: 'Tumor' });
-    store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
-
-    const serialized = JSON.parse(JSON.stringify(store.serializeTools()));
+    const { segmentId, serialized } = serializedToolForSegment();
     expect(serialized.tools[0].segmentId).toBe(segmentId);
 
     setActivePinia(createPinia());
@@ -174,10 +180,7 @@ describe('shape references to segment segments', () => {
   });
 
   it('remaps a restored shape onto the type the registry adopted', () => {
-    const store = usePolygonStore();
-    const segmentId = segments().addSegment({ name: 'Tumor' });
-    store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
-    const serialized = JSON.parse(JSON.stringify(store.serializeTools()));
+    const { segmentId, serialized } = serializedToolForSegment();
 
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);

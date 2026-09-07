@@ -70,6 +70,23 @@ const segmentationBoundTo = (artifactId: string) => ({
   ],
 });
 
+/** A manifest naming an artifact whose archive member never got written. */
+const manifestMissingArchiveMember = (extra: Record<string, unknown> = {}) =>
+  ({
+    version: MANIFEST_VERSION,
+    datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
+    dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
+    segmentationArtifacts: [
+      {
+        id: 'artifact-1',
+        path: 'segmentations/gone.vti',
+        parentImage: 'dataset-1',
+        name: 'Gone',
+      },
+    ],
+    ...extra,
+  }) as unknown as Manifest;
+
 describe('state-file serialization resilience', () => {
   it('writes a restorable zip when one manifest entry is malformed', async () => {
     const sink = recordWarnings();
@@ -142,19 +159,7 @@ describe('state-file serialization resilience', () => {
   });
 
   it('omits an artifact whose archive member is missing', () => {
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
-      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentationArtifacts: [
-        {
-          id: 'artifact-1',
-          path: 'segmentations/gone.vti',
-          parentImage: 'dataset-1',
-          name: 'Gone',
-        },
-      ],
-    } as unknown as Manifest;
+    const manifest = manifestMissingArchiveMember();
 
     const normalized = normalizeManifest(manifest, new JSZip()) as any;
     expect(normalized.manifest.segmentationArtifacts).toEqual([]);
@@ -327,20 +332,9 @@ describe('state-file serialization resilience', () => {
   });
 
   it('unbinds a segment whose artifact was omitted', () => {
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
-      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentationArtifacts: [
-        {
-          id: 'artifact-1',
-          path: 'segmentations/gone.vti',
-          parentImage: 'dataset-1',
-          name: 'Gone',
-        },
-      ],
+    const manifest = manifestMissingArchiveMember({
       segmentations: [segmentationBoundTo('artifact-1')],
-    } as unknown as Manifest;
+    });
 
     const normalized = normalizeManifest(manifest, new JSZip()) as any;
 
