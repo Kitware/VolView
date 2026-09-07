@@ -41,9 +41,12 @@ export function resolveRasterizeTarget(
   }
 
   const voxels = segmentationStore.maskVoxels(resolved);
-  const binding = voxels.materialize();
+  // The binding's extent goes stale the moment the fill grows the mask, so
+  // only the label value is carried out of it.
+  const { labelValue, artifactId } = voxels.materialize();
   return {
-    ...binding,
+    labelValue,
+    artifactId,
     voxels,
     maskId: resolved,
     segmentId: segmentationStore.getMask(resolved).segmentId,
@@ -53,10 +56,10 @@ export function resolveRasterizeTarget(
 function createGridAccessor(
   image: vtkImageData,
   pixelData: TypedArray,
-  slice: number,
-  axisIdx: 0 | 1 | 2, // i/j/k
+  plane: { slice: number; axisIdx: 0 | 1 | 2 }, // i/j/k
   onFilled: (ijk: Vector3) => void
 ): IGrid2D {
+  const { slice, axisIdx } = plane;
   const axisDims = image.getDimensions();
   axisDims.splice(axisIdx, 1);
   const extent = image.getExtent();
@@ -141,16 +144,10 @@ export function rasterizePolygon({
     )
   );
 
-  // Copied out of the reactive tree: `toParent` below runs per filled pixel.
+  // Copied out of the reactive tree: the claim below runs per filled pixel.
   const extent = [...target.voxels.binding()!.extent] as Extent3D;
   if (isEmptyExtent(extent))
     return { segmentId: target.segmentId, maskId: target.maskId };
-
-  const toParent = (ijk: Vector3): Vector3 => [
-    ijk[0] + extent[0],
-    ijk[1] + extent[2],
-    ijk[2] + extent[4],
-  ];
   const points2D = indexPoints.map((point) => {
     const local = [
       point[0] - extent[0],
@@ -171,12 +168,9 @@ export function rasterizePolygon({
   const grid = createGridAccessor(
     mask,
     target.voxels.scalars(),
-    slice - extent[axisIndex * 2],
-    axisIndex,
-    (ijk) => {
-      const [i, j, k] = toParent(ijk);
-      claimVoxel?.(i, j, k);
-    }
+    { slice: slice - extent[axisIndex * 2], axisIdx: axisIndex },
+    (ijk) =>
+      claimVoxel?.(ijk[0] + extent[0], ijk[1] + extent[2], ijk[2] + extent[4])
   );
 
   fillPoly(grid, points2D, target.labelValue);
