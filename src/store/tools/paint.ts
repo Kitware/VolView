@@ -230,14 +230,16 @@ export const usePaintToolStore = defineStore('paint', () => {
       voxels.image(),
       axisIndex,
       toMask(lastIndexPoint),
-      prevIndexPoint ? toMask(prevIndexPoint) : undefined,
-      shouldPaint,
-      erasing
-        ? undefined
-        : (point) => {
-            const [i, j, k] = toParent(point);
-            claimVoxel?.(i, j, k);
-          }
+      {
+        endPoint: prevIndexPoint ? toMask(prevIndexPoint) : undefined,
+        shouldPaint,
+        onPainted: erasing
+          ? undefined
+          : (point: number[]) => {
+              const [i, j, k] = toParent(point);
+              claimVoxel?.(i, j, k);
+            },
+      }
     );
   }
 

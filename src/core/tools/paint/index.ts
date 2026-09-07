@@ -110,20 +110,31 @@ export default class PaintTool {
    * @param startPoint start point
    * @param endPoint ending point (optional)
    */
+  /** The value a stroke writes, or undefined when this mode does not brush. */
+  private strokeValue() {
+    const inBrushingMode =
+      this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
+    if (this.brushValue == null || !inBrushingMode) return undefined;
+    return this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
+  }
+
   paintLabelmap(
     labelmap: vtkLabelMap,
     sliceAxis: 0 | 1 | 2,
     startPoint: vec3,
-    endPoint?: vec3,
-    shouldPaint: (offset: number, point: number[]) => boolean = () => true,
-    onPainted?: (point: number[]) => void
+    {
+      endPoint,
+      shouldPaint = () => true,
+      onPainted,
+    }: {
+      endPoint?: vec3;
+      shouldPaint?: (offset: number, point: number[]) => boolean;
+      onPainted?: (point: number[]) => void;
+    } = {}
   ) {
-    const inBrushingMode =
-      this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
-    if (this.brushValue == null || !inBrushingMode) return;
+    const brushValue = this.strokeValue();
+    if (brushValue === undefined) return;
 
-    const brushValue =
-      this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
     const stencil = this.brush.getStencil();
 
     const start = [
@@ -162,6 +173,35 @@ export default class PaintTool {
     const point2 = [...end];
     const rounded = [0, 0, 0];
     const curPoint: number[] = [0, 0];
+
+    // Walks the line between the stencil's two stamps, one index at a time.
+    const paintLine = () => {
+      const dx = point2[0] - point1[0];
+      const dy = point2[1] - point1[1];
+      let steps = Math.abs(Math.abs(dx) > Math.abs(dy) ? dx : dy);
+      const incX = dx / steps;
+      const incY = dy / steps;
+      [curPoint[0], curPoint[1]] = point1;
+      while (steps-- >= 0) {
+        // add slice axis to make a proper 3D index
+        curPoint.splice(sliceAxis, 0, ijkSlice);
+        rounded[0] = Math.round(curPoint[0]);
+        rounded[1] = Math.round(curPoint[1]);
+        rounded[2] = Math.round(curPoint[2]);
+
+        const offset = rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
+        if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
+          labelmapPixels[offset] = brushValue;
+          onPainted?.(rounded);
+        }
+
+        // undo adding the slice axis value
+        curPoint.splice(sliceAxis, 1);
+
+        curPoint[0] += incX;
+        curPoint[1] += incY;
+      }
+    };
     for (let y = 0; y < size[1]; y++) {
       const ydelta = y - centerY;
       const yoffset = y * size[0];
@@ -173,34 +213,7 @@ export default class PaintTool {
           point1[1] = start[1] + ydelta;
           point2[0] = end[0] + xdelta;
           point2[1] = end[1] + ydelta;
-
-          // line between the two points
-          const dx = point2[0] - point1[0];
-          const dy = point2[1] - point1[1];
-          let steps = Math.abs(Math.abs(dx) > Math.abs(dy) ? dx : dy);
-          const incX = dx / steps;
-          const incY = dy / steps;
-          [curPoint[0], curPoint[1]] = point1;
-          while (steps-- >= 0) {
-            // add slice axis to make a proper 3D index
-            curPoint.splice(sliceAxis, 0, ijkSlice);
-            rounded[0] = Math.round(curPoint[0]);
-            rounded[1] = Math.round(curPoint[1]);
-            rounded[2] = Math.round(curPoint[2]);
-
-            const offset =
-              rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
-            if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
-              labelmapPixels[offset] = brushValue;
-              onPainted?.(rounded);
-            }
-
-            // undo adding the slice axis value
-            curPoint.splice(sliceAxis, 1);
-
-            curPoint[0] += incX;
-            curPoint[1] += incY;
-          }
+          paintLine();
         }
       }
     }
