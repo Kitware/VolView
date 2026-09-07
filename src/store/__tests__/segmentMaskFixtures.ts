@@ -167,6 +167,20 @@ export const serializeToStateFiles = async (
   return { zip, parsed, stateFiles };
 };
 
+/** A plain 4x4x4 image, uncached: the shape most restore specs parent onto. */
+export const makeSpecImage = () => {
+  const image = vtkImageData.newInstance();
+  image.setDimensions([4, 4, 4]);
+  image.getPointData().setScalars(
+    vtkDataArray.newInstance({
+      numberOfComponents: 1,
+      values: new Uint8Array(4 * 4 * 4),
+    })
+  );
+  image.computeTransforms();
+  return image;
+};
+
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 

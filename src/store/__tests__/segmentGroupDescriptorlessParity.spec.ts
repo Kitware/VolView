@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { makeSpecImage } from '@/src/store/__tests__/segmentMaskFixtures';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -63,18 +64,8 @@ function makeSparseLabelmapImage() {
   return image;
 }
 
-function makeParentImage() {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(4 * 4 * 4),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
+/** The plain 4x4x4 parent every restore in this spec hangs off. */
+const makeParentImage = () => makeSpecImage();
 
 // A parent-bound, descriptor-less group: metadata carries name + parentImage,
 // NO segments. The migration turns it into an artifact marked `pendingDecode`,
