@@ -1,10 +1,17 @@
 import { nextTick } from 'vue';
+import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
+import type vtkLabelMap from '@/src/vtk/LabelMap';
 
+import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
+import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import {
+  useSegmentationStore,
+  type SegmentationArtifactIO,
+} from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import type { Extent3D } from '@/src/types/segmentation';
 import type { SegmentInit } from '@/src/types/segment';
@@ -52,6 +59,79 @@ export async function seatImage(id: string, options: SeatOptions = {}) {
   await nextTick();
   return image;
 }
+
+/** The parent shape segmentation specs seat: thin in k, so extents read easily. */
+export const SPEC_DIMENSIONS: Index3 = [4, 4, 2];
+export const SPEC_VOXEL_COUNT = voxelCount(SPEC_DIMENSIONS);
+
+/** Seats a spec-shaped parent image and hands back its id. */
+export const seatSpecImage = async (id: string, name = 'CT') => {
+  await seatImage(id, { name, dimensions: SPEC_DIMENSIONS });
+  return id;
+};
+
+/**
+ * itk-wasm image IO has no node counterpart, so this keeps the labelmap in
+ * memory and hands the archive a token that reads back to it. `written` and
+ * `formats` record the write calls in order.
+ */
+export const inMemoryArtifactIO = () => {
+  const labelmaps = new Map<string, vtkLabelMap>();
+  const written: vtkLabelMap[] = [];
+  const formats: string[] = [];
+  return {
+    written,
+    formats,
+    write: async (format: string, labelmap: vtkLabelMap) => {
+      const token = `labelmap-${labelmaps.size}`;
+      labelmaps.set(token, labelmap);
+      written.push(labelmap);
+      formats.push(format);
+      return token;
+    },
+    read: async (file: File) => ({ image: labelmaps.get(await file.text())! }),
+  };
+};
+
+/** A manifest naming one dataset and one uri source per seated image. */
+export const manifestForImages = (
+  imageIds: string[],
+  extra: Record<string, unknown> = {}
+) =>
+  ({
+    version: MANIFEST_VERSION,
+    datasets: imageIds.map((id, index) => ({ id, dataSourceId: index + 1 })),
+    dataSources: imageIds.map((id, index) => ({
+      id: index + 1,
+      type: 'uri',
+      uri: `/${id}.nrrd`,
+    })),
+    datasetFilePath: {},
+    ...extra,
+  }) as unknown as Manifest;
+
+/** Serializes the live scene, then reads its artifacts back as state files. */
+export const serializeToStateFiles = async (
+  manifest: Manifest,
+  io: SegmentationArtifactIO,
+  tamper?: (parsed: any) => void
+) => {
+  const zip = new JSZip();
+  useSegmentStore().serialize({ zip, manifest });
+  await store().serialize({ zip, manifest }, io);
+  const parsed = ManifestSchema.parse(manifest) as any;
+  tamper?.(parsed);
+  const stateFiles = await Promise.all(
+    parsed.segmentationArtifacts.map(async (artifact: any) => ({
+      archivePath: artifact.path,
+      file: new File(
+        [await zip.file(artifact.path)!.async('string')],
+        'artifact.vti'
+      ),
+    }))
+  );
+  return { zip, parsed, stateFiles };
+};
 
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;

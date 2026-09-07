@@ -199,7 +199,10 @@ describe('the shared registry', () => {
   it('lets a ruler and a mask name the same segment', () => {
     const shared = useSegmentStore().segments;
     const id = shared.addSegment({ name: 'Tumor' });
-    const rulerId = useRulerStore().addTool({ imageID: 'img-1', segmentId: id });
+    const rulerId = useRulerStore().addTool({
+      imageID: 'img-1',
+      segmentId: id,
+    });
     const record = maskOn('img-1', id);
 
     shared.deleteSegment(id);

@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
+import {
+  seatSpecImage as seatImage,
+  inMemoryArtifactIO,
+  mintSegment,
+  manifestForImages,
+  serializeToStateFiles,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
-import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
-import { useImageCacheStore } from '@/src/store/image-cache';
+import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
@@ -19,47 +21,9 @@ import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 // states neither comes back with the app defaults.
 // ---------------------------------------------------------------------------
 
-const DIMENSIONS = [4, 4, 2] as const;
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
 const store = () => useSegmentationStore();
 
-async function seatImage(id: string, name = 'CT') {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS as unknown as [number, number, number]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
-    })
-  );
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, name, { id });
-  await nextTick();
-  return id;
-}
-
-// itk-wasm has no node counterpart; this keeps the labelmap in memory and
-// hands the archive a token that reads back to it.
-const makeArtifactIO = () => {
-  const labelmaps = new Map<string, any>();
-  return {
-    write: async (_format: string, labelmap: any) => {
-      const token = `labelmap-${labelmaps.size}`;
-      labelmaps.set(token, labelmap);
-      return token;
-    },
-    read: async (file: File) => ({ image: labelmaps.get(await file.text()) }),
-  };
-};
-
-const baseManifest = () =>
-  ({
-    version: MANIFEST_VERSION,
-    datasets: [{ id: 'img-1', dataSourceId: 1 }],
-    dataSources: [{ id: 1, type: 'uri', uri: '/ct.nrrd' }],
-    datasetFilePath: {},
-  }) as unknown as Manifest;
+const baseManifest = () => manifestForImages(['img-1']);
 
 /** A scene whose display state is nowhere near the defaults. */
 function buildScene() {
@@ -118,7 +82,7 @@ describe('segmentation display state on the wire', () => {
     const zip = new JSZip();
     const manifest = baseManifest();
     useSegmentStore().serialize({ zip, manifest });
-    await store().serialize({ zip, manifest }, makeArtifactIO());
+    await store().serialize({ zip, manifest }, inMemoryArtifactIO());
 
     const parsed = ManifestSchema.parse(manifest);
     const wire = parsed.segmentations![0];
@@ -143,21 +107,10 @@ describe('segmentation display state on the wire', () => {
   it('restores display state through a save and load', async () => {
     buildScene();
 
-    const zip = new JSZip();
-    const manifest = baseManifest();
-    const io = makeArtifactIO();
-    useSegmentStore().serialize({ zip, manifest });
-    await store().serialize({ zip, manifest }, io);
-
-    const parsed = ManifestSchema.parse(manifest) as any;
-    const stateFiles = await Promise.all(
-      parsed.segmentationArtifacts.map(async (artifact: any) => ({
-        archivePath: artifact.path,
-        file: new File(
-          [await zip.file(artifact.path)!.async('string')],
-          'artifact.vti'
-        ),
-      }))
+    const io = inMemoryArtifactIO();
+    const { parsed, stateFiles } = await serializeToStateFiles(
+      baseManifest(),
+      io
     );
 
     setActivePinia(createPinia());
@@ -204,7 +157,7 @@ describe('segmentation display state on the wire', () => {
       { 'img-1': 'img-1' },
       useSegmentStore().deserialize(parsed),
       {},
-      makeArtifactIO()
+      inMemoryArtifactIO()
     );
     await nextTick();
 

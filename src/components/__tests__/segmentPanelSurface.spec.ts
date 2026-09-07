@@ -8,8 +8,7 @@ import { mount, VueWrapper } from '@vue/test-utils';
 
 import SegmentList from '@/src/components/SegmentList.vue';
 import {
-  type Index3,
-  seatImage as seatFixtureImage,
+  seatSpecImage as seatImage,
   store,
   mintSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
@@ -26,13 +25,6 @@ import { useViewStore } from '@/src/store/views';
 // so the scan reads text nodes and the static attributes a user actually reads,
 // never template expressions or component names.
 // ---------------------------------------------------------------------------
-
-const DIMENSIONS: Index3 = [4, 4, 2];
-
-const seatImage = async (id: string, name = 'CT') => {
-  await seatFixtureImage(id, { name, dimensions: DIMENSIONS });
-  return id;
-};
 
 const viewImage = async (id: string) => {
   useViewStore().setDataForAllViews(id);

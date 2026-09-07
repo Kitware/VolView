@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
-import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
+import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { leafStateId } from '@/src/io/import/dataSource';
@@ -16,6 +15,11 @@ import { useSegmentStore } from '@/src/store/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import { segmentFillAlpha } from '@/src/components/vtk/segmentDisplay';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import {
+  inMemoryArtifactIO,
+  manifestForImages,
+  serializeToStateFiles,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // The 6.4.0 -> 7.0.0 structural migration. JSON only: every old segment group
@@ -818,20 +822,6 @@ const seatImage = async (id: string, name: string, image = makeImage()) => {
   return id;
 };
 
-// The real collaborator is itk-wasm image IO, which has no node counterpart;
-// this local codec keeps the labelmap in memory behind an archive token.
-const makeArtifactIO = () => {
-  const labelmaps = new Map<string, any>();
-  return {
-    write: async (_format: string, labelmap: any) => {
-      const token = `labelmap-${labelmaps.size}`;
-      labelmaps.set(token, labelmap);
-      return token;
-    },
-    read: async (file: File) => ({ image: labelmaps.get(await file.text()) }),
-  };
-};
-
 const snapshot = (imageId: string) => {
   const store = useSegmentationStore();
   const segments = useSegmentStore().segments;
@@ -1063,31 +1053,13 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     const before = snapshot('store-ct');
     expect(before.name).toBe('patient.nrrd');
 
-    const io = makeArtifactIO();
-    const zip = new JSZip();
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [{ id: 'store-ct', dataSourceId: 1 }],
-      dataSources: [{ id: 1, type: 'uri', uri: 'https://ex/ct.nrrd' }],
-      datasetFilePath: {},
-      tools: {},
-    } as unknown as Manifest;
-
-    useSegmentStore().serialize({ zip, manifest });
-    await useSegmentationStore().serialize({ zip, manifest }, io);
-    const saved = ManifestSchema.parse(manifest) as any;
+    const io = inMemoryArtifactIO();
+    const { parsed: saved, stateFiles } = await serializeToStateFiles(
+      manifestForImages(['store-ct'], { tools: {} }),
+      io
+    );
     expect(saved.version).toBe(MANIFEST_VERSION);
     expect(saved.segmentGroups).toBeUndefined();
-
-    const stateFiles = await Promise.all(
-      saved.segmentationArtifacts.map(async (artifact: any) => ({
-        archivePath: artifact.path,
-        file: new File(
-          [await zip.file(artifact.path)!.async('string')],
-          'artifact.vti'
-        ),
-      }))
-    );
 
     setActivePinia(createPinia());
     await seatImage('new-ct', 'CT');

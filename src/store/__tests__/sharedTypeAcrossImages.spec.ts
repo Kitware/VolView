@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useViewStore } from '@/src/store/views';
 import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterizeTarget';
+import { seatSpecImage as seatImage } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // One type, every image. The registry is independent of the viewed image, so
@@ -18,26 +16,8 @@ import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterize
 // for the selected type. Nothing is cloned and no identity is matched by name.
 // ---------------------------------------------------------------------------
 
-const DIMENSIONS = [4, 4, 2] as const;
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
 const store = () => useSegmentationStore();
 const segments = () => useSegmentStore().segments;
-
-async function seatImage(id: string, name = 'CT') {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS as unknown as [number, number, number]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
-    })
-  );
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, name, { id });
-  await nextTick();
-  return id;
-}
 
 const viewImage = async (id: string) => {
   useViewStore().setDataForAllViews(id);

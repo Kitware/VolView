@@ -7,13 +7,17 @@ import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useSegmentStore } from '@/src/store/segments';
-import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
+import { ManifestSchema } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { isEmptyExtent, listMasks } from '@/src/types/segmentation';
 import vtkLabelMap from '@/src/vtk/LabelMap';
+import { type SegmentationArtifactIO } from '@/src/store/segmentations';
 import {
   addMask,
+  inMemoryArtifactIO,
+  manifestForImages,
+  serializeToStateFiles,
   extentOf,
   markedVoxels,
   parentImage,
@@ -40,24 +44,6 @@ const GRID = {
   dimensions: DIMENSIONS,
   spacing: [2, 3, 4] as [number, number, number],
   origin: [10, 20, 30] as [number, number, number],
-};
-
-// The real collaborator is itk-wasm image IO, which has no counterpart in the
-// node test environment; this local codec keeps the labelmap in memory and
-// hands the archive a token that reads back to it.
-const makeArtifactIO = () => {
-  const labelmaps = new Map<string, vtkLabelMap>();
-  const written: vtkLabelMap[] = [];
-  return {
-    written,
-    write: async (_format: string, labelmap: vtkLabelMap) => {
-      const token = `labelmap-${labelmaps.size}`;
-      labelmaps.set(token, labelmap);
-      written.push(labelmap);
-      return token;
-    },
-    read: async (file: File) => ({ image: labelmaps.get(await file.text())! }),
-  };
 };
 
 /** The name the record shows, which lives on the type it references. */
@@ -131,39 +117,16 @@ async function buildScene() {
   await nextTick();
 }
 
-const emptyManifest = () =>
-  ({
-    version: MANIFEST_VERSION,
-    datasets: [
-      { id: 'img-1', dataSourceId: 1 },
-      { id: 'img-2', dataSourceId: 2 },
-    ],
-    dataSources: [
-      { id: 1, type: 'uri', uri: '/ct-a.nrrd' },
-      { id: 2, type: 'uri', uri: '/ct-b.nrrd' },
-    ],
-    datasetFilePath: {},
-  }) as unknown as Manifest;
+const emptyManifest = () => manifestForImages(['img-1', 'img-2']);
 
 async function roundTrip(
-  io: ReturnType<typeof makeArtifactIO>,
+  io: SegmentationArtifactIO,
   tamper?: (manifest: any) => void
 ) {
-  const zip = new JSZip();
-  const manifest = emptyManifest();
-  useSegmentStore().serialize({ zip, manifest });
-  await store().serialize({ zip, manifest }, io);
-
-  const parsed = ManifestSchema.parse(manifest) as any;
-  tamper?.(parsed);
-  const stateFiles = await Promise.all(
-    parsed.segmentationArtifacts.map(async (artifact: any) => ({
-      archivePath: artifact.path,
-      file: new File(
-        [await zip.file(artifact.path)!.async('string')],
-        'artifact.vti'
-      ),
-    }))
+  const { parsed, stateFiles } = await serializeToStateFiles(
+    emptyManifest(),
+    io,
+    tamper
   );
 
   setActivePinia(createPinia());
@@ -188,7 +151,7 @@ describe('bounded masks through the state file', () => {
 
   it('writes each mask at its own size, not the parent image’s', async () => {
     await buildScene();
-    const io = makeArtifactIO();
+    const io = inMemoryArtifactIO();
 
     await store().serialize(
       { zip: new JSZip(), manifest: emptyManifest() },
@@ -215,7 +178,7 @@ describe('bounded masks through the state file', () => {
       second: snapshot('img-2'),
     };
 
-    await roundTrip(makeArtifactIO());
+    await roundTrip(inMemoryArtifactIO());
 
     expect(snapshot('new-1')).toEqual(before.first);
     expect(snapshot('new-2')).toEqual(before.second);
@@ -236,7 +199,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
     // Reading a file yields fresh bytes each time; the in-memory codec has to
     // copy to say the same, or both restores would share one mask.
-    const shared = makeArtifactIO();
+    const shared = inMemoryArtifactIO();
     const io = {
       ...shared,
       read: async (file: File) => {
@@ -257,19 +220,9 @@ describe('bounded masks through the state file', () => {
         return { image: copy };
       },
     };
-    const zip = new JSZip();
-    const manifest = emptyManifest();
-    useSegmentStore().serialize({ zip, manifest });
-    await store().serialize({ zip, manifest }, io);
-    const parsed = ManifestSchema.parse(manifest) as any;
-    const stateFiles = await Promise.all(
-      parsed.segmentationArtifacts.map(async (artifact: any) => ({
-        archivePath: artifact.path,
-        file: new File(
-          [await zip.file(artifact.path)!.async('string')],
-          'artifact.vti'
-        ),
-      }))
+    const { parsed, stateFiles } = await serializeToStateFiles(
+      emptyManifest(),
+      io
     );
     const dataIDMap = { 'img-1': 'img-1', 'img-2': 'img-2' };
 
@@ -306,20 +259,10 @@ describe('bounded masks through the state file', () => {
 
   it('leaves an existing image display alone when a scene is imported onto it', async () => {
     await buildScene();
-    const io = makeArtifactIO();
-    const zip = new JSZip();
-    const manifest = emptyManifest();
-    useSegmentStore().serialize({ zip, manifest });
-    await store().serialize({ zip, manifest }, io);
-    const parsed = ManifestSchema.parse(manifest) as any;
-    const stateFiles = await Promise.all(
-      parsed.segmentationArtifacts.map(async (artifact: any) => ({
-        archivePath: artifact.path,
-        file: new File(
-          [await zip.file(artifact.path)!.async('string')],
-          'artifact.vti'
-        ),
-      }))
+    const io = inMemoryArtifactIO();
+    const { parsed, stateFiles } = await serializeToStateFiles(
+      emptyManifest(),
+      io
     );
 
     // The scene the user is in already has masks and a display of its own.
@@ -357,7 +300,7 @@ describe('bounded masks through the state file', () => {
 
     let firstWireArtifactId = '';
     let secondWireArtifactId = '';
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const first = manifest.segmentations.find(
         (entry: any) => entry.parentImage === 'img-1'
       );
@@ -413,7 +356,7 @@ describe('bounded masks through the state file', () => {
   it('restores a mask that covers nothing as one that covers nothing', async () => {
     await buildScene();
 
-    await roundTrip(makeArtifactIO());
+    await roundTrip(inMemoryArtifactIO());
 
     const planned = listMasks(store().getSegmentationForImage('new-1')!).find(
       (segment) => nameOf(segment) === 'Planned'
@@ -426,7 +369,7 @@ describe('bounded masks through the state file', () => {
   it('leaves a segment that never had storage without any', async () => {
     await buildScene();
 
-    await roundTrip(makeArtifactIO());
+    await roundTrip(inMemoryArtifactIO());
 
     const unbound = listMasks(store().getSegmentationForImage('new-1')!).find(
       (segment) => nameOf(segment) === 'Unbound'
@@ -439,7 +382,7 @@ describe('bounded masks through the state file', () => {
 
     // A mask sits on its parent's grid, so a binding across images would put
     // the segment on storage of another shape.
-    await roundTrip(makeArtifactIO(), (manifest) => {
+    await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const foreign = manifest.segmentationArtifacts.find(
         (artifact: any) => artifact.parentImage === 'img-2'
       );
@@ -465,7 +408,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
 
     let artifact: ReturnType<typeof wireArtifactFor>;
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const tumor = wireMask(manifest, 'Tumor');
       artifact = wireArtifactFor(manifest, tumor);
       tumor.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
@@ -485,7 +428,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
 
     let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       refs = pointNodeAtTumorArtifact(manifest);
       refs.node.representations.labelmap.extent = [0, 1, 0, 0, 0, 0];
     });
@@ -515,7 +458,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
 
     let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       refs = pointNodeAtTumorArtifact(manifest);
       refs.node.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
       refs.segmentation.order = [
@@ -559,7 +502,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
 
     let artifact: ReturnType<typeof wireArtifactFor>;
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const tumor = wireMask(manifest, 'Tumor');
       artifact = wireArtifactFor(manifest, tumor);
       tumor.representations.labelmap.extent = extent;
@@ -574,7 +517,7 @@ describe('bounded masks through the state file', () => {
   it('refuses a wire label value that would turn background into a segment', async () => {
     await buildScene();
 
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       wireMask(manifest, 'Tumor').representations.labelmap.labelValue = 0;
     });
 
@@ -590,7 +533,7 @@ describe('bounded masks through the state file', () => {
     await buildScene();
 
     let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
-    const result = await roundTrip(makeArtifactIO(), (manifest) => {
+    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       refs = pointNodeAtTumorArtifact(manifest);
     });
 
@@ -610,7 +553,7 @@ describe('bounded masks through the state file', () => {
   it('puts the restored masks back on the parent grid', async () => {
     await buildScene();
 
-    await roundTrip(makeArtifactIO());
+    await roundTrip(inMemoryArtifactIO());
 
     const tumor = listMasks(store().getSegmentationForImage('new-1')!).find(
       (segment) => nameOf(segment) === 'Tumor'

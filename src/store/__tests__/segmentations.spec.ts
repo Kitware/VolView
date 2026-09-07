@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
+  seatSpecImage as seatImage,
+  SPEC_DIMENSIONS as DIMENSIONS,
   maskOn,
   segmentOfMask,
 } from '@/src/store/__tests__/segmentMaskFixtures';
@@ -13,23 +15,7 @@ import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { isEmptyExtent } from '@/src/types/segmentation';
 
-const DIMENSIONS = [4, 4, 2] as const;
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
-async function seatImage(id: string, name = 'CT') {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS as unknown as [number, number, number]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
-    })
-  );
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, name, { id });
-  await nextTick();
-  return id;
-}
 
 /** Seats a child image whose voxels already carry label values. */
 async function seatLabelValues(
@@ -38,7 +24,7 @@ async function seatLabelValues(
   headerMetadata?: Map<string, string>
 ) {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS as unknown as [number, number, number]);
+  image.setDimensions(DIMENSIONS);
   image
     .getPointData()
     .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));

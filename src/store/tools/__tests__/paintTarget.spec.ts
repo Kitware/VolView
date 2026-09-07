@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { createApp } from 'vue';
 
 import { PaintMode } from '@/src/core/tools/paint';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
+  seatSpecImage as seatImage,
   markedVoxels,
   maskValueAt,
   offsetOf,
@@ -18,24 +16,6 @@ import {
   mintSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
-
-const DIMENSIONS: [number, number, number] = [4, 4, 2];
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
-async function seatImage(id: string, name = 'CT') {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(VOXEL_COUNT),
-    })
-  );
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, name, { id });
-  await nextTick();
-  return id;
-}
 
 const store = () => useSegmentationStore();
 
