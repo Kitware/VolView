@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { makeSpecImage } from '@/src/store/__tests__/segmentMaskFixtures';
+import {
+  legacyAxialViewConfig,
+  makeSpecImage,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -87,28 +90,7 @@ const descriptorlessComposedManifest = (visibility = true) =>
       },
     ],
     datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
-    viewByID: {
-      Axial: {
-        id: 'Axial',
-        name: 'Axial',
-        type: '2D',
-        config: {
-          'sg-tumor': {
-            layers: {
-              colorBy: { arrayName: '', location: 'pointData' },
-              transferFunction: { preset: '', mappingRange: [0, 1] },
-              opacityFunction: {
-                mode: 0,
-                gaussians: [],
-                mappingRange: [0, 1],
-              },
-              blendConfig: { opacity: 0.4, visibility },
-            },
-            segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
-          },
-        },
-      },
-    },
+    viewByID: legacyAxialViewConfig('sg-tumor', visibility),
     segmentGroups: [
       {
         id: 'sg-tumor',

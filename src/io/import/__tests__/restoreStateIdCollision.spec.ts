@@ -1,3 +1,4 @@
+import { type Manifest } from '@/src/io/state-file/schema';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -128,6 +129,34 @@ const assembleStateIdMap = (leaves: UriLeaf[], completionOrder: string[]) =>
     return { ...map, [leaf!.stateFileLeaf!.stateID]: storeIdByUri[uri] };
   }, {});
 
+/** Restores a prepared manifest and hands back the mask it attached. */
+const restoreOnto = async (
+  setup: { manifest: Manifest },
+  stateFiles: Parameters<
+    ReturnType<typeof useSegmentationStore>['deserialize']
+  >[1],
+  dataIDMap: Record<string, string>
+) => {
+  const store = useSegmentationStore();
+  const { artifactIdMap: idMap } = await store.deserialize(
+    setup.manifest,
+    stateFiles,
+    dataIDMap,
+    useSegmentStore().deserialize(setup.manifest),
+    resolveArtifactRestoreSources(setup.manifest)
+  );
+  const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
+  return { idMap, maskId };
+};
+
+/** The group attached, parented on the BASE dataset's store id. */
+const expectTumorOnBase = (idMap: Record<string, string>, maskId: string) => {
+  const store = useSegmentationStore();
+  expect(idMap['sg-tumor']).toBeDefined();
+  const { artifactId } = store.resolveLabelmapBinding(maskId)!;
+  expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
+};
+
 describe('restore stateID namespaces (collision)', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -167,19 +196,10 @@ describe('restore stateID namespaces (collision)', () => {
       seatImage(ARTIFACT_STORE_ID, 'Tumor.seg.nrrd', 1);
 
       const store = useSegmentationStore();
-      const { artifactIdMap: idMap } = await store.deserialize(
-        setup.manifest,
-        [],
-        stateIDToStoreID,
-        useSegmentStore().deserialize(setup.manifest),
-        resolveArtifactRestoreSources(setup.manifest)
-      );
+      const { idMap, maskId } = await restoreOnto(setup, [], stateIDToStoreID);
 
       // The group attached, parented on the BASE dataset's store id.
-      expect(idMap['sg-tumor']).toBeDefined();
-      const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
-      const { artifactId } = store.resolveLabelmapBinding(maskId)!;
-      expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
+      expectTumorOnBase(idMap, maskId);
 
       // Its mask was built from the ARTIFACT's voxels, not the base's.
       expect(Array.from(new Set(store.maskVoxels(maskId).scalars()))).toEqual([
@@ -213,24 +233,18 @@ describe('restore stateID namespaces (collision)', () => {
       ],
     });
 
-    const store = useSegmentationStore();
-    const { artifactIdMap: idMap } = await store.deserialize(
-      setup.manifest,
+    const { idMap, maskId } = await restoreOnto(
+      setup,
       [
         {
           archivePath: 'segmentations/Tumor.seg.nrrd',
           file: new File([''], 'Tumor.seg.nrrd'),
         },
       ],
-      { '2': BASE_STORE_ID },
-      useSegmentStore().deserialize(setup.manifest),
-      resolveArtifactRestoreSources(setup.manifest)
+      { '2': BASE_STORE_ID }
     );
 
-    expect(idMap['sg-tumor']).toBeDefined();
-    const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
-    const { artifactId } = store.resolveLabelmapBinding(maskId)!;
-    expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
+    expectTumorOnBase(idMap, maskId);
     expect(ioMocks.readImage).toHaveBeenCalledTimes(1);
   });
 });

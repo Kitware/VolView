@@ -16,6 +16,7 @@ import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
 import { segmentFillAlpha } from '@/src/components/vtk/segmentDisplay';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
+  legacyAxialViewConfig,
   inMemoryArtifactIO,
   manifestForImages,
   segmentationSnapshot,
@@ -831,28 +832,7 @@ const legacyScene = () =>
       { id: 3, type: 'uri', uri: 'https://ex/tumor.seg.nrrd', name: 'Tumor' },
     ],
     datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
-    viewByID: {
-      Axial: {
-        id: 'Axial',
-        name: 'Axial',
-        type: '2D',
-        config: {
-          'sg-1': {
-            layers: {
-              colorBy: { arrayName: '', location: 'pointData' },
-              transferFunction: { preset: '', mappingRange: [0, 1] },
-              opacityFunction: {
-                mode: 0,
-                gaussians: [],
-                mappingRange: [0, 1],
-              },
-              blendConfig: { opacity: 0.4, visibility: false },
-            },
-            segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
-          },
-        },
-      },
-    },
+    viewByID: legacyAxialViewConfig('sg-1', false),
     segmentGroups: [
       {
         id: 'sg-1',

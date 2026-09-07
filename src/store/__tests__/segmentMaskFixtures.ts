@@ -167,6 +167,26 @@ export const segmentationSnapshot = (imageId: string) => {
   };
 };
 
+/** The 6.4.0 axial view config a group's display rode in, before 7.0.0. */
+export const legacyAxialViewConfig = (groupId: string, visibility = true) => ({
+  Axial: {
+    id: 'Axial',
+    name: 'Axial',
+    type: '2D',
+    config: {
+      [groupId]: {
+        layers: {
+          colorBy: { arrayName: '', location: 'pointData' },
+          transferFunction: { preset: '', mappingRange: [0, 1] },
+          opacityFunction: { mode: 0, gaussians: [], mappingRange: [0, 1] },
+          blendConfig: { opacity: 0.4, visibility },
+        },
+        segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
+      },
+    },
+  },
+});
+
 /** A manifest naming one dataset and one uri source per seated image. */
 export const manifestForImages = (
   imageIds: string[],
