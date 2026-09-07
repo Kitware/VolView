@@ -73,7 +73,7 @@ import { locatorPatch } from '@/src/core/annotations/locator';
 import { watchImmediate } from '@vueuse/core';
 import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
-import { rasterizePolygonEdit } from '@/src/components/tools/polygon/rasterizeAction';
+import { rasterizePolygon } from '@/src/components/tools/polygon/rasterizeTarget';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
@@ -202,7 +202,7 @@ export default defineComponent({
       }
 
       const tool = activeToolStore.toolByID[toolId];
-      const rasterized = rasterizePolygonEdit({
+      const rasterized = rasterizePolygon({
         imageId: imageId.value,
         segmentId: tool?.segmentId,
         points: activeToolStore.getPoints(toolId),

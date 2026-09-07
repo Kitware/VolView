@@ -7,6 +7,7 @@ import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
 import type { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
@@ -111,7 +112,9 @@ function polygonBounds(
  * the tool component because it is a voxel operation: the mask has to grow to
  * hold the polygon before `fillPoly` runs, since a mask that does not reach a
  * pixel swallows it silently, and the filled voxels have to be cleared in the
- * other segments of the image. World points, parent slice index.
+ * other segments of the image. World points, parent slice index. An in-flight
+ * paint process is cancelled first: its preview holds the mask's pre-process
+ * scalars, which would be restored over the polygon once the mask has grown.
  */
 export function rasterizePolygon({
   imageId,
@@ -126,6 +129,7 @@ export function rasterizePolygon({
   slice: number;
   viewAxis: LPSAxis;
 }) {
+  usePaintProcessStore().cancelProcess();
   const segmentationStore = useSegmentationStore();
   const parent = useImageCacheStore().getVtkImageData(imageId);
   if (!parent) throw new Error('No such parent image');

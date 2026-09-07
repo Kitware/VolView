@@ -4,7 +4,7 @@ import { createApp, nextTick } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import { rasterizePolygonEdit } from '@/src/components/tools/polygon/rasterizeAction';
+import { rasterizePolygon } from '@/src/components/tools/polygon/rasterizeTarget';
 import {
   addMask,
   extentOf,
@@ -37,7 +37,7 @@ function growMask(maskId: string, extent: Extent3D) {
 }
 
 function rasterize(maskId: string) {
-  return rasterizePolygonEdit({
+  return rasterizePolygon({
     imageId: 'img-1',
     segmentId: segmentOfMask(maskId),
     points: SQUARE,
