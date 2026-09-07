@@ -14,6 +14,7 @@ import {
   planArtifactRestore,
   prepareRestoreBindings,
   restoredLabelmapImage,
+  orderedWireMasks,
 } from '@/src/store/segmentationRestore';
 import {
   boundScalars,
@@ -1193,13 +1194,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         segmentation.outlineThickness = wire.outlineThickness;
       }
 
-      const wireById = new Map(
-        wire.masks.map((segment) => [segment.id, segment])
-      );
-      wire.order.forEach((wireMaskId) => {
-        const wireMask = wireById.get(wireMaskId);
-        if (!wireMask) return;
-
+      orderedWireMasks(wire).forEach((wireMask) => {
         // A mask whose segment did not restore has no identity to show, and a
         // second mask for a segment already on this image cannot exist.
         const segmentId = segmentIdMap[wireMask.segmentId];
@@ -1228,7 +1223,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
             };
           }
         }
-        maskIdMap[wireMaskId] = segment.id;
+        maskIdMap[wireMask.id] = segment.id;
       });
     });
 

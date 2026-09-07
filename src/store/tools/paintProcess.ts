@@ -313,6 +313,14 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     return { targets };
   }
 
+  // A process holding storage the user can still cancel out of.
+  const runInFlight = () => {
+    const state = processState.value;
+    return state.step === 'computing' || state.step === 'previewing'
+      ? state
+      : undefined;
+  };
+
   // A run the user has already moved past: another process started, or the
   // state machine left the step this one is finishing.
   const runIsStale = (processRunId: number) =>
@@ -427,10 +435,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       if (previousMode !== PaintMode.Process || mode === PaintMode.Process) {
         return;
       }
-      const state = processState.value;
-      if (state.step !== 'computing' && state.step !== 'previewing') {
-        return;
-      }
+      if (!runInFlight()) return;
       cancelProcess();
     }
   );
@@ -441,9 +446,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   watch(
     () => paintStore.isActive,
     (isActive) => {
-      if (isActive) return;
-      const state = processState.value;
-      if (state.step !== 'computing' && state.step !== 'previewing') return;
+      if (isActive || !runInFlight()) return;
       cancelProcess();
     }
   );
@@ -468,10 +471,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   watch(
     () => segmentRegistry.selectedSegmentId.value,
     (segmentId) => {
-      const state = processState.value;
-      if (state.step !== 'computing' && state.step !== 'previewing') {
-        return;
-      }
+      const state = runInFlight();
+      if (!state) return;
       const watched = state.watchedMaskId;
       if (watched === undefined) return;
       if (
@@ -485,13 +486,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   // Cancel process when current image changes
   watch(currentImageID, (newVal) => {
-    const state = processState.value;
-    if (
-      (state.step === 'computing' || state.step === 'previewing') &&
-      state.activeParentImageID !== newVal
-    ) {
-      cancelProcess();
-    }
+    const state = runInFlight();
+    if (state && state.activeParentImageID !== newVal) cancelProcess();
   });
 
   return {

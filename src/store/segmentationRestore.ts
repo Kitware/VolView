@@ -226,14 +226,23 @@ function candidateFor(
   return { wireMask, artifactId, name, extent, parentImage };
 }
 
+/** The wire's masks in the order it records, skipping ids it does not name. */
+export function orderedWireMasks<T extends { id: string }>(wire: {
+  masks: T[];
+  order: string[];
+}) {
+  const byId = new Map(wire.masks.map((mask) => [mask.id, mask]));
+  return wire.order.flatMap((maskId) => {
+    const mask = byId.get(maskId);
+    return mask ? [mask] : [];
+  });
+}
+
 function collectCandidates(wire: WireMaskation, state: RestoreBindingState) {
   const parentImageId = state.dataIDMap[wire.parentImage];
   if (parentImageId === undefined) return [];
   const parentImage = state.getParentImage(parentImageId);
-  const wireById = new Map(wire.masks.map((segment) => [segment.id, segment]));
-  return wire.order.flatMap((wireMaskId) => {
-    const wireMask = wireById.get(wireMaskId);
-    if (!wireMask) return [];
+  return orderedWireMasks(wire).flatMap((wireMask) => {
     const candidate = candidateFor(wireMask, parentImageId, parentImage, state);
     return candidate ? [candidate] : [];
   });
