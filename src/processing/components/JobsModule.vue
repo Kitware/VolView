@@ -161,7 +161,7 @@ import {
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import { useSegmentationStore } from '@/src/store/segmentations';
-import { listMasks } from '@/src/types/segmentation';
+
 import { useMessageStore } from '@/src/store/messages';
 
 import TaskPicker from './TaskPicker.vue';
@@ -549,17 +549,16 @@ const refreshFlattensOverlap = () => {
   flattensOverlap.value = bound.flat().some(segmentationOverlaps);
 };
 
-// Boxes move when a stroke leaves one; the store's revision is what a write
-// inside a box leaves behind. Debounced because a stroke bumps both again and
-// again, and the answer costs a voxel sweep.
+// The revision covers every write, growth included, since a regrow announces
+// itself to vtk. What it does not cover is a mask arriving or leaving, so the
+// membership rides along. Debounced because a stroke bumps the revision once
+// per sample and the answer costs a voxel sweep.
 const overlapSignal = () =>
   [
     currentImageID.value,
     maskRevision.value,
     ...Object.values(segmentationStore.segmentations).map((segmentation) =>
-      listMasks(segmentation)
-        .map((segment) => segment.representations.labelmap?.extent.join() ?? '')
-        .join(',')
+      segmentation.order.join()
     ),
   ].join('|');
 
