@@ -84,7 +84,6 @@ const globalOptions = {
     IsolatedDialog: DialogHostStub('IsolatedDialog'),
     CloseableDialog: DialogHostStub('CloseableDialog'),
     VDialog: DialogHostStub('VDialog'),
-    ColorDot: { props: ['color'], template: '<span class="color-dot" />' },
     VBtn: BtnStub,
     VIcon: { template: '<i class="icon"><slot /></i>' },
     VTooltip: { template: '<span class="tooltip"><slot /></span>' },

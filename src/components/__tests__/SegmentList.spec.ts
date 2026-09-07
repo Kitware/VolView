@@ -161,7 +161,6 @@ const globalOptions = {
         '<div v-if="modelValue" class="dialog"><slot :close="() => {}" /></div>',
     },
     SaveSegmentGroupDialog: { props: ['id'], template: '<div />' },
-    ColorDot: { props: ['color'], template: '<span class="color-dot" />' },
     VBtn: BtnStub,
     VIcon: IconStub,
     VSpacer: { template: '<span />' },

@@ -127,14 +127,6 @@ export const openSegmentShapes = async () => {
 /** One line per shape: where it sits, and a ruler's length. */
 export const shapeRowTexts = () => $$(SHAPE_ROW).map((row) => row.getText());
 
-export const shapeRowWithIcon = async (iconClass: string) => {
-  const rows = await $$(SHAPE_ROW);
-  for (const row of rows) {
-    if (await row.$(`i[class~="${iconClass}"]`).isExisting()) return row;
-  }
-  throw new Error(`No shape row carrying ${iconClass}`);
-};
-
 /** Waits for the viewed image to render at least one named segment. */
 export const waitForNamedSegments = async (timeout?: number) => {
   await $(SEGMENT_LIST).waitForDisplayed(timeout ? { timeout } : undefined);
