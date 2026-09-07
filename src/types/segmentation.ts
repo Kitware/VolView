@@ -130,6 +130,16 @@ export function listMasks(segmentation: Segmentation) {
   return segmentation.order.map((id) => segmentation.masks[id]);
 }
 
+/** Widens `box` in place to take in one more index. */
+export const growExtent = (box: Extent3D, i: number, j: number, k: number) => {
+  box[0] = Math.min(box[0], i);
+  box[1] = Math.max(box[1], i);
+  box[2] = Math.min(box[2], j);
+  box[3] = Math.max(box[3], j);
+  box[4] = Math.min(box[4], k);
+  box[5] = Math.max(box[5], k);
+};
+
 export function emptyExtent(): Extent3D {
   return [0, -1, 0, -1, 0, -1];
 }
@@ -206,32 +216,25 @@ export function markedExtent(
   extent: Extent3D,
   labelValue: number
 ): Extent3D {
-  const bounds = emptyExtent();
-  let found = false;
-  let offset = 0;
-  for (let k = extent[4]; k <= extent[5]; k += 1) {
-    for (let j = extent[2]; j <= extent[3]; j += 1) {
-      for (let i = extent[0]; i <= extent[1]; i += 1, offset += 1) {
-        if (scalars[offset] !== labelValue) continue;
-        if (!found) {
-          bounds[0] = i;
-          bounds[1] = i;
-          bounds[2] = j;
-          bounds[3] = j;
-          bounds[4] = k;
-          bounds[5] = k;
-          found = true;
-        } else {
-          bounds[0] = Math.min(bounds[0], i);
-          bounds[1] = Math.max(bounds[1], i);
-          bounds[2] = Math.min(bounds[2], j);
-          bounds[3] = Math.max(bounds[3], j);
-          bounds[5] = k;
-        }
-      }
+  const ni = extent[1] - extent[0] + 1;
+  const nj = extent[3] - extent[2] + 1;
+  const nk = extent[5] - extent[4] + 1;
+  let bounds: Extent3D | undefined;
+
+  const scanRow = (rowStart: number, j: number, k: number) => {
+    for (let index = 0; index < ni; index += 1) {
+      if (scalars[rowStart + index] !== labelValue) continue;
+      const i = extent[0] + index;
+      if (bounds) growExtent(bounds, i, j, k);
+      else bounds = [i, i, j, j, k, k];
     }
+  };
+
+  for (let row = 0; row < nj * nk; row += 1) {
+    scanRow(row * ni, extent[2] + (row % nj), extent[4] + Math.floor(row / nj));
   }
-  return bounds;
+
+  return bounds ?? emptyExtent();
 }
 
 export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
@@ -335,6 +338,28 @@ const hslToRGB = (h: number, s: number, l: number) => {
   ) as [number, number, number];
 };
 
+const parseRgbColor = (value: string): RGBAColor | undefined => {
+  const match = RGB_COLOR.exec(value);
+  if (!match) return undefined;
+  const args = splitArgs(match[1]);
+  if (args.length < 3) return undefined;
+  const channels = args.slice(0, 3).map(toChannel);
+  if (channels.some((channel) => !Number.isFinite(channel))) return undefined;
+  return [...channels, toAlpha(args[3])] as RGBAColor;
+};
+
+const parseHslColor = (value: string): RGBAColor | undefined => {
+  const match = HSL_COLOR.exec(value);
+  if (!match) return undefined;
+  const args = splitArgs(match[1]);
+  if (args.length < 3) return undefined;
+  const hue = Number(args[0].replace(/deg$/, ''));
+  const sat = Number(args[1].replace(/%$/, '')) / 100;
+  const light = Number(args[2].replace(/%$/, '')) / 100;
+  if (![hue, sat, light].every(Number.isFinite)) return undefined;
+  return [...hslToRGB(hue, sat, light), toAlpha(args[3])] as RGBAColor;
+};
+
 /** Parses hex, named, rgb(a), and hsl(a) CSS colors. */
 export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const value = css.trim().toLowerCase();
@@ -346,27 +371,7 @@ export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const hex = HEX_COLOR.exec(value)?.[1];
   if (hex) return hexaToRGBA(expandShorthandHex(hex));
 
-  const rgb = RGB_COLOR.exec(value);
-  if (rgb) {
-    const args = splitArgs(rgb[1]);
-    if (args.length < 3) return undefined;
-    const channels = args.slice(0, 3).map(toChannel);
-    if (channels.some((c) => !Number.isFinite(c))) return undefined;
-    return [...channels, toAlpha(args[3])] as RGBAColor;
-  }
-
-  const hsl = HSL_COLOR.exec(value);
-  if (hsl) {
-    const args = splitArgs(hsl[1]);
-    if (args.length < 3) return undefined;
-    const h = Number(args[0].replace(/deg$/, ''));
-    const sat = Number(args[1].replace(/%$/, '')) / 100;
-    const light = Number(args[2].replace(/%$/, '')) / 100;
-    if (![h, sat, light].every(Number.isFinite)) return undefined;
-    return [...hslToRGB(h, sat, light), toAlpha(args[3])] as RGBAColor;
-  }
-
-  return undefined;
+  return parseRgbColor(value) ?? parseHslColor(value);
 }
 
 /** Falls back to opaque black for unparseable label colors. */

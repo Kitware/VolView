@@ -5,6 +5,7 @@ import {
   TOOL_COLORS,
 } from '@/src/config';
 import type { Maybe } from '@/src/types';
+import { cleanUndefined } from '@/src/utils';
 import type { LabelmapSegment } from '@/src/types/segmentation';
 import { cssColorToRGBA, rgbaToCssColor } from '@/src/types/segmentation';
 
@@ -32,6 +33,10 @@ export type SegmentInit = Partial<Omit<Segment, 'id'>>;
 export const DEFAULT_SEGMENT_COLOR = cssColorToRGBA(TOOL_COLORS[0]);
 
 const APPEARANCE_DEFAULTS = {
+  name: '',
+  color: DEFAULT_SEGMENT_COLOR,
+  visible: true,
+  locked: false,
   fillOpacity: 1,
   outlineOpacity: 1,
   strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
@@ -43,17 +48,21 @@ const APPEARANCE_DEFAULTS = {
  * app default in exactly one place.
  */
 export const resolveSegmentAppearance = (type: Maybe<Segment>) => {
-  const color = type?.color ?? DEFAULT_SEGMENT_COLOR;
-  return {
-    name: type?.name ?? '',
-    color,
-    cssColor: rgbaToCssColor(color),
-    visible: type?.visible ?? true,
-    locked: type?.locked ?? false,
-    fillOpacity: type?.fillOpacity ?? APPEARANCE_DEFAULTS.fillOpacity,
-    outlineOpacity: type?.outlineOpacity ?? APPEARANCE_DEFAULTS.outlineOpacity,
-    strokeWidth: type?.strokeWidth ?? APPEARANCE_DEFAULTS.strokeWidth,
+  // Absent means the app default, so only stated fields override.
+  const stated: Partial<Segment> = type ?? {};
+  const resolved = {
+    ...APPEARANCE_DEFAULTS,
+    ...cleanUndefined({
+      name: stated.name,
+      color: stated.color,
+      visible: stated.visible,
+      locked: stated.locked,
+      fillOpacity: stated.fillOpacity,
+      outlineOpacity: stated.outlineOpacity,
+      strokeWidth: stated.strokeWidth,
+    }),
   };
+  return { ...resolved, cssColor: rgbaToCssColor(resolved.color) };
 };
 
 export type SegmentAppearance = ReturnType<typeof resolveSegmentAppearance>;

@@ -22,6 +22,7 @@ import {
   maskScalars,
   type Extent3D,
   type LabelmapSegment,
+  growExtent,
 } from '@/src/types/segmentation';
 import {
   type DataSelection,
@@ -88,15 +89,6 @@ function extractEachComponent(input: vtkImageData) {
   });
 }
 
-const growBox = (box: Extent3D, i: number, j: number, k: number) => {
-  box[0] = Math.min(box[0], i);
-  box[1] = Math.max(box[1], i);
-  box[2] = Math.min(box[2], j);
-  box[3] = Math.max(box[3], j);
-  box[4] = Math.min(box[4], k);
-  box[5] = Math.max(box[5], k);
-};
-
 // The decode and the split both need this sweep of the same buffer, and it is
 // the whole parent volume, so the result rides along until the buffer changes.
 const boundsCache = new WeakMap<
@@ -118,7 +110,7 @@ function labelValueBounds(labelmap: vtkLabelMap) {
       const value = scalars[rowStart + i];
       if (value === LABELMAP_BACKGROUND_VALUE) continue;
       const box = bounds.get(value);
-      if (box) growBox(box, i, j, k);
+      if (box) growExtent(box, i, j, k);
       else bounds.set(value, [i, i, j, j, k, k]);
     }
   };
