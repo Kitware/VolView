@@ -51,8 +51,9 @@ export function createSegmentProjection({
   let projected: Record<string, LabelmapSegment[]> = {};
 
   return computed(() => {
-    projected = Object.fromEntries(
-      Object.entries(project()).map(([artifactId, list]) => {
+    const fresh = project();
+    const stable = Object.fromEntries(
+      Object.entries(fresh).map(([artifactId, list]) => {
         const previous = projected[artifactId];
         return [
           artifactId,
@@ -60,6 +61,12 @@ export function createSegmentProjection({
         ];
       })
     );
+    // The record's own identity is what a consumer of the whole projection
+    // watches, so it survives a change that left every artifact alone.
+    const unchanged =
+      Object.keys(stable).length === Object.keys(projected).length &&
+      Object.entries(stable).every(([id, list]) => projected[id] === list);
+    if (!unchanged) projected = stable;
     return projected;
   });
 }

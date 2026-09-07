@@ -187,5 +187,18 @@ describe('segmentation display state', () => {
         expect.objectContaining({ fillOpacity: 0.4 }),
       ]);
     });
+
+    // The whole projection is one watch source for the probe, so a change that
+    // touched no artifact must not invalidate it either.
+    it('keeps the whole projection when nothing it covers changed', () => {
+      const segmentation = store().ensureSegmentationForImage('img-1');
+      const segment = store().createMask(segmentation.id, mintSegment());
+      store().maskVoxels(segment.id).materialize();
+
+      const before = store().labelmapSegmentsByArtifact;
+      segments().updateSegment(segment.segmentId, { strokeWidth: 5 });
+
+      expect(store().labelmapSegmentsByArtifact).toBe(before);
+    });
   });
 });
