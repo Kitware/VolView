@@ -11,7 +11,6 @@ import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import { useSegmentStore } from '@/src/store/segments';
-import { declareSegmentReferences } from './segmentReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -40,11 +39,7 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults,
     segments: () => useSegmentStore().segments,
-  });
-
-  declareSegmentReferences('polygons', {
-    has: toolAPI.hasToolsOfSegment,
-    remove: toolAPI.removeToolsOfSegment,
+    manifestKey: 'polygons',
   });
 
   function getPoints(id: ToolID) {

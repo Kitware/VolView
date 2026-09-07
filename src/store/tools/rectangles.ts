@@ -4,7 +4,6 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
 
 import { useSegmentStore } from '@/src/store/segments';
-import { declareSegmentReferences } from './segmentReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -24,11 +23,7 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults: rectangleDefaults,
     segments: () => useSegmentStore().segments,
-  });
-
-  declareSegmentReferences('rectangles', {
-    has: toolAPI.hasToolsOfSegment,
-    remove: toolAPI.removeToolsOfSegment,
+    manifestKey: 'rectangles',
   });
 
   function getPoints(id: ToolID) {

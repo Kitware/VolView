@@ -11,13 +11,14 @@ import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
 import type { SegmentRegistry } from './segmentRegistry';
+import { declareSegmentReferences } from './segmentReferences';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
 // coverage with the onImageDeleted cascade this composable registers.
-export const declareAnnotationToolManifestRefs = (
-  key: 'rulers' | 'rectangles' | 'polygons'
-) =>
+export type AnnotationToolKey = 'rulers' | 'rectangles' | 'polygons';
+
+export const declareAnnotationToolManifestRefs = (key: AnnotationToolKey) =>
   declareManifestRefs(`tools.${key}`, (manifest) => {
     const tools = isRecord(manifest.tools) ? manifest.tools : {};
     const section = tools[key];
@@ -65,10 +66,13 @@ export const useAnnotationTool = <
 >({
   toolDefaults,
   segments,
+  manifestKey,
 }: {
   toolDefaults: MakeToolDefaults;
   // Factory, not the invoked registry: tools are created inside store setup.
   segments: () => SegmentRegistry;
+  // The manifest section this tool owns, which is also its reference-holder id.
+  manifestKey: AnnotationToolKey;
 }) => {
   type ToolDefaults = ReturnType<MakeToolDefaults>;
   type Tool = ToolDefaults & AnnotationTool;
@@ -220,6 +224,11 @@ export const useAnnotationTool = <
 
   const hasToolsOfSegment = (segmentId: string) =>
     toolIDs.value.some((id) => referencesSegment(id, segmentId));
+
+  declareSegmentReferences(manifestKey, {
+    has: hasToolsOfSegment,
+    remove: removeToolsOfSegment,
+  });
 
   return {
     segments: markRaw(registry),

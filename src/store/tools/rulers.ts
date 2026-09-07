@@ -7,7 +7,6 @@ import { ToolID } from '@/src/types/annotation-tool';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
 import { useSegmentStore } from '@/src/store/segments';
-import { declareSegmentReferences } from './segmentReferences';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -26,11 +25,7 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
     segments: () => useSegmentStore().segments,
-  });
-
-  declareSegmentReferences('rulers', {
-    has: annotationTool.hasToolsOfSegment,
-    remove: annotationTool.removeToolsOfSegment,
+    manifestKey: 'rulers',
   });
 
   // prefix some props with ruler
