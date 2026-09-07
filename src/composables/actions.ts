@@ -1,8 +1,5 @@
 import { removeSelectedTools, useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
-import { useRectangleStore } from '../store/tools/rectangles';
-import { useRulerStore } from '../store/tools/rulers';
-import { usePolygonStore } from '../store/tools/polygons';
 import { useViewStore } from '../store/views';
 import { Action, NOOP } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
@@ -10,30 +7,25 @@ import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
 import { useCineFrame } from './useCineFrame';
 import { useDatasetStore } from '../store/datasets';
+import { useSegmentStore } from '../store/segments';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
 import type { Segment } from '../types/segment';
 
+// One registry holds the segments every tool draws into, so cycling it is not
+// scoped to a tool: paint takes the selection the same way a polygon does.
 const applySegmentOffset = (offset: number) => () => {
-  const toolToStore = {
-    [Tools.Rectangle]: useRectangleStore(),
-    [Tools.Ruler]: useRulerStore(),
-    [Tools.Polygon]: usePolygonStore(),
-  };
-  const toolStore = useToolStore();
-
-  // @ts-ignore - toolToStore may not have keys of all tools
-  const activeToolStore = toolToStore[toolStore.currentTool];
-  if (!activeToolStore) return;
-
-  const { segments } = activeToolStore;
+  const { segments } = useSegmentStore();
   const ids = segments.segmentList.value.map((segment: Segment) => segment.id);
   // A registry starts empty, so there is nothing to cycle until one exists.
   if (ids.length === 0) return;
 
-  const selectedIndex = ids.indexOf(segments.selectedSegmentId.value);
-  segments.selectSegment(ids.at((selectedIndex + offset) % ids.length));
+  const selected = segments.selectedSegmentId.value;
+  const selectedIndex = selected ? ids.indexOf(selected) : -1;
+  // A negative index wraps, so cycling back from the first lands on the last.
+  const next = ids.at((selectedIndex + offset) % ids.length);
+  if (next) segments.selectSegment(next);
 };
 
 const setTool = (tool: Tools) => () => {
