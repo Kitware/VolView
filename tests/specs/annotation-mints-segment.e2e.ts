@@ -1,6 +1,6 @@
 import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
-import { clickAt, setupTest } from './annotationTestUtils';
+import { clickAt, drawSquare, setupTest } from './annotationTestUtils';
 import {
   openAnnotationSegments,
   segmentNames,
@@ -25,14 +25,6 @@ const waitForSegmentCount = (expected: number, timeoutMsg: string) =>
     },
     { timeout: 10000, timeoutMsg }
   );
-
-const drawSquare = async (cx: number, cy: number, half: number) => {
-  await clickAt(cx - half, cy - half);
-  await clickAt(cx + half, cy - half);
-  await clickAt(cx + half, cy + half);
-  await clickAt(cx - half, cy + half);
-  await clickAt(cx - half, cy - half); // close
-};
 
 describe('An annotation placed against no segment', () => {
   it('mints one segment the rectangle and the polygon then share', async () => {

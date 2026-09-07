@@ -1,3 +1,4 @@
+import { expect } from 'vitest';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -63,6 +64,39 @@ export async function seatImage(id: string, options: SeatOptions = {}) {
 /** The parent shape segmentation specs seat: thin in k, so extents read easily. */
 export const SPEC_DIMENSIONS: Index3 = [4, 4, 2];
 export const SPEC_VOXEL_COUNT = voxelCount(SPEC_DIMENSIONS);
+export const SPEC_FULL_EXTENT: Extent3D = [0, 3, 0, 3, 0, 1];
+
+/** An accessor as far as the extent contract is concerned. */
+type ExtentAccessor = { ensureContains: (extent: Extent3D) => boolean };
+
+const scalarsOf = (labelmap: vtkImageData) =>
+  labelmap.getPointData().getScalars().getData();
+
+/** Growing to an extent the storage already covers invalidates nothing. */
+export const expectCoveredExtentIsNoop = (
+  voxels: ExtentAccessor,
+  labelmap: vtkImageData
+) => {
+  const scalars = scalarsOf(labelmap);
+  const before = labelmap.getMTime();
+
+  expect(voxels.ensureContains([1, 2, 1, 2, 0, 1])).toBe(false);
+  expect(voxels.ensureContains(SPEC_FULL_EXTENT)).toBe(false);
+
+  expect(scalarsOf(labelmap)).toBe(scalars);
+  expect(labelmap.getDimensions()).toEqual([...SPEC_DIMENSIONS]);
+  expect(labelmap.getMTime()).toBe(before);
+};
+
+/** Growing past the parent image is refused, and changes nothing. */
+export const expectExtentPastParentThrows = (
+  voxels: ExtentAccessor,
+  labelmap: vtkImageData
+) => {
+  expect(() => voxels.ensureContains([0, 4, 0, 3, 0, 1])).toThrow();
+  expect(() => voxels.ensureContains([-1, 3, 0, 3, 0, 1])).toThrow();
+  expect(labelmap.getDimensions()).toEqual([...SPEC_DIMENSIONS]);
+};
 
 /** Seats a spec-shaped parent image and hands back its id. */
 export const seatSpecImage = async (id: string, name = 'CT') => {

@@ -78,6 +78,15 @@ export const setupTest = async () => {
   };
 };
 
+/** A closed square polygon, drawn corner by corner around a center. */
+export const drawSquare = async (cx: number, cy: number, half: number) => {
+  await clickAt(cx - half, cy - half);
+  await clickAt(cx + half, cy - half);
+  await clickAt(cx + half, cy + half);
+  await clickAt(cx - half, cy + half);
+  await clickAt(cx - half, cy - half); // close
+};
+
 // Handles of placed annotations
 export const getCircleCount = async (axialView: ChainablePromiseElement) => {
   const circles = await axialView.$$('svg circle');

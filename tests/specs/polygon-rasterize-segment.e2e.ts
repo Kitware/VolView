@@ -1,6 +1,6 @@
 import AppPage from '../pageobjects/volview.page';
 import {
-  clickAt,
+  drawSquare,
   nudgeTo,
   rightPressAtPointer,
   setupTest,
@@ -15,14 +15,6 @@ import {
 } from './segmentationTestUtils';
 
 const RASTERIZE_ITEM = '.v-list-item-title=Rasterize';
-
-const drawSquare = async (cx: number, cy: number, half: number) => {
-  await clickAt(cx - half, cy - half);
-  await clickAt(cx + half, cy - half);
-  await clickAt(cx + half, cy + half);
-  await clickAt(cx - half, cy + half);
-  await clickAt(cx - half, cy - half); // close
-};
 
 // The menu comes off the widget's own pick, so hover the handle first and press
 // without moving.

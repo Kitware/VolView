@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
   seatSpecImage as seatImage,
+  expectCoveredExtentIsNoop,
+  expectExtentPastParentThrows,
   SPEC_DIMENSIONS as DIMENSIONS,
   mintSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
@@ -184,16 +186,11 @@ describe('artifact voxel accessor', () => {
   describe('ensureContains()', () => {
     it('reports no invalidation for an extent the storage already covers', () => {
       const seat = seatArtifact('img-1');
-      const voxels = store().artifactVoxels(seat.artifactId);
-      const buffer = scalarsOf(seat.labelmap);
-      const before = seat.labelmap.getMTime();
 
-      expect(voxels.ensureContains([1, 2, 1, 2, 0, 1])).toBe(false);
-      expect(voxels.ensureContains(FULL_EXTENT)).toBe(false);
-
-      expect(scalarsOf(seat.labelmap)).toBe(buffer);
-      expect(seat.labelmap.getDimensions()).toEqual([...DIMENSIONS]);
-      expect(seat.labelmap.getMTime()).toBe(before);
+      expectCoveredExtentIsNoop(
+        store().artifactVoxels(seat.artifactId),
+        seat.labelmap
+      );
     });
 
     it('treats an empty extent as already covered', () => {
@@ -208,11 +205,11 @@ describe('artifact voxel accessor', () => {
 
     it('rejects an extent that leaves the parent image', () => {
       const seat = seatArtifact('img-1');
-      const voxels = store().artifactVoxels(seat.artifactId);
 
-      expect(() => voxels.ensureContains([0, 4, 0, 3, 0, 1])).toThrow();
-      expect(() => voxels.ensureContains([-1, 3, 0, 3, 0, 1])).toThrow();
-      expect(seat.labelmap.getDimensions()).toEqual([...DIMENSIONS]);
+      expectExtentPastParentThrows(
+        store().artifactVoxels(seat.artifactId),
+        seat.labelmap
+      );
     });
   });
 
