@@ -387,10 +387,9 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
           variant="plain"
           @click.stop="toggleVisible(item.id)"
         >
-          <v-icon v-if="item.visible" style="pointer-events: none"
-            >mdi-eye</v-icon
-          >
-          <v-icon v-else style="pointer-events: none">mdi-eye-off</v-icon>
+          <v-icon style="pointer-events: none">{{
+            item.visible ? 'mdi-eye' : 'mdi-eye-off'
+          }}</v-icon>
           <v-tooltip location="left" activator="parent">{{
             item.visible ? 'Hide' : 'Show'
           }}</v-tooltip>

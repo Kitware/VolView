@@ -36,7 +36,10 @@ export const SEGMENT_ACTOR_OPACITY = 0.9999;
  * resolves an overlap the same way, so two images stack one type alike.
  */
 export function segmentCoincidentOffset(stackIndex: number) {
-  return [SEGMENT_OFFSET_FACTOR, -4 - stackIndex] as [number, number];
+  return [SEGMENT_OFFSET_FACTOR, SEGMENT_OFFSET_FACTOR - stackIndex] as [
+    number,
+    number,
+  ];
 }
 
 /**
