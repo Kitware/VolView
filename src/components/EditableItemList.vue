@@ -30,6 +30,7 @@ const props = withDefaults(
 
 const itemsToRender = computed(() =>
   props.items.map((item) => ({
+    item,
     key: item[props.itemKey] as string | number | symbol,
     title: item[props.itemTitle] as string | undefined,
     expandable: props.expandable(item),
@@ -39,9 +40,7 @@ const itemsToRender = computed(() =>
 const openKeys = ref(new Set<string | number | symbol>());
 
 const toggleOpen = (key: string | number | symbol) => {
-  const open = new Set(openKeys.value);
-  if (!open.delete(key)) open.add(key);
-  openKeys.value = open;
+  if (!openKeys.value.delete(key)) openKeys.value.add(key);
 };
 </script>
 
@@ -50,7 +49,7 @@ const toggleOpen = (key: string | number | symbol) => {
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
     <template
-      v-for="({ key, title, expandable: hasMore }, idx) in itemsToRender"
+      v-for="{ item, key, title, expandable: hasMore } in itemsToRender"
       :key="key"
     >
       <v-list-item
@@ -76,7 +75,7 @@ const toggleOpen = (key: string | number | symbol) => {
             }}</v-icon>
           </v-btn>
           <span v-else class="expand-button mr-1" />
-          <slot name="item-prepend" :key="key" :item="items[idx]"></slot>
+          <slot name="item-prepend" :item="item"></slot>
           <v-tooltip :text="title" location="end">
             <template #activator="{ props: tooltip }">
               <v-list-item-title v-bind="tooltip">{{
@@ -85,13 +84,13 @@ const toggleOpen = (key: string | number | symbol) => {
             </template>
           </v-tooltip>
           <span class="ml-auto flex-shrink-0 d-flex align-center">
-            <slot name="item-append" :key="key" :item="items[idx]"></slot>
+            <slot name="item-append" :item="item"></slot>
           </span>
         </div>
       </v-list-item>
 
       <div v-if="hasMore && openKeys.has(key)" class="item-expansion">
-        <slot name="item-expansion" :key="key" :item="items[idx]"></slot>
+        <slot name="item-expansion" :item="item"></slot>
       </div>
     </template>
 
