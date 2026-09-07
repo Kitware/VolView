@@ -3,7 +3,11 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { applyPostStateConfig, config } from '@/src/io/import/configJson';
+import {
+  applyPostStateConfig,
+  config,
+  recognizeConfig,
+} from '@/src/io/import/configJson';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { usePolygonStore } from '@/src/store/tools/polygons';
@@ -204,5 +208,87 @@ describe('segment type config', () => {
     expect(
       useSegmentationStore().getSegmentationForImage('img-1')
     ).toBeUndefined();
+  });
+});
+
+describe('pre-7.0 labels', () => {
+  const typeSummary = () =>
+    usePolygonStore().segments.segmentList.value.map((type) => ({
+      name: type.name,
+      color: usePolygonStore().segments.appearanceOf(type.id).cssColor,
+    }));
+
+  const applyLabels = (labels: unknown) =>
+    applyPostStateConfig(config.parse({ labels }));
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  // Only known top-level keys mark a file as config, so a config that names
+  // nothing but labels has to keep counting as one.
+  it('recognizes a config that carries only labels', async () => {
+    const recognized = await recognizeConfig({
+      labels: { defaultLabels: { Tumor: { color: 'red' } } },
+    });
+
+    expect(recognized.kind).toBe('config');
+  });
+
+  it('reads every label record into the one registry', () => {
+    applyLabels({
+      defaultLabels: { Tumor: { color: '#00ff00' } },
+      rulerLabels: { 'Long axis': { color: '#0000ff' } },
+    });
+
+    expect(typeSummary()).toEqual([
+      { name: 'Long axis', color: '#0000ff' },
+      { name: 'Tumor', color: '#00ff00' },
+    ]);
+  });
+
+  it('carries a label stroke width onto its segment', () => {
+    applyLabels({ polygonLabels: { Tumor: { color: 'red', strokeWidth: 4 } } });
+
+    const registry = usePolygonStore().segments;
+    const segmentId = registry.findSegmentByName('Tumor')!.id;
+    expect(registry.appearanceOf(segmentId).strokeWidth).toBe(4);
+  });
+
+  it('gives a name several tools declared one segment', () => {
+    applyLabels({
+      rulerLabels: { Tumor: { color: '#0000ff' } },
+      polygonLabels: { Tumor: { color: '#00ff00' } },
+    });
+
+    expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#0000ff' }]);
+  });
+
+  it('lets a tool record outrank the default of the same name', () => {
+    applyLabels({
+      defaultLabels: { Tumor: { color: '#00ff00' } },
+      rectangleLabels: { Tumor: { color: '#0000ff' } },
+    });
+
+    expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#0000ff' }]);
+  });
+
+  it('keeps a rectangle label whose fill color has no segment equivalent', () => {
+    applyLabels({
+      rectangleLabels: { Tumor: { color: '#00ff00', fillColor: '#ff000030' } },
+    });
+
+    expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#00ff00' }]);
+  });
+
+  it('leaves the labels of an already converted config alone', () => {
+    applyPostStateConfig(
+      config.parse({
+        segments: { Lesion: { color: '#00ff00' } },
+        labels: { defaultLabels: { Tumor: { color: '#0000ff' } } },
+      })
+    );
+
+    expect(typeSummary()).toEqual([{ name: 'Lesion', color: '#00ff00' }]);
   });
 });

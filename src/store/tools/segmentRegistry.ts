@@ -48,10 +48,10 @@ const fromConfigured = (
   });
 
 /**
- * Identity and shared appearance for one family of segments: one instance backs
- * paint, rectangles and polygons together, another backs rulers. Key order is
- * creation order, which is the order the picker lists and the labelmap
- * renderer offsets by, so no separate order list exists.
+ * Identity and shared appearance for a family of segments: one instance backs
+ * paint, rectangles, polygons and rulers together. Key order is creation
+ * order, which is the order the picker lists and the labelmap renderer offsets
+ * by, so no separate order list exists.
  */
 export const createSegmentRegistry = ({
   namePrefix = 'Segment',

@@ -171,9 +171,19 @@ earlier config contributed, keeping any segment your content still references. A
 segment keeps its id across config changes, so renaming or recoloring one never detaches
 the masks and shapes that reference it.
 
-Converting a pre-7.0 config: `defaultLabels`, `rectangleLabels`, `polygonLabels` and
-`rulerLabels` all become `segments` entries. A rectangle label's `fillColor` has no
-equivalent: fill color is a property of the rectangle, not of the segment.
+### Pre-7.0 `labels`
+
+A pre-7.0 `labels` section still loads. Its `defaultLabels`, `rulerLabels`,
+`rectangleLabels` and `polygonLabels` all describe the one registry now, so they read as
+`segments` entries. A name that appears in more than one becomes a single segment: the
+first record to declare it sets its appearance, reading `rulerLabels`, `rectangleLabels`
+and `polygonLabels` in that order and `defaultLabels` last, since it stood in only for the
+tools that declared no record of their own. A rectangle label's `fillColor` is dropped,
+since fill color is a property of the rectangle rather than of the segment. A config
+carrying both `segments` and `labels` has been converted already, so `segments` is read
+and `labels` is ignored.
+
+Converting a config by hand:
 
 ```json
 {

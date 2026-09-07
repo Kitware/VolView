@@ -54,6 +54,29 @@ const segmentRecord = z.record(z.string(), segment).or(z.null()).optional();
 
 const segments = segmentRecord;
 
+// Pre-7.0 configs named one label record per tool, plus a fallback record.
+// The four describe the one registry now, so they read as `segments`. A
+// rectangle label's `fillColor` belongs to the rectangle rather than to the
+// segment and is dropped.
+const legacyLabel = z.object({
+  color: z.string(),
+  strokeWidth: z.number().optional(),
+});
+
+const legacyLabelRecord = z
+  .record(z.string(), legacyLabel)
+  .or(z.null())
+  .optional();
+
+const labels = z
+  .object({
+    defaultLabels: legacyLabelRecord,
+    rulerLabels: legacyLabelRecord,
+    rectangleLabels: legacyLabelRecord,
+    polygonLabels: legacyLabelRecord,
+  })
+  .optional();
+
 // --------------------------------------------------------------------------
 // IO
 
@@ -80,6 +103,7 @@ const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 export const config = z.object({
   layouts,
   segments,
+  labels,
   shortcuts,
   io,
   windowing,
@@ -171,11 +195,40 @@ export const recognizeConfigFile = async (
   return recognizeConfig(JSON.parse(await file.text()));
 };
 
+// One registry backs every tool, so a name in more than one record is one
+// segment and the record that declares it first sets its appearance, as a
+// migrated session resolves it. `defaultLabels` is read last because it stood
+// in only for the tools that declared no record of their own.
+const segmentsFromLabels = (legacy: NonNullable<Config['labels']>) =>
+  [
+    legacy.rulerLabels,
+    legacy.rectangleLabels,
+    legacy.polygonLabels,
+    legacy.defaultLabels,
+  ].reduce<NonNullable<Config['segments']>>(
+    (merged, record) => ({
+      ...merged,
+      ...Object.fromEntries(
+        Object.entries(record ?? {}).filter(([name]) => !(name in merged))
+      ),
+    }),
+    {}
+  );
+
+// `segments` states the whole registry, so a config carrying both has been
+// converted and the legacy section is spent.
+const configuredSegments = (manifest: Config) => {
+  if (manifest.segments !== undefined) return manifest.segments;
+  if (manifest.labels === undefined) return undefined;
+  return segmentsFromLabels(manifest.labels);
+};
+
 // An omitted section leaves the registry alone; an empty record or null
 // clears what an earlier config contributed to it.
 const applySegments = (manifest: Config) => {
-  if (manifest.segments !== undefined)
-    useSegmentStore().segments.replaceConfigSegments(manifest.segments);
+  const configured = configuredSegments(manifest);
+  if (configured !== undefined)
+    useSegmentStore().segments.replaceConfigSegments(configured);
 };
 
 const applyLayout = (manifest: Config) => {

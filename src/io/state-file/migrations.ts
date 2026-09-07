@@ -391,12 +391,17 @@ const migrate640To700 = (inputManifest: any) => {
     return id;
   };
 
-  // One type per old segment and per old label: identity is never merged by
-  // name, so two images that both carried "Tumor" keep two types.
   const addSegment = (into: any[], id: string, type: any) => {
     into.push({ id, ...type });
     return id;
   };
+
+  // One registry backs paint and the vector tools, so a name a segment group
+  // already carries is that same segment when a tool label repeats it, and the
+  // first to declare it sets the appearance. Groups themselves never merge:
+  // two of them on one image would put two masks on one segment, and the app
+  // keeps only one.
+  const segmentIdByName: Record<string, string> = {};
 
   const addRecord = (parentImage: string, record: any) => {
     const records = recordsByParent.get(parentImage) ?? [];
@@ -437,6 +442,7 @@ const migrate640To700 = (inputManifest: any) => {
         visible: mask.visible ?? true,
         locked: mask.locked ?? false,
       });
+      segmentIdByName[mask.name] ??= segmentId;
       if (group.id === activeGroupId && value === activeValue) {
         selectedSegmentId = segmentId;
       }
@@ -473,12 +479,8 @@ const migrate640To700 = (inputManifest: any) => {
     };
   });
 
-  // Every annotation kind draws out of one registry, so one name is one
-  // segment however many kinds declared it; the first to declare it sets the
-  // appearance. Every label becomes a segment, referenced or not: the picker
-  // offered it before and goes on offering it.
-  const segmentIdByName: Record<string, string> = {};
-
+  // Every label becomes a segment, referenced or not: the picker offered it
+  // before and goes on offering it.
   const toolSegmentIds = (key: string, into: any[]) => {
     const entry = manifest.tools?.[key];
     if (!entry) return {} as Record<string, string>;

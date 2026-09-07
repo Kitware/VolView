@@ -21,7 +21,9 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 // The 6.4.0 -> 7.0.0 structural migration. JSON only: every old segment group
 // becomes one `SegmentationArtifact`, every `{group, value}` becomes one
 // segment type plus one per-image mask, and every old tool label becomes one
-// type in its own registry. Identity is NEVER merged by name.
+// type in the one registry that now backs paint and the vector tools. A tool
+// label lands on the type of the same name; groups never merge with each
+// other, whatever they are called.
 // ---------------------------------------------------------------------------
 
 const SOURCE = {
@@ -360,6 +362,64 @@ describe('migrate640To700: structural stage', () => {
         (segment: any) => segment.representations.labelmap.artifactId
       )
     ).toEqual(['sg-a', 'sg-b']);
+  });
+
+  it('lands a tool label on the type a group of that name already is', () => {
+    const migrated = migrate({
+      segmentGroups: [legacyGroup('sg-a', 'ds-ct', [TUMOR])],
+      tools: {
+        rectangles: {
+          tools: [
+            {
+              imageID: 'ds-ct',
+              slice: 2,
+              frameOfReference: {
+                planeOrigin: [0, 0, 2],
+                planeNormal: [0, 0, 1],
+              },
+              firstPoint: [1, 1, 2],
+              secondPoint: [4, 4, 2],
+              label: 'lbl-tumor',
+            },
+          ],
+          labels: {
+            'lbl-tumor': { labelName: 'Tumor', color: 'blue', strokeWidth: 3 },
+          },
+        },
+      },
+    });
+
+    const painted = segmentOfMask(
+      migrated,
+      orderedMasks(segmentationFor(migrated, 'ds-ct'))[0]
+    );
+    expect(migrated.segments.map((segment: any) => segment.name)).toEqual([
+      'Tumor',
+    ]);
+    expect(migrated.tools.rectangles.tools[0].segmentId).toBe(painted.id);
+    // The group spoke for the name first, so the label brings no appearance.
+    expect(painted.color).toEqual(TUMOR.color);
+    expect(painted.strokeWidth).toBeUndefined();
+    expect(() => ManifestSchema.parse(migrated)).not.toThrow();
+  });
+
+  // Two masks of one type on one image is a state the app cannot hold, and two
+  // images that painted "Tumor" separately each described their own thing.
+  it('keeps a name two groups carry on separate types', () => {
+    const migrated = migrate({
+      segmentGroups: [
+        legacyGroup('sg-a', 'ds-ct', [TUMOR]),
+        legacyGroup('sg-b', 'ds-mr', [TUMOR]),
+      ],
+    });
+
+    expect(migrated.segments.map((segment: any) => segment.name)).toEqual([
+      'Tumor',
+      'Tumor',
+    ]);
+    expect(
+      new Set(migrated.segments.map((segment: any) => segment.id)).size
+    ).toBe(2);
   });
 
   it('marks a descriptorless group for decode and emits no segments for it', () => {
