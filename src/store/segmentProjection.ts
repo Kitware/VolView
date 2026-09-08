@@ -5,7 +5,6 @@ import { sameLabelmapSegments, toLabelmapSegment } from '@/src/types/segment';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import {
   listMasks,
-  type ArtifactMetadata,
   type LabelmapSegment,
   type Segmentation,
 } from '@/src/types/segmentation';
@@ -13,40 +12,34 @@ import {
 /** What the projection needs from the store that owns the records. */
 export type SegmentProjectionDeps = {
   segmentations: Record<string, Segmentation>;
-  artifactMeta: Record<string, ArtifactMetadata>;
   segmentRegistry: SegmentRegistry;
 };
 
 /**
  * The value-keyed projection the labelmap renderer colors by, one list per
- * artifact. Any change to any segment rebuilds it, but an artifact whose own
- * list is unchanged keeps its previous array: a representation reads one
- * artifact's entry, and a fresh array there costs it a transfer function and
- * label outline table rebuild in every view it draws in.
+ * bound mask. Any change to any segment rebuilds it, but a mask whose own list
+ * is unchanged keeps its previous array: a representation reads one mask's
+ * entry, and a fresh array there costs it a transfer function and label
+ * outline table rebuild in every view it draws in.
  */
 export function createSegmentProjection({
   segmentations,
-  artifactMeta,
   segmentRegistry,
 }: SegmentProjectionDeps) {
   function project() {
-    const byArtifact: Record<string, LabelmapSegment[]> = {};
-    Object.keys(artifactMeta).forEach((artifactId) => {
-      byArtifact[artifactId] = [];
-    });
+    const byMask: Record<string, LabelmapSegment[]> = {};
     Object.values(segmentations).forEach((segmentation) => {
       listMasks(segmentation).forEach((segment) => {
-        const binding = segment.representations.labelmap;
-        if (!binding || !byArtifact[binding.artifactId]) return;
-        byArtifact[binding.artifactId].push(
+        if (!segment.representations.labelmap) return;
+        byMask[segment.id] = [
           toLabelmapSegment(
             segmentRegistry.getSegment(segment.segmentId),
             SEGMENT_VALUE
-          )
-        );
+          ),
+        ];
       });
     });
-    return byArtifact;
+    return byMask;
   }
 
   let projected: Record<string, LabelmapSegment[]> = {};
@@ -54,16 +47,13 @@ export function createSegmentProjection({
   return computed(() => {
     const fresh = project();
     const stable = Object.fromEntries(
-      Object.entries(fresh).map(([artifactId, list]) => {
-        const previous = projected[artifactId];
-        return [
-          artifactId,
-          sameLabelmapSegments(previous, list) ? previous : list,
-        ];
+      Object.entries(fresh).map(([maskId, list]) => {
+        const previous = projected[maskId];
+        return [maskId, sameLabelmapSegments(previous, list) ? previous : list];
       })
     );
     // The record's own identity is what a consumer of the whole projection
-    // watches, so it survives a change that left every artifact alone.
+    // watches, so it survives a change that left every mask alone.
     const unchanged =
       Object.keys(stable).length === Object.keys(projected).length &&
       Object.entries(stable).every(([id, list]) => projected[id] === list);

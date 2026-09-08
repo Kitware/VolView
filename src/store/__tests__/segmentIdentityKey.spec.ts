@@ -65,10 +65,8 @@ describe('segment addressing by id alone', () => {
 
     const binding = store().ensureLabelmapBinding(segment.id);
 
-    expect(store().resolveLabelmapBinding(segment.id)?.artifactId).toBe(
-      binding.artifactId
-    );
-    expect(store().artifactMeta[binding.artifactId].parentImage).toBe('img-1');
+    expect(store().findMaskBinding(segment.id)).toBe(binding);
+    expect(store().segmentationOfMask(segment.id)?.parentImageId).toBe('img-1');
   });
 
   it('hands out a voxel accessor by segment id', () => {

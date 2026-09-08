@@ -10,6 +10,7 @@ import {
   planArtifactRestore,
   prepareRestoreBindings,
   restoredLabelmapImage,
+  type LoadedLabelmap,
 } from '@/src/store/segmentationRestore';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
 import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
@@ -30,8 +31,8 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   listMasks,
-  type ArtifactMetadata,
   type Extent3D,
+  type LabelmapBinding,
   type LabelmapSegment,
   type SegmentMask,
   type Segmentation,
@@ -64,12 +65,10 @@ const defaultArtifactIO: SegmentationArtifactIO = {
 /** What the wire needs from the store that owns the records. */
 export type SegmentationWireDeps = {
   segmentations: Record<string, Segmentation>;
-  artifactIndex: Record<string, vtkLabelMap>;
-  artifactMeta: Record<string, ArtifactMetadata>;
   saveFormat: Ref<string>;
   imageCacheStore: ReturnType<typeof useImageCacheStore>;
   segmentRegistry: SegmentRegistry;
-  labelmapSegmentsByArtifact: ComputedRef<Record<string, LabelmapSegment[]>>;
+  labelmapSegmentsByMask: ComputedRef<Record<string, LabelmapSegment[]>>;
   createMask: (segmentationId: string, segmentId: string) => SegmentMask;
   detachMask: (segmentation: Segmentation, maskId: string) => void;
   decodeSegments: (
@@ -83,9 +82,6 @@ export type SegmentationWireDeps = {
     imageId: Maybe<string>,
     segmentId: Maybe<string>
   ) => SegmentMask | undefined;
-  masksForArtifact: (artifactId: string) => SegmentMask[];
-  registerArtifact: (labelmap: vtkLabelMap, meta: ArtifactMetadata) => string;
-  removeArtifact: (artifactId: string) => void;
   splitLabelmapIntoMasks: (
     parentImageId: string,
     labelmap: vtkLabelMap,
@@ -122,21 +118,16 @@ export type DeserializeOptions = {
 export function createSegmentationWire(deps: SegmentationWireDeps) {
   const {
     segmentations,
-    artifactIndex,
-    artifactMeta,
     saveFormat,
     imageCacheStore,
     segmentRegistry,
-    labelmapSegmentsByArtifact,
+    labelmapSegmentsByMask,
     createMask,
     detachMask,
     decodeSegments,
     ensureSegmentationForImage,
     getSegmentationForImage,
     maskFor,
-    masksForArtifact,
-    registerArtifact,
-    removeArtifact,
     splitLabelmapIntoMasks,
   } = deps;
 
@@ -145,13 +136,11 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
    * to write; the binding's empty extent is what restores it, so one background
    * voxel stands in for the bytes.
    */
-  function writableMask(artifactId: string) {
-    const mask = artifactIndex[artifactId];
-    if (mask.getDimensions().every((size) => size > 0)) return mask;
-    const parent = imageCacheStore.getVtkImageData(
-      artifactMeta[artifactId].parentImage
-    );
-    return parent ? allocateMask(parent, [0, 0, 0, 0, 0, 0]) : mask;
+  function writableMask(parentImageId: string, binding: LabelmapBinding) {
+    if (binding.image.getDimensions().every((size) => size > 0))
+      return binding.image;
+    const parent = imageCacheStore.getVtkImageData(parentImageId);
+    return parent ? allocateMask(parent, [0, 0, 0, 0, 0, 0]) : binding.image;
   }
 
   async function serialize(
@@ -162,23 +151,34 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     const format = saveFormat.value;
     const usedArchivePaths = new Set<string>();
 
-    const entries = Object.keys(artifactMeta).map((artifactId) => ({
-      artifactId,
-      meta: artifactMeta[artifactId],
-      path: makeSegmentGroupArchivePath(
-        artifactMeta[artifactId].name,
-        format,
-        usedArchivePaths
-      ),
-    }));
+    // One archive entry per bound mask; the mask's own id names it, since a
+    // labelmap holds that segment's voxels and no other's.
+    const entries = Object.values(segmentations).flatMap((segmentation) =>
+      listMasks(segmentation).flatMap((segment) => {
+        const binding = segment.representations.labelmap;
+        if (!binding) return [];
+        return [
+          {
+            maskId: segment.id,
+            parentImageId: segmentation.parentImageId,
+            binding,
+            path: makeSegmentGroupArchivePath(
+              binding.name,
+              format,
+              usedArchivePaths
+            ),
+          },
+        ];
+      })
+    );
 
     manifest.segmentationArtifacts = entries.map(
-      ({ artifactId, meta, path }) => ({
-        id: artifactId,
-        parentImage: meta.parentImage,
-        name: meta.name,
+      ({ maskId, parentImageId, binding, path }) => ({
+        id: maskId,
+        parentImage: parentImageId,
+        name: binding.name,
         path,
-        ...(meta.source ? { source: meta.source } : {}),
+        ...(binding.source ? { source: binding.source } : {}),
       })
     );
 
@@ -198,7 +198,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             representations: binding
               ? {
                   labelmap: {
-                    artifactId: binding.artifactId,
+                    artifactId: segment.id,
                     extent: [...binding.extent] as Extent3D,
                   },
                 }
@@ -210,13 +210,13 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     );
 
     await Promise.all(
-      entries.map(async ({ artifactId, path }) => {
+      entries.map(async ({ maskId, parentImageId, binding, path }) => {
         zip.file(
           path,
           await io.write(
             format,
-            writableMask(artifactId),
-            labelmapSegmentsByArtifact.value[artifactId] ?? []
+            writableMask(parentImageId, binding),
+            labelmapSegmentsByMask.value[maskId] ?? []
           )
         );
       })
@@ -232,10 +232,9 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     io = defaultArtifactIO,
   }: DeserializeOptions) {
     const wireArtifacts = manifest.segmentationArtifacts ?? [];
-    const artifactIdMap: Record<string, string> = {};
     const maskIdMap: Record<string, string> = {};
-    // Which of the manifest's groups reached the store, by wire id. A split
-    // group lands as one mask per segment and so has no single store id.
+    // Which of the manifest's labelmaps reached the store, by wire id. A split
+    // group lands as one mask per segment and so has no single one.
     const restoredArtifactIds = new Set<string>();
     // Non-silent drops: every artifact left out of the restore is recorded with
     // a concrete reason so the caller can surface it.
@@ -361,41 +360,49 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     }
 
     // A migrated group holds every segment in one buffer and is not storage any
-    // segment can bind to, so it never enters the store: the split below reads
-    // it from here and mints one bounded mask per segment.
+    // segment can bind to, so it is kept out of the claimable set: the split
+    // below reads it from here and mints one bounded mask per segment.
     const splitWireIds = new Set(
       loaded.flatMap((result) =>
         result && needsSplit(result.artifact) ? [result.artifact.id] : []
       )
     );
 
-    loaded.forEach((result) => {
-      if (!result) return;
-      const { artifact, labelmap } = result;
-      if (splitWireIds.has(artifact.id)) return;
-      restoredArtifactIds.add(artifact.id);
-      artifactIdMap[artifact.id] = registerArtifact(labelmap, {
-        parentImage: dataIDMap[artifact.parentImage],
-        name: artifact.name,
-        ...(artifact.source ? { source: artifact.source } : {}),
-      });
-    });
+    /** The labelmaps a segment may bind, none of them claimed yet. */
+    const claimable = new Map<string, LoadedLabelmap>(
+      loaded.flatMap((result) => {
+        if (!result || splitWireIds.has(result.artifact.id)) return [];
+        const { artifact, labelmap } = result;
+        return [
+          [
+            artifact.id,
+            {
+              labelmap,
+              parentImageId: dataIDMap[artifact.parentImage],
+              name: artifact.name,
+              ...(artifact.source ? { source: artifact.source } : {}),
+            },
+          ],
+        ] as Array<[string, LoadedLabelmap]>;
+      })
+    );
 
-    // Validate every reference before changing shared artifact geometry. One
-    // malformed binding must not reshape or erase storage a later binding uses.
     const prepared = prepareRestoreBindings({
       manifest,
       dataIDMap,
-      artifactIdMap,
-      splitWireIds,
-      artifactParentById: Object.fromEntries(
-        Object.entries(artifactMeta).map(([id, meta]) => [id, meta.parentImage])
-      ),
-      artifactImages: artifactIndex,
+      loaded: claimable,
       getParentImage: (id) => imageCacheStore.getVtkImageData(id) ?? undefined,
     });
     skipped.push(...prepared.skipped);
     const { acceptedBindings } = prepared;
+    prepared.claimed.forEach((wireId) => restoredArtifactIds.add(wireId));
+
+    // A labelmap that loaded and no segment took reaches nothing: only one
+    // nothing referenced at all gets a notice, the rest were reported above.
+    claimable.forEach((entry, wireId) => {
+      if (prepared.claimed.has(wireId) || boundArtifactIds.has(wireId)) return;
+      skipped.push({ name: entry.name, reason: 'labelmap holds no segments' });
+    });
 
     // The masks a group awaiting its split named, in wire order, with the
     // SOURCE value each one's descriptor carries. They stand in for the
@@ -441,10 +448,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           });
           awaitingSplit.set(binding.artifactId, waiting);
         } else if (binding && accepted) {
-          segment.representations.labelmap = {
-            artifactId: accepted.artifactId,
-            extent: accepted.extent,
-          };
+          segment.representations.labelmap = accepted;
         }
         maskIdMap[wireMask.id] = segment.id;
       });
@@ -569,26 +573,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       if (active) segmentRegistry.selectSegment(active.segmentId);
     });
 
-    Object.entries(artifactIdMap).forEach(([wireArtifactId, artifactId]) => {
-      if (
-        artifactMeta[artifactId] &&
-        masksForArtifact(artifactId).length === 0
-      ) {
-        // A bound artifact that lost every segment was already reported per
-        // binding; only one nothing referenced gets a notice here.
-        if (!boundArtifactIds.has(wireArtifactId)) {
-          skipped.push({
-            name: artifactMeta[artifactId].name,
-            reason: 'labelmap holds no segments',
-          });
-        }
-        removeArtifact(artifactId);
-        restoredArtifactIds.delete(wireArtifactId);
-        delete artifactIdMap[wireArtifactId];
-      }
-    });
-
-    return { artifactIdMap, restoredArtifactIds, maskIdMap, skipped };
+    return { restoredArtifactIds, maskIdMap, skipped };
   }
 
   return { serialize, deserialize };

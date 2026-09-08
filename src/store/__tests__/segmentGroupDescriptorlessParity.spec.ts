@@ -5,6 +5,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
   legacyAxialViewConfig,
   makeSpecImage,
+  boundMasks,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
@@ -303,6 +304,6 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     await store.convertImageToLabelmap('child-img', 'parent-img');
 
     expect(catalogFor('parent-img')).toEqual([]);
-    expect(Object.keys(useSegmentationStore().artifactMeta)).toEqual([]);
+    expect(boundMasks()).toEqual([]);
   });
 });

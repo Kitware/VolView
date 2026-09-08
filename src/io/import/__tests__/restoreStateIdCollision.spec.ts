@@ -153,8 +153,8 @@ const restoreOnto = async (
 const expectTumorOnBase = (restored: Set<string>, maskId: string) => {
   const store = useSegmentationStore();
   expect(restored.has('sg-tumor')).toBe(true);
-  const { artifactId } = store.resolveLabelmapBinding(maskId)!;
-  expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
+  expect(store.findMaskBinding(maskId)).toBeDefined();
+  expect(store.segmentationOfMask(maskId)?.parentImageId).toBe(BASE_STORE_ID);
 };
 
 describe('restore stateID namespaces (collision)', () => {

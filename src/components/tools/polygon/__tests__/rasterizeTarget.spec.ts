@@ -40,14 +40,14 @@ describe('polygon rasterize target', () => {
     expect(
       store()
         .maskLayersForImage('img-1')
-        .map((layer) => layer.artifactId)
-    ).toEqual([target.artifactId]);
+        .map((layer) => layer.maskId)
+    ).toEqual([target.maskId]);
     expect(target.voxels.image()).toBe(
-      store().artifactIndex[target.artifactId]
+      store().findMaskBinding(target.maskId)!.image
     );
     expect(
-      store().getMask(segment.record.id).representations.labelmap
-    ).toMatchObject({ artifactId: target.artifactId });
+      store().getMask(segment.record.id).representations.labelmap!.image
+    ).toBe(target.voxels.image());
   });
 
   it('resolves the given type rather than the first one', async () => {
@@ -58,8 +58,8 @@ describe('polygon rasterize target', () => {
 
     const target = targetOf('img-1', second.segmentId);
 
-    expect(target.artifactId).not.toBe(
-      store().resolveLabelmapBinding(first.record.id)!.artifactId
+    expect(target.voxels.image()).not.toBe(
+      store().findMaskBinding(first.record.id)!.image
     );
   });
 
@@ -70,7 +70,7 @@ describe('polygon rasterize target', () => {
     const first = targetOf('img-1', segment.segmentId);
     const second = targetOf('img-1', segment.segmentId);
 
-    expect(second.artifactId).toBe(first.artifactId);
+    expect(second.voxels.image()).toBe(first.voxels.image());
     expect(store().maskLayersForImage('img-1')).toHaveLength(1);
   });
 
@@ -121,7 +121,7 @@ describe('polygon rasterize target', () => {
     expect(Object.keys(segmentation!.masks)).toHaveLength(1);
     expect(segments().selectedSegmentId.value).toBe(target.segmentId);
     expect(target.voxels.image()).toBe(
-      store().artifactIndex[target.artifactId]
+      store().findMaskBinding(target.maskId)!.image
     );
     expect(target.maskId).toBe(Object.keys(segmentation!.masks)[0]);
   });
@@ -132,7 +132,7 @@ describe('polygon rasterize target', () => {
     const first = targetOf('img-1', undefined);
     const second = targetOf('img-1', undefined);
 
-    expect(second.artifactId).toBe(first.artifactId);
+    expect(second.voxels.image()).toBe(first.voxels.image());
     expect(second.labelValue).toBe(first.labelValue);
     expect(
       Object.keys(store().getSegmentationForImage('img-1')!.masks)
@@ -151,7 +151,8 @@ describe('polygon rasterize target', () => {
 
     expect(
       store()
-        .artifactIndex[target.artifactId].getPointData()
+        .findMaskBinding(target.maskId)!
+        .image.getPointData()
         .getScalars()
         .getData()[3]
     ).toBe(target.labelValue);

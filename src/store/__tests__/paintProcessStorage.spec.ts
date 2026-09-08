@@ -274,13 +274,19 @@ describe('paint process storage', () => {
   });
 
   describe('storage deleted mid-preview', () => {
-    it('cancels when the previewed segment is deleted', async () => {
+    /** Previews, deletes the segment under it, and asserts the run stops. */
+    const cancelsWhenTheSegmentGoes = async (options?: {
+      requiresActiveSegment: boolean;
+    }) => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
       const { maskId } = addActiveSegment();
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      await processStore.startProcess(
+        async () => new Uint8Array([1, 1]),
+        options
+      );
       expect(processStore.processState.step).toBe('previewing');
 
       segmentationStore.deleteMask(maskId);
@@ -288,35 +294,23 @@ describe('paint process storage', () => {
 
       expect(processStore.processState.step).toBe('start');
       expect(paintStore.activeMode).not.toBe(PaintMode.Process);
-    });
+    };
 
-    it('cancels when the previewed artifact is removed', async () => {
-      const processStore = usePaintProcessStore();
-      const paintStore = usePaintToolStore();
-      const segmentationStore = useSegmentationStore();
-      const { artifactId } = addActiveSegment();
+    it('cancels when the previewed segment is deleted', () =>
+      cancelsWhenTheSegmentGoes());
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1]), {
-        requiresActiveSegment: false,
-      });
-      expect(processStore.processState.step).toBe('previewing');
-
-      segmentationStore.removeArtifact(artifactId);
-      await nextTick();
-
-      expect(processStore.processState.step).toBe('start');
-      expect(paintStore.activeMode).not.toBe(PaintMode.Process);
-    });
+    it('cancels even when the run did not require an active segment', () =>
+      cancelsWhenTheSegmentGoes({ requiresActiveSegment: false }));
 
     it('confirms without a write when the storage is gone', async () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addActiveSegment(new Uint8Array([1, 0]));
+      const { maskId } = addActiveSegment(new Uint8Array([1, 0]));
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
       processStore.togglePreview();
-      segmentationStore.removeArtifact(artifactId);
+      segmentationStore.deleteMask(maskId);
 
       expect(() => processStore.confirmProcess()).not.toThrow();
       expect(processStore.processState.step).toBe('start');
@@ -326,10 +320,10 @@ describe('paint process storage', () => {
     it('toggles the preview without a write when the storage is gone', async () => {
       const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addActiveSegment(new Uint8Array([1, 0]));
+      const { maskId } = addActiveSegment(new Uint8Array([1, 0]));
 
       await processStore.startProcess(async () => new Uint8Array([1, 1]));
-      segmentationStore.removeArtifact(artifactId);
+      segmentationStore.deleteMask(maskId);
 
       expect(() => processStore.togglePreview()).not.toThrow();
       expect(processStore.showingOriginal).toBe(true);
@@ -339,10 +333,10 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { artifactId } = addActiveSegment();
+      const { maskId } = addActiveSegment();
 
       await processStore.startProcess(async () => {
-        segmentationStore.removeArtifact(artifactId);
+        segmentationStore.deleteMask(maskId);
         return new Uint8Array([1, 1]);
       });
 

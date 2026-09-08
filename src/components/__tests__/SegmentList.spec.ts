@@ -4,6 +4,7 @@ import {
   type Index3,
   maskOn,
   lockSegment,
+  boundMasks,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { defineComponent, nextTick } from 'vue';
 import { mount, VueWrapper } from '@vue/test-utils';
@@ -382,7 +383,7 @@ describe('flat segment list row creation', () => {
 
     expect(segments().segmentList.value).toHaveLength(1);
     expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-    expect(Object.keys(store().artifactIndex)).toEqual([]);
+    expect(boundMasks()).toEqual([]);
     expect(rowIds(wrapper)).toEqual([segments().segmentList.value[0].id]);
   });
 

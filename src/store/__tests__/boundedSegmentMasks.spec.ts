@@ -13,6 +13,7 @@ import {
   seedVoxel,
   store,
   type Index3,
+  boundMasks,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
@@ -70,12 +71,11 @@ describe('bounded segment masks', () => {
     });
 
     it('gives every segment of one image its own storage', () => {
-      const artifacts = ['A', 'B', 'C']
+      const buffers = ['A', 'B', 'C']
         .map((name) => addMask('img-1', name))
-        .map((maskId) => store().maskVoxels(maskId).materialize())
-        .map((binding) => binding.artifactId);
+        .map((maskId) => store().maskVoxels(maskId).materialize().image);
 
-      expect(new Set(artifacts).size).toBe(3);
+      expect(new Set(buffers).size).toBe(3);
     });
 
     it('is idempotent and keeps the same storage', () => {
@@ -294,9 +294,7 @@ describe('bounded segment masks', () => {
 
       expect(() => store().maskVoxels(overflow).materialize()).not.toThrow();
       expect(store().maskVoxels(overflow).binding()).toBeDefined();
-      expect(Object.keys(store().artifactIndex)).toHaveLength(
-        LABELMAP_MAX_VALUE + 1
-      );
+      expect(boundMasks()).toHaveLength(LABELMAP_MAX_VALUE + 1);
     });
   });
 

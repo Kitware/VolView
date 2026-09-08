@@ -14,6 +14,7 @@ import {
   mintSegment,
   lockSegment,
   addActiveSegment,
+  boundMasks,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
@@ -193,7 +194,7 @@ describe('Paint process store', () => {
     expect(
       segmentationStore.getSegmentationForImage('image-1')
     ).toBeUndefined();
-    expect(Object.keys(segmentationStore.artifactIndex)).toHaveLength(0);
+    expect(boundMasks()).toHaveLength(0);
     expect(processStore.processState.step).toBe('start');
     expect(messageStore.messages.map(({ title }) => title)).toContain(
       'No active segment selected'
@@ -219,7 +220,7 @@ describe('Paint process store', () => {
 
     expect(algorithm).not.toHaveBeenCalled();
     expect(segmentationStore.findMaskBinding(segment.id)).toBeUndefined();
-    expect(Object.keys(segmentationStore.artifactIndex)).toHaveLength(0);
+    expect(boundMasks()).toHaveLength(0);
     expect(processStore.processState.step).toBe('start');
     expect(messageStore.messages.map(({ title }) => title)).toContain(
       'No segment content to process'
@@ -246,8 +247,8 @@ describe('Paint process store', () => {
     await processStore.startProcess(algorithm);
 
     expect(algorithm).not.toHaveBeenCalled();
-    expect(Object.keys(segmentationStore.artifactIndex)).toEqual([
-      binding.artifactId,
+    expect(boundMasks().map((mask) => mask.representations.labelmap)).toEqual([
+      binding,
     ]);
     expect(processStore.processState.step).toBe('start');
     expect(messageStore.messages.map(({ title }) => title)).toContain(

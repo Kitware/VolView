@@ -14,6 +14,7 @@ import {
   resolveArtifactRestoreSources,
 } from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
+import { boundMasks } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // Resilient segment-group restore:
@@ -121,7 +122,7 @@ function makeEmptyScalarsImage() {
 // policy) and hands it to deserialize alongside the dataIDMap. A restored
 // legacy group is split into one bounded mask per segment, so what a survivor
 // leaves behind is its segments, not a group record.
-const maskCount = () => Object.keys(useSegmentationStore().artifactMeta).length;
+const maskCount = () => boundMasks().length;
 
 /** The image's segments that ended up with storage. */
 const catalogFor = (parentImageId: string) => {
@@ -208,7 +209,7 @@ describe('migrated segment groups: resilient restore', () => {
       await restoreOrphanedGroup();
 
     expect(groups).toEqual(new Set());
-    expect(Object.keys(useSegmentationStore().artifactMeta)).toEqual([]);
+    expect(boundMasks()).toEqual([]);
     expect(skipped).toEqual([
       { name: 'sg-tumor', reason: 'parent image did not load' },
     ]);

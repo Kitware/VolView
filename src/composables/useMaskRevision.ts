@@ -1,6 +1,7 @@
 import { ref, watchEffect } from 'vue';
 
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { listMasks } from '@/src/types/segmentation';
 
 /**
  * A counter every mask change bumps, voxel writes included. A mask's extent is
@@ -19,12 +20,14 @@ export function useMaskRevision() {
   // announces itself to vtk, so watching the mask itself catches the ones that
   // reach the buffer without going through the store.
   watchEffect((onCleanup) => {
-    const subscriptions = Object.values(segmentationStore.artifactIndex).map(
-      (mask) =>
-        mask.onModified(() => {
+    const subscriptions = Object.values(segmentationStore.segmentations)
+      .flatMap((segmentation) => listMasks(segmentation))
+      .flatMap((segment) => segment.representations.labelmap ?? [])
+      .map((binding) =>
+        binding.image.onModified(() => {
           revision.value += 1;
         })
-    );
+      );
     onCleanup(() => subscriptions.forEach((entry) => entry.unsubscribe()));
   });
 

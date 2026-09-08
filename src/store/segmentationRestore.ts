@@ -1,3 +1,4 @@
+import { markRaw } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import type {
@@ -5,6 +6,7 @@ import type {
   SegmentationArtifact,
 } from '@/src/io/state-file/schema';
 import { placeMask, setMaskScalars } from '@/src/store/segmentMask';
+import type { ProcessingResultSource } from '@/src/types';
 import {
   extentContains,
   extentSize,
@@ -13,6 +15,7 @@ import {
   LABELMAP_BACKGROUND_VALUE,
   maskScalars,
   type Extent3D,
+  type LabelmapBinding,
 } from '@/src/types/segmentation';
 import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
@@ -84,36 +87,26 @@ export async function restoredLabelmapImage(
   );
 }
 
-export type AcceptedRestoreBinding = {
-  artifactId: string;
-  extent: Extent3D;
+/** A labelmap the restore read back, still unclaimed by any segment. */
+export type LoadedLabelmap = {
+  labelmap: vtkLabelMap;
+  /** Store id of the image the manifest says it belongs to. */
+  parentImageId: string;
+  name: string;
+  source?: ProcessingResultSource;
 };
 
 export type SkippedRestoreItem = { name: string; reason: string };
 
-type BindingCandidate = {
-  wireMask: WireMask;
-  artifactId: string;
-  name: string;
-  extent: Extent3D;
-  parentImage: vtkImageData;
-};
-
 type RestoreBindingInput = {
   manifest: Manifest;
   dataIDMap: Record<string, string>;
-  artifactIdMap: Record<string, string>;
-  /** Wire ids of the groups the restore splits, which have no storage yet. */
-  splitWireIds: Set<string>;
-  artifactParentById: Record<string, string>;
-  artifactImages: Record<string, vtkLabelMap>;
+  /**
+   * The labelmaps that loaded, by wire id. A group awaiting its split is not
+   * among them: it is not storage any one segment can take.
+   */
+  loaded: Map<string, LoadedLabelmap>;
   getParentImage: (id: string) => vtkImageData | undefined;
-};
-
-type RestoreBindingState = RestoreBindingInput & {
-  artifactNameByWireId: Map<string, string>;
-  acceptedBindings: WeakMap<WireMask, AcceptedRestoreBinding>;
-  skipped: SkippedRestoreItem[];
 };
 
 const sameDimensions = (extent: Extent3D, dimensions: number[]) =>
@@ -121,23 +114,20 @@ const sameDimensions = (extent: Extent3D, dimensions: number[]) =>
 
 function validExtent(
   extent: Extent3D,
-  labelmap: vtkLabelMap | undefined,
+  labelmap: vtkLabelMap,
   parentImage: vtkImageData,
   reject: (reason: string) => void
 ) {
   if (isEmptyExtent(extent)) {
-    const containsForeground = labelmap
-      ? maskScalars(labelmap).some(
-          (value) => value !== LABELMAP_BACKGROUND_VALUE
-        )
-      : true;
+    const containsForeground = maskScalars(labelmap).some(
+      (value) => value !== LABELMAP_BACKGROUND_VALUE
+    );
     if (!containsForeground) return true;
     reject('empty extent references a mask with foreground voxels');
     return false;
   }
 
-  const dimensions = labelmap?.getDimensions();
-  if (!dimensions || !sameDimensions(extent, dimensions)) {
+  if (!sameDimensions(extent, labelmap.getDimensions())) {
     reject('extent does not match the loaded mask dimensions');
     return false;
   }
@@ -148,40 +138,70 @@ function validExtent(
   return true;
 }
 
-function candidateFor(
-  wireMask: WireMask,
-  parentImageId: string,
-  parentImage: vtkImageData | undefined,
-  state: RestoreBindingState
-) {
-  const binding = wireMask.representations.labelmap;
-  if (!binding) return undefined;
-  // A group awaiting its split has no storage of its own to validate against:
-  // the split below mints one bounded mask per segment.
-  if (state.splitWireIds.has(binding.artifactId)) return undefined;
+/**
+ * Validates every reference before any labelmap is reshaped, so one malformed
+ * binding cannot move or erase storage a later binding takes. A labelmap holds
+ * one segment's voxels, so the first mask to claim one takes it and a second
+ * claim on the same one is refused rather than sharing it.
+ */
+export function prepareRestoreBindings(input: RestoreBindingInput) {
+  const { manifest, dataIDMap, loaded, getParentImage } = input;
+  const acceptedBindings = new WeakMap<WireMask, LabelmapBinding>();
+  const skipped: SkippedRestoreItem[] = [];
+  const claimed = new Set<string>();
 
-  const artifactId = state.artifactIdMap[binding.artifactId];
-  if (artifactId === undefined) return undefined;
+  const claim = (
+    wireMask: WireMask,
+    parentImageId: string,
+    parentImage: vtkImageData | undefined
+  ) => {
+    const wireBinding = wireMask.representations.labelmap;
+    if (!wireBinding) return;
+    const available = loaded.get(wireBinding.artifactId);
+    // Either the labelmap never loaded, or it is a group awaiting its split;
+    // both are reported where they arise, not here.
+    if (!available) return;
 
-  const extent = [...binding.extent] as Extent3D;
-  // The artifact is what the user recognizes; a record has no name of its own.
-  const name = state.artifactNameByWireId.get(binding.artifactId) ?? '';
-  const reject = (reason: string) => state.skipped.push({ name, reason });
+    const { name, labelmap, source } = available;
+    const reject = (reason: string) => skipped.push({ name, reason });
 
-  if (state.artifactParentById[artifactId] !== parentImageId) {
-    reject('artifact belongs to another image');
-    return undefined;
-  }
-  if (!parentImage) {
-    reject('parent image data is unavailable');
-    return undefined;
-  }
-  if (
-    !validExtent(extent, state.artifactImages[artifactId], parentImage, reject)
-  ) {
-    return undefined;
-  }
-  return { wireMask, artifactId, name, extent, parentImage };
+    if (claimed.has(wireBinding.artifactId)) {
+      reject('labelmap is already bound to another segment');
+      return;
+    }
+    if (available.parentImageId !== parentImageId) {
+      reject('artifact belongs to another image');
+      return;
+    }
+    if (!parentImage) {
+      reject('parent image data is unavailable');
+      return;
+    }
+
+    const extent = [...wireBinding.extent] as Extent3D;
+    if (!validExtent(extent, labelmap, parentImage, reject)) return;
+
+    claimed.add(wireBinding.artifactId);
+    placeMask(labelmap, parentImage, extent);
+    if (isEmptyExtent(extent)) setMaskScalars(labelmap, new Uint8Array(0));
+    acceptedBindings.set(wireMask, {
+      image: markRaw(labelmap),
+      extent,
+      name,
+      ...(source ? { source } : {}),
+    });
+  };
+
+  (manifest.segmentations ?? []).forEach((wire) => {
+    const parentImageId = dataIDMap[wire.parentImage];
+    if (parentImageId === undefined) return;
+    const parentImage = getParentImage(parentImageId);
+    orderedWireMasks(wire).forEach((wireMask) =>
+      claim(wireMask, parentImageId, parentImage)
+    );
+  });
+
+  return { acceptedBindings, claimed, skipped };
 }
 
 /** The wire's masks in the order it records, skipping ids it does not name. */
@@ -194,79 +214,4 @@ export function orderedWireMasks<T extends { id: string }>(wire: {
     const mask = byId.get(maskId);
     return mask ? [mask] : [];
   });
-}
-
-function collectCandidates(wire: WireMaskation, state: RestoreBindingState) {
-  const parentImageId = state.dataIDMap[wire.parentImage];
-  if (parentImageId === undefined) return [];
-  const parentImage = state.getParentImage(parentImageId);
-  return orderedWireMasks(wire).flatMap((wireMask) => {
-    const candidate = candidateFor(wireMask, parentImageId, parentImage, state);
-    return candidate ? [candidate] : [];
-  });
-}
-
-function acceptCandidates(
-  artifactId: string,
-  candidates: BindingCandidate[],
-  labelmap: vtkLabelMap,
-  state: RestoreBindingState
-) {
-  const extent = candidates[0].extent;
-  const agrees = candidates.every((candidate) =>
-    arrayEquals(candidate.extent, extent)
-  );
-  if (!agrees) {
-    candidates.forEach(({ name }) =>
-      state.skipped.push({
-        name,
-        reason: 'bindings disagree on the artifact extent',
-      })
-    );
-    return;
-  }
-
-  placeMask(labelmap, candidates[0].parentImage, extent);
-  if (isEmptyExtent(extent)) setMaskScalars(labelmap, new Uint8Array(0));
-  candidates.forEach(({ wireMask, extent: acceptedExtent }) =>
-    state.acceptedBindings.set(wireMask, {
-      artifactId,
-      extent: acceptedExtent,
-    })
-  );
-}
-
-export function prepareRestoreBindings(input: RestoreBindingInput) {
-  const acceptedBindings = new WeakMap<WireMask, AcceptedRestoreBinding>();
-  const skipped: SkippedRestoreItem[] = [];
-  const state: RestoreBindingState = {
-    ...input,
-    acceptedBindings,
-    skipped,
-    artifactNameByWireId: new Map(
-      (input.manifest.segmentationArtifacts ?? []).map((artifact) => [
-        artifact.id,
-        artifact.name,
-      ])
-    ),
-  };
-  const candidatesByArtifact = new Map<string, BindingCandidate[]>();
-
-  (input.manifest.segmentations ?? []).forEach((wire) => {
-    collectCandidates(wire, state).forEach((candidate) => {
-      const candidates = candidatesByArtifact.get(candidate.artifactId) ?? [];
-      candidates.push(candidate);
-      candidatesByArtifact.set(candidate.artifactId, candidates);
-    });
-  });
-
-  candidatesByArtifact.forEach((candidates, artifactId) =>
-    acceptCandidates(
-      artifactId,
-      candidates,
-      input.artifactImages[artifactId],
-      state
-    )
-  );
-  return { acceptedBindings, skipped };
 }

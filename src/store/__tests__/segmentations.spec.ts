@@ -52,14 +52,19 @@ const masksOfImage = (parentImageId: string) => {
   return segmentation.order.map((id) => segmentation.masks[id]);
 };
 
-const artifactScalars = (artifactId: string) =>
-  store().artifactIndex[artifactId].getPointData().getScalars().getData();
+const maskScalars = (maskId: string) =>
+  store().findMaskBinding(maskId)!.image.getPointData().getScalars().getData();
+
+/** Every mask in the scene that holds voxels. */
+const boundMasks = () =>
+  Object.values(store().segmentations).flatMap((segmentation) =>
+    segmentation.order
+      .map((id) => segmentation.masks[id])
+      .filter((mask) => mask.representations.labelmap)
+  );
 
 /** The buffer a segment's binding points at, reached through the accessor. */
-const labelmapOf = (maskId: string) =>
-  store()
-    .artifactVoxels(store().resolveLabelmapBinding(maskId)!.artifactId)
-    .image();
+const labelmapOf = (maskId: string) => store().findMaskVoxels(maskId).image();
 
 const bindingOf = (segmentationId: string, maskId: string) =>
   store().getMask(maskId).representations.labelmap;
@@ -164,9 +169,8 @@ describe('segmentation store', () => {
 
       expect(segment.representations.labelmap).toBeUndefined();
       expect(bindingOf(segmentationId, segment.id)).toBeUndefined();
-      expect(store().resolveLabelmapBinding(segment.id)).toBeFalsy();
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
-      expect(Object.keys(store().artifactMeta)).toEqual([]);
+      expect(store().findMaskBinding(segment.id)).toBeFalsy();
+      expect(boundMasks()).toEqual([]);
     });
 
     it('appends the record to the segmentation order', async () => {
@@ -254,15 +258,11 @@ describe('segmentation store', () => {
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
-      const { binding } = makeBoundSegment(segmentationId);
+      const { id: maskId, binding } = makeBoundSegment(segmentationId);
 
-      expect(Object.keys(store().artifactIndex)).toEqual([binding.artifactId]);
-      expect(store().artifactMeta[binding.artifactId].parentImage).toBe(
-        'img-1'
-      );
-      expect(
-        store().artifactMeta[binding.artifactId].name.length
-      ).toBeGreaterThan(0);
+      expect(boundMasks().map((mask) => mask.id)).toEqual([maskId]);
+      expect(store().segmentationOfMask(maskId)?.parentImageId).toBe('img-1');
+      expect(binding.name.length).toBeGreaterThan(0);
     });
 
     it('covers nothing until an edit says what to cover', async () => {
@@ -270,13 +270,11 @@ describe('segmentation store', () => {
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
-      const { binding } = makeBoundSegment(segmentationId);
+      const { id: maskId, binding } = makeBoundSegment(segmentationId);
 
       expect(isEmptyExtent(binding.extent)).toBe(true);
-      expect([
-        ...store().artifactIndex[binding.artifactId].getDimensions(),
-      ]).toEqual([0, 0, 0]);
-      expect(artifactScalars(binding.artifactId)).toHaveLength(0);
+      expect([...binding.image.getDimensions()]).toEqual([0, 0, 0]);
+      expect(maskScalars(maskId)).toHaveLength(0);
     });
 
     it('allocates a nonzero label value', async () => {
@@ -286,7 +284,7 @@ describe('segmentation store', () => {
 
       const { binding } = makeBoundSegment(segmentationId);
 
-      expect(store().artifactIndex[binding.artifactId]).toBeDefined();
+      expect(binding.image).toBeDefined();
     });
 
     it('returns the same binding on a second call and allocates nothing new', async () => {
@@ -298,8 +296,8 @@ describe('segmentation store', () => {
       const first = store().ensureLabelmapBinding(segment.id);
       const second = store().ensureLabelmapBinding(segment.id);
 
-      expect(second.artifactId).toBe(first.artifactId);
-      expect(Object.keys(store().artifactIndex)).toHaveLength(1);
+      expect(second).toBe(first);
+      expect(boundMasks()).toHaveLength(1);
     });
 
     it('gives two segments of one segmentation their own mask', async () => {
@@ -310,21 +308,17 @@ describe('segmentation store', () => {
       const first = makeBoundSegment(segmentationId, 'Tumor');
       const second = makeBoundSegment(segmentationId, 'Node');
 
-      expect(second.binding.artifactId).not.toBe(first.binding.artifactId);
-      expect(Object.keys(store().artifactIndex)).toHaveLength(2);
+      expect(second.binding.image).not.toBe(first.binding.image);
+      expect(boundMasks()).toHaveLength(2);
     });
 
-    it('resolves a binding to its artifact', async () => {
+    it('resolves a binding to its storage', async () => {
       await seatImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const { id: maskId, binding } = makeBoundSegment(segmentationId);
 
-      const resolved = store().resolveLabelmapBinding(maskId);
-
-      expect(store().artifactVoxels(resolved!.artifactId).image()).toBe(
-        store().artifactIndex[binding.artifactId]
-      );
+      expect(store().findMaskVoxels(maskId).image()).toBe(binding.image);
     });
   });
 
@@ -390,7 +384,7 @@ describe('segmentation store', () => {
       const first = makeBoundSegment(one, 'Tumor');
       const second = makeBoundSegment(two, 'Tumor');
 
-      expect(second.binding.artifactId).not.toBe(first.binding.artifactId);
+      expect(second.binding.image).not.toBe(first.binding.image);
       expect(second.id).not.toBe(first.id);
       expect(store().getMask(first.id).id).toBe(first.id);
       expect(store().getMask(second.id).id).toBe(second.id);
@@ -450,17 +444,11 @@ describe('segmentation store', () => {
 
       store().deleteMask(first.id);
 
-      expect(Object.keys(store().artifactIndex)).toEqual([
-        second.binding.artifactId,
-      ]);
-      expect(Object.keys(store().artifactMeta)).toEqual([
-        second.binding.artifactId,
-      ]);
+      expect(boundMasks().map((mask) => mask.id)).toEqual([second.id]);
 
       store().deleteMask(second.id);
 
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
-      expect(Object.keys(store().artifactMeta)).toEqual([]);
+      expect(boundMasks()).toEqual([]);
       expect(store().segmentations[segmentationId].order).toEqual([]);
     });
 
@@ -473,7 +461,7 @@ describe('segmentation store', () => {
       store().deleteMask(segment.id);
 
       expect(store().segmentations[segmentationId].order).toEqual([]);
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
+      expect(boundMasks()).toEqual([]);
     });
   });
 
@@ -488,8 +476,7 @@ describe('segmentation store', () => {
 
       expect(Object.keys(store().segmentations)).toEqual([]);
       expect(store().getSegmentationForImage('img-1')).toBeFalsy();
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
-      expect(Object.keys(store().artifactMeta)).toEqual([]);
+      expect(boundMasks()).toEqual([]);
     });
   });
 
@@ -506,8 +493,7 @@ describe('segmentation store', () => {
 
       expect(store().getSegmentationForImage('img-1')).toBeFalsy();
       expect(Object.keys(store().segmentations)).toEqual([]);
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
-      expect(Object.keys(store().artifactMeta)).toEqual([]);
+      expect(boundMasks()).toEqual([]);
     });
 
     it('leaves other images segmentations alone', async () => {
@@ -523,9 +509,7 @@ describe('segmentation store', () => {
 
       expect(Object.keys(store().segmentations)).toEqual([kept]);
       expect(store().getSegmentationForImage('img-2')?.id).toBe(kept);
-      expect(Object.keys(store().artifactIndex)).toEqual([
-        keptSegment.binding.artifactId,
-      ]);
+      expect(boundMasks().map((mask) => mask.id)).toEqual([keptSegment.id]);
       expect(store().getMask(keptSegment.id).id).toBe(keptSegment.id);
     });
   });
@@ -561,17 +545,21 @@ describe('segmentation store', () => {
       const masks = masksOfImage('parent-img');
       expect(masks).toHaveLength(2);
       const [first, second] = masks.map(
-        (segment) => segment.representations.labelmap!.artifactId
+        (segment) => segment.representations.labelmap!
       );
-      expect(second).not.toBe(first);
-      expect(labelmapOf(masks[0].id)).toBe(store().artifactIndex[first]);
+      expect(second.image).not.toBe(first.image);
+      expect(labelmapOf(masks[0].id)).toBe(first.image);
       // Each mask holds exactly one nonzero value, its segment's.
-      expect(new Set(artifactScalars(first))).toEqual(new Set([SEGMENT_VALUE]));
-      expect(new Set(artifactScalars(second))).toEqual(
+      expect(new Set(maskScalars(masks[0].id))).toEqual(
+        new Set([SEGMENT_VALUE])
+      );
+      expect(new Set(maskScalars(masks[1].id))).toEqual(
         new Set([0, SEGMENT_VALUE])
       );
-      expect(store().artifactMeta[first].parentImage).toBe('parent-img');
-      expect(store().artifactMeta[first].name.length).toBeGreaterThan(0);
+      expect(store().segmentationOfMask(masks[0].id)?.parentImageId).toBe(
+        'parent-img'
+      );
+      expect(first.name.length).toBeGreaterThan(0);
     });
 
     it('preserves names and colors from embedded seg.nrrd metadata', async () => {
@@ -614,8 +602,8 @@ describe('segmentation store', () => {
       const masks = masksOfImage('parent-img');
       expect(masks).toHaveLength(2);
       expect(masks[1].id).not.toBe(masks[0].id);
-      expect(masks[1].representations.labelmap!.artifactId).not.toBe(
-        masks[0].representations.labelmap!.artifactId
+      expect(masks[1].representations.labelmap!.image).not.toBe(
+        masks[0].representations.labelmap!.image
       );
     });
 
@@ -642,7 +630,7 @@ describe('segmentation store', () => {
       await store().convertImageToLabelmap('child-img', 'parent-img');
 
       expect(masksOfImage('parent-img')).toEqual([]);
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
+      expect(boundMasks()).toEqual([]);
     });
   });
 
@@ -665,7 +653,7 @@ describe('segmentation store', () => {
 
       expect(store().segmentations[one].order).toEqual([]);
       expect(store().segmentations[two].order).toEqual([]);
-      expect(Object.keys(store().artifactIndex)).toEqual([]);
+      expect(boundMasks()).toEqual([]);
     });
 
     it('creates no segmentation for an image that has none', async () => {
@@ -813,12 +801,8 @@ describe('segmentation store', () => {
       const target = store().resolveEditTarget('img-1');
       const binding = store().ensureLabelmapBinding(target);
 
-      expect(store().artifactMeta[binding.artifactId].parentImage).toBe(
-        'img-1'
-      );
-      expect(labelmapOf(target)).toBe(
-        store().artifactIndex[binding.artifactId]
-      );
+      expect(store().segmentationOfMask(target)?.parentImageId).toBe('img-1');
+      expect(labelmapOf(target)).toBe(binding.image);
     });
 
     it('gives each image its own record when nothing was ever selected', async () => {

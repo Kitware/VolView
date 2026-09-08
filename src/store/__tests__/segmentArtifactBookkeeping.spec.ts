@@ -8,6 +8,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   addMask,
+  boundMasks,
   seatImage,
   seedVoxel,
   store,
@@ -22,7 +23,8 @@ import {
 
 const surface = () => store() as unknown as Record<string, unknown>;
 
-const artifactIds = () => Object.keys(store().artifactMeta);
+const storageBuffers = () =>
+  boundMasks().map((mask) => mask.representations.labelmap!.image);
 
 /** A local codec: itk-wasm image IO has no counterpart in the node test env. */
 const makeArtifactIO = () => {
@@ -68,7 +70,7 @@ function importedLabelmap() {
 }
 
 const artifactNames = () =>
-  Object.values(store().artifactMeta).map((meta) => meta.name);
+  boundMasks().map((mask) => mask.representations.labelmap!.name);
 
 const split = (name?: string) =>
   store().splitLabelmapIntoMasks(
@@ -112,16 +114,14 @@ describe('artifact bookkeeping without the per-parent order map', () => {
 
   it('releases a segment mask with the segment that owns it', async () => {
     const { tumor, node } = await buildScene();
-    const tumorArtifact =
-      store().getMask(tumor).representations.labelmap!.artifactId;
+    const tumorBuffer = store().getMask(tumor).representations.labelmap!.image;
 
     store().deleteMask(tumor);
 
-    expect(artifactIds()).not.toContain(tumorArtifact);
-    expect(store().artifactIndex).not.toHaveProperty(tumorArtifact);
+    expect(storageBuffers()).not.toContain(tumorBuffer);
     // The sibling on the same image is untouched.
-    expect(artifactIds()).toContain(
-      store().getMask(node).representations.labelmap!.artifactId
+    expect(storageBuffers()).toContain(
+      store().getMask(node).representations.labelmap!.image
     );
   });
 
@@ -132,11 +132,9 @@ describe('artifact bookkeeping without the per-parent order map', () => {
 
     store().removeSegmentation(segmentation.id);
 
-    const remaining = artifactIds();
+    const remaining = boundMasks();
     expect(remaining).toHaveLength(1);
-    expect(store().getSegmentationForArtifact(remaining[0])!.id).toBe(
-      survivor.id
-    );
+    expect(store().segmentationOfMask(remaining[0].id)!.id).toBe(survivor.id);
   });
 
   it('releases every mask of an image when the dataset is removed', async () => {
@@ -145,23 +143,22 @@ describe('artifact bookkeeping without the per-parent order map', () => {
     useDatasetStore().remove('img-1');
 
     expect(
-      artifactIds().map(
-        (artifactId) => store().artifactMeta[artifactId].parentImage
+      boundMasks().map(
+        (mask) => store().segmentationOfMask(mask.id)!.parentImageId
       )
     ).toEqual(['img-2']);
     expect(store().getSegmentationForImage('img-1')).toBeUndefined();
   });
 
-  it('reaches the outline settings from the artifact a renderer holds', async () => {
-    // The renderer is handed an artifact id and nothing else, so the segment
-    // model has to be reachable from that id alone.
+  it('reaches the outline settings from the mask a renderer holds', async () => {
+    // The renderer is handed a mask id and nothing else, so the segment model
+    // has to be reachable from that id alone.
     const { tumor } = await buildScene();
     const segmentation = store().getSegmentationForImage('img-1')!;
     segmentation.outlineOpacity = 0.25;
     segmentation.outlineThickness = 5;
-    const { artifactId } = store().getMask(tumor).representations.labelmap!;
 
-    expect(store().getSegmentationForArtifact(artifactId)).toMatchObject({
+    expect(store().segmentationOfMask(tumor)).toMatchObject({
       outlineOpacity: 0.25,
       outlineThickness: 5,
     });

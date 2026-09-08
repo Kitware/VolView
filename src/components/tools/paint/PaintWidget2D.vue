@@ -65,17 +65,8 @@ export default defineComponent({
       const maskId = imageId.value
         ? segmentationStore.findEditTarget(imageId.value)
         : undefined;
-      const binding = maskId
-        ? segmentationStore.resolveLabelmapBinding(maskId)
-        : undefined;
-      if (!binding) return null;
-      if (
-        segmentationStore.artifactMeta[binding.artifactId]?.parentImage !==
-        imageId.value
-      ) {
-        return null;
-      }
-      const voxels = segmentationStore.artifactVoxels(binding.artifactId);
+      if (!maskId) return null;
+      const voxels = segmentationStore.findMaskVoxels(maskId);
       return voxels.exists() ? voxels.image() : null;
     });
 

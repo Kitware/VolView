@@ -26,6 +26,7 @@ import {
   store,
   voxelCount,
   type Index3,
+  boundMasks,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
@@ -92,6 +93,23 @@ function pointNodeAtTumorArtifact(manifest: any) {
   node.representations.labelmap.artifactId = tumorArtifact.id;
   return { segmentation, tumor, node, tumorArtifact, nodeArtifactId };
 }
+
+/** The first-wins outcome: Tumor keeps the labelmap and Node is refused it. */
+const expectTumorTookTheLabelmap = (
+  result: {
+    skipped: Array<{ name: string; reason: string }>;
+    restoredArtifactIds: Set<string>;
+  },
+  refs: ReturnType<typeof pointNodeAtTumorArtifact>
+) => {
+  expect(restoredSegment('Node').representations.labelmap).toBeUndefined();
+  expect(result.skipped).toContainEqual({
+    name: refs.tumorArtifact.name,
+    reason: 'labelmap is already bound to another segment',
+  });
+  expect(result.restoredArtifactIds).toContain(refs.tumorArtifact.id);
+  expect(result.restoredArtifactIds).not.toContain(refs.nodeArtifactId);
+};
 
 const restoredSegment = (name: string) =>
   listMasks(store().getSegmentationForImage('new-1')!).find(
@@ -335,20 +353,16 @@ describe('bounded masks through the state file', () => {
     const secondTumor = listMasks(
       store().getSegmentationForImage('new-2')!
     ).find((segment) => nameOf(segment) === 'Tumor')!;
-    expect(firstTumor.representations.labelmap?.artifactId).toBe(
-      result.artifactIdMap[firstWireArtifactId]
-    );
-    expect(secondTumor.representations.labelmap?.artifactId).toBe(
-      result.artifactIdMap[secondWireArtifactId]
-    );
+    expect(firstTumor.representations.labelmap).toBeDefined();
+    expect(secondTumor.representations.labelmap).toBeDefined();
     expect(markedVoxels(firstTumor.id)).toEqual([
       [1, 1, 1, 1],
       [2, 1, 1, 1],
     ]);
     expect(markedVoxels(secondTumor.id)).toEqual([[0, 0, 0, 1]]);
-    expect(result.artifactIdMap[firstWireArtifactId]).toBeDefined();
-    expect(result.artifactIdMap[secondWireArtifactId]).toBeDefined();
-    expect(Object.keys(store().artifactMeta)).toHaveLength(4);
+    expect(result.restoredArtifactIds).toContain(firstWireArtifactId);
+    expect(result.restoredArtifactIds).toContain(secondWireArtifactId);
+    expect(boundMasks()).toHaveLength(4);
   });
 
   it('restores a mask that covers nothing as one that covers nothing', async () => {
@@ -418,38 +432,28 @@ describe('bounded masks through the state file', () => {
       name: artifact!.name,
       reason: 'empty extent references a mask with foreground voxels',
     });
-    expect(result.artifactIdMap[artifact!.id]).toBeUndefined();
-    expect(Object.keys(store().artifactMeta)).toHaveLength(3);
+    expect(result.restoredArtifactIds).not.toContain(artifact!.id);
+    expect(boundMasks()).toHaveLength(3);
   });
 
-  it('rejects every same-sized binding that gives one artifact different locations', async () => {
+  // A labelmap holds one segment's voxels, so two bindings cannot share it
+  // however well their extents agree. The first in the segmentation's order
+  // takes it and the second is left unbound rather than aliasing the buffer.
+  it('gives a labelmap to the first binding that names it and refuses the rest', async () => {
     await buildScene();
 
     let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
     const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       refs = pointNodeAtTumorArtifact(manifest);
-      refs.node.representations.labelmap.extent = [0, 1, 0, 0, 0, 0];
+      refs.node.representations.labelmap.extent = [1, 2, 1, 1, 1, 1];
     });
 
-    const restored = listMasks(store().getSegmentationForImage('new-1')!);
-    expect(
-      restored.find((segment) => nameOf(segment) === 'Tumor')!.representations
-        .labelmap
-    ).toBeUndefined();
-    expect(
-      restored.find((segment) => nameOf(segment) === 'Node')!.representations
-        .labelmap
-    ).toBeUndefined();
-    expect(
-      result.skipped.filter(
-        ({ name, reason }) =>
-          name === refs!.tumorArtifact.name &&
-          reason === 'bindings disagree on the artifact extent'
-      )
-    ).toHaveLength(2);
-    expect(result.artifactIdMap[refs!.tumorArtifact.id]).toBeUndefined();
-    expect(result.artifactIdMap[refs!.nodeArtifactId]).toBeUndefined();
-    expect(Object.keys(store().artifactMeta)).toHaveLength(2);
+    expect(markedVoxels(restoredSegment('Tumor').id)).toEqual([
+      [1, 1, 1, 1],
+      [2, 1, 1, 1],
+    ]);
+    expectTumorTookTheLabelmap(result, refs!);
+    expect(boundMasks()).toHaveLength(3);
   });
 
   it('does not let an earlier empty binding erase a later valid binding', async () => {
@@ -468,9 +472,7 @@ describe('bounded masks through the state file', () => {
     const tumor = restoredSegment('Tumor');
     const node = restoredSegment('Node');
     expect(node.representations.labelmap).toBeUndefined();
-    expect(tumor.representations.labelmap?.artifactId).toBe(
-      result.artifactIdMap[refs!.tumorArtifact.id]
-    );
+    expect(result.restoredArtifactIds).toContain(refs!.tumorArtifact.id);
     expect(store().maskVoxels(tumor.id).image().getDimensions()).toEqual([
       2, 1, 1,
     ]);
@@ -482,7 +484,7 @@ describe('bounded masks through the state file', () => {
       name: refs!.tumorArtifact.name,
       reason: 'empty extent references a mask with foreground voxels',
     });
-    expect(result.artifactIdMap[refs!.nodeArtifactId]).toBeUndefined();
+    expect(result.restoredArtifactIds).not.toContain(refs!.nodeArtifactId);
   });
 
   it.each([
@@ -508,8 +510,8 @@ describe('bounded masks through the state file', () => {
 
     expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
     expect(result.skipped).toContainEqual({ name: artifact!.name, reason });
-    expect(result.artifactIdMap[artifact!.id]).toBeUndefined();
-    expect(Object.keys(store().artifactMeta)).toHaveLength(3);
+    expect(result.restoredArtifactIds).not.toContain(artifact!.id);
+    expect(boundMasks()).toHaveLength(3);
   });
 
   it('keeps a valid binding when another reference to its artifact is invalid', async () => {
@@ -520,17 +522,8 @@ describe('bounded masks through the state file', () => {
       refs = pointNodeAtTumorArtifact(manifest);
     });
 
-    const tumor = restoredSegment('Tumor');
-    const node = restoredSegment('Node');
-    const tumorArtifactId = result.artifactIdMap[refs!.tumorArtifact.id];
-    expect(tumor.representations.labelmap?.artifactId).toBe(tumorArtifactId);
-    expect(node.representations.labelmap).toBeUndefined();
-    expect(result.skipped).toContainEqual({
-      name: refs!.tumorArtifact.name,
-      reason: 'extent does not match the loaded mask dimensions',
-    });
-    expect(store().artifactMeta[tumorArtifactId]).toBeDefined();
-    expect(result.artifactIdMap[refs!.nodeArtifactId]).toBeUndefined();
+    expect(restoredSegment('Tumor').representations.labelmap).toBeDefined();
+    expectTumorTookTheLabelmap(result, refs!);
   });
 
   it('puts the restored masks back on the parent grid', async () => {

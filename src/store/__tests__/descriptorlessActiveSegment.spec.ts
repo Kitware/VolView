@@ -113,11 +113,11 @@ describe('restoring a descriptorless active group', () => {
   it('gives every segment of both groups its own mask', async () => {
     await restoreTwoGroups(1);
 
-    const artifacts = catalog().map(
-      (segment) => segment.representations.labelmap!.artifactId
+    const buffers = catalog().map(
+      (segment) => segment.representations.labelmap!.image
     );
-    expect(artifacts).toHaveLength(4);
-    expect(new Set(artifacts).size).toBe(4);
+    expect(buffers).toHaveLength(4);
+    expect(new Set(buffers).size).toBe(4);
   });
 
   it('activates the segment split from the pending SOURCE value', async () => {

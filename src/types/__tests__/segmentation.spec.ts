@@ -17,6 +17,7 @@ import type {
   Segmentation,
 } from '@/src/types/segmentation';
 import { resolveSegmentAppearance } from '@/src/types/segment';
+import vtkLabelMap from '@/src/vtk/LabelMap';
 
 describe('emptyExtent', () => {
   it('is the pinned empty sentinel', () => {
@@ -110,10 +111,12 @@ describe('mask model', () => {
     expect(segment.representations.labelmap).toBeUndefined();
   });
 
-  it('binds a segment to one artifact and the box it covers', () => {
+  it('binds a segment to its own voxels and the box they cover', () => {
+    const image = vtkLabelMap.newInstance();
     const binding: LabelmapBinding = {
-      artifactId: 'artifact-1',
+      image,
       extent: [0, 9, 0, 19, 0, 29],
+      name: 'Tumor',
     };
     const segment: SegmentMask = {
       id: 'segment-1',
@@ -121,10 +124,7 @@ describe('mask model', () => {
       representations: { labelmap: binding },
     };
 
-    expect(segment.representations.labelmap).toEqual({
-      artifactId: 'artifact-1',
-      extent: [0, 9, 0, 19, 0, 29],
-    });
+    expect(segment.representations.labelmap?.image).toBe(image);
     expect(isEmptyExtent(binding.extent)).toBe(false);
   });
 

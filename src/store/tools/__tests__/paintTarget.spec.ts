@@ -20,7 +20,7 @@ import {
 
 const store = () => useSegmentationStore();
 
-const bindingOf = (maskId: string) => store().resolveLabelmapBinding(maskId);
+const bindingOf = (maskId: string) => store().findMaskBinding(maskId);
 
 /** Creates a segment with voxel storage already allocated. */
 function boundSegment(segmentationId: string, name: string) {
@@ -77,7 +77,7 @@ describe('paint edit target', () => {
     expect(store().getMask(painted).segmentId).toBe(source.segmentId);
     const paintedBinding = bindingOf(painted)!;
     const sourceBinding = bindingOf(source.id)!;
-    expect(paintedBinding.artifactId).not.toBe(sourceBinding.artifactId);
+    expect(paintedBinding.image).not.toBe(sourceBinding.image);
     expect(maskValueAt(painted, [1, 1, 0])).toBe(SEGMENT_VALUE);
     expect(markedVoxels(source.id)).toEqual([]);
   });

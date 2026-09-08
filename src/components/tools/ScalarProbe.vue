@@ -77,13 +77,13 @@ const getSegments = () => {
       const layer = layers[index];
       if (!layer) return null;
       const segment = segmentationStore.getMask(layer.maskId);
-      const voxels = segmentationStore.artifactVoxels(layer.artifactId);
+      const voxels = segmentationStore.findMaskVoxels(layer.maskId);
       if (!voxels.exists()) return null;
       const catalog =
-        segmentationStore.labelmapSegmentsByArtifact[layer.artifactId] ?? [];
+        segmentationStore.labelmapSegmentsByMask[layer.maskId] ?? [];
       return {
         type: 'segmentGroup',
-        id: layer.artifactId,
+        id: layer.maskId,
         name: segments.appearanceOf(segment.segmentId).name,
         rep,
         nameByLabelValue: Object.fromEntries(

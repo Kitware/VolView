@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
+import {
+  boundMasks,
+  mintSegment,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -199,7 +202,7 @@ describe('the import path answers on the segmentation store', () => {
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
     expect(segmentsOf('parent-img')).toEqual([]);
-    expect(Object.keys(store().artifactMeta)).toEqual([]);
+    expect(boundMasks()).toEqual([]);
   });
 
   // 'Segment 1' says nothing about what was imported. The file stem is the only

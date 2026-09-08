@@ -181,8 +181,8 @@ describe('placing and rasterizing on another image', () => {
     const target = resolveRasterizeTarget('img-2', '')!;
 
     expect(target.maskId).not.toBe(origin);
-    expect(target.artifactId).not.toBe(
-      store().getMask(origin).representations.labelmap!.artifactId
+    expect(target.voxels.image()).not.toBe(
+      store().getMask(origin).representations.labelmap!.image
     );
   });
 });

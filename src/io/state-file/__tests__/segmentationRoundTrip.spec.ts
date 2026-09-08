@@ -60,10 +60,7 @@ async function buildScene() {
     visible: false,
   });
   const tumor = store.createMask(first.id, mintSegment({ name: 'Tumor' }));
-  store.ensureLabelmapBinding(tumor.id);
-  const artifactId = store.getMask(tumor.id).representations.labelmap!
-    .artifactId;
-  store.updateArtifactMeta(artifactId, { source: SOURCE });
+  store.ensureLabelmapBinding(tumor.id).source = SOURCE;
 
   // Same name on another image: still a distinct segment.
   const second = store.ensureSegmentationForImage('img-2');

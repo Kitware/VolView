@@ -44,17 +44,15 @@ function seatArtifactSegment(imageId: string, values: Uint8Array) {
 
   const grow = (target: { maskId: string }) => {
     const voxels = store().maskVoxels(target.maskId);
-    const { artifactId } = voxels.materialize();
+    voxels.materialize();
     voxels.ensureContains(FULL_EXTENT);
-    return artifactId;
   };
-  const artifactId = grow(first);
+  grow(first);
   grow(second);
   store().maskVoxels(first.maskId).apply(values);
 
   return {
     labelmap: store().maskVoxels(first.maskId).image(),
-    artifactId,
     segmentationId: first.segmentationId,
     first,
     second,
@@ -86,7 +84,7 @@ describe('segment voxel accessor', () => {
 
       // Materializing through a second accessor is visible through the first.
       voxelsOf(target).materialize();
-      expect(voxels.binding()?.artifactId).toBeDefined();
+      expect(voxels.binding()?.image).toBeDefined();
 
       store().deleteMask(target.maskId);
       expect(() => voxels.binding()).toThrow();
@@ -119,9 +117,7 @@ describe('segment voxel accessor', () => {
       const binding = voxelsOf(target).materialize();
 
       expect(store().maskLayersForImage('img-1')).toHaveLength(1);
-      expect(binding.artifactId).toBe(
-        store().maskLayersForImage('img-1')[0].artifactId
-      );
+      expect(store().maskLayersForImage('img-1')[0].maskId).toBe(target.maskId);
       expect(isEmptyExtent(binding.extent)).toBe(true);
       expect(voxelsOf(target).image().getDimensions()).toEqual([0, 0, 0]);
       expect(scalarsOf(voxelsOf(target).image())).toHaveLength(0);
@@ -146,18 +142,18 @@ describe('segment voxel accessor', () => {
       const b = voxelsOf(second).materialize();
 
       expect(store().maskLayersForImage('img-1')).toHaveLength(2);
-      expect(b.artifactId).not.toBe(a.artifactId);
+      expect(b.image).not.toBe(a.image);
       expect(voxelsOf(second).image()).not.toBe(voxelsOf(first).image());
     });
   });
 
   describe('image()', () => {
-    it('hands back the live labelmap registered for the artifact', () => {
+    it('hands back the live labelmap the binding holds', () => {
       const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
       const voxels = voxelsOf(seat.first);
 
       expect(voxels.image()).toBe(seat.labelmap);
-      expect(voxels.binding()?.artifactId).toBe(seat.artifactId);
+      expect(voxels.binding()?.image).toBe(seat.labelmap);
     });
 
     it('sees writes made through it', () => {

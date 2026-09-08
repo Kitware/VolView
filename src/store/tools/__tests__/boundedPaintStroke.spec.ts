@@ -19,6 +19,7 @@ import {
   type Index3,
   selectSegment,
   lockSegment,
+  boundMasks,
 } from '@/src/store/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
@@ -144,7 +145,7 @@ describe('painting into bounded masks', () => {
       // No binding at all, not an empty one: erase refuses before the segment
       // gets storage it has nothing to take from.
       expect(bindingOf(active)).toBeUndefined();
-      expect(Object.keys(store().artifactIndex)).toHaveLength(0);
+      expect(boundMasks()).toHaveLength(0);
     });
 
     it('mints no segment when erasing on an image that has none', async () => {
@@ -155,7 +156,7 @@ describe('painting into bounded masks', () => {
 
       expect(store().getSegmentationForImage('img-1')).toBeUndefined();
       expect(store().findEditTarget('img-1')).toBeUndefined();
-      expect(Object.keys(store().artifactIndex)).toHaveLength(0);
+      expect(boundMasks()).toHaveLength(0);
     });
   });
 

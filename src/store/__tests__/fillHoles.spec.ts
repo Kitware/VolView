@@ -123,7 +123,7 @@ describe('Fill Holes store', () => {
       })
     );
     const voxels = segmentationStore.maskVoxels(segment.id);
-    const { artifactId } = voxels.materialize();
+    voxels.materialize();
     voxels.ensureContains(extent);
 
     const axialView = viewStore.visibleViews.find(
@@ -142,7 +142,6 @@ describe('Fill Holes store', () => {
       fillHolesStore,
       segmentationStore,
       parentImageID,
-      artifactId,
       segmentationId: segmentation.id,
       maskId: segment.id,
       labelMap: voxels.image(),

@@ -44,11 +44,10 @@ export function resolveRasterizeTarget(
 
   const voxels = segmentationStore.maskVoxels(resolved);
   // The binding's extent goes stale the moment the fill grows the mask, so
-  // nothing but the artifact is carried out of it.
-  const { artifactId } = voxels.materialize();
+  // the accessor is what travels, not anything read off it now.
+  voxels.materialize();
   return {
     labelValue: SEGMENT_VALUE,
-    artifactId,
     voxels,
     maskId: resolved,
     segmentId: segmentationStore.getMask(resolved).segmentId,

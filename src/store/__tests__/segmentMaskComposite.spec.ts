@@ -168,7 +168,7 @@ describe('composing the segments of an image into one labelmap', () => {
       'Tumor',
     ]);
     expect(new Set(segments.map((segment) => segment.value)).size).toBe(3);
-    expect(store().resolveLabelmapBinding(unbound)).toBeUndefined();
+    expect(store().findMaskBinding(unbound)).toBeUndefined();
     expect(scalars[parentOffset(1, 1, 1)]).toBe(segments[2].value);
     expect(Array.from(scalars).filter((value) => value !== 0)).toHaveLength(1);
   });

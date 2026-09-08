@@ -12,8 +12,15 @@ export type Extent3D = [number, number, number, number, number, number];
 export const DEFAULT_SEGMENTATION_FILL_OPACITY = 0.3;
 
 export type LabelmapBinding = {
-  artifactId: string;
+  /**
+   * This mask's voxels, and no other segment's. Held raw: a vtk object must
+   * not be proxied, so every writer of a binding marks it.
+   */
+  image: vtkLabelMap;
   extent: Extent3D; // the mask's own bounds, in parent image index space
+  /** Reaches the saved archive's entry path, so a round trip keeps it. */
+  name: string;
+  source?: ProcessingResultSource;
 };
 
 /**
@@ -21,13 +28,6 @@ export type LabelmapBinding = {
  * type id: everything the user sees or sets, visibility and lock included,
  * lives on the type, so this record is storage and nothing else.
  */
-/** What an artifact is, apart from its voxels: whose it is and where from. */
-export type ArtifactMetadata = {
-  parentImage: string;
-  name: string;
-  source?: ProcessingResultSource;
-};
-
 export type SegmentMask = {
   id: string;
   segmentId: string;
@@ -44,7 +44,7 @@ export const LABELMAP_BACKGROUND_VALUE = 0;
 export const makeDefaultSegmentName = (value: number) => `Segment ${value}`;
 
 /**
- * One artifact's label descriptor, derived from the segments bound to it.
+ * One mask's label descriptor, derived from the segment it delineates.
  * Identity lives on `Segment`; this is the value-keyed view the labelmap
  * renderer and the .seg.nrrd writer consume.
  */

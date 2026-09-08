@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { markRaw, reactive, ref, toRaw } from 'vue';
+import { markRaw, reactive, ref } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
@@ -21,7 +21,6 @@ import {
 } from '@/src/store/segmentationWire';
 
 export type { SegmentationArtifactIO };
-export type { ArtifactMetadata };
 export { LABELMAP_MAX_VALUE };
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
@@ -46,8 +45,8 @@ import {
   listMasks,
   maskScalars,
   type Extent3D,
+  type LabelmapBinding,
   type LabelmapSegment,
-  type ArtifactMetadata,
   type SegmentMask,
   type Segmentation,
   type SegmentationDisplayPatch,
@@ -158,11 +157,16 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const segmentRegistry = useSegmentStore().segments;
 
   const segmentations = reactive<Record<string, Segmentation>>({});
-  // Internal storage layer: UI and tools reach it through this store's API only.
-  const artifactIndex = reactive<Record<string, vtkLabelMap>>({});
-  const artifactMeta = reactive<Record<string, ArtifactMetadata>>({});
+  const allBindings = () =>
+    Object.values(segmentations).flatMap((segmentation) =>
+      listMasks(segmentation).flatMap((segment) =>
+        segment.representations.labelmap
+          ? [segment.representations.labelmap]
+          : []
+      )
+    );
   const artifactNamer = createArtifactNamer(
-    () => new Set(Object.values(artifactMeta).map((meta) => meta.name))
+    () => new Set(allBindings().map((binding) => binding.name))
   );
 
   function getSegmentation(segmentationId: string) {
@@ -225,79 +229,36 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentation.masks[id];
   }
 
-  function getSegmentationForArtifact(artifactId: string) {
-    const parentImage = artifactMeta[artifactId]?.parentImage;
-    return parentImage ? getSegmentationForImage(parentImage) : undefined;
-  }
-
-  /** The ordered segments whose labelmap binding points at one artifact. */
-  function masksForArtifact(artifactId: string) {
-    const segmentation = getSegmentationForArtifact(artifactId);
-    if (!segmentation) return [];
-    return listMasks(segmentation).filter(
-      (segment) => segment.representations.labelmap?.artifactId === artifactId
-    );
-  }
-
-  function registerArtifact(labelmap: vtkLabelMap, meta: ArtifactMetadata) {
-    const id = useIdStore().nextId();
-    artifactIndex[id] = markRaw(labelmap);
-    artifactMeta[id] = { ...meta };
-    return id;
-  }
-
   /**
-   * Allocates a mask on the parent's grid that covers nothing yet. `name` is
-   * the name a manifest carried: it reaches the saved zip's entry path and the
-   * artifact list, so a restore that generated one instead would rename the
-   * file on every round trip. Duplicates are fine, serialize resolves the
-   * archive path against the ones it has already used.
+   * A fresh binding over voxels on the parent's grid, covering `extent`. `name`
+   * is the name a manifest carried: it reaches the saved zip's entry path, so a
+   * restore that generated one instead would rename the file on every round
+   * trip. Duplicates are fine, serialize resolves the archive path against the
+   * ones it has already used.
    */
-  function createArtifactForImage(
+  function createBindingForImage(
     parentImageId: string,
     extent: Extent3D = emptyExtent(),
     source?: ProcessingResultSource,
     name?: string
-  ) {
+  ): LabelmapBinding {
     const imageData = imageCacheStore.getVtkImageData(parentImageId);
     if (!imageData) throw new Error('No such parent image');
 
     const baseName =
       imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME;
-    return registerArtifact(allocateMask(imageData, extent), {
-      parentImage: parentImageId,
+    return {
+      image: markRaw(allocateMask(imageData, extent)),
+      extent,
       name: name ?? artifactNamer.pick(parentImageId, baseName),
       ...(source ? { source } : {}),
-    });
+    };
   }
 
-  function updateArtifactMeta(
-    artifactId: string,
-    patch: Partial<ArtifactMetadata>
-  ) {
-    const meta = artifactMeta[artifactId];
-    if (!meta) throw new Error('No such artifact');
-    artifactMeta[artifactId] = { ...meta, ...patch };
-  }
-
+  /** Drops a mask, and the voxels it held with it. */
   function detachMask(segmentation: Segmentation, maskId: string) {
     removeFromArray(segmentation.order, maskId);
     delete segmentation.masks[maskId];
-  }
-
-  function removeArtifact(artifactId: string) {
-    const meta = artifactMeta[artifactId];
-    if (!meta) return;
-
-    const segmentation = getSegmentationForImage(meta.parentImage);
-    if (segmentation) {
-      masksForArtifact(artifactId).forEach((segment) =>
-        detachMask(segmentation, segment.id)
-      );
-    }
-
-    delete artifactIndex[artifactId];
-    delete artifactMeta[artifactId];
   }
 
   /** A mask is editable when the segment it delineates is unlocked. */
@@ -369,21 +330,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         )
       );
 
-      const artifactId = createArtifactForImage(
+      const binding = createBindingForImage(
         parentImageId,
         extent,
         options.source,
         options.artifactName
       );
-      segment.representations.labelmap = { artifactId, extent };
+      segment.representations.labelmap = binding;
       created.push(segment);
 
       // The copy rewrites the source's value, so the mask holds SEGMENT_VALUE
       // whatever the file it came from called this segment.
-      return {
-        labelValue: SEGMENT_VALUE,
-        mask: maskScalars(artifactIndex[artifactId]),
-      };
+      return { labelValue: SEGMENT_VALUE, mask: maskScalars(binding.image) };
     });
 
     return created;
@@ -413,7 +371,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
-    source?: ArtifactMetadata['source']
+    source?: ProcessingResultSource
   ) {
     return importLabelmapImage(imageID, parentID, {
       decode: (labelmap, component) =>
@@ -436,10 +394,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
-    segment.representations.labelmap = {
-      artifactId: createArtifactForImage(segmentation.parentImageId),
-      extent: emptyExtent(),
-    };
+    segment.representations.labelmap = createBindingForImage(
+      segmentation.parentImageId
+    );
     return segment.representations.labelmap;
   }
 
@@ -447,25 +404,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const findMaskBinding = (maskId: string) =>
     findMask(maskId)?.representations.labelmap;
 
-  /**
-   * A copy of a segment's binding, or undefined when it has none. No live
-   * buffer travels with it: the copied extent would go stale beside one.
-   */
-  function resolveLabelmapBinding(maskId: string) {
-    const binding = getMask(maskId).representations.labelmap;
-    if (!binding) return undefined;
-    return { ...toRaw(binding) };
-  }
-
-  const { maskVoxels, artifactVoxels, boundedMask, voxelClaim } =
+  const { maskVoxels, findMaskVoxels, boundedMask, voxelClaim } =
     createVoxelAccess({
-      artifactIndex,
-      artifactMeta,
       imageCacheStore,
       segmentRegistry,
       findMask,
       getMask,
-      masksForArtifact,
       segmentationOfMask,
       ensureLabelmapBinding,
       maskLocked,
@@ -563,12 +507,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    */
   function maskLayersForImage(parentImageId: string) {
     return imageMasks(parentImageId).flatMap((segment) => {
-      const { artifactId } = segment.representations.labelmap ?? {};
-      return artifactId
+      return segment.representations.labelmap
         ? [
             {
               maskId: segment.id,
-              artifactId,
               stackIndex: segmentRegistry.orderIndexOf(segment.segmentId),
             },
           ]
@@ -585,32 +527,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegmentation(segmentationId).order = [...order];
   }
 
+  /** The mask holds this segment and nothing else, so its voxels go with it. */
   function deleteMask(maskId: string) {
-    const segmentation = getSegmentationOfMask(maskId);
-    const binding = segmentation.masks[maskId].representations.labelmap;
-
-    detachMask(segmentation, maskId);
-
-    // The mask holds this segment and nothing else, so it goes with it.
-    if (binding) removeArtifact(binding.artifactId);
+    detachMask(getSegmentationOfMask(maskId), maskId);
   }
 
   function removeSegmentation(segmentationId: string) {
-    const segmentation = segmentations[segmentationId];
-    if (!segmentation) return;
-
-    const { parentImageId } = segmentation;
     delete segmentations[segmentationId];
-
-    removeArtifactsForImage(parentImageId);
-  }
-
-  function removeArtifactsForImage(parentImageId: string) {
-    Object.keys(artifactMeta)
-      .filter(
-        (artifactId) => artifactMeta[artifactId].parentImage === parentImageId
-      )
-      .forEach(removeArtifact);
   }
 
   // --- edit targets --- //
@@ -684,9 +607,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- render sync --- //
 
-  const labelmapSegmentsByArtifact = createSegmentProjection({
+  const labelmapSegmentsByMask = createSegmentProjection({
     segmentations,
-    artifactMeta,
     segmentRegistry,
   });
 
@@ -694,21 +616,16 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   const { serialize, deserialize } = createSegmentationWire({
     segmentations,
-    artifactIndex,
-    artifactMeta,
     saveFormat,
     imageCacheStore,
     segmentRegistry,
-    labelmapSegmentsByArtifact,
+    labelmapSegmentsByMask,
     createMask,
     detachMask,
     decodeSegments,
     ensureSegmentationForImage,
     getSegmentationForImage,
     maskFor,
-    masksForArtifact,
-    registerArtifact,
-    removeArtifact,
     splitLabelmapIntoMasks,
   });
 
@@ -719,26 +636,23 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       artifactNamer.forget(parentImageId);
       const id = getSegmentationForImage(parentImageId)?.id;
       if (id) removeSegmentation(id);
-      else removeArtifactsForImage(parentImageId);
     });
   });
 
   return {
     segmentations,
-    artifactIndex,
-    artifactMeta,
-    labelmapSegmentsByArtifact,
+    labelmapSegmentsByMask,
     maskFor,
     findEditTarget,
     resolveEditTarget,
     maskExists,
     getSegmentationForImage,
     ensureSegmentationForImage,
+    segmentationOfMask,
     getMask,
-    resolveLabelmapBinding,
     findMaskBinding,
     maskVoxels,
-    artifactVoxels,
+    findMaskVoxels,
     createMask,
     ensureLabelmapBinding,
     isLocked,
@@ -746,11 +660,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     reorderSegments,
     deleteMask,
     removeSegmentation,
-    getSegmentationForArtifact,
-    masksForArtifact,
-    registerArtifact,
-    createArtifactForImage,
-    updateArtifactMeta,
+    createBindingForImage,
     splitLabelmapIntoMasks,
     decodeSegments,
     convertImageToLabelmap,
@@ -761,7 +671,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     imageMasks,
     editableMasks,
     maskLayersForImage,
-    removeArtifact,
     serialize,
     deserialize,
   };

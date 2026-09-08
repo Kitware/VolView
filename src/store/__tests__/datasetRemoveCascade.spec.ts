@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
+import {
+  boundMasks,
+  mintSegment,
+} from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -64,8 +67,8 @@ const seatMask = (imageId: string) => {
   const segmentations = useSegmentationStore();
   const segmentationId = segmentations.ensureSegmentationForImage(imageId).id;
   const maskId = segmentations.createMask(segmentationId, mintSegment()).id;
-  const { artifactId } = segmentations.maskVoxels(maskId).materialize();
-  return { segmentationId, maskId, artifactId };
+  segmentations.maskVoxels(maskId).materialize();
+  return { segmentationId, maskId };
 };
 
 describe('dataset remove — synchronous reference cascade', () => {
@@ -75,13 +78,14 @@ describe('dataset remove — synchronous reference cascade', () => {
 
   it('clears segment masks whose parent image was removed', () => {
     seatImage('img-1', 'CT');
-    const segmentations = useSegmentationStore();
-    const { artifactId } = seatMask('img-1');
-    expect(segmentations.artifactMeta).toHaveProperty(artifactId);
+    // The store subscribes to image deletion on setup, so seat it first.
+    useSegmentationStore();
+    const { maskId } = seatMask('img-1');
+    expect(boundMasks().map((mask) => mask.id)).toContain(maskId);
 
     useDatasetStore().remove('img-1');
 
-    expect(segmentations.artifactMeta).not.toHaveProperty(artifactId);
+    expect(boundMasks()).toEqual([]);
   });
 
   it('clears ALL segment masks when an image has several (no splice-skip)', () => {
@@ -95,30 +99,32 @@ describe('dataset remove — synchronous reference cascade', () => {
           name,
         })
       );
-      return segmentations.maskVoxels(segment.id).materialize().artifactId;
+      segmentations.maskVoxels(segment.id).materialize();
+      return segment.id;
     });
-    const artifactIds = [first.artifactId, ...rest];
+    const maskIds = [first.maskId, ...rest];
+    expect(
+      boundMasks()
+        .map((mask) => mask.id)
+        .sort()
+    ).toEqual([...maskIds].sort());
 
     useDatasetStore().remove('img-1');
 
-    artifactIds.forEach((id) => {
-      expect(segmentations.artifactMeta).not.toHaveProperty(id);
-      expect(segmentations.artifactIndex).not.toHaveProperty(id);
-    });
+    expect(boundMasks()).toEqual([]);
   });
 
   it('removes the segmentation and its masks with the parent image', () => {
     seatImage('img-1', 'CT');
     const segmentations = useSegmentationStore();
-    const { segmentationId, artifactId } = seatMask('img-1');
-    expect(segmentations.artifactMeta).toHaveProperty(artifactId);
+    const { segmentationId, maskId } = seatMask('img-1');
+    expect(boundMasks().map((mask) => mask.id)).toContain(maskId);
 
     useDatasetStore().remove('img-1');
 
     expect(segmentations.getSegmentationForImage('img-1')).toBeFalsy();
     expect(segmentations.segmentations).not.toHaveProperty(segmentationId);
-    expect(segmentations.artifactMeta).not.toHaveProperty(artifactId);
-    expect(segmentations.artifactIndex).not.toHaveProperty(artifactId);
+    expect(boundMasks()).toEqual([]);
   });
 
   it('leaves another image segmentation intact', () => {
@@ -131,7 +137,7 @@ describe('dataset remove — synchronous reference cascade', () => {
     useDatasetStore().remove('img-1');
 
     expect(segmentations.getSegmentationForImage('img-2')).toBeTruthy();
-    expect(segmentations.artifactMeta).toHaveProperty(kept.artifactId);
+    expect(boundMasks().map((mask) => mask.id)).toEqual([kept.maskId]);
   });
 
   it('clears annotation tools bound to the removed image', () => {

@@ -153,52 +153,48 @@ describe('segmentation display state', () => {
         segmentation.id,
         mintSegment({ name: 'Tumor' })
       );
-      const { artifactId } = store().maskVoxels(segment.id).materialize();
+      store().maskVoxels(segment.id).materialize();
 
       segments().updateSegment(segment.segmentId, {
         fillOpacity: 0.4,
         outlineOpacity: 0.25,
       });
 
-      expect(store().labelmapSegmentsByArtifact[artifactId]).toEqual([
+      expect(store().labelmapSegmentsByMask[segment.id]).toEqual([
         expect.objectContaining({ fillOpacity: 0.4, outlineOpacity: 0.25 }),
       ]);
     });
 
-    // A representation redraws when its artifact's list changes identity, so
-    // editing one segment must not hand every other artifact a new array.
-    it('leaves an untouched artifact its previous list', () => {
+    // A representation redraws when its mask's list changes identity, so
+    // editing one segment must not hand every other mask a new array.
+    it('leaves an untouched mask its previous list', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       const edited = store().createMask(segmentation.id, mintSegment());
       const untouched = store().createMask(segmentation.id, mintSegment());
-      const editedArtifact = store()
-        .maskVoxels(edited.id)
-        .materialize().artifactId;
-      const otherArtifact = store()
-        .maskVoxels(untouched.id)
-        .materialize().artifactId;
+      store().maskVoxels(edited.id).materialize();
+      store().maskVoxels(untouched.id).materialize();
 
-      const before = store().labelmapSegmentsByArtifact[otherArtifact];
+      const before = store().labelmapSegmentsByMask[untouched.id];
       segments().updateSegment(edited.segmentId, { fillOpacity: 0.4 });
-      const after = store().labelmapSegmentsByArtifact;
+      const after = store().labelmapSegmentsByMask;
 
-      expect(after[otherArtifact]).toBe(before);
-      expect(after[editedArtifact]).toEqual([
+      expect(after[untouched.id]).toBe(before);
+      expect(after[edited.id]).toEqual([
         expect.objectContaining({ fillOpacity: 0.4 }),
       ]);
     });
 
     // The whole projection is one watch source for the probe, so a change that
-    // touched no artifact must not invalidate it either.
+    // touched no mask must not invalidate it either.
     it('keeps the whole projection when nothing it covers changed', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       const segment = store().createMask(segmentation.id, mintSegment());
       store().maskVoxels(segment.id).materialize();
 
-      const before = store().labelmapSegmentsByArtifact;
+      const before = store().labelmapSegmentsByMask;
       segments().updateSegment(segment.segmentId, { strokeWidth: 5 });
 
-      expect(store().labelmapSegmentsByArtifact).toBe(before);
+      expect(store().labelmapSegmentsByMask).toBe(before);
     });
   });
 });

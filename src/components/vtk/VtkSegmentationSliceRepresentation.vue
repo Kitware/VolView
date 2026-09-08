@@ -41,26 +41,21 @@ if (!view) throw new Error('No VtkView');
 const segmentationStore = useSegmentationStore();
 // Where the mask sits in the parent image, and what it covers.
 const binding = computed(() => segmentationStore.findMaskBinding(maskId.value));
-const artifactId = computed(() => binding.value?.artifactId);
-const extent = computed(() => binding.value?.extent);
-const metadata = computed(() =>
-  artifactId.value
-    ? segmentationStore.artifactMeta[artifactId.value]
-    : undefined
+const segmentation = computed(() =>
+  segmentationStore.segmentationOfMask(maskId.value)
 );
-const segments = computed(() =>
-  artifactId.value
-    ? segmentationStore.labelmapSegmentsByArtifact[artifactId.value]
-    : undefined
+const extent = computed(() => binding.value?.extent);
+const segments = computed(
+  () => segmentationStore.labelmapSegmentsByMask[maskId.value]
 );
 
 const imageData = computed(() => {
   // A mask that covers nothing has no voxels, so there is no mapper input.
   const bounds = extent.value;
-  if (!artifactId.value || !bounds || isEmptyExtent(bounds)) return null;
-  // The id can outlive its artifact by a tick, so the accessor is asked rather
+  if (!bounds || isEmptyExtent(bounds)) return null;
+  // The id can outlive its segment by a tick, so the accessor is asked rather
   // than indexed.
-  const voxels = segmentationStore.artifactVoxels(artifactId.value);
+  const voxels = segmentationStore.findMaskVoxels(maskId.value);
   return voxels.exists() ? voxels.image() : null;
 });
 
@@ -98,7 +93,7 @@ watchEffect(() => {
 });
 
 // set slicing mode
-const parentImageId = computed(() => metadata.value?.parentImage);
+const parentImageId = computed(() => segmentation.value?.parentImageId);
 const { metadata: parentMetadata } = useImage(parentImageId);
 
 // Compute segment group's LPS orientation from its direction matrix
@@ -153,12 +148,6 @@ watchEffect(() => {
     sliceWithinExtent(bounds, ijkIndex, storedSlice.value);
   sliceRep.actor.setVisibility(drawsHere);
 });
-
-const segmentation = computed(() =>
-  artifactId.value
-    ? segmentationStore.getSegmentationForArtifact(artifactId.value)
-    : undefined
-);
 
 // set coloring properties
 const applySegmentColoring = () => {

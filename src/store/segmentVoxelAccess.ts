@@ -1,6 +1,5 @@
 import type { TypedArray } from '@kitware/vtk.js/types';
 
-import type vtkLabelMap from '@/src/vtk/LabelMap';
 import type { Maybe } from '@/src/types';
 import type { VoxelGesture } from '@/src/store/segmentations';
 import type { useImageCacheStore } from '@/src/store/image-cache';
@@ -20,7 +19,6 @@ import {
   listMasks,
   maskScalars,
   padExtent,
-  type ArtifactMetadata,
   type Extent3D,
   type LabelmapBinding,
   type MaskVoxelAccessor,
@@ -31,71 +29,54 @@ import {
 
 /** What voxel access needs from the store that owns the records. */
 export type VoxelAccessDeps = {
-  artifactIndex: Record<string, vtkLabelMap>;
-  artifactMeta: Record<string, ArtifactMetadata>;
   imageCacheStore: ReturnType<typeof useImageCacheStore>;
   segmentRegistry: SegmentRegistry;
   findMask: (maskId: string) => SegmentMask | undefined;
   getMask: (maskId: string) => SegmentMask;
-  masksForArtifact: (artifactId: string) => SegmentMask[];
   segmentationOfMask: (maskId: string) => Segmentation | undefined;
   ensureLabelmapBinding: (maskId: string) => LabelmapBinding;
   maskLocked: (mask: SegmentMask) => boolean;
 };
 
 /**
- * Reading and growing the voxels behind a mask or an artifact. Split out so the
- * store holds the records; every accessor re-resolves its binding rather than
- * capturing a buffer, so none of them outlive a mask they were made for.
+ * Reading and growing the voxels behind a mask. Split out so the store holds
+ * the records; every accessor re-resolves its binding rather than capturing a
+ * buffer, so none of them outlive a mask they were made for.
  */
 export function createVoxelAccess(deps: VoxelAccessDeps) {
   const {
-    artifactIndex,
-    artifactMeta,
     imageCacheStore,
     findMask,
     getMask,
-    masksForArtifact,
     segmentationOfMask,
     ensureLabelmapBinding,
     maskLocked,
   } = deps;
 
-  function requireArtifactContext(artifactId: string) {
-    const mask = artifactIndex[artifactId];
-    const meta = artifactMeta[artifactId];
-    if (!mask || !meta) throw new Error('No such artifact');
-    const parent = imageCacheStore.getVtkImageData(meta.parentImage);
+  function requireParentImage(maskId: string) {
+    const segmentation = segmentationOfMask(maskId);
+    if (!segmentation) throw new Error('No such segment');
+    const parent = imageCacheStore.getVtkImageData(segmentation.parentImageId);
     if (!parent) throw new Error('No such parent image');
-    return { mask, parent };
-  }
-
-  function requireArtifactBinding(artifactId: string) {
-    const segment = masksForArtifact(artifactId)[0];
-    const binding = segment?.representations.labelmap;
-    if (!binding) throw new Error('No segment bound to this artifact');
-    return binding;
+    return parent;
   }
 
   /**
    * Grows one mask, in place, to cover `extent` in parent index space, with
    * `padding` voxels of room beyond it when it has to grow at all.
    */
-  function ensureArtifactContains(
-    artifactId: string,
-    extent: Extent3D,
-    padding = 0
-  ) {
+  function ensureMaskContains(maskId: string, extent: Extent3D, padding = 0) {
     if (isEmptyExtent(extent)) return false;
 
-    const { mask, parent } = requireArtifactContext(artifactId);
+    const binding = getMask(maskId).representations.labelmap;
+    if (!binding) throw new Error('No storage: call materialize() first');
+    const parent = requireParentImage(maskId);
     // Refused before anything is touched, so a rejected growth leaves the mask
     // exactly as it was.
     const parentExtent = fullExtent(parent.getDimensions());
     if (!extentContains(parentExtent, extent))
       throw new Error('Extent leaves the parent image');
 
-    const binding = requireArtifactBinding(artifactId);
     const current = binding.extent;
     if (!isEmptyExtent(current) && extentContains(current, extent))
       return false;
@@ -104,25 +85,23 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
     const grown = isEmptyExtent(current)
       ? requested
       : extentUnion(current, requested);
-    regrowMask(mask, parent, current, grown);
+    regrowMask(binding.image, parent, current, grown);
     binding.extent = grown;
     return true;
   }
 
   /**
-   * The voxel half of the accessor seam, over whichever mask `findArtifactId`
+   * The voxel half of the accessor seam, over whichever mask `findBinding`
    * resolves. Resolution is deferred to every call so a stale accessor sees
    * deletion or growth done through another one. `onMissing` names why storage
    * is unreachable, so `exists()` can answer without throwing.
    */
   function voxelStorage(
-    findArtifactId: () => Maybe<string>,
+    maskId: string,
+    findBinding: () => Maybe<LabelmapBinding>,
     onMissing: () => never
   ): VoxelStorage {
-    const findImage = () => {
-      const artifactId = findArtifactId();
-      return artifactId ? artifactIndex[artifactId] : undefined;
-    };
+    const findImage = () => findBinding()?.image;
     const requireImage = () => findImage() ?? onMissing();
     const requireScalars = () => maskScalars(requireImage());
 
@@ -142,7 +121,7 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       },
       ensureContains: (extent: Extent3D, padding = 0) => {
         requireImage();
-        return ensureArtifactContains(findArtifactId()!, extent, padding);
+        return ensureMaskContains(maskId, extent, padding);
       },
     };
   }
@@ -161,38 +140,36 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
     // Deliberately tolerant where binding() is not: the segment itself can be
     // deleted out from under an accessor, and that is an absent storage, not a
     // lookup error.
-    const findArtifactId = () =>
-      findMask(maskId)?.representations.labelmap?.artifactId;
+    const findBinding = () => findMask(maskId)?.representations.labelmap;
 
     const onMissing = (): never => {
-      if (!binding()) throw new Error('No storage: call materialize() first');
-      throw new Error('No such artifact');
+      throw new Error('No storage: call materialize() first');
     };
 
     return {
       binding,
       materialize: () => ensureLabelmapBinding(maskId),
-      ...voxelStorage(findArtifactId, onMissing),
+      ...voxelStorage(maskId, findBinding, onMissing),
     };
   }
 
   /**
-   * The accessor for consumers that hold an artifact and no segment. Stays
-   * constructible for an artifact that is gone: the renderer and the paint
-   * widget are computeds keyed on an id that can vanish a tick before they do.
+   * The accessor for consumers holding an id a segment may already have left:
+   * the renderer and the paint widget are computeds keyed on one that can
+   * vanish a tick before they do, so this stays constructible either way.
    */
-  function artifactVoxels(artifactId: string) {
-    return voxelStorage(
-      () => (artifactIndex[artifactId] ? artifactId : undefined),
+  const findMaskVoxels = (maskId: string) =>
+    voxelStorage(
+      maskId,
+      () => findMask(maskId)?.representations.labelmap,
       () => {
-        throw new Error('No such artifact');
+        throw new Error('No such segment');
       }
     );
-  }
 
   /** A bound segment's buffer, absent when it has none or holds nothing. */
   const boundedMask = (binding?: LabelmapBinding) =>
-    binding && boundScalars(artifactIndex[binding.artifactId], binding.extent);
+    binding && boundScalars(binding.image, binding.extent);
 
   /**
    * The masks of an image's other segments that `gesture` may take a voxel
@@ -227,12 +204,10 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
   }
 
   return {
-    requireArtifactContext,
-    requireArtifactBinding,
-    ensureArtifactContains,
-    voxelStorage,
+    requireParentImage,
+    ensureMaskContains,
     maskVoxels,
-    artifactVoxels,
+    findMaskVoxels,
     boundedMask,
     siblingMasks,
     voxelClaim,

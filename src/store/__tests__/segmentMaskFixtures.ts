@@ -14,7 +14,7 @@ import {
   type SegmentationArtifactIO,
 } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
-import type { Extent3D } from '@/src/types/segmentation';
+import { listMasks, type Extent3D } from '@/src/types/segmentation';
 import type { SegmentInit } from '@/src/types/segment';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
@@ -148,11 +148,8 @@ export const segmentationSnapshot = (imageId: string) => {
         outlineOpacity: appearance.outlineOpacity,
         binding: binding && {
           extent: [...binding.extent],
-          artifactName: store().artifactMeta[binding.artifactId].name,
-          artifactSource: store().artifactMeta[binding.artifactId].source,
-          // Relative, so a restore onto a different image still compares.
-          artifactParentIsSelf:
-            store().artifactMeta[binding.artifactId].parentImage === imageId,
+          artifactName: binding.name,
+          artifactSource: binding.source,
         },
       };
     }),
@@ -299,7 +296,7 @@ export function addActiveSegment(
     })
   );
   const voxels = segmentationStore.maskVoxels(segment.id);
-  const { artifactId } = voxels.materialize();
+  voxels.materialize();
   voxels.ensureContains([0, values.length - 1, 0, 0, 0, 0]);
   voxels.apply(values);
   selectSegment(segment.id);
@@ -307,7 +304,6 @@ export function addActiveSegment(
   return {
     segmentationId: segmentation.id,
     maskId: segment.id,
-    artifactId,
     labelMap: voxels.image(),
   };
 }
@@ -315,6 +311,17 @@ export function addActiveSegment(
 /** The record an edit on this image would land in, without creating one. */
 export const selectedSegmentOn = (imageId: string) =>
   store().findEditTarget(imageId);
+
+/** Every mask in the scene that holds voxels, whatever image it sits on. */
+export const boundMasks = () =>
+  Object.values(store().segmentations).flatMap((segmentation) =>
+    listMasks(segmentation).filter(
+      (segment) => segment.representations.labelmap
+    )
+  );
+
+/** The buffer a mask's voxels live in, which is its storage identity. */
+export const storageOf = (maskId: string) => bindingOf(maskId)?.image;
 
 export const bindingOf = (maskId: string) =>
   store().maskVoxels(maskId).binding();

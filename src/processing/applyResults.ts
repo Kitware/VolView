@@ -28,7 +28,11 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import { cssColorToRGBA, type LabelmapSegment } from '@/src/types/segmentation';
+import {
+  cssColorToRGBA,
+  listMasks,
+  type LabelmapSegment,
+} from '@/src/types/segmentation';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
@@ -414,9 +418,9 @@ export const appApplyDependencies = (): ApplyDependencies => ({
     useLayersStore().addLayer(parentSelection, childSelection),
   segmentGroups: {
     resultSourcesInScene: () =>
-      Object.values(useSegmentationStore().artifactMeta).map(
-        ({ source }) => source
-      ),
+      Object.values(useSegmentationStore().segmentations)
+        .flatMap((segmentation) => listMasks(segmentation))
+        .map((segment) => segment.representations.labelmap?.source),
     convertImageToLabelmap: (childSelection, parentSelection, source) =>
       useSegmentationStore().convertImageToLabelmap(
         childSelection,

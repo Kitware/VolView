@@ -12,6 +12,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
 import { rgbaToCssColor } from '@/src/types/segmentation';
+import { boundMasks } from '@/src/store/__tests__/segmentMaskFixtures';
 
 const IMAGE_ID = 'img-1';
 
@@ -162,7 +163,7 @@ describe('shape references to segment segments', () => {
     segments().addSegment({ name: 'Tumor' });
 
     expect(recordsOf(IMAGE_ID)).toEqual([]);
-    expect(useSegmentationStore().artifactMeta).toEqual({});
+    expect(boundMasks()).toEqual([]);
     expect(store.toolIDs).toEqual([]);
   });
 

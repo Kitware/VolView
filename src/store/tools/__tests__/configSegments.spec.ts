@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { maskOn } from '@/src/store/__tests__/segmentMaskFixtures';
+import { maskOn, boundMasks } from '@/src/store/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
@@ -71,7 +71,7 @@ describe('a configured type creates nothing', () => {
 
     expect(typeNames()).toEqual(['Tumor', 'Node']);
     expect(store().getSegmentationForImage('img-1')).toBeFalsy();
-    expect(store().artifactMeta).toEqual({});
+    expect(boundMasks()).toEqual([]);
   });
 
   it('offers the same segments on every image the user views', async () => {

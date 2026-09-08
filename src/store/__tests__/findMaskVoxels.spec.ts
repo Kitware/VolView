@@ -13,12 +13,10 @@ import type { Extent3D } from '@/src/types/segmentation';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 // ---------------------------------------------------------------------------
-// The artifact-scoped half of the voxel accessor seam. The renderer, the paint
-// widget, the probe and all-segments processes hold a mask id and no segment,
-// so they cannot route through maskVoxels(). Unlike the segment accessor,
-// this one is constructible for an artifact that is gone: two of its consumers
-// are Vue computeds keyed on an id that can vanish a tick before the component
-// does.
+// The tolerant half of the voxel accessor seam. Unlike maskVoxels(), this one
+// is constructible for a segment that is already gone: the renderer, the paint
+// widget and the probe are Vue computeds keyed on a mask id that can vanish a
+// tick before the component does.
 // ---------------------------------------------------------------------------
 
 const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
@@ -26,7 +24,7 @@ const FULL_EXTENT: Extent3D = [0, 3, 0, 3, 0, 1];
 
 const store = () => useSegmentationStore();
 
-/** A segment grown to the whole parent image, and the mask that holds it. */
+/** A segment grown to the whole parent image, and the buffer that holds it. */
 function seatArtifact(imageId: string, values = new Uint8Array(VOXEL_COUNT)) {
   const segmentation = store().ensureSegmentationForImage(imageId);
   const segment = store().createMask(
@@ -34,36 +32,34 @@ function seatArtifact(imageId: string, values = new Uint8Array(VOXEL_COUNT)) {
     mintSegment({ name: 'Tumor' })
   );
   const voxels = store().maskVoxels(segment.id);
-  const { artifactId } = voxels.materialize();
+  voxels.materialize();
   voxels.ensureContains(FULL_EXTENT);
   voxels.apply(values);
 
   return {
     labelmap: voxels.image(),
-    artifactId,
+    maskId: segment.id,
     segmentationId: segmentation.id,
-    first: { segmentationId: segmentation.id, maskId: segment.id },
-    second: { segmentationId: segmentation.id, maskId: segment.id },
   };
 }
 
 const scalarsOf = (labelmap: vtkLabelMap) =>
   labelmap.getPointData().getScalars().getData();
 
-describe('artifact voxel accessor', () => {
+describe('tolerant mask voxel accessor', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
     await seatImage('img-1');
   });
 
   describe('resolution', () => {
-    it('is constructible for an artifact that does not exist', () => {
-      expect(() => store().artifactVoxels('nope')).not.toThrow();
-      expect(store().artifactVoxels('nope').exists()).toBe(false);
+    it('is constructible for a segment that does not exist', () => {
+      expect(() => store().findMaskVoxels('nope')).not.toThrow();
+      expect(store().findMaskVoxels('nope').exists()).toBe(false);
     });
 
-    it('refuses voxel access for an artifact that does not exist', () => {
-      const voxels = store().artifactVoxels('nope');
+    it('refuses voxel access for a segment that does not exist', () => {
+      const voxels = store().findMaskVoxels('nope');
 
       expect(() => voxels.image()).toThrow();
       expect(() => voxels.scalars()).toThrow();
@@ -72,12 +68,12 @@ describe('artifact voxel accessor', () => {
       expect(() => voxels.ensureContains(FULL_EXTENT)).toThrow();
     });
 
-    it('re-resolves the artifact on every call rather than capturing it', () => {
+    it('re-resolves the storage on every call rather than capturing it', () => {
       const seat = seatArtifact('img-1');
-      const voxels = store().artifactVoxels(seat.artifactId);
+      const voxels = store().findMaskVoxels(seat.maskId);
       expect(voxels.exists()).toBe(true);
 
-      store().removeArtifact(seat.artifactId);
+      store().deleteMask(seat.maskId);
 
       expect(voxels.exists()).toBe(false);
       expect(() => voxels.image()).toThrow();
@@ -85,19 +81,17 @@ describe('artifact voxel accessor', () => {
   });
 
   describe('image()', () => {
-    it('hands back the live labelmap registered for the artifact', () => {
+    it('hands back the live labelmap the binding holds', () => {
       const seat = seatArtifact('img-1');
 
-      expect(store().artifactVoxels(seat.artifactId).image()).toBe(
-        seat.labelmap
-      );
+      expect(store().findMaskVoxels(seat.maskId).image()).toBe(seat.labelmap);
     });
 
-    it('is the same storage the segment accessor resolves', () => {
+    it('is the same storage the strict accessor resolves', () => {
       const seat = seatArtifact('img-1');
 
-      expect(store().artifactVoxels(seat.artifactId).image()).toBe(
-        store().maskVoxels(seat.first.maskId).image()
+      expect(store().findMaskVoxels(seat.maskId).image()).toBe(
+        store().maskVoxels(seat.maskId).image()
       );
     });
   });
@@ -105,7 +99,7 @@ describe('artifact voxel accessor', () => {
   describe('scalars()', () => {
     it('aliases the live buffer rather than copying it', () => {
       const seat = seatArtifact('img-1');
-      const voxels = store().artifactVoxels(seat.artifactId);
+      const voxels = store().findMaskVoxels(seat.maskId);
 
       expect(voxels.scalars()).toBe(scalarsOf(seat.labelmap));
 
@@ -119,7 +113,7 @@ describe('artifact voxel accessor', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
       const seat = seatArtifact('img-1', values);
-      const voxels = store().artifactVoxels(seat.artifactId);
+      const voxels = store().findMaskVoxels(seat.maskId);
 
       const copy = voxels.snapshot();
       expect(copy).not.toBe(scalarsOf(seat.labelmap));
@@ -135,7 +129,7 @@ describe('artifact voxel accessor', () => {
       values[1] = 2;
       const seat = seatArtifact('img-1', values);
 
-      const copy = store().artifactVoxels(seat.artifactId).snapshot();
+      const copy = store().findMaskVoxels(seat.maskId).snapshot();
       expect(copy).toHaveLength(VOXEL_COUNT);
       expect(Array.from(copy).slice(0, 2)).toEqual([1, 2]);
     });
@@ -144,7 +138,7 @@ describe('artifact voxel accessor', () => {
   describe('apply()', () => {
     it('writes through the live buffer instead of swapping it out', () => {
       const seat = seatArtifact('img-1');
-      const voxels = store().artifactVoxels(seat.artifactId);
+      const voxels = store().findMaskVoxels(seat.maskId);
       const buffer = scalarsOf(seat.labelmap);
       const before = seat.labelmap.getMTime();
 
@@ -162,7 +156,7 @@ describe('artifact voxel accessor', () => {
 
     it('copies the given scalars instead of adopting them', () => {
       const seat = seatArtifact('img-1');
-      const voxels = store().artifactVoxels(seat.artifactId);
+      const voxels = store().findMaskVoxels(seat.maskId);
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[0] = 1;
@@ -176,7 +170,7 @@ describe('artifact voxel accessor', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
       const seat = seatArtifact('img-1', values);
-      const voxels = store().artifactVoxels(seat.artifactId);
+      const voxels = store().findMaskVoxels(seat.maskId);
 
       expect(() => voxels.apply(new Uint8Array(VOXEL_COUNT - 1))).toThrow();
       expect(Array.from(scalarsOf(seat.labelmap))).toEqual(Array.from(values));
@@ -188,7 +182,7 @@ describe('artifact voxel accessor', () => {
       const seat = seatArtifact('img-1');
 
       expectCoveredExtentIsNoop(
-        store().artifactVoxels(seat.artifactId),
+        store().findMaskVoxels(seat.maskId),
         seat.labelmap
       );
     });
@@ -198,7 +192,7 @@ describe('artifact voxel accessor', () => {
 
       expect(
         store()
-          .artifactVoxels(seat.artifactId)
+          .findMaskVoxels(seat.maskId)
           .ensureContains([0, -1, 0, -1, 0, -1])
       ).toBe(false);
     });
@@ -207,34 +201,32 @@ describe('artifact voxel accessor', () => {
       const seat = seatArtifact('img-1');
 
       expectExtentPastParentThrows(
-        store().artifactVoxels(seat.artifactId),
+        store().findMaskVoxels(seat.maskId),
         seat.labelmap
       );
     });
   });
 
   describe('shared storage', () => {
-    it('shows a segment accessor write through the artifact accessor', () => {
+    it('shows a strict accessor write through the tolerant one', () => {
       const seat = seatArtifact('img-1');
-      const segment = store().maskVoxels(seat.first.maskId);
+      const segment = store().maskVoxels(seat.maskId);
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[2] = 1;
       segment.apply(next);
 
       expect(
-        Array.from(store().artifactVoxels(seat.artifactId).snapshot())[2]
+        Array.from(store().findMaskVoxels(seat.maskId).snapshot())[2]
       ).toBe(1);
     });
 
-    it('shows an artifact accessor write through the segment accessor', () => {
+    it('shows a tolerant accessor write through the strict one', () => {
       const seat = seatArtifact('img-1');
 
-      store().artifactVoxels(seat.artifactId).scalars()[6] = 2;
+      store().findMaskVoxels(seat.maskId).scalars()[6] = 2;
 
-      expect(
-        Array.from(store().maskVoxels(seat.second.maskId).snapshot())[6]
-      ).toBe(2);
+      expect(Array.from(store().maskVoxels(seat.maskId).snapshot())[6]).toBe(2);
     });
   });
 });
