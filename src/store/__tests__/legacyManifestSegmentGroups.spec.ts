@@ -82,7 +82,7 @@ describe('migrated legacy manifests without `datasets`', () => {
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
     const store = useSegmentationStore();
-    const { artifactIdMap: idMap, skipped } = await store.deserialize({
+    const { restoredArtifactIds: restored, skipped } = await store.deserialize({
       manifest: legacyManifest,
       stateFiles: [],
       // Restore keys every fallback dataset by its stringified source id.
@@ -92,7 +92,7 @@ describe('migrated legacy manifests without `datasets`', () => {
     });
 
     expect(skipped).toEqual([]);
-    expect(idMap['sg-tumor']).toBeDefined();
+    expect(restored.has('sg-tumor')).toBe(true);
     // The consumed artifact dataset is removed after conversion.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-seg');
@@ -105,5 +105,30 @@ describe('migrated legacy manifests without `datasets`', () => {
         labelValue: segment.representations.labelmap!.labelValue,
       }))
     ).toEqual([{ name: 'Tumor', labelValue: 1 }]);
+  });
+
+  // The split reuses the segment the manifest named only while that segment
+  // holds no mask on this image, so the migrated masks must be detached first.
+  // Splitting before the detach mints a suffixed duplicate instead.
+  it('reuses the migrated segment rather than minting a second one', async () => {
+    seatImage('store-ct', 'CT Chest');
+    seatImage('store-seg', 'Tumor');
+
+    const store = useSegmentationStore();
+    await store.deserialize({
+      manifest: legacyManifest,
+      stateFiles: [],
+      dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
+      segmentIdMap: useSegmentStore().deserialize(legacyManifest),
+      artifactSources: resolveArtifactRestoreSources(legacyManifest),
+    });
+
+    const names = useSegmentStore().segments.segmentList.value.map(
+      (segment) => segment.name
+    );
+    expect(names).toEqual(['Tumor']);
+    expect(listMasks(store.getSegmentationForImage('store-ct')!)).toHaveLength(
+      1
+    );
   });
 });

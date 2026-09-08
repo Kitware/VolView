@@ -46,11 +46,10 @@ export function planArtifactRestore(manifest: Manifest) {
 /**
  * Remaps a restored segment's label value when it collides with one the
  * parent segmentation already holds, tracking the mapping so its mask bytes
- * can be rewritten once every segment sharing it has a value. A group
- * awaiting its split keeps the SOURCE value its descriptor names.
+ * can be rewritten once every segment sharing it has a value. A group awaiting
+ * its split never reaches here: it has no storage to rewrite.
  */
 export function createLabelRemapper(
-  artifactsToSplit: Set<string>,
   nextLabelValue: (segmentation: Segmentation, preferred?: number) => number,
   maxValue: number
 ) {
@@ -69,7 +68,6 @@ export function createLabelRemapper(
       reject('invalid label value');
       return undefined;
     }
-    if (artifactsToSplit.has(artifactId)) return wireValue;
     try {
       const labelValue = nextLabelValue(segmentation, wireValue);
       const mapping = relabels.get(artifactId) ?? new Map<number, number>();
@@ -145,7 +143,8 @@ type RestoreBindingInput = {
   manifest: Manifest;
   dataIDMap: Record<string, string>;
   artifactIdMap: Record<string, string>;
-  artifactsToSplit: Set<string>;
+  /** Wire ids of the groups the restore splits, which have no storage yet. */
+  splitWireIds: Set<string>;
   artifactParentById: Record<string, string>;
   artifactImages: Record<string, vtkLabelMap>;
   getParentImage: (id: string) => vtkImageData | undefined;
@@ -196,20 +195,19 @@ function candidateFor(
   state: RestoreBindingState
 ) {
   const binding = wireMask.representations.labelmap;
-  const artifactId = binding
-    ? state.artifactIdMap[binding.artifactId]
-    : undefined;
-  if (!binding || artifactId === undefined) return undefined;
+  if (!binding) return undefined;
+  // A group awaiting its split has no storage of its own to validate against:
+  // the split below mints one bounded mask per segment.
+  if (state.splitWireIds.has(binding.artifactId)) return undefined;
+
+  const artifactId = state.artifactIdMap[binding.artifactId];
+  if (artifactId === undefined) return undefined;
 
   const extent = [...binding.extent] as Extent3D;
   // The artifact is what the user recognizes; a record has no name of its own.
   const name = state.artifactNameByWireId.get(binding.artifactId) ?? '';
   const reject = (reason: string) => state.skipped.push({ name, reason });
 
-  if (state.artifactsToSplit.has(artifactId)) {
-    state.acceptedBindings.set(wireMask, { artifactId, extent });
-    return undefined;
-  }
   if (state.artifactParentById[artifactId] !== parentImageId) {
     reject('artifact belongs to another image');
     return undefined;

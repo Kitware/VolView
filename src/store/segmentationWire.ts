@@ -72,6 +72,7 @@ export type SegmentationWireDeps = {
   segmentRegistry: SegmentRegistry;
   labelmapSegmentsByArtifact: ComputedRef<Record<string, LabelmapSegment[]>>;
   createMask: (segmentationId: string, segmentId: string) => SegmentMask;
+  detachMask: (segmentation: Segmentation, maskId: string) => void;
   decodeSegments: (
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
@@ -130,6 +131,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     segmentRegistry,
     labelmapSegmentsByArtifact,
     createMask,
+    detachMask,
     decodeSegments,
     ensureSegmentationForImage,
     getSegmentationForImage,
@@ -236,6 +238,9 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     const wireArtifacts = manifest.segmentationArtifacts ?? [];
     const artifactIdMap: Record<string, string> = {};
     const maskIdMap: Record<string, string> = {};
+    // Which of the manifest's groups reached the store, by wire id. A split
+    // group lands as one mask per segment and so has no single store id.
+    const restoredArtifactIds = new Set<string>();
     // Non-silent drops: every artifact left out of the restore is recorded with
     // a concrete reason so the caller can surface it.
     const skipped: Array<{ name: string; reason: string }> = [];
@@ -359,9 +364,20 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       tempStoreIdsToRemove.forEach((storeId) => datasetStore.remove(storeId));
     }
 
+    // A migrated group holds every segment in one buffer and is not storage any
+    // segment can bind to, so it never enters the store: the split below reads
+    // it from here and mints one bounded mask per segment.
+    const splitWireIds = new Set(
+      loaded.flatMap((result) =>
+        result && needsSplit(result.artifact) ? [result.artifact.id] : []
+      )
+    );
+
     loaded.forEach((result) => {
       if (!result) return;
       const { artifact, labelmap } = result;
+      if (splitWireIds.has(artifact.id)) return;
+      restoredArtifactIds.add(artifact.id);
       artifactIdMap[artifact.id] = registerArtifact(labelmap, {
         parentImage: dataIDMap[artifact.parentImage],
         name: artifact.name,
@@ -369,23 +385,13 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       });
     });
 
-    // A migrated group holds every segment in one buffer, so its bindings are
-    // placeholders until it is split below; nothing reshapes its mask.
-    const artifactsToSplit = new Set(
-      loaded.flatMap((result) =>
-        result && needsSplit(result.artifact)
-          ? [artifactIdMap[result.artifact.id]]
-          : []
-      )
-    );
-
     // Validate every reference before changing shared artifact geometry. One
     // malformed binding must not reshape or erase storage a later binding uses.
     const prepared = prepareRestoreBindings({
       manifest,
       dataIDMap,
       artifactIdMap,
-      artifactsToSplit,
+      splitWireIds,
       artifactParentById: Object.fromEntries(
         Object.entries(artifactMeta).map(([id, meta]) => [id, meta.parentImage])
       ),
@@ -396,10 +402,17 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     const { acceptedBindings } = prepared;
 
     const { relabels, remap } = createLabelRemapper(
-      artifactsToSplit,
       nextLabelValue,
       LABELMAP_MAX_VALUE
     );
+
+    // The masks a group awaiting its split named, in wire order, with the
+    // SOURCE value each one's descriptor carries. They stand in for the
+    // bindings a split group has no storage for.
+    const awaitingSplit = new Map<
+      string,
+      Array<{ mask: SegmentMask; labelValue: number }>
+    >();
 
     (manifest.segmentations ?? []).forEach((wire) => {
       const parentImageId = dataIDMap[wire.parentImage];
@@ -427,7 +440,11 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
         const binding = wireMask.representations.labelmap;
         const accepted = acceptedBindings.get(wireMask);
-        if (binding && accepted) {
+        if (binding && splitWireIds.has(binding.artifactId)) {
+          const waiting = awaitingSplit.get(binding.artifactId) ?? [];
+          waiting.push({ mask: segment, labelValue: binding.labelValue });
+          awaitingSplit.set(binding.artifactId, waiting);
+        } else if (binding && accepted) {
           const labelValue = remap(
             segmentation,
             accepted.artifactId,
@@ -461,12 +478,15 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     loaded.forEach((result) => {
       if (!result) return;
       const { artifact } = result;
-      const artifactId = artifactIdMap[artifact.id];
-      if (!artifactsToSplit.has(artifactId)) return;
+      if (!splitWireIds.has(artifact.id)) return;
 
       // `decoded` names the segments when the group carried no descriptors;
-      // otherwise the bindings the manifest just restored do.
-      const migrated = masksForArtifact(artifactId);
+      // otherwise the masks the manifest just restored do.
+      const waiting = awaitingSplit.get(artifact.id) ?? [];
+      const migrated = waiting.map(({ mask }) => mask);
+      const sourceValueOf = new Map(
+        waiting.map(({ mask, labelValue }) => [mask.id, labelValue])
+      );
       // A descriptor built from a mask carries that mask's segment, so the
       // split lands in the segment the manifest named rather than matching by
       // name against a segment another mask already holds.
@@ -476,7 +496,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         migrated.map((segment) => {
           const descriptor = toLabelmapSegment(
             segmentRegistry.getSegment(segment.segmentId),
-            segment.representations.labelmap!.labelValue
+            sourceValueOf.get(segment.id)!
           );
           carriedTypeIds.set(descriptor, segment.segmentId);
           return descriptor;
@@ -503,7 +523,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       const parentImageId = dataIDMap[artifact.parentImage];
       const segmentation = ensureSegmentationForImage(parentImageId);
       const orderBefore = [...segmentation.order];
-      const labelmap = artifactIndex[artifactId];
+      const { labelmap } = result;
       const migratedIds = migrated.map((segment) => segment.id);
       const wireIdByStoreId = new Map(
         Object.entries(maskIdMap).map(([wireId, storeId]) => [storeId, wireId])
@@ -512,7 +532,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       const migratedTypeIds = new Map(
         migrated.map((segment) => [segment.id, segment.segmentId])
       );
-      removeArtifact(artifactId);
+      // Detached BEFORE the split so each descriptor's preferred segment is
+      // free to take: a migrated mask still on the image would hold it, and
+      // bindDescriptorSegment would mint a duplicate instead of reusing it.
+      migrated.forEach((mask) => detachMask(segmentation, mask.id));
 
       const created = splitLabelmapIntoMasks(
         parentImageId,
@@ -524,6 +547,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           segmentIdFor: (descriptor) => carriedTypeIds.get(descriptor),
         }
       );
+      if (created.length) restoredArtifactIds.add(artifact.id);
 
       // Every reference to a segment that went with the source artifact moves
       // onto the split one that replaced it, its place in the order included.
@@ -580,11 +604,12 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           });
         }
         removeArtifact(artifactId);
+        restoredArtifactIds.delete(wireArtifactId);
         delete artifactIdMap[wireArtifactId];
       }
     });
 
-    return { artifactIdMap, maskIdMap, skipped };
+    return { artifactIdMap, restoredArtifactIds, maskIdMap, skipped };
   }
 
   return { serialize, deserialize };

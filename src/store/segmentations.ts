@@ -712,6 +712,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     segmentRegistry,
     labelmapSegmentsByArtifact,
     createMask,
+    detachMask,
     decodeSegments,
     ensureSegmentationForImage,
     getSegmentationForImage,

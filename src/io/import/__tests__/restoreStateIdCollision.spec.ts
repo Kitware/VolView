@@ -138,7 +138,7 @@ const restoreOnto = async (
   dataIDMap: Record<string, string>
 ) => {
   const store = useSegmentationStore();
-  const { artifactIdMap: idMap } = await store.deserialize({
+  const { restoredArtifactIds: restored } = await store.deserialize({
     manifest: setup.manifest,
     stateFiles,
     dataIDMap,
@@ -146,13 +146,13 @@ const restoreOnto = async (
     artifactSources: resolveArtifactRestoreSources(setup.manifest),
   });
   const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
-  return { idMap, maskId };
+  return { restored, maskId };
 };
 
 /** The group attached, parented on the BASE dataset's store id. */
-const expectTumorOnBase = (idMap: Record<string, string>, maskId: string) => {
+const expectTumorOnBase = (restored: Set<string>, maskId: string) => {
   const store = useSegmentationStore();
-  expect(idMap['sg-tumor']).toBeDefined();
+  expect(restored.has('sg-tumor')).toBe(true);
   const { artifactId } = store.resolveLabelmapBinding(maskId)!;
   expect(store.artifactMeta[artifactId].parentImage).toBe(BASE_STORE_ID);
 };
@@ -196,10 +196,14 @@ describe('restore stateID namespaces (collision)', () => {
       seatImage(ARTIFACT_STORE_ID, 'Tumor.seg.nrrd', 1);
 
       const store = useSegmentationStore();
-      const { idMap, maskId } = await restoreOnto(setup, [], stateIDToStoreID);
+      const { restored, maskId } = await restoreOnto(
+        setup,
+        [],
+        stateIDToStoreID
+      );
 
       // The group attached, parented on the BASE dataset's store id.
-      expectTumorOnBase(idMap, maskId);
+      expectTumorOnBase(restored, maskId);
 
       // Its mask was built from the ARTIFACT's voxels, not the base's.
       expect(Array.from(new Set(store.maskVoxels(maskId).scalars()))).toEqual([
@@ -233,7 +237,7 @@ describe('restore stateID namespaces (collision)', () => {
       ],
     });
 
-    const { idMap, maskId } = await restoreOnto(
+    const { restored, maskId } = await restoreOnto(
       setup,
       [
         {
@@ -244,7 +248,7 @@ describe('restore stateID namespaces (collision)', () => {
       { '2': BASE_STORE_ID }
     );
 
-    expectTumorOnBase(idMap, maskId);
+    expectTumorOnBase(restored, maskId);
     expect(ioMocks.readImage).toHaveBeenCalledTimes(1);
   });
 });
