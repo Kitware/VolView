@@ -97,15 +97,15 @@ const parentImageId = computed(() => segmentation.value?.parentImageId);
 const { metadata: parentMetadata } = useImage(parentImageId);
 
 // Compute segment group's LPS orientation from its direction matrix
-const segmentGroupLpsOrientation = computed(() => {
-  const segmentGroup = imageData.value;
-  if (!segmentGroup) return null;
-  return getLPSDirections(segmentGroup.getDirection());
+const maskLpsOrientation = computed(() => {
+  const mask = imageData.value;
+  if (!mask) return null;
+  return getLPSDirections(mask.getDirection());
 });
 
 // Set slicing mode based on segment group's own orientation
 watchEffect(() => {
-  const lpsOrientation = segmentGroupLpsOrientation.value;
+  const lpsOrientation = maskLpsOrientation.value;
   if (!lpsOrientation) return;
   const ijkIndex = lpsOrientation[axis.value];
   const mode = [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkIndex];
@@ -119,17 +119,17 @@ const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 // The extent is a watch source because growth moves the mask's origin, so the
 // same parent slice lands on a different mask slice afterwards.
 watchImmediate(
-  [storedSlice, segmentGroupLpsOrientation, parentMetadata, extent],
+  [storedSlice, maskLpsOrientation, parentMetadata, extent],
   () => {
     const parentImage = parentMetadata.value;
-    const segmentGroup = imageData.value;
-    if (!parentImage || !segmentGroup || storedSlice.value == null) return;
+    const mask = imageData.value;
+    if (!parentImage || !mask || storedSlice.value == null) return;
 
     slice.value = convertSliceIndex(
       storedSlice.value,
       parentImage.lpsOrientation,
       parentImage.indexToWorld,
-      segmentGroup,
+      mask,
       axis.value
     );
   }

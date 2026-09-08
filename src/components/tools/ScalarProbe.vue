@@ -19,10 +19,10 @@ type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
 const props = defineProps<{
   baseRep: SliceRepresentationType;
   layerReps: SliceRepresentationType[];
-  segmentGroupsReps: SliceRepresentationType[];
+  segmentReps: SliceRepresentationType[];
 }>();
 
-const { baseRep, layerReps, segmentGroupsReps } = toRefs(props);
+const { baseRep, layerReps, segmentReps } = toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
@@ -72,7 +72,7 @@ const getLayers = () =>
 const getSegments = () => {
   if (!currentImageID.value) return [];
   const layers = segmentationStore.maskLayersForImage(currentImageID.value);
-  return segmentGroupsReps.value
+  return segmentReps.value
     .map((rep, index) => {
       const layer = layers[index];
       if (!layer) return null;
@@ -82,7 +82,7 @@ const getSegments = () => {
       const catalog =
         segmentationStore.labelmapSegmentsByMask[layer.maskId] ?? [];
       return {
-        type: 'segmentGroup',
+        type: 'segment',
         id: layer.maskId,
         name: segments.appearanceOf(segment.segmentId).name,
         rep,
@@ -152,7 +152,7 @@ const getImageSamples = (x: number, y: number) => {
       const scalars = scalarData.getTuple(index) as number[];
       const baseInfo = { id: item.id, name: item.name };
 
-      if (item.type === 'segmentGroup') {
+      if (item.type === 'segment') {
         return {
           ...baseInfo,
           displayValues: scalars.map(

@@ -155,7 +155,7 @@
           <scalar-probe
             :base-rep="baseSliceRep"
             :layer-reps="layerSliceReps"
-            :segment-groups-reps="segSliceReps"
+            :segment-reps="segSliceReps"
           ></scalar-probe>
           <slot></slot>
         </vtk-slice-view>

@@ -67,13 +67,13 @@ const sameResultSource = (
   source.jobId === target.jobId &&
   source.outputId === target.outputId;
 
-function segmentGroupResultInScene(
+function segmentResultInScene(
   intent: SegmentGroupIntent,
-  segmentGroups: SegmentGroupWriter
+  segmentWriter: SegmentWriter
 ): boolean {
   const target = intent.source;
   if (!target) return false;
-  return segmentGroups
+  return segmentWriter
     .resultSourcesInScene()
     .some((source) => sameResultSource(source, target));
 }
@@ -93,7 +93,7 @@ async function loadAsImport(file: ResultFile) {
 function applySegmentDescriptors(
   imported: ImportedSegment[],
   segments: SegmentDescriptor[],
-  segmentGroups: SegmentGroupWriter
+  segmentWriter: SegmentWriter
 ) {
   const maskIdBySourceValue = new Map(
     imported.map(({ sourceValue, maskId }) => [sourceValue, maskId])
@@ -102,7 +102,7 @@ function applySegmentDescriptors(
     // Descriptors may name a value the labelmap does not carry.
     const maskId = maskIdBySourceValue.get(seg.value);
     if (!maskId) return;
-    segmentGroups.describeSegment(maskId, {
+    segmentWriter.describeSegment(maskId, {
       name: seg.name,
       color: seg.color,
       ...(seg.visible == null ? {} : { visible: seg.visible }),
@@ -114,9 +114,9 @@ async function convertAndDescribe(
   childSelection: string,
   parentSelection: string,
   intent: SegmentGroupIntent,
-  segmentGroups: SegmentGroupWriter
+  segmentWriter: SegmentWriter
 ): Promise<ImportedSegment[][]> {
-  const imported = await segmentGroups.convertImageToLabelmap(
+  const imported = await segmentWriter.convertImageToLabelmap(
     childSelection,
     parentSelection,
     intent.source
@@ -126,7 +126,7 @@ async function convertAndDescribe(
   // component's list to another's segments would describe the wrong ones.
   if (intent.segments?.length) {
     imported.forEach((component) =>
-      applySegmentDescriptors(component, intent.segments!, segmentGroups)
+      applySegmentDescriptors(component, intent.segments!, segmentWriter)
     );
   }
   return imported;
@@ -378,7 +378,7 @@ async function applyAnnotations(
 
 type FetchProcessingResult = typeof fetchProcessingResult;
 
-type SegmentGroupWriter = {
+type SegmentWriter = {
   /** Result provenance of every segment group in the scene, in scene order. */
   resultSourcesInScene: () => Array<ResultSource | undefined>;
   convertImageToLabelmap: (
@@ -406,7 +406,7 @@ export type ApplyDependencies = {
     parentSelection: string,
     childSelection: string
   ) => Promise<string | undefined>;
-  segmentGroups: SegmentGroupWriter;
+  segmentWriter: SegmentWriter;
 };
 
 export const appApplyDependencies = (): ApplyDependencies => ({
@@ -416,7 +416,7 @@ export const appApplyDependencies = (): ApplyDependencies => ({
   removeDataset: (selection) => useDatasetStore().remove(selection),
   addLayer: (parentSelection, childSelection) =>
     useLayersStore().addLayer(parentSelection, childSelection),
-  segmentGroups: {
+  segmentWriter: {
     resultSourcesInScene: () =>
       Object.values(useSegmentationStore().segmentations)
         .flatMap((segmentation) => listMasks(segmentation))
@@ -491,7 +491,7 @@ export async function applyIntent(
         // Session-restored groups retain their result source. Treat that
         // durable provenance as an application receipt so retrying Load is
         // idempotent instead of creating a duplicate group.
-        if (segmentGroupResultInScene(intent, dependencies.segmentGroups))
+        if (segmentResultInScene(intent, dependencies.segmentWriter))
           return { status: 'applied' };
         if (!parentSelection) {
           return await openVolumeAsDatasetOutcome(intent);
@@ -504,7 +504,7 @@ export async function applyIntent(
             childSelection,
             parentSelection,
             intent,
-            dependencies.segmentGroups
+            dependencies.segmentWriter
           );
           return { status: 'applied' };
         } finally {
