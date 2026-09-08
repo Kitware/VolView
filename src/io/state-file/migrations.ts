@@ -335,8 +335,10 @@ const migrateLegacyDisplay = (manifest: any) => {
     );
   });
 
+  // Only a group awaiting its decode needs these: it names no segments, so
+  // there is no type for the loop above to have put its display on.
   artifacts.forEach((artifact) => {
-    if (!artifact.pendingDecode && !artifact.pendingSplit) return;
+    if (!artifact.pendingDecode) return;
     const display = displayByArtifact.get(artifact.id)!;
     artifact.pendingFillOpacity = fillShareOf(
       display,

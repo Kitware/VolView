@@ -474,18 +474,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       // split lands in the segment the manifest named rather than matching by
       // name against a segment another mask already holds.
       const carriedTypeIds = new Map<LabelmapSegment, string>();
-      const descriptors = (
-        result.decoded ??
-        migrated.map((segment) => {
-          const descriptor = toLabelmapSegment(
-            segmentRegistry.getSegment(segment.segmentId),
-            sourceValueOf.get(segment.id)!
-          );
-          carriedTypeIds.set(descriptor, segment.segmentId);
-          return descriptor;
-        })
-      ).map((descriptor) => {
-        const withDisplay = {
+      // The legacy group's display rides on the artifact only where it named
+      // no segments: a group the manifest described put it on their types.
+      const descriptors =
+        result.decoded?.map((descriptor) => ({
           ...descriptor,
           ...cleanUndefined({
             fillOpacity: artifact.pendingFillOpacity,
@@ -495,11 +487,15 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
                 ? undefined
                 : descriptor.visible && artifact.pendingVisibility,
           }),
-        };
-        const carried = carriedTypeIds.get(descriptor);
-        if (carried) carriedTypeIds.set(withDisplay, carried);
-        return withDisplay;
-      });
+        })) ??
+        migrated.map((segment) => {
+          const descriptor = toLabelmapSegment(
+            segmentRegistry.getSegment(segment.segmentId),
+            sourceValueOf.get(segment.id)!
+          );
+          carriedTypeIds.set(descriptor, segment.segmentId);
+          return descriptor;
+        });
 
       // The source goes first, so the split segments can take the label values
       // the migrated ones were holding.

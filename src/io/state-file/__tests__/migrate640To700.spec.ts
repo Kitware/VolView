@@ -502,12 +502,38 @@ describe('migrate640To700: structural stage', () => {
     });
     expect(effectiveFill(migrated, record, segmentation)).toBeCloseTo(0.4);
     expect(segmentation.outlineThickness).toBe(5);
+    // The types carry it, so the artifact carries no second copy for the
+    // split to reapply.
+    const artifact = migrated.segmentationArtifacts[0];
+    expect(artifact).not.toHaveProperty('pendingFillOpacity');
+    expect(artifact).not.toHaveProperty('pendingOutlineOpacity');
+    expect(artifact).not.toHaveProperty('pendingVisibility');
+    expect(migrated.viewByID.Axial.config['sg-1']).toBeUndefined();
+  });
+
+  // A group with no descriptors names no segment, so nothing holds its display
+  // until the restore decodes its voxels; it rides on the artifact until then.
+  it('carries a descriptor-less group display on the artifact', () => {
+    const migrated = migrate({
+      segmentGroups: [legacyGroup('sg-1', 'ds-ct')],
+      viewByID: {
+        Axial: {
+          config: {
+            'sg-1': {
+              layers: { blendConfig: { opacity: 0.4, visibility: false } },
+              segmentGroup: { outlineOpacity: 0.25, outlineThickness: 5 },
+            },
+          },
+        },
+      },
+    });
+
     expect(migrated.segmentationArtifacts[0]).toMatchObject({
+      pendingDecode: true,
       pendingFillOpacity: 1,
       pendingOutlineOpacity: 0.25,
       pendingVisibility: false,
     });
-    expect(migrated.viewByID.Axial.config['sg-1']).toBeUndefined();
   });
 
   it('keeps the legacy fill default when no view configured the group', () => {
