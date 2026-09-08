@@ -169,14 +169,21 @@ describe('Session state lifecycle', () => {
     if (!zip) {
       throw new Error('Expected saved session zip to be available');
     }
-    const artifacts = manifest.segmentationArtifacts as Array<{
-      path: string;
-      name: string;
+    // A save writes one archive entry per mask, named on the mask's own
+    // labelmap binding.
+    const segmentations = manifest.segmentations as Array<{
+      masks: Array<{
+        representations: { labelmap?: { path: string; name: string } };
+      }>;
     }>;
+    const bindings = segmentations.flatMap((segmentation) =>
+      segmentation.masks.flatMap((mask) => mask.representations.labelmap ?? [])
+    );
 
-    expect(artifacts.length).toEqual(1);
-    expect(artifacts[0].name).toEqual(storedName);
-    expect(artifacts[0].path).toEqual(sanitizedFilePath);
+    expect(bindings.length).toBeGreaterThan(0);
+    // The stored name survives; only the path it becomes is sanitized.
+    expect(bindings.every((binding) => binding.name === storedName)).toBe(true);
+    expect(bindings[0].path).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 

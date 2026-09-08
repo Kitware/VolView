@@ -233,11 +233,11 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
   }: DeserializeOptions) {
     const wireArtifacts = manifest.segmentationArtifacts ?? [];
     const maskIdMap: Record<string, string> = {};
-    // Which of the manifest's labelmaps reached the store, by wire id. A split
-    // group lands as one mask per segment and so has no single one.
+    // Which artifacts reached the scene, by wire id. Each lands as one mask
+    // per segment and so has no single store id of its own.
     const restoredArtifactIds = new Set<string>();
-    // Non-silent drops: every artifact left out of the restore is recorded with
-    // a concrete reason so the caller can surface it.
+    // Non-silent drops: every labelmap left out of the restore is recorded
+    // with a concrete reason so the caller can surface it.
     const skipped: Array<{ name: string; reason: string }> = [];
 
     // A path-less artifact's store id: the restore setup already resolved which

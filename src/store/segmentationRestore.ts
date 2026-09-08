@@ -39,7 +39,7 @@ export function planArtifactRestore(manifest: Manifest) {
   );
   const needsDecode = (artifact: SegmentationArtifact) =>
     artifact.pendingDecode === true || !boundArtifactIds.has(artifact.id);
-  return { boundArtifactIds, needsDecode };
+  return { needsDecode };
 }
 
 /** Awaits and returns an artifact's parent image, or throws when it never loaded. */
