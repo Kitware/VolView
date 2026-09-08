@@ -202,6 +202,32 @@ describe('migrated segment groups: resilient restore', () => {
     expect(maskCount()).toBe(1);
   });
 
+  // A group that named no segments has its voxels enumerated instead, and an
+  // all-background labelmap enumerates none: it reaches the scene as nothing
+  // at all, and says so rather than restoring an empty entry.
+  it('skips a group whose labelmap holds no segments', async () => {
+    seatImage('store-ct', 'CT Chest');
+    seatImage('store-blank', 'Blank.seg.nrrd');
+
+    const { restoredArtifactIds: groups, skipped } = await restoreGroups(
+      manifestWith([
+        {
+          id: 'sg-blank',
+          dataSourceId: 3,
+          metadata: { name: 'sg-blank', parentImage: 'ds-ct' },
+        },
+      ]),
+      [],
+      { 'ds-ct': 'store-ct', [leafStateId(3)]: 'store-blank' }
+    );
+
+    expect(groups).toEqual(new Set());
+    expect(boundMasks()).toEqual([]);
+    expect(skipped).toEqual([
+      { name: 'sg-blank', reason: 'labelmap holds no segments' },
+    ]);
+  });
+
   it('skips a group whose parent base never resolved', async () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
 

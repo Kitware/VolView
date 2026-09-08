@@ -125,6 +125,8 @@ declareManifestRefs('segmentations', (manifest) => {
                   },
                 ]
               : []),
+            // Only a binding still awaiting an artifact's split names one; a
+            // saved mask names an archive entry, which is not a manifest ref.
             ...(isRecord(binding) && typeof binding.artifactId === 'string'
               ? [
                   {

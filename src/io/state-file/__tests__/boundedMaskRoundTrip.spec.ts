@@ -76,40 +76,23 @@ const wireMask = (manifest: any, name: string) =>
     (segment: any) => segment.segmentId === wireSegmentId(manifest, name)
   );
 
-function wireArtifactFor(manifest: any, segment: any) {
-  const id = segment.representations.labelmap.artifactId;
-  const artifact = manifest.segmentationArtifacts.find(
-    (candidate: any) => candidate.id === id
-  );
-  return { id, name: artifact.name };
-}
+/** The archive entry a wire mask names, and the name it saves under. */
+const wireStorage = (segment: any) => ({
+  path: segment.representations.labelmap.path,
+  name: segment.representations.labelmap.name,
+});
 
-function pointNodeAtTumorArtifact(manifest: any) {
+/** Points Node's binding at the very entry Tumor's binding names. */
+function pointNodeAtTumorEntry(manifest: any) {
   const segmentation = wireSegmentation(manifest);
   const tumor = wireMask(manifest, 'Tumor');
   const node = wireMask(manifest, 'Node');
-  const tumorArtifact = wireArtifactFor(manifest, tumor);
-  const nodeArtifactId = node.representations.labelmap.artifactId;
-  node.representations.labelmap.artifactId = tumorArtifact.id;
-  return { segmentation, tumor, node, tumorArtifact, nodeArtifactId };
+  const tumorStorage = wireStorage(tumor);
+  const nodePath = node.representations.labelmap.path;
+  node.representations.labelmap.path = tumorStorage.path;
+  node.representations.labelmap.name = tumorStorage.name;
+  return { segmentation, tumor, node, tumorStorage, nodePath };
 }
-
-/** The first-wins outcome: Tumor keeps the labelmap and Node is refused it. */
-const expectTumorTookTheLabelmap = (
-  result: {
-    skipped: Array<{ name: string; reason: string }>;
-    restoredArtifactIds: Set<string>;
-  },
-  refs: ReturnType<typeof pointNodeAtTumorArtifact>
-) => {
-  expect(restoredSegment('Node').representations.labelmap).toBeUndefined();
-  expect(result.skipped).toContainEqual({
-    name: refs.tumorArtifact.name,
-    reason: 'labelmap is already bound to another segment',
-  });
-  expect(result.restoredArtifactIds).toContain(refs.tumorArtifact.id);
-  expect(result.restoredArtifactIds).not.toContain(refs.nodeArtifactId);
-};
 
 const restoredSegment = (name: string) =>
   listMasks(store().getSegmentationForImage('new-1')!).find(
@@ -314,9 +297,7 @@ describe('bounded masks through the state file', () => {
   it('keeps bindings distinct when wire segmentation and segment ids repeat', async () => {
     await buildScene();
 
-    let firstWireArtifactId = '';
-    let secondWireArtifactId = '';
-    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
+    await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const first = manifest.segmentations.find(
         (entry: any) => entry.parentImage === 'img-1'
       );
@@ -332,8 +313,6 @@ describe('bounded masks through the state file', () => {
         );
       const firstTumor = findTumor(first);
       const secondTumor = findTumor(second);
-      firstWireArtifactId = firstTumor.representations.labelmap.artifactId;
-      secondWireArtifactId = secondTumor.representations.labelmap.artifactId;
 
       first.id = 'duplicate-segmentation';
       second.id = 'duplicate-segmentation';
@@ -360,8 +339,9 @@ describe('bounded masks through the state file', () => {
       [2, 1, 1, 1],
     ]);
     expect(markedVoxels(secondTumor.id)).toEqual([[0, 0, 0, 1]]);
-    expect(result.restoredArtifactIds).toContain(firstWireArtifactId);
-    expect(result.restoredArtifactIds).toContain(secondWireArtifactId);
+    expect(firstTumor.representations.labelmap!.image).not.toBe(
+      secondTumor.representations.labelmap!.image
+    );
     expect(boundMasks()).toHaveLength(4);
   });
 
@@ -389,22 +369,18 @@ describe('bounded masks through the state file', () => {
     expect(unbound.representations.labelmap).toBeUndefined();
   });
 
-  it('leaves a segment unbound when its artifact belongs to another image', async () => {
+  it('leaves a segment unbound when its entry belongs to another image', async () => {
     await buildScene();
 
-    // A mask sits on its parent's grid, so a binding across images would put
-    // the segment on storage of another shape.
+    // A mask sits on its parent's grid, so an entry saved for another image
+    // gives this segment storage of a shape its own extent cannot describe.
     await roundTrip(inMemoryArtifactIO(), (manifest) => {
-      const foreign = manifest.segmentationArtifacts.find(
-        (artifact: any) => artifact.parentImage === 'img-2'
+      const foreign = manifest.segmentations.find(
+        (entry: any) => entry.parentImage === 'img-2'
       );
-      const segmentation = manifest.segmentations.find(
-        (entry: any) => entry.parentImage === 'img-1'
-      );
-      const tumor = segmentation.masks.find(
-        (segment: any) => segment.segmentId === wireSegmentId(manifest, 'Tumor')
-      );
-      tumor.representations.labelmap.artifactId = foreign.id;
+      const tumor = wireMask(manifest, 'Tumor');
+      tumor.representations.labelmap.path =
+        foreign.masks[0].representations.labelmap.path;
     });
 
     const restored = listMasks(store().getSegmentationForImage('new-1')!);
@@ -419,49 +395,54 @@ describe('bounded masks through the state file', () => {
   it('rejects an empty extent that points at foreground mask data', async () => {
     await buildScene();
 
-    let artifact: ReturnType<typeof wireArtifactFor>;
+    let storage: ReturnType<typeof wireStorage>;
     const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const tumor = wireMask(manifest, 'Tumor');
-      artifact = wireArtifactFor(manifest, tumor);
+      storage = wireStorage(tumor);
       tumor.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
     });
 
     const tumor = restoredSegment('Tumor');
     expect(tumor.representations.labelmap).toBeUndefined();
     expect(result.skipped).toContainEqual({
-      name: artifact!.name,
+      name: storage!.name,
       reason: 'empty extent references a mask with foreground voxels',
     });
-    expect(result.restoredArtifactIds).not.toContain(artifact!.id);
     expect(boundMasks()).toHaveLength(3);
   });
 
-  // A labelmap holds one segment's voxels, so two bindings cannot share it
-  // however well their extents agree. The first in the segmentation's order
-  // takes it and the second is left unbound rather than aliasing the buffer.
-  it('gives a labelmap to the first binding that names it and refuses the rest', async () => {
+  // Each mask reads its own archive entry into its own buffer, so two masks
+  // naming one entry get a copy each and neither aliases the other's voxels.
+  it('gives two masks naming one entry storage of their own', async () => {
     await buildScene();
 
-    let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
-    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
-      refs = pointNodeAtTumorArtifact(manifest);
+    await roundTrip(inMemoryArtifactIO(), (manifest) => {
+      const refs = pointNodeAtTumorEntry(manifest);
       refs.node.representations.labelmap.extent = [1, 2, 1, 1, 1, 1];
     });
 
-    expect(markedVoxels(restoredSegment('Tumor').id)).toEqual([
+    const tumor = restoredSegment('Tumor');
+    const node = restoredSegment('Node');
+    expect(store().maskVoxels(tumor.id).image()).not.toBe(
+      store().maskVoxels(node.id).image()
+    );
+    expect(markedVoxels(tumor.id)).toEqual([
       [1, 1, 1, 1],
       [2, 1, 1, 1],
     ]);
-    expectTumorTookTheLabelmap(result, refs!);
-    expect(boundMasks()).toHaveLength(3);
+    expect(markedVoxels(node.id)).toEqual([
+      [1, 1, 1, 1],
+      [2, 1, 1, 1],
+    ]);
+    expect(boundMasks()).toHaveLength(4);
   });
 
   it('does not let an earlier empty binding erase a later valid binding', async () => {
     await buildScene();
 
-    let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
+    let refs: ReturnType<typeof pointNodeAtTumorEntry>;
     const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
-      refs = pointNodeAtTumorArtifact(manifest);
+      refs = pointNodeAtTumorEntry(manifest);
       refs.node.representations.labelmap.extent = [0, -1, 0, -1, 0, -1];
       refs.segmentation.order = [
         refs.node.id,
@@ -470,9 +451,7 @@ describe('bounded masks through the state file', () => {
     });
 
     const tumor = restoredSegment('Tumor');
-    const node = restoredSegment('Node');
-    expect(node.representations.labelmap).toBeUndefined();
-    expect(result.restoredArtifactIds).toContain(refs!.tumorArtifact.id);
+    expect(restoredSegment('Node').representations.labelmap).toBeUndefined();
     expect(store().maskVoxels(tumor.id).image().getDimensions()).toEqual([
       2, 1, 1,
     ]);
@@ -481,10 +460,9 @@ describe('bounded masks through the state file', () => {
       [2, 1, 1, 1],
     ]);
     expect(result.skipped).toContainEqual({
-      name: refs!.tumorArtifact.name,
+      name: refs!.tumorStorage.name,
       reason: 'empty extent references a mask with foreground voxels',
     });
-    expect(result.restoredArtifactIds).not.toContain(refs!.nodeArtifactId);
   });
 
   it.each([
@@ -501,29 +479,33 @@ describe('bounded masks through the state file', () => {
   ])('rejects $title', async ({ extent, reason }) => {
     await buildScene();
 
-    let artifact: ReturnType<typeof wireArtifactFor>;
+    let storage: ReturnType<typeof wireStorage>;
     const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
       const tumor = wireMask(manifest, 'Tumor');
-      artifact = wireArtifactFor(manifest, tumor);
+      storage = wireStorage(tumor);
       tumor.representations.labelmap.extent = extent;
     });
 
     expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
-    expect(result.skipped).toContainEqual({ name: artifact!.name, reason });
-    expect(result.restoredArtifactIds).not.toContain(artifact!.id);
+    expect(result.skipped).toContainEqual({ name: storage!.name, reason });
     expect(boundMasks()).toHaveLength(3);
   });
 
-  it('keeps a valid binding when another reference to its artifact is invalid', async () => {
+  it('keeps a valid binding when another naming the same entry is invalid', async () => {
     await buildScene();
 
-    let refs: ReturnType<typeof pointNodeAtTumorArtifact>;
+    // Node keeps its own extent, which does not describe Tumor's entry.
+    let refs: ReturnType<typeof pointNodeAtTumorEntry>;
     const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
-      refs = pointNodeAtTumorArtifact(manifest);
+      refs = pointNodeAtTumorEntry(manifest);
     });
 
     expect(restoredSegment('Tumor').representations.labelmap).toBeDefined();
-    expectTumorTookTheLabelmap(result, refs!);
+    expect(restoredSegment('Node').representations.labelmap).toBeUndefined();
+    expect(result.skipped).toContainEqual({
+      name: refs!.tumorStorage.name,
+      reason: 'extent does not match the loaded mask dimensions',
+    });
   });
 
   it('puts the restored masks back on the parent grid', async () => {

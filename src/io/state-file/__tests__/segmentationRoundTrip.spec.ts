@@ -94,7 +94,9 @@ describe('segmentation state-file round trip', () => {
       io
     );
     expect(parsed.segmentations).toHaveLength(2);
-    expect(parsed.segmentationArtifacts).toHaveLength(2);
+    // Every labelmap a save writes belongs to a mask, so the artifact array
+    // that a migration or a backend fills is empty here.
+    expect(parsed.segmentationArtifacts).toEqual([]);
     expect(parsed.segmentGroups).toBeUndefined();
 
     setActivePinia(createPinia());
@@ -145,10 +147,12 @@ describe('segmentation state-file round trip', () => {
       (segment: any) => segment.id === segmentIdByName.Planned
     );
     expect(plannedType).toMatchObject({ locked: true, visible: false });
-    // One artifact per image, not one per segment.
+    // One archive entry per bound mask, and none for the unbound one.
     expect(
-      (manifest as any).segmentationArtifacts.filter(
-        (artifact: any) => artifact.parentImage === 'img-1'
+      wire.masks.flatMap((segment: any) =>
+        segment.representations.labelmap
+          ? [segment.representations.labelmap.path]
+          : []
       )
     ).toHaveLength(1);
   });

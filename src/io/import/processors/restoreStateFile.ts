@@ -95,7 +95,9 @@ function resolveToLeafSources(
 // A composed manifest's `datasets` covers base images only; a segmentation
 // artifact wired to a uri entry via `dataSourceId` (and carrying no archive
 // `path`) still needs its bytes fetched, or the artifact's dataIDMap key never
-// materializes and restore hangs. The synthesized stateID is
+// materializes and restore hangs. Only artifacts reach here: a saved mask
+// carries its own archive entry and needs no dataset of its own. The
+// synthesized stateID is
 // `leafStateId(dataSourceId)`, never the bare numeral: dataset ids and
 // dataSourceIds are both small integers in real saves, and a shared key would
 // hand the restore to leaf completion order.

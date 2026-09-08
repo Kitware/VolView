@@ -196,20 +196,28 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       return [];
     }
 
-    // An artifact pruned above must not be left referenced: restore would
-    // silently recreate the mask with no storage. Nor may one belong to
-    // another image: a mask sits on its parent's grid, so a binding across
-    // images points it at storage of the wrong shape.
+    // Storage a restore could not reach must not be left referenced, or it
+    // would silently recreate the mask with no voxels. An artifact also may
+    // not belong to another image: a mask sits on its parent's grid, so a
+    // binding across images points it at storage of the wrong shape.
     const masks = parsed.data.masks.map((mask) => {
       const binding = mask.representations.labelmap;
       if (!binding) return mask;
-      const artifactParent = artifactParentById.get(binding.artifactId);
-      if (artifactParent === parsed.data.parentImage) return mask;
-      omitted.push(
-        artifactParent === undefined
-          ? `${name}.masks[${mask.id}]: segmentation artifact ${binding.artifactId} is missing`
-          : `${name}.masks[${mask.id}]: segmentation artifact ${binding.artifactId} belongs to ${artifactParent}`
-      );
+      const unreachable = () => {
+        if (binding.path !== undefined) {
+          return zip.file(binding.path) === null
+            ? `archive member ${binding.path} is missing`
+            : undefined;
+        }
+        const artifactParent = artifactParentById.get(binding.artifactId!);
+        if (artifactParent === parsed.data.parentImage) return undefined;
+        return artifactParent === undefined
+          ? `segmentation artifact ${binding.artifactId} is missing`
+          : `segmentation artifact ${binding.artifactId} belongs to ${artifactParent}`;
+      };
+      const unreachableReason = unreachable();
+      if (unreachableReason === undefined) return mask;
+      omitted.push(`${name}.masks[${mask.id}]: ${unreachableReason}`);
       return { ...mask, representations: {} };
     });
     return [{ ...parsed.data, masks }];

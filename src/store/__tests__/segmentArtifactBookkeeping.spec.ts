@@ -170,25 +170,26 @@ describe('artifact bookkeeping without the per-parent order map', () => {
 
     await store().serialize({ zip: new JSZip(), manifest }, makeArtifactIO());
 
-    const artifacts = manifest.segmentationArtifacts!;
+    const bound = manifest.segmentations!.flatMap((segmentation) =>
+      segmentation.masks.flatMap((segment) => {
+        const binding = segment.representations.labelmap;
+        return binding
+          ? [{ binding, parentImage: segmentation.parentImage }]
+          : [];
+      })
+    );
     // Three segments hold storage; the unmaterialized one names no entry.
-    expect(artifacts).toHaveLength(3);
-    expect(new Set(artifacts.map((artifact) => artifact.path))).toHaveProperty(
+    expect(bound).toHaveLength(3);
+    expect(new Set(bound.map((entry) => entry.binding.path))).toHaveProperty(
       'size',
       3
     );
-    expect(artifacts.map((artifact) => artifact.parentImage).sort()).toEqual([
+    expect(bound.map((entry) => entry.parentImage).sort()).toEqual([
       'img-1',
       'img-1',
       'img-2',
     ]);
-    // Every binding the manifest carries points at an artifact it also carries.
-    const named = new Set(artifacts.map((artifact) => artifact.id));
-    manifest.segmentations!.forEach((segmentation) =>
-      segmentation.masks.forEach((segment) => {
-        const binding = segment.representations.labelmap;
-        if (binding) expect(named).toContain(binding.artifactId);
-      })
-    );
+    // A save's labelmaps all belong to a mask, so it writes no artifact.
+    expect(manifest.segmentationArtifacts).toEqual([]);
   });
 });

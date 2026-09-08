@@ -453,6 +453,7 @@ const migrate640To700 = (inputManifest: any) => {
         segmentId,
         representations: {
           labelmap: {
+            // The group still holds these voxels; restore splits them out.
             artifactId: group.id,
             sourceValue: value,
             extent: emptyExtent(),
@@ -470,7 +471,7 @@ const migrate640To700 = (inputManifest: any) => {
         ? {}
         : { dataSourceId: group.dataSourceId }),
       ...(metadata.source ? { source: metadata.source } : {}),
-      ...(descriptors ? { pendingSplit: true } : { pendingDecode: true }),
+      ...(descriptors ? {} : { pendingDecode: true }),
       // Its segments are decoded during restore, after the selection would have
       // been applied, so the value to reselect travels with the artifact.
       ...(!descriptors &&

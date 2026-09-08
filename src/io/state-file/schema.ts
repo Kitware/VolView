@@ -313,15 +313,27 @@ const Extent3D = z.tuple([
   z.number(),
 ]);
 
-const LabelmapBinding = z.object({
-  artifactId: z.string(),
-  extent: Extent3D,
-  // Migration-only: a legacy group holds every segment in one buffer, and this
-  // is the value this segment's voxels carry in it. The split reads it and
-  // writes SEGMENT_VALUE into the bounded mask it mints, so a saved binding
-  // never carries one.
-  sourceValue: z.number().optional(),
-});
+const LabelmapBinding = z
+  .object({
+    extent: Extent3D,
+    // A saved mask's own archive entry, and the name that entry takes on the
+    // next save.
+    path: z.string().optional(),
+    name: z.string().optional(),
+    source: ProcessingResultSource.optional(),
+    // Migration-only, in place of a path: the segmentationArtifact whose one
+    // buffer still holds this mask's voxels, and the value they carry in it.
+    // Restore splits that buffer into bounded masks, so a mask saved after
+    // one names a path like any other.
+    artifactId: z.string().optional(),
+    sourceValue: z.number().optional(),
+  })
+  .refine(
+    (data) => (data.path === undefined) !== (data.artifactId === undefined),
+    {
+      message: 'A labelmap binding names either a path or an artifact',
+    }
+  );
 
 // Everything the user sees or sets lives on the type; a record is one image's
 // mask for it.
@@ -359,8 +371,13 @@ export const Segmentation = z.object({
 
 export type Segmentation = z.infer<typeof Segmentation>;
 
-// Persistent labelmap identity, separate from the runtime artifact index:
-// segment bindings reference `id`, and `path`/`dataSourceId` resolve the bytes.
+/**
+ * A whole-volume labelmap that no mask holds yet: restore divides it into one
+ * bounded mask per segment. Two producers write these and no save does, since
+ * a mask that exists carries its own voxels. A 6.4.0 migration emits one per
+ * legacy segment group, and a backend composes one to hand VolView a labelmap
+ * to attach, wired to its bytes through `dataSourceId`.
+ */
 export const SegmentationArtifact = z
   .object({
     id: z.string(),
@@ -369,17 +386,14 @@ export const SegmentationArtifact = z
     path: z.string().optional(),
     dataSourceId: z.number().optional(),
     source: ProcessingResultSource.optional(),
-    // Set only by the 7.0.0 migration, for a legacy group that carried no
-    // segment descriptors: the loaded restore stage enumerates its voxels.
+    // No mask names this one, so nothing says what its values mean: the
+    // restore enumerates its voxels to find out.
     pendingDecode: z.boolean().optional(),
-    // Also migration-only: a legacy group holds every segment in one buffer,
-    // and restore divides it into one bounded mask per segment.
-    pendingSplit: z.boolean().optional(),
-    // Also migration-only: the legacy active paint value, reactivated once the
+    // Migration-only: the legacy active paint value, reactivated once the
     // decode above has created the segments it names.
     pendingActiveValue: z.number().optional(),
-    // Also migration-only: display state applied after a legacy artifact has
-    // been decoded into segments.
+    // Also migration-only: display state applied after an artifact has been
+    // decoded into segments, which is where it lands once they exist.
     pendingFillOpacity: z.number().optional(),
     pendingOutlineOpacity: z.number().optional(),
     pendingVisibility: z.boolean().optional(),

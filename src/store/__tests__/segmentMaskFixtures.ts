@@ -201,7 +201,20 @@ export const manifestForImages = (
     ...extra,
   }) as unknown as Manifest;
 
-/** Serializes the live scene, then reads its artifacts back as state files. */
+/** Every archive path the parsed manifest names, artifacts and masks alike. */
+const archivePathsIn = (parsed: any): string[] => [
+  ...parsed.segmentationArtifacts.flatMap((artifact: any) =>
+    artifact.path ? [artifact.path] : []
+  ),
+  ...parsed.segmentations.flatMap((segmentation: any) =>
+    segmentation.masks.flatMap((mask: any) => {
+      const path = mask.representations.labelmap?.path;
+      return path ? [path] : [];
+    })
+  ),
+];
+
+/** Serializes the live scene, then reads its labelmaps back as state files. */
 export const serializeToStateFiles = async (
   manifest: Manifest,
   io: SegmentationArtifactIO,
@@ -213,12 +226,9 @@ export const serializeToStateFiles = async (
   const parsed = ManifestSchema.parse(manifest) as any;
   tamper?.(parsed);
   const stateFiles = await Promise.all(
-    parsed.segmentationArtifacts.map(async (artifact: any) => ({
-      archivePath: artifact.path,
-      file: new File(
-        [await zip.file(artifact.path)!.async('string')],
-        'artifact.vti'
-      ),
+    archivePathsIn(parsed).map(async (path) => ({
+      archivePath: path,
+      file: new File([await zip.file(path)!.async('string')], 'artifact.vti'),
     }))
   );
   return { zip, parsed, stateFiles };

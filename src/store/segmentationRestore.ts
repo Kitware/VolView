@@ -21,28 +21,25 @@ import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 
 type WireMaskation = NonNullable<Manifest['segmentations']>[number];
-type WireMask = WireMaskation['masks'][number];
+export type WireMask = WireMaskation['masks'][number];
 
 /**
- * An artifact no segment binds is enumerated like a legacy descriptor-less
- * group: a composed manifest may carry a labelmap on its own.
+ * Every artifact is split into bounded masks. One the manifest's masks name
+ * takes its segments from them; one nothing names carries no account of what
+ * its values mean, so the restore enumerates its voxels instead.
  */
 export function planArtifactRestore(manifest: Manifest) {
   const boundArtifactIds = new Set(
     (manifest.segmentations ?? []).flatMap((wire) =>
-      wire.masks.flatMap((segment) =>
-        segment.representations.labelmap
-          ? [segment.representations.labelmap.artifactId]
-          : []
-      )
+      wire.masks.flatMap((segment) => {
+        const artifactId = segment.representations.labelmap?.artifactId;
+        return artifactId ? [artifactId] : [];
+      })
     )
   );
   const needsDecode = (artifact: SegmentationArtifact) =>
-    artifact.pendingDecode === true ||
-    (!artifact.pendingSplit && !boundArtifactIds.has(artifact.id));
-  const needsSplit = (artifact: SegmentationArtifact) =>
-    artifact.pendingSplit === true || needsDecode(artifact);
-  return { boundArtifactIds, needsDecode, needsSplit };
+    artifact.pendingDecode === true || !boundArtifactIds.has(artifact.id);
+  return { boundArtifactIds, needsDecode };
 }
 
 /** Awaits and returns an artifact's parent image, or throws when it never loaded. */
@@ -61,14 +58,14 @@ export function createParentImageLoader(
 }
 
 /**
- * A whole-volume labelmap is split in the parent's index space, so it goes
- * onto the parent's grid first; a bounded mask carries its own placement.
+ * An artifact is split in the parent's index space, so it goes onto the
+ * parent's grid first. A saved mask needs none of this: it carries its own
+ * bounds and its file is already the shape they describe.
  */
 export async function restoredLabelmapImage(
   artifact: SegmentationArtifact,
   image: vtkImageData,
   deps: {
-    needsSplit: (artifact: SegmentationArtifact) => boolean;
     loadedParentImage: (
       artifact: SegmentationArtifact
     ) => Promise<vtkImageData>;
@@ -79,7 +76,6 @@ export async function restoredLabelmapImage(
     ) => Promise<vtkImageData>;
   }
 ) {
-  if (!deps.needsSplit(artifact)) return image;
   return deps.ensureSameSpace(
     await deps.loadedParentImage(artifact),
     image,
@@ -87,11 +83,9 @@ export async function restoredLabelmapImage(
   );
 }
 
-/** A labelmap the restore read back, still unclaimed by any segment. */
+/** One mask's labelmap, read back from the archive entry its binding named. */
 export type LoadedLabelmap = {
   labelmap: vtkLabelMap;
-  /** Store id of the image the manifest says it belongs to. */
-  parentImageId: string;
   name: string;
   source?: ProcessingResultSource;
 };
@@ -102,10 +96,10 @@ type RestoreBindingInput = {
   manifest: Manifest;
   dataIDMap: Record<string, string>;
   /**
-   * The labelmaps that loaded, by wire id. A group awaiting its split is not
-   * among them: it is not storage any one segment can take.
+   * What each mask's own archive entry held. A mask awaiting an artifact's
+   * split is absent: its voxels are still inside that artifact.
    */
-  loaded: Map<string, LoadedLabelmap>;
+  loaded: Map<WireMask, LoadedLabelmap>;
   getParentImage: (id: string) => vtkImageData | undefined;
 };
 
@@ -139,40 +133,24 @@ function validExtent(
 }
 
 /**
- * Validates every reference before any labelmap is reshaped, so one malformed
- * binding cannot move or erase storage a later binding takes. A labelmap holds
- * one segment's voxels, so the first mask to claim one takes it and a second
- * claim on the same one is refused rather than sharing it.
+ * Places each loaded mask on its parent's grid at the bounds its binding
+ * claims, refusing bounds the labelmap or the image does not support. Nothing
+ * is shared: a mask that fails validation leaves every other mask alone,
+ * because each one was read into a buffer of its own.
  */
 export function prepareRestoreBindings(input: RestoreBindingInput) {
   const { manifest, dataIDMap, loaded, getParentImage } = input;
   const acceptedBindings = new WeakMap<WireMask, LabelmapBinding>();
   const skipped: SkippedRestoreItem[] = [];
-  const claimed = new Set<string>();
 
-  const claim = (
-    wireMask: WireMask,
-    parentImageId: string,
-    parentImage: vtkImageData | undefined
-  ) => {
+  const place = (wireMask: WireMask, parentImage: vtkImageData | undefined) => {
     const wireBinding = wireMask.representations.labelmap;
-    if (!wireBinding) return;
-    const available = loaded.get(wireBinding.artifactId);
-    // Either the labelmap never loaded, or it is a group awaiting its split;
-    // both are reported where they arise, not here.
-    if (!available) return;
+    const available = loaded.get(wireMask);
+    if (!wireBinding || !available) return;
 
     const { name, labelmap, source } = available;
     const reject = (reason: string) => skipped.push({ name, reason });
 
-    if (claimed.has(wireBinding.artifactId)) {
-      reject('labelmap is already bound to another segment');
-      return;
-    }
-    if (available.parentImageId !== parentImageId) {
-      reject('artifact belongs to another image');
-      return;
-    }
     if (!parentImage) {
       reject('parent image data is unavailable');
       return;
@@ -181,7 +159,6 @@ export function prepareRestoreBindings(input: RestoreBindingInput) {
     const extent = [...wireBinding.extent] as Extent3D;
     if (!validExtent(extent, labelmap, parentImage, reject)) return;
 
-    claimed.add(wireBinding.artifactId);
     placeMask(labelmap, parentImage, extent);
     if (isEmptyExtent(extent)) setMaskScalars(labelmap, new Uint8Array(0));
     acceptedBindings.set(wireMask, {
@@ -196,12 +173,10 @@ export function prepareRestoreBindings(input: RestoreBindingInput) {
     const parentImageId = dataIDMap[wire.parentImage];
     if (parentImageId === undefined) return;
     const parentImage = getParentImage(parentImageId);
-    orderedWireMasks(wire).forEach((wireMask) =>
-      claim(wireMask, parentImageId, parentImage)
-    );
+    orderedWireMasks(wire).forEach((wireMask) => place(wireMask, parentImage));
   });
 
-  return { acceptedBindings, claimed, skipped };
+  return { acceptedBindings, skipped };
 }
 
 /** The wire's masks in the order it records, skipping ids it does not name. */
