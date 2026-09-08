@@ -7,6 +7,7 @@ import { NO_NAME } from '@/src/constants';
 import { createArtifactNamer } from '@/src/store/artifactNaming';
 import {
   LABELMAP_MAX_VALUE,
+  SEGMENT_VALUE,
   nextUnusedLabelValue,
 } from '@/src/store/segmentLabelValue';
 import { allocateMask } from '@/src/store/segmentMask';
@@ -299,22 +300,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     delete artifactMeta[artifactId];
   }
 
-  /**
-   * Label values stay unique among the segments of one parent image, and have
-   * to fit in a mask byte. Exhausting them refuses the allocation rather than
-   * handing back a value that writes as background.
-   */
-  function nextLabelValue(segmentation: Segmentation, preferred?: number) {
-    const used = new Set(
-      listMasks(segmentation).flatMap((segment) =>
-        segment.representations.labelmap
-          ? [segment.representations.labelmap.labelValue]
-          : []
-      )
-    );
-    return nextUnusedLabelValue(used, LABELMAP_MAX_VALUE, preferred);
-  }
-
   /** A mask is editable when the segment it delineates is unlocked. */
   const maskLocked = (mask: SegmentMask) =>
     segmentRegistry.appearanceOf(mask.segmentId).locked;
@@ -375,9 +360,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const created: SegmentMask[] = [];
 
     splitLabelmap(labelmap, descriptors, (descriptor, extent) => {
-      // Claimed before the segment exists: exhausting the values throws, and a
-      // segment minted first would be left in the list with no mask.
-      const labelValue = nextLabelValue(segmentation, descriptor.value);
       const segment = createMask(
         segmentation.id,
         bindDescriptorSegment(
@@ -393,10 +375,15 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         options.source,
         options.artifactName
       );
-      segment.representations.labelmap = { artifactId, labelValue, extent };
+      segment.representations.labelmap = { artifactId, extent };
       created.push(segment);
 
-      return { labelValue, mask: maskScalars(artifactIndex[artifactId]) };
+      // The copy rewrites the source's value, so the mask holds SEGMENT_VALUE
+      // whatever the file it came from called this segment.
+      return {
+        labelValue: SEGMENT_VALUE,
+        mask: maskScalars(artifactIndex[artifactId]),
+      };
     });
 
     return created;
@@ -449,12 +436,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
-    // The value is claimed before the mask exists: exhausting the values throws,
-    // and an artifact minted first would outlive the refused binding.
-    const labelValue = nextLabelValue(segmentation);
     segment.representations.labelmap = {
       artifactId: createArtifactForImage(segmentation.parentImageId),
-      labelValue,
       extent: emptyExtent(),
     };
     return segment.representations.labelmap;
@@ -515,17 +498,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         segmentRegistry.orderIndexOf(first.segmentId) -
         segmentRegistry.orderIndexOf(second.segmentId)
     );
-    const used = new Set(
-      included.flatMap((segment) => {
-        const binding = segment.representations.labelmap;
-        return binding ? [binding.labelValue] : [];
-      })
-    );
+    // One file carries one label per voxel, so the values are assigned here
+    // rather than read off the masks, which all hold SEGMENT_VALUE. Callers
+    // pass a group layeredSegments already sized to fit them.
+    const used = new Set<number>();
     const segments: LabelmapSegment[] = [];
     included.forEach((segment) => {
-      const binding = segment.representations.labelmap;
-      const labelValue =
-        binding?.labelValue ?? nextUnusedLabelValue(used, LABELMAP_MAX_VALUE);
+      const labelValue = nextUnusedLabelValue(used, LABELMAP_MAX_VALUE);
       used.add(labelValue);
       segments.push(
         toLabelmapSegment(
@@ -533,9 +512,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           labelValue
         )
       );
-      if (!binding) return;
-      const bounded = boundedMask(binding);
-      if (bounded) writeMaskInto(values, dimensions, bounded);
+      const bounded = boundedMask(segment.representations.labelmap);
+      if (bounded) writeMaskInto(values, dimensions, bounded, labelValue);
     });
 
     return { labelmap, segments };
@@ -550,7 +528,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const groups = groupByLayer(imageMasks(parentImageId), (segment) =>
       boundedMask(segment.representations.labelmap)
     );
-    return groups.length ? groups : [[]];
+    // One byte per voxel caps a file's segments however little they overlap,
+    // so a group past the cap is split into files that fit.
+    const sized = groups.flatMap((group) =>
+      group.length <= LABELMAP_MAX_VALUE
+        ? [group]
+        : Array.from(
+            { length: Math.ceil(group.length / LABELMAP_MAX_VALUE) },
+            (_, n) =>
+              group.slice(n * LABELMAP_MAX_VALUE, (n + 1) * LABELMAP_MAX_VALUE)
+          )
+    );
+    return sized.length ? sized : [[]];
   }
 
   /**
@@ -563,7 +552,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       const binding = segment.representations.labelmap;
       if (maskLocked(segment) || !binding || isEmptyExtent(binding.extent))
         return [];
-      return [{ maskId: segment.id, labelValue: binding.labelValue }];
+      return [{ maskId: segment.id, labelValue: SEGMENT_VALUE }];
     });
   }
 
@@ -718,7 +707,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     getSegmentationForImage,
     maskFor,
     masksForArtifact,
-    nextLabelValue,
     registerArtifact,
     removeArtifact,
     splitLabelmapIntoMasks,

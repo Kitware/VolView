@@ -315,8 +315,12 @@ const Extent3D = z.tuple([
 
 const LabelmapBinding = z.object({
   artifactId: z.string(),
-  labelValue: z.number(),
   extent: Extent3D,
+  // Migration-only: a legacy group holds every segment in one buffer, and this
+  // is the value this segment's voxels carry in it. The split reads it and
+  // writes SEGMENT_VALUE into the bounded mask it mints, so a saved binding
+  // never carries one.
+  sourceValue: z.number().optional(),
 });
 
 // Everything the user sees or sets lives on the type; a record is one image's

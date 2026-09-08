@@ -41,7 +41,6 @@ const segmentation = {
       representations: {
         labelmap: {
           artifactId: 'artifact-1',
-          labelValue: 1,
           extent: [0, 3, 0, 3, 0, 1],
         },
       },
@@ -113,7 +112,6 @@ describe('Segmentation wire shape', () => {
     expect(parsed.masks[0].segmentId).toBe('segment-1');
     expect(parsed.masks[0].representations.labelmap).toEqual({
       artifactId: 'artifact-1',
-      labelValue: 1,
       extent: [0, 3, 0, 3, 0, 1],
     });
     expect(parsed.order).toEqual(['segment-1']);

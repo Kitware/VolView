@@ -27,6 +27,7 @@ import {
   voxelCount,
   type Index3,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // The state file carries N bounded masks. What goes into the archive is each
@@ -245,13 +246,13 @@ describe('bounded masks through the state file', () => {
     const bound = listMasks(store().getSegmentationForImage('img-1')!)
       .filter((segment) => segment.representations.labelmap)
       .map((segment) => ({
-        labelValue: segment.representations.labelmap!.labelValue,
         marks: markedVoxels(segment.id) ?? [],
       }));
     expect(bound).toHaveLength(6);
-    expect(new Set(bound.map(({ labelValue }) => labelValue)).size).toBe(6);
-    bound.forEach(({ labelValue, marks }) =>
-      marks.forEach((mark) => expect(mark[3]).toBe(labelValue))
+    // Every mask holds its own segment and nothing else, so every mark it
+    // carries is SEGMENT_VALUE.
+    bound.forEach(({ marks }) =>
+      marks.forEach((mark) => expect(mark[3]).toBe(SEGMENT_VALUE))
     );
   });
 
@@ -398,7 +399,7 @@ describe('bounded masks through the state file', () => {
     expect(named('Tumor').representations.labelmap).toBeUndefined();
     // The image's other segments restore as they were.
     expect(named('Node').representations.labelmap).toBeDefined();
-    expect(markedVoxels(named('Node').id)).toEqual([[3, 3, 3, 2]]);
+    expect(markedVoxels(named('Node').id)).toEqual([[3, 3, 3, SEGMENT_VALUE]]);
   });
 
   it('rejects an empty extent that points at foreground mask data', async () => {
@@ -511,21 +512,6 @@ describe('bounded masks through the state file', () => {
     expect(Object.keys(store().artifactMeta)).toHaveLength(3);
   });
 
-  it('refuses a wire label value that would turn background into a segment', async () => {
-    await buildScene();
-
-    const result = await roundTrip(inMemoryArtifactIO(), (manifest) => {
-      wireMask(manifest, 'Tumor').representations.labelmap.labelValue = 0;
-    });
-
-    expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
-    expect(result.skipped).toContainEqual({
-      name: 'Tumor',
-      reason: 'invalid label value',
-    });
-    expect(markedVoxels(restoredSegment('Node').id)).toHaveLength(1);
-  });
-
   it('keeps a valid binding when another reference to its artifact is invalid', async () => {
     await buildScene();
 
@@ -616,8 +602,8 @@ const expectTumorSegments = (
   segments: Array<{ id: string; segmentId: string }>
 ) => {
   expect(segments.map(nameOf)).toEqual(['Tumor 1', 'Tumor 2']);
-  expect(markedVoxels(segments[0].id)).toEqual([[1, 1, 1, 1]]);
-  expect(markedVoxels(segments[1].id)).toEqual([[3, 3, 3, 2]]);
+  expect(markedVoxels(segments[0].id)).toEqual([[1, 1, 1, SEGMENT_VALUE]]);
+  expect(markedVoxels(segments[1].id)).toEqual([[3, 3, 3, SEGMENT_VALUE]]);
 };
 
 describe('a legacy group restored as bounded masks', () => {

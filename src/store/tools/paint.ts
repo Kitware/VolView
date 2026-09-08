@@ -3,6 +3,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import { computed, ref, unref, watch } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
@@ -132,7 +133,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     return {
       maskId,
-      labelValue: binding.labelValue,
+      labelValue: SEGMENT_VALUE,
       voxels: segmentationStore.maskVoxels(maskId),
     };
   }

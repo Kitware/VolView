@@ -16,6 +16,7 @@ import {
 import { useSegmentStore } from '@/src/store/segments';
 import type { Extent3D } from '@/src/types/segmentation';
 import type { SegmentInit } from '@/src/types/segment';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 /** A point in the PARENT image's index space, which is where extents live. */
 export type Index3 = [number, number, number];
@@ -146,7 +147,6 @@ export const segmentationSnapshot = (imageId: string) => {
         fillOpacity: appearance.fillOpacity,
         outlineOpacity: appearance.outlineOpacity,
         binding: binding && {
-          labelValue: binding.labelValue,
           extent: [...binding.extent],
           artifactName: store().artifactMeta[binding.artifactId].name,
           artifactSource: store().artifactMeta[binding.artifactId].source,
@@ -321,7 +321,9 @@ export const bindingOf = (maskId: string) =>
 
 export const extentOf = (maskId: string) => bindingOf(maskId)?.extent;
 
-export const labelValueOf = (maskId: string) => bindingOf(maskId)?.labelValue;
+/** The value a bound mask marks its voxels with; undefined when unbound. */
+export const labelValueOf = (maskId: string) =>
+  bindingOf(maskId) && SEGMENT_VALUE;
 
 const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   i >= extent[0] &&
@@ -359,7 +361,7 @@ export function maskValueAt(maskId: string, index: Index3) {
 /** Marks one parent-index voxel for a segment, through the growth path. */
 export function seedVoxel(maskId: string, index: Index3, value?: number) {
   const voxels = store().maskVoxels(maskId);
-  const binding = voxels.materialize();
+  voxels.materialize();
   voxels.ensureContains([
     index[0],
     index[0],
@@ -369,7 +371,7 @@ export function seedVoxel(maskId: string, index: Index3, value?: number) {
     index[2],
   ]);
   const offset = offsetOf(maskId, index)!;
-  voxels.scalars()[offset] = value ?? binding.labelValue;
+  voxels.scalars()[offset] = value ?? SEGMENT_VALUE;
   voxels.image().modified();
 }
 

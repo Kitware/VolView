@@ -7,6 +7,7 @@ import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import {
   seatSpecImage as seatImage,
   markedVoxels,
@@ -58,9 +59,8 @@ describe('paint edit target', () => {
 
     strokeAt('img-1', [1, 1, 0]);
 
-    const binding = bindingOf(active.id)!;
-    expect(binding.labelValue).toBe(2);
-    expect(maskValueAt(active.id, [1, 1, 0])).toBe(binding.labelValue);
+    expect(bindingOf(active.id)).toBeDefined();
+    expect(maskValueAt(active.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('writes into the artifact of the image being painted', async () => {
@@ -78,7 +78,7 @@ describe('paint edit target', () => {
     const paintedBinding = bindingOf(painted)!;
     const sourceBinding = bindingOf(source.id)!;
     expect(paintedBinding.artifactId).not.toBe(sourceBinding.artifactId);
-    expect(maskValueAt(painted, [1, 1, 0])).toBe(paintedBinding.labelValue);
+    expect(maskValueAt(painted, [1, 1, 0])).toBe(SEGMENT_VALUE);
     expect(markedVoxels(source.id)).toEqual([]);
   });
 
@@ -95,8 +95,7 @@ describe('paint edit target', () => {
       'Segment 1'
     );
     expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
-    const binding = bindingOf(maskId)!;
-    expect(maskValueAt(maskId, [1, 1, 0])).toBe(binding.labelValue);
+    expect(maskValueAt(maskId, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('erases only the active segment’s voxels', async () => {
@@ -113,22 +112,19 @@ describe('paint edit target', () => {
 
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
-
-    const neighborBinding = bindingOf(neighbor.id)!;
-    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(
-      neighborBinding.labelValue
-    );
+    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
     expect(markedVoxels(active.id)).toEqual([]);
   });
 
+  // A mask holds SEGMENT_VALUE and nothing else, so any other byte in it is
+  // not this segment's to clear.
   it('does not erase a foreign label value from the active buffer', async () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
-    const foreign = boundSegment(segmentation.id, 'Foreign');
     const active = boundSegment(segmentation.id, 'Tumor');
     selectSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
-    const foreignValue = bindingOf(foreign.id)!.labelValue;
+    const foreignValue = SEGMENT_VALUE + 1;
     store().maskVoxels(active.id).scalars()[offsetOf(active.id, [1, 1, 0])!] =
       foreignValue;
 
@@ -163,12 +159,8 @@ describe('paint edit target', () => {
     strokeAt('img-1', [1, 1, 0]);
     strokeAt('img-1', [3, 1, 0]);
 
-    const neighborBinding = bindingOf(neighbor.id)!;
-    const activeBinding = bindingOf(active.id)!;
-    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(
-      neighborBinding.labelValue
-    );
-    expect(maskValueAt(active.id, [3, 1, 0])).toBe(activeBinding.labelValue);
+    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(active.id, [3, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('creates nothing when the paint tool is merely activated', async () => {

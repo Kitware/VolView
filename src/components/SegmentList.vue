@@ -13,6 +13,7 @@ import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME } from '@/src/constants';
 import { useSegmentShapes } from '@/src/composables/useSegmentShapes';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import { useSegmentStore } from '@/src/store/segments';
 import { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
@@ -146,11 +147,7 @@ function paintedExtent(maskId: Maybe<string>) {
   const voxels = segmentationStore.maskVoxels(maskId);
   const binding = voxels.binding();
   if (!binding) return undefined;
-  const bounds = markedExtent(
-    voxels.scalars(),
-    binding.extent,
-    binding.labelValue
-  );
+  const bounds = markedExtent(voxels.scalars(), binding.extent, SEGMENT_VALUE);
   return isEmptyExtent(bounds) ? undefined : bounds;
 }
 

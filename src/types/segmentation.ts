@@ -13,7 +13,6 @@ export const DEFAULT_SEGMENTATION_FILL_OPACITY = 0.3;
 
 export type LabelmapBinding = {
   artifactId: string;
-  labelValue: number;
   extent: Extent3D; // the mask's own bounds, in parent image index space
 };
 

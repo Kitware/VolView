@@ -7,6 +7,7 @@ import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
 import type { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
@@ -43,10 +44,10 @@ export function resolveRasterizeTarget(
 
   const voxels = segmentationStore.maskVoxels(resolved);
   // The binding's extent goes stale the moment the fill grows the mask, so
-  // only the label value is carried out of it.
-  const { labelValue, artifactId } = voxels.materialize();
+  // nothing but the artifact is carried out of it.
+  const { artifactId } = voxels.materialize();
   return {
-    labelValue,
+    labelValue: SEGMENT_VALUE,
     artifactId,
     voxels,
     maskId: resolved,

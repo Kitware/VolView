@@ -21,6 +21,7 @@ import {
   type ProcessTarget,
 } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 /** Seats a two-voxel image and makes it the one the active view shows. */
 async function viewImage(id: string) {
@@ -159,7 +160,7 @@ describe('Paint process store', () => {
     await processStore.startProcess(algorithm);
 
     expect(algorithm).toHaveBeenCalledTimes(1);
-    expect(target).toMatchObject({ labelValue: 3 });
+    expect(target).toMatchObject({ labelValue: SEGMENT_VALUE });
     expect(target!.voxels.image()).toBe(labelMap);
   });
 

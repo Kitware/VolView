@@ -2,10 +2,9 @@ import type { Ref, ComputedRef } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import { allocateMask, relabelMask } from '@/src/store/segmentMask';
-import { LABELMAP_MAX_VALUE } from '@/src/store/segmentLabelValue';
+import { allocateMask } from '@/src/store/segmentMask';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import {
-  createLabelRemapper,
   createParentImageLoader,
   orderedWireMasks,
   planArtifactRestore,
@@ -85,7 +84,6 @@ export type SegmentationWireDeps = {
     segmentId: Maybe<string>
   ) => SegmentMask | undefined;
   masksForArtifact: (artifactId: string) => SegmentMask[];
-  nextLabelValue: (segmentation: Segmentation, preferred?: number) => number;
   registerArtifact: (labelmap: vtkLabelMap, meta: ArtifactMetadata) => string;
   removeArtifact: (artifactId: string) => void;
   splitLabelmapIntoMasks: (
@@ -137,7 +135,6 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     getSegmentationForImage,
     maskFor,
     masksForArtifact,
-    nextLabelValue,
     registerArtifact,
     removeArtifact,
     splitLabelmapIntoMasks,
@@ -202,7 +199,6 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
               ? {
                   labelmap: {
                     artifactId: binding.artifactId,
-                    labelValue: binding.labelValue,
                     extent: [...binding.extent] as Extent3D,
                   },
                 }
@@ -401,11 +397,6 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     skipped.push(...prepared.skipped);
     const { acceptedBindings } = prepared;
 
-    const { relabels, remap } = createLabelRemapper(
-      nextLabelValue,
-      LABELMAP_MAX_VALUE
-    );
-
     // The masks a group awaiting its split named, in wire order, with the
     // SOURCE value each one's descriptor carries. They stand in for the
     // bindings a split group has no storage for.
@@ -442,34 +433,22 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         const accepted = acceptedBindings.get(wireMask);
         if (binding && splitWireIds.has(binding.artifactId)) {
           const waiting = awaitingSplit.get(binding.artifactId) ?? [];
-          waiting.push({ mask: segment, labelValue: binding.labelValue });
+          // Only a migrated legacy binding names a source value; a 7.0 one
+          // holds SEGMENT_VALUE like every other mask.
+          waiting.push({
+            mask: segment,
+            labelValue: binding.sourceValue ?? SEGMENT_VALUE,
+          });
           awaitingSplit.set(binding.artifactId, waiting);
         } else if (binding && accepted) {
-          const labelValue = remap(
-            segmentation,
-            accepted.artifactId,
-            binding.labelValue,
-            (reason) =>
-              skipped.push({
-                name: segmentRegistry.appearanceOf(segmentId).name,
-                reason,
-              })
-          );
-          if (labelValue !== undefined) {
-            segment.representations.labelmap = {
-              artifactId: accepted.artifactId,
-              labelValue,
-              extent: accepted.extent,
-            };
-          }
+          segment.representations.labelmap = {
+            artifactId: accepted.artifactId,
+            extent: accepted.extent,
+          };
         }
         maskIdMap[wireMask.id] = segment.id;
       });
     });
-
-    relabels.forEach((mapping, artifactId) =>
-      relabelMask(artifactIndex[artifactId], mapping)
-    );
 
     // Split after the wire segmentations so a legacy group's segments follow
     // the ones the manifest named, not precede them. A migrated group holds

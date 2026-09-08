@@ -22,6 +22,7 @@ import {
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // One flat list of segment types: rows are the shared registry's segments, keyed
@@ -818,7 +819,8 @@ describe('Reveal Slice on a segment row', () => {
 
   const paintVoxel = (maskId: string, index: Index3) => {
     const voxels = store().maskVoxels(maskId);
-    const { labelValue } = voxels.materialize();
+    voxels.materialize();
+    const labelValue = SEGMENT_VALUE;
     const [i, j, k] = index;
     voxels.ensureContains([i, i, j, j, k, k], STROKE_PADDING);
     const { extent } = voxels.binding()!;

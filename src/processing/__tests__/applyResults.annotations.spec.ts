@@ -25,6 +25,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // Applying an `add-annotations` result.
@@ -365,7 +366,8 @@ describe('applyIntent — add-annotations', () => {
     });
     const locked = segmentationStore.createMask(segmentation.id, lockedSegment);
     const voxels = segmentationStore.maskVoxels(locked.id);
-    const { labelValue } = voxels.materialize();
+    voxels.materialize();
+    const labelValue = SEGMENT_VALUE;
     voxels.ensureContains([2, 2, 3, 3, 4, 4]);
     voxels.scalars()[0] = labelValue;
     voxels.image().modified();

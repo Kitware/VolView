@@ -94,15 +94,15 @@ const catalog = () => {
   return listMasks(segmentation);
 };
 
-const labelValues = () =>
-  catalog().map((segment) => segment.representations.labelmap!.labelValue);
-
 // The selection is a type, so what it reactivates is read through the record
-// that type has on this image.
-const selectedLabelValue = () => {
+// that type has on this image. Both groups decode two segments each, in
+// ascending source value, so a segment's place says which value it came from.
+const selectedIndex = () => {
   const segmentId = useSegmentStore().segments.selectedSegmentId.value;
-  return catalog().find((segment) => segment.segmentId === segmentId)
-    ?.representations.labelmap?.labelValue;
+  const index = catalog().findIndex(
+    (segment) => segment.segmentId === segmentId
+  );
+  return index === -1 ? undefined : index;
 };
 
 describe('restoring a descriptorless active group', () => {
@@ -110,23 +110,27 @@ describe('restoring a descriptorless active group', () => {
     setActivePinia(createPinia());
   });
 
-  it('remaps the second group off the label values the first took', async () => {
+  it('gives every segment of both groups its own mask', async () => {
     await restoreTwoGroups(1);
 
-    expect(labelValues()).toEqual([1, 2, 3, 4]);
+    const artifacts = catalog().map(
+      (segment) => segment.representations.labelmap!.artifactId
+    );
+    expect(artifacts).toHaveLength(4);
+    expect(new Set(artifacts).size).toBe(4);
   });
 
   it('activates the segment split from the pending SOURCE value', async () => {
     await restoreTwoGroups(1);
 
-    // Source value 1 of the second group, which had to become 3.
-    expect(selectedLabelValue()).toBe(3);
+    // Source value 1 of the second group: the third segment restored.
+    expect(selectedIndex()).toBe(2);
   });
 
   it('activates the right segment when the pending value is the later one', async () => {
     await restoreTwoGroups(2);
 
-    expect(selectedLabelValue()).toBe(4);
+    expect(selectedIndex()).toBe(3);
   });
 
   it('leaves the active segment alone when no source value matches', async () => {

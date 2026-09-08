@@ -452,7 +452,7 @@ const migrate640To700 = (inputManifest: any) => {
         representations: {
           labelmap: {
             artifactId: group.id,
-            labelValue: value,
+            sourceValue: value,
             extent: emptyExtent(),
           },
         },

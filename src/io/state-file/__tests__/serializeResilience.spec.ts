@@ -64,7 +64,7 @@ const segmentationBoundTo = (artifactId: string) => ({
       visible: true,
       locked: false,
       representations: {
-        labelmap: { artifactId, labelValue: 1, extent: [0, 1, 0, 1, 0, 1] },
+        labelmap: { artifactId, extent: [0, 1, 0, 1, 0, 1] },
       },
     },
   ],
@@ -288,7 +288,6 @@ describe('state-file serialization resilience', () => {
               representations: {
                 labelmap: {
                   artifactId: 'artifact-1',
-                  labelValue: 1,
                   extent: [0, 3, 0, 3, 0, 3],
                 },
               },
@@ -314,7 +313,6 @@ describe('state-file serialization resilience', () => {
     expect(segmentation.masks[0].segmentId).toBe('segment-1');
     expect(segmentation.masks[0].representations.labelmap).toEqual({
       artifactId: 'artifact-1',
-      labelValue: 1,
       extent: [0, 3, 0, 3, 0, 3],
     });
     // The registry and the selection survive normalization beside the records.

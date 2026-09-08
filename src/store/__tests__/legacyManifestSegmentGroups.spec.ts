@@ -102,9 +102,9 @@ describe('migrated legacy manifests without `datasets`', () => {
     expect(
       listMasks(segmentation).map((segment) => ({
         name: useSegmentStore().segments.appearanceOf(segment.segmentId).name,
-        labelValue: segment.representations.labelmap!.labelValue,
+        bound: !!segment.representations.labelmap,
       }))
-    ).toEqual([{ name: 'Tumor', labelValue: 1 }]);
+    ).toEqual([{ name: 'Tumor', bound: true }]);
   });
 
   // The split reuses the segment the manifest named only while that segment

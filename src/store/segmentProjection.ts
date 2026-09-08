@@ -2,6 +2,7 @@ import { computed } from 'vue';
 
 import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
 import { sameLabelmapSegments, toLabelmapSegment } from '@/src/types/segment';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import {
   listMasks,
   type ArtifactMetadata,
@@ -40,7 +41,7 @@ export function createSegmentProjection({
         byArtifact[binding.artifactId].push(
           toLabelmapSegment(
             segmentRegistry.getSegment(segment.segmentId),
-            binding.labelValue
+            SEGMENT_VALUE
           )
         );
       });

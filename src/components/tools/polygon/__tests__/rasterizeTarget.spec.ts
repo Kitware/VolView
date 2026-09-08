@@ -10,6 +10,7 @@ import { resolveRasterizeTarget } from '@/src/components/tools/polygon/rasterize
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { useSegmentStore } from '@/src/store/segments';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 const store = () => useSegmentationStore();
 const segments = () => useSegmentStore().segments;
@@ -35,7 +36,7 @@ describe('polygon rasterize target', () => {
 
     const target = targetOf('img-1', segment.segmentId);
 
-    expect(target.labelValue).toBe(1);
+    expect(target.labelValue).toBe(SEGMENT_VALUE);
     expect(
       store()
         .maskLayersForImage('img-1')
@@ -46,7 +47,7 @@ describe('polygon rasterize target', () => {
     );
     expect(
       store().getMask(segment.record.id).representations.labelmap
-    ).toMatchObject({ artifactId: target.artifactId, labelValue: 1 });
+    ).toMatchObject({ artifactId: target.artifactId });
   });
 
   it('resolves the given type rather than the first one', async () => {
@@ -57,7 +58,6 @@ describe('polygon rasterize target', () => {
 
     const target = targetOf('img-1', second.segmentId);
 
-    expect(target.labelValue).toBe(2);
     expect(target.artifactId).not.toBe(
       store().resolveLabelmapBinding(first.record.id)!.artifactId
     );
@@ -71,7 +71,6 @@ describe('polygon rasterize target', () => {
     const second = targetOf('img-1', segment.segmentId);
 
     expect(second.artifactId).toBe(first.artifactId);
-    expect(second.labelValue).toBe(first.labelValue);
     expect(store().maskLayersForImage('img-1')).toHaveLength(1);
   });
 

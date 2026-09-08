@@ -94,7 +94,6 @@ const describedBy = (imageId: string) =>
   segmentsOf(imageId).map((segment) => ({
     name: appearanceOf(segment).name,
     color: [...appearanceOf(segment).color],
-    labelValue: segment.representations.labelmap?.labelValue,
   }));
 
 /** A local codec: itk-wasm image IO has no counterpart in the node test env. */
@@ -146,7 +145,6 @@ describe('the import path answers on the segmentation store', () => {
     const bindings = segments.map(
       (segment) => segment.representations.labelmap!
     );
-    expect(bindings.map((binding) => binding.labelValue)).toEqual([1, 2]);
     // Each mask is cropped to the box its own value spans, not the parent's grid.
     expect([...bindings[0].extent]).toEqual([1, 2, 1, 1, 1, 1]);
     expect([...bindings[1].extent]).toEqual([3, 3, 3, 3, 3, 3]);
@@ -266,8 +264,8 @@ describe('the import path answers on the segmentation store', () => {
     // Merge, not replace: the described value takes the embedded name and
     // colour, the undescribed one keeps its default.
     expect(describedBy('parent-img')).toEqual([
-      { name: 'Tumor 1', color: categorical(0), labelValue: 1 },
-      { name: 'Tumor core', color: [255, 0, 0, 255], labelValue: 2 },
+      { name: 'Tumor 1', color: categorical(0) },
+      { name: 'Tumor core', color: [255, 0, 0, 255] },
     ]);
   });
 });

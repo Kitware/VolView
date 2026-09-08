@@ -9,6 +9,7 @@ import {
   type VoxelStorage,
 } from '@/src/types/segmentation';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -259,7 +260,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       maskId,
       voxels,
       maskExtent: [...binding.extent] as Extent3D,
-      labelValue: binding.labelValue,
+      labelValue: SEGMENT_VALUE,
     } satisfies ProcessTarget;
   }
 

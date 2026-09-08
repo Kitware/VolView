@@ -14,6 +14,7 @@ import {
   store,
   type Index3,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // Bounded per-segment masks. Storage is one mask per SEGMENT, sized to the
@@ -68,14 +69,13 @@ describe('bounded segment masks', () => {
       );
     });
 
-    it('keeps label values distinct among the segments of one image', () => {
-      const values = ['A', 'B', 'C']
+    it('gives every segment of one image its own storage', () => {
+      const artifacts = ['A', 'B', 'C']
         .map((name) => addMask('img-1', name))
         .map((maskId) => store().maskVoxels(maskId).materialize())
-        .map((binding) => binding.labelValue);
+        .map((binding) => binding.artifactId);
 
-      expect(new Set(values).size).toBe(3);
-      expect(values.every((value) => value > 0)).toBe(true);
+      expect(new Set(artifacts).size).toBe(3);
     });
 
     it('is idempotent and keeps the same storage', () => {
@@ -172,12 +172,11 @@ describe('bounded segment masks', () => {
     it('keeps the voxels it already had at the same parent indices', () => {
       const maskId = addMask('img-1', 'Tumor');
       seedVoxel(maskId, [1, 1, 1]);
-      const labelValue = store().maskVoxels(maskId).binding()!.labelValue;
 
       store().maskVoxels(maskId).ensureContains([1, 3, 1, 3, 1, 1]);
 
       expect(dimensionsOf(maskId)).toEqual([3, 3, 1]);
-      expect(maskValueAt(maskId, [1, 1, 1])).toBe(labelValue);
+      expect(maskValueAt(maskId, [1, 1, 1])).toBe(SEGMENT_VALUE);
       expect(maskValueAt(maskId, [3, 3, 1])).toBe(0);
       expect(maskValueAt(maskId, [2, 1, 1])).toBe(0);
     });
@@ -185,12 +184,11 @@ describe('bounded segment masks', () => {
     it('grows downward, moving its origin and keeping its voxels', () => {
       const maskId = addMask('img-1', 'Tumor');
       seedVoxel(maskId, [2, 2, 2]);
-      const labelValue = store().maskVoxels(maskId).binding()!.labelValue;
 
       store().maskVoxels(maskId).ensureContains([0, 0, 0, 0, 0, 0]);
 
       expect(extentOf(maskId)).toEqual([0, 2, 0, 2, 0, 2]);
-      expect(maskValueAt(maskId, [2, 2, 2])).toBe(labelValue);
+      expect(maskValueAt(maskId, [2, 2, 2])).toBe(SEGMENT_VALUE);
       expect(maskValueAt(maskId, [0, 0, 0])).toBe(0);
       const mask = store().maskVoxels(maskId).image();
       expect(Array.from(mask.indexToWorld([0, 0, 0] as never))).toEqual(
@@ -228,7 +226,6 @@ describe('bounded segment masks', () => {
     it('leaves the mask alone when it refuses a growth', () => {
       const maskId = addMask('img-1', 'Tumor');
       seedVoxel(maskId, [1, 1, 1]);
-      const labelValue = store().maskVoxels(maskId).binding()!.labelValue;
       expect(extentOf(maskId)).toEqual([1, 1, 1, 1, 1, 1]);
       const before = extentOf(maskId)!;
 
@@ -237,7 +234,7 @@ describe('bounded segment masks', () => {
       ).toThrow();
 
       expect(extentOf(maskId)).toEqual(before);
-      expect(maskValueAt(maskId, [1, 1, 1])).toBe(labelValue);
+      expect(maskValueAt(maskId, [1, 1, 1])).toBe(SEGMENT_VALUE);
     });
   });
 
@@ -271,42 +268,35 @@ describe('bounded segment masks', () => {
   });
 
   describe('label values', () => {
-    it('gives every materialized segment of one image its own byte value', () => {
-      const values = Array.from(
-        { length: LABELMAP_MAX_VALUE },
-        () => store().maskVoxels(addMask('img-1')).materialize().labelValue
-      );
+    // A mask holds one segment, so its bytes say claimed or not and nothing
+    // is allocated against a per-image pool.
+    it('marks every segment of one image with the same value', () => {
+      const masks = Array.from({ length: 3 }, () => addMask('img-1'));
+      masks.forEach((maskId) => {
+        store().maskVoxels(maskId).materialize();
+        seedVoxel(maskId, [1, 1, 1]);
+      });
 
-      expect(new Set(values).size).toBe(LABELMAP_MAX_VALUE);
-      expect(Math.min(...values)).toBe(1);
-      expect(Math.max(...values)).toBe(LABELMAP_MAX_VALUE);
+      expect(masks.map((maskId) => maskValueAt(maskId, [1, 1, 1]))).toEqual([
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
+      ]);
     });
 
-    it('refuses to materialize past the values a mask byte can hold', () => {
+    // The one-byte cap bound an image's segments only because they shared a
+    // buffer. It now binds a flattened export file, not the store.
+    it('materializes past the values a mask byte can hold', () => {
       Array.from({ length: LABELMAP_MAX_VALUE }, () =>
         store().maskVoxels(addMask('img-1')).materialize()
       );
       const overflow = addMask('img-1', 'One too many');
-      const artifactCount = Object.keys(store().artifactIndex).length;
 
-      expect(() => store().maskVoxels(overflow).materialize()).toThrow(
-        /at most 255 segments/
+      expect(() => store().maskVoxels(overflow).materialize()).not.toThrow();
+      expect(store().maskVoxels(overflow).binding()).toBeDefined();
+      expect(Object.keys(store().artifactIndex)).toHaveLength(
+        LABELMAP_MAX_VALUE + 1
       );
-      // Refused, not half-done: the segment is still unbound, and no mask was
-      // minted for the binding that never happened.
-      expect(store().maskVoxels(overflow).binding()).toBeUndefined();
-      expect(Object.keys(store().artifactIndex)).toHaveLength(artifactCount);
-      expect(Object.keys(store().artifactMeta)).toHaveLength(artifactCount);
-    });
-
-    it('leaves the values of another image alone', async () => {
-      Array.from({ length: LABELMAP_MAX_VALUE }, () =>
-        store().maskVoxels(addMask('img-1')).materialize()
-      );
-      await seatImage('img-2', { dimensions: DIMENSIONS });
-      const other = addMask('img-2');
-
-      expect(store().maskVoxels(other).materialize().labelValue).toBe(1);
     });
   });
 
@@ -319,12 +309,8 @@ describe('bounded segment masks', () => {
 
       expect(maskValueAt(tumor, [2, 2, 2])).toBeUndefined();
       expect(maskValueAt(node, [1, 1, 1])).toBeUndefined();
-      expect(maskValueAt(tumor, [1, 1, 1])).toBe(
-        store().maskVoxels(tumor).binding()!.labelValue
-      );
-      expect(maskValueAt(node, [2, 2, 2])).toBe(
-        store().maskVoxels(node).binding()!.labelValue
-      );
+      expect(maskValueAt(tumor, [1, 1, 1])).toBe(SEGMENT_VALUE);
+      expect(maskValueAt(node, [2, 2, 2])).toBe(SEGMENT_VALUE);
     });
 
     it('releases a deleted segment’s mask and leaves its neighbour alone', () => {
@@ -337,9 +323,7 @@ describe('bounded segment masks', () => {
       store().deleteMask(tumor);
 
       expect(store().maskVoxels(node).image()).toBe(nodeImage);
-      expect(maskValueAt(node, [2, 2, 2])).toBe(
-        store().maskVoxels(node).binding()!.labelValue
-      );
+      expect(maskValueAt(node, [2, 2, 2])).toBe(SEGMENT_VALUE);
       // The neighbour never held the deleted segment's voxels to begin with.
       expect(maskValueAt(node, [1, 1, 1])).toBeUndefined();
     });

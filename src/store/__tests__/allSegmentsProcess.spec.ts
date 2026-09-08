@@ -22,6 +22,7 @@ import {
   selectSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // An all-segments process is one run per editable segment, each on that
@@ -43,7 +44,8 @@ const DIMENSIONS: Index3 = [SIZE, SIZE, 1];
 function segmentAt(name: string, cells: Array<[number, number]>) {
   const maskId = addMask('img-1', name);
   const voxels = store().maskVoxels(maskId);
-  const { labelValue } = voxels.materialize();
+  voxels.materialize();
+  const labelValue = SEGMENT_VALUE;
   voxels.ensureContains([0, SIZE - 1, 0, SIZE - 1, 0, 0]);
   const scalars = voxels.scalars();
   cells.forEach(([i, j]) => {

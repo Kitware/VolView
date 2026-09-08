@@ -135,11 +135,11 @@ const orderedMasks = (segmentation: any) =>
     segmentation.masks.find((segment: any) => segment.id === id)
   );
 
-const boundTo = (segmentation: any, artifactId: string, labelValue: number) =>
+const boundTo = (segmentation: any, artifactId: string, sourceValue: number) =>
   orderedMasks(segmentation).find(
     (segment: any) =>
       segment.representations.labelmap?.artifactId === artifactId &&
-      segment.representations.labelmap?.labelValue === labelValue
+      segment.representations.labelmap?.sourceValue === sourceValue
   );
 
 describe('migrate640To700: structural stage', () => {
@@ -187,7 +187,7 @@ describe('migrate640To700: structural stage', () => {
         color: segment.segment.color,
         visible: segment.segment.visible,
         locked: segment.segment.locked,
-        labelValue: segment.representations.labelmap.labelValue,
+        sourceValue: segment.representations.labelmap.sourceValue,
         artifactId: segment.representations.labelmap.artifactId,
       }))
     ).toEqual([
@@ -196,7 +196,7 @@ describe('migrate640To700: structural stage', () => {
         color: [255, 0, 0, 255],
         visible: true,
         locked: true,
-        labelValue: 1,
+        sourceValue: 1,
         artifactId: 'sg-1',
       },
       {
@@ -204,7 +204,7 @@ describe('migrate640To700: structural stage', () => {
         color: [0, 255, 0, 128],
         visible: false,
         locked: false,
-        labelValue: 2,
+        sourceValue: 2,
         artifactId: 'sg-1',
       },
       {
@@ -212,7 +212,7 @@ describe('migrate640To700: structural stage', () => {
         color: [1, 2, 3, 4],
         visible: true,
         locked: false,
-        labelValue: 3,
+        sourceValue: 3,
         artifactId: 'sg-1',
       },
     ]);
@@ -919,7 +919,6 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     );
     // A polygon's type brings no record with it, so this image holds only the
     // two masks the group split into.
-    expect(bindings.map((binding) => binding?.labelValue)).toEqual([1, 2]);
     expect(bindings.map((binding) => binding && [...binding.extent])).toEqual([
       [0, 3, 1, 2, 0, 0],
       [0, 3, 0, 3, 0, 1],

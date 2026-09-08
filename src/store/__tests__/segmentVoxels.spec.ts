@@ -86,7 +86,7 @@ describe('segment voxel accessor', () => {
 
       // Materializing through a second accessor is visible through the first.
       voxelsOf(target).materialize();
-      expect(voxels.binding()?.labelValue).toBeGreaterThan(0);
+      expect(voxels.binding()?.artifactId).toBeDefined();
 
       store().deleteMask(target.maskId);
       expect(() => voxels.binding()).toThrow();
@@ -122,7 +122,6 @@ describe('segment voxel accessor', () => {
       expect(binding.artifactId).toBe(
         store().maskLayersForImage('img-1')[0].artifactId
       );
-      expect(binding.labelValue).toBeGreaterThan(0);
       expect(isEmptyExtent(binding.extent)).toBe(true);
       expect(voxelsOf(target).image().getDimensions()).toEqual([0, 0, 0]);
       expect(scalarsOf(voxelsOf(target).image())).toHaveLength(0);
@@ -148,7 +147,6 @@ describe('segment voxel accessor', () => {
 
       expect(store().maskLayersForImage('img-1')).toHaveLength(2);
       expect(b.artifactId).not.toBe(a.artifactId);
-      expect(b.labelValue).not.toBe(a.labelValue);
       expect(voxelsOf(second).image()).not.toBe(voxelsOf(first).image());
     });
   });

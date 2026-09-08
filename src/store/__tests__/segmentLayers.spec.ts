@@ -19,6 +19,7 @@ import {
   flatIndex,
   type Index3,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // One labelmap file carries one label per voxel, so two segments that share a
@@ -207,7 +208,7 @@ describe('writing a mask into a parent-shaped buffer', () => {
   it('marks the mask’s voxels at their parent indices', () => {
     const values = new Uint8Array(PARENT[0] * PARENT[1] * PARENT[2]);
 
-    writeMaskInto(values, PARENT, voxelMask([1, 2, 3], 7));
+    writeMaskInto(values, PARENT, voxelMask([1, 2, 3], SEGMENT_VALUE), 7);
 
     expect(values[parentOffset(1, 2, 3)]).toBe(7);
     expect(Array.from(values).filter((value) => value !== 0)).toHaveLength(1);
@@ -216,8 +217,19 @@ describe('writing a mask into a parent-shaped buffer', () => {
   it('leaves a voxel it does not claim as the buffer had it', () => {
     const values = new Uint8Array(PARENT[0] * PARENT[1] * PARENT[2]);
 
-    writeMaskInto(values, PARENT, maskOf([1, 2, 1, 1, 1, 1], [[1, 1, 1]], 3));
-    writeMaskInto(values, PARENT, maskOf([1, 2, 1, 1, 1, 1], [[2, 1, 1]], 5));
+    const mark = SEGMENT_VALUE;
+    writeMaskInto(
+      values,
+      PARENT,
+      maskOf([1, 2, 1, 1, 1, 1], [[1, 1, 1]], mark),
+      3
+    );
+    writeMaskInto(
+      values,
+      PARENT,
+      maskOf([1, 2, 1, 1, 1, 1], [[2, 1, 1]], mark),
+      5
+    );
 
     expect(values[parentOffset(1, 1, 1)]).toBe(3);
     expect(values[parentOffset(2, 1, 1)]).toBe(5);
@@ -226,8 +238,8 @@ describe('writing a mask into a parent-shaped buffer', () => {
   it('gives the voxel to the mask written last', () => {
     const values = new Uint8Array(PARENT[0] * PARENT[1] * PARENT[2]);
 
-    writeMaskInto(values, PARENT, voxelMask([1, 1, 1], 3));
-    writeMaskInto(values, PARENT, voxelMask([1, 1, 1], 5));
+    writeMaskInto(values, PARENT, voxelMask([1, 1, 1], SEGMENT_VALUE), 3);
+    writeMaskInto(values, PARENT, voxelMask([1, 1, 1], SEGMENT_VALUE), 5);
 
     expect(values[parentOffset(1, 1, 1)]).toBe(5);
   });

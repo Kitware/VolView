@@ -65,8 +65,9 @@ describe('segment addressing by id alone', () => {
 
     const binding = store().ensureLabelmapBinding(segment.id);
 
-    expect(binding.labelValue).toBe(1);
-    expect(store().resolveLabelmapBinding(segment.id)?.labelValue).toBe(1);
+    expect(store().resolveLabelmapBinding(segment.id)?.artifactId).toBe(
+      binding.artifactId
+    );
     expect(store().artifactMeta[binding.artifactId].parentImage).toBe('img-1');
   });
 

@@ -23,6 +23,7 @@ import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
 import type { Extent3D } from '@/src/types/segmentation';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 const fillHolesWorkerMock = vi.hoisted(() => vi.fn(async (input) => input));
 
@@ -324,7 +325,8 @@ describe('Fill Holes store', () => {
       })
     );
     const second = segmentationStore.maskVoxels(other.id);
-    const { labelValue: otherValue } = second.materialize();
+    second.materialize();
+    const otherValue = SEGMENT_VALUE;
     second.ensureContains([4, 6, 0, 2, 0, 0]);
     second.apply(
       new Uint8Array([

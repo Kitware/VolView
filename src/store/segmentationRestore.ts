@@ -13,7 +13,6 @@ import {
   LABELMAP_BACKGROUND_VALUE,
   maskScalars,
   type Extent3D,
-  type Segmentation,
 } from '@/src/types/segmentation';
 import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
@@ -41,45 +40,6 @@ export function planArtifactRestore(manifest: Manifest) {
   const needsSplit = (artifact: SegmentationArtifact) =>
     artifact.pendingSplit === true || needsDecode(artifact);
   return { boundArtifactIds, needsDecode, needsSplit };
-}
-
-/**
- * Remaps a restored segment's label value when it collides with one the
- * parent segmentation already holds, tracking the mapping so its mask bytes
- * can be rewritten once every segment sharing it has a value. A group awaiting
- * its split never reaches here: it has no storage to rewrite.
- */
-export function createLabelRemapper(
-  nextLabelValue: (segmentation: Segmentation, preferred?: number) => number,
-  maxValue: number
-) {
-  const relabels = new Map<string, Map<number, number>>();
-  const remap = (
-    segmentation: Segmentation,
-    artifactId: string,
-    wireValue: number,
-    reject: (reason: string) => void
-  ) => {
-    if (
-      !Number.isInteger(wireValue) ||
-      wireValue <= LABELMAP_BACKGROUND_VALUE ||
-      wireValue > maxValue
-    ) {
-      reject('invalid label value');
-      return undefined;
-    }
-    try {
-      const labelValue = nextLabelValue(segmentation, wireValue);
-      const mapping = relabels.get(artifactId) ?? new Map<number, number>();
-      mapping.set(wireValue, labelValue);
-      relabels.set(artifactId, mapping);
-      return labelValue;
-    } catch {
-      reject('no label value left on the parent image');
-      return undefined;
-    }
-  };
-  return { relabels, remap };
 }
 
 /** Awaits and returns an artifact's parent image, or throws when it never loaded. */

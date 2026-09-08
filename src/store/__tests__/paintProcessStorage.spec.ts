@@ -20,6 +20,7 @@ import {
 } from '@/src/store/tools/paintProcess';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useViewStore } from '@/src/store/views';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // How the process state machine touches storage. Preview, toggle, confirm and
@@ -58,7 +59,8 @@ function addBoundSegment(segmentationId: string, name: string) {
     mintSegment({ name })
   );
   const voxels = segmentationStore.maskVoxels(segment.id);
-  const { labelValue } = voxels.materialize();
+  voxels.materialize();
+  const labelValue = SEGMENT_VALUE;
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
   return { maskId: segment.id, labelValue };
 }
@@ -140,7 +142,7 @@ describe('paint process storage', () => {
         parentImageId: 'image-1',
         parentDimensions: [2, 1, 1],
         maskExtent: [0, 1, 0, 0, 0, 0],
-        labelValue: 3,
+        labelValue: SEGMENT_VALUE,
       });
       expect(target.voxels.image()).toBe(labelMap);
     });

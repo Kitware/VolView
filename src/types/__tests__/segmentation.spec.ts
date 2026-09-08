@@ -110,10 +110,9 @@ describe('mask model', () => {
     expect(segment.representations.labelmap).toBeUndefined();
   });
 
-  it('binds a segment to one label value inside one artifact', () => {
+  it('binds a segment to one artifact and the box it covers', () => {
     const binding: LabelmapBinding = {
       artifactId: 'artifact-1',
-      labelValue: 3,
       extent: [0, 9, 0, 19, 0, 29],
     };
     const segment: SegmentMask = {
@@ -124,7 +123,6 @@ describe('mask model', () => {
 
     expect(segment.representations.labelmap).toEqual({
       artifactId: 'artifact-1',
-      labelValue: 3,
       extent: [0, 9, 0, 19, 0, 29],
     });
     expect(isEmptyExtent(binding.extent)).toBe(false);

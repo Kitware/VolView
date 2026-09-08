@@ -195,7 +195,6 @@ describe('migrated segment groups: resilient restore', () => {
     ]);
     const restored = catalogFor('store-ct');
     expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor']);
-    expect(restored[0].representations.labelmap!.labelValue).toBe(1);
     expect([
       ...useSegmentStore().segments.appearanceOf(restored[0].segmentId).color,
     ]).toEqual([255, 0, 0, 255]);

@@ -159,13 +159,16 @@ export function groupByLayer<T>(
 }
 
 /**
- * Marks a bounded mask's voxels in a parent-shaped buffer. Masks are written in
- * `order`, so a later one takes a voxel an earlier one also claims.
+ * Marks a bounded mask's voxels in a parent-shaped buffer as `labelValue`. The
+ * mask's own bytes only say claimed or not, so the value is the caller's.
+ * Masks are written in `order`, so a later one takes a voxel an earlier one
+ * also claims.
  */
 export function writeMaskInto(
   values: Uint8Array,
   dimensions: readonly number[],
-  bounded: BoundedScalars
+  bounded: BoundedScalars,
+  labelValue: number
 ) {
   const { extent, scalars } = bounded;
   const [dx, dy] = dimensions;
@@ -180,8 +183,7 @@ export function writeMaskInto(
     for (let n = 0; n < ni; n += 1) {
       // Background is 0, so a voxel this mask leaves unclaimed keeps whatever
       // the buffer already holds there.
-      const value = scalars[from + n];
-      if (value) values[to + n] = value;
+      if (scalars[from + n]) values[to + n] = labelValue;
     }
   }
 }

@@ -139,7 +139,6 @@ const catalogFor = (parentImageId: string) => {
         color: [...appearance.color],
         visible: appearance.visible,
         locked: appearance.locked,
-        labelValue: segment.representations.labelmap!.labelValue,
       };
     });
 };
@@ -190,7 +189,6 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     // Sanity on the live shape: the full non-background enumeration got
     // default names/colors — not an empty catalog.
-    expect(live.map((segment) => segment.labelValue)).toEqual([1, 2]);
     expect(live.map((segment) => segment.name)).toEqual(['Tumor 1', 'Tumor 2']);
 
     expect(cold).toEqual(live);
@@ -235,10 +233,12 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     // The described value carries its embedded name; the undescribed value
     // still gets its default (merge, not replace).
-    const named = (labelValue: number) =>
-      live.find((segment) => segment.labelValue === labelValue)?.name;
-    expect(named(2)).toBe('Tumor core');
-    expect(named(1)).toBe('Tumor 1');
+    // The split walks the source values in ascending order, so a segment's
+    // place in the catalog says which value it came from.
+    expect(live.map((segment) => segment.name)).toEqual([
+      'Tumor 1',
+      'Tumor core',
+    ]);
 
     expect(cold).toEqual(live);
   });
@@ -267,7 +267,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     );
 
     const catalog = catalogFor('parent-store');
-    expect(catalog.map((entry) => entry.labelValue)).toEqual([1, 2]);
+    expect(catalog).toHaveLength(2);
     expect(catalog[0].name).toBe('Segment 1');
     expect(catalog[1]).toMatchObject({
       name: 'Tumor core',
@@ -283,9 +283,12 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     await store.convertImageToLabelmap('child-img', 'parent-img');
 
-    expect(
-      catalogFor('parent-img').map((segment) => segment.labelValue)
-    ).toEqual([1, 255]);
+    // Two distinct nonzero labels in the file, so two segments, named after
+    // the values they carried in it.
+    expect(catalogFor('parent-img').map((segment) => segment.name)).toEqual([
+      'Sparse 1',
+      'Sparse 255',
+    ]);
   });
 
   it('enumerates no segments for an all-background labelmap', async () => {

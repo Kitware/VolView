@@ -24,6 +24,7 @@ import {
   selectSegment,
   lockSegment,
 } from '@/src/store/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 
 // ---------------------------------------------------------------------------
 // A process writes into empty space only. A brush stroke is aimed at a place
@@ -84,7 +85,8 @@ function cubeWithHole(imageId: string) {
   const maskId = addMask(imageId, 'Tumor');
   selectSegment(maskId);
   const voxels = store().maskVoxels(maskId);
-  const { labelValue } = voxels.materialize();
+  voxels.materialize();
+  const labelValue = SEGMENT_VALUE;
   voxels.ensureContains([0, 4, 0, 4, 0, 4]);
   const scalars = voxels.scalars();
   scalars.fill(labelValue);
