@@ -13,6 +13,9 @@ import {
 import { useToolStore } from '@/src/store/tools';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
+import { useImageStatsStore } from '@/src/store/image-stats';
+import { useDatasetStore } from '@/src/store/datasets';
+import { leafStateId } from '@/src/io/import/dataSource';
 import {
   manifestForImages,
   seatImage,
@@ -69,7 +72,7 @@ const expectPartialRestore = (
 
 // Real chunk loading and terminal status transitions, with only pixel decoding
 // held at the IO seam so deletion/completion can occur during the restore.
-const pendingParent = async () => {
+const pendingImage = async (id = 'parent') => {
   const decoded = defer<void>();
   const started = defer<void>();
   const meta = [
@@ -102,14 +105,16 @@ const pendingParent = async () => {
       return {
         image: {
           size: [4, 4, 1],
-          data: new Uint16Array(16),
+          data: Uint16Array.from({ length: 16 }, (_, index) =>
+            index === 5 ? 1 : 0
+          ),
           imageType: { components: 1 },
         },
       };
     },
   });
   await image.addChunks([chunk]);
-  cache().addProgressiveImage(image, { id: 'parent' });
+  cache().addProgressiveImage(image, { id });
   await started.promise;
   expect(image.loading.value).toBe(true);
   return { image, decoded };
@@ -139,7 +144,7 @@ describe('artifact restore parent lifetime', () => {
 
   it('settles when a parent is removed while its pixel loading is pending', async () => {
     const { options } = await setupRestore();
-    const { decoded } = await pendingParent();
+    const { decoded } = await pendingImage();
     const restore = store().deserialize(options);
     await nextTick();
 
@@ -151,7 +156,7 @@ describe('artifact restore parent lifetime', () => {
 
   it('waits for a slow progressive parent that ultimately loads', async () => {
     const { options } = await setupRestore();
-    const { image, decoded } = await pendingParent();
+    const { image, decoded } = await pendingImage();
     let settled = false;
     const restore = store()
       .deserialize(options)
@@ -176,7 +181,7 @@ describe('artifact restore parent lifetime', () => {
 
   it('skips a terminal failed DICOM parent and permits downstream tool restore', async () => {
     const { options } = await setupRestore();
-    const { image, decoded } = await pendingParent();
+    const { image, decoded } = await pendingImage();
     const originalDeserialize = store().deserialize;
     const injectIO = vi
       .spyOn(store(), 'deserialize')
@@ -252,3 +257,119 @@ describe('artifact restore parent lifetime', () => {
     expectPartialRestore(result);
   });
 });
+
+async function pendingSourceRestore(temporary: boolean) {
+  for (const id of ['source', 'healthy']) {
+    useImageStatsStore().stats[id] = {
+      scalarMin: 0,
+      scalarMax: 1,
+      autoRangeValues: {},
+    };
+  }
+  const { options } = await setupRestore();
+  const { image, decoded } = await pendingImage('source');
+  const manifest = manifestForImages(['healthy'], {
+    dataSources: [
+      { id: 1, type: 'uri', uri: '/healthy.nrrd' },
+      { id: 2, type: 'uri', uri: '/mask.dcm' },
+    ],
+    datasets: [
+      { id: 'healthy', dataSourceId: 1 },
+      ...(!temporary ? [{ id: 'source', dataSourceId: 2 }] : []),
+    ],
+    segmentationArtifacts: [
+      ...['first', 'second'].map((id) => ({
+        id,
+        name: id,
+        parentImage: 'healthy',
+        dataSourceId: 2,
+      })),
+      artifact('healthy'),
+    ],
+  });
+  const deserialize = store().deserialize;
+  const injectedIO = vi
+    .spyOn(store(), 'deserialize')
+    .mockImplementation((args) => deserialize({ ...args, io: options.io }));
+  const tools = vi.spyOn(useToolStore(), 'deserialize');
+  const remove = vi.spyOn(useDatasetStore(), 'remove');
+  let completed = false;
+  const restore = completeStateFileRestore(manifest, options.stateFiles, {
+    healthy: 'healthy',
+    [temporary ? leafStateId(2) : 'source']: 'source',
+  }).then(() => {
+    completed = true;
+  });
+  return {
+    image,
+    decoded,
+    restore,
+    tools,
+    remove,
+    injectedIO,
+    completed: () => completed,
+  };
+}
+
+describe.each([true, false])(
+  'artifact source lifetime, temporary: %s',
+  (temporary) => {
+    it.each(['failure', 'removal'])(
+      'settles on source %s and restores healthy downstream content',
+      async (action) => {
+        const pending = await pendingSourceRestore(temporary);
+        await nextTick();
+        expect(pending.completed()).toBe(false);
+        expect(pending.image.loading.value).toBe(true);
+        if (action === 'failure')
+          pending.decoded.reject(new Error('Source pixel read failed'));
+        else {
+          cache().removeImage('source');
+          pending.decoded.resolve();
+        }
+        await pending.restore;
+
+        expect(store().imageMasks('healthy')).toHaveLength(1);
+        expect(pending.tools).toHaveBeenCalledOnce();
+        expect(pending.remove.mock.calls).toEqual(
+          temporary ? [['source']] : []
+        );
+        expect(!!cache().imageById.source).toBe(
+          !temporary && action === 'failure'
+        );
+        const details = useMessageStore().messages.find(
+          (message) =>
+            message.title === 'Some scene content could not be restored'
+        )?.options.details;
+        expect(details).toContain('first');
+        expect(details).toContain('second');
+        pending.injectedIO.mockRestore();
+        pending.tools.mockRestore();
+        pending.remove.mockRestore();
+      }
+    );
+
+    it('waits for a slow shared source, attaches both masks, and cleans up only owned data', async () => {
+      const pending = await pendingSourceRestore(temporary);
+      await nextTick();
+      expect(pending.completed()).toBe(false);
+      expect(pending.remove).not.toHaveBeenCalled();
+      pending.decoded.resolve();
+      await pending.restore;
+
+      expect(store().imageMasks('healthy')).toHaveLength(3);
+      expect(pending.tools).toHaveBeenCalledOnce();
+      expect(pending.remove.mock.calls).toEqual(temporary ? [['source']] : []);
+      expect(!!cache().imageById.source).toBe(!temporary);
+      expect(
+        useMessageStore().messages.some(
+          (message) =>
+            message.title === 'Some scene content could not be restored'
+        )
+      ).toBe(false);
+      pending.injectedIO.mockRestore();
+      pending.tools.mockRestore();
+      pending.remove.mockRestore();
+    });
+  }
+);

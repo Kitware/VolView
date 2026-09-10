@@ -44,23 +44,21 @@ export function planArtifactRestore(manifest: Manifest) {
   return { needsDecode };
 }
 
-/** Awaits and returns an artifact's parent image, or throws when it never loaded. */
-export function createParentImageLoader(
-  dataIDMap: Record<string, string>,
+/** Requires complete image data for an artifact's source or parent grid. */
+export function createArtifactImageLoader(
   getImage: (id: string) => ProgressiveImage | undefined,
   getVtkImageData: (id: string) => vtkImageData | undefined
 ) {
-  return async (artifact: SegmentationArtifact) => {
-    const parentId = dataIDMap[artifact.parentImage];
+  return async (imageId: string) => {
     // A stopped, incomplete load cannot supply the grid for an artifact.
     // Removal also settles the watcher, including removal before it starts.
-    await until(() => !getImage(parentId)?.loading.value).toBe(true);
-    if (getImage(parentId)?.status.value !== 'complete') {
-      throw new Error('Parent image did not load');
+    await until(() => !getImage(imageId)?.loading.value).toBe(true);
+    if (getImage(imageId)?.status.value !== 'complete') {
+      throw new Error('Artifact image did not load');
     }
-    const parent = getVtkImageData(parentId);
-    if (!parent) throw new Error('Could not get parent image data');
-    return parent;
+    const image = getVtkImageData(imageId);
+    if (!image) throw new Error('Could not get artifact image data');
+    return image;
   };
 }
 

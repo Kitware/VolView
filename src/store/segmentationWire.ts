@@ -5,7 +5,7 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import { allocateMask } from '@/src/store/segmentMask';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import {
-  createParentImageLoader,
+  createArtifactImageLoader,
   orderedWireMasks,
   planArtifactRestore,
   prepareRestoreBindings,
@@ -26,7 +26,6 @@ import type { Maybe, ProcessingResultSource } from '@/src/types';
 import { toLabelmapSegment } from '@/src/types/segment';
 import { cleanUndefined } from '@/src/utils';
 import { normalize } from '@/src/utils/path';
-import { untilLoaded } from '@/src/composables/untilLoaded';
 import { toLabelMap } from '@/src/io/labelmapImport';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -262,13 +261,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         return io.read(file!);
       }
 
-      await untilLoaded(storeId!);
-      const image = imageCacheStore.getVtkImageData(storeId!);
-      if (!image) {
-        throw new Error(
-          `Could not get image data for dataSourceId ${artifact.dataSourceId}`
-        );
-      }
+      const image = await loadedArtifactImage(storeId!);
       return {
         image,
         headerMetadata: imageCacheStore.imageById[storeId!]?.headerMetadata,
@@ -276,8 +269,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     }
 
     const { needsDecode } = planArtifactRestore(manifest);
-    const loadedParentImage = createParentImageLoader(
-      dataIDMap,
+    const loadedArtifactImage = createArtifactImageLoader(
       (id) => imageCacheStore.imageById[id],
       (id) => imageCacheStore.getVtkImageData(id) ?? undefined
     );
@@ -328,7 +320,8 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             );
             const labelmap = toLabelMap(
               await restoredLabelmapImage(artifact, image, {
-                loadedParentImage,
+                loadedParentImage: () =>
+                  loadedArtifactImage(dataIDMap[artifact.parentImage]),
                 ensureSameSpace,
               })
             );
