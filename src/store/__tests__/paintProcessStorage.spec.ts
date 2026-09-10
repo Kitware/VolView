@@ -21,6 +21,7 @@ import {
 import { PaintMode } from '@/src/core/tools/paint';
 import { useViewStore } from '@/src/store/views';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
+import { defer } from '@/src/utils';
 
 // ---------------------------------------------------------------------------
 // How the process state machine touches storage. Preview, toggle, confirm and
@@ -413,6 +414,102 @@ describe('paint process storage', () => {
 
       expectRolledBack(labelMap, original);
       expect(labelMap.getDimensions()).toEqual([2, 1, 1]);
+    });
+  });
+
+  describe('live target locks', () => {
+    it('cancels computing immediately, discards late output, and allows an unlocked retry', async () => {
+      const { maskId, labelMap } = addActiveSegment(new Uint8Array([1, 0]));
+      const process = usePaintProcessStore();
+      const paint = usePaintToolStore();
+      paint.setMode(PaintMode.Erase);
+      const release = defer<void>();
+      const running = process.startProcess(async (target) => {
+        await release.promise;
+        return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
+      });
+      lockSegment(maskId);
+      // Even a lock/unlock within one task invalidates the pending operation.
+      lockSegment(maskId, false);
+      expect(process.processStep).toBe('start');
+      expect(paint.activeMode).toBe(PaintMode.Erase);
+      const { algorithm } = recordingAlgorithm(() => new Uint8Array(2));
+      await process.startProcess(algorithm);
+      release.resolve();
+      await running;
+      expect(process.processStep).toBe('previewing');
+      expect(values(labelMap)).toEqual([0, 0]);
+      process.cancelProcess();
+      expect(values(labelMap)).toEqual([1, 0]);
+      expect(paint.activeMode).toBe(PaintMode.Erase);
+    });
+
+    it.each(['confirmProcess', 'togglePreview'] as const)(
+      'refuses %s in the same turn as locking an Original preview',
+      async (action) => {
+        const { processStore, labelMap, maskId } = await startedProcess();
+        processStore.togglePreview();
+        expect(values(labelMap)).toEqual([1, 0]);
+        lockSegment(maskId);
+        processStore[action]();
+        expect(processStore.processStep).toBe('start');
+        expect(values(labelMap)).toEqual([1, 0]);
+        expect(usePaintToolStore().activeMode).not.toBe(PaintMode.Process);
+      }
+    );
+
+    it('rolls back a processed preview immediately when its target locks', async () => {
+      const { processStore, labelMap, maskId } = await startedProcess();
+      expect(values(labelMap)).toEqual([1, 1]);
+      lockSegment(maskId);
+      expect(values(labelMap)).toEqual([1, 0]);
+      expect(processStore.processStep).toBe('start');
+    });
+
+    it.each(['computing', 'previewing'])(
+      'cancels all targets when one locks during %s',
+      async (step) => {
+        const { segmentationId, maskId, labelMap } = addActiveSegment(
+          new Uint8Array([1, 0])
+        );
+        const second = addBoundSegment(segmentationId, 'Second');
+        const secondVoxels = useSegmentationStore().maskVoxels(second.maskId);
+        secondVoxels.apply(new Uint8Array([0, 1]));
+        const process = usePaintProcessStore();
+        const release = defer<void>();
+        const running = process.startProcess(
+          async (target) => {
+            await release.promise;
+            return { scalars: new Uint8Array(2), extent: target.maskExtent };
+          },
+          { requiresActiveSegment: false }
+        );
+        if (step === 'previewing') {
+          release.resolve();
+          await running;
+          expect(values(labelMap)).toEqual([0, 0]);
+          expect(Array.from(secondVoxels.scalars())).toEqual([0, 0]);
+        }
+        lockSegment(second.maskId);
+        release.resolve();
+        await running;
+        expect(process.processStep).toBe('start');
+        expect(values(labelMap)).toEqual([1, 0]);
+        expect(Array.from(secondVoxels.scalars())).toEqual([0, 1]);
+        expect(useSegmentationStore().isLocked(maskId)).toBe(false);
+      }
+    );
+
+    it('keeps a scoped preview when an unrelated segment locks', async () => {
+      const { processStore, labelMap } = await startedProcess();
+      const segmentation =
+        useSegmentationStore().getSegmentationForImage('image-1')!;
+      const unrelated = addBoundSegment(segmentation.id, 'Unrelated');
+      lockSegment(unrelated.maskId);
+      await nextTick();
+      expect(processStore.processStep).toBe('previewing');
+      processStore.confirmProcess();
+      expect(values(labelMap)).toEqual([1, 1]);
     });
   });
 });

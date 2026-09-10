@@ -34,6 +34,7 @@ type StartState = {
 
 type TargetedState = {
   activeParentImageID: string;
+  targetMaskIds: string[];
   // The segment whose selection owns the run, absent for an all-segments run:
   // that run belongs to no one segment, so no selection change is about it.
   watchedMaskId?: string;
@@ -246,6 +247,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   function confirmProcess() {
+    if (cancelIfLocked()) return;
     const state = processState.value;
     // Apply commits the processed result. When the user is viewing the
     // original, the masks currently hold originalScalars, so restore the
@@ -277,6 +279,25 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     resetState();
     paintStore.restoreModeAfterProcess();
   }
+
+  // Locking any target cancels the whole uncommitted transaction. Rollback
+  // restores the original contents even though further edits are now locked.
+  const targetLocked = computed(() => {
+    const state = processState.value;
+    return (
+      state.step !== 'start' &&
+      state.targetMaskIds.some((maskId) => segmentationStore.isLocked(maskId))
+    );
+  });
+
+  function cancelIfLocked() {
+    if (!targetLocked.value) return false;
+    cancelProcess();
+    return true;
+  }
+
+  // Synchronous invalidation also honors a lock/unlock before Vue's next flush.
+  watch(targetLocked, cancelIfLocked, { flush: 'sync' });
 
   function setActiveProcessType(processType: ProcessType) {
     // Cancel any active process before switching
@@ -390,17 +411,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   ) {
     // Most processes operate on the active segment; all-segments processes opt
     // out so they are not blocked by a locked active segment.
-    const requiresActiveSegment = options?.requiresActiveSegment ?? true;
-
     const imageId = currentImageID.value;
     if (!imageId) {
       messageStore.addError('No image to process');
       return;
     }
 
-    const resolved = requiresActiveSegment
-      ? resolveSegmentScoped(imageId)
-      : resolveEverySegment(imageId);
+    const resolveRun =
+      options?.requiresActiveSegment === false
+        ? resolveEverySegment
+        : resolveSegmentScoped;
+    const resolved = resolveRun(imageId);
     if (!resolved) return;
     const { targets, watchedMaskId } = resolved;
 
@@ -410,12 +431,13 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const snapshots = targets.map((target) => target.voxels.snapshot());
     let runs: PreviewRun[] = [];
 
-    paintStore.enterProcessMode();
-    processState.value = {
-      step: 'computing',
+    const targetedState = {
       activeParentImageID: imageId,
       watchedMaskId,
+      targetMaskIds: targets.map((target) => target.maskId),
     };
+    paintStore.enterProcessMode();
+    processState.value = { step: 'computing', ...targetedState };
 
     try {
       // Started together, so every algorithm reads its own mask before any
@@ -424,7 +446,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         targets.map((target) => algorithm(target))
       );
 
-      if (runIsStale(processRunId)) return;
+      if (runIsStale(processRunId) || cancelIfLocked()) return;
 
       runs = targets.flatMap((target, index) =>
         buildRun(target, snapshots[index], outputs[index])
@@ -450,8 +472,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
       processState.value = {
         step: 'previewing',
-        activeParentImageID: imageId,
-        watchedMaskId,
+        ...targetedState,
         runs,
         showingOriginal: false,
       };
@@ -478,6 +499,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   function togglePreview() {
+    if (cancelIfLocked()) return;
     const state = processState.value;
 
     if (state.step === 'previewing') {

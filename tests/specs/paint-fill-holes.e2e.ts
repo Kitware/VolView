@@ -1,9 +1,19 @@
 import AppPage from '../pageobjects/volview.page';
+import { PROSTATEX_DATASET } from './configTestUtils';
+import { openUrls } from './utils';
+
+async function startFillHolesPreview() {
+  await AppPage.processModeButton.waitForClickable();
+  await AppPage.processModeButton.click();
+  await AppPage.selectFillHolesProcess();
+  await AppPage.processPreviewButton.waitForClickable();
+  await AppPage.processPreviewButton.click();
+  await AppPage.processApplyButton.waitForDisplayed();
+}
 
 describe('Fill Holes paint process', () => {
   beforeEach(async () => {
-    await AppPage.open();
-    await AppPage.downloadProstateSample();
+    await openUrls([PROSTATEX_DATASET]);
     await AppPage.waitForViews();
 
     const views2D = await AppPage.getViews2D();
@@ -45,12 +55,7 @@ describe('Fill Holes paint process', () => {
   });
 
   it('toggles the preview in place between processed and original', async () => {
-    await AppPage.processModeButton.waitForClickable();
-    await AppPage.processModeButton.click();
-    await AppPage.selectFillHolesProcess();
-
-    await AppPage.processPreviewButton.waitForClickable();
-    await AppPage.processPreviewButton.click();
+    await startFillHolesPreview();
 
     // Previewing starts on the processed result.
     await AppPage.processProcessedButton.waitForDisplayed();
@@ -71,4 +76,24 @@ describe('Fill Holes paint process', () => {
       await AppPage.isPreviewToggleActive(AppPage.processProcessedButton)
     ).toBe(false);
   });
+
+  for (const preview of ['Original', 'Processed']) {
+    it(`cancels the ${preview} preview when its segment locks and allows a retry`, async () => {
+      await startFillHolesPreview();
+      if (preview === 'Original') await AppPage.processOriginalButton.click();
+      const lock = $('[data-testid="toggle-segments-locked-button"]');
+      await lock.waitForClickable();
+      await lock.click();
+      await expect(AppPage.processPreviewButton).toBeDisplayed();
+      await expect(AppPage.processApplyButton).not.toBeDisplayed();
+
+      await lock.click();
+      await AppPage.processPreviewButton.waitForClickable();
+      await AppPage.processPreviewButton.click();
+      await AppPage.processApplyButton.waitForClickable();
+      await AppPage.processApplyButton.click();
+      await expect(AppPage.processPreviewButton).toBeDisplayed();
+      await expect($('div*=Operation Failed')).not.toBeDisplayed();
+    });
+  }
 });
