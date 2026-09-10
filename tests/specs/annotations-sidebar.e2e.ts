@@ -1,4 +1,4 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { PROSTATEX_DATASET } from './configTestUtils';
 import { downloadFile, openUrls } from './utils';
 import {
@@ -193,6 +193,44 @@ describe('Annotations sidebar', () => {
     await $('div[role="dialog"]').waitForDisplayed();
     await volViewPage.editLabelModalDoneButton.click();
     await $('div[role="dialog"]').waitForDisplayed({ reverse: true });
+  });
+
+  it('cancels segment edits with Escape while keeping tool shortcuts isolated', async () => {
+    await setupTest();
+    await volViewPage.selectTool('mdi-ruler');
+    await openAnnotationSegments();
+    const row = await segmentRow('Segment 1');
+    const edit = row.$('[data-testid="edit-segment-button"]');
+    const dialog = () => $('div[role="dialog"]');
+    const name = () => dialog().$('.v-text-field input');
+    const paint = $('button:has(i.mdi-brush)');
+
+    await edit.execute((element) => element.focus());
+    await browser.keys('Enter');
+    await dialog().waitForDisplayed();
+    await setValueVueInput(name(), 'Discarded draft');
+    await volViewPage.editLabelModalDoneButton.execute((element) =>
+      element.focus()
+    );
+    await browser.keys('p');
+    expect(await paint.getAttribute('class')).not.toContain(
+      'tool-btn-selected'
+    );
+    await name().execute((element) => element.focus());
+    await browser.keys('Escape');
+    await dialog().waitForDisplayed({ reverse: true });
+    expect(await segmentNames()).toEqual(['Segment 1']);
+
+    await edit.click();
+    await dialog().waitForDisplayed();
+    expect(await name().getValue()).toEqual('Segment 1');
+    await setValueVueInput(name(), 'Committed');
+    await browser.keys('Enter');
+    await dialog().waitForDisplayed({ reverse: true });
+    expect(await segmentNames()).toEqual(['Committed']);
+    await row.execute((element) => element.focus());
+    await browser.keys('p');
+    expect(await paint.getAttribute('class')).toContain('tool-btn-selected');
   });
 
   it('names segment actions and exposes keyboard selection and disclosure changes', async () => {

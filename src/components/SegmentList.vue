@@ -485,7 +485,7 @@ const {
   </div>
   <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
 
-  <isolated-dialog v-model="editDialog" @keydown.stop max-width="800px">
+  <isolated-dialog v-model="editDialog" max-width="800px">
     <segment-editor
       v-if="!!editingSegment"
       v-model:name="editState.name"
