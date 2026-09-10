@@ -48,6 +48,7 @@ export function useSegmentShapes() {
             hidden: !!tool.hidden,
             axis,
             slice: tool.slice,
+            frame: tool.frame,
             placement: placement(located),
             // Only a ruler carries a number a user reads off the list.
             measurement:

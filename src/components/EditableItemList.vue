@@ -5,10 +5,10 @@
 >
 /* global T, KeyProp, TitleProp */
 
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { Maybe } from '@/src/types';
 
-defineEmits(['create', 'update:model-value']);
+const emit = defineEmits(['create', 'update:model-value', 'update:expanded']);
 
 const props = withDefaults(
   defineProps<{
@@ -20,11 +20,14 @@ const props = withDefaults(
     modelValue: Maybe<T[KeyProp]>;
     /** Whether an item has anything to show under it. */
     expandable?: (item: T) => boolean;
+    /** Keys of the items whose expansion is open. */
+    expanded?: Array<string | number | symbol>;
   }>(),
   {
     createText: 'Create',
     hideCreate: false,
     expandable: () => false,
+    expanded: () => [],
   }
 );
 
@@ -37,11 +40,15 @@ const itemsToRender = computed(() =>
   }))
 );
 
-const openKeys = ref(new Set<string | number | symbol>());
+const isOpen = (key: string | number | symbol) => props.expanded.includes(key);
 
-const toggleOpen = (key: string | number | symbol) => {
-  if (!openKeys.value.delete(key)) openKeys.value.add(key);
-};
+const toggleOpen = (key: string | number | symbol) =>
+  emit(
+    'update:expanded',
+    isOpen(key)
+      ? props.expanded.filter((open) => open !== key)
+      : [...props.expanded, key]
+  );
 </script>
 
 <template>
@@ -63,7 +70,7 @@ const toggleOpen = (key: string | number | symbol) => {
           <v-btn
             v-if="hasMore"
             icon
-            size="x-small"
+            size="small"
             density="compact"
             variant="plain"
             class="expand-button mr-1"
@@ -71,7 +78,7 @@ const toggleOpen = (key: string | number | symbol) => {
             @click.stop="toggleOpen(key)"
           >
             <v-icon>{{
-              openKeys.has(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
+              isOpen(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
             }}</v-icon>
           </v-btn>
           <span v-else class="expand-button mr-1" />
@@ -89,7 +96,7 @@ const toggleOpen = (key: string | number | symbol) => {
         </div>
       </v-list-item>
 
-      <div v-if="hasMore && openKeys.has(key)" class="item-expansion">
+      <div v-if="hasMore && isOpen(key)" class="item-expansion">
         <slot name="item-expansion" :item="item"></slot>
       </div>
     </template>
@@ -109,10 +116,12 @@ const toggleOpen = (key: string | number | symbol) => {
   min-width: 0;
 }
 
-.item-row,
-.create-row {
+.v-list-item.item-row,
+.v-list-item.create-row {
   border: 1px solid transparent;
   border-radius: 4px;
+  /* The list's default inset would dwarf the gaps between the row's own parts. */
+  padding-inline: 4px;
 }
 
 .item-row.v-list-item--active {
@@ -129,12 +138,14 @@ const toggleOpen = (key: string | number | symbol) => {
   opacity: var(--v-medium-emphasis-opacity);
 }
 
+/* Square keeps the chevron round instead of squashed by the row. */
 .expand-button {
-  width: 20px;
-  flex: 0 0 20px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
 }
 
 .item-expansion {
-  margin-left: 28px;
+  margin-left: 44px;
 }
 </style>

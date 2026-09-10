@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -24,18 +24,6 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 // IDENTICAL segment catalogs for the same descriptor-less labelmap, with and
 // without embedded `.seg.nrrd` metadata.
 // ---------------------------------------------------------------------------
-
-// `writeSegmentation` spawns a real Worker; keep the IO module out of the test.
-const ioMocks = vi.hoisted(() => ({
-  readImage: vi.fn(),
-  writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
-}));
-
-// eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
-vi.mock('@/src/io/readWriteImage', () => ({
-  readImage: ioMocks.readImage,
-  writeSegmentation: ioMocks.writeSegmentation,
-}));
 
 const BASE_URI = 'volview-backend:base/ct-chest-001';
 const ARTIFACT_URI = 'volview-backend:artifact/tumor-seg/v2';
@@ -180,10 +168,6 @@ async function coldCatalog(
 }
 
 describe('descriptor-less segment catalogs: cold restore == live conversion (parity pin)', () => {
-  beforeEach(() => {
-    ioMocks.readImage.mockReset();
-  });
-
   it('defaults-only labelmap: identical enumeration, names, and colors', async () => {
     const live = await liveCatalog();
     const cold = await coldCatalog();
@@ -247,25 +231,38 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
   it('preserves embedded metadata from an archive-backed .seg.nrrd', async () => {
     setActivePinia(createPinia());
     seat('parent-store', 'CT Chest', makeParentImage());
-    ioMocks.readImage.mockResolvedValue({
+    const decoded = {
       image: makeLabelmapImage(),
       headerMetadata: new Map<string, string>([
         ['Segment0_LabelValue', '2'],
         ['Segment0_Name', 'Tumor core'],
         ['Segment0_Color', '1 0 0'],
       ]),
-    });
+    };
 
-    await completeStateFileRestore(
-      descriptorlessArchiveManifest(),
-      [
-        {
-          archivePath: 'segmentations/Tumor.seg.nrrd',
-          file: new File([''], 'Tumor.seg.nrrd'),
-        },
-      ],
-      { 'ds-ct': 'parent-store' }
+    const store = useSegmentationStore();
+    const deserialize = store.deserialize;
+    const read = vi.spyOn(store, 'deserialize').mockImplementation((options) =>
+      deserialize({
+        ...options,
+        io: { read: async () => decoded, write: vi.fn() },
+      })
     );
+
+    try {
+      await completeStateFileRestore(
+        descriptorlessArchiveManifest(),
+        [
+          {
+            archivePath: 'segmentations/Tumor.seg.nrrd',
+            file: new File([''], 'Tumor.seg.nrrd'),
+          },
+        ],
+        { 'ds-ct': 'parent-store' }
+      );
+    } finally {
+      read.mockRestore();
+    }
 
     const catalog = catalogFor('parent-store');
     expect(catalog).toHaveLength(2);

@@ -117,13 +117,14 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     }
 
     const worker = await getWorker();
-    return worker.fillHolesWorker({
+    const scalars = await worker.fillHolesWorker({
       data,
       dimensions,
       axis,
       sliceIndex,
       label: target.labelValue,
     });
+    return { scalars, extent: target.maskExtent };
   }
 
   return {

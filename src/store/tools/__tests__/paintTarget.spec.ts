@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { createApp } from 'vue';
 
@@ -172,4 +172,47 @@ describe('paint edit target', () => {
     expect(store().getSegmentationForImage('img-1')).toBeUndefined();
     expect(store().maskLayersForImage('img-1')).toEqual([]);
   });
+
+  it.each([false, true])(
+    'publishes overwritten voxels at the end of a paint sample (throws: %s)',
+    async (throws) => {
+      await seatImage('img-1');
+      const segmentation = store().ensureSegmentationForImage('img-1');
+      const neighbor = boundSegment(segmentation.id, 'Neighbor');
+      const voxels = store().maskVoxels(neighbor.id);
+      voxels.ensureContains([0, 3, 0, 3, 0, 1]);
+      voxels.scalars().fill(1);
+      const modified = vi.fn();
+      voxels.image().onModified(modified);
+      const active = boundSegment(segmentation.id, 'Active');
+      selectSegment(active.id);
+      const paint = usePaintToolStore();
+      paint.setBrushSize(3);
+      const paintLabelmap = paint.$paint.paintLabelmap.bind(paint.$paint);
+      const intercepted = vi.spyOn(paint.$paint, 'paintLabelmap');
+      intercepted.mockImplementation((image, axis, point, options) => {
+        let written = 0;
+        return paintLabelmap(image, axis, point, {
+          ...options,
+          onPainted: (ijk) => {
+            options?.onPainted?.(ijk);
+            written += 1;
+            if (throws && written === 2) throw new Error('Interrupted stroke');
+          },
+        });
+      });
+
+      try {
+        const stroke = () => paint.startStroke([1, 1, 0], 2, 'img-1');
+        if (throws) expect(stroke).toThrow('Interrupted stroke');
+        else stroke();
+        expect(
+          voxels.scalars().filter((value) => value === 0).length
+        ).toBeGreaterThan(1);
+        expect(modified).toHaveBeenCalledTimes(1);
+      } finally {
+        intercepted.mockRestore();
+      }
+    }
+  );
 });

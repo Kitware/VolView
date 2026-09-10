@@ -20,17 +20,6 @@ import { listMasks } from '@/src/types/segmentation';
 // dataset is removed after conversion.
 // ---------------------------------------------------------------------------
 
-const ioMocks = vi.hoisted(() => ({
-  readImage: vi.fn(),
-  writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
-}));
-
-// eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
-vi.mock('@/src/io/readWriteImage', () => ({
-  readImage: ioMocks.readImage,
-  writeSegmentation: ioMocks.writeSegmentation,
-}));
-
 const segments = {
   order: [1],
   byValue: {
@@ -73,7 +62,6 @@ const seatImage = (id: string, name: string) =>
 describe('migrated legacy manifests without `datasets`', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    ioMocks.readImage.mockReset();
   });
 
   it('attaches a path-less group via the dataset covering its dataSourceId', async () => {

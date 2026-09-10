@@ -2,9 +2,13 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
 import {
+  extentContains,
   extentSize,
+  extentUnion,
+  fullExtent,
   isEmptyExtent,
   LABELMAP_BACKGROUND_VALUE,
+  markedExtent,
   type Extent3D,
   type VoxelStorage,
 } from '@/src/types/segmentation';
@@ -14,6 +18,7 @@ import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { reframeMaskScalars } from '@/src/store/segmentMask';
 import { useSegmentationStore } from '../segmentations';
 import { useSegmentStore } from '../segments';
 
@@ -41,8 +46,15 @@ type ComputingState = TargetedState & {
 /** One segment's slot in a run: what it held, and what the algorithm made. */
 type PreviewRun = {
   target: ProcessTarget;
+  extent: Extent3D;
   originalScalars: TypedArray;
   processedScalars: TypedArray | number[];
+};
+
+/** Algorithm output positioned in parent index space, including any growth. */
+export type ProcessResult = {
+  scalars: TypedArray | number[];
+  extent: Extent3D;
 };
 
 type PreviewingState = TargetedState & {
@@ -82,7 +94,30 @@ type ResolvedRun = {
  */
 export type ProcessAlgorithm = (
   target: ProcessTarget
-) => Promise<TypedArray | number[] | undefined>;
+) => Promise<ProcessResult | undefined>;
+
+/** Validate placement and keep only the space the preview or original needs. */
+function previewExtent(target: ProcessTarget, result: ProcessResult) {
+  if (
+    !result.extent.every(Number.isInteger) ||
+    isEmptyExtent(result.extent) ||
+    !extentContains(fullExtent(target.parentDimensions), result.extent) ||
+    extentSize(result.extent).reduce((a, b) => a * b, 1) !==
+      result.scalars.length
+  ) {
+    throw new Error('Process result does not fit its parent-grid extent');
+  }
+  if (extentContains(target.maskExtent, result.extent))
+    return target.maskExtent;
+  const occupied = markedExtent(
+    result.scalars,
+    result.extent,
+    target.labelValue
+  );
+  return isEmptyExtent(occupied)
+    ? target.maskExtent
+    : extentUnion(target.maskExtent, occupied);
+}
 
 export const usePaintProcessStore = defineStore('paintProcess', () => {
   const processState = ref<ProcessState>({ step: 'start' });
@@ -122,10 +157,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const binding = segmentationStore.findMaskBinding(run.target.maskId);
     if (!binding || isEmptyExtent(binding.extent)) return undefined;
     const extent = [...binding.extent] as Extent3D;
-    const [mi, mj, mk] = extentSize(extent);
-    const addressable =
-      run.processedScalars.length === mi * mj * mk &&
-      run.originalScalars.length === run.processedScalars.length;
+    const [mi, mj] = extentSize(extent);
+    const addressable = extent.every(
+      (value, axis) => value === run.extent[axis]
+    );
     return addressable ? { extent, mi, mj } : undefined;
   }
 
@@ -162,7 +197,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         const turnedOn =
           after[from + n] !== LABELMAP_BACKGROUND_VALUE &&
           before[from + n] === LABELMAP_BACKGROUND_VALUE;
-        if (turnedOn && !claimVoxel(extent[0] + n, j, k)) {
+        if (turnedOn && !claimVoxel.claim(extent[0] + n, j, k)) {
           after[from + n] = LABELMAP_BACKGROUND_VALUE;
         }
       }
@@ -171,22 +206,43 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
   /**
    * One segment's preview slot, or nothing when the algorithm changed nothing
-   * or its storage went away while the algorithm ran. The result is kept as the
-   * algorithm's own array rather than a copy: an algorithm handing back the buffer it was given would leave the
-   * processed result aliasing storage, and the first toggle to the original
-   * would erase it.
+   * or its storage went away while the algorithm ran. Both arrays are placed
+   * on the same extent before storage grows, so toggling or cancelling also
+   * restores voxels outside the input allocation. An algorithm must return a
+   * separate buffer: aliasing storage would erase its result on the first toggle.
    */
   function buildRun(
     target: ProcessTarget,
     originalScalars: TypedArray,
-    processedScalars: TypedArray | number[] | undefined
+    result: ProcessResult | undefined
   ): PreviewRun[] {
-    if (processedScalars === undefined) return [];
+    if (result === undefined) return [];
     if (!target.voxels.exists()) return [];
-    if (processedScalars === target.voxels.scalars()) {
+    if (result.scalars === target.voxels.scalars()) {
       throw new Error('Process returned the storage buffer it was given');
     }
-    return [{ target, originalScalars, processedScalars }];
+    const extent = previewExtent(target, result);
+    const binding = segmentationStore.findMaskBinding(target.maskId);
+    if (
+      !binding?.extent.every((value, axis) => value === target.maskExtent[axis])
+    )
+      return [];
+    return [
+      {
+        target,
+        extent,
+        originalScalars: extent.every(
+          (value, axis) => value === target.maskExtent[axis]
+        )
+          ? originalScalars
+          : reframeMaskScalars(originalScalars, target.maskExtent, extent),
+        processedScalars: extent.every(
+          (value, axis) => value === result.extent[axis]
+        )
+          ? result.scalars
+          : reframeMaskScalars(result.scalars, result.extent, extent),
+      },
+    ];
   }
 
   function confirmProcess() {
@@ -352,6 +408,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const processRunId = ++activeProcessRunId;
 
     const snapshots = targets.map((target) => target.voxels.snapshot());
+    let runs: PreviewRun[] = [];
 
     paintStore.enterProcessMode();
     processState.value = {
@@ -369,7 +426,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
       if (runIsStale(processRunId)) return;
 
-      const runs = targets.flatMap((target, index) =>
+      runs = targets.flatMap((target, index) =>
         buildRun(target, snapshots[index], outputs[index])
       );
 
@@ -386,6 +443,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       // Masked against what the segments hold now, so a run that reaches a
       // voxel an earlier run of the same pass just filled leaves it there.
       runs.forEach((run) => {
+        run.target.voxels.ensureContains(run.extent);
         maskVoxelsOtherSegmentsHold(run);
         run.target.voxels.apply(run.processedScalars);
       });
@@ -403,9 +461,17 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,
       });
-      targets.forEach((target, index) =>
-        writeIfPresent(target.voxels, snapshots[index])
-      );
+      targets.forEach((target, index) => {
+        const run = runs.find((candidate) => candidate.target === target);
+        const binding = segmentationStore.findMaskBinding(target.maskId);
+        const grown =
+          run &&
+          binding?.extent.every((value, axis) => value === run.extent[axis]);
+        writeIfPresent(
+          target.voxels,
+          grown ? run.originalScalars : snapshots[index]
+        );
+      });
       resetState();
       paintStore.restoreModeAfterProcess();
     }

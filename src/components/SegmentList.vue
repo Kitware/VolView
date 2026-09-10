@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import EditableItemList from '@/src/components/EditableItemList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
@@ -24,7 +24,7 @@ import {
 } from '@/src/types/segmentation';
 
 const registry = useSegmentStore().segments;
-const { shapesOf } = useSegmentShapes();
+const { shapes, shapesOf } = useSegmentShapes();
 const segmentationStore = useSegmentationStore();
 const { currentImageID } = useCurrentImage();
 
@@ -66,6 +66,31 @@ type Row = (typeof rows.value)[number];
 // A clip is a stack of unrelated frames, so a segmentation drawn across it
 // means nothing and saves as an empty 2D file.
 const viewingCine = computed(() => isCineImage(currentImageID.value));
+
+// --- expansion --- //
+
+const expandedSegments = ref<string[]>([]);
+
+// A shape reaches this list only once it is placed, so a newly listed one is a
+// placement: its segment opens to show where the annotation landed. Switching
+// images swaps the whole list at once and is not a placement.
+const shapesImage = ref(currentImageID.value);
+
+watch(shapes, (now, before) => {
+  const sameImage = shapesImage.value === currentImageID.value;
+  shapesImage.value = currentImageID.value;
+  if (!sameImage) return;
+
+  const listed = new Set((before ?? []).map((shape) => shape.id));
+  const placed = now
+    .filter((shape) => !listed.has(shape.id))
+    .map((shape) => shape.segmentId)
+    .filter((segmentId): segmentId is string => !!segmentId);
+  if (placed.length)
+    expandedSegments.value = [
+      ...new Set([...expandedSegments.value, ...placed]),
+    ];
+});
 
 // --- display --- //
 
@@ -111,7 +136,6 @@ const selectedSegmentOn = computed({
 // Adding a row allocates no storage and touches no image: the segment exists
 // as identity until an edit binds a mask to it.
 function addNewSegment() {
-  if (viewingCine.value) return;
   registry.addSegment();
 }
 
@@ -158,6 +182,7 @@ function revealSlice(row: Row) {
   if (!imageId) return;
   const slicesByAxis = row.shapes.reduce<Partial<Record<LPSAxis, number[]>>>(
     (byAxis, shape) => {
+      if (shape.frame != null) return byAxis;
       const axis = shape.axis as LPSAxis;
       return { ...byAxis, [axis]: [...(byAxis[axis] ?? []), shape.slice] };
     },
@@ -166,6 +191,9 @@ function revealSlice(row: Row) {
   revealSegmentContent(imageId, {
     extent: paintedExtent(row.maskId),
     slicesByAxis,
+    frames: row.shapes.flatMap((shape) =>
+      shape.frame == null ? [] : [shape.frame]
+    ),
   });
 }
 
@@ -186,14 +214,21 @@ function toggleGlobalLocked() {
 }
 
 function deleteSegment(id: string) {
+  if (registry.appearanceOf(id).locked) return;
   registry.deleteSegment(id);
 }
 
 // --- editing state --- //
 
 const editing = useSegmentEditing(() => registry);
-const { editDialog, editState, editingSegment, editingName, invalidNames } =
-  editing;
+const {
+  editDialog,
+  editState,
+  editingSegment,
+  editingName,
+  editingLocked,
+  invalidNames,
+} = editing;
 </script>
 
 <template>
@@ -230,20 +265,22 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
         }}</v-tooltip>
       </v-btn>
 
-      <v-btn
-        data-testid="save-segments-button"
-        icon
-        size="small"
-        density="comfortable"
-        variant="text"
-        :disabled="!!savableReason"
-        @click.stop="openSaveDialog"
-      >
-        <v-icon>mdi-content-save</v-icon>
+      <span class="d-inline-flex" :tabindex="savableReason ? 0 : undefined">
+        <v-btn
+          data-testid="save-segments-button"
+          icon
+          size="small"
+          density="comfortable"
+          variant="text"
+          :disabled="!!savableReason"
+          @click.stop="openSaveDialog"
+        >
+          <v-icon>mdi-content-save</v-icon>
+        </v-btn>
         <v-tooltip location="top" activator="parent">{{
           savableReason || 'Save'
         }}</v-tooltip>
-      </v-btn>
+      </span>
     </div>
 
     <div v-if="viewedSegmentation" class="my-2">
@@ -269,8 +306,8 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
       item-key="id"
       item-title="name"
       create-text="New segment"
-      :hide-create="viewingCine"
       :expandable="(row: Row) => row.shapes.length > 0"
+      v-model:expanded="expandedSegments"
       @create="addNewSegment"
       class="mb-2"
     >
@@ -281,9 +318,9 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
           class="d-flex align-center flex-nowrap shape-row"
           data-testid="segment-shape-row"
         >
-          <v-icon class="shape-icon mr-2" size="small">{{ shape.icon }}</v-icon>
-          <span class="text-caption text-truncate">{{ shape.placement }}</span>
-          <span v-if="shape.measurement" class="text-caption ml-2">{{
+          <v-icon class="shape-icon mr-2">{{ shape.icon }}</v-icon>
+          <span class="text-body-1 text-truncate">{{ shape.placement }}</span>
+          <span v-if="shape.measurement" class="text-body-1 ml-2">{{
             shape.measurement
           }}</span>
           <span class="ml-auto flex-shrink-0 d-flex align-center">
@@ -298,7 +335,7 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
             >
               <v-icon>mdi-target</v-icon>
               <v-tooltip location="left" activator="parent">
-                Reveal Slice
+                {{ shape.frame != null ? 'Reveal Frame' : 'Reveal Slice' }}
               </v-tooltip>
             </v-btn>
             <v-btn
@@ -330,37 +367,48 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
       </template>
       <template #item-prepend="{ item }">
         <!-- dot container keeps overflowing name from squishing dot width  -->
-        <div class="dot-container mr-3">
+        <div
+          class="dot-container d-inline-flex mr-3"
+          :tabindex="item.locked ? 0 : undefined"
+        >
           <button
             type="button"
             class="color-dot"
             data-testid="segment-color-button"
             :style="{ background: item.color }"
+            :disabled="item.locked"
             @click.stop="editing.startEditing(item.id)"
-          >
-            <v-tooltip location="right" activator="parent">
-              Change color
-            </v-tooltip>
-          </button>
+          ></button>
+          <v-tooltip location="right" activator="parent">{{
+            item.locked
+              ? 'Unlock this segment to change its color'
+              : 'Change color'
+          }}</v-tooltip>
         </div>
       </template>
       <template #item-append="{ item }">
-        <!-- Slice only: the 2D views land on the middle of what is stored here -->
-        <v-btn
-          icon
-          size="small"
-          density="compact"
-          class="mr-1"
-          variant="plain"
-          data-testid="reveal-segment-button"
-          :disabled="!!revealReason(item)"
-          @click.stop="revealSlice(item)"
+        <!-- Reveal content without changing the view's pan or zoom. -->
+        <span
+          class="d-inline-flex"
+          :tabindex="revealReason(item) ? 0 : undefined"
         >
-          <v-icon>mdi-target</v-icon>
+          <v-btn
+            icon
+            size="small"
+            density="compact"
+            class="mr-1"
+            variant="plain"
+            data-testid="reveal-segment-button"
+            :disabled="!!revealReason(item)"
+            @click.stop="revealSlice(item)"
+          >
+            <v-icon>mdi-target</v-icon>
+          </v-btn>
           <v-tooltip location="left" activator="parent">{{
-            revealReason(item) || 'Reveal Slice'
+            revealReason(item) ||
+            (viewingCine ? 'Reveal Frame' : 'Reveal Slice')
           }}</v-tooltip>
-        </v-btn>
+        </span>
         <!-- Lock/unlock the segment, which holds on every image -->
         <v-btn
           icon
@@ -391,26 +439,35 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
             item.visible ? 'Hide' : 'Show'
           }}</v-tooltip>
         </v-btn>
-        <!-- Edit button (disabled when locked) -->
-        <v-btn
-          icon="mdi-pencil"
-          size="small"
-          density="compact"
-          class="mr-1"
-          variant="plain"
-          data-testid="edit-segment-button"
-          @click.stop="editing.startEditing(item.id)"
-          :disabled="item.locked"
-        />
-        <!-- Delete button (disabled when locked) -->
-        <v-btn
-          icon="mdi-delete"
-          size="small"
-          density="compact"
-          variant="plain"
-          @click.stop="deleteSegment(item.id)"
-          :disabled="item.locked"
-        />
+        <span class="d-inline-flex" :tabindex="item.locked ? 0 : undefined">
+          <v-btn
+            icon="mdi-pencil"
+            size="small"
+            density="compact"
+            class="mr-1"
+            variant="plain"
+            data-testid="edit-segment-button"
+            @click.stop="editing.startEditing(item.id)"
+            :disabled="item.locked"
+          />
+          <v-tooltip location="left" activator="parent">{{
+            item.locked ? 'Unlock this segment to edit it' : 'Edit'
+          }}</v-tooltip>
+        </span>
+        <span class="d-inline-flex" :tabindex="item.locked ? 0 : undefined">
+          <v-btn
+            icon="mdi-delete"
+            size="small"
+            density="compact"
+            variant="plain"
+            data-testid="delete-segment-button"
+            @click.stop="deleteSegment(item.id)"
+            :disabled="item.locked"
+          />
+          <v-tooltip location="left" activator="parent">{{
+            item.locked ? 'Unlock this segment to delete it' : 'Delete'
+          }}</v-tooltip>
+        </span>
       </template>
     </editable-item-list>
   </div>
@@ -421,6 +478,7 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
       v-if="!!editingSegment"
       v-model:name="editState.name"
       :original="editingName"
+      :locked="editingLocked"
       v-model:color="editState.color"
       v-model:fill-opacity="editState.fillOpacity"
       v-model:outline-opacity="editState.outlineOpacity"
@@ -457,8 +515,12 @@ const { editDialog, editState, editingSegment, editingName, invalidNames } =
 .dot-container {
   width: 18px;
 }
+.color-dot:disabled {
+  pointer-events: none;
+}
 .shape-row {
-  padding: 2px 8px 2px 0;
+  min-height: 36px;
+  padding: 4px 8px 4px 0;
 }
 .shape-icon {
   opacity: var(--v-medium-emphasis-opacity);

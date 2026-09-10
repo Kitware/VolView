@@ -13,6 +13,7 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
 import {
   computeEffectiveView,
+  getEffectiveView,
   EffectiveView,
   volume2DViewsOfImage,
 } from '@/src/core/views/effectiveView';
@@ -93,15 +94,23 @@ export function toolRenderSlice(
   return tool.slice ?? viewSlice ?? 0;
 }
 
+function revealCineFrame(imageID: string, frame: number) {
+  const activeView = useViewStore().activeView;
+  const effective = getEffectiveView(activeView);
+  if (
+    !activeView ||
+    effective?.kind !== 'cine' ||
+    effective.renderDataID !== imageID
+  )
+    return;
+  useCinePlaybackStore().updateConfig(activeView, imageID, { frame });
+}
+
 export function applyLocator(imageID: string, tool: AnnotationTool) {
   const viewStore = useViewStore();
 
   if (tool.frame != null) {
-    const activeView = viewStore.activeView;
-    if (!activeView) return;
-    useCinePlaybackStore().updateConfig(activeView, imageID, {
-      frame: tool.frame,
-    });
+    revealCineFrame(imageID, tool.frame);
     return;
   }
 
@@ -147,14 +156,21 @@ export type SegmentContent = {
   extent?: Extent3D;
   /** The slice each shape of the segment was drawn on, by the axis it faces. */
   slicesByAxis: Partial<Record<LPSAxis, number[]>>;
+  /** Cine frames containing shapes of this segment. */
+  frames?: number[];
 };
 
 /**
- * Puts every 2D view of `imageID` on the middle of what the segment holds along
- * that view's axis. Slice only: pan and zoom stay where the user left them. A
- * view whose axis holds nothing does not move.
+ * Reveals an occupied frame in the active cine view, or centers every volume
+ * 2D view on the segment's content along its axis. Pan and zoom stay where the
+ * user left them. A view whose axis holds nothing does not move.
  */
 export function revealSegmentContent(imageID: string, content: SegmentContent) {
+  const frame = snappedCenter(
+    (content.frames ?? []).map((value) => [value, value])
+  );
+  if (frame != null) revealCineFrame(imageID, frame);
+
   const { metadata } = useImage(imageID);
   const { lpsOrientation } = metadata.value;
   const viewSliceStore = useViewSliceStore();

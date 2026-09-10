@@ -213,7 +213,7 @@ const smooth = (sigma: number, spacing: [number, number, number]) =>
     maskExtent: [0, 8, 0, 7, 0, 6],
     parentDimensions: DIMENSIONS,
     params: { sigma, label: LABEL },
-  });
+  }).scalars;
 
 const asBits = (output: ArrayLike<number>) =>
   Array.from(output, (value) => (value ? '1' : '0')).join('');

@@ -7,7 +7,7 @@ import {
   getCineFrame,
   waitForFrame,
 } from './cineTestUtils';
-import { openSegmentShapes } from './segmentationTestUtils';
+import { openSegmentShapes, revealSegment } from './segmentationTestUtils';
 
 const waitForToolEntry = async (iconClass: string) => {
   await browser.waitUntil(
@@ -148,5 +148,13 @@ describe('Reveal Slice on cine ultrasound', () => {
 
     await clickRevealSliceButton();
     await waitForFrame(placementFrame!);
+
+    await volViewPage.focusFirst2DView();
+    await advanceCineFrame();
+    await revealSegment('Segment 1');
+    await waitForFrame(placementFrame!);
+    await browser.waitUntil(async () => (await countCineRulerLines()) >= 1, {
+      timeoutMsg: 'Segment reveal should restore its cine annotation frame',
+    });
   });
 });

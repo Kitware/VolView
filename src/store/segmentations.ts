@@ -373,17 +373,34 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
-    source?: ProcessingResultSource
+    source?: ProcessingResultSource,
+    descriptions: Array<
+      Pick<LabelmapSegment, 'value'> & Partial<Omit<LabelmapSegment, 'value'>>
+    > = []
   ) {
+    const bySourceValue = new Map(
+      descriptions.map((descriptor) => [
+        descriptor.value,
+        cleanUndefined(descriptor),
+      ])
+    );
     return importLabelmapImage(imageID, parentID, {
       decode: (labelmap, component) =>
         decodeSegments(imageID, labelmap, { component }) as Promise<
           LabelmapSegment[]
         >,
       split: (labelmap, descriptors) =>
-        splitLabelmapIntoMasks(parentID, labelmap, descriptors, {
-          source,
-        }).map((segment) => segment.id),
+        splitLabelmapIntoMasks(
+          parentID,
+          labelmap,
+          // Identity is chosen by name, so explicit descriptions must precede
+          // binding to a type shared by other images.
+          descriptors.map((descriptor) => ({
+            ...descriptor,
+            ...bySourceValue.get(descriptor.value),
+          })),
+          { source }
+        ).map((segment) => segment.id),
     });
   }
 

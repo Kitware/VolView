@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
@@ -120,6 +120,42 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(locked, [2, 3, 0])).toBe(labelValueOf(locked));
     expect(maskValueAt(unlocked, [2, 3, 0])).toBe(0);
     expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
+  });
+
+  it('publishes each changed neighbor once before returning from a fill', () => {
+    const neighbors = ['First', 'Second', 'Locked', 'Background'].map(
+      (name) => {
+        const id = addMask('img-1', name);
+        const voxels = store().maskVoxels(id);
+        voxels.materialize();
+        voxels.ensureContains([0, 5, 0, 5, 0, 1]);
+        if (name !== 'Background') voxels.scalars().fill(1);
+        if (name === 'Locked') lockSegment(id, true);
+        const modified = vi.fn();
+        voxels.image().onModified(modified);
+        return { id, modified };
+      }
+    );
+    const target = addMask('img-1', 'Target');
+
+    rasterizeInto(target);
+
+    expect(neighbors.map(({ modified }) => modified.mock.calls.length)).toEqual(
+      [1, 1, 0, 0]
+    );
+    expect(neighbors.map(({ id }) => maskValueAt(id, [2, 3, 0]))).toEqual([
+      0, 0, 1, 0,
+    ]);
+    // Repeating unchanged writes must not publish another sibling event.
+    rasterizeInto(target);
+    expect(neighbors[0].modified).toHaveBeenCalledTimes(1);
+
+    rasterizeInto(target, SQUARE, 1);
+    expect(neighbors.map(({ modified }) => modified.mock.calls.length)).toEqual(
+      [2, 2, 0, 0]
+    );
+    expect(maskValueAt(target, [2, 3, 1])).toBe(1);
+    expect(maskValueAt(neighbors[0].id, [0, 0, 0])).toBe(1);
   });
 
   it('refuses a locked segment and leaves every mask as it was', () => {

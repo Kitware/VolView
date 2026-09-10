@@ -13,6 +13,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { applyPostStateConfig, config } from '@/src/io/import/configJson';
 import { cssColorToRGBA } from '@/src/types/segmentation';
+import { resolveSegmentAppearance } from '@/src/types/segment';
 
 // ---------------------------------------------------------------------------
 // Configured segments are declared once for a session, before any image loads.
@@ -151,6 +152,75 @@ describe('a second config replaces the first', () => {
     );
   });
 
+  it('removes omitted appearance overrides without changing mask or shape references', async () => {
+    applyConfig({
+      segments: {
+        Tumor: {
+          color: 'red',
+          fillOpacity: 0,
+          outlineOpacity: 0,
+          strokeWidth: 9,
+        },
+      },
+    });
+    await seatAndView('img-1');
+    const id = segmentIdNamed('Tumor');
+    const mask = maskOn('img-1', id);
+    const toolId = usePolygonStore().addTool({
+      imageID: 'img-1',
+      segmentId: id,
+    });
+    segments().updateSegment(id, { visible: false, locked: true });
+
+    applyConfig({ segments: { Tumor: { color: 'blue' } } });
+
+    expect(segments().appearanceOf(id)).toMatchObject({
+      color: cssColorToRGBA('blue'),
+      fillOpacity: 1,
+      outlineOpacity: 1,
+      strokeWidth: resolveSegmentAppearance(undefined).strokeWidth,
+      visible: false,
+      locked: true,
+    });
+    expect(store().getMask(mask.id).segmentId).toBe(id);
+    expect(usePolygonStore().toolByID[toolId].segmentId).toBe(id);
+    expect(segmentIdNamed('Tumor')).toBe(id);
+  });
+
+  it('returns to its automatic color when a retained config omits color', () => {
+    applyConfig({ segments: { First: {}, Second: {} } });
+    const id = segmentIdNamed('Second');
+    const automaticColor = segments().appearanceOf(id).color;
+    applyConfig({ segments: { First: {}, Second: { color: 'blue' } } });
+
+    applyConfig({ segments: { First: {}, Second: {} } });
+
+    expect(segments().appearanceOf(id).color).toEqual(automaticColor);
+    expect(segmentIdNamed('Second')).toBe(id);
+  });
+
+  it('keeps the last configured appearance when a referenced key is dropped', async () => {
+    applyConfig({
+      segments: {
+        Tumor: {
+          color: 'red',
+          fillOpacity: 0.3,
+          outlineOpacity: 0.4,
+          strokeWidth: 9,
+        },
+      },
+    });
+    await seatAndView('img-1');
+    const id = segmentIdNamed('Tumor');
+    const mask = maskOn('img-1', id);
+    const before = segments().appearanceOf(id);
+
+    applyConfig({ segments: {} });
+
+    expect(segments().appearanceOf(id)).toEqual(before);
+    expect(store().getMask(mask.id).segmentId).toBe(id);
+  });
+
   it('drops an unreferenced type the second config leaves out', () => {
     applyConfig(TWO_TYPES);
 
@@ -239,6 +309,27 @@ describe('config applies after a restore', () => {
     expect(segments().appearanceOf(restored).color).toEqual(
       cssColorToRGBA('blue')
     );
+  });
+
+  it('restores session appearance when replacement removes a config override', () => {
+    const id = segments().mintSegment({
+      name: 'Tumor',
+      color: [1, 2, 3, 255],
+      fillOpacity: 0.6,
+      outlineOpacity: 0.7,
+      strokeWidth: 4,
+      visible: false,
+      locked: true,
+    });
+    const original = segments().appearanceOf(id);
+    applyConfig({
+      segments: { Tumor: { color: 'blue', fillOpacity: 0, strokeWidth: 9 } },
+    });
+    expect(segments().appearanceOf(id).outlineOpacity).toBe(0.7);
+
+    applyConfig({ segments: { Tumor: {} } });
+
+    expect(segments().appearanceOf(id)).toEqual(original);
   });
 
   it('keeps a restored type the config does not name', () => {

@@ -21,6 +21,7 @@ const props = defineProps<{
   fillOpacity: number;
   outlineOpacity: number;
   strokeWidth: number;
+  locked?: boolean;
 }>();
 
 function isUniqueEditingName(name: string) {
@@ -41,6 +42,9 @@ const valid = computed(() => isUniqueEditingName(props.name));
   <label-editor
     :color="color"
     :valid="valid"
+    :disabled-reason="
+      locked ? 'Unlock this segment to edit or delete it' : undefined
+    "
     @update:color="$emit('update:color', $event)"
     @delete="$emit('delete')"
     @cancel="$emit('cancel')"

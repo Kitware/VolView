@@ -7,8 +7,8 @@ import { listMasks } from '@/src/types/segmentation';
  * A counter every mask change bumps, voxel writes included. A mask's extent is
  * reactive but a write inside the box it already has moves nothing, so this is
  * the only trace of one a consumer can watch. It says something changed and
- * nothing about what, and a stroke bumps it once per sample, so debounce
- * anything expensive that reads it.
+ * nothing about what. A stroke bumps it once per changed mask per sample,
+ * so debounce anything expensive that reads it.
  *
  * Scoped to the caller: the masks are watched only while it is alive.
  */

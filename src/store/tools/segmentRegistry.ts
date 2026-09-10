@@ -43,6 +43,13 @@ const fromConfigured = (
     strokeWidth: configured.strokeWidth,
   });
 
+const configuredAppearance = ({
+  color,
+  fillOpacity,
+  outlineOpacity,
+  strokeWidth,
+}: Segment) => ({ color, fillOpacity, outlineOpacity, strokeWidth });
+
 /**
  * Identity and shared appearance for a family of segments: one instance backs
  * paint, rectangles, polygons and rulers together. Key order is creation
@@ -178,29 +185,35 @@ export const createSegmentRegistry = ({
 
   // --- config overlay --- //
 
-  // Config entries are keyed by name; the id a key resolved to is remembered
-  // so the same key keeps its id across config changes.
-  const configIds = new Map<string, string>();
+  // Keep each key's identity and appearance beneath its config contribution.
+  // New segments begin with automatic color and default optional appearance;
+  // a restored segment begins with its session appearance.
+  const configEntries = new Map<
+    string,
+    { id: string; appearance: ReturnType<typeof configuredAppearance> }
+  >();
 
   const replaceConfigSegments = (configured: Maybe<ConfiguredSegments>) => {
     const next = configured ?? {};
 
     Object.entries(next).forEach(([name, props]) => {
-      const existing = configIds.get(name);
-      const id =
-        existing && segmentById.value[existing]
-          ? existing
-          : (findSegmentByName(name)?.id ??
-            mintSegment(fromConfigured(name, props)));
-      updateSegment(id, fromConfigured(name, props));
-      configIds.set(name, id);
+      let entry = configEntries.get(name);
+      if (!entry || !getSegment(entry.id)) {
+        const id = findSegmentByName(name)?.id ?? mintSegment({ name });
+        entry = { id, appearance: configuredAppearance(getSegment(id)!) };
+      }
+      updateSegment(entry.id, {
+        ...entry.appearance,
+        ...fromConfigured(name, props),
+      });
+      configEntries.set(name, entry);
     });
 
-    [...configIds.entries()]
+    [...configEntries.entries()]
       .filter(([name]) => !(name in next))
-      .forEach(([name, id]) => {
-        configIds.delete(name);
-        // Content still points at it, so it survives as a session segment.
+      .forEach(([name, { id }]) => {
+        configEntries.delete(name);
+        // Content keeps the last configured appearance as session state.
         if (segmentById.value[id] && !hasReferences(id)) deleteSegment(id);
       });
 

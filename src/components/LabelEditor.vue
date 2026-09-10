@@ -2,14 +2,18 @@
 import { computed, toRefs } from 'vue';
 
 const emit = defineEmits(['done', 'cancel', 'delete', 'update:color']);
-const props = defineProps<{ color: string; valid: boolean }>();
+const props = defineProps<{
+  color: string;
+  valid: boolean;
+  disabledReason?: string;
+}>();
 const { color, valid } = toRefs(props);
 const doneDisabled = computed(() => {
-  return !valid.value;
+  return !valid.value || !!props.disabledReason;
 });
 
 const done = () => {
-  emit('done');
+  if (!doneDisabled.value) emit('done');
 };
 
 const cancel = () => {
@@ -17,6 +21,7 @@ const cancel = () => {
 };
 
 const onDelete = () => {
+  if (props.disabledReason) return;
   emit('delete');
   emit('done');
 };
@@ -30,22 +35,49 @@ const onDelete = () => {
         <div class="flex-grow-1 d-flex flex-column justify-space-between mr-4">
           <slot name="fields" :done="done"></slot>
           <v-card-actions class="mb-2 px-0">
-            <v-btn color="error" variant="elevated" @click="onDelete">
-              Delete
-            </v-btn>
+            <span
+              class="d-inline-flex"
+              :tabindex="disabledReason ? 0 : undefined"
+            >
+              <v-btn
+                color="error"
+                variant="elevated"
+                @click="onDelete"
+                :disabled="!!disabledReason"
+              >
+                Delete
+              </v-btn>
+              <v-tooltip
+                v-if="disabledReason"
+                location="top"
+                activator="parent"
+                >{{ disabledReason }}</v-tooltip
+              >
+            </span>
             <v-spacer />
             <v-btn color="cancel" variant="tonal" @click="cancel">
               Cancel
             </v-btn>
-            <v-btn
-              color="secondary"
-              variant="elevated"
-              @click="done"
-              :disabled="doneDisabled"
-              data-testid="edit-label-done-button"
+            <span
+              class="d-inline-flex"
+              :tabindex="doneDisabled ? 0 : undefined"
             >
-              Done
-            </v-btn>
+              <v-btn
+                color="secondary"
+                variant="elevated"
+                @click="done"
+                :disabled="doneDisabled"
+                data-testid="edit-label-done-button"
+              >
+                Done
+              </v-btn>
+              <v-tooltip
+                v-if="doneDisabled"
+                location="top"
+                activator="parent"
+                >{{ disabledReason || 'Choose a unique name' }}</v-tooltip
+              >
+            </span>
           </v-card-actions>
         </div>
         <v-color-picker

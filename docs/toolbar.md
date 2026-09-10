@@ -14,11 +14,21 @@ Window / Level, Pan, Zoom, or Crosshairs: Select these options to control the fu
 
 ## 2D Annotations
 
-The "Annotations" tab lists the drawn, vector based, annotation tools. Each tool in the list has a "scroll to slice" and delete button.
+The "Annotations" tab lists segments shared by paint, rectangles, polygons and rulers.
+Select a segment in the list or use `q` and `w` to cycle through segments. Use "New
+segment" to add one, and its color dot or edit button to change its name and appearance.
+The selection applies across all four tools and images.
+
+Expand a segment to see its shapes on the current image. Each shape has controls to
+jump to its slice or cine frame and to delete it. A segment's Reveal button jumps to
+its mask or shapes on the current image; it stays disabled when there is no content.
 
 ### Paint
 
-When the paint tool is selected, you can paint in any 2D window. Click on the paint tool a second time to bring up a menu of colors and adjust the brush size. Painting automatically switches to the appropriate segment group for the volume being painted.
+When the paint tool is selected, you can paint in any supported 2D slice window.
+Choose the segment in "Annotations" and use the Paint controls below the segment
+list to adjust brush size, switch to erasing, or set an intensity threshold.
+Painting adds a mask for the selected segment on the image being painted.
 
 ### Rectangle
 
@@ -26,7 +36,7 @@ When the rectangle tool is selected, the left mouse button is used to place and 
 Right click a rectangle control point to delete the rectangle.
 The "Annotations" tab lists all rectangles and provides jump-to and delete controls.
 
-Rectangle annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+New rectangles use the selected segment from "Annotations".
 
 ### Polygon
 
@@ -44,21 +54,25 @@ After closing a polygon:
 - Delete point: right click point and select Delete Point.
 - Delete polygon: right click point or line and select Delete Polygon.
 
-Polygon annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+New polygons use the selected segment from "Annotations".
 
 ### Ruler
 
-When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
+When the ruler tool is selected, the left mouse button places and adjusts ruler
+end-markers. Right clicking an end-marker displays a menu for deleting that ruler.
+Expand its segment in "Annotations" to see its length, jump to its slice or cine
+frame, or delete it.
 
-Ruler annotations name a segment. Use the palette in the upper left or the `q` or `w` keys to select the active one.
+New rulers use the selected segment from "Annotations".
 
 ![2D Annotations](./assets/11-volview-paint-notes.jpg)
 
 ### Segment configuration
 
 If VolView loads a JSON file matching the schema below, segments are added to the
-registry. Paint, rectangles, polygons and rulers all share `segments`. Every appearance
-field is optional and means the app default when absent.
+registry. Paint, rectangles, polygons and rulers all share `segments`. Appearance
+fields are optional. See [segment configuration](./configuration_file.md#segments)
+for replacement behavior and how omitted fields use session appearance or defaults.
 
 ```json
 {

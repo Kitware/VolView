@@ -49,6 +49,14 @@ export const segmentNames = () => namesIn(SEGMENT_LIST);
 
 export const segmentRow = (name: string) => rowNamed(SEGMENT_LIST, name);
 
+/** Waits for mask or shape content, which may arrive after the catalog name. */
+export const waitForSegmentContent = async (name: string, timeout?: number) => {
+  const row = await segmentRow(name);
+  await row
+    .$('button[data-testid="reveal-segment-button"]')
+    .waitForEnabled(timeout ? { timeout } : undefined);
+};
+
 export const segmentColor = (name: string) => dotColor(SEGMENT_LIST, name);
 
 export const addSegment = () => addRow(SEGMENT_LIST);

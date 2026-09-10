@@ -12,6 +12,7 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import {
   openAnnotationSegments,
   waitForNamedSegments,
+  waitForSegmentContent,
 } from './segmentationTestUtils';
 
 /**
@@ -53,6 +54,7 @@ describe('Labelmap with different direction matrix', () => {
 
     await openAnnotationSegments();
     await waitForNamedSegments(DOWNLOAD_TIMEOUT);
+    await waitForSegmentContent('Right hip', DOWNLOAD_TIMEOUT);
 
     await volViewPage.openLayoutMenu(1);
     await volViewPage.selectLayoutOption('Coronal Only');

@@ -1,8 +1,9 @@
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { Vector3 } from '@kitware/vtk.js/types';
+import type { TypedArray, Vector3 } from '@kitware/vtk.js/types';
 
 import {
+  clipExtent,
   extentSize,
   isEmptyExtent,
   maskOffset,
@@ -46,6 +47,33 @@ export function allocateMask(parent: vtkImageData, extent: Extent3D) {
   return mask;
 }
 
+/** Copies a mask onto another extent of its parent grid, padding with zero. */
+export function reframeMaskScalars(
+  scalars: TypedArray | number[],
+  from: Extent3D,
+  to: Extent3D
+) {
+  const [mi, mj, mk] = extentSize(to);
+  const values = new Uint8Array(isEmptyExtent(to) ? 0 : mi * mj * mk);
+  const shared = clipExtent(from, to);
+  const [si, sj] = extentSize(from);
+  const source = { extent: from, mi: si, mj: sj };
+  const destination = { extent: to, mi, mj };
+  if (isEmptyExtent(shared)) return values;
+  const count = shared[1] - shared[0] + 1;
+  for (let k = shared[4]; k <= shared[5]; k += 1) {
+    for (let j = shared[2]; j <= shared[3]; j += 1) {
+      const start = maskOffset(source, shared[0], j, k);
+      const end = maskOffset(destination, shared[0], j, k);
+      const row = Array.isArray(scalars)
+        ? scalars.slice(start, start + count)
+        : scalars.subarray(start, start + count);
+      values.set(row, end);
+    }
+  }
+  return values;
+}
+
 /** Preserves the vtk image instance while replacing its scalar storage. */
 export function regrowMask(
   mask: vtkLabelMap,
@@ -54,21 +82,8 @@ export function regrowMask(
   to: Extent3D
 ) {
   const previous = maskScalars(mask);
-  const previousSize = extentSize(from);
-  const dimensions = placeMask(mask, parent, to);
-  const values = new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]);
-
-  if (!isEmptyExtent(from)) {
-    const grown = { extent: to, mi: dimensions[0], mj: dimensions[1] };
-    for (let k = 0; k < previousSize[2]; k += 1) {
-      for (let j = 0; j < previousSize[1]; j += 1) {
-        const source = (j + k * previousSize[1]) * previousSize[0];
-        const target = maskOffset(grown, from[0], from[2] + j, from[4] + k);
-        values.set(previous.subarray(source, source + previousSize[0]), target);
-      }
-    }
-  }
-
+  const values = reframeMaskScalars(previous, from, to);
+  placeMask(mask, parent, to);
   setMaskScalars(mask, values);
   mask.modified();
 }

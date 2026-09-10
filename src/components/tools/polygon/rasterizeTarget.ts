@@ -174,10 +174,18 @@ export function rasterizePolygon({
     target.voxels.scalars(),
     { slice: slice - extent[axisIndex * 2], axisIdx: axisIndex },
     (ijk) =>
-      claimVoxel?.(ijk[0] + extent[0], ijk[1] + extent[2], ijk[2] + extent[4])
+      claimVoxel?.claim(
+        ijk[0] + extent[0],
+        ijk[1] + extent[2],
+        ijk[2] + extent[4]
+      )
   );
 
-  fillPoly(grid, points2D, target.labelValue);
-  mask.modified();
+  try {
+    fillPoly(grid, points2D, target.labelValue);
+  } finally {
+    claimVoxel?.finish();
+    mask.modified();
+  }
   return { segmentId: target.segmentId, maskId: target.maskId };
 }

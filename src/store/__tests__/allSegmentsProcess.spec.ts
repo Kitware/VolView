@@ -81,14 +81,16 @@ const block = (from: number, to: number): Array<[number, number]> =>
     )
   );
 
-const fillHolesOn = async (target: ProcessTarget) =>
-  fillHoles({
+const fillHolesOn = async (target: ProcessTarget) => ({
+  scalars: fillHoles({
     data: target.voxels.scalars(),
     dimensions: target.voxels.image().getDimensions() as Index3,
     axis: 2,
     sliceIndex: 0,
     label: target.labelValue,
-  });
+  }),
+  extent: target.maskExtent,
+});
 
 const runOverEverySegment = (algorithm: ProcessAlgorithm = fillHolesOn) =>
   usePaintProcessStore().startProcess(algorithm, {
@@ -309,7 +311,9 @@ describe('a process running over every segment', () => {
     // run that wrote part of the image has to undo all of it.
     await runOverEverySegment(async (target) => {
       calls += 1;
-      return calls === 1 ? fillHolesOn(target) : new Uint8Array(3);
+      return calls === 1
+        ? fillHolesOn(target)
+        : { scalars: new Uint8Array(3), extent: target.maskExtent };
     });
 
     expect(usePaintProcessStore().processState.step).toBe('start');

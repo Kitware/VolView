@@ -42,7 +42,8 @@ export function useSegmentEditing(registry: () => SegmentRegistry) {
   );
 
   function startEditing(id: string) {
-    if (!registry().getSegment(id)) return;
+    if (!registry().getSegment(id) || registry().appearanceOf(id).locked)
+      return;
     const appearance = registry().appearanceOf(id);
     editingSegmentId.value = id;
     editDialog.value = true;
@@ -55,7 +56,12 @@ export function useSegmentEditing(registry: () => SegmentRegistry) {
 
   function stopEditing(commit: boolean) {
     const id = editingSegmentId.value;
-    if (id && commit && registry().getSegment(id)) {
+    if (
+      id &&
+      commit &&
+      registry().getSegment(id) &&
+      !registry().appearanceOf(id).locked
+    ) {
       registry().updateSegment(id, {
         name: editState.name,
         color: cssColorToRGBA(editState.color),
@@ -70,8 +76,8 @@ export function useSegmentEditing(registry: () => SegmentRegistry) {
 
   // Deleting a segment takes its masks on every image and its shapes with it.
   function deleteEditingSegment() {
-    if (editingSegmentId.value)
-      registry().deleteSegment(editingSegmentId.value);
+    const id = editingSegmentId.value;
+    if (id && !registry().appearanceOf(id).locked) registry().deleteSegment(id);
     stopEditing(false);
   }
 
@@ -81,6 +87,9 @@ export function useSegmentEditing(registry: () => SegmentRegistry) {
     editState,
     editingSegment,
     editingName,
+    editingLocked: computed(
+      () => registry().appearanceOf(editingSegmentId.value).locked
+    ),
     invalidNames,
     startEditing,
     stopEditing,

@@ -23,6 +23,7 @@ import {
   segmentNames,
   segmentRow,
   waitForNamedSegments,
+  waitForSegmentContent,
 } from './segmentationTestUtils';
 
 // The 5.0.1 fixture's rectangle carries this name.
@@ -198,8 +199,9 @@ describe('Session state lifecycle', () => {
     // The 6.1.0 labelMaps entry names this segment and colors it red.
     await openAnnotationSegments();
     await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Prostate']);
-    const prostateColor = await segmentColor('Prostate');
+    expect(await segmentNames()).toEqual(['Right hip']);
+    await waitForSegmentContent('Right hip');
+    const segmentColorBefore = await segmentColor('Right hip');
 
     const { session, manifest } = await saveAndParseManifest();
     expect(manifest.version).toEqual('7.0.0');
@@ -210,7 +212,8 @@ describe('Session state lifecycle', () => {
 
     await openAnnotationSegments();
     await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Prostate']);
-    expect(await segmentColor('Prostate')).toEqual(prostateColor);
+    expect(await segmentNames()).toEqual(['Right hip']);
+    await waitForSegmentContent('Right hip');
+    expect(await segmentColor('Right hip')).toEqual(segmentColorBefore);
   });
 });

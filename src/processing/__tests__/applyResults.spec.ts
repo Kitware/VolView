@@ -41,7 +41,6 @@ const recordingDependencies = () => ({
     convertImageToLabelmap: vi.fn(async () => [
       importedComponent({ 1: 'segment-1', 2: 'segment-2' }),
     ]),
-    describeSegment: vi.fn(),
   },
 });
 
@@ -126,10 +125,7 @@ describe('applyIntent', () => {
     });
   });
 
-  it('add-segment-group converts the labelmap and applies descriptors to the created group', async () => {
-    deps.segmentWriter.convertImageToLabelmap.mockResolvedValue([
-      importedComponent({ 1: 'liver-segment', 2: 'tumor-segment' }),
-    ]);
+  it('passes explicit descriptors into labelmap conversion', async () => {
     const segments = [
       { value: 1, name: 'liver', color: rgba(255, 0, 0, 255) },
       { value: 2, name: 'tumor', color: rgba(0, 255, 0, 255), visible: false },
@@ -141,60 +137,10 @@ describe('applyIntent', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      undefined
-    );
-    expect(deps.segmentWriter.describeSegment).toHaveBeenCalledTimes(2);
-    expect(deps.segmentWriter.describeSegment).toHaveBeenCalledWith(
-      'liver-segment',
-      {
-        name: 'liver',
-        color: [255, 0, 0, 255],
-      }
-    );
-    expect(deps.segmentWriter.describeSegment).toHaveBeenCalledWith(
-      'tumor-segment',
-      {
-        name: 'tumor',
-        color: [0, 255, 0, 255],
-        visible: false,
-      }
+      undefined,
+      segments
     );
     expect(deps.openVolumeUrls).not.toHaveBeenCalled();
-  });
-
-  it('describes every component of a multi-component labelmap', async () => {
-    // Components share one segmentation, so the second one's values are
-    // remapped away from the first's. Applying by source value is what keeps
-    // each component's descriptors on the segments that component created.
-    deps.segmentWriter.convertImageToLabelmap.mockResolvedValue([
-      importedComponent({ 1: 'a-1', 2: 'a-2' }),
-      importedComponent({ 1: 'b-1', 2: 'b-2' }),
-    ]);
-    await apply(
-      {
-        intent: 'add-segment-group',
-        ...file,
-        segments: [
-          { value: 1, name: 'liver', color: rgba(255, 0, 0, 255) },
-          { value: 2, name: 'tumor', color: rgba(0, 255, 0, 255) },
-        ],
-      },
-      context('parent')
-    );
-
-    expect(deps.segmentWriter.describeSegment).toHaveBeenCalledTimes(4);
-    ['a-1', 'b-1'].forEach((maskId) =>
-      expect(deps.segmentWriter.describeSegment).toHaveBeenCalledWith(
-        maskId,
-        expect.objectContaining({ name: 'liver' })
-      )
-    );
-    ['a-2', 'b-2'].forEach((maskId) =>
-      expect(deps.segmentWriter.describeSegment).toHaveBeenCalledWith(
-        maskId,
-        expect.objectContaining({ name: 'tumor' })
-      )
-    );
   });
 
   it('add-segment-group removes the temporarily imported child dataset', async () => {
@@ -235,9 +181,9 @@ describe('applyIntent', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
+      undefined,
       undefined
     );
-    expect(deps.segmentWriter.describeSegment).not.toHaveBeenCalled();
   });
 
   it('stamps structured provider-qualified provenance on the created group', async () => {
@@ -253,7 +199,8 @@ describe('applyIntent', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      source
+      source,
+      undefined
     );
   });
 
@@ -291,7 +238,8 @@ describe('applyIntent', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      source
+      source,
+      undefined
     );
   };
 
@@ -370,30 +318,6 @@ describe('applyIntent', () => {
     expect(deps.removeDataset).toHaveBeenCalledWith('child-selection');
     expect(errorMessages()).toEqual([]);
   });
-
-  it('is additive-only: writes into the NEW group, never a pre-existing one', async () => {
-    deps.segmentWriter.resultSourcesInScene.mockReturnValue([undefined]);
-    deps.segmentWriter.convertImageToLabelmap.mockResolvedValue([
-      importedComponent({ 1: 'new-segment' }),
-    ]);
-    await apply(
-      {
-        intent: 'add-segment-group',
-        ...file,
-        segments: [{ value: 1, name: 'liver', color: rgba(1, 2, 3, 4) }],
-      },
-      context('parent')
-    );
-    expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledTimes(1);
-    expect(deps.segmentWriter.describeSegment).toHaveBeenCalledWith(
-      'new-segment',
-      expect.anything()
-    );
-    expect(deps.segmentWriter.describeSegment).not.toHaveBeenCalledWith(
-      'existing-segment',
-      expect.anything()
-    );
-  });
 });
 
 describe('autoLoadProcessingResults', () => {
@@ -418,9 +342,9 @@ describe('autoLoadProcessingResults', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      { providerId: 'p1', jobId: 'j1', outputId: 'seg' }
+      { providerId: 'p1', jobId: 'j1', outputId: 'seg' },
+      [{ value: 1, name: 'liver', color: rgba(1, 2, 3, 4) }]
     );
-    expect(deps.segmentWriter.describeSegment).toHaveBeenCalledTimes(1);
     expect(deps.openVolumeUrls).toHaveBeenCalledTimes(1);
     expect(deps.openVolumeUrls).toHaveBeenCalledWith({
       urls: [file.url],
@@ -517,7 +441,8 @@ describe('autoLoadProcessingResults', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      newSource
+      newSource,
+      undefined
     );
   });
 });
@@ -539,6 +464,7 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
+      undefined,
       undefined
     );
   });
@@ -564,7 +490,8 @@ describe('autoLoadProcessingResults — born-persistent (no confirm gate)', () =
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      source
+      source,
+      undefined
     );
   });
 });

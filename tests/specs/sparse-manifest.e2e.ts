@@ -15,6 +15,7 @@ import {
   openAnnotationSegments,
   openSegmentShapes,
   waitForNamedSegments,
+  waitForSegmentContent,
 } from './segmentationTestUtils';
 
 describe('Sparse manifest.json', () => {
@@ -124,6 +125,7 @@ describe('Sparse manifest.json', () => {
 
     await openAnnotationSegments();
     await waitForNamedSegments(DOWNLOAD_TIMEOUT);
+    await waitForSegmentContent('Right hip', DOWNLOAD_TIMEOUT);
 
     // Verify the segment group source image is NOT in the Anonymous section
     const dataTab = await $('button[data-testid="module-tab-Data"]');

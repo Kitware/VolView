@@ -4,7 +4,6 @@ import {
   type AnnotationToolKind,
   type KnownResultIntent,
   type ResultSource,
-  type SegmentDescriptor,
   type WirePolygon,
   type WireRuler,
 } from '@/backend-contract';
@@ -28,19 +27,11 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import {
-  cssColorToRGBA,
-  listMasks,
-  type LabelmapSegment,
-} from '@/src/types/segmentation';
+import { cssColorToRGBA, listMasks } from '@/src/types/segmentation';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import {
-  useSegmentationStore,
-  type ImportedSegment,
-} from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/store/segmentations';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
@@ -85,51 +76,6 @@ async function loadAsImport(file: ResultFile) {
     .filter((r) => r.type === 'data')
     .filter(isVolumeResult);
   return loaded[0] ? toDataSelection(loaded[0]) : null;
-}
-
-// Matched on the SOURCE label value, never re-looked-up by it: colliding
-// values are remapped as the import lands, and the parent's own segments hold
-// values of their own.
-function applySegmentDescriptors(
-  imported: ImportedSegment[],
-  segments: SegmentDescriptor[],
-  segmentWriter: SegmentWriter
-) {
-  const maskIdBySourceValue = new Map(
-    imported.map(({ sourceValue, maskId }) => [sourceValue, maskId])
-  );
-  segments.forEach((seg) => {
-    // Descriptors may name a value the labelmap does not carry.
-    const maskId = maskIdBySourceValue.get(seg.value);
-    if (!maskId) return;
-    segmentWriter.describeSegment(maskId, {
-      name: seg.name,
-      color: seg.color,
-      ...(seg.visible == null ? {} : { visible: seg.visible }),
-    });
-  });
-}
-
-async function convertAndDescribe(
-  childSelection: string,
-  parentSelection: string,
-  intent: SegmentGroupIntent,
-  segmentWriter: SegmentWriter
-): Promise<ImportedSegment[][]> {
-  const imported = await segmentWriter.convertImageToLabelmap(
-    childSelection,
-    parentSelection,
-    intent.source
-  );
-  // A seg.nrrd with embedded metadata carries no descriptors. Each component
-  // gets its own descriptors: they share a segmentation, so applying one
-  // component's list to another's segments would describe the wrong ones.
-  if (intent.segments?.length) {
-    imported.forEach((component) =>
-      applySegmentDescriptors(component, intent.segments!, segmentWriter)
-    );
-  }
-  return imported;
 }
 
 // Annotation results are fully decoded and located before labels or tools are
@@ -381,16 +327,9 @@ type FetchProcessingResult = typeof fetchProcessingResult;
 type SegmentWriter = {
   /** Result provenance of every segment group in the scene, in scene order. */
   resultSourcesInScene: () => Array<ResultSource | undefined>;
-  convertImageToLabelmap: (
-    childSelection: string,
-    parentSelection: string,
-    source: ResultSource | undefined
-  ) => Promise<ImportedSegment[][]>;
-  /** Describes the TYPE a record delineates, which is where identity lives. */
-  describeSegment: (
-    maskId: string,
-    description: Partial<Omit<LabelmapSegment, 'value'>>
-  ) => void;
+  convertImageToLabelmap: ReturnType<
+    typeof useSegmentationStore
+  >['convertImageToLabelmap'];
 };
 
 /**
@@ -421,25 +360,8 @@ export const appApplyDependencies = (): ApplyDependencies => ({
       Object.values(useSegmentationStore().segmentations)
         .flatMap((segmentation) => listMasks(segmentation))
         .map((segment) => segment.representations.labelmap?.source),
-    convertImageToLabelmap: (childSelection, parentSelection, source) =>
-      useSegmentationStore().convertImageToLabelmap(
-        childSelection,
-        parentSelection,
-        source
-      ),
-    describeSegment: (maskId, { name, color, visible }) => {
-      const store = useSegmentationStore();
-      // The record can be gone by the time a multi-component import lands.
-      if (!store.maskExists(maskId)) return;
-      useSegmentStore().segments.updateSegment(
-        store.getMask(maskId).segmentId,
-        {
-          ...(name === undefined ? {} : { name }),
-          ...(color === undefined ? {} : { color }),
-          ...(visible === undefined ? {} : { visible }),
-        }
-      );
-    },
+    convertImageToLabelmap: (...args) =>
+      useSegmentationStore().convertImageToLabelmap(...args),
   },
 });
 
@@ -500,11 +422,11 @@ export async function applyIntent(
         if (!childSelection)
           return { status: 'failed', error: new Error('Result did not load') };
         try {
-          await convertAndDescribe(
+          await dependencies.segmentWriter.convertImageToLabelmap(
             childSelection,
             parentSelection,
-            intent,
-            dependencies.segmentWriter
+            intent.source,
+            intent.segments
           );
           return { status: 'applied' };
         } finally {

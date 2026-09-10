@@ -227,21 +227,25 @@ export const usePaintToolStore = defineStore('paint', () => {
         point[2] - extent[4]
       );
 
-    this.$paint.paintLabelmap(
-      voxels.image(),
-      axisIndex,
-      toMask(lastIndexPoint),
-      {
-        endPoint: prevIndexPoint ? toMask(prevIndexPoint) : undefined,
-        shouldPaint,
-        onPainted: erasing
-          ? undefined
-          : (point: number[]) => {
-              const [i, j, k] = toParent(point);
-              claimVoxel?.(i, j, k);
-            },
-      }
-    );
+    try {
+      this.$paint.paintLabelmap(
+        voxels.image(),
+        axisIndex,
+        toMask(lastIndexPoint),
+        {
+          endPoint: prevIndexPoint ? toMask(prevIndexPoint) : undefined,
+          shouldPaint,
+          onPainted: erasing
+            ? undefined
+            : (point: number[]) => {
+                const [i, j, k] = toParent(point);
+                claimVoxel?.claim(i, j, k);
+              },
+        }
+      );
+    } finally {
+      claimVoxel?.finish();
+    }
   }
 
   function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
@@ -310,9 +314,9 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (!currentImageID.value) {
       return false;
     }
-    // Selecting the tool configures the widget and nothing else. The segment
-    // and its storage are resolved by the first stroke, so picking up the brush
-    // and putting it down again leaves the image untouched.
+    // Selecting the tool configures the widget and nothing else. Storage is
+    // allocated by the first stroke, so picking up the brush and putting it
+    // down again leaves the image untouched.
     this.$paint.setBrushSize(this.brushSize);
 
     isActive.value = true;

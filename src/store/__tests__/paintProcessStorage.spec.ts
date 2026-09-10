@@ -95,7 +95,7 @@ function recordingAlgorithm(result: () => Uint8Array) {
     seen,
     algorithm: async (target: ProcessTarget) => {
       seen.push(target);
-      return result();
+      return { scalars: result(), extent: target.maskExtent };
     },
   };
 }
@@ -110,12 +110,13 @@ async function allSegmentsTargets() {
 }
 
 /** A process already running over a segment with only its first voxel marked. */
-const startedProcess = async () => {
+const startedProcess = async (options?: { requiresActiveSegment: boolean }) => {
   const processStore = usePaintProcessStore();
-  const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
+  const { labelMap, maskId } = addActiveSegment(new Uint8Array([1, 0]));
   const original = buffer(labelMap);
-  await processStore.startProcess(async () => new Uint8Array([1, 1]));
-  return { processStore, labelMap, original };
+  const { algorithm } = recordingAlgorithm(() => new Uint8Array([1, 1]));
+  await processStore.startProcess(algorithm, options);
+  return { processStore, labelMap, original, maskId };
 };
 
 describe('paint process storage', () => {
@@ -197,7 +198,7 @@ describe('paint process storage', () => {
       await processStore.startProcess(async (target) => {
         live = target.voxels.scalars();
         seenAtCall = Array.from(target.voxels.snapshot());
-        return new Uint8Array([1, 1]);
+        return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
       });
 
       // The algorithm reads the voxels as they stand when it runs.
@@ -212,7 +213,10 @@ describe('paint process storage', () => {
       const { labelMap } = addActiveSegment();
       const original = buffer(labelMap);
 
-      await processStore.startProcess(async () => new Uint8Array([2, 2]));
+      await processStore.startProcess(async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([2, 2]),
+        extent: target.maskExtent,
+      }));
 
       expect(processStore.processState.step).toBe('previewing');
       expect(buffer(labelMap)).toBe(original);
@@ -224,7 +228,10 @@ describe('paint process storage', () => {
       const { labelMap } = addActiveSegment();
       const result = new Uint8Array([2, 2]);
 
-      await processStore.startProcess(async () => result);
+      await processStore.startProcess(async (target) => ({
+        scalars: result,
+        extent: target.maskExtent,
+      }));
       result[0] = 9;
 
       expect(values(labelMap)).toEqual([2, 2]);
@@ -278,15 +285,10 @@ describe('paint process storage', () => {
     const cancelsWhenTheSegmentGoes = async (options?: {
       requiresActiveSegment: boolean;
     }) => {
-      const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { maskId } = addActiveSegment();
+      const { maskId, processStore } = await startedProcess(options);
 
-      await processStore.startProcess(
-        async () => new Uint8Array([1, 1]),
-        options
-      );
       expect(processStore.processState.step).toBe('previewing');
 
       segmentationStore.deleteMask(maskId);
@@ -303,12 +305,10 @@ describe('paint process storage', () => {
       cancelsWhenTheSegmentGoes({ requiresActiveSegment: false }));
 
     it('confirms without a write when the storage is gone', async () => {
-      const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
       const segmentationStore = useSegmentationStore();
-      const { maskId } = addActiveSegment(new Uint8Array([1, 0]));
+      const { maskId, processStore } = await startedProcess();
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
       processStore.togglePreview();
       segmentationStore.deleteMask(maskId);
 
@@ -318,11 +318,9 @@ describe('paint process storage', () => {
     });
 
     it('toggles the preview without a write when the storage is gone', async () => {
-      const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
-      const { maskId } = addActiveSegment(new Uint8Array([1, 0]));
+      const { maskId, processStore } = await startedProcess();
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
       segmentationStore.deleteMask(maskId);
 
       expect(() => processStore.togglePreview()).not.toThrow();
@@ -335,9 +333,9 @@ describe('paint process storage', () => {
       const segmentationStore = useSegmentationStore();
       const { maskId } = addActiveSegment();
 
-      await processStore.startProcess(async () => {
+      await processStore.startProcess(async (target) => {
         segmentationStore.deleteMask(maskId);
-        return new Uint8Array([1, 1]);
+        return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
       });
 
       expect(processStore.processState.step).toBe('start');
@@ -352,7 +350,10 @@ describe('paint process storage', () => {
       await viewImage('image-2', [4, 1, 1]);
       const { maskId } = addActiveSegment(new Uint8Array([1, 0]), 1, 'image-2');
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      await processStore.startProcess(async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([1, 1]),
+        extent: target.maskExtent,
+      }));
       expect(processStore.processState.step).toBe('previewing');
 
       // A polygon on the same segment grows the mask, so the snapshot the
@@ -369,7 +370,10 @@ describe('paint process storage', () => {
       const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       paintStore.activateTool();
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1]));
+      await processStore.startProcess(async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([1, 1]),
+        extent: target.maskExtent,
+      }));
       expect(processStore.processState.step).toBe('previewing');
 
       paintStore.deactivateTool();
@@ -389,7 +393,7 @@ describe('paint process storage', () => {
       await processStore.startProcess(async (target) => {
         const live = target.voxels.scalars();
         live[1] = 1;
-        return live;
+        return { scalars: live, extent: target.maskExtent };
       });
 
       expectRolledBack(labelMap, original);
@@ -402,7 +406,10 @@ describe('paint process storage', () => {
       const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       const original = buffer(labelMap);
 
-      await processStore.startProcess(async () => new Uint8Array([1, 1, 1]));
+      await processStore.startProcess(async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([1, 1, 1]),
+        extent: target.maskExtent,
+      }));
 
       expectRolledBack(labelMap, original);
       expect(labelMap.getDimensions()).toEqual([2, 1, 1]);

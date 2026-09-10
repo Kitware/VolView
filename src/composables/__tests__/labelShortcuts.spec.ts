@@ -11,6 +11,8 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useSegmentStore } from '@/src/store/segments';
 import { Tools } from '@/src/store/tools/types';
 import { useViewStore } from '@/src/store/views';
+import { useSegmentationStore } from '@/src/store/segmentations';
+import { boundMasks } from '@/src/store/__tests__/segmentMaskFixtures';
 
 const seatAndView = (id: string) => {
   useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
@@ -24,7 +26,6 @@ describe('next/previous type shortcuts', () => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
     createApp({}).use(pinia);
     setActivePinia(pinia);
-    useToolStore().setCurrentTool(Tools.Polygon);
   });
 
   // The shared registry starts empty, so there is nothing to cycle.
@@ -48,6 +49,7 @@ describe('next/previous type shortcuts', () => {
     const first = segments.addSegment({ name: 'Tumor' });
     const second = segments.addSegment({ name: 'Node' });
 
+    useToolStore().setCurrentTool(Tools.Polygon);
     segments.selectSegment(first);
     ACTION_TO_FUNC.incrementLabel();
     expect(segments.selectedSegmentId.value).toBe(second);
@@ -73,4 +75,31 @@ describe('next/previous type shortcuts', () => {
 
     expect(segments.selectedSegmentId.value).toBe(second);
   });
+
+  it.each([Tools.Paint, Tools.Polygon, Tools.Rectangle, Tools.Ruler])(
+    'selects one segment for %s without allocating masks, including reactivation',
+    (tool) => {
+      seatAndView('img-1');
+      const tools = useToolStore();
+      const { segments } = useSegmentStore();
+      tools.setCurrentTool(tool);
+      const first = segments.selectedSegmentId.value;
+      expect(first).toBeTruthy();
+      expect(segments.segmentList.value).toHaveLength(1);
+      expect(useSegmentationStore().segmentations).toEqual({});
+      expect(boundMasks()).toEqual([]);
+
+      tools.setCurrentTool(Tools.Select);
+      tools.setCurrentTool(tool);
+      expect(segments.selectedSegmentId.value).toBe(first);
+      expect(segments.segmentList.value).toHaveLength(1);
+      const selected = segments.addSegment({ name: 'Another' });
+      tools.setCurrentTool(Tools.Select);
+      tools.setCurrentTool(tool);
+      expect(segments.selectedSegmentId.value).toBe(selected);
+      expect(segments.segmentList.value).toHaveLength(2);
+      expect(useSegmentationStore().segmentations).toEqual({});
+      expect(boundMasks()).toEqual([]);
+    }
+  );
 });

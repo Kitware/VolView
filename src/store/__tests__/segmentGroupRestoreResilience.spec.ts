@@ -25,16 +25,7 @@ import { boundMasks } from '@/src/store/__tests__/segmentMaskFixtures';
 // notice.
 // ---------------------------------------------------------------------------
 
-const ioMocks = vi.hoisted(() => ({
-  readImage: vi.fn(),
-  writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
-}));
-
-// eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
-vi.mock('@/src/io/readWriteImage', () => ({
-  readImage: ioMocks.readImage,
-  writeSegmentation: ioMocks.writeSegmentation,
-}));
+const artifactIO = { read: vi.fn(), write: vi.fn() };
 
 const BASE_URI = 'volview-backend:base/ct-chest-001';
 const ARTIFACT_URI = 'volview-backend:artifact/tumor-seg/v2';
@@ -148,6 +139,7 @@ const restoreGroups = (
     dataIDMap,
     segmentIdMap: useSegmentStore().deserialize(manifest),
     artifactSources: resolveArtifactRestoreSources(manifest),
+    io: artifactIO,
   });
 
 /** A group whose parent base never resolved, restored against a seated mask. */
@@ -161,7 +153,7 @@ const restoreOrphanedGroup = () =>
 describe('migrated segment groups: resilient restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    ioMocks.readImage.mockReset();
+    artifactIO.read.mockReset();
   });
 
   // Tumor beside a liver group that always restores, so a skip is shown to be
@@ -242,7 +234,7 @@ describe('migrated segment groups: resilient restore', () => {
   });
 
   it('a read failure skips just that group — survivors still attach', async () => {
-    ioMocks.readImage.mockRejectedValue(new Error('corrupt bytes'));
+    artifactIO.read.mockRejectedValue(new Error('corrupt bytes'));
 
     const { restoredArtifactIds: groups, skipped } =
       await restoreTumorBesideLiver({ path: 'segmentations/Tumor.seg.nrrd' }, [
@@ -401,7 +393,7 @@ describe('migrated segment groups: resilient restore', () => {
   it('does not remove any dataset for an archive-backed (path) group', async () => {
     seatImage('store-ct', 'CT Chest');
     seatImage('bystander', 'Unrelated');
-    ioMocks.readImage.mockResolvedValue({ image: makeImage() });
+    artifactIO.read.mockResolvedValue({ image: makeImage() });
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
     const { restoredArtifactIds: groups } = await restoreGroups(

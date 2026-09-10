@@ -13,6 +13,7 @@ import { plural } from '@/src/utils';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 import { useToolSelectionStore } from './toolSelection';
+import { useSegmentStore } from '@/src/store/segments';
 import { useViewStore } from '@/src/store/views';
 import {
   EffectiveView,
@@ -30,6 +31,16 @@ export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
     return false;
   return true;
 }
+
+// These tools draw into the selected segment, so picking one up seats a
+// segment: the palette shows the color the next stroke will be before it is
+// made. Seating allocates no voxels.
+const SEGMENT_TOOLS = new Set([
+  Tools.Paint,
+  Tools.Rectangle,
+  Tools.Ruler,
+  Tools.Polygon,
+]);
 
 const activeEffectiveView = () => getEffectiveView(useViewStore().activeView);
 
@@ -131,6 +142,9 @@ export const useToolStore = defineStore('tool', () => {
     }
     teardownTool(currentTool.value);
     currentTool.value = coerced;
+    if (SEGMENT_TOOLS.has(coerced)) {
+      useSegmentStore().segments.ensureSelectedSegment();
+    }
   }
 
   function activateTemporaryCrosshairs() {

@@ -153,7 +153,10 @@ This removes the specified view types from the dropdown menu and replaces them i
 
 Paint, rectangles, polygons and rulers share one registry of segments, configured under
 `segments`. Each entry is keyed by name, and every appearance field is optional: an
-omitted one means the app default.
+omitted one means the app default for a new segment. For an existing session segment,
+omitted fields keep the appearance it had before configuration. Replacing a config entry
+removes its previous appearance overrides, including color, while keeping the segment id,
+visibility and lock state.
 
 ```json
 {
@@ -167,7 +170,8 @@ omitted one means the app default.
 Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
 
 Omitting the key leaves the registry alone. An empty record (`{}`) or `null` clears what an
-earlier config contributed, keeping any segment your content still references. A configured
+earlier config contributed, keeping any segment your content still references with its
+last configured appearance. A configured
 segment keeps its id across config changes, so renaming or recoloring one never detaches
 the masks and shapes that reference it.
 

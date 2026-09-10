@@ -64,20 +64,29 @@ export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
  * answers true: nothing left here can refuse the write, which is the same
  * per-voxel answer the occupancy test gives. Absent when no mask reaches
  * `within`, the box the caller is about to walk. A mask that does not reach the
- * voxel has nothing there to clear, so nothing grows.
+ * voxel has nothing there to clear, so nothing grows. Finish the operation in
+ * a finally block to publish each changed mask once, including partial writes.
  */
 export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
   const reaching = masksReaching(masks, within);
   if (reaching.length === 0) return undefined;
-  return (i: number, j: number, k: number) => {
+  const changed = new Set<vtkLabelMap>();
+  const claim = (i: number, j: number, k: number) => {
     reaching.forEach((bounded) => {
       if (!extentContainsIndex(bounded.extent, i, j, k)) return;
       const offset = maskOffset(bounded, i, j, k);
       if (bounded.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
       bounded.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
-      bounded.mask.modified();
+      changed.add(bounded.mask);
     });
     return true;
+  };
+  return {
+    claim,
+    finish: () => {
+      changed.forEach((mask) => mask.modified());
+      changed.clear();
+    },
   };
 }
 

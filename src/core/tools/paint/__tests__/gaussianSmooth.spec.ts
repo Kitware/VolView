@@ -1,190 +1,122 @@
 import { describe, it, expect } from 'vitest';
+import { fullExtent, type Extent3D } from '@/src/types/segmentation';
 import { gaussianSmoothLabelMapWorker } from '../gaussianSmooth.worker';
 
 const LABEL = 3;
-const SPACING: [number, number, number] = [1, 1, 1];
-
 type Dims = [number, number, number];
-type Box = [[number, number], [number, number], [number, number]];
 
-const smooth = (
+/** Reconstructs the whole parent, including growth outside the input mask. */
+function smooth(
   data: Uint8Array,
   dimensions: Dims,
-  sigma: number,
-  label = LABEL,
-  maskExtent: [number, number, number, number, number, number] = [
-    0,
-    dimensions[0] - 1,
-    0,
-    dimensions[1] - 1,
-    0,
-    dimensions[2] - 1,
-  ],
+  maskExtent: Extent3D = fullExtent(dimensions),
   parentDimensions: Dims = dimensions
-) =>
-  gaussianSmoothLabelMapWorker({
+) {
+  const { scalars, extent } = gaussianSmoothLabelMapWorker({
     data,
     dimensions,
-    spacing: SPACING,
+    spacing: [1, 1, 1],
     maskExtent,
     parentDimensions,
-    params: { sigma, label },
+    params: { sigma: 1, label: LABEL },
   });
-
-/** A solid box of `label` inside an otherwise empty buffer. */
-function withBox(dimensions: Dims, box: Box, label = LABEL) {
-  const [di, dj, dk] = dimensions;
-  const data = new Uint8Array(di * dj * dk);
-  for (let k = box[2][0]; k <= box[2][1]; k += 1) {
-    for (let j = box[1][0]; j <= box[1][1]; j += 1) {
-      for (let i = box[0][0]; i <= box[0][1]; i += 1) {
-        data[i + j * di + k * di * dj] = label;
+  const [pi, pj, pk] = parentDimensions;
+  const parent = new Uint8Array(pi * pj * pk);
+  let offset = 0;
+  for (let k = extent[4]; k <= extent[5]; k += 1) {
+    for (let j = extent[2]; j <= extent[3]; j += 1) {
+      for (let i = extent[0]; i <= extent[1]; i += 1) {
+        parent[i + pi * (j + pj * k)] = scalars[offset++];
       }
     }
   }
-  return data;
+  return parent;
 }
 
-const filledGrid = (dimensions: Dims, label = LABEL) =>
-  new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]).fill(label);
-
-/** The sub-block of `data` spanning `box`, in the same order as a mask crop. */
-function crop(data: ArrayLike<number>, dimensions: Dims, box: Box) {
-  const [di, dj] = dimensions;
-  const out: number[] = [];
-  for (let k = box[2][0]; k <= box[2][1]; k += 1) {
-    for (let j = box[1][0]; j <= box[1][1]; j += 1) {
-      for (let i = box[0][0]; i <= box[0][1]; i += 1) {
-        out.push(data[i + j * di + k * di * dj]);
+function boxInParent(extent: Extent3D, dimensions: Dims) {
+  const [pi, pj, pk] = dimensions;
+  const parent = new Uint8Array(pi * pj * pk);
+  for (let k = extent[4]; k <= extent[5]; k += 1) {
+    for (let j = extent[2]; j <= extent[3]; j += 1) {
+      for (let i = extent[0]; i <= extent[1]; i += 1) {
+        parent[i + pi * (j + pj * k)] = LABEL;
       }
     }
   }
-  return out;
-}
-
-function smoothCroppedBox(box: Box) {
-  const parentDimensions: Dims = [9, 9, 9];
-  const dimensions: Dims = box.map(([from, to]) => to - from + 1) as Dims;
-  const extent = box.flat() as [number, number, number, number, number, number];
-  const parent = smooth(withBox(parentDimensions, box), parentDimensions, 1);
-  const smoothed = smooth(
-    filledGrid(dimensions),
-    dimensions,
-    1,
-    LABEL,
-    extent,
-    parentDimensions
-  );
-  return {
-    dimensions,
-    parentDimensions,
-    smoothed,
-    parentCrop: crop(parent, parentDimensions, box),
-  };
+  return parent;
 }
 
 describe('gaussianSmoothLabelMapWorker', () => {
   it('smooths an isolated voxel away even when the mask is that one voxel', () => {
-    const cropped = smooth(
+    const smoothed = smooth(
       new Uint8Array([LABEL]),
       [1, 1, 1],
-      1,
-      LABEL,
       [1, 1, 1, 1, 1, 1],
       [3, 3, 3]
     );
-
-    expect(Array.from(cropped)).toEqual([0]);
+    expect(smoothed.every((value) => value === 0)).toBe(true);
   });
 
-  it('gives a cropped mask the result the whole parent grid gives', () => {
-    const box: Box = [
-      [2, 4],
-      [2, 4],
-      [2, 4],
-    ];
-    const { smoothed, parentCrop } = smoothCroppedBox(box);
+  it.each([
+    [2, 4, 2, 4, 2, 4],
+    [1, 3, 1, 3, 1, 3],
+    [0, 2, 2, 4, 2, 4],
+    [1, 4, 1, 4, 1, 4],
+    [4, 7, 4, 7, 4, 7],
+  ] as Extent3D[])(
+    'preserves the full-parent output for a tight mask at [%i, %i, %i, %i, %i, %i]',
+    (...extent) => {
+      const parentDimensions: Dims = [9, 9, 9];
+      const dimensions: Dims = [
+        extent[1] - extent[0] + 1,
+        extent[3] - extent[2] + 1,
+        extent[5] - extent[4] + 1,
+      ];
+      const data = new Uint8Array(
+        dimensions[0] * dimensions[1] * dimensions[2]
+      ).fill(LABEL);
+      const croppedResult = smooth(data, dimensions, extent, parentDimensions);
+      const parentResult = smooth(
+        boxInParent(extent, parentDimensions),
+        parentDimensions
+      );
+      expect(croppedResult).toEqual(parentResult);
+    }
+  );
 
-    expect(Array.from(smoothed)).toEqual(parentCrop);
-  });
-
-  it('erodes the corners of a cropped cube', () => {
-    const dimensions: Dims = [3, 3, 3];
+  it('retains all 62 voxels when mirroring grows a box toward parent faces', () => {
     const smoothed = smooth(
-      filledGrid(dimensions),
-      dimensions,
-      1,
-      LABEL,
+      new Uint8Array(64).fill(LABEL),
+      [4, 4, 4],
+      [1, 4, 1, 4, 1, 4],
+      [9, 9, 9]
+    );
+    expect(smoothed.filter((value) => value === LABEL)).toHaveLength(62);
+    expect(smoothed[0 + 2 * 9 + 2 * 81]).toBe(LABEL);
+  });
+
+  it('erodes a cropped cube at its corners and keeps its centre', () => {
+    const smoothed = smooth(
+      new Uint8Array(27).fill(LABEL),
+      [3, 3, 3],
       [1, 3, 1, 3, 1, 3],
       [5, 5, 5]
     );
-
-    // Corner voxels lose their neighbourhood on three sides; the centre keeps it.
-    expect(smoothed[0]).toBe(0);
-    expect(smoothed[13]).toBe(LABEL);
+    expect(smoothed[1 + 1 * 5 + 1 * 25]).toBe(0);
+    expect(smoothed[2 + 2 * 5 + 2 * 25]).toBe(LABEL);
   });
 
-  it('matches the whole parent grid within the kernel radius of a face', () => {
-    // The mask stops one voxel short of the parent face, so its padding would
-    // reach past it. The mirror has to happen at the face all the same.
-    const box: Box = [
-      [1, 3],
-      [1, 3],
-      [1, 3],
-    ];
-    const { smoothed, parentCrop } = smoothCroppedBox(box);
-
-    expect(Array.from(smoothed)).toEqual(parentCrop);
-  });
-
-  it('matches the whole parent grid where the segment touches its boundary', () => {
-    const box: Box = [
-      [0, 2],
-      [2, 4],
-      [2, 4],
-    ];
-    const { dimensions, parentDimensions, smoothed, parentCrop } =
-      smoothCroppedBox(box);
-    const zeroPadded = smooth(
-      filledGrid(dimensions),
-      dimensions,
-      1,
-      LABEL,
-      [1, 3, 2, 4, 2, 4],
-      parentDimensions
-    );
-
-    expect(Array.from(smoothed)).toEqual(parentCrop);
-    expect(Array.from(smoothed)).not.toEqual(Array.from(zeroPadded));
-  });
-
-  it('keeps the mirrored growth a mask has no box to hold', () => {
-    // Against a parent face the mirror can turn on voxels beyond the label's
-    // own bounding box. A mask whose box stops short of that face has nowhere
-    // to write them, so it keeps everything it can address and no more.
-    const box: Box = [
-      [1, 4],
-      [1, 4],
-      [1, 4],
-    ];
-    const { parentDimensions, smoothed, parentCrop } = smoothCroppedBox(box);
-    const parent = smooth(withBox(parentDimensions, box), parentDimensions, 1);
-
-    expect(Array.from(smoothed)).toEqual(parentCrop);
-    expect(
-      crop(parent, parentDimensions, [
-        [0, 0],
-        [1, 4],
-        [1, 4],
-      ]).filter((value) => value === LABEL).length
-    ).toBeGreaterThan(0);
+  it('mirrors only at parent faces, not at the mask allocation', () => {
+    const data = new Uint8Array(27).fill(LABEL);
+    const againstFace = smooth(data, [3, 3, 3], [0, 2, 2, 4, 2, 4], [9, 9, 9]);
+    const awayFromFace = smooth(data, [3, 3, 3], [1, 3, 2, 4, 2, 4], [9, 9, 9]);
+    expect(againstFace[0 + 3 * 9 + 3 * 81]).toBe(LABEL);
+    expect(awayFromFace[0 + 3 * 9 + 3 * 81]).toBe(0);
   });
 
   it('leaves a buffer with none of the label alone', () => {
-    const data = new Uint8Array([0, 1, 0, 1]);
-
-    const smoothed = smooth(data, [4, 1, 1], 1);
-
-    expect(Array.from(smoothed)).toEqual([0, 1, 0, 1]);
+    expect(Array.from(smooth(new Uint8Array([0, 1, 0, 1]), [4, 1, 1]))).toEqual(
+      [0, 1, 0, 1]
+    );
   });
 });

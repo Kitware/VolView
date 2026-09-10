@@ -278,7 +278,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     const { needsDecode } = planArtifactRestore(manifest);
     const loadedParentImage = createParentImageLoader(
       dataIDMap,
-      untilLoaded,
+      (id) => imageCacheStore.imageById[id],
       (id) => imageCacheStore.getVtkImageData(id) ?? undefined
     );
 
@@ -357,11 +357,6 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       tempStoreIdsToRemove.forEach((storeId) => datasetStore.remove(storeId));
     }
 
-    // Every artifact is split, so a mask naming one has no storage yet.
-    const splitWireIds = new Set(
-      loaded.flatMap((result) => (result ? [result.artifact.id] : []))
-    );
-
     // A saved mask names an archive entry of its own, read into a buffer of
     // its own: masks share no storage, whatever a hand-edited manifest says.
     const maskLabelmaps = new Map<WireMask, LoadedLabelmap>();
@@ -393,6 +388,24 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       )
     );
 
+    // Reads, resampling and decoding yield to image deletion. Recheck before
+    // creating any masks, after every asynchronous placement step has settled.
+    loaded = loaded.filter((result) => {
+      if (!result) return false;
+      if (
+        imageCacheStore.getVtkImageData(dataIDMap[result.artifact.parentImage])
+      )
+        return true;
+      skipped.push({
+        name: result.artifact.name,
+        reason: 'parent image is unavailable',
+      });
+      return false;
+    });
+    const splitWireIds = new Set(
+      loaded.flatMap((result) => (result ? [result.artifact.id] : []))
+    );
+
     const prepared = prepareRestoreBindings({
       manifest,
       dataIDMap,
@@ -412,7 +425,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
     (manifest.segmentations ?? []).forEach((wire) => {
       const parentImageId = dataIDMap[wire.parentImage];
-      if (parentImageId === undefined) return;
+      if (!imageCacheStore.getVtkImageData(parentImageId)) return;
 
       // An import into an image that already has masks adds to them: the
       // display this scene is set to is the user's, not the incoming file's.

@@ -1,6 +1,11 @@
 import * as Comlink from 'comlink';
 import { TypedArray } from '@kitware/vtk.js/types';
 import { createTypedArrayLike } from '@/src/utils';
+import {
+  extentSize,
+  extentUnion,
+  type Extent3D,
+} from '@/src/types/segmentation';
 
 export interface GaussianSmoothParams {
   sigma: number;
@@ -245,10 +250,8 @@ function extractSubVolume(
   return { subData, subDims };
 }
 
-// The padding ring has no voxel to write to. Away from the parent faces
-// nothing is lost, since a thresholded Gaussian cannot turn on a voxel outside
-// the label's own bounding box; against a face the mirror can, and a mask
-// whose box stops short of that face has nowhere to hold it.
+// Output storage includes the padding ring: mirroring at a parent face can
+// turn on voxels beyond the input mask's allocation.
 function copySubVolumeBack(
   subData: Float32Array,
   originalData: TypedArray | number[],
@@ -299,7 +302,7 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     for (let i = 0; i < originalData.length; i++) {
       outputData[i] = originalData[i];
     }
-    return outputData;
+    return { scalars: outputData, extent: maskExtent };
   }
 
   const sigmaPixels: [number, number, number] = [
@@ -314,7 +317,7 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     for (let i = 0; i < originalData.length; i++) {
       outputData[i] = originalData[i];
     }
-    return outputData;
+    return { scalars: outputData, extent: maskExtent };
   }
 
   const expandedBounds = expandBoundingBox({
@@ -337,20 +340,38 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     1.5
   );
 
-  const outputData = createTypedArrayLike(originalData, originalData.length);
-  for (let i = 0; i < originalData.length; i++) {
-    outputData[i] = originalData[i];
-  }
+  const expandedExtent = expandedBounds.map(
+    (value, axis) => value + maskExtent[axis - (axis % 2)]
+  ) as Extent3D;
+  const extent = extentUnion(maskExtent, expandedExtent);
+  const outputDimensions = extentSize(extent);
+  const outputData = createTypedArrayLike(
+    originalData,
+    outputDimensions[0] * outputDimensions[1] * outputDimensions[2]
+  );
+  const outputBoundsInInput = extent.map(
+    (value, axis) => value - maskExtent[axis - (axis % 2)]
+  );
+  forEachClippedVoxel(
+    dimensions,
+    outputBoundsInInput,
+    (origIndex, outIndex) => {
+      outputData[outIndex] = originalData[origIndex];
+    }
+  );
+  const smoothedBoundsInOutput = expandedExtent.map(
+    (value, axis) => value - extent[axis - (axis % 2)]
+  );
 
   copySubVolumeBack(
     smoothedSubMask,
     outputData,
-    dimensions,
-    expandedBounds,
+    outputDimensions,
+    smoothedBoundsInOutput,
     label
   );
 
-  return outputData;
+  return { scalars: outputData, extent };
 }
 
 const workerApi = {

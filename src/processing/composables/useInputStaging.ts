@@ -106,8 +106,8 @@ export function useInputStaging() {
     return id ? tools.filter((tool) => tool.imageID === id) : [];
   };
 
-  // The three stores are independent, so each keeps its own label namespace;
-  // the encoder prunes and re-keys them by name.
+  // Each geometry kind carries the shared segments; the encoder prunes and
+  // re-keys them by name within that kind's wire namespace.
   const annotationToolsView = computed<AnnotationToolsView>(() => {
     const kindView = <T extends object>(
       kind: AnnotationToolKind,

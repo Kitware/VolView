@@ -84,7 +84,10 @@ describe('Paint process store', () => {
 
     expect(paintStore.processControlsOpen).toBe(false);
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]));
+    await processStore.startProcess(async (target: ProcessTarget) => ({
+      scalars: new Uint8Array([2, 2]),
+      extent: target.maskExtent,
+    }));
 
     expect(processStore.processState.step).toBe('previewing');
     expect(paintStore.processControlsOpen).toBe(true);
@@ -110,7 +113,10 @@ describe('Paint process store', () => {
     paintStore.setMode(PaintMode.CirclePaint);
     paintStore.setProcessControlsOpen(true);
 
-    await processStore.startProcess(async () => new Uint8Array([3, 3]));
+    await processStore.startProcess(async (target: ProcessTarget) => ({
+      scalars: new Uint8Array([3, 3]),
+      extent: target.maskExtent,
+    }));
 
     expect(getScalars(labelMap)).toEqual([3, 3]);
 
@@ -133,8 +139,14 @@ describe('Paint process store', () => {
 
     const first = deferred<Uint8Array>();
     const second = deferred<Uint8Array>();
-    const firstRun = processStore.startProcess(() => first.promise);
-    const secondRun = processStore.startProcess(() => second.promise);
+    const firstRun = processStore.startProcess(async (target) => ({
+      scalars: await first.promise,
+      extent: target.maskExtent,
+    }));
+    const secondRun = processStore.startProcess(async (target) => ({
+      scalars: await second.promise,
+      extent: target.maskExtent,
+    }));
 
     first.resolve(new Uint8Array([9, 9]));
     await firstRun;
@@ -155,7 +167,7 @@ describe('Paint process store', () => {
     let target: ProcessTarget | undefined;
     const algorithm = vi.fn(async (resolved: ProcessTarget) => {
       target = resolved;
-      return new Uint8Array([3, 3]);
+      return { scalars: new Uint8Array([3, 3]), extent: resolved.maskExtent };
     });
 
     await processStore.startProcess(algorithm);
@@ -171,7 +183,10 @@ describe('Paint process store', () => {
     const { maskId, labelMap } = addActiveSegment();
     lockSegment(maskId);
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]));
+    await processStore.startProcess(async (target: ProcessTarget) => ({
+      scalars: new Uint8Array([2, 2]),
+      extent: target.maskExtent,
+    }));
 
     expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([0, 0]);
@@ -186,7 +201,7 @@ describe('Paint process store', () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const messageStore = useMessageStore();
-    const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
+    const algorithm = vi.fn();
 
     await processStore.startProcess(algorithm);
 
@@ -214,7 +229,7 @@ describe('Paint process store', () => {
       })
     );
     selectSegment(segment.id);
-    const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
+    const algorithm = vi.fn();
 
     await processStore.startProcess(algorithm);
 
@@ -242,7 +257,7 @@ describe('Paint process store', () => {
     const voxels = segmentationStore.maskVoxels(segment.id);
     const binding = voxels.materialize();
     selectSegment(segment.id);
-    const algorithm = vi.fn(async () => new Uint8Array([2, 2]));
+    const algorithm = vi.fn();
 
     await processStore.startProcess(algorithm);
 
@@ -260,7 +275,10 @@ describe('Paint process store', () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
     const { labelMap: firstLabelMap } = addActiveSegment();
-    const algorithm = vi.fn(async () => new Uint8Array([4, 4]));
+    const algorithm = vi.fn(async (target: ProcessTarget) => ({
+      scalars: new Uint8Array([4, 4]),
+      extent: target.maskExtent,
+    }));
 
     await viewImage('image-2');
     await processStore.startProcess(algorithm);
@@ -277,7 +295,10 @@ describe('Paint process store', () => {
     const segmentationStore = useSegmentationStore();
     const { segmentationId, labelMap } = addActiveSegment();
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]));
+    await processStore.startProcess(async (target: ProcessTarget) => ({
+      scalars: new Uint8Array([2, 2]),
+      extent: target.maskExtent,
+    }));
     expect(processStore.processState.step).toBe('previewing');
 
     const other = segmentationStore.createMask(
@@ -298,9 +319,15 @@ describe('Paint process store', () => {
     const segmentationStore = useSegmentationStore();
     const messageStore = useMessageStore();
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
-      requiresActiveSegment: false,
-    });
+    await processStore.startProcess(
+      async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([2, 2]),
+        extent: target.maskExtent,
+      }),
+      {
+        requiresActiveSegment: false,
+      }
+    );
 
     expect(
       segmentationStore.getSegmentationForImage('image-1')
@@ -319,9 +346,15 @@ describe('Paint process store', () => {
     const { maskId, labelMap } = addActiveSegment(new Uint8Array([1, 1]));
     lockSegment(maskId, true);
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
-      requiresActiveSegment: false,
-    });
+    await processStore.startProcess(
+      async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([2, 2]),
+        extent: target.maskExtent,
+      }),
+      {
+        requiresActiveSegment: false,
+      }
+    );
 
     expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([1, 1]);
@@ -341,9 +374,15 @@ describe('Paint process store', () => {
       mintSegment({ name: 'Empty' })
     );
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
-      requiresActiveSegment: false,
-    });
+    await processStore.startProcess(
+      async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([2, 2]),
+        extent: target.maskExtent,
+      }),
+      {
+        requiresActiveSegment: false,
+      }
+    );
 
     const titles = messageStore.messages.map((message) => message.title);
     expect(titles).toContain('No unlocked segment has anything to process');
@@ -356,9 +395,15 @@ describe('Paint process store', () => {
     addActiveSegment();
     await viewImage('image-2');
 
-    await processStore.startProcess(async () => new Uint8Array([2, 2]), {
-      requiresActiveSegment: false,
-    });
+    await processStore.startProcess(
+      async (target: ProcessTarget) => ({
+        scalars: new Uint8Array([2, 2]),
+        extent: target.maskExtent,
+      }),
+      {
+        requiresActiveSegment: false,
+      }
+    );
 
     expect(
       segmentationStore.getSegmentationForImage('image-2')

@@ -36,8 +36,19 @@ const DIMENSIONS: Index3 = [4, 4, 4];
 const WHOLE_IMAGE: Extent3D = [0, 3, 0, 3, 0, 3];
 
 /** The claim a paint or polygon gesture makes: aimed, so it takes the voxel. */
-const clearFor = (maskId: string) =>
-  store().voxelClaim(maskId, 'aimed', WHOLE_IMAGE);
+const clearFor = (maskId: string) => {
+  const operation = store().voxelClaim(maskId, 'aimed', WHOLE_IMAGE);
+  return (
+    operation &&
+    ((i: number, j: number, k: number) => {
+      try {
+        return operation.claim(i, j, k);
+      } finally {
+        operation.finish();
+      }
+    })
+  );
+};
 
 /** Two segments of the same image, both holding one voxel. */
 function pairAt(index: Index3) {

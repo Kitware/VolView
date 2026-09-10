@@ -9,6 +9,7 @@ import { gaussianSmoothLabelMapWorker } from '@/src/core/tools/paint/gaussianSmo
 import {
   usePaintProcessStore,
   type ProcessTarget,
+  type ProcessResult,
 } from '@/src/store/tools/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import {
@@ -45,16 +46,18 @@ const INSIDE: Index3 = [2, 2, 1];
 
 const offsetOf = flatIndex(DIMENSIONS);
 
-type SegmentAlgorithm = (target: ProcessTarget) => TypedArray | number[];
+type SegmentAlgorithm = (target: ProcessTarget) => ProcessResult;
 
-const runFillHoles: SegmentAlgorithm = (target) =>
-  fillHoles({
+const runFillHoles: SegmentAlgorithm = (target) => ({
+  scalars: fillHoles({
     data: target.voxels.scalars(),
     dimensions: DIMENSIONS,
     axis: 2,
     sliceIndex: HOLE[2],
     label: target.labelValue,
-  });
+  }),
+  extent: target.maskExtent,
+});
 
 const runGaussianSmooth: SegmentAlgorithm = (target) =>
   gaussianSmoothLabelMapWorker({
@@ -77,7 +80,7 @@ const runFillBetween: SegmentAlgorithm = (target) => {
       data[offset + plane] === target.labelValue;
     if (data[offset] === 0 && enclosed) filled[offset] = target.labelValue;
   }
-  return filled;
+  return { scalars: filled, extent: target.maskExtent };
 };
 
 /** The active segment as a solid cube with one background voxel at its centre. */
@@ -201,7 +204,7 @@ describe('a process over a mask with no two dimensions alike', () => {
     await processStore.startProcess(async (target) => {
       const filled = (target.voxels.scalars() as TypedArray).slice();
       filled.fill(target.labelValue);
-      return filled;
+      return { scalars: filled, extent: target.maskExtent };
     });
     processStore.confirmProcess();
 

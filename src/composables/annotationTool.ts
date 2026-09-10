@@ -78,7 +78,11 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
       return (
         tool.imageID === curImageID &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata) &&
-        !tool.hidden
+        !tool.hidden &&
+        // Keep the active placement widget alive until it commits. Completed
+        // shapes inherit the segment's visibility without changing child flags.
+        (tool.placing ||
+          toolStore.segments.appearanceOf(tool.segmentId).visible)
       );
     });
   });

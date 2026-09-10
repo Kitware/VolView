@@ -9,9 +9,8 @@ import {
 } from '@/src/store/tools/segmentReferences';
 
 /**
- * The one registry paint, rectangles and polygons share: selecting a segment in
- * any of them selects it in all three, and the same segment can be painted on
- * every image. Rulers hold their own instance of the same implementation.
+ * Paint, rectangles, polygons and rulers share this registry and selection.
+ * The same segment can hold masks and shapes on every image.
  */
 export const useSegmentStore = defineStore('segments', () => {
   const registry = createSegmentRegistry({

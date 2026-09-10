@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
   type Index3,
   maskOn,
   lockSegment,
   boundMasks,
+  seedVoxel,
+  markedVoxels,
 } from '@/src/store/__tests__/segmentMaskFixtures';
-import { defineComponent, nextTick } from 'vue';
-import { mount, VueWrapper } from '@vue/test-utils';
+import { defineComponent, nextTick, ref } from 'vue';
+import { enableAutoUnmount, mount, VueWrapper } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
@@ -24,11 +26,23 @@ import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
+import {
+  useCurrentTools,
+  usePlacingAnnotationTool,
+} from '@/src/composables/annotationTool';
+import { useRulerStore } from '@/src/store/tools/rulers';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { AXIAL_FRAME_OF_REFERENCE } from '@/src/utils/frameOfReference';
+import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
+import useViewCameraStore from '@/src/store/view-configs/camera';
+
+enableAutoUnmount(afterEach);
 
 // ---------------------------------------------------------------------------
 // One flat list of segment types: rows are the shared registry's segments, keyed
 // on type id, offered whether or not this image has a mask for them. The
-// visibility and lock controls belong to the viewed image's record, the
+// visibility and lock controls belong to the shared segment, the
 // display sliders to its segmentation, and adding a row allocates nothing.
 // ---------------------------------------------------------------------------
 
@@ -122,6 +136,7 @@ const SegmentEditorStub = defineComponent({
     'outlineOpacity',
     'strokeWidth',
     'invalidNames',
+    'locked',
   ],
   emits: [
     'done',
@@ -170,14 +185,7 @@ const globalOptions = {
   },
 };
 
-const listProps = () => ({
-  registry: segments(),
-  noun: 'segment',
-  masked: true,
-});
-
-const mountList = () =>
-  mount(SegmentList, { props: listProps(), global: globalOptions });
+const mountList = () => mount(SegmentList, { global: globalOptions });
 
 const itemList = (wrapper: VueWrapper) => wrapper.findComponent(ItemListStub);
 
@@ -453,7 +461,6 @@ describe('flat segment list row actions', () => {
   // shared stub drops its content, so this mounts one that renders it.
   const mountWithTooltips = () =>
     mount(SegmentList, {
-      props: listProps(),
       global: {
         stubs: {
           ...globalOptions.stubs,
@@ -638,49 +645,114 @@ describe('flat segment list row editing', () => {
   });
 });
 
-// A cine clip is a stack of unrelated frames, so a segmentation drawn across it
-// means nothing and saves as an empty 2D file.
+// Cine annotations use registry identities without requiring voxel storage.
 describe('flat segment list on a cine image', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
     seatCineImage('cine-1');
-    await seatImage('img-1');
-    await nextTick();
+    await viewImage('cine-1');
   });
 
-  it('creates no type when the create affordance is driven anyway', async () => {
-    await viewImage('cine-1');
+  it('creates and edits distinct measurement segments without allocating masks', async () => {
     const wrapper = mountList();
-    await nextTick();
+    const rulers = useRulerStore();
+    const placed = [];
+    for (const [name, color] of [
+      ['Long axis', '#ff0000'],
+      ['Short axis', '#0000ff'],
+    ]) {
+      await wrapper.get('.create-row').trigger('click');
+      const segmentId = segments().selectedSegmentId.value!;
+      await rowButton(wrapper, segmentId, ['mdi-pencil']).trigger('click');
+      editor(wrapper).vm.$emit('update:name', name);
+      editor(wrapper).vm.$emit('update:color', color);
+      editor(wrapper).vm.$emit('done');
+      await nextTick();
+      const id = rulers.addTool({
+        imageID: 'cine-1',
+        frame: 1,
+        slice: 0,
+        frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+        placing: true,
+      });
+      rulers.placeTool(id);
+      placed.push(id);
+    }
 
-    itemList(wrapper).vm.$emit('create');
-    await nextTick();
-
+    expect(segments().segmentList.value).toHaveLength(2);
+    expect(placed.map((id) => rulers.appearanceOfTool(id).name)).toEqual([
+      'Long axis',
+      'Short axis',
+    ]);
+    expect(
+      placed.map((id) => [...rulers.appearanceOfTool(id).color].slice(0, 3))
+    ).toEqual([
+      [255, 0, 0],
+      [0, 0, 255],
+    ]);
+    expect(
+      new Set(placed.map((id) => rulers.toolByID[id].segmentId)).size
+    ).toBe(2);
     expect(store().getSegmentationForImage('cine-1')).toBeUndefined();
-    expect(segments().segmentList.value).toEqual([]);
-    expect(rowIds(wrapper)).toEqual([]);
+    expect(boundMasks()).toEqual([]);
+    expect(
+      wrapper.get('[data-testid="save-segments-button"]').attributes('disabled')
+    ).toBeDefined();
   });
 
-  it('offers no create affordance', async () => {
-    await viewImage('cine-1');
+  it.each([[1], [0, 1]])(
+    'reveals an occupied cine frame for annotations on frames %j',
+    async (...frames) => {
+      const segmentId = segments().addSegment({ name: 'Measurement' });
+      const rulers = useRulerStore();
+      const ids = frames.map((frame) =>
+        rulers.addTool({
+          imageID: 'cine-1',
+          segmentId,
+          frame,
+          slice: 0,
+          frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+        })
+      );
+      const playback = useCinePlaybackStore();
+      const viewId = useViewStore().activeView!;
+      playback.updateConfig(viewId, 'cine-1', {
+        frame: frames[0] === 0 ? 1 : 0,
+      });
+      const camera = useViewCameraStore();
+      const pose = {
+        position: [4, 6, 10] as [number, number, number],
+        focalPoint: [4, 6, 0] as [number, number, number],
+        parallelScale: 25,
+      };
+      camera.updateConfig(viewId, 'cine-1', pose);
+      const wrapper = mountList();
+
+      expect(
+        revealButton(wrapper, segmentId).attributes('disabled')
+      ).toBeUndefined();
+      await revealButton(wrapper, segmentId).trigger('click');
+
+      expect(playback.getConfig(viewId, 'cine-1').frame).toBe(frames[0]);
+      expect(camera.getConfig(viewId, 'cine-1')).toMatchObject(pose);
+      // The shape action retains the same temporal navigation semantics.
+      rulers.jumpToTool(ids[ids.length - 1]);
+      expect(playback.getConfig(viewId, 'cine-1').frame).toBe(
+        frames[frames.length - 1]
+      );
+    }
+  );
+
+  it('keeps an empty segment reveal disabled and leaves the frame alone', async () => {
+    const segmentId = segments().addSegment();
     const wrapper = mountList();
-    await nextTick();
-
-    expect(wrapper.find('.create-row').exists()).toBe(false);
-  });
-
-  it('still offers the create affordance on a plain image', async () => {
-    await viewImage('img-1');
-    const wrapper = mountList();
-    await nextTick();
-
-    expect(wrapper.find('.create-row').exists()).toBe(true);
-
-    await wrapper.find('.create-row').trigger('click');
-    await nextTick();
-
-    expect(segments().segmentList.value).toHaveLength(1);
-    expect(rowIds(wrapper)).toHaveLength(1);
+    const viewId = useViewStore().activeView!;
+    useCinePlaybackStore().updateConfig(viewId, 'cine-1', { frame: 1 });
+    expect(
+      revealButton(wrapper, segmentId).attributes('disabled')
+    ).toBeDefined();
+    await revealButton(wrapper, segmentId).trigger('click');
+    expect(useCinePlaybackStore().getConfig(viewId, 'cine-1').frame).toBe(1);
   });
 });
 
@@ -843,7 +915,6 @@ describe('Reveal Slice on a segment row', () => {
   it('says on the disabled control that this image holds nothing for the row', async () => {
     const segment = makeMask('img-1', 'Tumor');
     const wrapper = mount(SegmentList, {
-      props: listProps(),
       global: {
         stubs: {
           ...globalOptions.stubs,
@@ -853,9 +924,9 @@ describe('Reveal Slice on a segment row', () => {
     });
     await nextTick();
 
-    expect(revealButton(wrapper, segment.id).find('.tooltip').text()).toMatch(
-      /nothing on this image/i
-    );
+    expect(
+      revealButton(wrapper, segment.id).element.parentElement?.textContent
+    ).toMatch(/nothing on this image/i);
   });
 
   it('puts each 2D view on the middle of what the segment marks here', async () => {
@@ -913,4 +984,185 @@ describe('Reveal Slice on a segment row', () => {
 
     expect(sliceOn('Axial')).toBe(7);
   });
+});
+
+const ANNOTATION_STORES = [
+  ['ruler', useRulerStore],
+  ['rectangle', useRectangleStore],
+  ['polygon', usePolygonStore],
+] as const;
+
+describe.each(ANNOTATION_STORES)(
+  'shared segment visibility for a %s',
+  (_name, useStore) => {
+    beforeEach(async () => {
+      setActivePinia(createPinia());
+      await seatImage('img-1');
+      await viewImage('img-1');
+    });
+
+    it('composes row and global visibility with independent child flags across images and cine frames', async () => {
+      const tools = useStore();
+      const segmentId = segments().addSegment();
+      const addShape = (imageID: string, hidden = false, frame?: number) =>
+        tools.addTool({
+          imageID,
+          segmentId,
+          slice: 0,
+          frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+          hidden,
+          frame,
+        });
+      const shown = addShape('img-1');
+      const hidden = addShape('img-1', true);
+      seatCineImage('cine-1');
+      const cineFirst = addShape('cine-1', false, 0);
+      const cineSecond = addShape('cine-1', false, 1);
+      const viewFrame = ref<number | undefined>();
+      const rendered = useCurrentTools(tools, ref('Axial'), ref([]), viewFrame);
+      const ids = () => rendered.value.map((tool) => tool.id);
+      const wrapper = mountList();
+      expect(ids()).toEqual([shown]);
+
+      await rowButton(wrapper, segmentId, ['mdi-eye', 'mdi-eye-off']).trigger(
+        'click'
+      );
+      expect(ids()).toEqual([]);
+      await viewImage('cine-1');
+      viewFrame.value = 0;
+      expect(ids()).toEqual([]);
+      await wrapper
+        .get('[data-testid="toggle-segments-visible-button"]')
+        .trigger('click');
+      expect(ids()).toEqual([cineFirst]);
+      viewFrame.value = 1;
+      expect(ids()).toEqual([cineSecond]);
+      await wrapper
+        .get('[data-testid="toggle-segments-visible-button"]')
+        .trigger('click');
+      expect(ids()).toEqual([]);
+      await rowButton(wrapper, segmentId, ['mdi-eye', 'mdi-eye-off']).trigger(
+        'click'
+      );
+      await viewImage('img-1');
+      viewFrame.value = undefined;
+      expect(ids()).toEqual([shown]);
+      expect(tools.toolByID[hidden].hidden).toBe(true);
+    });
+
+    it('keeps the active placement alive through hiding, committing and starting again', () => {
+      const tools = useStore();
+      const segmentId = segments().addSegment();
+      const metadata = ref({
+        imageID: 'img-1',
+        segmentId,
+        slice: 0,
+        frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+      });
+      const placing = usePlacingAnnotationTool(tools, metadata);
+      placing.add();
+      const first = placing.id.value!;
+      const whitelist = ref([first]);
+      const rendered = useCurrentTools(tools, ref('Axial'), whitelist);
+      const otherViewStub = tools.addTool({ ...metadata.value, placing: true });
+      placing.beginPlacement();
+      segments().updateSegment(segmentId, { visible: false });
+      expect(rendered.value.map((tool) => tool.id)).toEqual([first]);
+      expect(tools.toolByID[otherViewStub]).toBeDefined();
+
+      placing.commit();
+      expect(rendered.value).toEqual([]);
+      expect(tools.toolByID[first].placing).toBe(false);
+      placing.add();
+      whitelist.value = [placing.id.value!];
+      expect(rendered.value.map((tool) => tool.id)).toEqual([placing.id.value]);
+      segments().updateSegment(segmentId, { visible: true });
+      expect(rendered.value.map((tool) => tool.id)).toEqual([
+        first,
+        placing.id.value,
+      ]);
+      placing.remove();
+      expect(rendered.value.map((tool) => tool.id)).toEqual([first]);
+    });
+  }
+);
+
+describe('locked segment editor routes', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1');
+    await seatImage('img-2');
+    await viewImage('img-1');
+  });
+
+  const protectedContent = () => {
+    const segmentId = segments().addSegment({ name: 'Tumor' });
+    const rulers = useRulerStore();
+    const content = ['img-1', 'img-2'].map((imageID) => {
+      const mask = maskOn(imageID, segmentId);
+      seedVoxel(mask.id, [1, 1, 0]);
+      const ruler = rulers.addTool({
+        imageID,
+        segmentId,
+        slice: 0,
+        frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+      });
+      return { imageID, maskId: mask.id, ruler };
+    });
+    const expectPreserved = () => {
+      expect(segments().appearanceOf(segmentId).name).toBe('Tumor');
+      content.forEach(({ imageID, maskId, ruler }) => {
+        expect(store().maskFor(imageID, segmentId)?.id).toBe(maskId);
+        expect(markedVoxels(maskId)).toEqual([[1, 1, 0, SEGMENT_VALUE]]);
+        expect(rulers.toolByID[ruler].segmentId).toBe(segmentId);
+      });
+    };
+    return { segmentId, expectPreserved };
+  };
+
+  it('disables color, edit and delete consistently and restores editing after unlocking', async () => {
+    const { segmentId, expectPreserved } = protectedContent();
+    segments().updateSegment(segmentId, { locked: true });
+    const wrapper = mountList();
+    for (const action of [
+      'segment-color-button',
+      'edit-segment-button',
+      'delete-segment-button',
+    ]) {
+      const button = wrapper.get(
+        `[data-id="${segmentId}"] [data-testid="${action}"]`
+      );
+      expect(button.attributes('disabled')).toBeDefined();
+      await button.trigger('click');
+      expect(editor(wrapper).exists()).toBe(false);
+      expectPreserved();
+    }
+    segments().updateSegment(segmentId, { locked: false });
+    await nextTick();
+    await wrapper.get('[data-testid="segment-color-button"]').trigger('click');
+    expect(editor(wrapper).exists()).toBe(true);
+    editor(wrapper).vm.$emit('update:name', 'Lesion');
+    editor(wrapper).vm.$emit('done');
+    await nextTick();
+    expect(segments().appearanceOf(segmentId).name).toBe('Lesion');
+  });
+
+  it.each(['done', 'delete'])(
+    'refuses %s if the segment becomes locked while its editor is open',
+    async (action) => {
+      const { segmentId, expectPreserved } = protectedContent();
+      const wrapper = mountList();
+      await wrapper
+        .get('[data-testid="segment-color-button"]')
+        .trigger('click');
+      editor(wrapper).vm.$emit('update:name', 'Changed');
+      await nextTick();
+      segments().updateSegment(segmentId, { locked: true });
+      await nextTick();
+      expect(editor(wrapper).props('locked')).toBe(true);
+      editor(wrapper).vm.$emit(action);
+      await nextTick();
+      expectPreserved();
+    }
+  );
 });

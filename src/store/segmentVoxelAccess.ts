@@ -194,13 +194,19 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    * segment reaches `within`, the box the caller is about to walk: every voxel
    * in it is then uncontested and the question need not be asked per voxel.
    *
-   * `gesture` is the whole of the policy, so see {@link VoxelGesture}.
+   * `gesture` is the whole of the policy, so see {@link VoxelGesture}. An aimed
+   * operation must call finish in a finally block after its last voxel write.
    */
   function voxelClaim(maskId: string, gesture: VoxelGesture, within: Extent3D) {
     const masks = siblingMasks(maskId, gesture);
     if (gesture === 'aimed') return masksClearing(masks, within);
     const held = masksHolding(masks, within);
-    return held && ((i: number, j: number, k: number) => !held(i, j, k));
+    return (
+      held && {
+        claim: (i: number, j: number, k: number) => !held(i, j, k),
+        finish: () => undefined,
+      }
+    );
   }
 
   return {
