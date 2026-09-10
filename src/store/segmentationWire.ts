@@ -443,7 +443,12 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         // A mask whose segment did not restore has no identity to show, and a
         // second mask for a segment already on this image cannot exist.
         const segmentId = segmentIdMap[wireMask.segmentId];
-        if (!segmentId || maskFor(parentImageId, segmentId)) return;
+        if (
+          !segmentId ||
+          !segmentRegistry.getSegment(segmentId) ||
+          maskFor(parentImageId, segmentId)
+        )
+          return;
 
         const segment = createMask(segmentation.id, segmentId);
 

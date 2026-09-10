@@ -189,14 +189,19 @@ export const useAnnotationTool = <
   type Serialized = {
     tools: PartialWithRequired<Tool, 'imageID'>[];
   };
-  // A segment the restore did not recreate leaves the shape unnamed, drawn in
-  // the app defaults; renaming never reaches here, since ids are stable.
+  // An unmapped segment leaves its shape unnamed. An adopted segment deleted
+  // during mask IO instead takes its pending shapes with it, just as it takes
+  // already attached shapes; a same-name replacement has a different id.
   function deserializeTools(
     serialized: Maybe<Serialized>,
     dataIDMap: Record<string, string>,
     segmentIdMap: Record<string, string> = {}
   ) {
     serialized?.tools
+      .filter(({ segmentId }) => {
+        const mappedId = segmentId && segmentIdMap[segmentId];
+        return !mappedId || registry.getSegment(mappedId);
+      })
       .map(({ imageID, segmentId, ...rest }) => {
         const newImageID = dataIDMap[imageID];
         return {
