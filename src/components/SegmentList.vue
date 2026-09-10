@@ -238,6 +238,7 @@ const {
       <v-spacer />
       <v-btn
         data-testid="toggle-segments-visible-button"
+        :aria-label="allVisible ? 'Hide every segment' : 'Show every segment'"
         icon
         size="small"
         density="comfortable"
@@ -252,6 +253,7 @@ const {
 
       <v-btn
         data-testid="toggle-segments-locked-button"
+        :aria-label="allLocked ? 'Unlock every segment' : 'Lock every segment'"
         icon
         size="small"
         density="comfortable"
@@ -268,6 +270,7 @@ const {
       <span class="d-inline-flex" :tabindex="savableReason ? 0 : undefined">
         <v-btn
           data-testid="save-segments-button"
+          aria-label="Save segments"
           icon
           size="small"
           density="comfortable"
@@ -331,6 +334,7 @@ const {
               class="mr-1"
               variant="plain"
               data-testid="reveal-shape-button"
+              :aria-label="`${shape.frame != null ? 'Reveal frame' : 'Reveal slice'} for ${item.name}: ${shape.placement}`"
               @click.stop="shape.jumpTo()"
             >
               <v-icon>mdi-target</v-icon>
@@ -345,6 +349,7 @@ const {
               class="mr-1"
               variant="plain"
               @click.stop="shape.toggleHidden()"
+              :aria-label="`${shape.hidden ? 'Show' : 'Hide'} ${item.name}: ${shape.placement}`"
             >
               <v-icon>{{ shape.hidden ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
               <v-tooltip location="left" activator="parent">{{
@@ -357,6 +362,7 @@ const {
               density="compact"
               variant="plain"
               data-testid="delete-shape-button"
+              :aria-label="`Delete ${item.name}: ${shape.placement}`"
               @click.stop="shape.remove()"
             >
               <v-icon>mdi-delete</v-icon>
@@ -375,6 +381,7 @@ const {
             type="button"
             class="color-dot"
             data-testid="segment-color-button"
+            :aria-label="`Change color for ${item.name}`"
             :style="{ background: item.color }"
             :disabled="item.locked"
             @click.stop="editing.startEditing(item.id)"
@@ -399,6 +406,7 @@ const {
             class="mr-1"
             variant="plain"
             data-testid="reveal-segment-button"
+            :aria-label="`${viewingCine ? 'Reveal frame' : 'Reveal slice'} for ${item.name}`"
             :disabled="!!revealReason(item)"
             @click.stop="revealSlice(item)"
           >
@@ -417,6 +425,7 @@ const {
           class="mr-1"
           variant="plain"
           @click.stop="toggleLock(item.id)"
+          :aria-label="`${item.locked ? 'Unlock' : 'Lock'} ${item.name}`"
           :color="item.locked ? 'error' : undefined"
         >
           <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
@@ -431,6 +440,7 @@ const {
           class="mr-1"
           variant="plain"
           @click.stop="toggleVisible(item.id)"
+          :aria-label="`${item.visible ? 'Hide' : 'Show'} ${item.name}`"
         >
           <v-icon style="pointer-events: none">{{
             item.visible ? 'mdi-eye' : 'mdi-eye-off'
@@ -447,6 +457,7 @@ const {
             class="mr-1"
             variant="plain"
             data-testid="edit-segment-button"
+            :aria-label="`Edit ${item.name}`"
             @click.stop="editing.startEditing(item.id)"
             :disabled="item.locked"
           />
@@ -461,6 +472,7 @@ const {
             density="compact"
             variant="plain"
             data-testid="delete-segment-button"
+            :aria-label="`Delete ${item.name}`"
             @click.stop="deleteSegment(item.id)"
             :disabled="item.locked"
           />

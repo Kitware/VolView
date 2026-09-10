@@ -62,6 +62,8 @@ const toggleOpen = (key: string | number | symbol) =>
       <v-list-item
         class="item-row"
         :active="key === modelValue"
+        :aria-label="title"
+        :aria-current="key === modelValue ? 'true' : undefined"
         @click="$emit('update:model-value', key)"
       >
         <div class="d-flex align-center flex-nowrap">
@@ -75,6 +77,8 @@ const toggleOpen = (key: string | number | symbol) =>
             variant="plain"
             class="expand-button mr-1"
             data-testid="expand-segment-button"
+            :aria-label="`Details for ${title}`"
+            :aria-expanded="isOpen(key)"
             @click.stop="toggleOpen(key)"
           >
             <v-icon>{{
@@ -101,12 +105,20 @@ const toggleOpen = (key: string | number | symbol) =>
       </div>
     </template>
 
-    <v-list-item v-if="!hideCreate" class="create-row" @click="$emit('create')">
-      <div class="d-flex align-center">
-        <v-icon class="mr-2" size="small">mdi-plus</v-icon>
-        <span class="text-body-2">{{ createText }}</span>
-      </div>
-    </v-list-item>
+    <div v-if="!hideCreate" role="listitem">
+      <v-list-item
+        tag="button"
+        type="button"
+        role="button"
+        class="create-row w-100"
+        @click="$emit('create')"
+      >
+        <div class="d-flex align-center">
+          <v-icon class="mr-2" size="small">mdi-plus</v-icon>
+          <span class="text-body-2">{{ createText }}</span>
+        </div>
+      </v-list-item>
+    </div>
   </v-list>
 </template>
 

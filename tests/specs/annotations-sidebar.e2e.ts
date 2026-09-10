@@ -194,6 +194,75 @@ describe('Annotations sidebar', () => {
     await volViewPage.editLabelModalDoneButton.click();
     await $('div[role="dialog"]').waitForDisplayed({ reverse: true });
   });
+
+  it('names segment actions and exposes keyboard selection and disclosure changes', async () => {
+    const { centerX, centerY } = await setupTest();
+    await volViewPage.activateRectangle();
+    await openAnnotationSegments();
+    await clickAt(centerX - 40, centerY - 40);
+    await clickAt(centerX + 40, centerY + 40);
+
+    const row = await segmentRow('Segment 1');
+    const expander = row.$('[data-testid="expand-segment-button"]');
+    const shape = () => $('[data-testid="segment-shape-row"]');
+    await shape().waitForDisplayed();
+    expect(await expander.getComputedLabel()).toEqual('Details for Segment 1');
+    expect(await expander.getAttribute('aria-expanded')).toEqual('true');
+    await expander.execute((element) => element.focus());
+    await browser.keys('Enter');
+    await shape().waitForExist({ reverse: true });
+    expect(await expander.getAttribute('aria-expanded')).toEqual('false');
+    await browser.keys(' ');
+    await shape().waitForDisplayed();
+    expect(await expander.getAttribute('aria-expanded')).toEqual('true');
+
+    const create = $('[data-testid="segment-list"] .create-row');
+    expect(await create.getComputedRole()).toEqual('button');
+    expect(await create.getComputedLabel()).toEqual('New segment');
+    await create.execute((element) => element.focus());
+    await browser.keys('Enter');
+    expect(await segmentNames()).toEqual(['Segment 1', 'Segment 2']);
+    const second = await segmentRow('Segment 2');
+    await second.execute((element) => element.focus());
+    await browser.keys('Enter');
+    expect(await selectedSegmentName()).toEqual('Segment 2');
+    expect(await second.getAttribute('aria-current')).toEqual('true');
+    expect(await row.getAttribute('aria-current')).toBeNull();
+    await row.execute((element) => element.focus());
+    await browser.keys(' ');
+    expect(await selectedSegmentName()).toEqual('Segment 1');
+    expect(await row.getAttribute('aria-current')).toEqual('true');
+    expect(await second.getAttribute('aria-current')).toBeNull();
+
+    await renameSegment('Segment 1', 'Lesion');
+    const controls = [
+      ['expand-segment-button', 'Details for Lesion'],
+      ['segment-color-button', 'Change color for Lesion'],
+      ['reveal-segment-button', 'Reveal slice for Lesion'],
+      ['edit-segment-button', 'Edit Lesion'],
+      ['delete-segment-button', 'Delete Lesion'],
+      ['save-segments-button', 'Save segments'],
+    ];
+    for (const [testId, label] of controls) {
+      expect(await $(`[data-testid="${testId}"]`).getComputedLabel()).toEqual(
+        label
+      );
+    }
+    const hide = row.$('button:has(i.mdi-eye)');
+    expect(await hide.getComputedLabel()).toEqual('Hide Lesion');
+    await hide.execute((element) => element.focus());
+    await browser.keys('Enter');
+    expect(await hide.getComputedLabel()).toEqual('Show Lesion');
+    await browser.keys(' ');
+    expect(await hide.getComputedLabel()).toEqual('Hide Lesion');
+    await lockSegment('Lesion');
+    expect(await row.$('button:has(i.mdi-lock)').getComputedLabel()).toEqual(
+      'Unlock Lesion'
+    );
+    expect(await row.$('[data-testid="edit-segment-button"]').isEnabled()).toBe(
+      false
+    );
+  });
 });
 
 describe('Reveal Slice on a segment', () => {
