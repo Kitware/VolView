@@ -17,7 +17,7 @@ function getImageWorldCorners(im: vtkImageData) {
     for (let j = 0; j < 2; j++) {
       for (let k = 0; k < 2; k++) {
         worldCorners.push(
-          im.indexToWorld([extent[i], extent[j], extent[k]]) as Vector3
+          im.indexToWorld([extent[i], extent[2 + j], extent[4 + k]]) as Vector3
         );
       }
     }
@@ -41,6 +41,28 @@ export function compareImageSpaces(
   const corners1 = getImageWorldCorners(im1);
   const corners2 = getImageWorldCorners(im2);
   return corners1.every((p1) => corners2.some((p2) => areEquals(p1, p2, eps)));
+}
+
+export function compareImageIndexGrids(
+  im1: vtkImageData,
+  im2: vtkImageData,
+  eps = RELAXED_EPSILON
+) {
+  const extent1 = im1.getExtent();
+  const extent2 = im2.getExtent();
+  if (
+    !extent1.every((value, index) => value === extent2[index]) ||
+    !areEquals([...im1.getIndexToWorld()], [...im2.getIndexToWorld()], eps)
+  ) {
+    return false;
+  }
+
+  // Small matrix differences can accumulate into significant voxel displacement.
+  const corners1 = getImageWorldCorners(im1);
+  const corners2 = getImageWorldCorners(im2);
+  return corners1.every((point, index) =>
+    areEquals(point, corners2[index], eps)
+  );
 }
 
 /**
