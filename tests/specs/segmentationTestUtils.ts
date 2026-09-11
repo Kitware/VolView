@@ -114,20 +114,13 @@ export const openAnnotationSegments = async () => {
   await $(SEGMENT_LIST).waitForDisplayed();
 };
 
-/**
- * Opens the shapes under every segment that has any: the rulers, rectangles and
- * polygons drawn on the viewed image sit under the segment each one names.
- */
+/** Opens the flat list of rulers, rectangles and polygons on the viewed image. */
 export const openSegmentShapes = async () => {
   await volViewPage.annotationsModuleTab.click();
-  const chevrons = await $$(
-    `${SEGMENT_LIST} button[data-testid="expand-segment-button"]`
-  );
-  for (const chevron of chevrons) {
-    await chevron.waitForClickable();
-    const icon = await chevron.$('i');
-    const classes = (await icon.getAttribute('class')) ?? '';
-    if (classes.includes('mdi-chevron-right')) await chevron.click();
+  const section = $('[data-testid="measurements-section"]');
+  await section.waitForClickable();
+  if ((await section.getAttribute('aria-expanded')) === 'false') {
+    await section.click();
   }
   await $(SHAPE_ROW).waitForDisplayed();
 };

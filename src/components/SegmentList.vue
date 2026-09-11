@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 import EditableItemList from '@/src/components/EditableItemList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
@@ -24,7 +24,7 @@ import {
 } from '@/src/types/segmentation';
 
 const registry = useSegmentStore().segments;
-const { shapes, shapesOf } = useSegmentShapes();
+const { shapesOf } = useSegmentShapes();
 const segmentationStore = useSegmentationStore();
 const { currentImageID } = useCurrentImage();
 
@@ -66,31 +66,6 @@ type Row = (typeof rows.value)[number];
 // A clip is a stack of unrelated frames, so a segmentation drawn across it
 // means nothing and saves as an empty 2D file.
 const viewingCine = computed(() => isCineImage(currentImageID.value));
-
-// --- expansion --- //
-
-const expandedSegments = ref<string[]>([]);
-
-// A shape reaches this list only once it is placed, so a newly listed one is a
-// placement: its segment opens to show where the annotation landed. Switching
-// images swaps the whole list at once and is not a placement.
-const shapesImage = ref(currentImageID.value);
-
-watch(shapes, (now, before) => {
-  const sameImage = shapesImage.value === currentImageID.value;
-  shapesImage.value = currentImageID.value;
-  if (!sameImage) return;
-
-  const listed = new Set((before ?? []).map((shape) => shape.id));
-  const placed = now
-    .filter((shape) => !listed.has(shape.id))
-    .map((shape) => shape.segmentId)
-    .filter((segmentId): segmentId is string => !!segmentId);
-  if (placed.length)
-    expandedSegments.value = [
-      ...new Set([...expandedSegments.value, ...placed]),
-    ];
-});
 
 // --- display --- //
 
@@ -237,27 +212,12 @@ const {
       <span class="text-subtitle-2 text-medium-emphasis">Segments</span>
       <v-spacer />
       <v-btn
-        data-testid="toggle-segments-visible-button"
-        :aria-label="allVisible ? 'Hide every segment' : 'Show every segment'"
-        icon
-        size="small"
-        density="comfortable"
-        variant="text"
-        @click.stop="toggleGlobalVisible"
-      >
-        <v-icon>{{ allVisible ? 'mdi-eye' : 'mdi-eye-off' }}</v-icon>
-        <v-tooltip location="top" activator="parent">{{
-          allVisible ? 'Hide every segment' : 'Show every segment'
-        }}</v-tooltip>
-      </v-btn>
-
-      <v-btn
         data-testid="toggle-segments-locked-button"
         :aria-label="allLocked ? 'Unlock every segment' : 'Lock every segment'"
         icon
         size="small"
-        density="comfortable"
-        variant="text"
+        density="compact"
+        variant="plain"
         :color="allLocked ? 'error' : undefined"
         @click.stop="toggleGlobalLocked"
       >
@@ -267,14 +227,29 @@ const {
         }}</v-tooltip>
       </v-btn>
 
+      <v-btn
+        data-testid="toggle-segments-visible-button"
+        :aria-label="allVisible ? 'Hide every segment' : 'Show every segment'"
+        icon
+        size="small"
+        density="compact"
+        variant="plain"
+        @click.stop="toggleGlobalVisible"
+      >
+        <v-icon>{{ allVisible ? 'mdi-eye' : 'mdi-eye-off' }}</v-icon>
+        <v-tooltip location="top" activator="parent">{{
+          allVisible ? 'Hide every segment' : 'Show every segment'
+        }}</v-tooltip>
+      </v-btn>
+
       <span class="d-inline-flex" :tabindex="savableReason ? 0 : undefined">
         <v-btn
           data-testid="save-segments-button"
           aria-label="Save segments"
           icon
           size="small"
-          density="comfortable"
-          variant="text"
+          density="compact"
+          variant="plain"
           :disabled="!!savableReason"
           @click.stop="openSaveDialog"
         >
@@ -309,68 +284,9 @@ const {
       item-key="id"
       item-title="name"
       create-text="New segment"
-      :expandable="(row: Row) => row.shapes.length > 0"
-      v-model:expanded="expandedSegments"
       @create="addNewSegment"
       class="mb-2"
     >
-      <template #item-expansion="{ item }">
-        <div
-          v-for="shape in item.shapes"
-          :key="shape.id"
-          class="d-flex align-center flex-nowrap shape-row"
-          data-testid="segment-shape-row"
-        >
-          <v-icon class="shape-icon mr-2">{{ shape.icon }}</v-icon>
-          <span class="text-body-1 text-truncate">{{ shape.placement }}</span>
-          <span v-if="shape.measurement" class="text-body-1 ml-2">{{
-            shape.measurement
-          }}</span>
-          <span class="ml-auto flex-shrink-0 d-flex align-center">
-            <v-btn
-              icon
-              size="small"
-              density="compact"
-              class="mr-1"
-              variant="plain"
-              data-testid="reveal-shape-button"
-              :aria-label="`${shape.frame != null ? 'Reveal frame' : 'Reveal slice'} for ${item.name}: ${shape.placement}`"
-              @click.stop="shape.jumpTo()"
-            >
-              <v-icon>mdi-target</v-icon>
-              <v-tooltip location="left" activator="parent">
-                {{ shape.frame != null ? 'Reveal Frame' : 'Reveal Slice' }}
-              </v-tooltip>
-            </v-btn>
-            <v-btn
-              icon
-              size="small"
-              density="compact"
-              class="mr-1"
-              variant="plain"
-              @click.stop="shape.toggleHidden()"
-              :aria-label="`${shape.hidden ? 'Show' : 'Hide'} ${item.name}: ${shape.placement}`"
-            >
-              <v-icon>{{ shape.hidden ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
-              <v-tooltip location="left" activator="parent">{{
-                shape.hidden ? 'Show' : 'Hide'
-              }}</v-tooltip>
-            </v-btn>
-            <v-btn
-              icon
-              size="small"
-              density="compact"
-              variant="plain"
-              data-testid="delete-shape-button"
-              :aria-label="`Delete ${item.name}: ${shape.placement}`"
-              @click.stop="shape.remove()"
-            >
-              <v-icon>mdi-delete</v-icon>
-              <v-tooltip location="left" activator="parent">Delete</v-tooltip>
-            </v-btn>
-          </span>
-        </div>
-      </template>
       <template #item-prepend="{ item }">
         <!-- dot container keeps overflowing name from squishing dot width  -->
         <div
@@ -394,6 +310,22 @@ const {
         </div>
       </template>
       <template #item-append="{ item }">
+        <!-- Lock is segment-only, so it sits outside the shared action order. -->
+        <v-btn
+          icon
+          size="small"
+          density="compact"
+          class="mr-1"
+          variant="plain"
+          @click.stop="toggleLock(item.id)"
+          :aria-label="`${item.locked ? 'Unlock' : 'Lock'} ${item.name}`"
+          :color="item.locked ? 'error' : undefined"
+        >
+          <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+          <v-tooltip location="left" activator="parent">{{
+            lockTooltip(item.locked)
+          }}</v-tooltip>
+        </v-btn>
         <!-- Reveal content without changing the view's pan or zoom. -->
         <span
           class="d-inline-flex"
@@ -417,38 +349,6 @@ const {
             (viewingCine ? 'Reveal Frame' : 'Reveal Slice')
           }}</v-tooltip>
         </span>
-        <!-- Lock/unlock the segment, which holds on every image -->
-        <v-btn
-          icon
-          size="small"
-          density="compact"
-          class="mr-1"
-          variant="plain"
-          @click.stop="toggleLock(item.id)"
-          :aria-label="`${item.locked ? 'Unlock' : 'Lock'} ${item.name}`"
-          :color="item.locked ? 'error' : undefined"
-        >
-          <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
-          <v-tooltip location="left" activator="parent">{{
-            lockTooltip(item.locked)
-          }}</v-tooltip>
-        </v-btn>
-        <v-btn
-          icon
-          size="small"
-          density="compact"
-          class="mr-1"
-          variant="plain"
-          @click.stop="toggleVisible(item.id)"
-          :aria-label="`${item.visible ? 'Hide' : 'Show'} ${item.name}`"
-        >
-          <v-icon style="pointer-events: none">{{
-            item.visible ? 'mdi-eye' : 'mdi-eye-off'
-          }}</v-icon>
-          <v-tooltip location="left" activator="parent">{{
-            item.visible ? 'Hide' : 'Show'
-          }}</v-tooltip>
-        </v-btn>
         <span class="d-inline-flex" :tabindex="item.locked ? 0 : undefined">
           <v-btn
             icon="mdi-pencil"
@@ -465,6 +365,22 @@ const {
             item.locked ? 'Unlock this segment to edit it' : 'Edit'
           }}</v-tooltip>
         </span>
+        <v-btn
+          icon
+          size="small"
+          density="compact"
+          class="mr-1"
+          variant="plain"
+          @click.stop="toggleVisible(item.id)"
+          :aria-label="`${item.visible ? 'Hide' : 'Show'} ${item.name}`"
+        >
+          <v-icon style="pointer-events: none">{{
+            item.visible ? 'mdi-eye' : 'mdi-eye-off'
+          }}</v-icon>
+          <v-tooltip location="left" activator="parent">{{
+            item.visible ? 'Hide' : 'Show'
+          }}</v-tooltip>
+        </v-btn>
         <span class="d-inline-flex" :tabindex="item.locked ? 0 : undefined">
           <v-btn
             icon="mdi-delete"

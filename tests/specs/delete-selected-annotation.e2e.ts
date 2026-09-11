@@ -116,9 +116,9 @@ describe('Delete key on a selected annotation', () => {
     await annotationsTab.waitForClickable();
     await annotationsTab.click();
 
-    const expand = await $('button[data-testid="expand-segment-button"]');
-    await expand.waitForClickable();
-    await expand.click();
+    const measurements = await $('[data-testid="measurements-section"]');
+    await measurements.waitForClickable();
+    await measurements.click();
 
     await pressDelete();
 

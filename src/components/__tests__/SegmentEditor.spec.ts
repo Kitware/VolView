@@ -17,6 +17,13 @@ const TextFieldStub = defineComponent({
   template: '<input />',
 });
 
+const SliderStub = defineComponent({
+  name: 'VSlider',
+  props: ['label', 'modelValue', 'min', 'max', 'step'],
+  emits: ['update:modelValue'],
+  template: '<div class="slider" />',
+});
+
 const mountEditor = () =>
   mount(SegmentEditor, {
     props: {
@@ -32,7 +39,7 @@ const mountEditor = () =>
       stubs: {
         LabelEditor: LabelEditorStub,
         VTextField: TextFieldStub,
-        VSlider: true,
+        VSlider: SliderStub,
       },
     },
   });
@@ -54,5 +61,32 @@ describe('segment type editor name validation', () => {
     expect(wrapper.findComponent(LabelEditorStub).props('valid')).toBe(false);
     const [rule] = wrapper.findComponent(TextFieldStub).props('rules');
     expect(rule(' Node ')).toBe('Name is not unique');
+  });
+});
+
+describe('segment type editor stroke width', () => {
+  it('offers integer stroke widths from 1 through 5', () => {
+    const wrapper = mountEditor();
+    const strokeWidth = wrapper
+      .findAllComponents(SliderStub)
+      .find((slider) => slider.props('label') === 'Stroke Width');
+
+    expect(strokeWidth?.props()).toMatchObject({
+      modelValue: 1,
+      min: 1,
+      max: 5,
+      step: 1,
+    });
+  });
+
+  it('emits an integer stroke width', () => {
+    const wrapper = mountEditor();
+    const strokeWidth = wrapper
+      .findAllComponents(SliderStub)
+      .find((slider) => slider.props('label') === 'Stroke Width')!;
+
+    strokeWidth.vm.$emit('update:modelValue', 3.6);
+
+    expect(wrapper.emitted('update:strokeWidth')).toEqual([[4]]);
   });
 });

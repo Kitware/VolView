@@ -17,8 +17,6 @@ if (!view) throw new Error('No VtkView');
 const selectionStore = useToolSelectionStore();
 const toolStore = useToolStore();
 
-const PLACING_TOOLS = [Tools.Ruler, Tools.Rectangle, Tools.Polygon];
-
 const isAnnotationWidgetState = (
   widgetState: unknown
 ): widgetState is vtkAnnotationWidgetState => {
@@ -34,10 +32,9 @@ onVTKEvent(
   view.interactor,
   'onLeftButtonPress',
   async (event: any) => {
-    if (PLACING_TOOLS.includes(toolStore.currentTool)) {
-      // avoid bugs when starting a placing tool on an existing tool and right clicking and deleting existing tools
-      return;
-    }
+    // Annotation picking belongs to Select. Drawing and navigation gestures
+    // must pass through existing vector shapes without changing selection.
+    if (toolStore.currentTool !== Tools.Select) return;
 
     const withModifiers = !!(event.shiftKey || event.controlKey);
     // Pick where the button went down. The widget manager's standing pick is

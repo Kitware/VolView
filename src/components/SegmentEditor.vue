@@ -83,13 +83,18 @@ const valid = computed(() => isUniqueEditingName(props.name));
         :model-value="outlineOpacity"
         @update:model-value="$emit('update:outlineOpacity', $event)"
       />
-      <v-text-field
+      <v-slider
+        class="mx-4 my-1"
         label="Stroke Width"
-        type="number"
-        class="flex-grow-0 label-stroke-width-input"
+        :min="1"
+        :max="5"
+        :step="1"
+        show-ticks="always"
+        density="compact"
+        hide-details
+        thumb-label
         :model-value="strokeWidth"
-        @update:model-value="$emit('update:strokeWidth', +$event)"
-        @keydown.stop.enter="done"
+        @update:model-value="$emit('update:strokeWidth', Math.round($event))"
       />
     </template>
   </label-editor>

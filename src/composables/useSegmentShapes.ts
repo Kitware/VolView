@@ -61,6 +61,10 @@ export function useSegmentShapes() {
               store.updateTool(tool.id, {
                 hidden: !store.toolByID[tool.id].hidden,
               }),
+            setHidden: (hidden: boolean) =>
+              store.updateTool(tool.id, { hidden }),
+            assignSegment: (segmentId: string) =>
+              store.updateTool(tool.id, { segmentId }),
           };
         });
     })

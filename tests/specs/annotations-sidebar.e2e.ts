@@ -233,7 +233,7 @@ describe('Annotations sidebar', () => {
     expect(await paint.getAttribute('class')).toContain('tool-btn-selected');
   });
 
-  it('names segment actions and exposes keyboard selection and disclosure changes', async () => {
+  it('names segment actions and exposes keyboard selection and measurement disclosure', async () => {
     const { centerX, centerY } = await setupTest();
     await volViewPage.activateRectangle();
     await openAnnotationSegments();
@@ -241,10 +241,10 @@ describe('Annotations sidebar', () => {
     await clickAt(centerX + 40, centerY + 40);
 
     const row = await segmentRow('Segment 1');
-    const expander = row.$('[data-testid="expand-segment-button"]');
+    const expander = $('[data-testid="measurements-section"]');
     const shape = () => $('[data-testid="segment-shape-row"]');
     await shape().waitForDisplayed();
-    expect(await expander.getComputedLabel()).toEqual('Details for Segment 1');
+    expect(await expander.getComputedLabel()).toEqual('Measurements');
     expect(await expander.getAttribute('aria-expanded')).toEqual('true');
     await expander.execute((element) => element.focus());
     await browser.keys('Enter');
@@ -274,7 +274,6 @@ describe('Annotations sidebar', () => {
 
     await renameSegment('Segment 1', 'Lesion');
     const controls = [
-      ['expand-segment-button', 'Details for Lesion'],
       ['segment-color-button', 'Change color for Lesion'],
       ['reveal-segment-button', 'Reveal slice for Lesion'],
       ['edit-segment-button', 'Edit Lesion'],
