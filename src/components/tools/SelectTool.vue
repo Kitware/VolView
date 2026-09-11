@@ -40,10 +40,13 @@ onVTKEvent(
     }
 
     const withModifiers = !!(event.shiftKey || event.controlKey);
+    const { x, y } = event.position;
+    // Picking clears the widget manager's standing selections, which the
+    // widgets read while handling this same press, so let them run first.
+    await Promise.resolve();
     // Pick where the button went down. The widget manager's standing pick is
     // whatever its last tracked mouse move resolved, which can be a different
     // position or, mid capture, nothing at all.
-    const { x, y } = event.position;
     const selectedData = await view.widgetManager.getSelectedDataForXY(x, y);
     if ('widget' in selectedData) {
       const widget =
@@ -71,7 +74,7 @@ onVTKEvent(
     }
   },
   {
-    // capture all events by calling handler before widgets
+    // Registered ahead of the widgets so one consuming the press cannot skip it
     priority: WIDGET_PRIORITY + 1,
   }
 );
