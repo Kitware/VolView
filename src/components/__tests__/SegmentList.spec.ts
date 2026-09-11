@@ -967,7 +967,7 @@ describe('Reveal Slice on a segment row', () => {
     expect(sliceOn('Coronal')).toBe(1);
   });
 
-  it('centers on the whole of what the segment marks, not one voxel', async () => {
+  it('moves outward from the center to the nearest occupied slice', async () => {
     const segment = makeMask('img-1', 'Tumor');
     paintVoxel(segment.maskId, [1, 1, 1]);
     paintVoxel(segment.maskId, [1, 1, 5]);
@@ -976,7 +976,7 @@ describe('Reveal Slice on a segment row', () => {
 
     await revealButton(wrapper, segment.id).trigger('click');
 
-    expect(sliceOn('Axial')).toBe(3);
+    expect(sliceOn('Axial')).toBe(1);
   });
 
   it('is offered on a row the image does store voxels for', async () => {

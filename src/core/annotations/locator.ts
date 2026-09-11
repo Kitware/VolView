@@ -17,7 +17,6 @@ import {
   EffectiveView,
   volume2DViewsOfImage,
 } from '@/src/core/views/effectiveView';
-import type { Extent3D } from '@/src/types/segmentation';
 
 type Locator =
   | { kind: 'none' }
@@ -152,8 +151,8 @@ export function snappedCenter(intervals: Array<[number, number]>) {
 
 /** Where one segment sits on the viewed image, per view axis. */
 export type SegmentContent = {
-  /** Bounds of the segment's painted voxels, in image index space. */
-  extent?: Extent3D;
+  /** Occupied painted slices for the image's i, j and k index axes. */
+  paintedSlicesByIJK?: [number[], number[], number[]];
   /** The slice each shape of the segment was drawn on, by the axis it faces. */
   slicesByAxis: Partial<Record<LPSAxis, number[]>>;
   /** Cine frames containing shapes of this segment. */
@@ -178,9 +177,9 @@ export function revealSegmentContent(imageID: string, content: SegmentContent) {
   volume2DViewsOfImage(imageID, useViewStore().getAllViews()).forEach(
     ({ viewId, axis }) => {
       const ijk = lpsOrientation[axis];
-      const painted: Array<[number, number]> = content.extent
-        ? [[content.extent[2 * ijk], content.extent[2 * ijk + 1]]]
-        : [];
+      const painted = (content.paintedSlicesByIJK?.[ijk] ?? []).map(
+        (slice) => [slice, slice] as [number, number]
+      );
       const drawn = (content.slicesByAxis[axis] ?? []).map(
         (slice) => [slice, slice] as [number, number]
       );

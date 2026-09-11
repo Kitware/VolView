@@ -244,6 +244,34 @@ export function markedExtent(
   return bounds ?? emptyExtent();
 }
 
+/** The parent-image slice indices containing `labelValue`, for i, j and k. */
+export function markedSlices(
+  scalars: ArrayLike<number>,
+  extent: Extent3D,
+  labelValue: number
+): [number[], number[], number[]] {
+  const ni = extent[1] - extent[0] + 1;
+  const nj = extent[3] - extent[2] + 1;
+  const occupied = [new Set<number>(), new Set<number>(), new Set<number>()];
+
+  for (let offset = 0; offset < scalars.length; offset += 1) {
+    if (scalars[offset] !== labelValue) continue;
+    const i = extent[0] + (offset % ni);
+    const row = Math.floor(offset / ni);
+    const j = extent[2] + (row % nj);
+    const k = extent[4] + Math.floor(row / nj);
+    occupied[0].add(i);
+    occupied[1].add(j);
+    occupied[2].add(k);
+  }
+
+  return occupied.map((slices) => [...slices]) as [
+    number[],
+    number[],
+    number[],
+  ];
+}
+
 export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
   return [
     Math.min(a[0], b[0]),

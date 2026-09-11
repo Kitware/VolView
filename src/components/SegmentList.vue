@@ -8,6 +8,7 @@ import SaveSegmentGroupDialog from '@/src/components/SaveSegmentGroupDialog.vue'
 import SegmentEditor from '@/src/components/SegmentEditor.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useSegmentEditing } from '@/src/composables/useSegmentEditing';
+import { pulseSegmentMask } from '@/src/composables/useSegmentRevealPulse';
 import { revealSegmentContent } from '@/src/core/annotations/locator';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME } from '@/src/constants';
@@ -20,7 +21,7 @@ import type { LPSAxis } from '@/src/types/lps';
 import {
   DEFAULT_SEGMENTATION_FILL_OPACITY,
   isEmptyExtent,
-  markedExtent,
+  markedSlices,
   type SegmentationDisplayPatch,
 } from '@/src/types/segmentation';
 
@@ -154,13 +155,13 @@ const revealReason = (row: Row) =>
 // Scanned rather than read off the binding: the binding's extent is the
 // allocation, padded on growth and never shrunk by an erase, so its middle can
 // sit slices away from anything painted. One scan per click, nothing cached.
-function paintedExtent(maskId: Maybe<string>) {
+function paintedSlices(maskId: Maybe<string>) {
   if (!maskId) return undefined;
   const voxels = segmentationStore.maskVoxels(maskId);
   const binding = voxels.binding();
   if (!binding) return undefined;
-  const bounds = markedExtent(voxels.scalars(), binding.extent, SEGMENT_VALUE);
-  return isEmptyExtent(bounds) ? undefined : bounds;
+  const slices = markedSlices(voxels.scalars(), binding.extent, SEGMENT_VALUE);
+  return slices.some((axis) => axis.length) ? slices : undefined;
 }
 
 // Paint and shapes are one segment, so both steer the jump: a view lands on the
@@ -177,12 +178,13 @@ function revealSlice(row: Row) {
     {}
   );
   revealSegmentContent(imageId, {
-    extent: paintedExtent(row.maskId),
+    paintedSlicesByIJK: paintedSlices(row.maskId),
     slicesByAxis,
     frames: row.shapes.flatMap((shape) =>
       shape.frame == null ? [] : [shape.frame]
     ),
   });
+  if (row.maskId) pulseSegmentMask(row.maskId);
 }
 
 const allVisible = computed(() =>

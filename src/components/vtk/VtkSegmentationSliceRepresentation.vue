@@ -23,6 +23,7 @@ import {
   sliceWithinExtent,
 } from '@/src/components/vtk/segmentDisplay';
 import { isEmptyExtent } from '@/src/types/segmentation';
+import { revealPulseStrength } from '@/src/composables/useSegmentRevealPulse';
 
 interface Props {
   viewId: string;
@@ -48,6 +49,7 @@ const extent = computed(() => binding.value?.extent);
 const segments = computed(
   () => segmentationStore.labelmapSegmentsByMask[maskId.value]
 );
+const revealPulse = revealPulseStrength(maskId);
 
 const imageData = computed(() => {
   // A mask that covers nothing has no voxels, so there is no mapper input.
@@ -168,10 +170,12 @@ const applySegmentColoring = () => {
     const g = segment.color[1] || 0;
     const b = segment.color[2] || 0;
     cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
-    ofun.addPoint(
-      segment.value,
-      segmentFillAlpha(segment, segmentation.value?.fillOpacity ?? 1)
+    const normalAlpha = segmentFillAlpha(
+      segment,
+      segmentation.value?.fillOpacity ?? 1
     );
+    const pulseAlpha = segment.visible ? 0.7 * revealPulse.value : 0;
+    ofun.addPoint(segment.value, Math.max(normalAlpha, pulseAlpha));
 
     maxValue = Math.max(maxValue, segment.value);
   });
@@ -188,14 +192,17 @@ const applySegmentColoring = () => {
 watchEffect(applySegmentColoring);
 
 const outlineThickness = computed(
-  () => segmentation.value?.outlineThickness ?? 2
+  () => (segmentation.value?.outlineThickness ?? 2) + 3 * revealPulse.value
 );
 sliceRep.property.setUseLabelOutline(true);
 
 watchEffect(() => {
   if (!segments.value) return; // segment group just deleted
 
-  const groupOpacity = segmentation.value?.outlineOpacity ?? 1;
+  const groupOpacity = Math.max(
+    segmentation.value?.outlineOpacity ?? 1,
+    revealPulse.value
+  );
   const { thicknesses, opacities } = segmentOutlineTables(
     segments.value,
     outlineThickness.value,
