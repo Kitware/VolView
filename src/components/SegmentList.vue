@@ -85,7 +85,7 @@ const DEFAULT_DISPLAY = {
 };
 
 const display = computed(() => viewedSegmentation.value ?? DEFAULT_DISPLAY);
-const displaySection = ref<string[]>([]);
+const openSections = ref(['segments']);
 
 const setDisplay = (patch: SegmentationDisplayPatch) => {
   const imageId = currentImageID.value;
@@ -220,185 +220,210 @@ const {
 </script>
 
 <template>
-  <div v-if="currentImageID" class="px-2" data-testid="segment-list">
-    <div class="d-flex align-center justify-end ga-1 pt-1 mr-2">
-      <v-btn
-        data-testid="toggle-segments-locked-button"
-        :aria-label="allLocked ? 'Unlock every segment' : 'Lock every segment'"
-        icon
-        size="small"
-        density="compact"
-        variant="plain"
-        :color="allLocked ? 'error' : undefined"
-        @click.stop="toggleGlobalLocked"
-      >
-        <v-icon>{{ allLocked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
-        <v-tooltip location="top" activator="parent">{{
-          allLocked ? 'Unlock every segment' : 'Lock every segment'
-        }}</v-tooltip>
-      </v-btn>
-
-      <v-btn
-        data-testid="toggle-segments-visible-button"
-        :aria-label="allVisible ? 'Hide every segment' : 'Show every segment'"
-        icon
-        size="small"
-        density="compact"
-        variant="plain"
-        @click.stop="toggleGlobalVisible"
-      >
-        <v-icon>{{ allVisible ? 'mdi-eye' : 'mdi-eye-off' }}</v-icon>
-        <v-tooltip location="top" activator="parent">{{
-          allVisible ? 'Hide every segment' : 'Show every segment'
-        }}</v-tooltip>
-      </v-btn>
-
-      <span class="d-inline-flex" :tabindex="savableReason ? 0 : undefined">
-        <v-btn
-          data-testid="save-segments-button"
-          aria-label="Save segments"
-          icon
-          size="small"
-          density="compact"
-          variant="plain"
-          :disabled="!!savableReason"
-          @click.stop="openSaveDialog"
-        >
-          <v-icon>mdi-content-save</v-icon>
-        </v-btn>
-        <v-tooltip location="top" activator="parent">{{
-          savableReason || 'Save'
-        }}</v-tooltip>
-      </span>
-    </div>
-
-    <editable-item-list
-      v-model="selectedSegmentOn"
-      :items="rows"
-      item-key="id"
-      item-title="name"
-      create-text="New segment"
-      @create="addNewSegment"
-      class="mb-2"
-    >
-      <template #item-prepend="{ item }">
-        <!-- dot container keeps overflowing name from squishing dot width  -->
-        <div
-          class="dot-container d-inline-flex mr-3"
-          :tabindex="item.locked ? 0 : undefined"
-        >
-          <button
-            type="button"
-            class="color-dot"
-            data-testid="segment-color-button"
-            :aria-label="`Change color for ${item.name}`"
-            :style="{ background: item.color }"
-            :disabled="item.locked"
-            @click.stop="editing.startEditing(item.id)"
-          ></button>
-          <v-tooltip location="right" activator="parent">{{
-            item.locked
-              ? 'Unlock this segment to change its color'
-              : 'Change color'
-          }}</v-tooltip>
-        </div>
-      </template>
-      <template #item-append="{ item }">
-        <!-- Lock is segment-only, so it sits outside the shared action order. -->
-        <v-btn
-          icon
-          size="small"
-          density="compact"
-          class="mr-1"
-          variant="plain"
-          @click.stop="toggleLock(item.id)"
-          :aria-label="`${item.locked ? 'Unlock' : 'Lock'} ${item.name}`"
-          :color="item.locked ? 'error' : undefined"
-        >
-          <v-icon>{{ item.locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
-          <v-tooltip location="left" activator="parent">{{
-            lockTooltip(item.locked)
-          }}</v-tooltip>
-        </v-btn>
-        <!-- Reveal content without changing the view's pan or zoom. -->
-        <span
-          class="d-inline-flex"
-          :tabindex="revealReason(item) ? 0 : undefined"
-        >
-          <v-btn
-            icon
-            size="small"
-            density="compact"
-            class="mr-1"
-            variant="plain"
-            data-testid="reveal-segment-button"
-            :aria-label="`${viewingCine ? 'Reveal frame' : 'Reveal slice'} for ${item.name}`"
-            :disabled="!!revealReason(item)"
-            @click.stop="revealSlice(item)"
-          >
-            <v-icon>mdi-target</v-icon>
-          </v-btn>
-          <v-tooltip location="left" activator="parent">{{
-            revealReason(item) ||
-            (viewingCine ? 'Reveal Frame' : 'Reveal Slice')
-          }}</v-tooltip>
-        </span>
-        <span class="d-inline-flex" :tabindex="item.locked ? 0 : undefined">
-          <v-btn
-            icon="mdi-pencil"
-            size="small"
-            density="compact"
-            class="mr-1"
-            variant="plain"
-            data-testid="edit-segment-button"
-            :aria-label="`Edit ${item.name}`"
-            @click.stop="editing.startEditing(item.id)"
-            :disabled="item.locked"
-          />
-          <v-tooltip location="left" activator="parent">{{
-            item.locked ? 'Unlock this segment to edit it' : 'Edit'
-          }}</v-tooltip>
-        </span>
-        <v-btn
-          icon
-          size="small"
-          density="compact"
-          class="mr-1"
-          variant="plain"
-          @click.stop="toggleVisible(item.id)"
-          :aria-label="`${item.visible ? 'Hide' : 'Show'} ${item.name}`"
-        >
-          <v-icon style="pointer-events: none">{{
-            item.visible ? 'mdi-eye' : 'mdi-eye-off'
-          }}</v-icon>
-          <v-tooltip location="left" activator="parent">{{
-            item.visible ? 'Hide' : 'Show'
-          }}</v-tooltip>
-        </v-btn>
-        <span class="d-inline-flex" :tabindex="item.locked ? 0 : undefined">
-          <v-btn
-            icon="mdi-delete"
-            size="small"
-            density="compact"
-            variant="plain"
-            data-testid="delete-segment-button"
-            :aria-label="`Delete ${item.name}`"
-            @click.stop="deleteSegment(item.id)"
-            :disabled="item.locked"
-          />
-          <v-tooltip location="left" activator="parent">{{
-            item.locked ? 'Unlock this segment to delete it' : 'Delete'
-          }}</v-tooltip>
-        </span>
-      </template>
-    </editable-item-list>
-
+  <div v-if="currentImageID" data-testid="segment-list">
     <v-expansion-panels
-      v-model="displaySection"
+      v-model="openSections"
       multiple
       variant="accordion"
-      class="annotation-panels display-section"
+      class="annotation-panels"
     >
+      <v-expansion-panel value="segments">
+        <div class="segment-panel-header">
+          <v-expansion-panel-title data-testid="segments-section">
+            <v-icon class="annotation-panel-icon">mdi-palette</v-icon>
+            Segments
+          </v-expansion-panel-title>
+          <div class="segment-header-actions d-flex align-center ga-1">
+            <v-btn
+              data-testid="toggle-segments-locked-button"
+              :aria-label="
+                allLocked ? 'Unlock every segment' : 'Lock every segment'
+              "
+              icon
+              size="small"
+              density="compact"
+              variant="plain"
+              :color="allLocked ? 'error' : undefined"
+              @click.stop="toggleGlobalLocked"
+            >
+              <v-icon>{{ allLocked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+              <v-tooltip location="top" activator="parent">{{
+                allLocked ? 'Unlock every segment' : 'Lock every segment'
+              }}</v-tooltip>
+            </v-btn>
+
+            <v-btn
+              data-testid="toggle-segments-visible-button"
+              :aria-label="
+                allVisible ? 'Hide every segment' : 'Show every segment'
+              "
+              icon
+              size="small"
+              density="compact"
+              variant="plain"
+              @click.stop="toggleGlobalVisible"
+            >
+              <v-icon>{{ allVisible ? 'mdi-eye' : 'mdi-eye-off' }}</v-icon>
+              <v-tooltip location="top" activator="parent">{{
+                allVisible ? 'Hide every segment' : 'Show every segment'
+              }}</v-tooltip>
+            </v-btn>
+
+            <span
+              class="d-inline-flex"
+              :tabindex="savableReason ? 0 : undefined"
+            >
+              <v-btn
+                data-testid="save-segments-button"
+                aria-label="Save segments"
+                icon
+                size="small"
+                density="compact"
+                variant="plain"
+                :disabled="!!savableReason"
+                @click.stop="openSaveDialog"
+              >
+                <v-icon>mdi-content-save</v-icon>
+              </v-btn>
+              <v-tooltip location="top" activator="parent">{{
+                savableReason || 'Save'
+              }}</v-tooltip>
+            </span>
+          </div>
+        </div>
+
+        <v-expansion-panel-text>
+          <editable-item-list
+            v-model="selectedSegmentOn"
+            :items="rows"
+            item-key="id"
+            item-title="name"
+            create-text="New segment"
+            @create="addNewSegment"
+            class="mb-2"
+          >
+            <template #item-prepend="{ item }">
+              <!-- dot container keeps overflowing name from squishing dot width  -->
+              <div
+                class="dot-container d-inline-flex mr-3"
+                :tabindex="item.locked ? 0 : undefined"
+              >
+                <button
+                  type="button"
+                  class="color-dot"
+                  data-testid="segment-color-button"
+                  :aria-label="`Change color for ${item.name}`"
+                  :style="{ background: item.color }"
+                  :disabled="item.locked"
+                  @click.stop="editing.startEditing(item.id)"
+                ></button>
+                <v-tooltip location="right" activator="parent">{{
+                  item.locked
+                    ? 'Unlock this segment to change its color'
+                    : 'Change color'
+                }}</v-tooltip>
+              </div>
+            </template>
+            <template #item-append="{ item }">
+              <!-- Lock is segment-only, so it sits outside the shared action order. -->
+              <v-btn
+                icon
+                size="small"
+                density="compact"
+                class="mr-1"
+                variant="plain"
+                @click.stop="toggleLock(item.id)"
+                :aria-label="`${item.locked ? 'Unlock' : 'Lock'} ${item.name}`"
+                :color="item.locked ? 'error' : undefined"
+              >
+                <v-icon>{{
+                  item.locked ? 'mdi-lock' : 'mdi-lock-open'
+                }}</v-icon>
+                <v-tooltip location="left" activator="parent">{{
+                  lockTooltip(item.locked)
+                }}</v-tooltip>
+              </v-btn>
+              <!-- Reveal content without changing the view's pan or zoom. -->
+              <span
+                class="d-inline-flex"
+                :tabindex="revealReason(item) ? 0 : undefined"
+              >
+                <v-btn
+                  icon
+                  size="small"
+                  density="compact"
+                  class="mr-1"
+                  variant="plain"
+                  data-testid="reveal-segment-button"
+                  :aria-label="`${viewingCine ? 'Reveal frame' : 'Reveal slice'} for ${item.name}`"
+                  :disabled="!!revealReason(item)"
+                  @click.stop="revealSlice(item)"
+                >
+                  <v-icon>mdi-target</v-icon>
+                </v-btn>
+                <v-tooltip location="left" activator="parent">{{
+                  revealReason(item) ||
+                  (viewingCine ? 'Reveal Frame' : 'Reveal Slice')
+                }}</v-tooltip>
+              </span>
+              <span
+                class="d-inline-flex"
+                :tabindex="item.locked ? 0 : undefined"
+              >
+                <v-btn
+                  icon="mdi-pencil"
+                  size="small"
+                  density="compact"
+                  class="mr-1"
+                  variant="plain"
+                  data-testid="edit-segment-button"
+                  :aria-label="`Edit ${item.name}`"
+                  @click.stop="editing.startEditing(item.id)"
+                  :disabled="item.locked"
+                />
+                <v-tooltip location="left" activator="parent">{{
+                  item.locked ? 'Unlock this segment to edit it' : 'Edit'
+                }}</v-tooltip>
+              </span>
+              <v-btn
+                icon
+                size="small"
+                density="compact"
+                class="mr-1"
+                variant="plain"
+                @click.stop="toggleVisible(item.id)"
+                :aria-label="`${item.visible ? 'Hide' : 'Show'} ${item.name}`"
+              >
+                <v-icon style="pointer-events: none">{{
+                  item.visible ? 'mdi-eye' : 'mdi-eye-off'
+                }}</v-icon>
+                <v-tooltip location="left" activator="parent">{{
+                  item.visible ? 'Hide' : 'Show'
+                }}</v-tooltip>
+              </v-btn>
+              <span
+                class="d-inline-flex"
+                :tabindex="item.locked ? 0 : undefined"
+              >
+                <v-btn
+                  icon="mdi-delete"
+                  size="small"
+                  density="compact"
+                  variant="plain"
+                  data-testid="delete-segment-button"
+                  :aria-label="`Delete ${item.name}`"
+                  @click.stop="deleteSegment(item.id)"
+                  :disabled="item.locked"
+                />
+                <v-tooltip location="left" activator="parent">{{
+                  item.locked ? 'Unlock this segment to delete it' : 'Delete'
+                }}</v-tooltip>
+              </span>
+            </template>
+          </editable-item-list>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+
       <v-expansion-panel value="display">
         <v-expansion-panel-title data-testid="segment-display-section">
           <v-icon class="annotation-panel-icon">mdi-tune-variant</v-icon>
@@ -464,11 +489,6 @@ const {
 </template>
 
 <style scoped>
-.display-section {
-  width: calc(100% + 16px);
-  margin-inline: -8px;
-}
-
 .display-controls {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -484,9 +504,16 @@ const {
   display: none;
 }
 
-[data-testid='segment-list'] :deep(.v-list-item.item-row),
-[data-testid='segment-list'] :deep(.v-list-item.create-row) {
-  padding-inline: 8px;
+.segment-panel-header {
+  position: relative;
+}
+
+.segment-header-actions {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 50%;
+  inset-inline-end: 44px;
+  transform: translateY(-50%);
 }
 
 .color-dot {

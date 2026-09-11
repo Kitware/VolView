@@ -225,10 +225,6 @@ const controlPanels = computed({
   width: 110px;
 }
 
-.paint-process-panels :deep(.v-expansion-panel::after) {
-  border-top: 0;
-}
-
 .paint-parameters {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);

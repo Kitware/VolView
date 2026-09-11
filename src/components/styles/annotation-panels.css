@@ -15,3 +15,7 @@
 .annotation-panels .v-expansion-panel-text__wrapper {
   padding: 8px 12px 12px;
 }
+
+.annotation-panels .v-expansion-panel::after {
+  border-top: 0;
+}
