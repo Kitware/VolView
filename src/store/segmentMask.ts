@@ -47,14 +47,21 @@ export function allocateMask(parent: vtkImageData, extent: Extent3D) {
   return mask;
 }
 
-/** Copies a mask onto another extent of its parent grid, padding with zero. */
+/**
+ * Copies a mask onto another extent of its parent grid, padding with zero.
+ * An output buffer must match the destination size and not alias the source.
+ */
 export function reframeMaskScalars(
   scalars: TypedArray | number[],
   from: Extent3D,
-  to: Extent3D
+  to: Extent3D,
+  output?: Uint8Array
 ) {
   const [mi, mj, mk] = extentSize(to);
-  const values = new Uint8Array(isEmptyExtent(to) ? 0 : mi * mj * mk);
+  const size = isEmptyExtent(to) ? 0 : mi * mj * mk;
+  const values = output ?? new Uint8Array(size);
+  if (values.length !== size) throw new Error('Mask output size mismatch');
+  if (output) values.fill(0);
   const shared = clipExtent(from, to);
   const [si, sj] = extentSize(from);
   const source = { extent: from, mi: si, mj: sj };

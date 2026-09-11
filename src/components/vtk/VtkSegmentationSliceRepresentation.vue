@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject, computed } from 'vue';
+import { toRefs, watchEffect, inject, computed, ref } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { LPSAxis } from '@/src/types/lps';
@@ -23,6 +23,7 @@ import {
   sliceWithinExtent,
 } from '@/src/components/vtk/segmentDisplay';
 import { isEmptyExtent } from '@/src/types/segmentation';
+import { segmentRenderMask } from '@/src/components/vtk/segmentRenderMask';
 import { revealPulseStrength } from '@/src/composables/useSegmentRevealPulse';
 
 interface Props {
@@ -51,7 +52,7 @@ const segments = computed(
 );
 const revealPulse = revealPulseStrength(maskId);
 
-const imageData = computed(() => {
+const sourceImageData = computed(() => {
   // A mask that covers nothing has no voxels, so there is no mapper input.
   const bounds = extent.value;
   if (!bounds || isEmptyExtent(bounds)) return null;
@@ -61,10 +62,24 @@ const imageData = computed(() => {
   return voxels.exists() ? voxels.image() : null;
 });
 
-// redraw whenever the image changes
-onVTKEvent(imageData, 'onModified', () => {
-  view.requestRender();
+const parentImageId = computed(() => segmentation.value?.parentImageId);
+const { metadata: parentMetadata, imageData: parentImageData } =
+  useImage(parentImageId);
+const maskRevision = ref(0);
+onVTKEvent(sourceImageData, 'onModified', () => {
+  maskRevision.value += 1;
 });
+const imageData = computed(() => {
+  // VTK modifications are not Vue reactive (painting can keep the same image).
+  void maskRevision.value;
+  const source = sourceImageData.value;
+  const parent = parentImageData.value;
+  const bounds = extent.value;
+  return source && parent && bounds
+    ? segmentRenderMask(source, parent, bounds)
+    : null;
+});
+watchImmediate([imageData, maskRevision], () => view.requestRender());
 
 // setup slice rep
 const sliceRep = useSliceRepresentation(view, imageData);
@@ -94,10 +109,6 @@ watchEffect(() => {
   );
 });
 
-// set slicing mode
-const parentImageId = computed(() => segmentation.value?.parentImageId);
-const { metadata: parentMetadata } = useImage(parentImageId);
-
 // Compute segment group's LPS orientation from its direction matrix
 const maskLpsOrientation = computed(() => {
   const mask = imageData.value;
@@ -121,7 +132,7 @@ const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 // The extent is a watch source because growth moves the mask's origin, so the
 // same parent slice lands on a different mask slice afterwards.
 watchImmediate(
-  [storedSlice, maskLpsOrientation, parentMetadata, extent],
+  [storedSlice, maskLpsOrientation, parentMetadata, extent, imageData],
   () => {
     const parentImage = parentMetadata.value;
     const mask = imageData.value;

@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 
+import { segmentRenderMask } from '@/src/components/vtk/segmentRenderMask';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { migrateManifest } from '@/src/io/state-file/migrations';
@@ -150,9 +151,20 @@ describe('bounded masks through the state file', () => {
     setActivePinia(createPinia());
   });
 
-  it('writes each mask at its own size, not the parent image’s', async () => {
+  it('writes original bounded mask sizes after render padding', async () => {
     await buildScene();
     const io = inMemoryArtifactIO();
+    for (const imageId of ['img-1', 'img-2']) {
+      for (const mask of listMasks(store().getSegmentationForImage(imageId)!)) {
+        const binding = mask.representations.labelmap;
+        if (binding)
+          segmentRenderMask(
+            binding.image,
+            parentImage(imageId),
+            binding.extent
+          );
+      }
+    }
 
     await store().serialize(
       { zip: new JSZip(), manifest: emptyManifest() },

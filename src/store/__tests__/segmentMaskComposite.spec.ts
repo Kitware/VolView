@@ -5,6 +5,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/store/segments';
+import { segmentRenderMask } from '@/src/components/vtk/segmentRenderMask';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import {
   listMasks,
@@ -431,7 +432,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
   // Export assigns its own values, so a round trip keeps the segmentation and
   // renumbers it: the same voxels are claimed, by the same segments, under
   // values the descriptors name.
-  it('composes back to the same voxels, renumbered', async () => {
+  it('composes the same export voxels and geometry after rendering padded masks', async () => {
     const marks = [
       { value: 1, at: [1, 1, 1] as Index3 },
       { value: 1, at: [2, 1, 1] as Index3 },
@@ -439,7 +440,24 @@ describe('splitting an imported labelmap into bounded masks', () => {
     ];
     await importLabelmap(marks);
 
+    const before = store().compositeLabelmap('parent-img').labelmap;
+    const beforeValues = Array.from(maskScalars(before));
+    for (const id of segmentIdsOf('parent-img')) {
+      const binding = store().maskVoxels(id).binding()!;
+      const rendered = segmentRenderMask(
+        binding.image,
+        parentImage('parent-img'),
+        binding.extent
+      )!;
+      // A render-buffer write must never reach a saved segmentation.
+      maskScalars(rendered).fill(9);
+    }
     const { labelmap, segments } = store().compositeLabelmap('parent-img');
+    expect(labelmap.getDimensions()).toEqual(before.getDimensions());
+    expect(labelmap.getOrigin()).toEqual(before.getOrigin());
+    expect(labelmap.getSpacing()).toEqual(before.getSpacing());
+    expect(labelmap.getDirection()).toEqual(before.getDirection());
+    expect(Array.from(maskScalars(labelmap))).toEqual(beforeValues);
     const composed = Array.from(maskScalars(labelmap));
     const source = Array.from(
       makeLabelmapImage(marks).getPointData().getScalars().getData()
