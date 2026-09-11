@@ -153,6 +153,9 @@ const getImageSamples = (x: number, y: number) => {
       const baseInfo = { id: item.id, name: item.name };
 
       if (item.type === 'segment') {
+        // A mask's bounding box can contain empty voxels from other segments.
+        if (scalars.every((value) => value === 0)) return null;
+
         return {
           ...baseInfo,
           displayValues: scalars.map(
