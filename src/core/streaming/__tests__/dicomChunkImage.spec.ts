@@ -169,14 +169,16 @@ describe('DicomChunkImage', () => {
 
   // PixelSpacing is row\column, so the fallback in-plane spacing is [0.7, 0.6].
   it.each([
-    { physicalDeltaX: 0.05, expected: [0.5, 0.3] },
-    { physicalDeltaX: 0, expected: [0.7, 0.6] },
+    { physicalDeltaX: 0.05, expected: [0.5, 0.3], warnings: 0 },
+    { physicalDeltaX: 0, expected: [0.7, 0.6], warnings: 1 },
   ])(
     'applies ultrasound region spacing only when nonzero and finite (deltaX $physicalDeltaX)',
-    async ({ physicalDeltaX, expected }) => {
+    async ({ physicalDeltaX, expected, warnings }) => {
+      const warn = vi.fn();
       const image = new DicomChunkImage({
         splitAndSort: splitAndSortByPosition,
         readDicomImage,
+        warn,
       });
       const frame = await makeLoadedChunk(
         1,
@@ -197,6 +199,7 @@ describe('DicomChunkImage', () => {
       const [x, y] = image.getVtkImageData().getSpacing();
       expect(x).toBeCloseTo(expected[0]);
       expect(y).toBeCloseTo(expected[1]);
+      expect(warn).toHaveBeenCalledTimes(warnings);
       image.dispose();
     }
   );

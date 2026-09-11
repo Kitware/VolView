@@ -36,6 +36,7 @@ import { computed } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 import { isUsableSpacing } from '@/src/utils/imageSpace';
+import { surfaceWarning } from '@/src/store/messages';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -95,6 +96,7 @@ export interface DicomChunkImageInit {
       imageType: Pick<Image['imageType'], 'components'>;
     };
   }>;
+  warn: (title: string, details: string) => void;
 }
 
 export default class DicomChunkImage
@@ -103,6 +105,7 @@ export default class DicomChunkImage
 {
   private splitAndSort: DicomChunkImageInit['splitAndSort'];
   private readDicomImage: DicomChunkImageInit['readDicomImage'];
+  private warn: DicomChunkImageInit['warn'];
   protected chunks: Chunk[];
   private chunkListeners: Array<() => void>;
   private thumbnailCache: WeakMap<Chunk, Promise<string>>;
@@ -120,6 +123,7 @@ export default class DicomChunkImage
 
     this.splitAndSort = init.splitAndSort ?? splitAndSortChunks;
     this.readDicomImage = init.readDicomImage ?? readDicomImage;
+    this.warn = init.warn ?? surfaceWarning;
 
     this.status.value = 'incomplete';
     this.loaded = computed(() => {
@@ -366,8 +370,9 @@ export default class DicomChunkImage
     const spacingX = region.physicalDeltaX * xFactor;
     const spacingY = region.physicalDeltaY * yFactor;
     if (!isUsableSpacing(spacingX) || !isUsableSpacing(spacingY)) {
-      console.warn(
-        `Ultrasound spacing not applied: PhysicalDeltaX=${region.physicalDeltaX}, PhysicalDeltaY=${region.physicalDeltaY}; both must be nonzero and finite.`
+      this.warn(
+        'Invalid ultrasound calibration',
+        `The ultrasound region declares PhysicalDeltaX=${region.physicalDeltaX} and PhysicalDeltaY=${region.physicalDeltaY}. Measurements use the image pixel spacing instead.`
       );
       return;
     }
