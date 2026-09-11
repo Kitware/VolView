@@ -1,0 +1,17 @@
+.annotation-panels {
+  width: 100%;
+}
+
+.annotation-panels .v-expansion-panel-title {
+  min-height: 48px;
+  padding-inline: 16px;
+}
+
+.annotation-panels .annotation-panel-icon {
+  flex: 0 0 auto;
+  margin-inline-end: 12px;
+}
+
+.annotation-panels .v-expansion-panel-text__wrapper {
+  padding: 8px 12px 12px;
+}

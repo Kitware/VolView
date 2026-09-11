@@ -169,6 +169,10 @@ const SliderStub = defineComponent({
 const globalOptions = {
   stubs: {
     VSlider: SliderStub,
+    VExpansionPanels: { template: '<div><slot /></div>' },
+    VExpansionPanel: { template: '<div><slot /></div>' },
+    VExpansionPanelTitle: { template: '<button><slot /></button>' },
+    VExpansionPanelText: { template: '<div><slot /></div>' },
     EditableItemList: ItemListStub,
     SegmentEditor: SegmentEditorStub,
     IsolatedDialog: { template: '<div class="dialog"><slot /></div>' },
@@ -782,11 +786,27 @@ describe('segmentation display section', () => {
     await nextTick();
   };
 
-  it('offers no display controls until the image has a segmentation', async () => {
+  it('offers the default display controls before the image has a segmentation', async () => {
     const wrapper = mountList();
     await nextTick();
 
-    expect(wrapper.findAll('.slider')).toHaveLength(0);
+    expect(slider(wrapper, 'Fill Opacity').attributes('data-value')).toBe(
+      String(DEFAULT_SEGMENTATION_FILL_OPACITY)
+    );
+    expect(slider(wrapper, 'Outline Opacity').attributes('data-value')).toBe(
+      '1'
+    );
+    expect(slider(wrapper, 'Outline Thickness').attributes('data-value')).toBe(
+      '2'
+    );
+  });
+
+  it('creates display state when a default control is changed', async () => {
+    const wrapper = mountList();
+
+    await setSlider(wrapper, 'Fill Opacity', 0.25);
+
+    expect(store().getSegmentationForImage('img-1')?.fillOpacity).toBe(0.25);
   });
 
   it('seats each control at the segmentation’s current value', async () => {

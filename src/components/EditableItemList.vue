@@ -67,8 +67,6 @@ const toggleOpen = (key: string | number | symbol) =>
         @click="$emit('update:model-value', key)"
       >
         <div class="d-flex align-center flex-nowrap">
-          <!-- The chevron keeps its width when there is nothing under a row,
-               so the dots below it stay in one column. -->
           <v-btn
             v-if="hasMore"
             icon
@@ -85,7 +83,6 @@ const toggleOpen = (key: string | number | symbol) =>
               isOpen(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
             }}</v-icon>
           </v-btn>
-          <span v-else class="expand-button mr-1" />
           <slot name="item-prepend" :item="item"></slot>
           <v-tooltip :text="title" location="end">
             <template #activator="{ props: tooltip }">
@@ -114,7 +111,7 @@ const toggleOpen = (key: string | number | symbol) =>
         @click="$emit('create')"
       >
         <div class="d-flex align-center">
-          <v-icon class="mr-2" size="small">mdi-plus</v-icon>
+          <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
           <span class="text-body-2">{{ createText }}</span>
         </div>
       </v-list-item>
@@ -148,6 +145,10 @@ const toggleOpen = (key: string | number | symbol) =>
 
 .create-row {
   opacity: var(--v-medium-emphasis-opacity);
+}
+
+.create-icon {
+  flex: 0 0 18px;
 }
 
 /* Square keeps the chevron round instead of squashed by the row. */

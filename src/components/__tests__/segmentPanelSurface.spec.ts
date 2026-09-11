@@ -86,6 +86,10 @@ const globalOptions = {
     VListItem: { template: '<div><slot /></div>' },
     VSpacer: { template: '<span />' },
     VSlider: { props: ['label', 'modelValue'], template: '<input />' },
+    VExpansionPanels: { template: '<div><slot /></div>' },
+    VExpansionPanel: { template: '<div><slot /></div>' },
+    VExpansionPanelTitle: { template: '<button><slot /></button>' },
+    VExpansionPanelText: { template: '<div><slot /></div>' },
     VDivider: { template: '<hr />' },
   },
 };

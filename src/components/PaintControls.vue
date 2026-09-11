@@ -4,11 +4,11 @@
       v-model="controlPanels"
       multiple
       variant="accordion"
-      class="paint-process-panels"
+      class="annotation-panels paint-process-panels"
     >
       <v-expansion-panel :value="PAINT_PANEL">
         <v-expansion-panel-title>
-          <v-icon class="flex-grow-0 mr-4">mdi-brush</v-icon>
+          <v-icon class="annotation-panel-icon">mdi-brush</v-icon>
           Paint
         </v-expansion-panel-title>
         <v-expansion-panel-text class="control-panel-body">
@@ -64,8 +64,8 @@
               class="ml-3"
             ></v-switch>
           </v-row>
-          <v-row no-gutters>Size (pixels)</v-row>
-          <v-row no-gutters align="center">
+          <div class="paint-parameters">
+            <span class="text-body-2 text-no-wrap">Size</span>
             <v-slider
               :model-value="brushSize"
               @update:model-value="setBrushSize"
@@ -73,26 +73,12 @@
               hide-details
               min="1"
               max="50"
-            >
-              <template v-slot:append>
-                <v-text-field
-                  :model-value="brushSize"
-                  @input="setBrushSize"
-                  variant="underlined"
-                  class="mt-n3 pt-0 pl-2 opacity-70"
-                  style="width: 60px"
-                  density="compact"
-                  hide-details
-                  type="number"
-                  min="1"
-                  max="50"
-                />
-              </template>
-            </v-slider>
-          </v-row>
-          <v-row no-gutters class="mb-1">Threshold </v-row>
-          <v-row v-if="currentImageStats" no-gutters align="center">
+              step="1"
+            />
+            <span class="text-body-2 text-no-wrap">Threshold</span>
             <v-range-slider
+              v-if="currentImageStats"
+              class="threshold-control"
               v-model="threshold"
               :min="currentImageStats.scalarMin"
               :max="currentImageStats.scalarMax"
@@ -103,10 +89,11 @@
                   :model-value="thresholdRange[0].toFixed(2)"
                   @input="setMinThreshold($event.target.value)"
                   variant="underlined"
-                  class="mt-n3 pt-0 pl-2 opacity-70"
+                  class="threshold-input pl-2 opacity-70"
                   style="width: 80px"
                   density="compact"
                   hide-details
+                  hide-spin-buttons
                   type="number"
                   precision="2"
                   :min="currentImageStats.scalarMin"
@@ -118,10 +105,11 @@
                   :model-value="thresholdRange[1].toFixed(2)"
                   @input="setMaxThreshold($event.target.value)"
                   variant="underlined"
-                  class="mt-n3 pt-0 pl-2 opacity-70"
+                  class="threshold-input pl-2 opacity-70"
                   style="width: 80px"
                   density="compact"
                   hide-details
+                  hide-spin-buttons
                   type="number"
                   precision="2"
                   :min="thresholdRange[0]"
@@ -129,13 +117,13 @@
                 />
               </template>
             </v-range-slider>
-          </v-row>
+          </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
       <v-expansion-panel :value="PROCESS_PANEL">
         <v-expansion-panel-title>
-          <v-icon class="flex-grow-0 mr-4">mdi-cogs</v-icon>
+          <v-icon class="annotation-panel-icon">mdi-cogs</v-icon>
           Process
         </v-expansion-panel-title>
         <v-expansion-panel-text class="control-panel-body">
@@ -161,7 +149,7 @@ const processStore = usePaintProcessStore();
 const imageStatsStore = useImageStatsStore();
 const PAINT_PANEL = 'paint';
 const PROCESS_PANEL = 'process';
-const paintControlsOpen = ref(true);
+const paintControlsOpen = ref(false);
 const { setProcessControlsOpen } = paintStore;
 const {
   brushSize,
@@ -237,11 +225,23 @@ const controlPanels = computed({
   width: 110px;
 }
 
-.paint-process-panels {
-  width: 100%;
+.paint-process-panels :deep(.v-expansion-panel::after) {
+  border-top: 0;
 }
 
-.control-panel-body :deep(.v-expansion-panel-text__wrapper) {
-  padding: 12px 14px 16px;
+.paint-parameters {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+
+.threshold-input :deep(input) {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.threshold-control {
+  margin-top: 8px;
 }
 </style>

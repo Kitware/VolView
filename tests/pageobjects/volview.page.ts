@@ -97,7 +97,7 @@ class VolViewPage extends Page {
   }
 
   async selectTool(icon: string) {
-    const button = $(`button span i[class~=${icon}]`);
+    const button = $(`button.tool-btn i[class~=${icon}]`);
     await button.waitForClickable();
     await button.click();
   }

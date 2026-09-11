@@ -18,6 +18,7 @@ import { useSegmentStore } from '@/src/store/segments';
 import { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
+  DEFAULT_SEGMENTATION_FILL_OPACITY,
   isEmptyExtent,
   markedExtent,
   type SegmentationDisplayPatch,
@@ -29,7 +30,7 @@ const segmentationStore = useSegmentationStore();
 const { currentImageID } = useCurrentImage();
 
 // Scoped to the viewed image: the per-image controls belong to this image's
-// masks. Rendering creates nothing, so an image with no masks has no sliders.
+// masks. Before storage exists, the panel presents the defaults it will use.
 const viewedSegmentation = computed(() => {
   const imageId = currentImageID.value;
   return imageId
@@ -77,9 +78,21 @@ const DISPLAY_CONTROLS = [
   { key: 'outlineThickness', label: 'Outline Thickness', max: 10, step: 1 },
 ] as const;
 
+const DEFAULT_DISPLAY = {
+  fillOpacity: DEFAULT_SEGMENTATION_FILL_OPACITY,
+  outlineOpacity: 1,
+  outlineThickness: 2,
+};
+
+const display = computed(() => viewedSegmentation.value ?? DEFAULT_DISPLAY);
+const displaySection = ref<string[]>([]);
+
 const setDisplay = (patch: SegmentationDisplayPatch) => {
-  const segmentation = viewedSegmentation.value;
-  if (!segmentation) return;
+  const imageId = currentImageID.value;
+  if (!imageId || viewingCine.value) return;
+  const segmentation =
+    viewedSegmentation.value ??
+    segmentationStore.ensureSegmentationForImage(imageId);
   segmentationStore.updateSegmentationDisplay(segmentation.id, patch);
 };
 
@@ -208,9 +221,7 @@ const {
 
 <template>
   <div v-if="currentImageID" class="px-2" data-testid="segment-list">
-    <div class="d-flex align-center ga-1 pt-1">
-      <span class="text-subtitle-2 text-medium-emphasis">Segments</span>
-      <v-spacer />
+    <div class="d-flex align-center justify-end ga-1 pt-1 mr-2">
       <v-btn
         data-testid="toggle-segments-locked-button"
         :aria-label="allLocked ? 'Unlock every segment' : 'Lock every segment'"
@@ -259,23 +270,6 @@ const {
           savableReason || 'Save'
         }}</v-tooltip>
       </span>
-    </div>
-
-    <div v-if="viewedSegmentation" class="my-2">
-      <v-slider
-        v-for="control in DISPLAY_CONTROLS"
-        :key="control.key"
-        class="mx-4"
-        :label="control.label"
-        min="0"
-        :max="control.max"
-        :step="control.step"
-        density="compact"
-        hide-details
-        thumb-label
-        :model-value="viewedSegmentation[control.key]"
-        @update:model-value="setDisplay({ [control.key]: $event })"
-      />
     </div>
 
     <editable-item-list
@@ -398,6 +392,44 @@ const {
         </span>
       </template>
     </editable-item-list>
+
+    <v-expansion-panels
+      v-model="displaySection"
+      multiple
+      variant="accordion"
+      class="annotation-panels display-section"
+    >
+      <v-expansion-panel value="display">
+        <v-expansion-panel-title data-testid="segment-display-section">
+          <v-icon class="annotation-panel-icon">mdi-tune-variant</v-icon>
+          Display
+        </v-expansion-panel-title>
+        <v-expansion-panel-text class="display-section-body">
+          <div class="display-controls">
+            <div
+              v-for="control in DISPLAY_CONTROLS"
+              :key="control.key"
+              class="display-control"
+            >
+              <div class="text-body-2 text-no-wrap">
+                {{ control.label }}
+              </div>
+              <v-slider
+                :label="control.label"
+                min="0"
+                :max="control.max"
+                :step="control.step"
+                density="compact"
+                hide-details
+                thumb-label
+                :model-value="display[control.key]"
+                @update:model-value="setDisplay({ [control.key]: $event })"
+              />
+            </div>
+          </div>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
   </div>
   <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
 
@@ -432,6 +464,31 @@ const {
 </template>
 
 <style scoped>
+.display-section {
+  width: calc(100% + 16px);
+  margin-inline: -8px;
+}
+
+.display-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+
+.display-control {
+  display: contents;
+}
+
+.display-controls :deep(.v-input__prepend) {
+  display: none;
+}
+
+[data-testid='segment-list'] :deep(.v-list-item.item-row),
+[data-testid='segment-list'] :deep(.v-list-item.create-row) {
+  padding-inline: 8px;
+}
+
 .color-dot {
   width: 18px;
   height: 18px;

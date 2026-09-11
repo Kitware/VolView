@@ -203,7 +203,7 @@ describe('Annotations sidebar', () => {
     const edit = row.$('[data-testid="edit-segment-button"]');
     const dialog = () => $('div[role="dialog"]');
     const name = () => dialog().$('.v-text-field input');
-    const paint = $('button:has(i.mdi-brush)');
+    const paint = $('button.tool-btn:has(i.mdi-brush)');
 
     await edit.execute((element) => element.focus());
     await browser.keys('Enter');
