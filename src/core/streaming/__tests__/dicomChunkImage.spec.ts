@@ -6,6 +6,10 @@ import DicomChunkImage, {
   DicomChunkImageInit,
 } from '@/src/core/streaming/dicomChunkImage';
 import { ChunkStatus } from '@/src/core/streaming/chunkImage';
+import {
+  US_UNIT_CENTIMETERS,
+  UltrasoundRegions,
+} from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 const ROWS = 2;
 const COLUMNS = 2;
@@ -36,13 +40,15 @@ function metadataFor(z: number, overrides: Record<string, string> = {}) {
 // slice identify which chunk it came from.
 async function makeLoadedChunk(
   z: number,
-  overrides: Record<string, string> = {}
+  overrides: Record<string, string> = {},
+  ultrasoundRegions?: UltrasoundRegions
 ) {
   const meta = metadataFor(z, overrides);
   const chunk = new Chunk({
     metaLoader: {
       meta,
       metaBlob: new Blob([`meta-${z}`]),
+      ultrasoundRegions,
       load: () => {},
       stop: () => {},
     },
@@ -160,6 +166,40 @@ describe('DicomChunkImage', () => {
 
     image.dispose();
   });
+
+  // PixelSpacing is row\column, so the fallback in-plane spacing is [0.7, 0.6].
+  it.each([
+    { physicalDeltaX: 0.05, expected: [0.5, 0.3] },
+    { physicalDeltaX: 0, expected: [0.7, 0.6] },
+  ])(
+    'applies ultrasound region spacing only when nonzero and finite (deltaX $physicalDeltaX)',
+    async ({ physicalDeltaX, expected }) => {
+      const image = new DicomChunkImage({
+        splitAndSort: splitAndSortByPosition,
+        readDicomImage,
+      });
+      const frame = await makeLoadedChunk(
+        1,
+        { [Tags.Modality]: 'US', [Tags.PixelSpacing]: '0.6\\0.7' },
+        {
+          region: {
+            physicalDeltaX,
+            physicalDeltaY: 0.03,
+            physicalUnitsXDirection: US_UNIT_CENTIMETERS,
+            physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+          },
+          regionCount: 1,
+        }
+      );
+
+      await image.addChunks([frame]);
+
+      const [x, y] = image.getVtkImageData().getSpacing();
+      expect(x).toBeCloseTo(expected[0]);
+      expect(y).toBeCloseTo(expected[1]);
+      image.dispose();
+    }
+  );
 
   it('settles after rejecting decoded values its integer buffer cannot hold', async () => {
     const message = await loadRejectingSeries(

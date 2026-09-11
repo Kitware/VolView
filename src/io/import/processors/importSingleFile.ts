@@ -4,8 +4,9 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
 import { FILE_READERS } from '@/src/io';
 import { ImportHandler, asLoadableResult } from '@/src/io/import/common';
-import { useMessageStore } from '@/src/store/messages';
+import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { Skip } from '@/src/utils/evaluateChain';
+import { repairUnusableSpacing } from '@/src/utils/imageSpace';
 
 /**
  * Reads and imports a file DataSource.
@@ -25,9 +26,17 @@ const importSingleFile: ImportHandler = async (dataSource) => {
   const { dataObject, headerMetadata } = await reader(dataSource.file);
 
   if (dataObject.isA('vtkImageData')) {
+    const image = dataObject as vtkImageData;
+    const declared = repairUnusableSpacing(image);
+    if (declared) {
+      surfaceWarning(
+        'Invalid voxel spacing',
+        `"${dataSource.file.name}" declares voxel spacing ${declared.join(', ')}. Axes with zero or non-finite spacing use 1 instead, so measurements along them are not physical.`
+      );
+    }
     const dataID = useImageStore().addVTKImageData(
       dataSource.file.name,
-      dataObject as vtkImageData,
+      image,
       { headerMetadata }
     );
 

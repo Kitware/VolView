@@ -65,6 +65,20 @@ export function compareImageIndexGrids(
   );
 }
 
+// Negative spacing stays usable because its sign places the voxels.
+export const isUsableSpacing = (value: number) =>
+  Number.isFinite(value) && value !== 0;
+
+// Returns the declared spacing when a repair was needed, otherwise null.
+export function repairUnusableSpacing(image: vtkImageData) {
+  const declared = image.getSpacing();
+  if (declared.every(isUsableSpacing)) return null;
+  image.setSpacing(
+    declared.map((value) => (isUsableSpacing(value) ? value : 1))
+  );
+  return declared;
+}
+
 /**
  * Convert a world point to image index space.
  */

@@ -35,6 +35,7 @@ import { ensureError } from '@/src/utils';
 import { computed } from 'vue';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
+import { isUsableSpacing } from '@/src/utils/imageSpace';
 
 const { fastComputeRange } = vtkDataArray;
 
@@ -362,12 +363,17 @@ export default class DicomChunkImage
       return;
     }
 
+    const spacingX = region.physicalDeltaX * xFactor;
+    const spacingY = region.physicalDeltaY * yFactor;
+    if (!isUsableSpacing(spacingX) || !isUsableSpacing(spacingY)) {
+      console.warn(
+        `Ultrasound spacing not applied: PhysicalDeltaX=${region.physicalDeltaX}, PhysicalDeltaY=${region.physicalDeltaY}; both must be nonzero and finite.`
+      );
+      return;
+    }
+
     const [, , zSpacing] = this.vtkImageData.value.getSpacing();
-    this.vtkImageData.value.setSpacing([
-      region.physicalDeltaX * xFactor,
-      region.physicalDeltaY * yFactor,
-      zSpacing,
-    ]);
+    this.vtkImageData.value.setSpacing([spacingX, spacingY, zSpacing]);
   }
 
   private updateDataRangeFromChunks() {

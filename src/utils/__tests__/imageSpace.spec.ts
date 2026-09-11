@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { compareImageIndexGrids, compareImageSpaces } from '../imageSpace';
+import {
+  compareImageIndexGrids,
+  compareImageSpaces,
+  repairUnusableSpacing,
+} from '../imageSpace';
 
 describe('compareImageIndexGrids', () => {
   it('distinguishes a reflected index grid from equivalent physical coverage', () => {
@@ -65,5 +69,23 @@ describe('compareImageIndexGrids', () => {
     b.setDirection(0, 1, 0, -1, 0, 0, 0, 0, 1);
     expect(compareImageSpaces(a, b)).toBe(true);
     expect(compareImageIndexGrids(a, b)).toBe(false);
+  });
+});
+
+describe('repairUnusableSpacing', () => {
+  it('replaces zero and non-finite spacing and keeps negative spacing', () => {
+    const image = vtkImageData.newInstance();
+    image.setSpacing([0, -0.5, NaN]);
+
+    expect(repairUnusableSpacing(image)).toEqual([0, -0.5, NaN]);
+    expect(image.getSpacing()).toEqual([1, -0.5, 1]);
+  });
+
+  it('leaves usable spacing unchanged', () => {
+    const image = vtkImageData.newInstance();
+    image.setSpacing([0.7, 0.7, 2.5]);
+
+    expect(repairUnusableSpacing(image)).toBeNull();
+    expect(image.getSpacing()).toEqual([0.7, 0.7, 2.5]);
   });
 });

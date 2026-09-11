@@ -9,6 +9,7 @@ import { vtiReader, vtiWriter } from '@/src/io/vtk/async';
 import { getWorker } from '@/src/io/itk/worker';
 import type { SegmentGroupMetadata } from '@/src/store/segmentGroups';
 import { maybeBuildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import { repairUnusableSpacing } from '@/src/utils/imageSpace';
 
 export type ReadImageResult = {
   image: vtkImageData;
@@ -26,14 +27,19 @@ const getHeaderMetadata = (image: { metadata?: Map<string, unknown> }) => {
   return headerMetadata;
 };
 
+// Repaired like the parent import so a restored labelmap keeps its grid.
 export const readImage = async (file: File): Promise<ReadImageResult> => {
   if (file.name.endsWith('.vti')) {
-    return { image: (await vtiReader(file)) as vtkImageData };
+    const image = (await vtiReader(file)) as vtkImageData;
+    repairUnusableSpacing(image);
+    return { image };
   }
 
   const { image } = await readImageItk(file, { webWorker: getWorker() });
+  const vtkImage = vtkITKHelper.convertItkToVtkImage(image);
+  repairUnusableSpacing(vtkImage);
   return {
-    image: vtkITKHelper.convertItkToVtkImage(image),
+    image: vtkImage,
     headerMetadata: getHeaderMetadata(image),
   };
 };
