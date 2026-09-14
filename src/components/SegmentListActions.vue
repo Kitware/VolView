@@ -29,7 +29,7 @@ const lockTooltip = (locked: boolean) =>
     :color="locked ? 'error' : undefined"
   >
     <v-icon>{{ locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
-    <v-tooltip location="top" activator="parent">{{
+    <v-tooltip :eager="false" location="top" activator="parent">{{
       lockTooltip(locked)
     }}</v-tooltip>
   </v-btn>
@@ -48,7 +48,7 @@ const lockTooltip = (locked: boolean) =>
     >
       <v-icon>mdi-target</v-icon>
     </v-btn>
-    <v-tooltip location="top" activator="parent">{{
+    <v-tooltip :eager="false" location="top" activator="parent">{{
       revealReason || (viewingCine ? 'Reveal Frame' : 'Reveal Slice')
     }}</v-tooltip>
   </span>
@@ -64,7 +64,7 @@ const lockTooltip = (locked: boolean) =>
       @click.stop="$emit('edit')"
       :disabled="locked"
     />
-    <v-tooltip location="top" activator="parent">{{
+    <v-tooltip :eager="false" location="top" activator="parent">{{
       locked ? 'Unlock this segment to edit it' : 'Edit'
     }}</v-tooltip>
   </span>
@@ -80,7 +80,7 @@ const lockTooltip = (locked: boolean) =>
     <v-icon style="pointer-events: none">{{
       visible ? 'mdi-eye' : 'mdi-eye-off'
     }}</v-icon>
-    <v-tooltip location="top" activator="parent">{{
+    <v-tooltip :eager="false" location="top" activator="parent">{{
       visible ? 'Hide' : 'Show'
     }}</v-tooltip>
   </v-btn>
@@ -95,7 +95,7 @@ const lockTooltip = (locked: boolean) =>
       @click.stop="$emit('delete')"
       :disabled="locked"
     />
-    <v-tooltip location="top" activator="parent">{{
+    <v-tooltip :eager="false" location="top" activator="parent">{{
       locked ? 'Unlock this segment to delete it' : 'Delete'
     }}</v-tooltip>
   </span>

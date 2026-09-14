@@ -345,7 +345,7 @@ const {
                   :disabled="item.locked"
                   @click.stop="editing.startEditing(item.id)"
                 ></button>
-                <v-tooltip location="top" activator="parent">{{
+                <v-tooltip :eager="false" location="top" activator="parent">{{
                   item.locked
                     ? 'Unlock this segment to change its color'
                     : 'Change color'

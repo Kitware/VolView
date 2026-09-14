@@ -85,7 +85,7 @@ const toggleOpen = (key: string | number | symbol) =>
               }}</v-icon>
             </v-btn>
             <slot name="item-prepend" :item="item"></slot>
-            <v-tooltip :text="title" location="end">
+            <v-tooltip :eager="false" :text="title" location="end">
               <template #activator="{ props: tooltip }">
                 <v-list-item-title v-bind="tooltip">{{
                   title
