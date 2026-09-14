@@ -78,6 +78,8 @@ export default defineComponent({
           spacing: [...metadata.spacing].map((s) => s.toFixed(2)),
           layerable,
           layerLoading,
+          convertingToSegmentation:
+            segmentationStore.convertingLabelmaps.has(id),
           isLayer,
           layerHandler: () => {
             if (!layerLoading && layerable) {
@@ -274,6 +276,15 @@ export default defineComponent({
           @click="select"
           @dragstart="onDragStart(image.id, $event)"
         >
+          <template v-if="image.convertingToSegmentation" #image-overlay>
+            <div
+              class="d-flex flex-column align-center justify-center fill-height text-center"
+              data-testid="segmentation-conversion-progress"
+            >
+              <v-progress-circular indeterminate class="mb-1" size="small" />
+              <span class="text-caption">Adding segmentation…</span>
+            </div>
+          </template>
           <div class="d-flex flex-row justify-space-between">
             <div class="allow-trunc-text-flex-child">
               <div
@@ -306,6 +317,7 @@ export default defineComponent({
                     </template>
                   </v-list-item>
                   <v-list-item
+                    :disabled="image.convertingToSegmentation"
                     @click="
                       image.layerable ? convertToLabelMap(image.id) : null
                     "

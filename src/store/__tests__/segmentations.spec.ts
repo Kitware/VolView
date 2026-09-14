@@ -515,6 +515,19 @@ describe('segmentation store', () => {
   });
 
   describe('conversion and decode', () => {
+    it('reports the source image while its conversion is pending', async () => {
+      await seatConversionSources(['child-img'], twoLabelValues());
+
+      const conversion = store().convertImageToLabelmap(
+        'child-img',
+        'parent-img'
+      );
+
+      expect(store().convertingLabelmaps.has('child-img')).toBe(true);
+      await conversion;
+      expect(store().convertingLabelmaps.has('child-img')).toBe(false);
+    });
+
     it('creates one bound segment per discovered label value', async () => {
       await seatConversionSources(['child-img'], twoLabelValues());
 

@@ -159,6 +159,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const segmentRegistry = useSegmentStore().segments;
 
   const segmentations = reactive<Record<string, Segmentation>>({});
+  const convertingLabelmaps = reactive(new Set<DataSelection>());
   const allBindings = () =>
     Object.values(segmentations).flatMap((segmentation) =>
       listMasks(segmentation).flatMap((segment) =>
@@ -370,7 +371,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     });
   }
 
-  function convertImageToLabelmap(
+  async function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
     source?: ProcessingResultSource,
@@ -384,24 +385,29 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         cleanUndefined(descriptor),
       ])
     );
-    return importLabelmapImage(imageID, parentID, {
-      decode: (labelmap, component) =>
-        decodeSegments(imageID, labelmap, { component }) as Promise<
-          LabelmapSegment[]
-        >,
-      split: (labelmap, descriptors) =>
-        splitLabelmapIntoMasks(
-          parentID,
-          labelmap,
-          // Identity is chosen by name, so explicit descriptions must precede
-          // binding to a type shared by other images.
-          descriptors.map((descriptor) => ({
-            ...descriptor,
-            ...bySourceValue.get(descriptor.value),
-          })),
-          { source }
-        ).map((segment) => segment.id),
-    });
+    convertingLabelmaps.add(imageID);
+    try {
+      return await importLabelmapImage(imageID, parentID, {
+        decode: (labelmap, component) =>
+          decodeSegments(imageID, labelmap, { component }) as Promise<
+            LabelmapSegment[]
+          >,
+        split: (labelmap, descriptors) =>
+          splitLabelmapIntoMasks(
+            parentID,
+            labelmap,
+            // Identity is chosen by name, so explicit descriptions must precede
+            // binding to a type shared by other images.
+            descriptors.map((descriptor) => ({
+              ...descriptor,
+              ...bySourceValue.get(descriptor.value),
+            })),
+            { source }
+          ).map((segment) => segment.id),
+      });
+    } finally {
+      convertingLabelmaps.delete(imageID);
+    }
   }
 
   const saveFormat = ref('vti');
@@ -660,6 +666,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   return {
     segmentations,
+    convertingLabelmaps,
     labelmapSegmentsByMask,
     maskFor,
     findEditTarget,

@@ -350,7 +350,7 @@ const {
                   :disabled="item.locked"
                   @click.stop="editing.startEditing(item.id)"
                 ></button>
-                <v-tooltip location="right" activator="parent">{{
+                <v-tooltip location="top" activator="parent">{{
                   item.locked
                     ? 'Unlock this segment to change its color'
                     : 'Change color'
@@ -372,7 +372,7 @@ const {
                 <v-icon>{{
                   item.locked ? 'mdi-lock' : 'mdi-lock-open'
                 }}</v-icon>
-                <v-tooltip location="left" activator="parent">{{
+                <v-tooltip location="top" activator="parent">{{
                   lockTooltip(item.locked)
                 }}</v-tooltip>
               </v-btn>
@@ -394,7 +394,7 @@ const {
                 >
                   <v-icon>mdi-target</v-icon>
                 </v-btn>
-                <v-tooltip location="left" activator="parent">{{
+                <v-tooltip location="top" activator="parent">{{
                   revealReason(item) ||
                   (viewingCine ? 'Reveal Frame' : 'Reveal Slice')
                 }}</v-tooltip>
@@ -414,7 +414,7 @@ const {
                   @click.stop="editing.startEditing(item.id)"
                   :disabled="item.locked"
                 />
-                <v-tooltip location="left" activator="parent">{{
+                <v-tooltip location="top" activator="parent">{{
                   item.locked ? 'Unlock this segment to edit it' : 'Edit'
                 }}</v-tooltip>
               </span>
@@ -430,7 +430,7 @@ const {
                 <v-icon style="pointer-events: none">{{
                   item.visible ? 'mdi-eye' : 'mdi-eye-off'
                 }}</v-icon>
-                <v-tooltip location="left" activator="parent">{{
+                <v-tooltip location="top" activator="parent">{{
                   item.visible ? 'Hide' : 'Show'
                 }}</v-tooltip>
               </v-btn>
@@ -448,7 +448,7 @@ const {
                   @click.stop="deleteSegment(item.id)"
                   :disabled="item.locked"
                 />
-                <v-tooltip location="left" activator="parent">{{
+                <v-tooltip location="top" activator="parent">{{
                   item.locked ? 'Unlock this segment to delete it' : 'Delete'
                 }}</v-tooltip>
               </span>
