@@ -72,10 +72,14 @@ export function reframeMaskScalars(
     for (let j = shared[2]; j <= shared[3]; j += 1) {
       const start = maskOffset(source, shared[0], j, k);
       const end = maskOffset(destination, shared[0], j, k);
-      const row = Array.isArray(scalars)
-        ? scalars.slice(start, start + count)
-        : scalars.subarray(start, start + count);
-      values.set(row, end);
+      if (count === 1) {
+        values[end] = scalars[start];
+      } else {
+        const row = Array.isArray(scalars)
+          ? scalars.slice(start, start + count)
+          : scalars.subarray(start, start + count);
+        values.set(row, end);
+      }
     }
   }
   return values;

@@ -152,6 +152,7 @@ export default class PaintTool {
       end.splice(sliceAxis, 1);
     }
 
+    let changed = false;
     const labelmapPixels = labelmap.getPointData().getScalars().getData();
     const labelmapDims = labelmap.getDimensions();
     const jStride = labelmapDims[0];
@@ -191,7 +192,10 @@ export default class PaintTool {
 
         const offset = rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
         if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
-          labelmapPixels[offset] = brushValue;
+          if (labelmapPixels[offset] !== brushValue) {
+            labelmapPixels[offset] = brushValue;
+            changed = true;
+          }
           onPainted?.(rounded);
         }
 
@@ -218,6 +222,6 @@ export default class PaintTool {
       }
     }
 
-    labelmap.modified();
+    if (changed) labelmap.modified();
   }
 }

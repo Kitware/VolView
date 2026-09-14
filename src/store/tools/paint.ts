@@ -177,15 +177,13 @@ export const usePaintToolStore = defineStore('paint', () => {
         ? worldPointToIndex(parentImage, strokePoints.value[lastIndex - 1])
         : undefined;
 
+    const strokeExtent = clipExtent(
+      this.$paint.strokeBounds(axisIndex, lastIndexPoint, prevIndexPoint),
+      fullExtent(parentImage.getDimensions())
+    );
     // Growth happens first, and nothing grows once the buffers below are read.
     if (!erasing) {
-      voxels.ensureContains(
-        clipExtent(
-          this.$paint.strokeBounds(axisIndex, lastIndexPoint, prevIndexPoint),
-          fullExtent(parentImage.getDimensions())
-        ),
-        STROKE_GROWTH_PADDING
-      );
+      voxels.ensureContains(strokeExtent, STROKE_GROWTH_PADDING);
     }
 
     // Copied out of the reactive tree: the two closures below read it for
@@ -195,7 +193,11 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     // Resolved once per stroke: the claim below is made for every voxel the
     // brush touches. A stroke is aimed at a place, so it takes the voxel.
-    const claimVoxel = segmentationStore.voxelClaim(maskId, 'aimed', extent);
+    const claimVoxel = segmentationStore.voxelClaim(
+      maskId,
+      'aimed',
+      strokeExtent
+    );
     const parentDimensions = parentImage.getDimensions();
     const maskData = voxels.scalars();
     const [minThreshold, maxThreshold] = thresholdRange.value;

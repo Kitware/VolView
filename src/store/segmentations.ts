@@ -392,8 +392,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           decodeSegments(imageID, labelmap, { component }) as Promise<
             LabelmapSegment[]
           >,
-        split: (labelmap, descriptors) =>
-          splitLabelmapIntoMasks(
+        split: (labelmap, descriptors) => {
+          const created = splitLabelmapIntoMasks(
             parentID,
             labelmap,
             // Identity is chosen by name, so explicit descriptions must precede
@@ -403,7 +403,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
               ...bySourceValue.get(descriptor.value),
             })),
             { source }
-          ).map((segment) => segment.id),
+          );
+          if (created.length && !segmentRegistry.selectedSegment.value) {
+            segmentRegistry.selectSegment(created[0].segmentId);
+          }
+          return created.map((segment) => segment.id);
+        },
       });
     } finally {
       convertingLabelmaps.delete(imageID);

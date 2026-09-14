@@ -81,20 +81,4 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     }
     return macro.VOID;
   };
-
-  publicAPI.grabFocus = () => {
-    if (!model.hasFocus) {
-      model.hasFocus = true;
-      model._interactor.requestAnimation(publicAPI);
-    }
-  };
-
-  publicAPI.loseFocus = () => {
-    if (model.hasFocus) {
-      model._interactor.cancelAnimation(publicAPI);
-    }
-    model.hasFocus = false;
-    // model._widgetManager.enablePicking();
-    // model._interactor.render();
-  };
 }

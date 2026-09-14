@@ -166,10 +166,13 @@ export const createSegmentRegistry = ({
     }
   };
 
-  /** The selected segment, minting one when nothing is selected yet. */
+  /** Reuse the selection or first segment, minting only for an empty registry. */
   const ensureSelectedSegment = () => {
     if (selectedSegment.value) return selectedSegment.value.id;
-    return addSegment();
+    const first = segmentList.value[0];
+    if (!first) return addSegment();
+    selectSegment(first.id);
+    return first.id;
   };
 
   /**

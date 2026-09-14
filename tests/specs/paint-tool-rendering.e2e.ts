@@ -1,4 +1,5 @@
 import AppPage from '../pageobjects/volview.page';
+import { moveTo } from './annotationTestUtils';
 
 describe('Paint tool rendering', () => {
   it('should not black out axial view after painting', async () => {
@@ -46,6 +47,39 @@ describe('Paint tool rendering', () => {
         timeoutMsg:
           'Axial view should not go black after painting with paint tool',
         interval: 1000,
+      }
+    );
+
+    const canvasImage = () =>
+      browser.execute(
+        (element) => (element as HTMLCanvasElement).toDataURL(),
+        canvas
+      );
+    const hovered = await canvasImage();
+    await moveTo(10, 10);
+    await browser.waitUntil(async () => (await canvasImage()) !== hovered, {
+      timeoutMsg: 'Brush preview should disappear when leaving the view',
+    });
+    const withoutPreview = await canvasImage();
+
+    await moveTo(centerX - 60, centerY);
+    await browser.waitUntil(
+      async () => (await canvasImage()) !== withoutPreview,
+      { timeoutMsg: 'Brush preview should appear without painting' }
+    );
+    const firstPreview = await canvasImage();
+    await moveTo(centerX - 30, centerY);
+    await browser.waitUntil(
+      async () => (await canvasImage()) !== firstPreview,
+      { timeoutMsg: 'Brush preview should follow the pointer without painting' }
+    );
+
+    await moveTo(10, 10);
+    await browser.waitUntil(
+      async () => (await canvasImage()) === withoutPreview,
+      {
+        timeoutMsg:
+          'Moving the preview should leave the painted image unchanged',
       }
     );
   });

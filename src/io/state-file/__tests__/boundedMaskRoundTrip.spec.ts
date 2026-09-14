@@ -161,7 +161,8 @@ describe('bounded masks through the state file', () => {
           segmentRenderMask(
             binding.image,
             parentImage(imageId),
-            binding.extent
+            binding.extent,
+            { axis: 2, index: binding.extent[4] }
           );
       }
     }

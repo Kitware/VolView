@@ -148,6 +148,19 @@ describe('segment type registry', () => {
     expect(registry.ensureSelectedSegment()).toBe(id);
   });
 
+  it('selects the first existing segment without adding a placeholder', () => {
+    const registry = createSegmentRegistry();
+    const first = registry.mintSegment({ name: 'Liver' });
+    const second = registry.mintSegment({ name: 'Spleen' });
+    expect(registry.ensureSelectedSegment()).toBe(first);
+    expect(registry.segmentList.value.map((segment) => segment.name)).toEqual([
+      'Liver',
+      'Spleen',
+    ]);
+    registry.selectSegment(second);
+    expect(registry.ensureSelectedSegment()).toBe(second);
+  });
+
   it('refuses to select a type that does not exist', () => {
     const registry = createSegmentRegistry();
 

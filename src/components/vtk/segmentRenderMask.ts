@@ -10,31 +10,35 @@ import {
   type Extent3D,
 } from '@/src/types/segmentation';
 
-// Shared by slice views; never placed in segmentation storage or export inputs.
+// Keep only the current slice per axis, outside segmentation storage and export.
 const renderMasks = new WeakMap<
   vtkLabelMap,
-  {
-    image: vtkLabelMap;
-    key: string;
-    mtime: number;
-  }
+  Map<
+    number,
+    {
+      image: vtkLabelMap;
+      key: string;
+      mtime: number;
+    }
+  >
 >();
 
 /** Add known background within the scan, without inventing data beyond it. */
 export function segmentRenderMask(
   source: vtkLabelMap,
   parent: vtkImageData,
-  extent: Extent3D
+  extent: Extent3D,
+  { axis, index: slice }: { axis: number; index: number }
 ) {
   if (isEmptyExtent(extent)) return null;
   const padded = clipExtent(
     padExtent(extent, 1),
     parent.getExtent() as Extent3D
   );
-  if (padded.every((value, index) => value === extent[index])) {
-    renderMasks.delete(source);
-    return source;
-  }
+  const index = Math.round(slice);
+  if (index < extent[axis * 2] || index > extent[axis * 2 + 1]) return null;
+  padded[axis * 2] = index;
+  padded[axis * 2 + 1] = index;
   const key = [
     ...extent,
     ...padded,
@@ -42,10 +46,15 @@ export function segmentRenderMask(
     ...parent.getSpacing(),
     ...parent.getDirection(),
   ].join(',');
-  let cached = renderMasks.get(source);
+  let slices = renderMasks.get(source);
+  if (!slices) {
+    slices = new Map();
+    renderMasks.set(source, slices);
+  }
+  let cached = slices.get(axis);
   if (!cached || cached.key !== key) {
     cached = { image: allocateMask(parent, padded), key, mtime: -1 };
-    renderMasks.set(source, cached);
+    slices.set(axis, cached);
   }
   if (cached.mtime !== source.getMTime()) {
     const values = reframeMaskScalars(
@@ -56,10 +65,12 @@ export function segmentRenderMask(
     );
     const scalars = cached.image.getPointData().getScalars();
     scalars.dataChange();
-    // Padding guarantees background, and each stored mask is binary. Supplying
-    // its exact range avoids a full-volume range scan during slice rendering.
+    // Each stored mask is binary. Supply the range to avoid another scan.
     scalars.setRange(
-      { min: 0, max: values.includes(SEGMENT_VALUE) ? SEGMENT_VALUE : 0 },
+      {
+        min: values.includes(0) ? 0 : SEGMENT_VALUE,
+        max: values.includes(SEGMENT_VALUE) ? SEGMENT_VALUE : 0,
+      },
       0
     );
     cached.image.modified();

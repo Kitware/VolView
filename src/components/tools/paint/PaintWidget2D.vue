@@ -15,10 +15,8 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentationStore } from '@/src/store/segmentations';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { LPSAxisDir } from '@/src/types/lps';
-import { getLPSDirections } from '@/src/utils/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
@@ -48,7 +46,6 @@ export default defineComponent({
     const slice = computed(() => sliceInfo.value?.slice);
 
     const paintStore = usePaintToolStore();
-    const segmentationStore = useSegmentationStore();
     const widgetFactory = paintStore.getWidgetFactory();
     const widgetState = widgetFactory.getWidgetState();
 
@@ -58,44 +55,28 @@ export default defineComponent({
       () => imageMetadata.value.lpsOrientation[viewAxis.value]
     );
 
-    // Get this image's mask for the selected type, for coordinate transforms.
-    // Scoped to the widget's own image: a mask of another image would displace
-    // the brush.
-    const activeLabelmap = computed(() => {
-      const maskId = imageId.value
-        ? segmentationStore.findEditTarget(imageId.value)
-        : undefined;
-      if (!maskId) return null;
-      const voxels = segmentationStore.findMaskVoxels(maskId);
-      return voxels.exists() ? voxels.image() : null;
-    });
-
     const widget = view.widgetManager.addWidget(
       widgetFactory
     ) as vtkPaintViewWidget;
+    widget.setPickable(false);
 
     // --- widget representation config --- //
 
+    // Every mask uses the parent voxel grid. Selection and mask growth do not
+    // change the brush's world-space footprint.
     watchEffect(() => {
-      if (!widget) return;
-
-      const labelmap = activeLabelmap.value;
-      if (labelmap) {
-        // Use labelmap's transforms so brush preview matches where paint appears
-        const labelmapLps = getLPSDirections(labelmap.getDirection());
-        const slicingIndex = labelmapLps[viewAxis.value];
-        widget.setSlicingIndex(slicingIndex);
-        widget.setIndexToWorld(labelmap.getIndexToWorld());
-        widget.setWorldToIndex(labelmap.getWorldToIndex());
-      } else {
-        // Fall back to parent image transforms
-        const metadata = imageMetadata.value;
-        const slicingIndex = metadata.lpsOrientation[viewAxis.value];
-        widget.setSlicingIndex(slicingIndex);
-        widget.setIndexToWorld(metadata.indexToWorld);
-        widget.setWorldToIndex(metadata.worldToIndex);
-      }
+      const metadata = imageMetadata.value;
+      widget.setSlicingIndex(metadata.lpsOrientation[viewAxis.value]);
+      widget.setIndexToWorld(metadata.indexToWorld);
+      widget.setWorldToIndex(metadata.worldToIndex);
     });
+
+    // Brush movement changes shared state, but only the view displaying the
+    // preview needs to redraw. Mask edits request renders independently.
+    onVTKEvent(widgetState, 'onModified', () => {
+      if (widget.getVisibility()) view.requestRender();
+    });
+    onVTKEvent(widget, 'onModified', () => view.requestRender());
 
     // --- interaction --- //
 
@@ -151,14 +132,15 @@ export default defineComponent({
     let checkIfPointerInView = false;
 
     // Turn on widget visibility and update stencil if mouse starts within view
-    onVTKEvent(view.interactor, 'onMouseMove', () => {
+    const showPreviewOnFirstMove = () => {
       if (!checkIfPointerInView) return;
       checkIfPointerInView = false;
       widget.setVisibility(true);
       if (imageId.value) {
         paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       }
-    });
+    };
+    onVTKEvent(view.interactor, 'onMouseMove', showPreviewOnFirstMove);
 
     onVTKEvent(view.interactor, 'onMouseEnter', () => {
       if (imageId.value) {
@@ -187,8 +169,8 @@ export default defineComponent({
     };
 
     onMounted(() => {
-      view.widgetManager.renderWidgets();
       view.widgetManager.grabFocus(widget);
+      view.widgetManager.renderWidgets();
       widget.setVisibility(false);
       checkIfPointerInView = true;
       view.renderWindowView

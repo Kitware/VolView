@@ -26,13 +26,13 @@ import { isEmptyExtent } from '@/src/types/segmentation';
 import { segmentRenderMask } from '@/src/components/vtk/segmentRenderMask';
 import { revealPulseStrength } from '@/src/composables/useSegmentRevealPulse';
 
-interface Props {
+type Props = {
   viewId: string;
   maskId: string;
   // Position in `segmentation.order`, which is what the actors stack by.
   stackIndex: number;
   axis: LPSAxis;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, maskId, stackIndex, axis } = toRefs(props);
@@ -65,6 +65,7 @@ const sourceImageData = computed(() => {
 const parentImageId = computed(() => segmentation.value?.parentImageId);
 const { metadata: parentMetadata, imageData: parentImageData } =
   useImage(parentImageId);
+const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 const maskRevision = ref(0);
 onVTKEvent(sourceImageData, 'onModified', () => {
   maskRevision.value += 1;
@@ -75,8 +76,16 @@ const imageData = computed(() => {
   const source = sourceImageData.value;
   const parent = parentImageData.value;
   const bounds = extent.value;
-  return source && parent && bounds
-    ? segmentRenderMask(source, parent, bounds)
+  const ijkAxis = parentMetadata.value?.lpsOrientation[axis.value];
+  return source &&
+    parent &&
+    bounds &&
+    ijkAxis !== undefined &&
+    storedSlice.value != null
+    ? segmentRenderMask(source, parent, bounds, {
+        axis: ijkAxis,
+        index: storedSlice.value,
+      })
     : null;
 });
 watchImmediate([imageData, maskRevision], () => view.requestRender());
@@ -127,7 +136,6 @@ watchEffect(() => {
 
 // sync slicing - convert parent slice to segment group slice via world coordinates
 const slice = vtkFieldRef(sliceRep.mapper, 'slice');
-const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 
 // The extent is a watch source because growth moves the mask's origin, so the
 // same parent slice lands on a different mask slice afterwards.

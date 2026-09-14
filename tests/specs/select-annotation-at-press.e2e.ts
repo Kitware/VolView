@@ -108,7 +108,7 @@ describe('Selection picks at the press position', () => {
     ['rectangle', 'mdi-vector-square'],
     ['ruler', 'mdi-ruler'],
   ]) {
-    it(`adjusts a ${name} handle with its drawing tool active`, async () => {
+    it(`adjusts a ${name} handle after switching back from paint`, async () => {
       const { axialView, centerX, centerY } = await setupTest();
       const handleX = centerX - 80;
       const handleY = centerY - 80;
@@ -120,6 +120,8 @@ describe('Selection picks at the press position', () => {
         2,
         'Placed annotation should have two handles'
       );
+      await AppPage.activatePaint();
+      await AppPage.selectTool(icon);
       const firstHandle = axialView.$('svg circle');
       const start = await Promise.all(
         ['cx', 'cy'].map((axis) => firstHandle.getAttribute(axis))

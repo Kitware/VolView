@@ -447,7 +447,8 @@ describe('splitting an imported labelmap into bounded masks', () => {
       const rendered = segmentRenderMask(
         binding.image,
         parentImage('parent-img'),
-        binding.extent
+        binding.extent,
+        { axis: 2, index: binding.extent[4] }
       )!;
       // A render-buffer write must never reach a saved segmentation.
       maskScalars(rendered).fill(9);

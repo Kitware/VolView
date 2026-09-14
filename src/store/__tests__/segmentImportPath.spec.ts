@@ -140,6 +140,9 @@ describe('the import path answers on the segmentation store', () => {
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
     const segments = segmentsOf('parent-img');
+    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(
+      segments[0].segmentId
+    );
     expect(segments.map((segment) => appearanceOf(segment).name)).toEqual([
       'Tumor 1',
       'Tumor 2',

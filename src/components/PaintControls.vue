@@ -54,16 +54,6 @@
             </v-item-group>
           </v-row>
 
-          <v-row no-gutters align="center" class="mb-2">
-            <span class="mr-2">Sync Views</span>
-            <v-switch
-              v-model="crossPlaneSync"
-              color="primary"
-              density="compact"
-              hide-details
-              class="ml-3"
-            ></v-switch>
-          </v-row>
           <div class="paint-parameters">
             <span class="text-body-2 text-no-wrap">Size</span>
             <v-slider
@@ -118,6 +108,16 @@
               </template>
             </v-range-slider>
           </div>
+          <v-row no-gutters align="center" class="mb-2">
+            <span class="mr-2">Sync Views</span>
+            <v-switch
+              v-model="crossPlaneSync"
+              color="primary"
+              density="compact"
+              hide-details
+              class="ml-3"
+            ></v-switch>
+          </v-row>
         </v-expansion-panel-text>
       </v-expansion-panel>
 

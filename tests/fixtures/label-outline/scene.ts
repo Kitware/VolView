@@ -48,7 +48,7 @@ maskScalars(source).fill(1);
 source.modified();
 const mask = params.has('fullGrid')
   ? allocateMask(parent, parent.getExtent() as Extent3D)
-  : segmentRenderMask(source, parent, extent)!;
+  : segmentRenderMask(source, parent, extent, { axis: axis, index: 0 })!;
 if (params.has('fullGrid')) {
   setMaskScalars(
     mask,
@@ -124,7 +124,7 @@ function renderOutline(thickness = 3, outlineOpacity = 1) {
 function editMask(value: number) {
   maskScalars(source).fill(value);
   source.modified();
-  segmentRenderMask(source, parent, extent);
+  segmentRenderMask(source, parent, extent, { axis: axis, index: 0 });
   return renderOutline();
 }
 

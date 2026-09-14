@@ -990,12 +990,16 @@ describe('Reveal Slice on a segment row', () => {
     expect(sliceOn('Axial')).toBe(1);
   });
 
-  it('is offered on a row the image does store voxels for', async () => {
+  it('enables reveal when painting creates storage after the list mounts', async () => {
     const segment = makeMask('img-1', 'Tumor');
-    paintVoxel(segment.maskId, [1, 1, 1]);
     const wrapper = mountList();
     await nextTick();
+    expect(
+      revealButton(wrapper, segment.id).attributes('disabled')
+    ).toBeDefined();
 
+    paintVoxel(segment.maskId, [1, 1, 1]);
+    await nextTick();
     expect(
       revealButton(wrapper, segment.id).attributes('disabled')
     ).toBeUndefined();
