@@ -229,6 +229,37 @@ const {
       variant="accordion"
       class="annotation-panels"
     >
+      <v-expansion-panel value="display">
+        <v-expansion-panel-title data-testid="segment-display-section">
+          <v-icon class="annotation-panel-icon">mdi-tune-variant</v-icon>
+          Display
+        </v-expansion-panel-title>
+        <v-expansion-panel-text class="display-section-body">
+          <div class="display-controls">
+            <div
+              v-for="control in DISPLAY_CONTROLS"
+              :key="control.key"
+              class="display-control"
+            >
+              <div class="text-body-2 text-no-wrap">
+                {{ control.label }}
+              </div>
+              <v-slider
+                :label="control.label"
+                min="0"
+                :max="control.max"
+                :step="control.step"
+                density="compact"
+                hide-details
+                thumb-label
+                :model-value="display[control.key]"
+                @update:model-value="setDisplay({ [control.key]: $event })"
+              />
+            </div>
+          </div>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+
       <v-expansion-panel value="segments">
         <div class="segment-panel-header">
           <v-expansion-panel-title data-testid="segments-section">
@@ -302,7 +333,7 @@ const {
             item-title="name"
             create-text="New segment"
             @create="addNewSegment"
-            class="mb-2"
+            class="segment-items mb-2"
           >
             <template #item-prepend="{ item }">
               <!-- dot container keeps overflowing name from squishing dot width  -->
@@ -425,37 +456,6 @@ const {
           </editable-item-list>
         </v-expansion-panel-text>
       </v-expansion-panel>
-
-      <v-expansion-panel value="display">
-        <v-expansion-panel-title data-testid="segment-display-section">
-          <v-icon class="annotation-panel-icon">mdi-tune-variant</v-icon>
-          Display
-        </v-expansion-panel-title>
-        <v-expansion-panel-text class="display-section-body">
-          <div class="display-controls">
-            <div
-              v-for="control in DISPLAY_CONTROLS"
-              :key="control.key"
-              class="display-control"
-            >
-              <div class="text-body-2 text-no-wrap">
-                {{ control.label }}
-              </div>
-              <v-slider
-                :label="control.label"
-                min="0"
-                :max="control.max"
-                :step="control.step"
-                density="compact"
-                hide-details
-                thumb-label
-                :model-value="display[control.key]"
-                @update:model-value="setDisplay({ [control.key]: $event })"
-              />
-            </div>
-          </div>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
     </v-expansion-panels>
   </div>
   <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
@@ -504,6 +504,14 @@ const {
 
 .display-controls :deep(.v-input__prepend) {
   display: none;
+}
+
+.segment-items :deep(.item-list-scroll) {
+  /* Keep two and a half compact rows usable even when that exceeds half of a
+     very short sidebar; otherwise use at most half of the module viewport. */
+  max-height: max(100px, 50cqh);
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .segment-panel-header {

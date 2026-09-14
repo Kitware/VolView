@@ -786,6 +786,17 @@ describe('segmentation display section', () => {
     await nextTick();
   };
 
+  it('places display controls before the segment list', () => {
+    const wrapper = mountList();
+    const sectionOrder = wrapper
+      .findAll('[data-testid$="-section"]')
+      .map((section) => section.attributes('data-testid'));
+
+    expect(sectionOrder.indexOf('segment-display-section')).toBeLessThan(
+      sectionOrder.indexOf('segments-section')
+    );
+  });
+
   it('offers the default display controls before the image has a segmentation', async () => {
     const wrapper = mountList();
     await nextTick();

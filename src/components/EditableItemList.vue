@@ -55,52 +55,54 @@ const toggleOpen = (key: string | number | symbol) =>
   <v-list density="compact" bg-color="transparent" class="py-0">
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
-    <template
-      v-for="{ item, key, title, expandable: hasMore } in itemsToRender"
-      :key="key"
-    >
-      <v-list-item
-        class="item-row"
-        :active="key === modelValue"
-        :aria-label="title"
-        :aria-current="key === modelValue ? 'true' : undefined"
-        @click="$emit('update:model-value', key)"
+    <div class="item-list-scroll">
+      <template
+        v-for="{ item, key, title, expandable: hasMore } in itemsToRender"
+        :key="key"
       >
-        <div class="d-flex align-center flex-nowrap">
-          <v-btn
-            v-if="hasMore"
-            icon
-            size="small"
-            density="compact"
-            variant="plain"
-            class="expand-button mr-1"
-            data-testid="expand-segment-button"
-            :aria-label="`Details for ${title}`"
-            :aria-expanded="isOpen(key)"
-            @click.stop="toggleOpen(key)"
-          >
-            <v-icon>{{
-              isOpen(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
-            }}</v-icon>
-          </v-btn>
-          <slot name="item-prepend" :item="item"></slot>
-          <v-tooltip :text="title" location="end">
-            <template #activator="{ props: tooltip }">
-              <v-list-item-title v-bind="tooltip">{{
-                title
-              }}</v-list-item-title>
-            </template>
-          </v-tooltip>
-          <span class="ml-auto flex-shrink-0 d-flex align-center">
-            <slot name="item-append" :item="item"></slot>
-          </span>
-        </div>
-      </v-list-item>
+        <v-list-item
+          class="item-row"
+          :active="key === modelValue"
+          :aria-label="title"
+          :aria-current="key === modelValue ? 'true' : undefined"
+          @click="$emit('update:model-value', key)"
+        >
+          <div class="d-flex align-center flex-nowrap">
+            <v-btn
+              v-if="hasMore"
+              icon
+              size="small"
+              density="compact"
+              variant="plain"
+              class="expand-button mr-1"
+              data-testid="expand-segment-button"
+              :aria-label="`Details for ${title}`"
+              :aria-expanded="isOpen(key)"
+              @click.stop="toggleOpen(key)"
+            >
+              <v-icon>{{
+                isOpen(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
+              }}</v-icon>
+            </v-btn>
+            <slot name="item-prepend" :item="item"></slot>
+            <v-tooltip :text="title" location="end">
+              <template #activator="{ props: tooltip }">
+                <v-list-item-title v-bind="tooltip">{{
+                  title
+                }}</v-list-item-title>
+              </template>
+            </v-tooltip>
+            <span class="ml-auto flex-shrink-0 d-flex align-center">
+              <slot name="item-append" :item="item"></slot>
+            </span>
+          </div>
+        </v-list-item>
 
-      <div v-if="hasMore && isOpen(key)" class="item-expansion">
-        <slot name="item-expansion" :item="item"></slot>
-      </div>
-    </template>
+        <div v-if="hasMore && isOpen(key)" class="item-expansion">
+          <slot name="item-expansion" :item="item"></slot>
+        </div>
+      </template>
+    </div>
 
     <div v-if="!hideCreate" role="listitem">
       <v-list-item
