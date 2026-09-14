@@ -64,8 +64,9 @@ export function reframeMaskScalars(
   if (output) values.fill(0);
   const shared = clipExtent(from, to);
   const [si, sj] = extentSize(from);
-  const source = { extent: from, mi: si, mj: sj };
-  const destination = { extent: to, mi, mj };
+  // Bounds can be reactive; read them once before the per-row copy loop.
+  const source = { extent: [...from] as Extent3D, mi: si, mj: sj };
+  const destination = { extent: [...to] as Extent3D, mi, mj };
   if (isEmptyExtent(shared)) return values;
   const count = shared[1] - shared[0] + 1;
   for (let k = shared[4]; k <= shared[5]; k += 1) {
