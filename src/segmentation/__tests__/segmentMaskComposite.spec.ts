@@ -1,6 +1,6 @@
 import {
   compositeLabelmap,
-  layeredSegments,
+  planLabelmapExport,
 } from '@/src/segmentation/io/composition';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
@@ -30,10 +30,7 @@ import {
   type Index3,
   segmentOfMask,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import {
-  LABELMAP_MAX_VALUE,
-  SEGMENT_VALUE,
-} from '@/src/segmentation/masks/labelValue';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 /** A record shows the name and color of the type it references. */
 const appearanceOf = (segment: { segmentId: string }) =>
@@ -178,18 +175,17 @@ describe('composing the segments of an image into one labelmap', () => {
     expect(Array.from(scalars).filter((value) => value !== 0)).toHaveLength(1);
   });
 
-  it('refuses more segment descriptors than a byte labelmap can encode', () => {
+  it('uses 16-bit storage beyond the byte label limit', () => {
     Array.from({ length: 256 }, (_, index) =>
       addMask('img-1', `Segment ${index + 1}`)
     );
 
-    expect(() => compositeLabelmap('img-1')).toThrow(/at most 255 segments/);
+    expect(
+      compositeLabelmap('img-1').labelmap.getPointData().getScalars().getData()
+    ).toBeInstanceOf(Uint16Array);
   });
 
-  // The store holds as many segments as an image needs; the one-byte cap is
-  // the export file's, so layeredSegments hands back groups that fit even
-  // when none of them overlap and one group would do.
-  it('splits a group past the byte cap into files that fit', async () => {
+  it('keeps non-overlapping labels above 255 in one 16-bit file', async () => {
     const wide: Index3 = [300, 1, 1];
     await seatImage('img-wide', { ...GRID, dimensions: wide });
     const masks = Array.from({ length: 300 }, (_, index) =>
@@ -198,11 +194,17 @@ describe('composing the segments of an image into one labelmap', () => {
     // One voxel each, none shared, so overlap alone would leave one group.
     masks.forEach((maskId, index) => seedVoxel(maskId, [index, 0, 0]));
 
-    const groups = layeredSegments('img-wide');
+    const groups = planLabelmapExport('img-wide').parts;
 
     expect(groups.flat()).toHaveLength(300);
-    expect(groups.every((group) => group.length <= LABELMAP_MAX_VALUE)).toBe(
-      true
+    expect(groups).toHaveLength(1);
+    const values = compositeLabelmap('img-wide', groups[0])
+      .labelmap.getPointData()
+      .getScalars()
+      .getData();
+    expect(values).toBeInstanceOf(Uint16Array);
+    expect(Array.from(values)).toEqual(
+      Array.from({ length: 300 }, (_, i) => i + 1)
     );
     groups.forEach((group) =>
       expect(() => compositeLabelmap('img-wide', group)).not.toThrow()
@@ -258,7 +260,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   const layerEntries = () =>
-    layeredSegments('img-1').map((group) =>
+    planLabelmapExport('img-1').parts.map((group) =>
       buildSegNrrdMetadata(
         compositeLabelmap('img-1', group).segments,
         DIMENSIONS
@@ -271,7 +273,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
-    const groups = layeredSegments('img-1');
+    const groups = planLabelmapExport('img-1').parts;
 
     expect(groups).toHaveLength(1);
     expect(compositeScalars('img-1', groups[0])).toEqual(
@@ -289,7 +291,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(over, [2, 2, 2]);
 
-    const groups = layeredSegments('img-1');
+    const groups = planLabelmapExport('img-1').parts;
 
     expect(
       groups.map((group) => group.map((segment) => appearanceOf(segment).name))
@@ -312,7 +314,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(apart, [3, 3, 3]);
 
     expect(
-      layeredSegments('img-1').map((group) =>
+      planLabelmapExport('img-1').parts.map((group) =>
         group.map((segment) => appearanceOf(segment).name)
       )
     ).toEqual([['Under', 'Apart'], ['Over']]);
@@ -342,7 +344,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('composes one labelmap for an image with no segments', () => {
-    expect(layeredSegments('img-1')).toEqual([[]]);
+    expect(planLabelmapExport('img-1').parts).toEqual([[]]);
   });
 });
 

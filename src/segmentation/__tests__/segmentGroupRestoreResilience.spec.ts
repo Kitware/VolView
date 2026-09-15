@@ -261,7 +261,7 @@ describe('migrated segment groups: resilient restore', () => {
       (message) => message.title === 'Some scene content could not be restored'
     );
     expect(warning?.options.details).toContain(
-      'segment group: sg-tumor (labelmap source unavailable)'
+      'segmentation: sg-tumor (labelmap source unavailable)'
     );
   });
 
@@ -289,7 +289,7 @@ describe('migrated segment groups: resilient restore', () => {
       (message) => message.title === 'Some scene content could not be restored'
     );
     expect(warning?.options.details).toContain(
-      'segment group: sg-tumor (parent image did not load)'
+      'segmentation: sg-tumor (parent image did not load)'
     );
   });
 

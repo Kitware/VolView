@@ -53,3 +53,14 @@ Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
 preserve locked neighbors. Processes preserve voxels already held by other
 segments. Import matches existing segment identities by exact name, sharing
 appearance and locks across images.
+
+## Labelmap interchange
+
+Composed labelmaps use unsigned 8-bit voxels for up to 255 labels and unsigned
+16-bit voxels for 256 through 65535 labels. Zero is background. Imported
+16-bit labels are preserved until they are split into independent binary masks;
+editable masks and their saved-session files remain byte-sized.
+
+Export packs whole masks into separate files when they overlap. A part beyond
+65535 labels is split at that capacity. The export plan records these reasons
+separately, so capacity splitting is not reported as overlap.

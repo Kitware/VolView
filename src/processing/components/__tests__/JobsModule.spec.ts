@@ -666,7 +666,7 @@ describe('JobsModule segmentation staging', () => {
     // run on the render path while the user paints in another tab.
     const { second, wrapper } = await seedDisjointPair();
 
-    const scans = vi.spyOn(segmentationComposition, 'layeredSegments');
+    const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
     // Grows B's box onto the voxel A holds, which is the overlap.
     seedVoxel(second.id, [0, 0, 0]);
     await flushPromises();

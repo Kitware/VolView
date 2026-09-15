@@ -176,7 +176,7 @@ export function groupByLayer<T>(
  * also claims.
  */
 export function writeMaskInto(
-  values: Uint8Array,
+  values: Uint8Array | Uint16Array,
   dimensions: readonly number[],
   bounded: BoundedScalars,
   labelValue: number
