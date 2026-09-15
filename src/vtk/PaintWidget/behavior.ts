@@ -52,7 +52,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Paints
    */
   publicAPI.handleMouseMove = (eventData: any) => {
-    if (!model.sampling && shouldIgnoreEvent(eventData)) {
+    if (isPainting && !model.sampling && shouldIgnoreEvent(eventData)) {
       return macro.VOID;
     }
 
