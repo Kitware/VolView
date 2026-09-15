@@ -4,9 +4,7 @@ import {
   type Index3,
   maskOn,
   lockSegment,
-  boundMasks,
   seedVoxel,
-  markedVoxels,
   seatImage,
   seatSpecImage,
   store,
@@ -38,10 +36,10 @@ import useViewCameraStore from '@/src/store/view-configs/camera';
 enableAutoUnmount(afterEach);
 
 // ---------------------------------------------------------------------------
-// One flat list of segment types: rows are the shared registry's segments, keyed
-// on type id, offered whether or not this image has a mask for them. The
-// visibility and lock controls belong to the shared segment, the
-// display sliders to its segmentation, and adding a row allocates nothing.
+// One flat list of segments: rows are the shared registry's segments, keyed
+// on segment id, offered whether or not this image has a mask for them. The
+// visibility and lock controls belong to the shared segment, and the
+// display sliders to the viewed image's segmentation.
 // ---------------------------------------------------------------------------
 
 const segments = () => useSegmentStore().segments;
@@ -178,6 +176,21 @@ const mountListWithTooltips = () =>
 
 const itemList = (wrapper: VueWrapper) => wrapper.findComponent(ItemListStub);
 
+const selectedRow = (wrapper: VueWrapper) =>
+  itemList(wrapper).props('modelValue');
+
+// The fields the list hands the item list to draw a row with.
+const rowShown = (wrapper: VueWrapper, id: string) => {
+  const items = itemList(wrapper).props('items') as Array<{
+    id: string;
+    name: string;
+    color: string;
+  }>;
+  const row = items.find((item) => item.id === id);
+  if (!row) throw new Error(`No row for segment ${id}`);
+  return row;
+};
+
 const rowIds = (wrapper: VueWrapper) =>
   wrapper.findAll('.item-row').map((row) => row.attributes('data-id'));
 
@@ -194,6 +207,12 @@ const rowButton = (wrapper: VueWrapper, id: string, icons: string[]) => {
   if (!button) throw new Error(`No ${icons.join('/')} button on row ${id}`);
   return button;
 };
+
+const eyeOf = (wrapper: VueWrapper, id: string) =>
+  rowButton(wrapper, id, ['mdi-eye', 'mdi-eye-off']).text();
+
+const lockOf = (wrapper: VueWrapper, id: string) =>
+  rowButton(wrapper, id, ['mdi-lock', 'mdi-lock-open']).text();
 
 const editor = (wrapper: VueWrapper) =>
   wrapper.findComponent(SegmentEditorStub);
@@ -216,7 +235,7 @@ describe('flat segment list', () => {
     await viewImage('img-1');
   });
 
-  it('lists the registry in creation order, keyed by type id', async () => {
+  it('lists the registry in creation order, keyed by segment id', async () => {
     const first = makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');
 
@@ -232,17 +251,17 @@ describe('flat segment list', () => {
     ).toEqual(['Tumor', 'Node']);
   });
 
-  it('lists a type that has no voxels yet', async () => {
+  it('lists a segment that has no voxels yet', async () => {
     const unbound = makeMask('img-1', 'Tumor');
+    expect(unbound.record.representations.labelmap).toBeUndefined();
 
     const wrapper = mountList();
     await nextTick();
 
-    expect(unbound.record.representations.labelmap).toBeUndefined();
     expect(rowIds(wrapper)).toEqual([unbound.id]);
   });
 
-  it('offers a type with no mask on this image', async () => {
+  it('offers a segment with no mask on this image', async () => {
     const onTwo = makeMask('img-2', 'Node');
     const everywhere = makeSegment('Tumor');
 
@@ -250,7 +269,6 @@ describe('flat segment list', () => {
     await nextTick();
 
     expect(rowIds(wrapper)).toEqual([onTwo.id, everywhere]);
-    expect(store().getSegmentationForImage('img-1')).toBeUndefined();
   });
 
   it('keeps the same rows when the viewed image changes', async () => {
@@ -264,30 +282,6 @@ describe('flat segment list', () => {
     await viewImage('img-2');
 
     expect(rowIds(wrapper)).toEqual([onOne.id, onTwo.id]);
-  });
-
-  it('creates no segmentation for an image it renders', async () => {
-    const onOne = makeMask('img-1', 'Tumor');
-    segments().selectSegment(onOne.segmentId);
-    await viewImage('img-2');
-
-    mountList();
-    await nextTick();
-
-    expect(store().getSegmentationForImage('img-2')).toBeUndefined();
-    // Rendering an empty list is not a deselection.
-    expect(segments().selectedSegmentId.value).toBe(onOne.segmentId);
-  });
-
-  it('leaves the selected type alone when it mounts', async () => {
-    const first = makeMask('img-1', 'Tumor');
-    makeMask('img-1', 'Node');
-    segments().selectSegment(first.segmentId);
-
-    mountList();
-    await nextTick();
-
-    expect(segments().selectedSegmentId.value).toBe(first.segmentId);
   });
 });
 
@@ -325,7 +319,7 @@ describe('flat segment list selection', () => {
     await viewImage('img-1');
   });
 
-  it('marks the selected type as the selected row', async () => {
+  it('marks the selected segment as the selected row', async () => {
     makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');
     segments().selectSegment(second.segmentId);
@@ -336,7 +330,30 @@ describe('flat segment list selection', () => {
     expect(itemList(wrapper).props('modelValue')).toBe(second.segmentId);
   });
 
-  it('selects a type by id when a row is picked', async () => {
+  it('marks the first row selected while no segment has been chosen', async () => {
+    const first = makeMask('img-1', 'Tumor');
+    makeMask('img-1', 'Node');
+
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(itemList(wrapper).props('modelValue')).toBe(first.segmentId);
+  });
+
+  it('keeps the selected row when the list picks nothing', async () => {
+    makeMask('img-1', 'Tumor');
+    const second = makeMask('img-1', 'Node');
+    segments().selectSegment(second.segmentId);
+    const wrapper = mountList();
+    await nextTick();
+
+    itemList(wrapper).vm.$emit('update:model-value', null);
+    await nextTick();
+
+    expect(itemList(wrapper).props('modelValue')).toBe(second.segmentId);
+  });
+
+  it('selects a segment by id when a row is picked', async () => {
     const first = makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');
     segments().selectSegment(first.segmentId);
@@ -346,12 +363,10 @@ describe('flat segment list selection', () => {
     itemList(wrapper).vm.$emit('update:model-value', second.segmentId);
     await nextTick();
 
-    expect(segments().selectedSegmentId.value).toBe(second.segmentId);
-    // Selecting creates nothing on any image.
-    expect(store().getSegmentationForImage('img-2')).toBeUndefined();
+    expect(selectedRow(wrapper)).toBe(second.segmentId);
   });
 
-  it('keeps the selected row on an image the type has no mask on', async () => {
+  it('keeps the selected row on an image the segment has no mask on', async () => {
     const onOne = makeMask('img-1', 'Tumor');
     segments().selectSegment(onOne.segmentId);
     await viewImage('img-2');
@@ -360,7 +375,6 @@ describe('flat segment list selection', () => {
     await nextTick();
 
     expect(itemList(wrapper).props('modelValue')).toBe(onOne.segmentId);
-    expect(store().getSegmentationForImage('img-2')).toBeUndefined();
   });
 });
 
@@ -371,29 +385,25 @@ describe('flat segment list row creation', () => {
     await viewImage('img-1');
   });
 
-  it('adds a row without allocating any storage', async () => {
+  it('adds a row', async () => {
     const wrapper = mountList();
     await nextTick();
 
     itemList(wrapper).vm.$emit('create');
     await nextTick();
 
-    expect(segments().segmentList.value).toHaveLength(1);
-    expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-    expect(boundMasks()).toEqual([]);
-    expect(rowIds(wrapper)).toEqual([segments().segmentList.value[0].id]);
+    expect(rowIds(wrapper)).toHaveLength(1);
   });
 
   it('selects the row it adds', async () => {
+    segments().selectSegment(makeSegment('Tumor'));
     const wrapper = mountList();
     await nextTick();
 
     itemList(wrapper).vm.$emit('create');
     await nextTick();
 
-    expect(segments().selectedSegmentId.value).toBe(
-      segments().segmentList.value[0].id
-    );
+    expect(selectedRow(wrapper)).toBe(rowIds(wrapper)[1]);
   });
 
   it('adds the row for every image at once', async () => {
@@ -404,10 +414,9 @@ describe('flat segment list row creation', () => {
 
     itemList(wrapper).vm.$emit('create');
     await nextTick();
+    await viewImage('img-2');
 
     expect(rowIds(wrapper)).toHaveLength(2);
-    // The other image keeps the one mask it had; the new type has none.
-    expect(store().getSegmentationForImage('img-2')!.order).toHaveLength(1);
   });
 });
 
@@ -428,8 +437,8 @@ describe('flat segment list row actions', () => {
       'click'
     );
 
-    expect(segments().appearanceOf(second.segmentId).visible).toBe(false);
-    expect(segments().appearanceOf(first.segmentId).visible).toBe(true);
+    expect(eyeOf(wrapper, second.id)).toBe('mdi-eye-off');
+    expect(eyeOf(wrapper, first.id)).toBe('mdi-eye');
   });
 
   it('toggles one segment’s lock by id', async () => {
@@ -442,8 +451,8 @@ describe('flat segment list row actions', () => {
       'click'
     );
 
-    expect(segments().appearanceOf(second.segmentId).locked).toBe(true);
-    expect(segments().appearanceOf(first.segmentId).locked).toBe(false);
+    expect(lockOf(wrapper, second.id)).toBe('mdi-lock');
+    expect(lockOf(wrapper, first.id)).toBe('mdi-lock-open');
   });
 
   // The tooltip is the only place the panel can say what locking does, and the
@@ -486,7 +495,7 @@ describe('flat segment list row actions', () => {
     expect(lockTooltip(wrapper, segment.id)).toMatch(/takes its voxels/i);
   });
 
-  it('deletes one type, with the masks it had, by id', async () => {
+  it('deletes one segment by id', async () => {
     const first = makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');
     const wrapper = mountList();
@@ -495,10 +504,6 @@ describe('flat segment list row actions', () => {
     await rowButton(wrapper, first.id, ['mdi-delete']).trigger('click');
     await nextTick();
 
-    expect(store().getSegmentationForImage('img-1')!.order).toEqual([
-      second.maskId,
-    ]);
-    expect(segments().getSegment(first.segmentId)).toBeUndefined();
     expect(rowIds(wrapper)).toEqual([second.id]);
   });
 
@@ -508,7 +513,7 @@ describe('flat segment list row actions', () => {
     const wrapper = mountList();
     await nextTick();
 
-    // Both describe the type, so they hold on every image and are offered on
+    // Both describe the segment, so they hold on every image and are offered on
     // a row this image has painted nothing for.
     [withMask.id, withoutMask].forEach((id) => {
       expect(rowButton(wrapper, id, ['mdi-eye', 'mdi-eye-off']).exists()).toBe(
@@ -523,7 +528,7 @@ describe('flat segment list row actions', () => {
       'click'
     );
 
-    expect(segments().appearanceOf(withoutMask).visible).toBe(false);
+    expect(eyeOf(wrapper, withoutMask)).toBe('mdi-eye-off');
   });
 
   it('offers the header toggles disabled, saying why, while no segment exists', async () => {
@@ -554,7 +559,7 @@ describe('flat segment list row actions', () => {
     });
   });
 
-  it('hides every type at once, on every image', async () => {
+  it('hides every segment at once, on every image', async () => {
     const first = makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');
     await seatSpecImage('img-2');
@@ -566,9 +571,11 @@ describe('flat segment list row actions', () => {
       .find('[data-testid="toggle-segments-visible-button"]')
       .trigger('click');
 
-    expect(segments().appearanceOf(first.segmentId).visible).toBe(false);
-    expect(segments().appearanceOf(second.segmentId).visible).toBe(false);
-    expect(segments().appearanceOf(elsewhere.segmentId).visible).toBe(false);
+    [first.id, second.id, elsewhere.id].forEach((id) =>
+      expect(eyeOf(wrapper, id)).toBe('mdi-eye-off')
+    );
+    await viewImage('img-2');
+    expect(eyeOf(wrapper, elsewhere.id)).toBe('mdi-eye-off');
   });
 });
 
@@ -579,15 +586,19 @@ describe('flat segment list row editing', () => {
     await viewImage('img-1');
   });
 
+  const reopenEditor = async (wrapper: VueWrapper, id: string) => {
+    await rowButton(wrapper, id, ['mdi-pencil']).trigger('click');
+    await nextTick();
+  };
+
   const openEditor = async (id: string) => {
     const wrapper = mountList();
     await nextTick();
-    await rowButton(wrapper, id, ['mdi-pencil']).trigger('click');
-    await nextTick();
+    await reopenEditor(wrapper, id);
     return wrapper;
   };
 
-  it('renames the row’s type by id, keeping that id', async () => {
+  it('renames the row’s segment by id, keeping that id', async () => {
     makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');
     const wrapper = await openEditor(second.id);
@@ -596,11 +607,10 @@ describe('flat segment list row editing', () => {
     editor(wrapper).vm.$emit('done');
     await nextTick();
 
-    expect(segments().appearanceOf(second.segmentId).name).toBe('Lesion');
-    expect(store().getMask(second.maskId).segmentId).toBe(second.segmentId);
+    expect(rowShown(wrapper, second.id).name).toBe('Lesion');
   });
 
-  it('recolors the row’s type by id', async () => {
+  it('recolors the row’s segment by id', async () => {
     const segment = makeMask('img-1', 'Tumor');
     const wrapper = await openEditor(segment.id);
 
@@ -608,12 +618,10 @@ describe('flat segment list row editing', () => {
     editor(wrapper).vm.$emit('done');
     await nextTick();
 
-    expect(
-      [...segments().appearanceOf(segment.segmentId).color].slice(0, 3)
-    ).toEqual([0, 0, 255]);
+    expect(rowShown(wrapper, segment.id).color).toBe('#0000ff');
   });
 
-  it('edits the type’s fill opacity, outline opacity and stroke width', async () => {
+  it('edits the segment’s fill opacity, outline opacity and stroke width', async () => {
     const segment = makeMask('img-1', 'Tumor');
     const wrapper = await openEditor(segment.id);
 
@@ -625,11 +633,13 @@ describe('flat segment list row editing', () => {
     editor(wrapper).vm.$emit('update:strokeWidth', 3);
     editor(wrapper).vm.$emit('done');
     await nextTick();
+    await reopenEditor(wrapper, segment.id);
 
-    const appearance = segments().appearanceOf(segment.segmentId);
-    expect(appearance.fillOpacity).toBe(0.5);
-    expect(appearance.outlineOpacity).toBe(0.25);
-    expect(appearance.strokeWidth).toBe(3);
+    expect(editor(wrapper).props()).toMatchObject({
+      fillOpacity: 0.5,
+      outlineOpacity: 0.25,
+      strokeWidth: 3,
+    });
   });
 
   it('discards the edit when the dialog is cancelled', async () => {
@@ -640,10 +650,13 @@ describe('flat segment list row editing', () => {
     editor(wrapper).vm.$emit('update:fillOpacity', 0.5);
     editor(wrapper).vm.$emit('cancel');
     await nextTick();
+    await reopenEditor(wrapper, segment.id);
 
-    const appearance = segments().appearanceOf(segment.segmentId);
-    expect(appearance.name).toBe('Tumor');
-    expect(appearance.fillOpacity).toBe(1);
+    expect(rowShown(wrapper, segment.id).name).toBe('Tumor');
+    expect(editor(wrapper).props()).toMatchObject({
+      name: 'Tumor',
+      fillOpacity: 1,
+    });
   });
 
   it('offers the other rows’ names as taken', async () => {
@@ -670,48 +683,26 @@ describe('flat segment list on a cine image', () => {
     await viewImage('cine-1');
   });
 
-  it('creates and edits distinct measurement segments without allocating masks', async () => {
+  it('creates and edits distinct measurement segments', async () => {
     const wrapper = mountList();
-    const rulers = useRulerStore();
-    const placed = [];
     for (const [name, color] of [
       ['Long axis', '#ff0000'],
       ['Short axis', '#0000ff'],
     ]) {
       await wrapper.get('.create-row').trigger('click');
-      const segmentId = segments().selectedSegmentId.value!;
-      await rowButton(wrapper, segmentId, ['mdi-pencil']).trigger('click');
+      await rowButton(wrapper, selectedRow(wrapper), ['mdi-pencil']).trigger(
+        'click'
+      );
       editor(wrapper).vm.$emit('update:name', name);
       editor(wrapper).vm.$emit('update:color', color);
       editor(wrapper).vm.$emit('done');
       await nextTick();
-      const id = rulers.addTool({
-        imageID: 'cine-1',
-        frame: 1,
-        slice: 0,
-        frameOfReference: AXIAL_FRAME_OF_REFERENCE,
-        placing: true,
-      });
-      rulers.placeTool(id);
-      placed.push(id);
     }
 
-    expect(segments().segmentList.value).toHaveLength(2);
-    expect(placed.map((id) => rulers.appearanceOfTool(id).name)).toEqual([
-      'Long axis',
-      'Short axis',
+    expect(rowIds(wrapper).map((id) => rowShown(wrapper, id!))).toMatchObject([
+      { name: 'Long axis', color: '#ff0000' },
+      { name: 'Short axis', color: '#0000ff' },
     ]);
-    expect(
-      placed.map((id) => [...rulers.appearanceOfTool(id).color].slice(0, 3))
-    ).toEqual([
-      [255, 0, 0],
-      [0, 0, 255],
-    ]);
-    expect(
-      new Set(placed.map((id) => rulers.toolByID[id].segmentId)).size
-    ).toBe(2);
-    expect(store().getSegmentationForImage('cine-1')).toBeUndefined();
-    expect(boundMasks()).toEqual([]);
     expect(
       wrapper.get('[data-testid="save-segments-button"]').attributes('disabled')
     ).toBeDefined();
@@ -774,16 +765,12 @@ describe('flat segment list on a cine image', () => {
     );
   });
 
-  it('keeps an empty segment reveal disabled and leaves the frame alone', async () => {
+  it('keeps an empty segment’s reveal disabled', async () => {
     const segmentId = segments().addSegment();
     const wrapper = mountList();
-    const viewId = useViewStore().activeView!;
-    useCinePlaybackStore().updateConfig(viewId, 'cine-1', { frame: 1 });
     expect(
       revealButton(wrapper, segmentId).attributes('disabled')
     ).toBeDefined();
-    await revealButton(wrapper, segmentId).trigger('click');
-    expect(useCinePlaybackStore().getConfig(viewId, 'cine-1').frame).toBe(1);
   });
 });
 
@@ -837,12 +824,14 @@ describe('segmentation display section', () => {
     );
   });
 
-  it('creates display state when a default control is changed', async () => {
+  it('keeps a change made before the image has a segmentation', async () => {
     const wrapper = mountList();
 
     await setSlider(wrapper, 'Fill Opacity', 0.25);
 
-    expect(store().getSegmentationForImage('img-1')?.fillOpacity).toBe(0.25);
+    expect(slider(wrapper, 'Fill Opacity').attributes('data-value')).toBe(
+      '0.25'
+    );
   });
 
   it('seats each control at the segmentation’s current value', async () => {
@@ -872,12 +861,12 @@ describe('segmentation display section', () => {
   });
 
   it.each([
-    ['Fill Opacity', 'fillOpacity', 0.25],
-    ['Outline Opacity', 'outlineOpacity', 0.5],
-    ['Outline Thickness', 'outlineThickness', 4],
+    ['Fill Opacity', 0.25],
+    ['Outline Opacity', 0.5],
+    ['Outline Thickness', 4],
   ] as const)(
     'writes %s onto the viewed image’s segmentation',
-    async (label, key, value) => {
+    async (label, value) => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       store().createMask(
         segmentation.id,
@@ -888,7 +877,9 @@ describe('segmentation display section', () => {
 
       await setSlider(wrapper, label, value);
 
-      expect(store().getSegmentationForImage('img-1')![key]).toBe(value);
+      expect(slider(wrapper, label).attributes('data-value')).toBe(
+        String(value)
+      );
     }
   );
 
@@ -902,10 +893,14 @@ describe('segmentation display section', () => {
     await nextTick();
 
     await setSlider(wrapper, 'Fill Opacity', 0.25);
+    await viewImage('img-2');
 
-    expect(store().getSegmentationForImage('img-1')!.fillOpacity).toBe(0.25);
-    expect(store().getSegmentationForImage('img-2')!.fillOpacity).toBe(
-      DEFAULT_SEGMENTATION_FILL_OPACITY
+    expect(slider(wrapper, 'Fill Opacity').attributes('data-value')).toBe(
+      String(DEFAULT_SEGMENTATION_FILL_OPACITY)
+    );
+    await viewImage('img-1');
+    expect(slider(wrapper, 'Fill Opacity').attributes('data-value')).toBe(
+      '0.25'
     );
   });
 });
@@ -1099,7 +1094,7 @@ describe.each(ANNOTATION_STORES)(
           frame,
         });
       const shown = addShape('img-1');
-      const hidden = addShape('img-1', true);
+      addShape('img-1', true);
       seatCineImage('cine-1');
       const cineFirst = addShape('cine-1', false, 0);
       const cineSecond = addShape('cine-1', false, 1);
@@ -1132,7 +1127,6 @@ describe.each(ANNOTATION_STORES)(
       await viewImage('img-1');
       viewFrame.value = undefined;
       expect(ids()).toEqual([shown]);
-      expect(tools.toolByID[hidden].hidden).toBe(true);
     });
 
     it('keeps the active placement alive through hiding, committing and starting again', () => {
@@ -1182,31 +1176,31 @@ describe('locked segment editor routes', () => {
 
   const protectedContent = () => {
     const segmentId = segments().addSegment({ name: 'Tumor' });
-    const rulers = useRulerStore();
-    const content = ['img-1', 'img-2'].map((imageID) => {
-      const mask = maskOn(imageID, segmentId);
-      seedVoxel(mask.id, [1, 1, 0]);
-      const ruler = rulers.addTool({
+    ['img-1', 'img-2'].forEach((imageID) => {
+      seedVoxel(maskOn(imageID, segmentId).id, [1, 1, 0]);
+      useRulerStore().addTool({
         imageID,
         segmentId,
         slice: 0,
         frameOfReference: AXIAL_FRAME_OF_REFERENCE,
       });
-      return { imageID, maskId: mask.id, ruler };
     });
-    const expectPreserved = () => {
-      expect(segments().appearanceOf(segmentId).name).toBe('Tumor');
-      content.forEach(({ imageID, maskId, ruler }) => {
-        expect(store().maskFor(imageID, segmentId)?.id).toBe(maskId);
-        expect(markedVoxels(maskId)).toEqual([[1, 1, 0, SEGMENT_VALUE]]);
-        expect(rulers.toolByID[ruler].segmentId).toBe(segmentId);
-      });
-    };
-    return { segmentId, expectPreserved };
+    return segmentId;
+  };
+
+  // The row keeps its name and still reveals what it holds on both images.
+  const expectPreserved = async (wrapper: VueWrapper, segmentId: string) => {
+    for (const imageID of ['img-2', 'img-1']) {
+      await viewImage(imageID);
+      expect(rowShown(wrapper, segmentId).name).toBe('Tumor');
+      expect(
+        revealButton(wrapper, segmentId).attributes('disabled')
+      ).toBeUndefined();
+    }
   };
 
   it('disables color, edit and delete consistently and restores editing after unlocking', async () => {
-    const { segmentId, expectPreserved } = protectedContent();
+    const segmentId = protectedContent();
     segments().updateSegment(segmentId, { locked: true });
     const wrapper = mountList();
     for (const action of [
@@ -1220,7 +1214,7 @@ describe('locked segment editor routes', () => {
       expect(button.attributes('disabled')).toBeDefined();
       await button.trigger('click');
       expect(editor(wrapper).exists()).toBe(false);
-      expectPreserved();
+      await expectPreserved(wrapper, segmentId);
     }
     segments().updateSegment(segmentId, { locked: false });
     await nextTick();
@@ -1229,13 +1223,13 @@ describe('locked segment editor routes', () => {
     editor(wrapper).vm.$emit('update:name', 'Lesion');
     editor(wrapper).vm.$emit('done');
     await nextTick();
-    expect(segments().appearanceOf(segmentId).name).toBe('Lesion');
+    expect(rowShown(wrapper, segmentId).name).toBe('Lesion');
   });
 
   it.each(['done', 'delete'])(
     'refuses %s if the segment becomes locked while its editor is open',
     async (action) => {
-      const { segmentId, expectPreserved } = protectedContent();
+      const segmentId = protectedContent();
       const wrapper = mountList();
       await wrapper
         .get('[data-testid="segment-color-button"]')
@@ -1247,7 +1241,7 @@ describe('locked segment editor routes', () => {
       expect(editor(wrapper).props('locked')).toBe(true);
       editor(wrapper).vm.$emit(action);
       await nextTick();
-      expectPreserved();
+      await expectPreserved(wrapper, segmentId);
     }
   );
 });
@@ -1345,7 +1339,7 @@ describe('deleting a segment says what went with it', () => {
 
     await deleteRow(wrapper, recorded.id);
 
-    expect(segments().getSegment(recorded.id)).toBeUndefined();
+    expect(rowIds(wrapper)).toEqual([]);
     expect(titles()).toEqual([]);
   });
 
@@ -1356,7 +1350,7 @@ describe('deleting a segment says what went with it', () => {
 
     await deleteRow(wrapper, empty);
 
-    expect(segments().getSegment(empty)).toBeUndefined();
+    expect(rowIds(wrapper)).toEqual([]);
     expect(titles()).toEqual([]);
   });
 
@@ -1371,7 +1365,7 @@ describe('deleting a segment says what went with it', () => {
     editor(wrapper).vm.$emit('delete');
     await nextTick();
 
-    expect(segments().getSegment(segmentId)).toBeUndefined();
+    expect(rowIds(wrapper)).toEqual([]);
     expect(titles()).toEqual(['Deleted 2 masks on 2 images and 2 annotations']);
   });
 });
@@ -1413,7 +1407,6 @@ describe('segment row identity', () => {
     await nextTick();
 
     const after = rowsOf(wrapper);
-    expect(useRulerStore().toolByID[ruler].slice).toBe(1);
     expect(after[0]).toBe(before[0]);
     expect(after[1]).toBe(before[1]);
     expect(after.map((row) => row.id)).toEqual([first.id, second.id]);

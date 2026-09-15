@@ -25,11 +25,9 @@ export const useSegmentStore = defineStore('segments', () => {
   /** Fresh ids for the incoming segments; the map remaps every reference. */
   function deserialize(manifest: Manifest) {
     const segmentIdMap = registry.adopt(manifest.segments);
-    const selected =
-      manifest.selectedSegment && segmentIdMap[manifest.selectedSegment];
-    // An import into a populated scene leaves the user's selection alone.
-    if (selected && !registry.selectedSegment.value)
-      registry.selectSegment(selected);
+    registry.restoreSelection(
+      manifest.selectedSegment && segmentIdMap[manifest.selectedSegment]
+    );
     return segmentIdMap;
   }
 

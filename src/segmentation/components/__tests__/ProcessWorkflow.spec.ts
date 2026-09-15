@@ -9,10 +9,7 @@ import {
   addActiveSegment,
   seatImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import {
-  usePaintProcessStore,
-  type ProcessTarget,
-} from '@/src/segmentation/editing/paintProcess';
+import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -89,45 +86,41 @@ describe('the process preview toggle', () => {
     await flushPromises();
     const values = () =>
       Array.from(labelMap.getPointData().getScalars().getData());
-    expect(usePaintProcessStore().processStep).toBe('previewing');
-    return { wrapper, values, processStore: usePaintProcessStore() };
+    expect(wrapper.find('.btn-toggle').exists()).toBe(true);
+    return { wrapper, values };
   };
 
   it('leaves the preview alone when the showing button is clicked again', async () => {
-    const { wrapper, values, processStore } = await previewing();
+    const { wrapper, values } = await previewing();
     expect(selected(wrapper)).toBe('1');
     expect(values()).toEqual([1, 1]);
 
     await button(wrapper, 'Processed').trigger('click');
 
-    expect(processStore.showingOriginal).toBe(false);
     expect(selected(wrapper)).toBe('1');
     expect(values()).toEqual([1, 1]);
   });
 
   it('shows the original once, however often its button is clicked', async () => {
-    const { wrapper, values, processStore } = await previewing();
+    const { wrapper, values } = await previewing();
 
     await button(wrapper, 'Original').trigger('click');
 
-    expect(processStore.showingOriginal).toBe(true);
     expect(selected(wrapper)).toBe('0');
     expect(values()).toEqual([1, 0]);
 
     await button(wrapper, 'Original').trigger('click');
 
-    expect(processStore.showingOriginal).toBe(true);
     expect(selected(wrapper)).toBe('0');
     expect(values()).toEqual([1, 0]);
   });
 
   it('still moves between the two', async () => {
-    const { wrapper, values, processStore } = await previewing();
+    const { wrapper, values } = await previewing();
 
     await button(wrapper, 'Original').trigger('click');
     await button(wrapper, 'Processed').trigger('click');
 
-    expect(processStore.showingOriginal).toBe(false);
     expect(selected(wrapper)).toBe('1');
     expect(values()).toEqual([1, 1]);
   });

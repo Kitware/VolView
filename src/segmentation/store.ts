@@ -400,9 +400,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           })),
           { source }
         );
-        if (created.length && !segmentRegistry.selectedSegment.value) {
-          segmentRegistry.selectSegment(created[0].segmentId);
-        }
         return created.map((mask) => mask.id);
       },
     });
@@ -567,9 +564,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     ).locked;
 
   /**
-   * Resolves or creates the mask an edit targets. With nothing selected the
-   * first edit mints and selects a segment, then takes this image's mask of it.
-   * Callers refusing a locked segment ask `editTargetLocked` before this.
+   * Resolves or creates the mask an edit targets. With no segments the first
+   * edit mints one, then takes this image's mask of it. Callers refusing a
+   * locked segment ask `editTargetLocked` before this.
    */
   function resolveEditTarget(
     imageId: string,

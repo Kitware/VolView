@@ -545,10 +545,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         const activeIndex = descriptors.findIndex(
           (descriptor) => descriptor.value === item.activeValue
         );
-        const active = restored[activeIndex];
-        // A restore into a populated scene leaves the user's selection alone.
-        if (active && !segmentRegistry.selectedSegmentId.value)
-          segmentRegistry.selectSegment(active.segmentId);
+        segmentRegistry.restoreSelection(restored[activeIndex]?.segmentId);
       } else {
         const segmentation = getSegmentationForImage(parentImageId);
         const targets = item.masks.flatMap(({ maskId, value }) => {

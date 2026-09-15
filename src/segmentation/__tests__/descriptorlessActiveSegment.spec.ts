@@ -143,10 +143,10 @@ describe('restoring a descriptorless active group', () => {
     expect(useSegmentStore().segments.selectedSegmentId.value).toBe(liver);
   });
 
-  it('leaves the active segment alone when no source value matches', async () => {
+  it('selects the first segment when no source value matches', async () => {
     await restoreTwoGroups(7);
 
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBeUndefined();
+    expect(selectedIndex()).toBe(0);
   });
 });
 

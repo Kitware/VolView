@@ -20,8 +20,8 @@ import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 // ---------------------------------------------------------------------------
 // Configured segments are declared once for a session, before any image loads.
 // Configuring one creates nothing: no mask, no geometry, no image. A key keeps
-// its type id across config changes, and dropping a key only removes the type
-// when nothing references it.
+// its segment id across config changes, and dropping a key only removes the
+// segment when nothing references it.
 // ---------------------------------------------------------------------------
 
 const segments = () => useSegmentStore().segments;
@@ -56,7 +56,7 @@ const TWO_TYPES = {
   },
 };
 
-describe('a configured type creates nothing', () => {
+describe('a configured segment creates nothing', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -105,7 +105,7 @@ describe('a configured type creates nothing', () => {
     expect(store().segmentations).toEqual({});
   });
 
-  it('lands the first edit in the selected configured type', async () => {
+  it('lands the first edit in the selected configured segment', async () => {
     applyConfig(TWO_TYPES);
     await seatAndView('img-1');
     segments().selectSegment(segmentIdNamed('Node'));
@@ -217,7 +217,7 @@ describe('a second config replaces the first', () => {
     expect(store().getMask(mask.id).segmentId).toBe(id);
   });
 
-  it('drops an unreferenced type the second config leaves out', () => {
+  it('drops an unreferenced segment the second config leaves out', () => {
     applyConfig(TWO_TYPES);
 
     applyConfig({ segments: { Tumor: { color: 'blue' } } });
@@ -225,7 +225,32 @@ describe('a second config replaces the first', () => {
     expect(typeNames()).toEqual(['Tumor']);
   });
 
-  it('keeps a dropped type that a mask still references', async () => {
+  it.each([
+    { replacement: {}, expected: [] },
+    { replacement: null, expected: [] },
+    {
+      replacement: { replacement: { color: 'white' } },
+      expected: ['replacement'],
+    },
+  ])(
+    'drops inherited-property names omitted by $replacement',
+    ({ replacement, expected }) => {
+      applyConfig({
+        segments: {
+          constructor: { color: 'red' },
+          toString: { color: 'blue' },
+          ordinary: { color: 'green' },
+        },
+      });
+      expect(typeNames()).toEqual(['constructor', 'toString', 'ordinary']);
+
+      applyConfig({ segments: replacement });
+
+      expect(typeNames()).toEqual(expected);
+    }
+  );
+
+  it('keeps a dropped segment that a mask still references', async () => {
     applyConfig(TWO_TYPES);
     await seatAndView('img-1');
     const node = segmentIdNamed('Node');
@@ -237,7 +262,7 @@ describe('a second config replaces the first', () => {
     expect(recordsOf('img-1')).toEqual([record.id]);
   });
 
-  it('keeps a dropped type that a shape still references', async () => {
+  it('keeps a dropped segment that a shape still references', async () => {
     applyConfig(TWO_TYPES);
     await seatAndView('img-1');
     const node = segmentIdNamed('Node');
@@ -260,7 +285,7 @@ describe('a second config replaces the first', () => {
     expect(typeNames()).toEqual(['Tumor', 'Node']);
   });
 
-  it('leaves a type the user made alone', () => {
+  it('leaves a segment the user made alone', () => {
     applyConfig(TWO_TYPES);
     const own = segments().addSegment({ name: 'Mine' });
 
@@ -276,8 +301,8 @@ describe('config applies after a restore', () => {
     setActivePinia(createPinia());
   });
 
-  it('overlays a restored type of the same name rather than adding one', () => {
-    // Restore seats the type first; the config then states its appearance.
+  it('overlays a restored segment of the same name rather than adding one', () => {
+    // Restore seats the segment first; the config then states its appearance.
     const restored = segments().mintSegment({
       name: 'Tumor',
       color: [1, 2, 3, 255],
@@ -312,7 +337,7 @@ describe('config applies after a restore', () => {
     expect(segments().appearanceOf(id)).toEqual(original);
   });
 
-  it('keeps a restored type the config does not name', () => {
+  it('keeps a restored segment the config does not name', () => {
     const restored = segments().mintSegment({ name: 'Restored' });
 
     applyConfig(TWO_TYPES);
@@ -321,7 +346,17 @@ describe('config applies after a restore', () => {
     expect(typeNames()).toEqual(['Restored', 'Tumor', 'Node']);
   });
 
-  it('keeps a shape pointing at the type the config took over', () => {
+  it('keeps a restored segment it overlaid once a later config drops the key', () => {
+    const restored = segments().mintSegment({ name: 'Tumor' });
+    applyConfig({ segments: { Tumor: { color: 'blue' } } });
+
+    applyConfig({ segments: {} });
+
+    expect(segments().getSegment(restored)?.name).toBe('Tumor');
+    expect(typeNames()).toEqual(['Tumor']);
+  });
+
+  it('keeps a shape pointing at the segment the config took over', () => {
     const restored = segments().mintSegment({ name: 'Tumor' });
     const toolId = useRectangleStore().addTool({
       imageID: 'img-1',

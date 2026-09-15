@@ -152,13 +152,6 @@ function openSaveDialog() {
   saveDialog.value = true;
 }
 
-// --- selection --- //
-
-const selectedSegmentOn = computed({
-  get: () => registry.selectedSegmentId.value ?? null,
-  set: (id: Maybe<string>) => registry.selectSegment(id ?? undefined),
-});
-
 // Adding a row allocates no storage and touches no image: the segment exists
 // as identity until an edit binds a mask to it.
 function addNewSegment() {
@@ -387,7 +380,8 @@ const {
 
         <v-expansion-panel-text class="segments-section-body">
           <editable-item-list
-            v-model="selectedSegmentOn"
+            :model-value="registry.selectedSegmentId.value"
+            @update:model-value="registry.selectSegment"
             :selection-revision="registry.selectionRevision.value"
             :items="rows"
             reorderable

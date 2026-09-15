@@ -184,9 +184,7 @@ describe('Paint process store', () => {
   it('says why a run cannot start without starting one', () => {
     const processStore = usePaintProcessStore();
 
-    expect(processStore.startRefusal('image-1')).toBe(
-      'No active segment selected'
-    );
+    expect(processStore.startRefusal('image-1')).toBe('No segments to process');
     expect(processStore.startRefusal('image-1', false)).toBe(
       'No segmentation to process'
     );
@@ -202,6 +200,27 @@ describe('Paint process store', () => {
     expect(processStore.startRefusal('image-1', false)).toBe(
       'Every segment is locked'
     );
+  });
+
+  it('processes the first segment while none has been chosen', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const { id } = segmentationStore.ensureSegmentationForImage('image-1');
+    const first = segmentationStore.createMask(id, mintSegment({ name: 'A' }));
+    segmentationStore.createMask(id, mintSegment({ name: 'B' }));
+    const voxels = segmentationStore.maskVoxels(first.id);
+    voxels.materialize();
+    voxels.ensureContains([0, 1, 0, 0, 0, 0]);
+    voxels.apply(new Uint8Array([1, 0]));
+
+    expect(processStore.startRefusal('image-1')).toBe('');
+
+    await processStore.startProcess(async (target: ProcessTarget) => ({
+      scalars: new Uint8Array([1, 1]),
+      extent: target.maskExtent,
+    }));
+
+    expect(getScalars(voxels.image())).toEqual([1, 1]);
   });
 
   it('names a selected segment with no mask on this image as empty', () => {
@@ -250,7 +269,7 @@ describe('Paint process store', () => {
     expect(boundMasks()).toHaveLength(0);
     expect(processStore.processState.step).toBe('start');
     expect(messageStore.messages.map(({ title }) => title)).toContain(
-      'No active segment selected'
+      'No segments to process'
     );
   });
 

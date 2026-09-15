@@ -113,14 +113,28 @@ describe('the edit target of a selected segment', () => {
     expect(segments().getSegment(segment.segmentId)).toBeDefined();
   });
 
-  it('finds no target with nothing selected', () => {
-    const segment = makeMask('img-1', 'Tumor');
-    segments().selectSegment(segment.segmentId);
+  it('targets the first segment while none has been chosen', () => {
+    const first = makeMask('img-1', 'Tumor');
+    makeMask('img-1', 'Node');
 
-    segments().selectSegment(undefined);
+    expect(store().findEditTarget('img-1')).toBe(first.id);
+  });
 
+  it('finds no target with no segments', () => {
     expect(store().findEditTarget('img-1')).toBeUndefined();
-    expect(segments().appearanceOf(segment.segmentId).name).toBe('Tumor');
+  });
+
+  it('asks the lock of the segment it targets', () => {
+    const first = makeMask('img-1', 'Tumor');
+    const second = makeMask('img-1', 'Node');
+    segments().updateSegment(first.segmentId, { locked: true });
+
+    expect(store().editTargetLocked()).toBe(true);
+
+    segments().selectSegment(second.segmentId);
+
+    expect(store().editTargetLocked()).toBe(false);
+    expect(store().findEditTarget('img-1')).toBe(second.id);
   });
 
   it('resolves an edit target to a mask id', async () => {

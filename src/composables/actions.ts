@@ -11,19 +11,14 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
-import type { Segment } from '@/src/segmentation/segment';
 
 // One registry holds the segments every tool draws into, so cycling it is not
 // scoped to a tool: paint takes the selection the same way a polygon does.
 const applySegmentOffset = (offset: number) => () => {
   const { segments } = useSegmentStore();
-  const ids = segments.segmentList.value.map((segment: Segment) => segment.id);
-  if (ids.length === 0) return;
-
-  const selected = segments.selectedSegmentId.value;
-  // With nothing selected, forward lands on the first and back on the last.
-  const unselectedStart = offset > 0 ? -1 : 0;
-  const selectedIndex = selected ? ids.indexOf(selected) : unselectedStart;
+  const ids = segments.segmentList.value.map(({ id }) => id);
+  const selectedIndex = ids.indexOf(segments.selectedSegmentId.value ?? '');
+  if (selectedIndex === -1) return;
   // A negative index wraps, so cycling back from the first lands on the last.
   const next = ids.at((selectedIndex + offset) % ids.length);
   if (next) segments.selectSegment(next);

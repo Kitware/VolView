@@ -57,7 +57,7 @@ const actionButton = (wrapper: VueWrapper, label: string) =>
     .findAllComponents(ButtonStub)
     .find((candidate) => candidate.text() === label)!;
 
-describe('segment type editor name validation', () => {
+describe('segment editor name validation', () => {
   it('allows an unchanged duplicate name', () => {
     const wrapper = mountEditor();
 
@@ -68,7 +68,7 @@ describe('segment type editor name validation', () => {
     expect(rule('Tumor')).toBe(true);
   });
 
-  it('rejects changing to another type’s name', async () => {
+  it('rejects changing to another segment’s name', async () => {
     const wrapper = mountEditor();
 
     await wrapper.setProps({ name: ' Node ' });
@@ -123,7 +123,7 @@ describe('editor actions while a segment becomes locked', () => {
   );
 });
 
-describe('segment type editor stroke width', () => {
+describe('segment editor stroke width', () => {
   it('offers integer stroke widths from 1 through 5', () => {
     const wrapper = mountEditor();
     const strokeWidth = wrapper
