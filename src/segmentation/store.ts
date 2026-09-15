@@ -6,10 +6,7 @@ import type { RGBAColor } from '@kitware/vtk.js/types';
 import { CATEGORICAL_COLORS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
 import { createMaskFileNamer } from '@/src/segmentation/io/maskFileNaming';
-import {
-  LABELMAP_MAX_VALUE,
-  SEGMENT_VALUE,
-} from '@/src/segmentation/masks/labelValue';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { allocateMask } from '@/src/segmentation/masks/storage';
 import { createSegmentProjection } from '@/src/segmentation/rendering/projection';
 import { createVoxelAccess } from '@/src/segmentation/masks/voxelAccess';
@@ -19,7 +16,6 @@ import {
 } from '@/src/segmentation/io/stateFile';
 
 export type { LabelmapIO };
-export { LABELMAP_MAX_VALUE };
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import {

@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
-import { LABELMAP_MAX_VALUE } from '@/src/segmentation/store';
 import type { Extent3D } from '@/src/segmentation/geometry';
 import { isEmptyExtent } from '@/src/segmentation/geometry';
 import {
@@ -284,17 +283,15 @@ describe('bounded segment masks', () => {
       ]);
     });
 
-    // The one-byte cap bound an image's segments only because they shared a
-    // buffer. It now binds a flattened export file, not the store.
     it('materializes past the values a mask byte can hold', () => {
-      Array.from({ length: LABELMAP_MAX_VALUE }, () =>
+      Array.from({ length: 255 }, () =>
         store().maskVoxels(addMask('img-1')).materialize()
       );
       const overflow = addMask('img-1', 'One too many');
 
       expect(() => store().maskVoxels(overflow).materialize()).not.toThrow();
       expect(store().maskVoxels(overflow).binding()).toBeDefined();
-      expect(boundMasks()).toHaveLength(LABELMAP_MAX_VALUE + 1);
+      expect(boundMasks()).toHaveLength(255 + 1);
     });
   });
 

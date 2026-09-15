@@ -2,27 +2,15 @@ import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinato
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { allocateMask } from '@/src/segmentation/masks/storage';
+import { groupByLayer, writeMaskInto } from '@/src/segmentation/masks/overlap';
+import { boundedMask } from '@/src/segmentation/masks/voxelAccess';
 import {
-  boundScalars,
-  groupByLayer,
-  writeMaskInto,
-} from '@/src/segmentation/masks/overlap';
-import {
+  allocateLabelmap,
+  labelmapScalars,
   LABELMAP_MAX_VALUE,
-  nextUnusedLabelValue,
-} from '@/src/segmentation/masks/labelValue';
-import {
-  maskScalars,
-  type SegmentMask,
-  type LabelmapBinding,
-  type LabelmapSegment,
-} from '@/src/segmentation/model';
-import { fullExtent } from '@/src/segmentation/geometry';
+} from '@/src/segmentation/io/labelmap';
+import { type SegmentMask } from '@/src/segmentation/model';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
-
-const boundedMask = (binding?: LabelmapBinding) =>
-  binding && boundScalars(binding.image, binding.extent);
 
 /**
  * The given segments as one parent-shaped labelmap, built on demand and never
@@ -44,29 +32,17 @@ export function compositeLabelmap(
   if (!parent) throw new Error('No such parent image');
 
   const dimensions = parent.getDimensions();
-  const labelmap = allocateMask(parent, fullExtent(dimensions));
-  const values = maskScalars(labelmap);
 
   const included = [...(members ?? imageMasks(parentImageId))].sort(
     (first, second) =>
       segmentRegistry.orderIndexOf(first.segmentId) -
       segmentRegistry.orderIndexOf(second.segmentId)
   );
-  // One file carries one label per voxel, so the values are assigned here
-  // rather than read off the masks, which all hold SEGMENT_VALUE. Callers
-  // pass a group layeredSegments already sized to fit them.
-  const used = new Set<number>();
-  const segments: LabelmapSegment[] = [];
-  included.forEach((segment) => {
-    const labelValue = nextUnusedLabelValue(used, LABELMAP_MAX_VALUE);
-    used.add(labelValue);
-    segments.push(
-      toLabelmapSegment(
-        segmentRegistry.getSegment(segment.segmentId),
-        labelValue
-      )
-    );
-  });
+  const labelmap = allocateLabelmap(parent, included.length);
+  const values = labelmapScalars(labelmap);
+  const segments = included.map((segment, index) =>
+    toLabelmapSegment(segmentRegistry.getSegment(segment.segmentId), index + 1)
+  );
   [...included].reverse().forEach((segment, index) => {
     const bounded = boundedMask(segment.representations.labelmap);
     const labelValue = segments[included.length - 1 - index].value;
@@ -76,26 +52,25 @@ export function compositeLabelmap(
   return { labelmap, segments };
 }
 
-/**
- * The image's segments grouped so no group holds an overlap. A labelmap file
- * carries one label per voxel, so an export writes a file per group. Always
- * at least one group: an image with no segments still exports one file.
- */
-export function layeredSegments(parentImageId: string) {
-  const groups = groupByLayer(
+/** Plan overlap-free files and retain why more than one file is necessary. */
+export function planLabelmapExport(parentImageId: string) {
+  const layers = groupByLayer(
     useSegmentationStore().imageMasks(parentImageId),
     (segment) => boundedMask(segment.representations.labelmap)
   );
-  // One byte per voxel caps a file's segments however little they overlap,
-  // so a group past the cap is split into files that fit.
-  const sized = groups.flatMap((group) =>
-    group.length <= LABELMAP_MAX_VALUE
-      ? [group]
-      : Array.from(
-          { length: Math.ceil(group.length / LABELMAP_MAX_VALUE) },
-          (_, n) =>
-            group.slice(n * LABELMAP_MAX_VALUE, (n + 1) * LABELMAP_MAX_VALUE)
+  const parts = layers.flatMap((layer) =>
+    Array.from(
+      { length: Math.max(1, Math.ceil(layer.length / LABELMAP_MAX_VALUE)) },
+      (_, index) =>
+        layer.slice(
+          index * LABELMAP_MAX_VALUE,
+          (index + 1) * LABELMAP_MAX_VALUE
         )
+    )
   );
-  return sized.length ? sized : [[]];
+  return {
+    parts: parts.length ? parts : [[]],
+    hasOverlap: layers.length > 1,
+    exceedsCapacity: layers.some((layer) => layer.length > LABELMAP_MAX_VALUE),
+  };
 }
