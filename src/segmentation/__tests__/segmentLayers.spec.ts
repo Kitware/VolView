@@ -14,7 +14,7 @@ import {
   extentSize,
   maskOffset,
   type Extent3D,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import {
   flatIndex,
   type Index3,

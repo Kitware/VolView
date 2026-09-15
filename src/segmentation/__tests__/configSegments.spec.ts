@@ -15,7 +15,7 @@ import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { applyPostStateConfig, config } from '@/src/io/import/configJson';
-import { cssColorToRGBA } from '@/src/segmentation/model';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 
 // ---------------------------------------------------------------------------

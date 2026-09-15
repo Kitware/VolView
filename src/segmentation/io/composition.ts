@@ -13,12 +13,12 @@ import {
   nextUnusedLabelValue,
 } from '@/src/segmentation/masks/labelValue';
 import {
-  fullExtent,
   maskScalars,
   type SegmentMask,
   type LabelmapBinding,
   type LabelmapSegment,
 } from '@/src/segmentation/model';
+import { fullExtent } from '@/src/segmentation/geometry';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
 
 const boundedMask = (binding?: LabelmapBinding) =>

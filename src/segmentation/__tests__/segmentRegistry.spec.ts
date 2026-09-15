@@ -11,7 +11,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { createSegmentRegistry } from '@/src/segmentation/segmentRegistry';
-import { cssColorToRGBA } from '@/src/segmentation/model';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 
 const seatImage = (id: string, name = 'CT') =>
   useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), name, {

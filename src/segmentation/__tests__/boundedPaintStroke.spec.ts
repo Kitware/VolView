@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import { createApp } from 'vue';
 
 import { PaintMode } from '@/src/core/tools/paint';
-import { extentContains, fullExtent } from '@/src/segmentation/model';
+import { extentContains, fullExtent } from '@/src/segmentation/geometry';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {

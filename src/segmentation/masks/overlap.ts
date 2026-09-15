@@ -1,15 +1,17 @@
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 import {
+  LABELMAP_BACKGROUND_VALUE,
+  maskScalars,
+} from '@/src/segmentation/model';
+import {
   clipExtent,
   extentContainsIndex,
   extentSize,
   isEmptyExtent,
-  LABELMAP_BACKGROUND_VALUE,
   maskOffset,
-  maskScalars,
   type Extent3D,
   type MaskBounds,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 
 // Bounded masks read as one parent-shaped picture: how a mask is written into
 // that picture, and which masks can share one without losing a voxel.

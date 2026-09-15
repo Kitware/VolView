@@ -7,7 +7,7 @@ import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { reframeMaskScalars } from '@/src/segmentation/masks/storage';
-import { fullExtent } from '@/src/segmentation/model';
+import { fullExtent } from '@/src/segmentation/geometry';
 
 type Interpolate = (
   image: Image,

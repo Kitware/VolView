@@ -3,19 +3,21 @@ import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { TOOL_COLORS } from '@/src/config';
 import {
-  cssColorToRGBA,
-  tryCssColorToRGBA,
   emptyExtent,
   isEmptyExtent,
   markedExtent,
+} from '@/src/segmentation/geometry';
+import {
+  cssColorToRGBA,
+  tryCssColorToRGBA,
   rgbaToCssColor,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/color';
 import type {
-  Extent3D,
   LabelmapBinding,
   SegmentMask,
   Segmentation,
 } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 

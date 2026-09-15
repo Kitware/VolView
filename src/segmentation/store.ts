@@ -36,42 +36,24 @@ import {
 } from '@/src/utils/dataSelection';
 import {
   DEFAULT_SEGMENTATION_FILL_OPACITY,
-  emptyExtent,
-  isEmptyExtent,
   listMasks,
   maskScalars,
-  type Extent3D,
   type LabelmapBinding,
   type LabelmapSegment,
   type SegmentMask,
   type Segmentation,
   type SegmentationDisplayPatch,
 } from '@/src/segmentation/model';
+import {
+  emptyExtent,
+  isEmptyExtent,
+  type Extent3D,
+} from '@/src/segmentation/geometry';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { declareSegmentReferences } from '@/src/segmentation/segmentReferences';
 import { cleanUndefined, isRecord, removeFromArray } from '@/src/utils';
 import { cycleColors } from '@/src/utils/color';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-
-/**
- * What a write path is doing to the voxels it touches, which is what decides
- * whether it may take one a neighbouring segment already holds.
- *
- * `aimed` is a gesture the user pointed at a place: paint and polygon CLAIM the
- * voxel, clearing it from every unlocked neighbour, so the write always lands.
- * Masks are per segment, so an aimed write clears its neighbours itself. A locked
- * segment is not editable and losing a voxel is an edit, so it keeps the voxel
- * and the two segments overlap: locking is the whole opt-in for overlap.
- *
- * `sweep` is a run the user aimed at no place at all: Fill Holes, Fill Between
- * and Smooth pass over whatever the segment already covers, so they write into
- * empty space only and take nothing from a neighbour, locked or not.
- *
- * A new write path picks its policy by saying which of the two it is. Boolean
- * subtract, scissors and a threshold grow are aimed; a result written over a
- * whole volume, such as an ML segmentation, is a sweep.
- */
-export type VoxelGesture = 'aimed' | 'sweep';
 
 /**
  * The labelmap codec the state file writes through. Injected because itk-wasm

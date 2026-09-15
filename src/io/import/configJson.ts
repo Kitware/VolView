@@ -11,7 +11,7 @@ import type { Action, Binding } from '@/src/constants';
 
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { tryCssColorToRGBA } from '@/src/segmentation/model';
+import { tryCssColorToRGBA } from '@/src/segmentation/color';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {

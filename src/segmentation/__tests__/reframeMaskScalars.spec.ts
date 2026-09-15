@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reframeMaskScalars } from '@/src/segmentation/masks/storage';
-import type { Extent3D } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 
 describe('reframing into a reusable mask buffer', () => {
   it('overwrites old labels and padding when the source moves or is erased', () => {

@@ -16,7 +16,7 @@ import {
   fullExtent,
   isEmptyExtent,
   type Extent3D,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import { getLPSDirections } from '@/src/utils/lps';
 
 /**

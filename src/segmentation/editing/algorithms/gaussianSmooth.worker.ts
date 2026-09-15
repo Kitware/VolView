@@ -5,7 +5,7 @@ import {
   extentSize,
   extentUnion,
   type Extent3D,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 
 export interface GaussianSmoothParams {
   sigma: number;

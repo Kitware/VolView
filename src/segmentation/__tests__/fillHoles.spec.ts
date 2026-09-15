@@ -21,7 +21,7 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
-import type { Extent3D } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 

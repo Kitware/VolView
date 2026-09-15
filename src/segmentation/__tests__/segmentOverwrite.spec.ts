@@ -13,7 +13,7 @@ import {
   type Index3,
   lockSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import type { Extent3D } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 
 // ---------------------------------------------------------------------------
 // Overwrite-all across N masks. A mask per segment erases nothing on its own,

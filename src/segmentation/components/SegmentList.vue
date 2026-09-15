@@ -25,10 +25,9 @@ import { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
   DEFAULT_SEGMENTATION_FILL_OPACITY,
-  isEmptyExtent,
-  markedSlices,
   type SegmentationDisplayPatch,
 } from '@/src/segmentation/model';
+import { isEmptyExtent, markedSlices } from '@/src/segmentation/geometry';
 
 const registry = useSegmentStore().segments;
 const { shapesOf } = useSegmentShapes();

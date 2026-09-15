@@ -17,11 +17,8 @@ import SegmentList from '@/src/segmentation/components/SegmentList.vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import {
-  DEFAULT_SEGMENTATION_FILL_OPACITY,
-  extentSize,
-  maskOffset,
-} from '@/src/segmentation/model';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
+import { extentSize, maskOffset } from '@/src/segmentation/geometry';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';

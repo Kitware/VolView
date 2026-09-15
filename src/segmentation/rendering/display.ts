@@ -1,5 +1,6 @@
-import type { Extent3D, LabelmapSegment } from '@/src/segmentation/model';
-import { isEmptyExtent } from '@/src/segmentation/model';
+import type { LabelmapSegment } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
+import { isEmptyExtent } from '@/src/segmentation/geometry';
 
 /**
  * Whether a segment's actor has anything to draw on the slice being viewed.

@@ -5,7 +5,8 @@ import {
   reframeMaskScalars,
   setMaskScalars,
 } from '@/src/segmentation/masks/storage';
-import { maskScalars, type Extent3D } from '@/src/segmentation/model';
+import { maskScalars } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';

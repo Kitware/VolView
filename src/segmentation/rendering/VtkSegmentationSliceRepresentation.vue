@@ -22,7 +22,7 @@ import {
   segmentOutlineTables,
   sliceWithinExtent,
 } from '@/src/segmentation/rendering/display';
-import { isEmptyExtent } from '@/src/segmentation/model';
+import { isEmptyExtent } from '@/src/segmentation/geometry';
 import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import { revealPulseStrength } from '@/src/segmentation/composables/useSegmentRevealPulse';
 
@@ -47,10 +47,12 @@ const segmentation = computed(() =>
   segmentationStore.segmentationOfMask(maskId.value)
 );
 const extent = computed(() => binding.value?.extent);
-const segments = computed(() => {
-  const descriptor = segmentationStore.labelmapDescriptorByMask[maskId.value];
-  return descriptor ? [descriptor] : undefined;
-});
+const descriptor = computed(
+  () => segmentationStore.labelmapDescriptorByMask[maskId.value]
+);
+const segments = computed(() =>
+  descriptor.value ? [descriptor.value] : undefined
+);
 const revealPulse = revealPulseStrength(maskId);
 
 const sourceImageData = computed(() => {

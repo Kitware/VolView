@@ -11,7 +11,8 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { isEmptyExtent, listMasks } from '@/src/segmentation/model';
+import { listMasks } from '@/src/segmentation/model';
+import { isEmptyExtent } from '@/src/segmentation/geometry';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { type SegmentationArtifactIO } from '@/src/segmentation/store';
 import {

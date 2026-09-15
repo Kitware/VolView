@@ -32,12 +32,12 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   listMasks,
-  type Extent3D,
   type LabelmapBinding,
   type LabelmapSegment,
   type SegmentMask,
   type Segmentation,
 } from '@/src/segmentation/model';
+import { type Extent3D } from '@/src/segmentation/geometry';
 
 import type { useImageCacheStore } from '@/src/store/image-cache';
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';

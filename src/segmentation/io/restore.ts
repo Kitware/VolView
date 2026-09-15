@@ -10,15 +10,17 @@ import type {
 import { placeMask, setMaskScalars } from '@/src/segmentation/masks/storage';
 import type { ProcessingResultSource } from '@/src/types';
 import {
+  LABELMAP_BACKGROUND_VALUE,
+  maskScalars,
+  type LabelmapBinding,
+} from '@/src/segmentation/model';
+import {
   extentContains,
   extentSize,
   fullExtent,
   isEmptyExtent,
-  LABELMAP_BACKGROUND_VALUE,
-  maskScalars,
   type Extent3D,
-  type LabelmapBinding,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 

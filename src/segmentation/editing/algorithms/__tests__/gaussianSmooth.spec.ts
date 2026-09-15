@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fullExtent, type Extent3D } from '@/src/segmentation/model';
+import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
 
 const LABEL = 3;

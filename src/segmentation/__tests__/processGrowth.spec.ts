@@ -12,7 +12,7 @@ import {
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import { useMessageStore } from '@/src/store/messages';
-import { fullExtent, type Extent3D } from '@/src/segmentation/model';
+import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import {
   addMask,
   markedVoxels,

@@ -28,8 +28,11 @@ const featureBoundaries = (features) => {
     group: [`@/src/${dir}/*`, `@/src/${dir}/*/**`, `!@/src/${dir}/index`],
     message: `Import the ${dir} feature only from its public surface \`@/src/${dir}\` (src/${dir}/index.ts). A deep import bypasses the feature boundary.`,
   });
+  const publicFeatures = features.filter(
+    (feature) => feature.publicSurface !== false
+  );
   const otherSurfaces = (feature) =>
-    features.filter((other) => other !== feature).map(publicSurface);
+    publicFeatures.filter((other) => other !== feature).map(publicSurface);
 
   return [
     {
@@ -38,7 +41,7 @@ const featureBoundaries = (features) => {
       rules: {
         'no-restricted-imports': [
           'error',
-          { patterns: features.map(publicSurface) },
+          { patterns: publicFeatures.map(publicSurface) },
         ],
       },
     },
@@ -193,6 +196,42 @@ export default tseslint.config(
     },
   },
   ...featureBoundaries([
+    {
+      dir: 'segmentation',
+      pure: {
+        files: [
+          'src/segmentation/geometry.ts',
+          'src/segmentation/color.ts',
+          'src/segmentation/model.ts',
+          'src/segmentation/segment.ts',
+          'src/segmentation/masks/storage.ts',
+          'src/segmentation/masks/overlap.ts',
+          'src/segmentation/masks/labelValue.ts',
+          'src/segmentation/editing/algorithms/fillHoles.ts',
+          'src/segmentation/editing/algorithms/fillHoles.worker.ts',
+          'src/segmentation/editing/algorithms/gaussianSmooth.worker.ts',
+        ],
+        upperModules: [
+          'store',
+          'segments',
+          'segmentRegistry',
+          'segmentReferences',
+          'masks/voxelAccess',
+          'io/**',
+          'rendering/**',
+          'editing/coordinator',
+          'editing/paintProcess',
+          'editing/fillHoles',
+          'editing/fillBetween',
+          'editing/gaussianSmooth',
+          'editing/rasterizePolygon',
+          'components/**',
+          'composables/**',
+        ],
+      },
+      // Consumers import explicit modules; the pure-layer rule still applies.
+      publicSurface: false,
+    },
     {
       dir: 'processing',
       pure: {

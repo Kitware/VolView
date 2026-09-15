@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { allocateMask, regrowMask } from '@/src/segmentation/masks/storage';
-import { maskScalars, type Extent3D } from '@/src/segmentation/model';
+import { maskScalars } from '@/src/segmentation/model';
+import { type Extent3D } from '@/src/segmentation/geometry';
 import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 
 function scene(extent: Extent3D) {

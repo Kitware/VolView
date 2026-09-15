@@ -11,7 +11,7 @@ import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
-import { rgbaToCssColor } from '@/src/segmentation/model';
+import { rgbaToCssColor } from '@/src/segmentation/color';
 import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const IMAGE_ID = 'img-1';

@@ -12,13 +12,13 @@ import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
+import { maskScalars } from '@/src/segmentation/model';
 import {
   clipExtent,
   fullExtent,
   isEmptyExtent,
-  maskScalars,
   type Extent3D,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import { Tools } from './types';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';

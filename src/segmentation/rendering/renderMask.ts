@@ -5,13 +5,13 @@ import {
   reframeMaskScalars,
 } from '@/src/segmentation/masks/storage';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { maskScalars } from '@/src/segmentation/model';
 import {
   clipExtent,
   isEmptyExtent,
-  maskScalars,
   padExtent,
   type Extent3D,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 
 // Keep only the current slice per axis, outside segmentation storage and export.
 const renderMasks = new WeakMap<

@@ -2,7 +2,7 @@ import { computed, reactive, ref } from 'vue';
 
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import type { Maybe } from '@/src/types';
-import { cssColorToRGBA } from '@/src/segmentation/model';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 
 /**
  * The edit dialog both pickers open: one editor, one set of fields, one place

@@ -3,7 +3,7 @@ import { computed, ref, type Ref } from 'vue';
 import { TOOL_COLORS } from '@/src/config';
 import { useIdStore } from '@/src/store/id';
 import type { Maybe } from '@/src/types';
-import { cssColorToRGBA } from '@/src/segmentation/model';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 import {
   resolveSegmentAppearance,
   type Segment,

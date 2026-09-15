@@ -16,7 +16,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { cssColorToRGBA } from '@/src/segmentation/model';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 import {
   mintSegment,
   lockSegment,

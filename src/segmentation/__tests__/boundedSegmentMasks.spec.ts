@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 import { LABELMAP_MAX_VALUE } from '@/src/segmentation/store';
-import type { Extent3D } from '@/src/segmentation/model';
-import { isEmptyExtent } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
+import { isEmptyExtent } from '@/src/segmentation/geometry';
 import {
   addMask,
   extentOf,

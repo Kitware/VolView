@@ -13,17 +13,19 @@ import {
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
+  LABELMAP_BACKGROUND_VALUE,
+  makeDefaultSegmentName,
+  maskScalars,
+  type LabelmapSegment,
+} from '@/src/segmentation/model';
+import {
   emptyExtent,
   extentSize,
   isEmptyExtent,
-  LABELMAP_BACKGROUND_VALUE,
-  makeDefaultSegmentName,
   maskOffset,
-  maskScalars,
   type Extent3D,
-  type LabelmapSegment,
   growExtent,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import {
   type DataSelection,
   getImage,

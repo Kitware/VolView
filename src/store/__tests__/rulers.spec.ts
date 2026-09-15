@@ -7,7 +7,7 @@ import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
 } from '@/src/config';
-import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/model';
+import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';

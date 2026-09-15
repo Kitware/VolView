@@ -1,5 +1,6 @@
 import { pipe } from '@/src/utils/functional';
-import { cssColorToRGBA, emptyExtent } from '@/src/segmentation/model';
+import { emptyExtent } from '@/src/segmentation/geometry';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 import {
   dataSourcesById,
   summarizeDataSource,

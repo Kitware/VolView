@@ -1,7 +1,7 @@
 import type { TypedArray } from '@kitware/vtk.js/types';
 
 import type { Maybe } from '@/src/types';
-import type { VoxelGesture } from '@/src/segmentation/store';
+import type { VoxelGesture } from '@/src/segmentation/model';
 import type { useImageCacheStore } from '@/src/store/image-cache';
 import { regrowMask } from '@/src/segmentation/masks/storage';
 import {
@@ -10,21 +10,23 @@ import {
   masksHolding,
 } from '@/src/segmentation/masks/overlap';
 import {
-  clipExtent,
-  extentContains,
-  extentUnion,
-  fullExtent,
-  isEmptyExtent,
   listMasks,
   maskScalars,
-  padExtent,
-  type Extent3D,
   type LabelmapBinding,
   type MaskVoxelAccessor,
   type SegmentMask,
   type Segmentation,
   type VoxelStorage,
 } from '@/src/segmentation/model';
+import {
+  clipExtent,
+  extentContains,
+  extentUnion,
+  fullExtent,
+  isEmptyExtent,
+  padExtent,
+  type Extent3D,
+} from '@/src/segmentation/geometry';
 
 /** What voxel access needs from the store that owns the records. */
 export type VoxelAccessDeps = {

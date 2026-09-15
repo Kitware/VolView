@@ -9,7 +9,7 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 import { useSegmentationStore } from '@/src/segmentation/store';
-import type { Extent3D } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 // ---------------------------------------------------------------------------

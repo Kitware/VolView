@@ -7,7 +7,7 @@ import {
 import type { Maybe } from '@/src/types';
 import { cleanUndefined } from '@/src/utils';
 import type { LabelmapSegment } from '@/src/segmentation/model';
-import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/model';
+import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
 
 /**
  * Identity and shared appearance for everything drawn as one thing: a paint

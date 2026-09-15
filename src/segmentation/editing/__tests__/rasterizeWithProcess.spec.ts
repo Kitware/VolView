@@ -19,7 +19,7 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
-import type { Extent3D } from '@/src/segmentation/model';
+import type { Extent3D } from '@/src/segmentation/geometry';
 
 const DIMENSIONS: Index3 = [6, 6, 1];
 const SQUARE: Vector3[] = [

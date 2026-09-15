@@ -2,16 +2,18 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
 import {
+  LABELMAP_BACKGROUND_VALUE,
+  type VoxelStorage,
+} from '@/src/segmentation/model';
+import {
   extentContains,
   extentSize,
   extentUnion,
   fullExtent,
   isEmptyExtent,
-  LABELMAP_BACKGROUND_VALUE,
   markedExtent,
   type Extent3D,
-  type VoxelStorage,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { PaintMode } from '@/src/core/tools/paint';

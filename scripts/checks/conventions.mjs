@@ -51,34 +51,38 @@ const pureFilesFor = (dir) => {
 const added = new Set(
   changed.filter(({ before }) => before === undefined).map(({ file }) => file)
 );
-features
-  .forEach((dir) => {
-    const listed = listAfter(dir);
-    const pure = pureFilesFor(dir);
-    const onDisk = readdirSync(path.join(worktree, 'src', dir), {
-      withFileTypes: true,
-    })
-      .filter((entry) => !entry.name.startsWith('__'))
-      .map((entry) => entry.name.replace(/\.(ts|js|vue)$/, ''));
-    const covered = (name) =>
-      listed.includes(name) ||
-      listed.some((entry) => entry.endsWith('/**') && entry.slice(0, -3) === name) ||
-      pure.some((file) => file.startsWith(`src/${dir}/${name}`));
-    onDisk
-      .filter((name) =>
-        [...added].some((file) => file.startsWith(`src/${dir}/${name}`))
+features.forEach((dir) => {
+  const listed = listAfter(dir);
+  const pure = pureFilesFor(dir);
+  const onDisk = readdirSync(path.join(worktree, 'src', dir), {
+    withFileTypes: true,
+  })
+    .filter((entry) => !entry.name.startsWith('__'))
+    .filter((entry) => entry.isDirectory() || /\.(ts|js|vue)$/.test(entry.name))
+    .map((entry) => entry.name.replace(/\.(ts|js|vue)$/, ''));
+  const covered = (name) =>
+    listed.includes(name) ||
+    listed.some(
+      (entry) => entry.endsWith('/**') && entry.slice(0, -3) === name
+    ) ||
+    pure.some((file) => file.startsWith(`src/${dir}/${name}`));
+  onDisk
+    .filter((name) =>
+      [...added].some((file) => file.startsWith(`src/${dir}/${name}`))
+    )
+    .filter((name) => !covered(name))
+    .forEach((name) =>
+      failures.push(
+        `src/${dir}/${name} is neither a pure file nor in ${dir}'s upperModules, so the pure layer may import it while lint stays green.`
       )
-      .filter((name) => !covered(name))
-      .forEach((name) =>
-        failures.push(
-          `src/${dir}/${name} is neither a pure file nor in ${dir}'s upperModules, so the pure layer may import it while lint stays green.`
-        )
-      );
-  });
+    );
+});
 
 if (failures.length > 0) {
   console.error('\nConventions:\n');
   failures.forEach((failure) => console.error(`  ${failure}`));
-  console.error('\nBypass additional checks for one commit with CHECKS_SKIP=1.\n');
+  console.error(
+    '\nBypass additional checks for one commit with CHECKS_SKIP=1.\n'
+  );
   process.exitCode = 1;
 }

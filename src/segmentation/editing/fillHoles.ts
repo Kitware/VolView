@@ -1,4 +1,3 @@
-import { mat3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import * as Comlink from 'comlink';
@@ -85,19 +84,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
     }
 
     const labelMapLpsOrientation = getLPSDirections(
-      mat3.fromValues(
-        ...(target.direction as [
-          number,
-          number,
-          number,
-          number,
-          number,
-          number,
-          number,
-          number,
-          number,
-        ])
-      )
+      Float32Array.from(target.direction)
     );
     const axis = labelMapLpsOrientation[effectiveView.axis];
     const { dimensions, scalars: data } = target;

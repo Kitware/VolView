@@ -27,7 +27,8 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import { cssColorToRGBA, listMasks } from '@/src/segmentation/model';
+import { listMasks } from '@/src/segmentation/model';
+import { cssColorToRGBA } from '@/src/segmentation/color';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';

@@ -4,7 +4,7 @@ import {
   segmentCoincidentOffset,
   sliceWithinExtent,
 } from '@/src/segmentation/rendering/display';
-import { emptyExtent, type Extent3D } from '@/src/segmentation/model';
+import { emptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 
 // ---------------------------------------------------------------------------
 // The two view-layer rules a mask per segment needs.

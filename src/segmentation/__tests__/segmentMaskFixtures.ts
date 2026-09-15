@@ -14,7 +14,8 @@ import {
   type SegmentationArtifactIO,
 } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { listMasks, type Extent3D } from '@/src/segmentation/model';
+import { listMasks } from '@/src/segmentation/model';
+import { type Extent3D } from '@/src/segmentation/geometry';
 import type { SegmentInit } from '@/src/segmentation/segment';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 

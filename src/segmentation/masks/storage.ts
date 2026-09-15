@@ -2,14 +2,14 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray, Vector3 } from '@kitware/vtk.js/types';
 
+import { maskScalars } from '@/src/segmentation/model';
 import {
   clipExtent,
   extentSize,
   isEmptyExtent,
   maskOffset,
-  maskScalars,
   type Extent3D,
-} from '@/src/segmentation/model';
+} from '@/src/segmentation/geometry';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 export const setMaskScalars = (mask: vtkLabelMap, values: Uint8Array) =>
