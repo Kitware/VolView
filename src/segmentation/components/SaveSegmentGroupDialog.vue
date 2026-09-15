@@ -27,8 +27,8 @@
           density="compact"
           data-testid="save-overlap-notice"
         >
-          Segments that overlap cannot share one file. Saving writes
-          {{ groups.length }} files, bundled into {{ archiveName }}.
+          Saving {{ groups.length }} files due to overlap, bundled into
+          {{ archiveName }}.
         </v-alert>
       </v-form>
     </v-card-text>
