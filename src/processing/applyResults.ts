@@ -41,7 +41,7 @@ type ResultFile = { url: string; name: string };
 
 type SegmentationIntent = Extract<
   KnownResultIntent,
-  { intent: 'add-segment-group' }
+  { intent: 'import-segmentation' }
 >;
 type AnnotationsIntent = Extract<
   KnownResultIntent,
@@ -448,7 +448,7 @@ export async function applyIntent(
         }
         return { status: 'applied' };
       }
-      case 'add-segment-group': {
+      case 'import-segmentation': {
         // Session-restored groups retain their result source. Treat that
         // durable provenance as an application receipt so retrying Load is
         // idempotent instead of creating a duplicate group.

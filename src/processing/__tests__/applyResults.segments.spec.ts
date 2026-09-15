@@ -33,7 +33,7 @@ const existingMask = (imageId: string, name: string) => {
 const importResult = (segments?: SegmentDescriptor[]) =>
   applyIntent(
     {
-      intent: 'add-segment-group',
+      intent: 'import-segmentation',
       id: 'result',
       name: 'output.nrrd',
       url: 'https://example/output.nrrd',

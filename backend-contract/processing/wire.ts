@@ -21,7 +21,7 @@ import { pathSegmentIdSchema } from './ids';
 // Bump when the intent vocabulary's shape changes so producers and the applier
 // can negotiate compatibility. Adding an intent is a compatible bump: an older
 // client demotes the unknown intent through the fail-open branch above.
-export const INTENT_VOCABULARY_VERSION = 2;
+export const INTENT_VOCABULARY_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Input value: what the client sends at submit
@@ -158,7 +158,7 @@ export type NeutralJobStatus = z.infer<typeof neutralJobStatusSchema>;
 export const RESULT_INTENTS = [
   'add-base-image',
   'add-layer',
-  'add-segment-group',
+  'import-segmentation',
   'add-annotations',
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
@@ -212,13 +212,13 @@ const addLayer = z
   .object({ intent: z.literal('add-layer'), ...resultListItemSchema.shape })
   .passthrough();
 
-// `add-segment-group` carries OPTIONAL `segments` (the bare-labelmap +
+// `import-segmentation` carries OPTIONAL `segments` (the bare-labelmap +
 // labels-sidecar case; a `seg.nrrd` with embedded metadata carries none — the
 // client uses `segments` when present, else the file's own metadata) and an
 // optional `source` provenance tag (the idempotency key).
 const addSegmentGroup = z
   .object({
-    intent: z.literal('add-segment-group'),
+    intent: z.literal('import-segmentation'),
     ...resultListItemSchema.shape,
     segments: z.array(segmentDescriptorSchema).optional(),
     source: resultSourceSchema.optional(),
