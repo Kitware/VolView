@@ -20,7 +20,9 @@ import {
 // `writeSegmentation` spawns a real Worker; keep the IO module out of the test.
 const ioMocks = vi.hoisted(() => ({
   readImage: vi.fn(),
-  writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  writeSegmentation: vi.fn<
+    typeof import('@/src/io/readWriteImage').writeSegmentation
+  >(async () => new Uint8Array([1, 2, 3])),
 }));
 // eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
 vi.mock('@/src/io/readWriteImage', () => ({
@@ -431,7 +433,7 @@ describe('JobsModule — race-free provider/task selection', () => {
   });
 });
 
-describe('JobsModule — segment group staging', () => {
+describe('JobsModule segmentation staging', () => {
   let pinia: ReturnType<typeof createPinia>;
 
   beforeEach(() => {
@@ -588,6 +590,24 @@ describe('JobsModule — segment group staging', () => {
   const overlapNotice = (wrapper: Awaited<ReturnType<typeof mountWithSpec>>) =>
     wrapper.find('[data-testid="staging-overlap-notice"]');
 
+  it.each([false, true])(
+    'stages overlap with the first listed segment winning (multiple=%s)',
+    async (multiple) => {
+      seedActiveImage();
+      seedOverlappingSegments();
+      const { provider } = await submit(labelmapSpec(multiple));
+      const [, labelmap, segments] = ioMocks.writeSegmentation.mock.calls[0];
+      const value = labelmap.getPointData().getScalars().getData()[7];
+      expect(segments.find((segment) => segment.value === value)?.name).toBe(
+        'Tumor'
+      );
+      expect(provider.stageInput).toHaveBeenCalledTimes(1);
+      expect(
+        provider.stageInput.mock.calls[0][0].descriptor.referenceImage?.uris
+      ).toEqual(['girder://file/image-1']);
+    }
+  );
+
   it('states the flatten precedence when the staged segments overlap', async () => {
     seedActiveImage();
     seedOverlappingSegments();
@@ -596,7 +616,7 @@ describe('JobsModule — segment group staging', () => {
 
     expect(notice.exists()).toBe(true);
     expect(notice.text()).toMatch(/one file for this job/i);
-    expect(notice.text()).toMatch(/listed last wins/i);
+    expect(notice.text()).toMatch(/listed first wins/i);
   });
 
   it('says nothing about overlap when the segments hold no voxel in common', async () => {
@@ -707,7 +727,7 @@ describe('JobsModule — segment group staging', () => {
     expect(submitSpy).not.toHaveBeenCalled();
     expect(useMessageStore().messages).toEqual([
       expect.objectContaining({
-        title: 'Failed to stage segment group input',
+        title: 'Failed to stage segmentation input',
       }),
     ]);
     // The form is usable again rather than stuck mid-submission.

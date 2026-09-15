@@ -14,10 +14,9 @@ import {
 } from './mintInput';
 import {
   bindResolvedLabelmapInputs,
-  mintLabelmapReferenceImage,
-  resolveLabelmapGroups,
+  resolveLabelmapSegmentation,
   type LabelmapBindingResult,
-  type SegmentGroupView,
+  type SegmentationInput,
 } from './mintLabelmap';
 import {
   bindAnnotationsInputs,
@@ -40,12 +39,10 @@ export type SourceRefBindings = {
 
 export type SourceRefBindingContext = {
   activeDataSource: DataSource | undefined;
-  backgroundImageId: string | undefined;
-  activeImageId: string | null | undefined;
-  segmentGroups: SegmentGroupView;
+  currentImageId: string | undefined;
+  segmentation: SegmentationInput | undefined;
   // Whether the active image carries at least one finished annotation tool.
   hasFinishedAnnotations: boolean;
-  getDataSource: (imageId: string) => DataSource | undefined;
 };
 
 const BOUND_TYPES = new Set<string>([
@@ -84,43 +81,15 @@ export const bindSourceRefs = (
   const anyFieldAccepts = (type: BoundSourceRefType): boolean =>
     fields.some((field) => acceptedTypes(field).includes(type));
 
-  const acceptsImage = anyFieldAccepts(TYPE_TAG_IMAGE);
   const acceptsLabelmap = anyFieldAccepts(TYPE_TAG_LABELMAP);
-  // Annotations stage against the active image itself, so they need the same
-  // minted value the image binder uses.
-  const acceptsAnnotations = anyFieldAccepts(TYPE_TAG_ANNOTATIONS);
-  const imageValue =
-    acceptsImage || acceptsAnnotations
-      ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
-      : null;
-  // Plurality belongs to the field that binds as labelmap, which is only known
-  // after type resolution — and type resolution needs to know what a field
-  // could bind to. Both candidates are resolved up front so each step reads the
-  // one matching the field it is asking about.
-  const resolveFor = (multiple: boolean) =>
-    acceptsLabelmap
-      ? resolveLabelmapGroups(
-          context.backgroundImageId,
-          context.activeImageId,
-          multiple,
-          context.segmentGroups
-        )
-      : { kind: 'unresolved' as const };
-  const singularResolution = resolveFor(false);
-  const pluralResolution = resolveFor(true);
-  const resolutionFor = (field: SourceRefField) =>
-    field.multiple === true ? pluralResolution : singularResolution;
-  // Every resolvable group has the background image as its parent, so one
-  // minted reference serves both pluralities; the plural resolution resolves
-  // whenever the singular one does.
-  const labelmapReference =
-    pluralResolution.kind === 'resolved'
-      ? mintLabelmapReferenceImage(
-          pluralResolution.groupIds[0],
-          context.segmentGroups,
-          context.getDataSource
-        )
-      : null;
+  // All supported source references share the current image provenance.
+  const imageValue = fields.some((field) => acceptedTypes(field).length > 0)
+    ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
+    : null;
+  const segmentationId = acceptsLabelmap
+    ? resolveLabelmapSegmentation(context.currentImageId, context.segmentation)
+    : undefined;
+  const labelmapReference = segmentationId ? imageValue : null;
   const available = new Set<BoundSourceRefType>();
   if (imageValue) {
     available.add(TYPE_TAG_IMAGE);
@@ -128,12 +97,9 @@ export const bindSourceRefs = (
   if (context.hasFinishedAnnotations && imageValue) {
     available.add(TYPE_TAG_ANNOTATIONS);
   }
-  const isAvailable = (
-    field: SourceRefField,
-    type: BoundSourceRefType
-  ): boolean =>
+  const isAvailable = (type: BoundSourceRefType): boolean =>
     type === TYPE_TAG_LABELMAP
-      ? resolutionFor(field).kind === 'resolved' && Boolean(labelmapReference)
+      ? Boolean(labelmapReference)
       : available.has(type);
 
   const types: Record<string, BoundSourceRefType> = {};
@@ -147,7 +113,7 @@ export const bindSourceRefs = (
   fields.forEach((field) => {
     const accepts = acceptedTypes(field);
     if (accepts.length <= 1) return;
-    const availableTypes = accepts.filter((type) => isAvailable(field, type));
+    const availableTypes = accepts.filter((type) => isAvailable(type));
     const selected =
       availableTypes.find((type) => !dedicated.has(type)) ??
       availableTypes[0] ??
@@ -156,16 +122,6 @@ export const bindSourceRefs = (
     if (selected) types[field.id] = selected;
   });
 
-  const boundLabelmapFields = fields.filter(
-    (field) => types[field.id] === TYPE_TAG_LABELMAP
-  );
-  // More than one bound field binds ambiguously whatever the resolution is, so
-  // the binder discards it there.
-  const labelmapResolution =
-    boundLabelmapFields.length === 1
-      ? resolutionFor(boundLabelmapFields[0])
-      : { kind: 'unresolved' as const };
-
   const image = bindMintedImageInputs(
     modelForType(model, types, TYPE_TAG_IMAGE),
     context.activeDataSource,
@@ -173,19 +129,18 @@ export const bindSourceRefs = (
   );
   const labelmap = bindResolvedLabelmapInputs(
     modelForType(model, types, TYPE_TAG_LABELMAP),
-    labelmapResolution
+    segmentationId
   );
   const labelmapIssues = [...labelmap.issues];
-  // A param carries groups only when its resolution resolved, so a missing
-  // reference here means the groups themselves cannot be staged.
-  const boundLabelmapParams = Object.keys(labelmap.groups);
+  // A bound segmentation still needs its parent image to have provenance.
+  const boundLabelmapParams = Object.keys(labelmap.segmentations);
   if (boundLabelmapParams.length > 0 && !labelmapReference) {
     boundLabelmapParams.forEach((parameterId) => {
       labelmap.states[parameterId] = 'no-provenance';
       labelmapIssues.push({
         parameter: parameterId,
         message:
-          'The segment group reference image was not loaded from the server, so it cannot be used as an input.',
+          'The segmentation reference image was not loaded from the server, so it cannot be used as an input.',
       });
     });
   }

@@ -276,9 +276,10 @@ class VolViewPage extends Page {
     return fileName;
   }
 
-  get labelStrokeWidthInput() {
-    // there should only be one on the screen at any given time
-    return $('.label-stroke-width-input').$('input');
+  get segmentStrokeWidthSlider() {
+    return $(
+      '//label[normalize-space()="Stroke Width"]/ancestor::div[contains(@class, "v-slider")][1]//*[@role="slider"]'
+    );
   }
 
   get editLabelModalDoneButton() {

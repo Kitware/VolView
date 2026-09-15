@@ -73,7 +73,7 @@
               data-testid="staging-overlap-notice"
             >
               Overlapping segments are combined into one file for this job.
-              Where two overlap, the one listed last wins.
+              Where two overlap, the one listed first wins.
             </v-alert>
 
             <div v-if="loadingTask" class="text-caption">
@@ -361,7 +361,7 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
     currentValues.value = finalValues;
     return;
   }
-  // Display formatting reads live active image and segment-group state, so it
+  // Display formatting reads live active image and segmentation state, so it
   // must render before the staging await.
   const display = buildJobDisplay(
     model,
@@ -398,7 +398,7 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
   let staged: Record<string, ProcessingValue>[];
   try {
     staged = await Promise.all([
-      stage('Failed to stage segment group input', () =>
+      stage('Failed to stage segmentation input', () =>
         stageLabelmapInputs(submitProvider, bindings)
       ),
       stage('Failed to stage annotations input', () =>
@@ -507,13 +507,15 @@ function refreshValidation(
 }
 
 // Resolved once per display pass: each binding re-runs a full field scan and
-// group resolution, so per-field resolution would redo identical work.
+// segmentation resolution, so per-field resolution would redo identical work.
 function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   const labelmapNames = Object.fromEntries(
-    Object.entries(bindings.labelmap.groups).map(([parameterId, groupIds]) => [
-      parameterId,
-      groupIds.map((groupId) => segmentationStore.segmentations[groupId].name),
-    ])
+    Object.entries(bindings.labelmap.segmentations).map(
+      ([parameterId, segmentationId]) => [
+        parameterId,
+        segmentationStore.segmentations[segmentationId].name,
+      ]
+    )
   );
   return {
     labelmapNames,
@@ -526,11 +528,11 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
 // More than one group is how a shared voxel shows up: an export groups an
 // image's segments so that no group holds an overlap, and one file carries one
 // group.
-const segmentationOverlaps = (segmentGroupId: string) =>
-  layeredSegments(segmentationStore.segmentations[segmentGroupId].parentImageId)
+const segmentationOverlaps = (segmentationId: string) =>
+  layeredSegments(segmentationStore.segmentations[segmentationId].parentImageId)
     .length > 1;
 
-// A job's input is the whole segmentation flattened into one file, where later
+// A job's input is the whole segmentation flattened into one file, where earlier
 // in the list wins. Said at the point of staging rather than only in code: the
 // staged file is not what the viewport shows, so a silent flatten is the one
 // way this loses data without telling anyone.
@@ -545,9 +547,9 @@ const maskRevision = useMaskRevision();
 const refreshFlattensOverlap = () => {
   const model = taskModel.value;
   const bound = model
-    ? Object.values(activeSourceBindings(model).labelmap.groups)
+    ? Object.values(activeSourceBindings(model).labelmap.segmentations)
     : [];
-  flattensOverlap.value = bound.flat().some(segmentationOverlaps);
+  flattensOverlap.value = bound.some(segmentationOverlaps);
 };
 
 // The revision covers every write, growth included, since a regrow announces
@@ -583,10 +585,10 @@ watchDebounced(
     return {
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
-      activeSegmentGroup: id
+      segmentationId: id
         ? segmentationStore.getSegmentationForImage(id)?.id
         : undefined,
-      groupCount: id
+      maskCount: id
         ? (segmentationStore.getSegmentationForImage(id)?.order.length ?? 0)
         : 0,
       // Placing the first (or removing the last) tool flips the annotations

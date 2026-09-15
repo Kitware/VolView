@@ -23,12 +23,7 @@ import type {
   ProcessingProvider,
   ProcessingValue,
 } from '@/src/processing/types';
-import {
-  mintLabelmapValue,
-  mintLabelmapReferenceImage,
-  stagedLabelmapFileNames,
-  type SegmentGroupView,
-} from '@/src/processing/engine/mintLabelmap';
+import { mintLabelmapValue } from '@/src/processing/engine/mintLabelmap';
 import { mintInputValue } from '@/src/processing/engine/mintInput';
 import { mintAnnotationsValue } from '@/src/processing/engine/mintAnnotations';
 import {
@@ -38,7 +33,6 @@ import {
   hasTwoPoints,
   isEncodablePolygon,
   type AnnotationKindView,
-  type AnnotationToolsView,
   type PolygonToolView,
   type TwoPointToolView,
 } from '@/src/processing/engine/annotationsWire';
@@ -77,27 +71,6 @@ export function useInputStaging() {
     );
   };
 
-  // A job's labelmap input is an image's whole segmentation, not one segment's
-  // bounded mask, so the group ids here are segmentation ids.
-  const segmentGroupView = (): SegmentGroupView => {
-    const orderByParent: Record<string, string[]> = {};
-    const metadataByID: Record<string, { parentImage: string; name: string }> =
-      {};
-    Object.values(segmentationStore.segmentations).forEach((segmentation) => {
-      orderByParent[segmentation.parentImageId] = [segmentation.id];
-      metadataByID[segmentation.id] = {
-        parentImage: segmentation.parentImageId,
-        name: segmentation.name,
-      };
-    });
-    return { orderByParent, metadataByID };
-  };
-
-  const labelmapReferenceImage = (segmentGroupId: string): InputValue | null =>
-    mintLabelmapReferenceImage(segmentGroupId, segmentGroupView(), (imageId) =>
-      datasetStore.getDataSource(imageId)
-    );
-
   // Tool lists are per image, and so is the staged annotations file: only the
   // active image's finished tools are ever an input.
   const onActiveImage = <T extends { imageID: string }>(
@@ -109,7 +82,7 @@ export function useInputStaging() {
 
   // Each geometry kind carries the shared segments; the encoder prunes and
   // re-keys them by name within that kind's wire namespace.
-  const annotationToolsView = computed<AnnotationToolsView>(() => {
+  const annotationToolsView = computed(() => {
     const kindView = <T extends object>(
       kind: AnnotationToolKind,
       hasGeometry: <U extends AnnotationTool>(tool: U) => tool is U & T
@@ -155,38 +128,45 @@ export function useInputStaging() {
 
   // The stores this composable already holds are exactly what the binder reads,
   // so the context is assembled here rather than re-wiring them at the caller.
-  const sourceRefContext = (): SourceRefBindingContext => ({
-    activeDataSource: activeDataSource(),
-    backgroundImageId: currentImageID.value ?? undefined,
-    activeImageId: currentImageID.value
-      ? segmentationStore.getSegmentationForImage(currentImageID.value)?.id
-      : undefined,
-    segmentGroups: segmentGroupView(),
-    hasFinishedAnnotations: finishedAnnotationCount.value > 0,
-    getDataSource: (imageId) => datasetStore.getDataSource(imageId),
-  });
+  const sourceRefContext = (): SourceRefBindingContext => {
+    const currentImageId = currentImageID.value ?? undefined;
+    const segmentation = currentImageId
+      ? segmentationStore.getSegmentationForImage(currentImageId)
+      : undefined;
+    return {
+      activeDataSource: activeDataSource(),
+      currentImageId,
+      segmentation: segmentation && {
+        id: segmentation.id,
+        parentImageId: segmentation.parentImageId,
+      },
+      hasFinishedAnnotations: finishedAnnotationCount.value > 0,
+    };
+  };
 
   // The literal 'seg.nrrd' name is required for segment names and colors to be
   // embedded in the serialized output.
-  const stageSegmentGroupInput = async (
+  const stageSegmentationInput = async (
     p: ProcessingProvider,
-    segmentGroupId: string,
-    fileName: string
+    segmentationId: string
   ): Promise<string[]> => {
-    const parentImage =
-      segmentationStore.segmentations[segmentGroupId]?.parentImageId;
+    const segmentation = segmentationStore.segmentations[segmentationId];
+    const parentImage = segmentation?.parentImageId;
     if (!parentImage) throw new Error('No such segmentation');
     const { labelmap, segments } = compositeLabelmap(parentImage);
-    const referenceImage = labelmapReferenceImage(segmentGroupId);
+    const referenceImage = mintInputValue(
+      datasetStore.getDataSource(parentImage)
+    );
     if (!referenceImage) {
-      throw new Error('Segment group reference image has no server provenance');
+      throw new Error('Segmentation reference image has no server provenance');
     }
+    const name = `${segmentation.name}.seg.nrrd`;
     const serialized = await writeSegmentation('seg.nrrd', labelmap, segments);
     return p.stageInput({
       file: new Blob([serialized]),
       descriptor: {
         type: TYPE_TAG_LABELMAP,
-        name: fileName,
+        name,
         referenceImage: {
           ...referenceImage,
           type: 'image',
@@ -196,29 +176,15 @@ export function useInputStaging() {
   };
 
   // Returns only the parameters it staged, so the caller owns the merge.
-  //
-  // Staged one at a time rather than fanned out: serialization deep-copies the
-  // whole voxel buffer, so a concurrent map would hold every group's copy at
-  // once, and itk-wasm queues the writes on a single shared worker regardless.
   const stageLabelmapInputs = async (
     p: ProcessingProvider,
     bindings: SourceRefBindings
   ): Promise<Record<string, ProcessingValue>> => {
     const staged: Record<string, ProcessingValue> = {};
-    for (const [parameterId, segmentGroupIds] of Object.entries(
-      bindings.labelmap.groups
+    for (const [parameterId, segmentationId] of Object.entries(
+      bindings.labelmap.segmentations
     )) {
-      const fileNames = stagedLabelmapFileNames(
-        segmentGroupIds.map(
-          (groupId) => segmentationStore.segmentations[groupId].name
-        )
-      );
-      const uris: string[] = [];
-      for (const [index, groupId] of segmentGroupIds.entries()) {
-        uris.push(
-          ...(await stageSegmentGroupInput(p, groupId, fileNames[index]))
-        );
-      }
+      const uris = await stageSegmentationInput(p, segmentationId);
       staged[parameterId] = mintLabelmapValue(uris);
     }
     return staged;

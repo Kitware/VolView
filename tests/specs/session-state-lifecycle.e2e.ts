@@ -14,7 +14,7 @@ import {
   waitForFileExists,
   writeManifestToFile,
 } from './utils';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
   openAnnotationSegments,
@@ -80,6 +80,13 @@ const loadSession = async () => {
   await volViewPage.waitForViews();
 };
 
+const openProstateLabelmap = async (fileName: string) => {
+  await openVolViewPage(fileName);
+  await openAnnotationSegments();
+  await waitForNamedSegments();
+  await waitForSegmentContent('Right hip');
+};
+
 describe('Session state lifecycle', () => {
   it('migrates 5.0.1 session with rectangle, polygons, and labelmap', async () => {
     await loadSession();
@@ -103,7 +110,7 @@ describe('Session state lifecycle', () => {
   it('edited type strokeWidth persists through save/load cycle', async () => {
     await loadSession();
 
-    const editedStrokeWidth = 9;
+    const editedStrokeWidth = 5;
 
     // Rectangle draws with the entry selected in the Segments list, which is
     // where the session's rectangle segment shows up.
@@ -118,8 +125,14 @@ describe('Session state lifecycle', () => {
     const editButton = await row.$('button[data-testid="edit-segment-button"]');
     await editButton.click();
 
-    const input = await volViewPage.labelStrokeWidthInput;
-    await setValueVueInput(input, editedStrokeWidth.toString());
+    const slider = await volViewPage.segmentStrokeWidthSlider;
+    await slider.waitForClickable();
+    await slider.click();
+    await browser.keys('End');
+    await expect(slider).toHaveAttribute(
+      'aria-valuenow',
+      editedStrokeWidth.toString()
+    );
 
     const done = await volViewPage.editLabelModalDoneButton;
     await done.click();
@@ -164,7 +177,7 @@ describe('Session state lifecycle', () => {
       },
       fileName
     );
-    await openVolViewPage(fileName);
+    await openProstateLabelmap(fileName);
 
     const { manifest, zip } = await saveAndParseManifest();
     if (!zip) {
@@ -194,13 +207,10 @@ describe('Session state lifecycle', () => {
 
     const fileName = `legacy-labelmap-${Date.now()}.volview.json`;
     await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
-    await openVolViewPage(fileName);
+    await openProstateLabelmap(fileName);
 
     // The 6.1.0 labelMaps entry names this segment and colors it red.
-    await openAnnotationSegments();
-    await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Right hip']);
-    await waitForSegmentContent('Right hip');
     const segmentColorBefore = await segmentColor('Right hip');
 
     const { session, manifest } = await saveAndParseManifest();
