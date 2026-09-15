@@ -1,12 +1,10 @@
+import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
 import { type Manifest } from '@/src/io/state-file/schema';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import {
-  restoreStateFile,
-  resolveArtifactRestoreSources,
-} from '@/src/io/import/processors/restoreStateFile';
+import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -128,12 +126,12 @@ const restoreOnto = async (
   dataIDMap: Record<string, string>
 ) => {
   const store = useSegmentationStore();
-  const { restoredArtifactIds: restored } = await store.deserialize({
+  const { restoredImportIds: restored } = await store.deserialize({
     manifest: setup.manifest,
     stateFiles,
     dataIDMap,
     segmentIdMap: useSegmentStore().deserialize(setup.manifest),
-    artifactSources: resolveArtifactRestoreSources(setup.manifest),
+    labelmapSources: resolveLabelmapSources(setup.manifest),
     io: artifactIO,
   });
   const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;

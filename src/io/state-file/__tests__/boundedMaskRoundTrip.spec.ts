@@ -14,7 +14,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { listMasks } from '@/src/segmentation/model';
 import { isEmptyExtent } from '@/src/segmentation/geometry';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import { type SegmentationArtifactIO } from '@/src/segmentation/store';
+import { type LabelmapIO } from '@/src/segmentation/store';
 import {
   addMask,
   inMemoryArtifactIO,
@@ -123,10 +123,7 @@ async function buildScene() {
 
 const emptyManifest = () => manifestForImages(['img-1', 'img-2']);
 
-async function roundTrip(
-  io: SegmentationArtifactIO,
-  tamper?: (manifest: any) => void
-) {
+async function roundTrip(io: LabelmapIO, tamper?: (manifest: any) => void) {
   const { parsed, stateFiles } = await serializeToStateFiles(
     emptyManifest(),
     io,

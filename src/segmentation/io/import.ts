@@ -233,7 +233,7 @@ const fallbackNamer = (values: number[], baseName?: string) => {
 
 /**
  * `imageId` may be undefined when the labelmap's bytes did not arrive through
- * a loaded image dataset (a zip-restored artifact). DICOM-SEG decoding still
+ * a loaded image dataset. DICOM-SEG decoding still
  * requires a source image, while file-header metadata can be supplied directly
  * for archive-backed images.
  */

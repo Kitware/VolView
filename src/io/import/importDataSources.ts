@@ -159,7 +159,7 @@ async function importDataSourcesWithPolicy(
 
   const applicationHandlers =
     policy === 'application'
-      ? [handleConfig, restore.restoreStateFile, handleRemoteManifest]
+      ? [restore.restoreStateFile, handleConfig, handleRemoteManifest]
       : [];
 
   const handlers = [

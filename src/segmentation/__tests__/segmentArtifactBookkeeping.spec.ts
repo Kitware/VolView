@@ -69,7 +69,7 @@ function importedLabelmap() {
   return labelmap;
 }
 
-const artifactNames = () =>
+const names = () =>
   boundMasks().map((mask) => mask.representations.labelmap!.name);
 
 const split = (name?: string) =>
@@ -77,7 +77,7 @@ const split = (name?: string) =>
     'img-1',
     importedLabelmap(),
     [{ value: 1, name: 'Liver', color: [255, 0, 0, 255], visible: true }],
-    { artifactName: name }
+    { name: name }
   );
 
 // A restored artifact's name reaches the saved manifest and the zip entry path,
@@ -92,13 +92,13 @@ describe('artifact names carried in from a manifest', () => {
   it('keeps the name the caller carried', () => {
     split('Liver: left/right*?');
 
-    expect(artifactNames()).toEqual(['Liver: left/right*?']);
+    expect(names()).toEqual(['Liver: left/right*?']);
   });
 
   it('generates one when the caller carries none', () => {
     split();
 
-    expect(artifactNames()).toEqual(['Segment Group 1 for CT A']);
+    expect(names()).toEqual(['Segment Group 1 for CT A']);
   });
 });
 
@@ -190,6 +190,6 @@ describe('artifact bookkeeping without the per-parent order map', () => {
       'img-2',
     ]);
     // A save's labelmaps all belong to a mask, so it writes no artifact.
-    expect(manifest.segmentationArtifacts).toEqual([]);
+    expect(manifest.segmentationArtifacts).toBeUndefined();
   });
 });

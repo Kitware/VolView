@@ -353,9 +353,9 @@ describe('the labelmap save format after the merge', () => {
 
     expect(io.formats).toEqual(['nrrd', 'nrrd']);
     expect(
-      manifest.segmentationArtifacts!.every((artifact) =>
-        artifact.path!.endsWith('.nrrd')
-      )
+      manifest
+        .segmentations!.flatMap((segmentation) => segmentation.masks)
+        .every((mask) => mask.representations.labelmap!.path!.endsWith('.nrrd'))
     ).toBe(true);
   });
 });

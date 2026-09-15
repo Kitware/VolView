@@ -12,11 +12,7 @@
 // evaluation from store modules, and any import here could turn that into a
 // cycle.
 
-export type ManifestRefKind =
-  | 'dataset'
-  | 'segmentationArtifact'
-  | 'segment'
-  | 'view';
+export type ManifestRefKind = 'dataset' | 'segment' | 'view';
 
 export type ManifestRef = {
   kind: ManifestRefKind;

@@ -1,3 +1,4 @@
+import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -9,10 +10,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
-import {
-  completeStateFileRestore,
-  resolveArtifactRestoreSources,
-} from '@/src/io/import/processors/restoreStateFile';
+import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
 import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
@@ -109,7 +107,7 @@ function makeEmptyScalarsImage() {
 }
 
 // Mirrors production: the restore setup resolves each group's artifact state
-// source from the manifest (resolveArtifactRestoreSources, the single-owner
+// source from the manifest (resolveLabelmapSources, the single-owner
 // policy) and hands it to deserialize alongside the dataIDMap. A restored
 // legacy group is split into one bounded mask per segment, so what a survivor
 // leaves behind is its segments, not a group record.
@@ -138,7 +136,7 @@ const restoreGroups = (
     stateFiles,
     dataIDMap,
     segmentIdMap: useSegmentStore().deserialize(manifest),
-    artifactSources: resolveArtifactRestoreSources(manifest),
+    labelmapSources: resolveLabelmapSources(manifest),
     io: artifactIO,
   });
 
@@ -178,13 +176,13 @@ describe('migrated segment groups: resilient restore', () => {
     // Before the guard, a missing leaf key for dataSourceId 3 flowed into
     // untilLoaded(undefined) — an await with no timeout. This test completing
     // at all IS the assertion that the hang is gone.
-    const { restoredArtifactIds: groups, skipped } =
+    const { restoredImportIds: groups, skipped } =
       await restoreTumorBesideLiver({ dataSourceId: 3 });
 
     expect(groups.has('sg-tumor')).toBe(false);
     expect(groups.has('sg-liver')).toBe(true);
     expect(skipped).toEqual([
-      { name: 'sg-tumor', reason: 'artifact source unavailable' },
+      { name: 'sg-tumor', reason: 'labelmap source unavailable' },
     ]);
     const restored = catalogFor('store-ct');
     expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor']);
@@ -201,7 +199,7 @@ describe('migrated segment groups: resilient restore', () => {
     seatImage('store-ct', 'CT Chest');
     seatImage('store-blank', 'Blank.seg.nrrd');
 
-    const { restoredArtifactIds: groups, skipped } = await restoreGroups(
+    const { restoredImportIds: groups, skipped } = await restoreGroups(
       manifestWith([
         {
           id: 'sg-blank',
@@ -223,8 +221,7 @@ describe('migrated segment groups: resilient restore', () => {
   it('skips a group whose parent base never resolved', async () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
 
-    const { restoredArtifactIds: groups, skipped } =
-      await restoreOrphanedGroup();
+    const { restoredImportIds: groups, skipped } = await restoreOrphanedGroup();
 
     expect(groups).toEqual(new Set());
     expect(boundMasks()).toEqual([]);
@@ -236,7 +233,7 @@ describe('migrated segment groups: resilient restore', () => {
   it('a read failure skips just that group — survivors still attach', async () => {
     artifactIO.read.mockRejectedValue(new Error('corrupt bytes'));
 
-    const { restoredArtifactIds: groups, skipped } =
+    const { restoredImportIds: groups, skipped } =
       await restoreTumorBesideLiver({ path: 'segmentations/Tumor.seg.nrrd' }, [
         {
           archivePath: 'segmentations/Tumor.seg.nrrd',
@@ -264,7 +261,7 @@ describe('migrated segment groups: resilient restore', () => {
       (message) => message.title === 'Some scene content could not be restored'
     );
     expect(warning?.options.details).toContain(
-      'segment group: sg-tumor (artifact source unavailable)'
+      'segment group: sg-tumor (labelmap source unavailable)'
     );
   });
 
@@ -312,7 +309,7 @@ describe('migrated segment groups: resilient restore', () => {
     );
     expect(useImageCacheStore().imageById).toHaveProperty('store-tumor');
 
-    const { restoredArtifactIds: groups, skipped } = await restoreGroups(
+    const { restoredImportIds: groups, skipped } = await restoreGroups(
       manifestWith([group('sg-tumor', { dataSourceId: 3 })]),
       [],
       { 'ds-ct': 'store-ct', [leafStateId(3)]: 'store-tumor' }
@@ -330,7 +327,7 @@ describe('migrated segment groups: resilient restore', () => {
     seatImage('store-tumor', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const { restoredArtifactIds: groups } = await restoreGroups(
+    const { restoredImportIds: groups } = await restoreGroups(
       manifestWith([group('sg-tumor', { dataSourceId: 3 })]),
       [],
       { 'ds-ct': 'store-ct', [leafStateId(3)]: 'store-tumor' }
@@ -353,7 +350,7 @@ describe('migrated segment groups: resilient restore', () => {
     seatImage('store-tumor', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const { restoredArtifactIds: groups, skipped } = await restoreGroups(
+    const { restoredImportIds: groups, skipped } = await restoreGroups(
       manifestWith([
         group('sg-a', { dataSourceId: 3 }),
         group('sg-b', { dataSourceId: 3 }),
@@ -378,8 +375,7 @@ describe('migrated segment groups: resilient restore', () => {
     seatImage('store-seg', 'Tumor.seg.nrrd');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const { restoredArtifactIds: groups, skipped } =
-      await restoreOrphanedGroup();
+    const { restoredImportIds: groups, skipped } = await restoreOrphanedGroup();
 
     expect(groups).toEqual(new Set());
     expect(skipped).toEqual([
@@ -396,7 +392,7 @@ describe('migrated segment groups: resilient restore', () => {
     artifactIO.read.mockResolvedValue({ image: makeImage() });
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const { restoredArtifactIds: groups } = await restoreGroups(
+    const { restoredImportIds: groups } = await restoreGroups(
       manifestWith([
         group('sg-tumor', { path: 'segmentations/Tumor.seg.nrrd' }),
       ]),
@@ -420,7 +416,7 @@ describe('migrated segment groups: resilient restore', () => {
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
     const manifest = manifestWith([group('sg-shared', { dataSourceId: 1 })]);
 
-    const { restoredArtifactIds: groups, skipped } = await restoreGroups(
+    const { restoredImportIds: groups, skipped } = await restoreGroups(
       manifest,
       [],
       { 'ds-ct': 'store-ct' }

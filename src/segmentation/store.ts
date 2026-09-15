@@ -5,7 +5,7 @@ import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
-import { createArtifactNamer } from '@/src/segmentation/io/artifactNaming';
+import { createMaskFileNamer } from '@/src/segmentation/io/maskFileNaming';
 import {
   LABELMAP_MAX_VALUE,
   SEGMENT_VALUE,
@@ -15,10 +15,10 @@ import { createSegmentProjection } from '@/src/segmentation/rendering/projection
 import { createVoxelAccess } from '@/src/segmentation/masks/voxelAccess';
 import {
   createSegmentationWire,
-  type SegmentationArtifactIO,
+  type LabelmapIO,
 } from '@/src/segmentation/io/stateFile';
 
-export type { SegmentationArtifactIO };
+export type { LabelmapIO };
 export { LABELMAP_MAX_VALUE };
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
@@ -68,67 +68,33 @@ declareManifestRefs('segmentations', (manifest) => {
   const segmentations = Array.isArray(manifest.segmentations)
     ? manifest.segmentations
     : [];
-  const artifacts = Array.isArray(manifest.segmentationArtifacts)
-    ? manifest.segmentationArtifacts
-    : [];
-
-  return [
-    ...segmentations.flatMap((raw, index) => {
-      if (!isRecord(raw)) return [];
-      const where = `segmentations[${index}]`;
-      const masks = Array.isArray(raw.masks) ? raw.masks : [];
-      return [
-        ...(typeof raw.parentImage === 'string'
-          ? [
-              {
-                kind: 'dataset' as const,
-                id: raw.parentImage,
-                where: `${where}.parentImage`,
-              },
-            ]
-          : []),
-        ...masks.flatMap((mask, maskIndex) => {
-          const binding = isRecord(mask)
-            ? (mask.representations as Record<string, unknown> | undefined)
-                ?.labelmap
-            : undefined;
-          return [
-            ...(isRecord(mask) && typeof mask.segmentId === 'string'
-              ? [
-                  {
-                    kind: 'segment' as const,
-                    id: mask.segmentId,
-                    where: `${where}.masks[${maskIndex}].segmentId`,
-                  },
-                ]
-              : []),
-            // Only a binding still awaiting an artifact's split names one; a
-            // saved mask names an archive entry, which is not a manifest ref.
-            ...(isRecord(binding) && typeof binding.artifactId === 'string'
-              ? [
-                  {
-                    kind: 'segmentationArtifact' as const,
-                    id: binding.artifactId,
-                    where: `${where}.masks[${maskIndex}].representations.labelmap.artifactId`,
-                  },
-                ]
-              : []),
-          ];
-        }),
-      ];
-    }),
-    ...artifacts.flatMap((raw, index) =>
-      isRecord(raw) && typeof raw.parentImage === 'string'
+  return segmentations.flatMap((raw, index) => {
+    if (!isRecord(raw)) return [];
+    const where = `segmentations[${index}]`;
+    const masks = Array.isArray(raw.masks) ? raw.masks : [];
+    return [
+      ...(typeof raw.parentImage === 'string'
         ? [
             {
               kind: 'dataset' as const,
               id: raw.parentImage,
-              where: `segmentationArtifacts[${index}].parentImage`,
+              where: `${where}.parentImage`,
             },
           ]
-        : []
-    ),
-  ];
+        : []),
+      ...masks.flatMap((mask, maskIndex) =>
+        isRecord(mask) && typeof mask.segmentId === 'string'
+          ? [
+              {
+                kind: 'segment' as const,
+                id: mask.segmentId,
+                where: `${where}.masks[${maskIndex}].segmentId`,
+              },
+            ]
+          : []
+      ),
+    ];
+  });
 });
 
 export const useSegmentationStore = defineStore('segmentation', () => {
@@ -146,7 +112,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           : []
       )
     );
-  const artifactNamer = createArtifactNamer(
+  const maskFileNamer = createMaskFileNamer(
     () => new Set(allBindings().map((binding) => binding.name))
   );
 
@@ -235,7 +201,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return {
       image: markRaw(allocateMask(imageData, extent)),
       extent,
-      name: name ?? artifactNamer.pick(parentImageId, baseName),
+      name: name ?? maskFileNamer.pick(parentImageId, baseName),
       ...(source ? { source } : {}),
     };
   }
@@ -275,14 +241,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    */
   function bindDescriptorSegment(
     parentImageId: string,
-    descriptor: LabelmapSegment,
-    preferredSegmentId?: Maybe<string>
+    descriptor: LabelmapSegment
   ) {
     const usable = (segmentId: Maybe<string>) =>
       !!segmentId &&
       !!segmentRegistry.getSegment(segmentId) &&
       !maskFor(parentImageId, segmentId);
-    if (usable(preferredSegmentId)) return preferredSegmentId!;
     const existing = segmentRegistry.findSegmentByName(descriptor.name);
     if (existing && usable(existing.id)) return existing.id;
     // A minted segment takes the file's whole description; a matched one keeps
@@ -310,10 +274,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     descriptors: LabelmapSegment[],
     options: {
       source?: ProcessingResultSource;
-      artifactName?: string;
-      // The type a descriptor already belongs to, for a split that replaces
-      // masks rather than importing a file.
-      segmentIdFor?: (descriptor: LabelmapSegment) => Maybe<string>;
+      name?: string;
     } = {}
   ) {
     edits.beforeEdit();
@@ -323,18 +284,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     splitLabelmap(labelmap, descriptors, (descriptor, extent) => {
       const segment = createMask(
         segmentation.id,
-        bindDescriptorSegment(
-          parentImageId,
-          descriptor,
-          options.segmentIdFor?.(descriptor)
-        )
+        bindDescriptorSegment(parentImageId, descriptor)
       );
 
       const binding = createBindingForImage(
         parentImageId,
         extent,
         options.source,
-        options.artifactName
+        options.name
       );
       attachMaskBinding(segment.id, binding);
       created.push(segment);
@@ -581,7 +538,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     segmentRegistry,
     labelmapDescriptorByMask,
     createMask,
-    detachMask,
+    createBindingForImage,
     attachMaskBinding,
     decodeSegments,
     ensureSegmentationForImage,
@@ -594,7 +551,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((parentImageId) => {
-      artifactNamer.forget(parentImageId);
+      maskFileNamer.forget(parentImageId);
       const id = getSegmentationForImage(parentImageId)?.id;
       if (id) removeSegmentation(id);
     });

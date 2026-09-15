@@ -7,7 +7,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
-import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
+import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
 import { listMasks } from '@/src/segmentation/model';
 
 // ---------------------------------------------------------------------------
@@ -70,13 +70,13 @@ describe('migrated legacy manifests without `datasets`', () => {
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
     const store = useSegmentationStore();
-    const { restoredArtifactIds: restored, skipped } = await store.deserialize({
+    const { restoredImportIds: restored, skipped } = await store.deserialize({
       manifest: legacyManifest,
       stateFiles: [],
       // Restore keys every fallback dataset by its stringified source id.
       dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
       segmentIdMap: useSegmentStore().deserialize(legacyManifest),
-      artifactSources: resolveArtifactRestoreSources(legacyManifest),
+      labelmapSources: resolveLabelmapSources(legacyManifest),
     });
 
     expect(skipped).toEqual([]);
@@ -108,7 +108,7 @@ describe('migrated legacy manifests without `datasets`', () => {
       stateFiles: [],
       dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
       segmentIdMap: useSegmentStore().deserialize(legacyManifest),
-      artifactSources: resolveArtifactRestoreSources(legacyManifest),
+      labelmapSources: resolveLabelmapSources(legacyManifest),
     });
 
     const names = useSegmentStore().segments.segmentList.value.map(

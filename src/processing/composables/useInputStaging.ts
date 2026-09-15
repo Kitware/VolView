@@ -158,7 +158,7 @@ export function useInputStaging() {
   const sourceRefContext = (): SourceRefBindingContext => ({
     activeDataSource: activeDataSource(),
     backgroundImageId: currentImageID.value ?? undefined,
-    activeArtifactId: currentImageID.value
+    activeImageId: currentImageID.value
       ? segmentationStore.getSegmentationForImage(currentImageID.value)?.id
       : undefined,
     segmentGroups: segmentGroupView(),

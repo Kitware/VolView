@@ -11,7 +11,7 @@ import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
   useSegmentationStore,
-  type SegmentationArtifactIO,
+  type LabelmapIO,
 } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { listMasks } from '@/src/segmentation/model';
@@ -149,7 +149,7 @@ export const segmentationSnapshot = (imageId: string) => {
         outlineOpacity: appearance.outlineOpacity,
         binding: binding && {
           extent: [...binding.extent],
-          artifactName: binding.name,
+          name: binding.name,
           artifactSource: binding.source,
         },
       };
@@ -204,7 +204,7 @@ export const manifestForImages = (
 
 /** Every archive path the parsed manifest names, artifacts and masks alike. */
 const archivePathsIn = (parsed: any): string[] => [
-  ...parsed.segmentationArtifacts.flatMap((artifact: any) =>
+  ...(parsed.segmentationArtifacts ?? []).flatMap((artifact: any) =>
     artifact.path ? [artifact.path] : []
   ),
   ...parsed.segmentations.flatMap((segmentation: any) =>
@@ -218,7 +218,7 @@ const archivePathsIn = (parsed: any): string[] => [
 /** Serializes the live scene, then reads its labelmaps back as state files. */
 export const serializeToStateFiles = async (
   manifest: Manifest,
-  io: SegmentationArtifactIO,
+  io: LabelmapIO,
   tamper?: (parsed: any) => void
 ) => {
   const zip = new JSZip();

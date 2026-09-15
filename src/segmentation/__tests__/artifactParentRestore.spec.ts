@@ -8,7 +8,7 @@ import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
   useSegmentationStore,
-  type SegmentationArtifactIO,
+  type LabelmapIO,
 } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
@@ -47,7 +47,7 @@ const setupRestore = async () => {
     archivePath: `${id}.vti`,
     file: new File([id], `${id}.vti`),
   }));
-  const io: SegmentationArtifactIO = {
+  const io: LabelmapIO = {
     read: async () => ({ image }),
     write: async () => '',
   };
@@ -63,7 +63,7 @@ const setupRestore = async () => {
 const expectPartialRestore = (
   result: Awaited<ReturnType<ReturnType<typeof store>['deserialize']>>
 ) => {
-  expect(result.restoredArtifactIds).toEqual(new Set(['artifact-healthy']));
+  expect(result.restoredImportIds).toEqual(new Set(['artifact-healthy']));
   expect(result.skipped).toHaveLength(1);
   expect(result.skipped[0].name).toBe('Mask parent');
   expect(store().getSegmentationForImage('parent')).toBeUndefined();
@@ -173,7 +173,7 @@ describe('artifact restore parent lifetime', () => {
     const result = await restore;
 
     expect(result.skipped).toEqual([]);
-    expect(result.restoredArtifactIds).toEqual(
+    expect(result.restoredImportIds).toEqual(
       new Set(['artifact-parent', 'artifact-healthy'])
     );
     expect(store().imageMasks('parent')).toHaveLength(1);

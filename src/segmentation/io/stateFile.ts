@@ -6,32 +6,31 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import { allocateMask } from '@/src/segmentation/masks/storage';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
-  createArtifactImageLoader,
+  createLoadedImageReader,
   orderedWireMasks,
-  planArtifactRestore,
   prepareRestoreBindings,
-  restoredLabelmapImage,
   type LoadedLabelmap,
   type WireMask,
 } from '@/src/segmentation/io/restore';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
-import type { ArtifactRestoreSource } from '@/src/io/import/processors/restoreStateFile';
-import type {
-  Manifest,
-  SegmentationArtifact,
-  StateFile,
-} from '@/src/io/state-file/schema';
+import {
+  planLabelmapImports,
+  type LabelmapImport,
+  type LabelmapRestoreSource,
+} from '@/src/io/import/labelmapImports';
+import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { makeSegmentGroupArchivePath } from '@/src/io/state-file/segmentGroupArchivePath';
 import type { FileEntry } from '@/src/io/types';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
 import { cleanUndefined } from '@/src/utils';
 import { normalize } from '@/src/utils/path';
-import { toLabelMap } from '@/src/segmentation/io/import';
+import { splitLabelmap, toLabelMap } from '@/src/segmentation/io/import';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   listMasks,
+  maskScalars,
   type LabelmapBinding,
   type LabelmapSegment,
   type SegmentMask,
@@ -47,7 +46,7 @@ import type { DataSelection } from '@/src/utils/dataSelection';
  * The labelmap codec the state file writes through. Injected because itk-wasm
  * and the vti worker have no node counterpart.
  */
-export type SegmentationArtifactIO = {
+export type LabelmapIO = {
   write: (
     format: string,
     labelmap: vtkLabelMap,
@@ -61,7 +60,7 @@ export type SegmentationArtifactIO = {
 // ZIP entries are relative; extraction may prefix a root member with a slash.
 const archivePathKey = (path: string) => normalize(path).replace(/^\/+/, '');
 
-const defaultArtifactIO: SegmentationArtifactIO = {
+const defaultLabelmapIO: LabelmapIO = {
   write: writeSegmentation,
   read: readImage,
 };
@@ -74,7 +73,12 @@ export type SegmentationWireDeps = {
   segmentRegistry: SegmentRegistry;
   labelmapDescriptorByMask: ComputedRef<Record<string, LabelmapSegment>>;
   createMask: (segmentationId: string, segmentId: string) => SegmentMask;
-  detachMask: (segmentation: Segmentation, maskId: string) => void;
+  createBindingForImage: (
+    parentImageId: string,
+    extent: Extent3D,
+    source?: ProcessingResultSource,
+    name?: string
+  ) => LabelmapBinding;
   attachMaskBinding: (
     maskId: string,
     binding: LabelmapBinding
@@ -96,8 +100,7 @@ export type SegmentationWireDeps = {
     descriptors: LabelmapSegment[],
     options?: {
       source?: ProcessingResultSource;
-      artifactName?: string;
-      segmentIdFor?: (descriptor: LabelmapSegment) => Maybe<string>;
+      name?: string;
     }
   ) => SegmentMask[];
 };
@@ -109,12 +112,12 @@ export type DeserializeOptions = {
   /** Ids the registry minted for the incoming segments, keyed by wire id. */
   segmentIdMap?: Record<string, string>;
   /**
-   * Per-artifact restore source, resolved by the restore setup (see
-   * resolveArtifactRestoreSources in restoreStateFile.ts, the single owner of
+   * Per-import restore source, resolved by the restore setup (see
+   * resolveLabelmapSources in labelmapImports.ts, the single owner of
    * the synthesized-leaf and ownership policy). Mapped through dataIDMap here.
    */
-  artifactSources?: Record<string, ArtifactRestoreSource>;
-  io?: SegmentationArtifactIO;
+  labelmapSources?: Record<string, LabelmapRestoreSource>;
+  io?: LabelmapIO;
 };
 
 /**
@@ -131,7 +134,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     segmentRegistry,
     labelmapDescriptorByMask,
     createMask,
-    detachMask,
+    createBindingForImage,
     attachMaskBinding,
     decodeSegments,
     ensureSegmentationForImage,
@@ -154,7 +157,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
   async function serialize(
     state: StateFile,
-    io: SegmentationArtifactIO = defaultArtifactIO
+    io: LabelmapIO = defaultLabelmapIO
   ) {
     useSegmentationEditsStore().beforeRead();
     const { zip, manifest } = state;
@@ -185,9 +188,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       })
     );
 
-    // A save writes none: every labelmap it holds belongs to a mask. The
-    // array is what a migration or a backend hands in, never what we emit.
-    manifest.segmentationArtifacts = [];
+    delete manifest.segmentationArtifacts;
 
     manifest.segmentations = Object.values(segmentations).map(
       (segmentation) => ({
@@ -231,123 +232,127 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
   }
 
   async function deserialize({
-    manifest,
+    manifest: incoming,
     stateFiles,
     dataIDMap,
     segmentIdMap = {},
-    artifactSources = {},
-    io = defaultArtifactIO,
+    labelmapSources = {},
+    io = defaultLabelmapIO,
   }: DeserializeOptions) {
-    const wireArtifacts = manifest.segmentationArtifacts ?? [];
+    const { imports, segmentations: wireSegmentations } =
+      planLabelmapImports(incoming);
+    const manifest = { segmentations: wireSegmentations };
     const maskIdMap: Record<string, string> = {};
-    // Which artifacts reached the scene, by wire id. Each lands as one mask
+    // Which items reached the scene, by wire id. Each lands as one mask
     // per segment and so has no single store id of its own.
-    const restoredArtifactIds = new Set<string>();
+    const restoredImportIds = new Set<string>();
     // Non-silent drops: every labelmap left out of the restore is recorded
     // with a concrete reason so the caller can surface it.
     const skipped: Array<{ name: string; reason: string }> = [];
 
-    // A path-less artifact's store id: the restore setup already resolved which
+    // A path-less item's store id: the restore setup already resolved which
     // STATE id carries its bytes; this only maps that id through dataIDMap.
-    const artifactStoreId = (artifact: SegmentationArtifact) => {
-      if (artifact.path !== undefined) return undefined;
-      const source = artifactSources[artifact.id];
+    const sourceStoreId = (item: LabelmapImport) => {
+      if ('path' in item.input) return undefined;
+      const source = labelmapSources[item.id];
       return source !== undefined ? dataIDMap[source.stateId] : undefined;
     };
 
-    // `path` is authoritative for bytes when present: a re-saved zip carries the
-    // archive bytes AND the provenance `dataSourceId`, but `dataIDMap` is keyed
-    // by save-time DATASET ids.
-    async function loadArtifactImage(
-      artifact: SegmentationArtifact,
-      storeId: string | undefined
-    ) {
-      if (artifact.path !== undefined) {
-        const file = stateFiles.find(
-          (entry) =>
-            archivePathKey(entry.archivePath) === archivePathKey(artifact.path!)
-        )?.file;
-        return io.read(file!);
+    const sourceReads = new Map<string, ReturnType<LabelmapIO['read']>>();
+    function readImport(item: LabelmapImport, storeId: string | undefined) {
+      const input = item.input;
+      const key =
+        'path' in input
+          ? `archive:${archivePathKey(input.path)}`
+          : `dataset:${storeId}`;
+      let read = sourceReads.get(key);
+      if (!read) {
+        read = (async () => {
+          if ('path' in input) {
+            const file = stateFiles.find(
+              (entry) =>
+                archivePathKey(entry.archivePath) === archivePathKey(input.path)
+            )?.file;
+            if (!file) throw new Error('Archive member is missing');
+            return io.read(file);
+          }
+          return {
+            image: await loadedImage(storeId!),
+            headerMetadata: imageCacheStore.imageById[storeId!]?.headerMetadata,
+          };
+        })();
+        sourceReads.set(key, read);
       }
-
-      const image = await loadedArtifactImage(storeId!);
-      return {
-        image,
-        headerMetadata: imageCacheStore.imageById[storeId!]?.headerMetadata,
-      };
+      return read;
     }
 
-    const { needsDecode } = planArtifactRestore(manifest);
-    const loadedArtifactImage = createArtifactImageLoader(
+    const loadedImage = createLoadedImageReader(
       (id) => imageCacheStore.imageById[id],
       (id) => imageCacheStore.getVtkImageData(id) ?? undefined
     );
 
-    // Skip BEFORE awaiting anything an artifact whose parent image is
+    // Skip BEFORE awaiting anything an item whose parent image is
     // unresolved, or a path-less one whose datasource never materialized;
     // `untilLoaded(undefined)` never times out and would hang restore forever.
-    const attachable = wireArtifacts.filter((artifact) => {
-      if (dataIDMap[artifact.parentImage] === undefined) {
+    const attachable = imports.filter((item) => {
+      if (dataIDMap[item.parentImage] === undefined) {
         skipped.push({
-          name: artifact.name,
+          name: item.name,
           reason: 'parent image did not load',
         });
         return false;
       }
-      if (artifact.path !== undefined) return true;
-      const hasArtifact = artifactStoreId(artifact) !== undefined;
-      if (!hasArtifact) {
+      if ('path' in item.input) return true;
+      const hasImport = sourceStoreId(item) !== undefined;
+      if (!hasImport) {
         skipped.push({
-          name: artifact.name,
-          reason: 'artifact source unavailable',
+          name: item.name,
+          reason: 'labelmap source unavailable',
         });
       }
-      return hasArtifact;
+      return hasImport;
     });
 
-    // Every path-less artifact's temporary imported dataset must be removed
-    // exactly ONCE, and only AFTER every artifact that reads it has settled;
-    // two artifacts sharing a dataSourceId share one temp dataset id. Collected
-    // from EVERY artifact, not just the attachable ones: one skipped at the
+    // Every path-less item's temporary imported dataset must be removed
+    // exactly ONCE, and only AFTER every item that reads it has settled;
+    // two items sharing a dataSourceId share one temp dataset id. Collected
+    // from EVERY item, not just the attachable ones: one skipped at the
     // parent-image check may still have imported its leaf.
     const tempStoreIdsToRemove = new Set(
-      wireArtifacts
-        .filter((artifact) => artifactSources[artifact.id]?.temporary === true)
-        .map(artifactStoreId)
+      imports
+        .filter((item) => labelmapSources[item.id]?.temporary === true)
+        .map(sourceStoreId)
         .filter((storeId): storeId is string => storeId !== undefined)
     );
 
     let loaded;
     try {
       loaded = await Promise.all(
-        attachable.map(async (artifact) => {
-          const storeId = artifactStoreId(artifact);
+        attachable.map(async (item) => {
+          const storeId = sourceStoreId(item);
           try {
-            const { image, headerMetadata } = await loadArtifactImage(
-              artifact,
-              storeId
-            );
+            const { image, headerMetadata } = await readImport(item, storeId);
             const labelmap = toLabelMap(
-              await restoredLabelmapImage(artifact, image, {
-                loadedParentImage: () =>
-                  loadedArtifactImage(dataIDMap[artifact.parentImage]),
-                ensureSameSpace,
-              })
+              await ensureSameSpace(
+                await loadedImage(dataIDMap[item.parentImage]),
+                image,
+                true
+              )
             );
             // A group that carried no descriptors is enumerated here, through
             // the same decode live import uses, while its source image is
-            // still loaded: the temp artifact dataset is dropped below.
-            const decoded = needsDecode(artifact)
+            // still loaded: the temp item dataset is dropped below.
+            const decoded = item.decode
               ? ((await decodeSegments(storeId, labelmap, {
                   headerMetadata,
                 })) as LabelmapSegment[])
               : undefined;
-            return { artifact, labelmap, decoded };
+            return { item, labelmap, decoded };
           } catch {
-            // A parse/read failure skips just this artifact and never rejects the
+            // A parse/read failure skips just this item and never rejects the
             // whole restore; the survivors still attach.
             skipped.push({
-              name: artifact.name,
+              name: item.name,
               reason: 'could not read/parse labelmap',
             });
             return undefined;
@@ -396,20 +401,14 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     // creating any masks, after every asynchronous placement step has settled.
     loaded = loaded.filter((result) => {
       if (!result) return false;
-      if (
-        imageCacheStore.getVtkImageData(dataIDMap[result.artifact.parentImage])
-      )
+      if (imageCacheStore.getVtkImageData(dataIDMap[result.item.parentImage]))
         return true;
       skipped.push({
-        name: result.artifact.name,
+        name: result.item.name,
         reason: 'parent image is unavailable',
       });
       return false;
     });
-    const splitWireIds = new Set(
-      loaded.flatMap((result) => (result ? [result.artifact.id] : []))
-    );
-
     const prepared = prepareRestoreBindings({
       manifest,
       dataIDMap,
@@ -418,14 +417,6 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     });
     skipped.push(...prepared.skipped);
     const { acceptedBindings } = prepared;
-
-    // The masks a group awaiting its split named, in wire order, with the
-    // SOURCE value each one's descriptor carries. They stand in for the
-    // bindings a split group has no storage for.
-    const awaitingSplit = new Map<
-      string,
-      Array<{ mask: SegmentMask; labelValue: number }>
-    >();
 
     (manifest.segmentations ?? []).forEach((wire) => {
       const parentImageId = dataIDMap[wire.parentImage];
@@ -456,146 +447,89 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
         const segment = createMask(segmentation.id, segmentId);
 
-        const binding = wireMask.representations.labelmap;
         const accepted = acceptedBindings.get(wireMask);
-        const artifactId = binding?.artifactId;
-        if (artifactId !== undefined && splitWireIds.has(artifactId)) {
-          const waiting = awaitingSplit.get(artifactId) ?? [];
-          // Only a migrated binding names a source value; a group a backend
-          // composed names no mask at all, so its values are decoded.
-          waiting.push({
-            mask: segment,
-            labelValue: binding!.sourceValue ?? SEGMENT_VALUE,
-          });
-          awaitingSplit.set(artifactId, waiting);
-        } else if (accepted) {
-          attachMaskBinding(segment.id, accepted);
-        }
+        if (accepted) attachMaskBinding(segment.id, accepted);
         maskIdMap[wireMask.id] = segment.id;
       });
     });
 
-    // Split after the wire segmentations so a legacy group's segments follow
-    // the ones the manifest named, not precede them. A migrated group holds
-    // every segment in one buffer: `decoded` names them when the group carried
-    // no descriptors, the restored bindings when it did.
+    // All asynchronous reads have settled. Fill the masks already placed in
+    // wire order; their identities, selection and tool references stay intact.
     loaded.forEach((result) => {
       if (!result) return;
-      const { artifact } = result;
-      if (!splitWireIds.has(artifact.id)) return;
-
-      // `decoded` names the segments when the group carried no descriptors;
-      // otherwise the masks the manifest just restored do.
-      const waiting = awaitingSplit.get(artifact.id) ?? [];
-      const migrated = waiting.map(({ mask }) => mask);
-      const sourceValueOf = new Map(
-        waiting.map(({ mask, labelValue }) => [mask.id, labelValue])
-      );
-      // A descriptor built from a mask carries that mask's segment, so the
-      // split lands in the segment the manifest named rather than matching by
-      // name against a segment another mask already holds.
-      const carriedTypeIds = new Map<LabelmapSegment, string>();
-      // The legacy group's display rides on the artifact only where it named
-      // no segments: a group the manifest described put it on their types.
-      const descriptors =
-        result.decoded?.map((descriptor) => ({
+      const { item, labelmap, decoded } = result;
+      const parentImageId = dataIDMap[item.parentImage];
+      let restored: SegmentMask[];
+      if (decoded) {
+        const descriptors = decoded.map((descriptor) => ({
           ...descriptor,
           ...cleanUndefined({
-            fillOpacity: artifact.pendingFillOpacity,
-            outlineOpacity: artifact.pendingOutlineOpacity,
+            fillOpacity: item.display.fillOpacity,
+            outlineOpacity: item.display.outlineOpacity,
             visible:
-              artifact.pendingVisibility === undefined
+              item.display.visible === undefined
                 ? undefined
-                : descriptor.visible && artifact.pendingVisibility,
+                : descriptor.visible && item.display.visible,
           }),
-        })) ??
-        migrated.map((segment) => {
-          const descriptor = toLabelmapSegment(
-            segmentRegistry.getSegment(segment.segmentId),
-            sourceValueOf.get(segment.id)!
-          );
-          carriedTypeIds.set(descriptor, segment.segmentId);
-          return descriptor;
+        }));
+        restored = splitLabelmapIntoMasks(
+          parentImageId,
+          labelmap,
+          descriptors,
+          {
+            source: item.source,
+            name: item.name,
+          }
+        );
+        const activeIndex = descriptors.findIndex(
+          (descriptor) => descriptor.value === item.activeValue
+        );
+        const active = restored[activeIndex];
+        if (active) segmentRegistry.selectSegment(active.segmentId);
+      } else {
+        const segmentation = getSegmentationForImage(parentImageId);
+        const targets = item.masks.flatMap(({ maskId, value }) => {
+          const mask = segmentation?.masks[maskIdMap[maskId]];
+          if (!mask || !segmentRegistry.getSegment(mask.segmentId)) return [];
+          return [
+            {
+              mask,
+              descriptor: toLabelmapSegment(
+                segmentRegistry.getSegment(mask.segmentId),
+                value
+              ),
+            },
+          ];
         });
-
-      // The source goes first, so the split segments can take the label values
-      // the migrated ones were holding.
-      const parentImageId = dataIDMap[artifact.parentImage];
-      const segmentation = ensureSegmentationForImage(parentImageId);
-      const orderBefore = [...segmentation.order];
-      const { labelmap } = result;
-      const migratedIds = migrated.map((segment) => segment.id);
-      const wireIdByStoreId = new Map(
-        Object.entries(maskIdMap).map(([wireId, storeId]) => [storeId, wireId])
-      );
-      const selectedBefore = segmentRegistry.selectedSegmentId.value;
-      const migratedTypeIds = new Map(
-        migrated.map((segment) => [segment.id, segment.segmentId])
-      );
-      // Detached BEFORE the split so each descriptor's preferred segment is
-      // free to take: a migrated mask still on the image would hold it, and
-      // bindDescriptorSegment would mint a duplicate instead of reusing it.
-      migrated.forEach((mask) => detachMask(segmentation, mask.id));
-
-      const created = splitLabelmapIntoMasks(
-        parentImageId,
-        labelmap,
-        descriptors,
-        {
-          source: artifact.source,
-          artifactName: artifact.name,
-          segmentIdFor: (descriptor) => carriedTypeIds.get(descriptor),
-        }
-      );
-      if (created.length) restoredArtifactIds.add(artifact.id);
+        const maskByDescriptor = new Map(
+          targets.map(({ mask, descriptor }) => [descriptor, mask])
+        );
+        splitLabelmap(
+          labelmap,
+          targets.map(({ descriptor }) => descriptor),
+          (descriptor, extent) => {
+            const mask = maskByDescriptor.get(descriptor)!;
+            const binding = createBindingForImage(
+              parentImageId,
+              extent,
+              item.source,
+              item.name
+            );
+            attachMaskBinding(mask.id, binding);
+            return {
+              labelValue: SEGMENT_VALUE,
+              mask: maskScalars(binding.image),
+            };
+          }
+        );
+        restored = targets.map(({ mask }) => mask);
+      }
+      if (restored.length) restoredImportIds.add(item.id);
       else
-        skipped.push({
-          name: artifact.name,
-          reason: 'labelmap holds no segments',
-        });
-
-      // Every reference to a segment that went with the source artifact moves
-      // onto the split one that replaced it, its place in the order included.
-      const replacementOf = new Map<string, string>();
-      migratedIds.forEach((maskId, index) => {
-        const replacement = created[index];
-        if (!replacement) return;
-        replacementOf.set(maskId, replacement.id);
-        const wireId = wireIdByStoreId.get(maskId);
-        if (wireId) maskIdMap[wireId] = replacement.id;
-        // The split mints its own types, so a selection on the source type
-        // follows onto the segment its replacement landed in.
-        if (selectedBefore === migratedTypeIds.get(maskId))
-          segmentRegistry.selectSegment(replacement.segmentId);
-      });
-
-      const placed = orderBefore.flatMap((maskId) => {
-        const replacement = replacementOf.get(maskId);
-        if (replacement) return [replacement];
-        return segmentation.masks[maskId] ? [maskId] : [];
-      });
-      segmentation.order = [
-        ...placed,
-        ...created
-          .map((segment) => segment.id)
-          .filter((maskId) => !placed.includes(maskId)),
-      ];
-
-      // A migrated legacy group carried its active paint value here, because
-      // its segments did not exist when activeSegment was applied above. It is
-      // a SOURCE value, and the split segment holding it keeps that value only
-      // when nothing else on this parent image already had it, so the
-      // descriptor it came from is what identifies the segment.
-      const { pendingActiveValue } = artifact;
-      if (pendingActiveValue === undefined) return;
-      const activeIndex = descriptors.findIndex(
-        (descriptor) => descriptor.value === pendingActiveValue
-      );
-      const active = activeIndex === -1 ? undefined : created[activeIndex];
-      if (active) segmentRegistry.selectSegment(active.segmentId);
+        skipped.push({ name: item.name, reason: 'labelmap holds no segments' });
     });
 
-    return { restoredArtifactIds, maskIdMap, skipped };
+    return { restoredImportIds, maskIdMap, skipped };
   }
 
   return { serialize, deserialize };

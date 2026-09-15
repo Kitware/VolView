@@ -1,3 +1,4 @@
+import { Skip } from '@/src/utils/evaluateChain';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -5,7 +6,7 @@ import { nextTick } from 'vue';
 import { importDataSources } from '@/src/io/import/importDataSources';
 import {
   recordingRestoreProcessors,
-  yields,
+  yieldsFor,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
@@ -40,13 +41,17 @@ const RESTORED_MANIFEST = {
   ],
 };
 
-const setup = yields({
-  type: 'stateFileSetup',
-  dataSources: [],
-  manifest: RESTORED_MANIFEST,
-  stateFiles: [],
-  missingFiles: [],
-});
+const setup = yieldsFor((source) =>
+  source.type === 'file' && source.file.name === 'session.volview.json'
+    ? {
+        type: 'stateFileSetup',
+        dataSources: [],
+        manifest: RESTORED_MANIFEST,
+        stateFiles: [],
+        missingFiles: [],
+      }
+    : Skip
+);
 
 describe('post-state segment type config', () => {
   beforeEach(() => {

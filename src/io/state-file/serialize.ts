@@ -11,7 +11,6 @@ import {
   ManifestSchema,
   ParentToLayers,
   Segmentation,
-  SegmentationArtifact,
   StateFile,
 } from '@/src/io/state-file/schema';
 
@@ -122,63 +121,18 @@ function validateCoreGraph(core: Manifest, zip: JSZip) {
   return { sourceIds, datasetIds };
 }
 
-// Last gate before a session archive is written. Three responsibilities:
-//
-//   1. Abort on an incoherent core graph (`validateCoreGraph`) — a bad version,
-//      duplicate/dangling/cyclic data-source refs, missing local files, or a
-//      dataset pointing at no source. Corruption here yields an UNrestorable
-//      archive, so it throws rather than omits.
-//   2. Prune segmentations and segmentation artifacts (and their orphaned
-//      archive members from the zip) and layer relationships that reference a
-//      missing dataset/source.
-//   3. Drop any optional root whose SHAPE fails the schema, gracefully.
-//
-// Referential integrity of the OTHER optional state (view `dataID`s, annotation
-// `imageID`s, crop keys, the active paint group, primary/active selections) is
-// owned by the synchronous remove cascade — see `datasetStore.remove` and
-// `datasetRemoveCascade.spec.ts`. Those ids are kept live-clean at the source,
-// and a stale one is harmless on restore anyway (deserialize remaps every id
-// through its id-map and ignores misses), so this function does not re-walk
-// them. Segmentation artifacts stay here because an orphaned one leaves dead
-// `.seg.nrrd` bytes in the archive, a real cost the cascade does not address.
+// Validate the source graph and saved mask files before writing an archive.
+// Optional invalid content is reported and omitted; an invalid source graph
+// aborts the save. Dataset and tool references are kept clean by their stores'
+// removal cascades and checked below in development builds.
 export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   const candidate = manifest as unknown as ManifestCandidate;
   const core = coreManifestSchema.parse(candidate) as Manifest;
-  const { sourceIds, datasetIds } = validateCoreGraph(core, zip);
+  const { datasetIds } = validateCoreGraph(core, zip);
   const omitted: string[] = [];
 
   const rawName = (raw: unknown, fallback: string) =>
     isRecord(raw) && typeof raw.name === 'string' ? raw.name : fallback;
-
-  const rawArtifacts = Array.isArray(candidate.segmentationArtifacts)
-    ? candidate.segmentationArtifacts
-    : [];
-  const validArtifacts = rawArtifacts.flatMap((raw, index) => {
-    const parsed = SegmentationArtifact.safeParse(raw);
-    const name = rawName(raw, `segmentationArtifacts[${index}]`);
-    let reason: string | null = null;
-    if (!parsed.success) reason = 'invalid segmentation artifact record';
-    else if (!datasetIds.has(parsed.data.parentImage)) {
-      reason = `parent dataset ${parsed.data.parentImage} is missing`;
-    } else if (
-      parsed.data.dataSourceId !== undefined &&
-      !sourceIds.has(parsed.data.dataSourceId)
-    ) {
-      reason = `artifact data source ${parsed.data.dataSourceId} is missing`;
-    } else if (parsed.data.path && zip.file(parsed.data.path) === null) {
-      reason = `archive member ${parsed.data.path} is missing`;
-    }
-    if (!parsed.success || reason) {
-      omitted.push(`${name}: ${reason}`);
-      if (isRecord(raw) && typeof raw.path === 'string') zip.remove(raw.path);
-      return [];
-    }
-    return [parsed.data];
-  });
-
-  const artifactParentById = new Map(
-    validArtifacts.map((entry) => [entry.id, entry.parentImage])
-  );
 
   const rawSegmentations = Array.isArray(candidate.segmentations)
     ? candidate.segmentations
@@ -196,27 +150,10 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       return [];
     }
 
-    // Storage a restore could not reach must not be left referenced, or it
-    // would silently recreate the mask with no voxels. An artifact also may
-    // not belong to another image: a mask sits on its parent's grid, so a
-    // binding across images points it at storage of the wrong shape.
     const masks = parsed.data.masks.map((mask) => {
       const binding = mask.representations.labelmap;
-      if (!binding) return mask;
-      const unreachable = () => {
-        if (binding.path !== undefined) {
-          return zip.file(binding.path) === null
-            ? `archive member ${binding.path} is missing`
-            : undefined;
-        }
-        const artifactParent = artifactParentById.get(binding.artifactId!);
-        if (artifactParent === parsed.data.parentImage) return undefined;
-        return artifactParent === undefined
-          ? `segmentation artifact ${binding.artifactId} is missing`
-          : `segmentation artifact ${binding.artifactId} belongs to ${artifactParent}`;
-      };
-      const unreachableReason = unreachable();
-      if (unreachableReason === undefined) return mask;
+      if (!binding || zip.file(binding.path) !== null) return mask;
+      const unreachableReason = `archive member ${binding.path} is missing`;
       omitted.push(`${name}.masks[${mask.id}]: ${unreachableReason}`);
       return { ...mask, representations: {} };
     });
@@ -251,14 +188,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   if (process.env.NODE_ENV !== 'production') {
     const resolvable: Record<ManifestRefKind, Set<string>> = {
       dataset: datasetIds,
-      // Every artifact the manifest itself declared, not just the ones that
-      // survived pruning: a binding to an artifact dropped here for missing
-      // bytes is normalization doing its job, not a cascade that failed to run.
-      segmentationArtifact: new Set(
-        rawArtifacts.flatMap((raw) =>
-          isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
-        )
-      ),
       segment: new Set(
         Array.isArray(candidate.segments)
           ? candidate.segments.flatMap((raw) =>
@@ -272,7 +201,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     };
     const kindLabel: Record<ManifestRefKind, string> = {
       dataset: 'dataset',
-      segmentationArtifact: 'segmentation artifact',
       segment: 'segment type',
       view: 'view',
     };
@@ -335,7 +263,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   const normalized = {
     ...core,
     segmentations: validSegmentations,
-    segmentationArtifacts: validArtifacts,
     ...(validLayers ? { parentToLayers: validLayers } : {}),
     ...Object.fromEntries(optionalEntries),
   } as Manifest;
@@ -382,7 +309,6 @@ export async function serialize(
     dataSources: [],
     datasetFilePath: {},
     segmentations: [],
-    segmentationArtifacts: [],
     tools: {
       paint: {
         brushSize: 8,

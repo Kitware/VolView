@@ -3,10 +3,7 @@ import { until } from '@vueuse/core';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import type {
-  Manifest,
-  SegmentationArtifact,
-} from '@/src/io/state-file/schema';
+import type { Segmentation } from '@/src/io/state-file/schema';
 import { placeMask, setMaskScalars } from '@/src/segmentation/masks/storage';
 import type { ProcessingResultSource } from '@/src/types';
 import {
@@ -24,70 +21,24 @@ import {
 import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 
-type WireMaskation = NonNullable<Manifest['segmentations']>[number];
-export type WireMask = WireMaskation['masks'][number];
+export type WireMask = Segmentation['masks'][number];
 
-/**
- * Every artifact is split into bounded masks. One the manifest's masks name
- * takes its segments from them; one nothing names carries no account of what
- * its values mean, so the restore enumerates its voxels instead.
- */
-export function planArtifactRestore(manifest: Manifest) {
-  const boundArtifactIds = new Set(
-    (manifest.segmentations ?? []).flatMap((wire) =>
-      wire.masks.flatMap((segment) => {
-        const artifactId = segment.representations.labelmap?.artifactId;
-        return artifactId ? [artifactId] : [];
-      })
-    )
-  );
-  const needsDecode = (artifact: SegmentationArtifact) =>
-    artifact.pendingDecode === true || !boundArtifactIds.has(artifact.id);
-  return { needsDecode };
-}
-
-/** Requires complete image data for an artifact's source or parent grid. */
-export function createArtifactImageLoader(
+/** Requires complete image data for an input's source or parent grid. */
+export function createLoadedImageReader(
   getImage: (id: string) => ProgressiveImage | undefined,
   getVtkImageData: (id: string) => vtkImageData | undefined
 ) {
   return async (imageId: string) => {
-    // A stopped, incomplete load cannot supply the grid for an artifact.
+    // A stopped, incomplete load cannot supply the grid for an input.
     // Removal also settles the watcher, including removal before it starts.
     await until(() => !getImage(imageId)?.loading.value).toBe(true);
     if (getImage(imageId)?.status.value !== 'complete') {
-      throw new Error('Artifact image did not load');
+      throw new Error('Labelmap image did not load');
     }
     const image = getVtkImageData(imageId);
-    if (!image) throw new Error('Could not get artifact image data');
+    if (!image) throw new Error('Could not get input image data');
     return image;
   };
-}
-
-/**
- * An artifact is split in the parent's index space, so it goes onto the
- * parent's grid first. A saved mask needs none of this: it carries its own
- * bounds and its file is already the shape they describe.
- */
-export async function restoredLabelmapImage(
-  artifact: SegmentationArtifact,
-  image: vtkImageData,
-  deps: {
-    loadedParentImage: (
-      artifact: SegmentationArtifact
-    ) => Promise<vtkImageData>;
-    ensureSameSpace: (
-      fixed: vtkImageData,
-      moving: vtkImageData,
-      nearestNeighbor: boolean
-    ) => Promise<vtkImageData>;
-  }
-) {
-  return deps.ensureSameSpace(
-    await deps.loadedParentImage(artifact),
-    image,
-    true
-  );
 }
 
 /** One mask's labelmap, read back from the archive entry its binding named. */
@@ -100,11 +51,11 @@ export type LoadedLabelmap = {
 export type SkippedRestoreItem = { name: string; reason: string };
 
 type RestoreBindingInput = {
-  manifest: Manifest;
+  manifest: { segmentations?: Segmentation[] };
   dataIDMap: Record<string, string>;
   /**
-   * What each mask's own archive entry held. A mask awaiting an artifact's
-   * split is absent: its voxels are still inside that artifact.
+   * What each mask's own archive entry held. A mask awaiting an input's
+   * split is absent: its voxels are still inside that input.
    */
   loaded: Map<WireMask, LoadedLabelmap>;
   getParentImage: (id: string) => vtkImageData | undefined;

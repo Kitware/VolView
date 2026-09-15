@@ -313,27 +313,24 @@ const Extent3D = z.tuple([
   z.number(),
 ]);
 
-const LabelmapBinding = z
-  .object({
-    extent: Extent3D,
-    // A saved mask's own archive entry, and the name that entry takes on the
-    // next save.
-    path: z.string().optional(),
-    name: z.string().optional(),
-    source: ProcessingResultSource.optional(),
-    // Migration-only, in place of a path: the segmentationArtifact whose one
-    // buffer still holds this mask's voxels, and the value they carry in it.
-    // Restore splits that buffer into bounded masks, so a mask saved after
-    // one names a path like any other.
-    artifactId: z.string().optional(),
-    sourceValue: z.number().optional(),
-  })
-  .refine(
-    (data) => (data.path === undefined) !== (data.artifactId === undefined),
-    {
-      message: 'A labelmap binding names either a path or an artifact',
-    }
-  );
+const LabelmapBinding = z.object({
+  extent: Extent3D,
+  path: z.string(),
+  name: z.string().optional(),
+  source: ProcessingResultSource.optional(),
+});
+
+// Only incoming manifests can refer to an unsplit labelmap. Normal saved
+// masks always own an archive entry.
+const ImportedLabelmapBinding = LabelmapBinding.extend({
+  path: z.string().optional(),
+  artifactId: z.string().optional(),
+  sourceValue: z.number().optional(),
+}).refine(
+  (binding) =>
+    (binding.path === undefined) !== (binding.artifactId === undefined),
+  { message: 'A labelmap binding names either a path or an artifact' }
+);
 
 // Everything the user sees or sets lives on the type; a record is one image's
 // mask for it.
@@ -367,6 +364,14 @@ export const Segmentation = z.object({
   fillOpacity: z.number().default(DEFAULT_SEGMENTATION_FILL_OPACITY),
   outlineOpacity: z.number().default(1),
   outlineThickness: z.number().default(2),
+});
+
+const ImportedSegmentation = Segmentation.extend({
+  masks: SegmentMask.extend({
+    representations: z.object({
+      labelmap: ImportedLabelmapBinding.optional(),
+    }),
+  }).array(),
 });
 
 export type Segmentation = z.infer<typeof Segmentation>;
@@ -500,7 +505,7 @@ export const ManifestSchema = z.object({
   datasets: Dataset.array().optional(),
   dataSources: DataSource.array(),
   datasetFilePath: z.record(z.string(), z.string()).optional(),
-  segmentations: Segmentation.array().optional(),
+  segmentations: ImportedSegmentation.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
   segments: Segment.array().optional(),
   selectedSegment: z.string().optional(),

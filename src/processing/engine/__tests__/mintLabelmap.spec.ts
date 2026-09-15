@@ -224,7 +224,7 @@ describe('labelmap binding through bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model,
       context({
-        activeArtifactId: 'g1',
+        activeImageId: 'g1',
         segmentGroups: viewOf({ g1: 'bg' }),
       })
     );

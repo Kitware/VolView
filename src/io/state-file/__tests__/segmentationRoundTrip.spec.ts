@@ -96,7 +96,7 @@ describe('segmentation state-file round trip', () => {
     expect(parsed.segmentations).toHaveLength(2);
     // Every labelmap a save writes belongs to a mask, so the artifact array
     // that a migration or a backend fills is empty here.
-    expect(parsed.segmentationArtifacts).toEqual([]);
+    expect(parsed.segmentationArtifacts).toBeUndefined();
     expect(parsed.segmentGroups).toBeUndefined();
 
     setActivePinia(createPinia());

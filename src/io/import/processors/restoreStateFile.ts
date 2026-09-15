@@ -16,7 +16,10 @@ import {
   dataSourcesById,
   summarizeDataSource,
 } from '@/src/io/state-file/dataSourceDisplayName';
-import { leafStateId } from '@/src/io/import/dataSource';
+import {
+  planLabelmapSources,
+  resolveLabelmapSources,
+} from '@/src/io/import/labelmapImports';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useToolStore } from '@/src/store/tools';
@@ -92,77 +95,6 @@ function resolveToLeafSources(
   }
 }
 
-// A composed manifest's `datasets` covers base images only; a segmentation
-// artifact wired to a uri entry via `dataSourceId` (and carrying no archive
-// `path`) still needs its bytes fetched, or the artifact's dataIDMap key never
-// materializes and restore hangs. Only artifacts reach here: a saved mask
-// carries its own archive entry and needs no dataset of its own. The
-// synthesized stateID is
-// `leafStateId(dataSourceId)`, never the bare numeral: dataset ids and
-// dataSourceIds are both small integers in real saves, and a shared key would
-// hand the restore to leaf completion order.
-const syntheticLeafSources = (manifest: Manifest): Map<number, string> => {
-  const byId = dataSourcesById(manifest.dataSources);
-  const coveredSourceIds = new Set(
-    manifestDatasets(manifest).map((ds) => ds.dataSourceId)
-  );
-  const referencedLeafSourceIds = new Set(
-    (manifest.segmentationArtifacts ?? [])
-      .filter(
-        (artifact) =>
-          artifact.path === undefined && artifact.dataSourceId !== undefined
-      )
-      .map((artifact) => artifact.dataSourceId!)
-  );
-  return new Map(
-    [...referencedLeafSourceIds]
-      .filter((id) => !coveredSourceIds.has(id) && byId[id]?.type === 'uri')
-      .map((id) => [id, leafStateId(id)])
-  );
-};
-
-export type ArtifactRestoreSource = {
-  stateId: string;
-  temporary: boolean;
-};
-
-// Each path-less artifact's restore source: the synthesized temporary leaf when
-// one was minted, else the dataset covering that source. Explicitly carry
-// ownership so cleanup never removes a real dataset merely because an artifact
-// shares its dataSourceId. Legacy manifests have no dataset/artifact
-// distinction, so their path-less artifact datasets retain the consumed-temp
-// behavior used before `datasets` was added.
-export const resolveArtifactRestoreSources = (
-  manifest: Manifest
-): Record<string, ArtifactRestoreSource> => {
-  const minted = syntheticLeafSources(manifest);
-  const datasetIdBySourceId = new Map(
-    manifestDatasets(manifest).map((ds) => [ds.dataSourceId, ds.id])
-  );
-  return Object.fromEntries(
-    (manifest.segmentationArtifacts ?? []).flatMap((artifact) => {
-      if (artifact.path !== undefined || artifact.dataSourceId === undefined)
-        return [];
-      const mintedStateId = minted.get(artifact.dataSourceId);
-      const stateId =
-        mintedStateId ?? datasetIdBySourceId.get(artifact.dataSourceId);
-      return stateId !== undefined
-        ? [
-            [
-              artifact.id,
-              {
-                stateId,
-                temporary:
-                  mintedStateId !== undefined ||
-                  manifest.datasets === undefined,
-              },
-            ] as const,
-          ]
-        : [];
-    })
-  );
-};
-
 function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
   const byId = dataSourcesById(manifest.dataSources);
 
@@ -172,12 +104,12 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
 
   const datasets = manifestDatasets(manifest);
 
-  const artifactLeaves = [...syntheticLeafSources(manifest).entries()].map(
+  const importLeaves = [...planLabelmapSources(manifest).leaves.entries()].map(
     ([dataSourceId, stateId]) => ({ id: stateId, dataSourceId })
   );
 
   const missingFiles: Array<{ stateID: string; path: string }> = [];
-  const dataSources = [...datasets, ...artifactLeaves].flatMap((ds) => {
+  const dataSources = [...datasets, ...importLeaves].flatMap((ds) => {
     const sources = resolveToLeafSources(
       ds.dataSourceId,
       byId,
@@ -256,13 +188,13 @@ export async function completeStateFileRestore(
   // ids they name are minted here.
   const segmentIdMap = useSegmentStore().deserialize(manifest);
 
-  const { skipped: skippedArtifacts } =
+  const { skipped: skippedLabelmaps } =
     await useSegmentationStore().deserialize({
       manifest,
       stateFiles,
       dataIDMap: stateIDToStoreID,
       segmentIdMap,
-      artifactSources: resolveArtifactRestoreSources(manifest),
+      labelmapSources: resolveLabelmapSources(manifest),
     });
 
   useLayersStore().deserialize(manifest, stateIDToStoreID);
@@ -307,7 +239,7 @@ export async function completeStateFileRestore(
     ...missingBases.map((name) => `- image: ${name}`),
     ...missingMembers,
     ...failedMembers,
-    ...skippedArtifacts.map(
+    ...skippedLabelmaps.map(
       ({ name, reason }) => `- segment group: ${name} (${reason})`
     ),
   ];

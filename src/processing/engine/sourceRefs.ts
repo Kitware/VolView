@@ -41,7 +41,7 @@ export type SourceRefBindings = {
 export type SourceRefBindingContext = {
   activeDataSource: DataSource | undefined;
   backgroundImageId: string | undefined;
-  activeArtifactId: string | null | undefined;
+  activeImageId: string | null | undefined;
   segmentGroups: SegmentGroupView;
   // Whether the active image carries at least one finished annotation tool.
   hasFinishedAnnotations: boolean;
@@ -101,7 +101,7 @@ export const bindSourceRefs = (
     acceptsLabelmap
       ? resolveLabelmapGroups(
           context.backgroundImageId,
-          context.activeArtifactId,
+          context.activeImageId,
           multiple,
           context.segmentGroups
         )
