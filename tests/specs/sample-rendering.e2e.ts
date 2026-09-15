@@ -1,3 +1,4 @@
+import { useCachedRemoteData } from '../cachedRemoteData';
 import AppPage from '../pageobjects/volview.page';
 
 const THRESHOLD = 12; // percent - handle pixel jitter in 3D view
@@ -5,6 +6,7 @@ const RENDER_STABLE_TIMEOUT = 5000;
 
 describe('VolView', () => {
   it('should load and render a sample dataset', async () => {
+    await useCachedRemoteData();
     await AppPage.open();
     await AppPage.downloadProstateSample();
     await AppPage.waitForViews();

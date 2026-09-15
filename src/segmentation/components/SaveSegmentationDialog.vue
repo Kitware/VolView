@@ -49,7 +49,8 @@
 
 <script setup lang="ts">
 import {
-  compositeLabelmap,
+  captureLabelmapParts,
+  composeLabelmapPart,
   planLabelmapExport,
 } from '@/src/segmentation/io/composition';
 
@@ -125,12 +126,15 @@ async function writeParts(stem: string) {
   useSegmentationEditsStore().beforeRead();
   const format = fileFormat.value;
   const parentId = parentImageId.value;
-  const parts = planLabelmapExport(parentId).parts;
+  const snapshot = captureLabelmapParts(
+    parentId,
+    planLabelmapExport(parentId).parts
+  );
   const files: ExportFile[] = [];
   // Written one at a time: serializing copies the whole buffer, and itk-wasm
   // queues the writes on one shared worker whatever the caller does.
-  for (const [index, members] of parts.entries()) {
-    const composite = compositeLabelmap(parentId, members);
+  for (const [index, members] of snapshot.parts.entries()) {
+    const composite = composeLabelmapPart(snapshot.parent, members);
     const data = await writeSegmentation(
       format,
       composite.labelmap,

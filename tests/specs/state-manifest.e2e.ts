@@ -1,3 +1,4 @@
+import { useCachedRemoteData } from '../cachedRemoteData';
 import * as path from 'path';
 import { FIXTURES, applyTestViewport } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -5,6 +6,7 @@ import { openVolViewPage, writeManifestToZip } from './utils';
 
 describe('State file manifest.json code', () => {
   it('has no errors loading version 5.0.1 manifest.json file ', async () => {
+    await useCachedRemoteData();
     const manifestPath = path.join(
       FIXTURES,
       'pre-multi-4up.5-0-1.volview.json'
@@ -17,6 +19,7 @@ describe('State file manifest.json code', () => {
   it('loads 5.0.1 manifest with axial layer layout', async () => {
     await browser.reloadSession();
     await applyTestViewport(browser);
+    await useCachedRemoteData();
     const manifestPath = path.join(FIXTURES, 'layer-axial.5-0-1.volview.json');
     const fileName = 'temp-layer-axial.volview.zip';
     await writeManifestToZip(manifestPath, fileName);

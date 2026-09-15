@@ -1,4 +1,14 @@
-import { compositeLabelmap } from '@/src/segmentation/io/composition';
+import {
+  captureLabelmapParts,
+  composeLabelmapPart,
+} from '@/src/segmentation/io/composition';
+import { layerFileName } from '@/src/segmentation/io/export';
+import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
+import {
+  acceptsMultipleLabelmaps,
+  planSegmentationInput,
+} from './segmentationInput';
+import type { TaskFormModel } from '@/src/processing/engine/formModel';
 import { computed } from 'vue';
 
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -148,43 +158,53 @@ export function useInputStaging() {
   // embedded in the serialized output.
   const stageSegmentationInput = async (
     p: ProcessingProvider,
-    segmentationId: string
+    plan: ReturnType<typeof planSegmentationInput>
   ): Promise<string[]> => {
-    const segmentation = segmentationStore.segmentations[segmentationId];
-    const parentImage = segmentation?.parentImageId;
-    if (!parentImage) throw new Error('No such segmentation');
-    const { labelmap, segments } = compositeLabelmap(parentImage);
+    const parentImage = plan.parentId;
+    const snapshot = captureLabelmapParts(parentImage, plan.parts);
     const referenceImage = mintInputValue(
       datasetStore.getDataSource(parentImage)
     );
     if (!referenceImage) {
       throw new Error('Segmentation reference image has no server provenance');
     }
-    const name = `${segmentation.name}.seg.nrrd`;
-    const serialized = await writeSegmentation('seg.nrrd', labelmap, segments);
-    return p.stageInput({
-      file: new Blob([serialized]),
-      descriptor: {
-        type: TYPE_TAG_LABELMAP,
-        name,
-        referenceImage: {
-          ...referenceImage,
-          type: 'image',
+    const uris: string[] = [];
+    for (const [index, part] of snapshot.parts.entries()) {
+      const { labelmap, segments } = composeLabelmapPart(snapshot.parent, part);
+      const serialized = await writeSegmentation(
+        'seg.nrrd',
+        labelmap,
+        segments
+      );
+      const staged = await p.stageInput({
+        file: new Blob([serialized]),
+        descriptor: {
+          type: TYPE_TAG_LABELMAP,
+          name: layerFileName(plan.name, 'seg.nrrd', index),
+          referenceImage: { ...referenceImage, type: 'image' },
         },
-      },
-    });
+      });
+      uris.push(...staged);
+    }
+    return uris;
   };
 
   // Returns only the parameters it staged, so the caller owns the merge.
   const stageLabelmapInputs = async (
     p: ProcessingProvider,
-    bindings: SourceRefBindings
+    bindings: SourceRefBindings,
+    model: TaskFormModel
   ): Promise<Record<string, ProcessingValue>> => {
+    useSegmentationEditsStore().beforeRead();
     const staged: Record<string, ProcessingValue> = {};
     for (const [parameterId, segmentationId] of Object.entries(
       bindings.labelmap.segmentations
     )) {
-      const uris = await stageSegmentationInput(p, segmentationId);
+      const plan = planSegmentationInput(
+        segmentationId,
+        acceptsMultipleLabelmaps(model, parameterId)
+      );
+      const uris = await stageSegmentationInput(p, plan);
       staged[parameterId] = mintLabelmapValue(uris);
     }
     return staged;

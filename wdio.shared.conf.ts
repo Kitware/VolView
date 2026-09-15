@@ -6,7 +6,7 @@ import { SevereServiceError } from 'webdriverio';
 import { projectRoot } from './tests/e2eTestUtils';
 import { AUX_PORT, BASE_URL, TEST_PORT } from './tests/e2ePorts';
 
-const TEST_DATASETS = [
+export const TEST_DATASETS = [
   {
     url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
     name: 'CT000085.dcm',

@@ -11,6 +11,17 @@
       :class="{ 'text-error': bindingMessage }"
     >
       <span class="value-text">{{ bindingMessage ?? boundDisplayName }}</span>
+      <span
+        v-if="warning"
+        data-testid="staging-omission-notice"
+        class="text-warning d-inline-flex ml-2"
+        :title="warning"
+      >
+        <v-icon size="18" role="img" :aria-label="warning"
+          >mdi-alert-outline</v-icon
+        >
+        <v-tooltip activator="parent">{{ warning }}</v-tooltip>
+      </span>
     </div>
   </div>
 </template>
@@ -32,6 +43,7 @@ const props = defineProps<{
   binding?: SourceRefBindingState;
   boundName?: string;
   boundType?: BoundSourceRefType;
+  warning?: string;
 }>();
 
 // Vocabulary is shared by the caption and binding messages.

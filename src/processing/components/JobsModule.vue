@@ -64,18 +64,6 @@
               No tasks available.
             </div>
 
-            <v-alert
-              v-if="flattensOverlap"
-              type="info"
-              variant="tonal"
-              density="compact"
-              class="mb-3"
-              data-testid="staging-overlap-notice"
-            >
-              Overlapping segments are combined into one file for this job.
-              Where two overlap, the one listed first wins.
-            </v-alert>
-
             <div v-if="loadingTask" class="text-caption">
               Loading task spec…
             </div>
@@ -102,6 +90,7 @@
               :source-ref-states="sourceRefStates"
               :source-ref-names="sourceRefNames"
               :source-ref-types="sourceRefTypes"
+              :source-ref-warnings="inputWarnings"
               :submitting="submitting"
               @update:values="onValuesUpdate"
               @submit="onSubmit"
@@ -124,7 +113,11 @@
 </template>
 
 <script setup lang="ts">
-import { planLabelmapExport } from '@/src/segmentation/io/composition';
+import {
+  acceptsMultipleLabelmaps,
+  planSegmentationInput,
+} from '@/src/processing/composables/segmentationInput';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type { Ref } from 'vue';
@@ -399,7 +392,7 @@ async function onSubmit(values: Record<string, ProcessingValue>) {
   try {
     staged = await Promise.all([
       stage('Failed to stage segmentation input', () =>
-        stageLabelmapInputs(submitProvider, bindings)
+        stageLabelmapInputs(submitProvider, bindings, model)
       ),
       stage('Failed to stage annotations input', () =>
         stageAnnotationInputs(submitProvider, bindings, annotations)
@@ -525,32 +518,26 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   };
 }
 
-// More than one group is how a shared voxel shows up: an export groups an
-// image's segments so that no group holds an overlap, and one file carries one
-// group.
-const segmentationOverlaps = (segmentationId: string) =>
-  planLabelmapExport(
-    segmentationStore.segmentations[segmentationId].parentImageId
-  ).hasOverlap;
-
-// A job's input is the whole segmentation flattened into one file, where earlier
-// in the list wins. Said at the point of staging rather than only in code: the
-// staged file is not what the viewport shows, so a silent flatten is the one
-// way this loses data without telling anyone.
-//
-// Refreshed on a signal rather than tracked, because the answer costs a voxel
-// sweep of every pair of the image's masks. A tracked read would make that
-// sweep part of the render effect and pay it again on every mask growth, which
-// is once per stroke that leaves its box, in whatever tab the user is in.
-const flattensOverlap = ref(false);
+// Scanning masks is expensive, so refresh input notices outside render tracking.
+const inputWarnings = ref<Record<string, string>>({});
 const maskRevision = useMaskRevision();
+const segmentRegistry = useSegmentStore().segments;
 
-const refreshFlattensOverlap = () => {
+const refreshInputWarnings = () => {
   const model = taskModel.value;
-  const bound = model
-    ? Object.values(activeSourceBindings(model).labelmap.segmentations)
-    : [];
-  flattensOverlap.value = bound.some(segmentationOverlaps);
+  const warnings: Record<string, string> = {};
+  if (model) {
+    for (const [parameterId, segmentationId] of Object.entries(
+      activeSourceBindings(model).labelmap.segmentations
+    )) {
+      const plan = planSegmentationInput(
+        segmentationId,
+        acceptsMultipleLabelmaps(model, parameterId)
+      );
+      if (plan.warning) warnings[parameterId] = plan.warning;
+    }
+  }
+  inputWarnings.value = warnings;
 };
 
 // The revision covers every write, growth included, since a regrow announces
@@ -561,13 +548,17 @@ const overlapSignal = () =>
   [
     currentImageID.value,
     maskRevision.value,
+    segmentRegistry.selectedSegmentId.value,
+    segmentRegistry.segmentList.value
+      .map(({ id, name }) => `${id}:${name}`)
+      .join(),
     ...Object.values(segmentationStore.segmentations).map((segmentation) =>
       segmentation.order.join()
     ),
   ].join('|');
 
-watch(taskModel, refreshFlattensOverlap);
-watchDebounced(overlapSignal, refreshFlattensOverlap, { debounce: 150 });
+watch([taskModel, segmentRegistry.selectedSegmentId], refreshInputWarnings);
+watchDebounced(overlapSignal, refreshInputWarnings, { debounce: 150 });
 
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
