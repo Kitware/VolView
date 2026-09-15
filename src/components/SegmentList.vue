@@ -12,7 +12,11 @@ import { useSegmentEditing } from '@/src/composables/useSegmentEditing';
 import { pulseSegmentMask } from '@/src/composables/useSegmentRevealPulse';
 import { revealSegmentContent } from '@/src/core/annotations/locator';
 import { isCineImage } from '@/src/core/cine/isCineImage';
-import { NO_NAME } from '@/src/constants';
+import { NO_NAME, SEGMENT_SHORTCUT_ACTIONS } from '@/src/constants';
+import {
+  actionToKey,
+  readableBinding,
+} from '@/src/composables/useKeyboardShortcuts';
 import { useSegmentShapes } from '@/src/composables/useSegmentShapes';
 import { useSegmentationStore } from '@/src/store/segmentations';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
@@ -50,10 +54,13 @@ const boundMask = (segmentId: string) => {
 // Row data does not depend on mask bounds: growing a painted mask must not
 // rebuild the list. Reveal controls resolve their own mask when needed.
 const rows = computed(() =>
-  registry.segmentList.value.map((segment) => {
+  registry.segmentList.value.map((segment, index) => {
     const appearance = registry.appearanceOf(segment.id);
     return {
       id: segment.id,
+      shortcut: SEGMENT_SHORTCUT_ACTIONS[index]
+        ? readableBinding(actionToKey.value[SEGMENT_SHORTCUT_ACTIONS[index]])
+        : undefined,
       name: appearance.name || NO_NAME,
       color: appearance.cssColor,
       visible: appearance.visible,
@@ -324,6 +331,8 @@ const {
           <editable-item-list
             v-model="selectedSegmentOn"
             :items="rows"
+            reorderable
+            @move="registry.moveSegment"
             item-key="id"
             item-title="name"
             create-text="New segment"
@@ -353,6 +362,14 @@ const {
               </div>
             </template>
             <template #item-append="{ item }">
+              <span class="segment-shortcut-slot">
+                <kbd
+                  v-if="item.shortcut"
+                  class="segment-shortcut"
+                  :title="`Select ${item.name}: ${item.shortcut}`"
+                  >{{ item.shortcut }}</kbd
+                >
+              </span>
               <segment-list-actions
                 :name="item.name"
                 :locked="item.locked"
@@ -404,6 +421,28 @@ const {
 </template>
 
 <style scoped>
+.segment-shortcut-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  margin-inline: 4px;
+}
+.segment-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.25);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  opacity: var(--v-medium-emphasis-opacity);
+}
+
 .display-controls {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -425,17 +464,30 @@ const {
   max-height: max(100px, 50cqh);
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
 
 .segment-panel-header {
   position: relative;
 }
 
+.segment-items :deep(.item-row) {
+  padding-inline-end: 16px;
+}
+
+.segment-panel-header :deep(.v-expansion-panel-title) {
+  padding-inline-end: 8px;
+}
+
 .segment-header-actions {
   position: absolute;
   z-index: 1;
   inset-block-start: 50%;
-  inset-inline-end: 44px;
+  /* Match the panel inset and row padding, including its scrollbar gutter. */
+  inset-inline-end: 29px;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
   transform: translateY(-50%);
 }
 

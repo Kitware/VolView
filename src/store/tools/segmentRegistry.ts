@@ -52,9 +52,8 @@ const configuredAppearance = ({
 
 /**
  * Identity and shared appearance for a family of segments: one instance backs
- * paint, rectangles, polygons and rulers together. Key order is creation
- * order, which is the order the picker lists and the labelmap renderer offsets
- * by, so no separate order list exists.
+ * paint, rectangles, polygons and rulers together. Explicit order drives the
+ * picker, shortcuts, serialization and labelmap stacking.
  */
 export const createSegmentRegistry = ({
   namePrefix = 'Segment',
@@ -66,7 +65,10 @@ export const createSegmentRegistry = ({
     Record<string, Segment>
   >;
 
-  const segmentList = computed(() => Object.values(segmentById.value));
+  const segmentOrder = ref<string[]>([]);
+  const segmentList = computed(() =>
+    segmentOrder.value.map((id) => segmentById.value[id])
+  );
 
   const selectedSegmentId = ref<Maybe<string>>();
 
@@ -90,8 +92,7 @@ export const createSegmentRegistry = ({
   // Cached: the renderer asks for one index per mask per re-render, and the
   // export sort asks twice per comparison.
   const orderIndex = computed(
-    () =>
-      new Map(Object.keys(segmentById.value).map((id, index) => [id, index]))
+    () => new Map(segmentOrder.value.map((id, index) => [id, index]))
   );
 
   const orderIndexOf = (id: Maybe<string>) =>
@@ -137,6 +138,7 @@ export const createSegmentRegistry = ({
         id,
       },
     };
+    segmentOrder.value = [...segmentOrder.value, id];
     return id;
   };
 
@@ -160,10 +162,18 @@ export const createSegmentRegistry = ({
   const deleteSegment = (id: string) => {
     if (!segmentById.value[id]) return;
     removeReferences(id);
+    segmentOrder.value = segmentOrder.value.filter((key) => key !== id);
     segmentById.value = omit(segmentById.value, id);
     if (selectedSegmentId.value === id) {
-      selectSegment(Object.keys(segmentById.value)[0]);
+      selectSegment(segmentOrder.value[0]);
     }
+  };
+
+  const moveSegment = (id: string, target: string, after = false) => {
+    if (id === target || !getSegment(id) || !getSegment(target)) return;
+    const order = segmentOrder.value.filter((key) => key !== id);
+    order.splice(order.indexOf(target) + Number(after), 0, id);
+    segmentOrder.value = order;
   };
 
   /** Reuse the selection or first segment, minting only for an empty registry. */
@@ -259,6 +269,7 @@ export const createSegmentRegistry = ({
     mintSegment,
     addSegment,
     updateSegment,
+    moveSegment,
     deleteSegment,
     ensureSelectedSegment,
     segmentNamed,

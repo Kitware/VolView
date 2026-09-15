@@ -28,6 +28,12 @@ const applySegmentOffset = (offset: number) => () => {
   if (next) segments.selectSegment(next);
 };
 
+const selectSegmentAt = (index: number) => () => {
+  const { segments } = useSegmentStore();
+  const segment = segments.segmentList.value[index];
+  if (segment) segments.selectSegment(segment.id);
+};
+
 const setTool = (tool: Tools) => () => {
   useToolStore().setCurrentTool(tool);
 };
@@ -104,6 +110,16 @@ export const ACTION_TO_FUNC = {
 
   decrementLabel: applySegmentOffset(-1),
   incrementLabel: applySegmentOffset(1),
+  selectSegment1: selectSegmentAt(0),
+  selectSegment2: selectSegmentAt(1),
+  selectSegment3: selectSegmentAt(2),
+  selectSegment4: selectSegmentAt(3),
+  selectSegment5: selectSegmentAt(4),
+  selectSegment6: selectSegmentAt(5),
+  selectSegment7: selectSegmentAt(6),
+  selectSegment8: selectSegmentAt(7),
+  selectSegment9: selectSegmentAt(8),
+  selectSegment10: selectSegmentAt(9),
 
   deleteSelectedAnnotations: removeSelectedTools,
 

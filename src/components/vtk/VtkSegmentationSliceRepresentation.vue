@@ -88,7 +88,16 @@ const imageData = computed(() => {
       })
     : null;
 });
-watchImmediate([imageData, maskRevision], () => view.requestRender());
+watchImmediate(
+  [
+    imageData,
+    () => {
+      void maskRevision.value;
+      return imageData.value?.getMTime();
+    },
+  ],
+  () => view.requestRender()
+);
 
 // setup slice rep
 const sliceRep = useSliceRepresentation(view, imageData);

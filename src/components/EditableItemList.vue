@@ -5,10 +5,15 @@
 >
 /* global T, KeyProp, TitleProp */
 
-import { computed } from 'vue';
+import { computed, nextTick } from 'vue';
 import { Maybe } from '@/src/types';
 
-const emit = defineEmits(['create', 'update:model-value', 'update:expanded']);
+const emit = defineEmits([
+  'create',
+  'update:model-value',
+  'update:expanded',
+  'move',
+]);
 
 const props = withDefaults(
   defineProps<{
@@ -17,6 +22,7 @@ const props = withDefaults(
     itemTitle: T[TitleProp] extends string ? TitleProp : never;
     createText?: string;
     hideCreate?: boolean;
+    reorderable?: boolean;
     modelValue: Maybe<T[KeyProp]>;
     /** Whether an item has anything to show under it. */
     expandable?: (item: T) => boolean;
@@ -26,6 +32,7 @@ const props = withDefaults(
   {
     createText: 'Create',
     hideCreate: false,
+    reorderable: false,
     expandable: () => false,
     expanded: () => [],
   }
@@ -49,6 +56,79 @@ const toggleOpen = (key: string | number | symbol) =>
       ? props.expanded.filter((open) => open !== key)
       : [...props.expanded, key]
   );
+
+type ItemKey = string | number | symbol;
+let draggedKey: ItemKey | undefined;
+let highlightedRow: HTMLElement | undefined;
+
+// Drag feedback only changes the previous and current row, not list data.
+const clearIndicator = () => {
+  highlightedRow?.removeAttribute('data-drop-position');
+  highlightedRow = undefined;
+};
+
+const clearDrag = () => {
+  draggedKey = undefined;
+  clearIndicator();
+};
+
+const startDrag = (event: DragEvent, key: ItemKey) => {
+  if (!event.dataTransfer) return;
+  draggedKey = key;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('application/x-volview-segment-id', String(key));
+};
+
+const isAfter = (event: DragEvent) => {
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  return event.clientY > bounds.top + bounds.height / 2;
+};
+
+const dragOver = (event: DragEvent, key: ItemKey) => {
+  if (draggedKey === undefined) return;
+  if (draggedKey === key) {
+    clearIndicator();
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  const row = event.currentTarget as HTMLElement;
+  if (highlightedRow !== row) clearIndicator();
+  highlightedRow = row;
+  const position = isAfter(event) ? 'after' : 'before';
+  if (row.dataset.dropPosition !== position)
+    row.dataset.dropPosition = position;
+};
+
+const leaveRow = (event: DragEvent) => {
+  const row = event.currentTarget as HTMLElement;
+  if (
+    highlightedRow === row &&
+    (!(event.relatedTarget instanceof Node) ||
+      !row.contains(event.relatedTarget))
+  ) {
+    clearIndicator();
+  }
+};
+
+const drop = (event: DragEvent, key: ItemKey) => {
+  if (draggedKey === undefined) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (draggedKey !== key) emit('move', draggedKey, key, isAfter(event));
+  clearDrag();
+};
+
+const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
+  const index = itemsToRender.value.findIndex((item) => item.key === key);
+  const target = itemsToRender.value[index + offset];
+  if (!target) return;
+  const handle = event.currentTarget as HTMLElement;
+  emit('move', key, target.key, offset > 0);
+  await nextTick();
+  handle.focus();
+};
 </script>
 
 <template>
@@ -56,18 +136,46 @@ const toggleOpen = (key: string | number | symbol) =>
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
     <div class="item-list-scroll">
+      <!-- Open expansion slots can change independently of their row data. -->
+      <!-- eslint-disable vue/no-useless-template-attributes -- Vue compiles v-memo on the keyed v-for fragment. -->
       <template
         v-for="{ item, key, title, expandable: hasMore } in itemsToRender"
         :key="key"
+        v-memo="[
+          item,
+          title,
+          key === modelValue,
+          hasMore,
+          isOpen(key) ? {} : false,
+          reorderable,
+        ]"
       >
         <v-list-item
           class="item-row"
+          @dragover="dragOver($event, key)"
+          @drop="drop($event, key)"
+          @dragleave="leaveRow"
           :active="key === modelValue"
           :aria-label="title"
           :aria-current="key === modelValue ? 'true' : undefined"
           @click="$emit('update:model-value', key)"
         >
           <div class="d-flex align-center flex-nowrap">
+            <button
+              v-if="reorderable"
+              type="button"
+              class="reorder-handle"
+              draggable="true"
+              :aria-label="`Reorder ${title}`"
+              title="Drag to reorder. Alt+Up or Alt+Down also moves this segment."
+              @click.stop
+              @dragstart.stop="startDrag($event, key)"
+              @dragend="clearDrag"
+              @keydown.alt.up.stop.prevent="moveBy(key, -1, $event)"
+              @keydown.alt.down.stop.prevent="moveBy(key, 1, $event)"
+            >
+              <v-icon size="16">mdi-drag-vertical</v-icon>
+            </button>
             <v-btn
               v-if="hasMore"
               icon
@@ -102,6 +210,7 @@ const toggleOpen = (key: string | number | symbol) =>
           <slot name="item-expansion" :item="item"></slot>
         </div>
       </template>
+      <!-- eslint-enable vue/no-useless-template-attributes -->
     </div>
 
     <div v-if="!hideCreate" role="listitem">
@@ -122,6 +231,17 @@ const toggleOpen = (key: string | number | symbol) =>
 </template>
 
 <style scoped>
+.reorder-handle {
+  flex: 0 0 20px;
+  width: 20px;
+  align-self: stretch;
+  cursor: grab;
+  opacity: var(--v-medium-emphasis-opacity);
+}
+.reorder-handle:active {
+  cursor: grabbing;
+}
+
 /* Without it the title refuses to shrink and pushes the row controls off. */
 .item-row .v-list-item-title {
   min-width: 0;
@@ -138,6 +258,13 @@ const toggleOpen = (key: string | number | symbol) =>
 .item-row.v-list-item--active {
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));
+}
+
+.item-row[data-drop-position='before'] {
+  border-top-color: rgb(var(--v-theme-primary));
+}
+.item-row[data-drop-position='after'] {
+  border-bottom-color: rgb(var(--v-theme-primary));
 }
 
 /* Vuetify's active tint would lighten the app's selection color. */

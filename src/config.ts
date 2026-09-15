@@ -208,6 +208,16 @@ export const ACTION_TO_KEY = {
 
   decrementLabel: 'q',
   incrementLabel: 'w',
+  selectSegment1: '1',
+  selectSegment2: '2',
+  selectSegment3: '3',
+  selectSegment4: '4',
+  selectSegment5: '5',
+  selectSegment6: '6',
+  selectSegment7: '7',
+  selectSegment8: '8',
+  selectSegment9: '9',
+  selectSegment10: '0',
 
   // the main delete key reports Backspace on macOS
   deleteSelectedAnnotations: ['delete', 'backspace'],

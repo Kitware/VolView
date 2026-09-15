@@ -46,8 +46,7 @@ describe('Segment tooltips', () => {
     await lock.click();
     await moveTo(10, 10);
 
-    await browser.keys('Tab');
-    await browser.keys('Tab');
+    await browser.keys(['Shift', 'Tab']);
     const edit = await row.$('[data-testid="edit-segment-button"]');
     const editActivator = await edit.$('..');
     await expect(edit).toBeDisabled();
@@ -61,7 +60,6 @@ describe('Segment tooltips', () => {
     await expect(editTooltip).toBeDisplayed();
     await expect(editTooltip).toHaveText('Unlock this segment to edit it');
 
-    await browser.keys(['Shift', 'Tab']);
     await browser.keys(['Shift', 'Tab']);
     await browser.keys(['Shift', 'Tab']);
     const color = await row.$('[data-testid="segment-color-button"]');

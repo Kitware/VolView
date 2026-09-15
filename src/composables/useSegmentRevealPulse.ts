@@ -12,11 +12,14 @@ export function pulseSegmentMask(maskId: string) {
   if (previous != null) cancelAnimationFrame(previous);
 
   const started = performance.now();
-  const duration = 1000;
+  const duration = 3000;
+  const pulsePeriod = 500;
   const animate = (now: number) => {
-    const progress = Math.min((now - started) / duration, 1);
-    pulseByMaskId[maskId] = Math.abs(Math.sin(2 * Math.PI * progress));
-    if (progress < 1) {
+    const elapsed = now - started;
+    if (elapsed < duration) {
+      pulseByMaskId[maskId] = Math.abs(
+        Math.sin((Math.PI * elapsed) / pulsePeriod)
+      );
       animationByMaskId.set(maskId, requestAnimationFrame(animate));
       return;
     }

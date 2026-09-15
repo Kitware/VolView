@@ -17,22 +17,6 @@ const lockTooltip = (locked: boolean) =>
 </script>
 
 <template>
-  <!-- Lock is segment-only, so it sits outside the shared action order. -->
-  <v-btn
-    icon
-    size="small"
-    density="compact"
-    class="mr-1"
-    variant="plain"
-    @click.stop="$emit('toggle-lock')"
-    :aria-label="`${locked ? 'Unlock' : 'Lock'} ${name}`"
-    :color="locked ? 'error' : undefined"
-  >
-    <v-icon>{{ locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
-    <v-tooltip :eager="false" location="top" activator="parent">{{
-      lockTooltip(locked)
-    }}</v-tooltip>
-  </v-btn>
   <!-- Reveal content without changing the view's pan or zoom. -->
   <span class="d-inline-flex" :tabindex="revealReason ? 0 : undefined">
     <v-btn
@@ -68,6 +52,21 @@ const lockTooltip = (locked: boolean) =>
       locked ? 'Unlock this segment to edit it' : 'Edit'
     }}</v-tooltip>
   </span>
+  <v-btn
+    icon
+    size="small"
+    density="compact"
+    class="mr-1"
+    variant="plain"
+    @click.stop="$emit('toggle-lock')"
+    :aria-label="`${locked ? 'Unlock' : 'Lock'} ${name}`"
+    :color="locked ? 'error' : undefined"
+  >
+    <v-icon>{{ locked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
+    <v-tooltip :eager="false" location="top" activator="parent">{{
+      lockTooltip(locked)
+    }}</v-tooltip>
+  </v-btn>
   <v-btn
     icon
     size="small"
