@@ -48,21 +48,18 @@
 </template>
 
 <script setup lang="ts">
-import {
-  compositeLabelmap,
-  planLabelmapExport,
-} from '@/src/segmentation/io/composition';
+import { planLabelmapExport } from '@/src/segmentation/io/composition';
 
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
 import { computed, onMounted, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { writeSegmentation } from '@/src/io/readWriteImage';
 import {
   archiveNameFor,
   bundleExportFiles,
-  layerFileName,
+  segmentationFileStem,
+  writeLabelmapParts,
   type ExportFile,
 } from '@/src/segmentation/io/export';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
@@ -123,21 +120,16 @@ const archiveName = computed(() =>
 // own file.
 async function writeParts(stem: string) {
   useSegmentationEditsStore().beforeRead();
-  const format = fileFormat.value;
   const parentId = parentImageId.value;
-  const parts = planLabelmapExport(parentId).parts;
   const files: ExportFile[] = [];
-  // Written one at a time: serializing copies the whole buffer, and itk-wasm
-  // queues the writes on one shared worker whatever the caller does.
-  for (const [index, members] of parts.entries()) {
-    const composite = compositeLabelmap(parentId, members);
-    const data = await writeSegmentation(
-      format,
-      composite.labelmap,
-      composite.segments
-    );
-    files.push({ name: layerFileName(stem, format, index), data });
-  }
+  await writeLabelmapParts(
+    { parentId, parts: planLabelmapExport(parentId).parts },
+    stem,
+    fileFormat.value,
+    (file) => {
+      files.push(file);
+    }
+  );
   return files;
 }
 
@@ -160,7 +152,10 @@ async function saveSegmentation() {
 
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
-  fileNameValue.value = sanitizeSegmentationFileStem(segmentation.value.name);
+  fileNameValue.value = segmentationFileStem(
+    parentImageId.value,
+    segmentation.value.name
+  );
 });
 
 onKeyDown('Enter', () => {

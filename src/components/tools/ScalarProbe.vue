@@ -79,7 +79,7 @@ const getSegments = () => {
         {
           type: 'segment',
           id: maskId,
-          name: segments.appearanceOf(segmentId).name || NO_NAME,
+          name: segments.appearanceOf(segmentId).displayName,
           image: representations.labelmap.image,
         },
       ];

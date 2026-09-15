@@ -4,6 +4,7 @@ import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
 } from '@/src/config';
+import { NO_NAME } from '@/src/constants';
 import type { Maybe } from '@/src/types';
 import { cleanUndefined } from '@/src/utils';
 import type { LabelmapSegment } from '@/src/segmentation/model';
@@ -61,7 +62,12 @@ export const resolveSegmentAppearance = (segment: Maybe<Segment>) => {
       strokeWidth: stated.strokeWidth,
     }),
   };
-  return { ...resolved, cssColor: rgbaToCssColor(resolved.color) };
+  return {
+    ...resolved,
+    // What every list and label shows for a segment whose name is empty.
+    displayName: resolved.name || NO_NAME,
+    cssColor: rgbaToCssColor(resolved.color),
+  };
 };
 
 /**

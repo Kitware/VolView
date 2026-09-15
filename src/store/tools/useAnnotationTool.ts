@@ -1,4 +1,4 @@
-import { Ref, computed, markRaw, ref } from 'vue';
+import { Ref, computed, ref } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { Maybe, PartialWithRequired, UnwrapAll } from '@/src/types';
 import { isRecord, removeFromArray } from '@/src/utils';
@@ -237,7 +237,6 @@ export const useAnnotationTool = <
   });
 
   return {
-    segments: markRaw(registry),
     appearanceOfTool,
     toolIDs,
     toolByID,

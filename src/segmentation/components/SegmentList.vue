@@ -15,7 +15,7 @@ import { useSegmentEditing } from '@/src/segmentation/composables/useSegmentEdit
 import { pulseSegmentMask } from '@/src/segmentation/rendering/revealPulse';
 import { revealSegmentContent } from '@/src/core/annotations/locator';
 import { isCineImage } from '@/src/core/cine/isCineImage';
-import { NO_NAME, SEGMENT_SHORTCUT_ACTIONS } from '@/src/constants';
+import { SEGMENT_SHORTCUT_ACTIONS } from '@/src/constants';
 import {
   actionToKey,
   readableBinding,
@@ -27,9 +27,9 @@ import useLoadDataStore from '@/src/store/load-data';
 import type { LPSAxis } from '@/src/types/lps';
 import {
   DEFAULT_SEGMENTATION_DISPLAY,
-  listMasks,
   maskHasContent,
   maskScalars,
+  segmentationHasContent,
   type SegmentMask,
   type SegmentationDisplayPatch,
 } from '@/src/segmentation/model';
@@ -85,7 +85,7 @@ const rows = computed((previous?: Row[]) => {
       shortcut: SEGMENT_SHORTCUT_ACTIONS[index]
         ? readableBinding(actionToKey.value[SEGMENT_SHORTCUT_ACTIONS[index]])
         : undefined,
-      name: appearance.name || NO_NAME,
+      name: appearance.displayName,
       color: appearance.cssColor,
       visible: appearance.visible,
       locked: appearance.locked,
@@ -135,7 +135,7 @@ const savableReason = computed(() => {
   const segmentation = viewedSegmentation.value;
   // Records alone save nothing: a segment resolved here but never painted
   // leaves an empty mask, so what is offered follows the voxels.
-  if (!segmentation || !listMasks(segmentation).some(maskHasContent))
+  if (!segmentation || !segmentationHasContent(segmentation))
     return 'Nothing is painted on this image yet';
   return '';
 });

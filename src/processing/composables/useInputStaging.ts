@@ -1,11 +1,18 @@
-import { compositeLabelmap } from '@/src/segmentation/io/composition';
 import { computed } from 'vue';
 
+import {
+  segmentationFileStem,
+  writeLabelmapParts,
+} from '@/src/segmentation/io/export';
+import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
+import { planSegmentationInput } from '@/src/processing/segmentationInput';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { writeSegmentation } from '@/src/io/readWriteImage';
+import { segmentationHasContent } from '@/src/segmentation/model';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 import { getDataSourceName } from '@/src/io/import/dataSource';
 import { stripExtension } from '@/src/utils/path';
 import type {
@@ -80,39 +87,29 @@ export function useInputStaging() {
     return id ? tools.filter((tool) => tool.imageID === id) : [];
   };
 
-  // Each geometry kind carries the shared segments; the encoder prunes and
-  // re-keys them by name within that kind's wire namespace.
+  // The segment's name travels with each tool: identity on the wire is the
+  // name, and the encoder prunes the shared labels per kind by it.
   const annotationToolsView = computed(() => {
+    const registry = useSegmentStore().segments;
+    const labels = Object.fromEntries(
+      registry.segmentList.value.map((segment) => {
+        const { name, cssColor, strokeWidth } =
+          resolveSegmentAppearance(segment);
+        return [segment.id, { labelName: name, color: cssColor, strokeWidth }];
+      })
+    );
     const kindView = <T extends object>(
       kind: AnnotationToolKind,
       hasGeometry: <U extends AnnotationTool>(tool: U) => tool is U & T
-    ): AnnotationKindView<AnnotationTool & T> => {
-      const store = annotationToolStore(kind);
-      const { segments } = store;
-      return {
-        // The segment's name travels with the tool: identity on the wire is
-        // the name, inside this kind's own namespace.
-        tools: onActiveImage(store.finishedTools)
-          .filter(hasGeometry)
-          .map((tool) => ({
-            ...tool,
-            labelName: segments.appearanceOf(tool.segmentId).name,
-          })),
-        labels: Object.fromEntries(
-          segments.segmentList.value.map((segment) => {
-            const resolved = segments.appearanceOf(segment.id);
-            return [
-              segment.id,
-              {
-                labelName: resolved.name,
-                color: resolved.cssColor,
-                strokeWidth: resolved.strokeWidth,
-              },
-            ];
-          })
-        ),
-      };
-    };
+    ): AnnotationKindView<AnnotationTool & T> => ({
+      tools: onActiveImage(annotationToolStore(kind).finishedTools)
+        .filter(hasGeometry)
+        .map((tool) => ({
+          ...tool,
+          labelName: registry.getSegment(tool.segmentId)?.name,
+        })),
+      labels,
+    });
     return {
       rulers: kindView<TwoPointToolView>('rulers', hasTwoPoints),
       rectangles: kindView<TwoPointToolView>('rectangles', hasTwoPoints),
@@ -129,17 +126,19 @@ export function useInputStaging() {
   // The stores this composable already holds are exactly what the binder reads,
   // so the context is assembled here rather than re-wiring them at the caller.
   const sourceRefContext = (): SourceRefBindingContext => {
-    const currentImageId = currentImageID.value ?? undefined;
-    const segmentation = currentImageId
+    const currentImageId = currentImageID.value;
+    const record = currentImageId
       ? segmentationStore.getSegmentationForImage(currentImageId)
       : undefined;
+    // A record whose masks hold no voxel would stage an all-background file,
+    // so it is not an input at all: the binder falls to its own
+    // 'no-segmentation' branch, and staging never sees the parameter. Display
+    // settings, deleting the last segment and a result that declared only empty
+    // segments all leave such a record behind.
     return {
       activeDataSource: activeDataSource(),
-      currentImageId,
-      segmentation: segmentation && {
-        id: segmentation.id,
-        parentImageId: segmentation.parentImageId,
-      },
+      segmentationId:
+        record && segmentationHasContent(record) ? record.id : undefined,
       hasFinishedAnnotations: finishedAnnotationCount.value > 0,
     };
   };
@@ -148,31 +147,32 @@ export function useInputStaging() {
   // embedded in the serialized output.
   const stageSegmentationInput = async (
     p: ProcessingProvider,
-    segmentationId: string
+    plan: ReturnType<typeof planSegmentationInput>
   ): Promise<string[]> => {
-    const segmentation = segmentationStore.segmentations[segmentationId];
-    const parentImage = segmentation?.parentImageId;
-    if (!parentImage) throw new Error('No such segmentation');
-    const { labelmap, segments } = compositeLabelmap(parentImage);
     const referenceImage = mintInputValue(
-      datasetStore.getDataSource(parentImage)
+      datasetStore.getDataSource(plan.parentId)
     );
     if (!referenceImage) {
       throw new Error('Segmentation reference image has no server provenance');
     }
-    const name = `${segmentation.name}.seg.nrrd`;
-    const serialized = await writeSegmentation('seg.nrrd', labelmap, segments);
-    return p.stageInput({
-      file: new Blob([serialized]),
-      descriptor: {
-        type: TYPE_TAG_LABELMAP,
-        name,
-        referenceImage: {
-          ...referenceImage,
-          type: 'image',
-        },
-      },
-    });
+    const uris: string[] = [];
+    await writeLabelmapParts(
+      plan,
+      segmentationFileStem(plan.parentId, plan.name),
+      'seg.nrrd',
+      async ({ name, data }) => {
+        const staged = await p.stageInput({
+          file: new Blob([data]),
+          descriptor: {
+            type: TYPE_TAG_LABELMAP,
+            name,
+            referenceImage: { ...referenceImage, type: 'image' },
+          },
+        });
+        uris.push(...staged);
+      }
+    );
+    return uris;
   };
 
   // Returns only the parameters it staged, so the caller owns the merge.
@@ -180,11 +180,15 @@ export function useInputStaging() {
     p: ProcessingProvider,
     bindings: SourceRefBindings
   ): Promise<Record<string, ProcessingValue>> => {
+    const requests = Object.entries(bindings.labelmap.segmentations);
+    // Reading committed voxels resolves an unconfirmed preview, so a task that
+    // takes no labelmap must not ask for the read and discard the preview.
+    if (!requests.length) return {};
+    useSegmentationEditsStore().beforeRead();
     const staged: Record<string, ProcessingValue> = {};
-    for (const [parameterId, segmentationId] of Object.entries(
-      bindings.labelmap.segmentations
-    )) {
-      const uris = await stageSegmentationInput(p, segmentationId);
+    for (const [parameterId, { segmentationId, multiple }] of requests) {
+      const plan = planSegmentationInput(segmentationId, multiple);
+      const uris = await stageSegmentationInput(p, plan);
       staged[parameterId] = mintLabelmapValue(uris);
     }
     return staged;

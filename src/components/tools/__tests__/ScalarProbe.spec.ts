@@ -14,6 +14,7 @@ import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import * as imageCache from '@/src/store/image-cache';
 import * as segments from '@/src/segmentation/segments';
 import * as segmentations from '@/src/segmentation/store';
+import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 
 const state = {
   current: {} as ReturnType<typeof currentImage.useCurrentImage>,
@@ -88,11 +89,14 @@ describe('ScalarProbe segment samples', () => {
     } as ReturnType<typeof cache.getImageMetadata>);
     vi.spyOn(cache, 'getVtkImageData').mockReturnValue(image([0, 0, 0]));
     const registry = segments.useSegmentStore();
-    vi.spyOn(registry.segments, 'appearanceOf').mockImplementation(
-      (id) =>
-        ({ name: state.names[id!] ?? id }) as ReturnType<
-          typeof registry.segments.appearanceOf
-        >
+    vi.spyOn(registry.segments, 'appearanceOf').mockImplementation((id) =>
+      resolveSegmentAppearance({
+        id: id!,
+        name: state.names[id!] ?? id!,
+        color: [0, 0, 0, 255],
+        visible: true,
+        locked: false,
+      })
     );
     const store = segmentations.useSegmentationStore();
     vi.spyOn(store, 'boundMaskIds').mockImplementation(() =>

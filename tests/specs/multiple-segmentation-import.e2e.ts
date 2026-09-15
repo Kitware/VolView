@@ -45,9 +45,14 @@ const addAsSegmentation = async (name: string) => {
   const card = $(`.v-card:has([title="${name}"])`);
   await card.$('button.dataset-menu').click();
   const menuItem = $(
-    `//*[contains(@class,"v-overlay--active")]//*[contains(@class,"v-list-item") and contains(normalize-space(.),"Add as segmentation")]`
+    '//*[contains(@class,"v-overlay--active")]' +
+      '//*[contains(concat(" ",normalize-space(@class)," ")," v-list-item ")' +
+      ' and normalize-space(.)="Add as segmentation"]'
   );
-  await menuItem.$('.v-list-item__content').click();
+  await menuItem.waitForDisplayed();
+  await menuItem.waitForStable();
+  await menuItem.waitForClickable();
+  await menuItem.click();
   await card
     .$('[data-testid="segmentation-conversion-progress"]')
     .waitForDisplayed({ reverse: true });
@@ -108,8 +113,8 @@ describe('Importing overlapping files with the same Slicer segment name', functi
     await volViewPage.clickSaveSegmentsButton();
     const notice = $('[data-testid="save-overlap-notice"]');
     await expect(notice).toBeDisplayed();
-    expect(await notice.getText()).toBe(
-      'Saving 2 files due to overlap, bundled into multi-import-parent.nrrd.zip.'
+    await expect(notice).toHaveText(
+      'Saving 2 files due to overlap, bundled into multi-import-parent.zip.'
     );
     if (process.env.CAPTURE_SEGMENT_IMPORT_DEMO) {
       const demoDir = path.join(projectRoot(), '.tmp', 'demo');

@@ -221,10 +221,7 @@ export default defineComponent({
         slice: slice.value,
         viewAxis: viewAxis.value,
       });
-      // The polygon records the segment its voxels actually landed in: an
-      // unassigned one, and one whose segment was deleted, are given the
-      // segment the edit resolved. A refused rasterize hands back what it was
-      // given.
+      // Record where the voxels landed; a refused rasterize returns the input.
       if (rasterized.segmentId && rasterized.segmentId !== segmentId) {
         activeToolStore.updateTool(toolId, { segmentId: rasterized.segmentId });
       }

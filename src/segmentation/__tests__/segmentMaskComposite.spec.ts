@@ -324,6 +324,45 @@ describe('grouping the segments that cannot share one labelmap', () => {
     ).toEqual([['Under', 'Apart'], ['Over']]);
   });
 
+  const splitPlan = () => {
+    const plan = planLabelmapExport('img-1');
+    return {
+      parts: plan.parts.length,
+      hasOverlap: plan.hasOverlap,
+      exceedsCapacity: plan.exceedsCapacity,
+    };
+  };
+
+  // Why a save became several files is two answers, not one: the notice names
+  // overlap or the label-value limit, so a plan that merged them into a single
+  // 'it split' would tell the user the wrong reason. (Reaching the capacity
+  // half takes 65535 masks, so only its answer of 'no' is pinned here.)
+  it('names overlap, and not the label limit, as what split the files', () => {
+    const under = addMask('img-1', 'Under');
+    const over = addMask('img-1', 'Over');
+    seedVoxel(under, [1, 1, 1]);
+    seedVoxel(over, [1, 1, 1]);
+
+    expect(splitPlan()).toEqual({
+      parts: 2,
+      hasOverlap: true,
+      exceedsCapacity: false,
+    });
+  });
+
+  it('names no reason at all for segments that do not overlap', () => {
+    const tumor = addMask('img-1', 'Tumor');
+    const node = addMask('img-1', 'Node');
+    seedVoxel(tumor, [1, 1, 1]);
+    seedVoxel(node, [3, 3, 3]);
+
+    expect(splitPlan()).toEqual({
+      parts: 1,
+      hasOverlap: false,
+      exceedsCapacity: false,
+    });
+  });
+
   it('describes each of them as a self-contained layer', () => {
     const under = addMask('img-1', 'Under');
     const over = addMask('img-1', 'Over');

@@ -38,9 +38,6 @@ type VoxelAccessDeps = {
   overlapAllowed: () => boolean;
 };
 
-export const boundedMask = (binding?: LabelmapBinding) =>
-  binding && boundScalars(binding.image, binding.extent);
-
 /**
  * Reading and growing the voxels behind a mask. Split out so the store holds
  * the records; every accessor re-resolves its binding rather than capturing a
@@ -161,7 +158,9 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       others
     );
     const bounded = (masks: SegmentMask[]) =>
-      masks.flatMap((mask) => boundedMask(mask.representations.labelmap) ?? []);
+      masks.flatMap(
+        (mask) => boundScalars(mask.representations.labelmap) ?? []
+      );
     return { takeFrom: bounded(takeFrom), yieldTo: bounded(yieldTo) };
   }
 

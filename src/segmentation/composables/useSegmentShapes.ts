@@ -91,8 +91,7 @@ const useSegmentShapesStore = defineStore('segmentShapes', () => {
 });
 
 /**
- * The shapes drawn on the viewed image, grouped by the segment each one names.
- * A segment's row lists these under it, so the sidebar holds no second list of
- * the same annotations.
+ * Finished shapes on the viewed image, shared by the Measurements list and the
+ * segment rows' reveal.
  */
 export const useSegmentShapes = () => useSegmentShapesStore().segmentShapes;
