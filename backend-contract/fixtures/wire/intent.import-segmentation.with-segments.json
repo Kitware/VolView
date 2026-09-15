@@ -1,6 +1,6 @@
 {
   "id": "6600000000000000000000e1",
-  "intent": "add-segment-group",
+  "intent": "import-segmentation",
   "url": "/api/v1/file/6600000000000000000000e1/proxiable/otsu.nii.gz",
   "name": "otsu.nii.gz",
   "segments": [
