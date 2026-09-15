@@ -24,7 +24,7 @@ describe('sceneApplicableResults', () => {
 
   it('drops a result whose intent name is known but shape is invalid', () => {
     const malformed = result({
-      intent: 'add-segment-group',
+      intent: 'import-segmentation',
       segments: [{ value: 0, name: 'bad', color: [0, 0, 0, 255] }],
     });
     expect(sceneApplicableResults([malformed])).toEqual([]);

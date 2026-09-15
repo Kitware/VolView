@@ -109,6 +109,19 @@ Two versions on separate clocks:
   the task-spec `specVersion`. These version the wire vocabulary for additive
   compatibility negotiation.
 
+### Result instruction rollout
+
+Contract artifact 0.3.0 uses intent vocabulary 3 and names segmentation import
+`import-segmentation`. Deploy the updated producer and VolView client together.
+An older client treats the unfamiliar instruction as an ordinary result and
+will not apply its segmentation automatically. Update Girder's pinned VolView
+package when releasing the paired change.
+
+This vocabulary change does not change task-spec versions or saved-session
+schemas. Girder projects stored job outputs into current instructions when
+results are requested; stored output references and mask provenance keep their
+identities.
+
 ## Regenerating
 
 ```

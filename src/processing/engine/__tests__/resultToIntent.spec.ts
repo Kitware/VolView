@@ -19,7 +19,7 @@ describe('resultToIntent', () => {
     [
       'malformed',
       result({
-        intent: 'add-segment-group',
+        intent: 'import-segmentation',
         segments: [{ value: 0, name: 'bad', color: [0, 0, 0, 255] }],
       }),
     ],
