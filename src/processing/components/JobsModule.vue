@@ -64,18 +64,6 @@
               No tasks available.
             </div>
 
-            <v-alert
-              v-if="flattensOverlap"
-              type="info"
-              variant="tonal"
-              density="compact"
-              class="mb-3"
-              data-testid="staging-overlap-notice"
-            >
-              Overlapping segments are combined into one file for this job.
-              Where two overlap, the one listed first wins.
-            </v-alert>
-
             <div v-if="loadingTask" class="text-caption">
               Loading task spec…
             </div>
@@ -102,6 +90,7 @@
               :source-ref-states="sourceRefStates"
               :source-ref-names="sourceRefNames"
               :source-ref-types="sourceRefTypes"
+              :source-ref-warnings="inputWarnings"
               :submitting="submitting"
               @update:values="onValuesUpdate"
               @submit="onSubmit"
@@ -124,8 +113,6 @@
 </template>
 
 <script setup lang="ts">
-import { planLabelmapExport } from '@/src/segmentation/io/composition';
-
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type { Ref } from 'vue';
 import { watchDebounced } from '@vueuse/core';
@@ -162,8 +149,10 @@ import {
 } from '@/src/processing/engine/jobDisplay';
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
+import { planSegmentationInput } from '@/src/processing/segmentationInput';
 import { useSegmentationStore } from '@/src/segmentation/store';
-
+import { segmentationHasContent } from '@/src/segmentation/model';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useMessageStore } from '@/src/store/messages';
 
 import TaskPicker from './TaskPicker.vue';
@@ -507,11 +496,11 @@ function refreshValidation(
 }
 
 // Resolved once per display pass: each binding re-runs a full field scan and
-// segmentation resolution, so per-field resolution would redo identical work.
+// provenance walk, so per-field resolution would redo identical work.
 function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   const labelmapNames = Object.fromEntries(
     Object.entries(bindings.labelmap.segmentations).map(
-      ([parameterId, segmentationId]) => [
+      ([parameterId, { segmentationId }]) => [
         parameterId,
         segmentationStore.segmentations[segmentationId].name,
       ]
@@ -525,49 +514,49 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   };
 }
 
-// More than one group is how a shared voxel shows up: an export groups an
-// image's segments so that no group holds an overlap, and one file carries one
-// group.
-const segmentationOverlaps = (segmentationId: string) =>
-  planLabelmapExport(
-    segmentationStore.segmentations[segmentationId].parentImageId
-  ).hasOverlap;
+// Scanning masks is expensive, so refresh input notices outside render tracking.
+const inputWarnings = ref<Record<string, string>>({});
+const maskRevision = useMaskRevision(() => currentImageID.value);
+const segmentRegistry = useSegmentStore().segments;
 
-// A job's input is the whole segmentation flattened into one file, where earlier
-// in the list wins. Said at the point of staging rather than only in code: the
-// staged file is not what the viewport shows, so a silent flatten is the one
-// way this loses data without telling anyone.
-//
-// Refreshed on a signal rather than tracked, because the answer costs a voxel
-// sweep of every pair of the image's masks. A tracked read would make that
-// sweep part of the render effect and pay it again on every mask growth, which
-// is once per stroke that leaves its box, in whatever tab the user is in.
-const flattensOverlap = ref(false);
-const maskRevision = useMaskRevision();
-
-const refreshFlattensOverlap = () => {
+const refreshInputWarnings = () => {
   const model = taskModel.value;
   const bound = model
-    ? Object.values(activeSourceBindings(model).labelmap.segmentations)
+    ? Object.entries(activeSourceBindings(model).labelmap.segmentations)
     : [];
-  flattensOverlap.value = bound.some(segmentationOverlaps);
+  inputWarnings.value = Object.fromEntries(
+    bound
+      // Only a single-labelmap input can omit segments, and planning costs a
+      // voxel sweep.
+      .filter(([, { multiple }]) => !multiple)
+      .flatMap(([parameterId, { segmentationId }]) => {
+        const { warning } = planSegmentationInput(segmentationId, false);
+        return warning ? [[parameterId, warning] as const] : [];
+      })
+  );
 };
 
-// The revision covers every write, growth included, since a regrow announces
-// itself to vtk. What it does not cover is a mask arriving or leaving, so the
-// membership rides along. Debounced because a stroke bumps the revision once
-// per sample and the answer costs a voxel sweep.
-const overlapSignal = () =>
-  [
-    currentImageID.value,
+// Voxel writes bump the revision; membership covers masks arriving or leaving.
+const overlapSignal = () => {
+  const imageId = currentImageID.value;
+  return [
+    imageId,
     maskRevision.value,
-    ...Object.values(segmentationStore.segmentations).map((segmentation) =>
-      segmentation.order.join()
-    ),
+    segmentRegistry.selectedSegmentId.value,
+    // The first or last finished tool can move a union input off the labelmap.
+    finishedAnnotationCount.value > 0,
+    segmentRegistry.segmentList.value
+      .map(({ id, name }) => `${id}:${name}`)
+      .join(),
+    imageId
+      ? segmentationStore.getSegmentationForImage(imageId)?.order.join()
+      : undefined,
   ].join('|');
+};
 
-watch(taskModel, refreshFlattensOverlap);
-watchDebounced(overlapSignal, refreshFlattensOverlap, { debounce: 150 });
+watch(taskModel, refreshInputWarnings);
+// A stroke bumps the revision per sample, and each answer costs a voxel sweep.
+watchDebounced(overlapSignal, refreshInputWarnings, { debounce: 150 });
 
 const sourceRefNames = computed(() => {
   const model = taskModel.value;
@@ -590,7 +579,7 @@ watchDebounced(
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
       segmentationId: segmentation?.id,
-      maskCount: segmentation?.order.length ?? 0,
+      hasContent: !!segmentation && segmentationHasContent(segmentation),
       // Placing the first (or removing the last) tool flips the annotations
       // binding, so the form must revalidate.
       annotationCount: finishedAnnotationCount.value,

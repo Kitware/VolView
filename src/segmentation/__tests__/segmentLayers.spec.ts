@@ -43,7 +43,7 @@ function maskOf(extent: Extent3D, marks: Index3[]) {
     })
   );
 
-  const bounded = boundScalars(mask, extent)!;
+  const bounded = boundScalars({ image: mask, extent })!;
   marks.forEach((mark) => {
     bounded.scalars[maskOffset(bounded, ...mark)] = SEGMENT_VALUE;
   });

@@ -13,10 +13,8 @@ import {
   type SourceRefField,
 } from '@/src/processing/engine/mintInput';
 import {
-  bindResolvedLabelmapInputs,
-  resolveLabelmapSegmentation,
+  bindLabelmapInputs,
   type LabelmapBindingResult,
-  type SegmentationInput,
 } from '@/src/processing/engine/mintLabelmap';
 import {
   bindAnnotationsInputs,
@@ -39,8 +37,8 @@ export type SourceRefBindings = {
 
 export type SourceRefBindingContext = {
   activeDataSource: DataSource | undefined;
-  currentImageId: string | undefined;
-  segmentation: SegmentationInput | undefined;
+  // The current image's segmentation, when it holds a mask.
+  segmentationId: string | undefined;
   // Whether the active image carries at least one finished annotation tool.
   hasFinishedAnnotations: boolean;
 };
@@ -78,29 +76,22 @@ export const bindSourceRefs = (
   const fields = model.fields.filter(
     (field): field is SourceRefField => field.kind === 'sourceRef'
   );
-  const anyFieldAccepts = (type: BoundSourceRefType): boolean =>
-    fields.some((field) => acceptedTypes(field).includes(type));
-
-  const acceptsLabelmap = anyFieldAccepts(TYPE_TAG_LABELMAP);
   // All supported source references share the current image provenance.
   const imageValue = fields.some((field) => acceptedTypes(field).length > 0)
     ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
     : null;
-  const segmentationId = acceptsLabelmap
-    ? resolveLabelmapSegmentation(context.currentImageId, context.segmentation)
-    : undefined;
-  const labelmapReference = segmentationId ? imageValue : null;
-  const available = new Set<BoundSourceRefType>();
-  if (imageValue) {
-    available.add(TYPE_TAG_IMAGE);
-  }
-  if (context.hasFinishedAnnotations && imageValue) {
-    available.add(TYPE_TAG_ANNOTATIONS);
-  }
-  const isAvailable = (type: BoundSourceRefType): boolean =>
-    type === TYPE_TAG_LABELMAP
-      ? Boolean(labelmapReference)
-      : available.has(type);
+  const { segmentationId } = context;
+  const available = new Set<BoundSourceRefType>(
+    imageValue
+      ? [
+          TYPE_TAG_IMAGE,
+          ...(segmentationId ? ([TYPE_TAG_LABELMAP] as const) : []),
+          ...(context.hasFinishedAnnotations
+            ? ([TYPE_TAG_ANNOTATIONS] as const)
+            : []),
+        ]
+      : []
+  );
 
   const types: Record<string, BoundSourceRefType> = {};
   const dedicated = new Set<BoundSourceRefType>();
@@ -113,7 +104,7 @@ export const bindSourceRefs = (
   fields.forEach((field) => {
     const accepts = acceptedTypes(field);
     if (accepts.length <= 1) return;
-    const availableTypes = accepts.filter((type) => isAvailable(type));
+    const availableTypes = accepts.filter((type) => available.has(type));
     const selected =
       availableTypes.find((type) => !dedicated.has(type)) ??
       availableTypes[0] ??
@@ -127,23 +118,12 @@ export const bindSourceRefs = (
     context.activeDataSource,
     imageValue
   );
-  const labelmap = bindResolvedLabelmapInputs(
+  // The segmentation's reference image is the active image.
+  const labelmap = bindLabelmapInputs(
     modelForType(model, types, TYPE_TAG_LABELMAP),
-    segmentationId
+    segmentationId,
+    Boolean(imageValue)
   );
-  const labelmapIssues = [...labelmap.issues];
-  // A bound segmentation still needs its parent image to have provenance.
-  const boundLabelmapParams = Object.keys(labelmap.segmentations);
-  if (boundLabelmapParams.length > 0 && !labelmapReference) {
-    boundLabelmapParams.forEach((parameterId) => {
-      labelmap.states[parameterId] = 'no-provenance';
-      labelmapIssues.push({
-        parameter: parameterId,
-        message:
-          'The segmentation reference image was not loaded from the server, so it cannot be used as an input.',
-      });
-    });
-  }
 
   const annotations = bindAnnotationsInputs(
     modelForType(model, types, TYPE_TAG_ANNOTATIONS),
@@ -160,6 +140,6 @@ export const bindSourceRefs = (
     annotations,
     types,
     states: { ...image.states, ...labelmap.states, ...annotations.states },
-    issues: [...image.issues, ...labelmapIssues, ...annotations.issues],
+    issues: [...image.issues, ...labelmap.issues, ...annotations.issues],
   };
 };

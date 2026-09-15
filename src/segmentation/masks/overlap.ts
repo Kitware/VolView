@@ -27,13 +27,14 @@ export type BoundedScalars = MaskBounds & {
  * The extent is copied because the callers read it per voxel and a segment's
  * own copy lives in the reactive tree.
  */
-export function boundScalars(
-  mask: vtkLabelMap | undefined,
-  bounds: Extent3D
-): BoundedScalars | undefined {
-  if (!mask || isEmptyExtent(bounds)) return undefined;
-  const extent = [...bounds] as Extent3D;
+export function boundScalars(binding?: {
+  image: vtkLabelMap;
+  extent: Extent3D;
+}) {
+  if (!binding || isEmptyExtent(binding.extent)) return undefined;
+  const extent = [...binding.extent] as Extent3D;
   const [mi, mj] = extentSize(extent);
+  const mask = binding.image;
   return { mask, scalars: maskScalars(mask), extent, mi, mj };
 }
 

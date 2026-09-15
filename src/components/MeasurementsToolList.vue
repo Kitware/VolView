@@ -8,7 +8,6 @@ import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import SegmentAssignmentList from '@/src/segmentation/components/SegmentAssignmentList.vue';
 import ColorDot from '@/src/components/ColorDot.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
-import { NO_NAME } from '@/src/constants';
 
 const { shapes } = useSegmentShapes();
 const registry = useSegmentStore().segments;
@@ -17,7 +16,7 @@ const selection = useToolSelectionStore();
 const rows = computed(() =>
   shapes.value.map((shape) => {
     const appearance = registry.appearanceOf(shape.segmentId);
-    const name = appearance.name || NO_NAME;
+    const name = appearance.displayName;
     return {
       ...shape,
       appearance,

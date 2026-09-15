@@ -1,12 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
 import type { DataSource } from '@/src/io/import/dataSource';
-import {
-  labelmapInputFields,
-  resolveLabelmapSegmentation,
-  mintLabelmapValue,
-} from '../mintLabelmap';
-import { bindSourceRefs, type SourceRefBindingContext } from '../sourceRefs';
+import { labelmapInputFields, mintLabelmapValue } from '../mintLabelmap';
+import { bindSourceRefs } from '../sourceRefs';
 import type { TaskFormModel, FormField } from '../formModel';
 import { createSourceRefBindingContext } from './sourceRefBindingContext';
 
@@ -33,13 +29,7 @@ const localFile = (filename: string): DataSource => ({
   fileType: '',
 });
 
-const context = (
-  overrides: Partial<SourceRefBindingContext> = {}
-): SourceRefBindingContext =>
-  createSourceRefBindingContext({
-    currentImageId: 'bg',
-    ...overrides,
-  });
+const context = createSourceRefBindingContext;
 
 describe('labelmapInputFields', () => {
   it('selects sourceRef params that accept a labelmap', () => {
@@ -57,22 +47,6 @@ describe('labelmapInputFields', () => {
   });
 });
 
-describe('resolveLabelmapSegmentation', () => {
-  it('resolves the current image segmentation', () => {
-    expect(
-      resolveLabelmapSegmentation('bg', { id: 'seg', parentImageId: 'bg' })
-    ).toBe('seg');
-  });
-
-  it.each([
-    ['bg', undefined],
-    [undefined, { id: 'seg', parentImageId: 'bg' }],
-    ['bg', { id: 'seg', parentImageId: 'other' }],
-  ])('refuses a missing or mismatched attachment', (imageId, segmentation) => {
-    expect(resolveLabelmapSegmentation(imageId, segmentation)).toBeUndefined();
-  });
-});
-
 describe('labelmap binding through bindSourceRefs', () => {
   it('is a no-op when the task has no labelmap input', () => {
     const model: TaskFormModel = {
@@ -81,10 +55,7 @@ describe('labelmap binding through bindSourceRefs', () => {
       fields: [{ kind: 'int', id: 'radius', default: 1 }],
       hidden: [],
     };
-    const bindings = bindSourceRefs(
-      model,
-      context({ segmentation: { id: 'g1', parentImageId: 'bg' } })
-    );
+    const bindings = bindSourceRefs(model, context({ segmentationId: 'g1' }));
     expect(bindings.labelmap).toEqual({
       segmentations: {},
       states: {},
@@ -147,7 +118,7 @@ describe('labelmap binding through bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model,
       context({
-        segmentation: { id: 'g1', parentImageId: 'bg' },
+        segmentationId: 'g1',
       })
     );
     expect(bindings.states.segA).toBe('ambiguous');
@@ -173,7 +144,7 @@ describe('no-provenance background blocks the labelmap flow for free', () => {
       model,
       context({
         activeDataSource: localFile('local.nrrd'),
-        segmentation: { id: 'seg', parentImageId: 'bg' },
+        segmentationId: 'seg',
       })
     );
 

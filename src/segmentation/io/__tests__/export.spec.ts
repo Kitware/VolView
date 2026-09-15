@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
 
-import { bundleExportFiles, layerFileName } from '@/src/segmentation/io/export';
+import {
+  bundleExportFiles,
+  layerFileName,
+  segmentationFileStem,
+} from '@/src/segmentation/io/export';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 
 // A labelmap file carries one label per voxel, so a segmentation with overlap
 // leaves as several files. One file is the common case and stays the download
@@ -23,6 +29,31 @@ describe('naming the file each group of segments writes', () => {
     );
     expect(layerFileName('Prostate', 'nii.gz', 2)).toBe(
       'Prostate_layer2.nii.gz'
+    );
+  });
+});
+
+describe('the stem a segmentation is saved and staged under', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  it('drops a file-backed image name’s extension, compound ones included', () => {
+    expect(segmentationFileStem('file-image', 'scan.nii.gz')).toBe('scan');
+  });
+
+  it('keeps every dot of a DICOM series name', () => {
+    useDICOMStore().volumeInfo['series-1'] = {
+      NumberOfSlices: 1,
+      VolumeID: 'series-1',
+      Modality: 'MR',
+      SeriesInstanceUID: '1.2.3.4',
+      SeriesNumber: '1',
+      SeriesDescription: 'Ax T2 FSE 3.5mm',
+      WindowLevel: '128',
+      WindowWidth: '256',
+    };
+
+    expect(segmentationFileStem('series-1', 'Ax T2 FSE 3.5mm')).toBe(
+      'Ax T2 FSE 3.5mm'
     );
   });
 });

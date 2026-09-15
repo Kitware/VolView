@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import ColorDot from '@/src/components/ColorDot.vue';
-import { NO_NAME } from '@/src/constants';
 import { useSegmentStore } from '@/src/segmentation/segments';
 
 defineProps<{ segmentId?: string }>();
@@ -11,8 +10,8 @@ const registry = useSegmentStore().segments;
 
 const items = computed(() =>
   registry.segmentList.value.map(({ id }) => {
-    const { name, cssColor } = registry.appearanceOf(id);
-    return { id, name: name || NO_NAME, cssColor };
+    const { displayName, cssColor } = registry.appearanceOf(id);
+    return { id, name: displayName, cssColor };
   })
 );
 </script>

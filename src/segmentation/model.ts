@@ -143,6 +143,10 @@ export function listMasks(segmentation: Segmentation) {
   return segmentation.order.map((id) => segmentation.masks[id]);
 }
 
+/** Whether saving or staging this segmentation would write a voxel. */
+export const segmentationHasContent = (segmentation: Segmentation) =>
+  listMasks(segmentation).some(maskHasContent);
+
 /**
  * Aimed writes take voxels from unlocked neighbors and go around locked ones,
  * or leave every neighbor alone while overlap is allowed. Sweeps only grow into

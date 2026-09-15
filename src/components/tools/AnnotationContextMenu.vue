@@ -6,7 +6,6 @@ import {
   WidgetAction,
 } from '@/src/vtk/ToolWidgetUtils/types';
 import { ToolID } from '@/src/types/annotation-tool';
-import { NO_NAME } from '@/src/constants';
 
 const props = defineProps<{
   toolStore: AnnotationToolStore;
@@ -70,7 +69,7 @@ const hideToolFromContextMenu = () => {
           />
         </template>
         <v-list-item-title class="v-list-item--disabled">
-          {{ appearance.name || NO_NAME }}
+          {{ appearance.displayName }}
         </v-list-item-title>
       </v-list-item>
 

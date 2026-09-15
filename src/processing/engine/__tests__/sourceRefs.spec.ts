@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DataSource } from '@/src/io/import/dataSource';
 import type { TaskFormModel } from '../formModel';
-import type { SourceRefField } from '../mintInput';
+import { bindingStateMessage, type SourceRefField } from '../mintInput';
 import { bindSourceRefs, type SourceRefBindingContext } from '../sourceRefs';
 import { createSourceRefBindingContext } from './sourceRefBindingContext';
 
@@ -39,7 +39,7 @@ const context = (
   });
 
 const oneSegmentation = {
-  segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
+  segmentationId: 'segmentation-1',
 };
 
 describe('bindSourceRefs', () => {
@@ -58,12 +58,15 @@ describe('bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model([inputField('input', ['labelmap', 'image'], { multiple: true })]),
       context({
-        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
+        segmentationId: 'segmentation-1',
       })
     );
 
     expect(bindings.types.input).toBe('labelmap');
-    expect(bindings.labelmap.segmentations.input).toEqual('segmentation-1');
+    expect(bindings.labelmap.segmentations.input).toEqual({
+      segmentationId: 'segmentation-1',
+      multiple: true,
+    });
     expect(bindings.issues).toEqual([]);
   });
 
@@ -74,12 +77,15 @@ describe('bindSourceRefs', () => {
         inputField('either', ['image', 'labelmap']),
       ]),
       context({
-        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
+        segmentationId: 'segmentation-1',
       })
     );
 
     expect(bindings.types).toEqual({ segs: 'labelmap', either: 'image' });
-    expect(bindings.labelmap.segmentations.segs).toEqual('segmentation-1');
+    expect(bindings.labelmap.segmentations.segs).toEqual({
+      segmentationId: 'segmentation-1',
+      multiple: true,
+    });
     expect(bindings.states.segs).toBe('bound');
     expect(bindings.issues).toEqual([]);
   });
@@ -88,11 +94,14 @@ describe('bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model([inputField('input', ['labelmap'])]),
       context({
-        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
+        segmentationId: 'segmentation-1',
       })
     );
 
-    expect(bindings.labelmap.segmentations.input).toEqual('segmentation-1');
+    expect(bindings.labelmap.segmentations.input).toEqual({
+      segmentationId: 'segmentation-1',
+      multiple: false,
+    });
     expect(bindings.issues).toEqual([]);
   });
 
@@ -103,7 +112,7 @@ describe('bindSourceRefs', () => {
         inputField('either', ['image', 'labelmap']),
       ]),
       context({
-        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
+        segmentationId: 'segmentation-1',
       })
     );
 
@@ -117,8 +126,13 @@ describe('bindSourceRefs', () => {
       context({ ...oneSegmentation, activeDataSource: undefined })
     );
     expect(bindings.states.segs).toBe('no-provenance');
-    expect(bindings.issues).toHaveLength(1);
-    expect(bindings.issues[0].message).toMatch(/not loaded from the server/i);
+    expect(bindings.labelmap.segmentations).toEqual({});
+    expect(bindings.issues).toEqual([
+      {
+        parameter: 'segs',
+        message: bindingStateMessage('no-provenance', 'segmentation'),
+      },
+    ]);
   });
 
   it('walks image provenance only once', () => {
@@ -287,7 +301,9 @@ describe('bindSourceRefs — annotations', () => {
       seg: 'labelmap',
       annotations: 'annotations',
     });
-    expect(bindings.labelmap.segmentations.seg).toEqual('segmentation-1');
+    expect(bindings.labelmap.segmentations.seg?.segmentationId).toBe(
+      'segmentation-1'
+    );
     expect(bindings.annotations.parameters).toEqual(['annotations']);
     expect(bindings.issues).toEqual([]);
   });

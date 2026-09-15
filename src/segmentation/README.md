@@ -49,14 +49,14 @@ must distinguish an existing mask record from allocated voxel storage.
 
 Registry order controls the sidebar, shortcuts, rendering depth, and flattened
 export precedence. Per-image mask order preserves insertion and restored file
-order, including the order used for all-segment processing.
+order. Interchange packing uses registry order.
 
 Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
-preserve locked neighbors. With the Paint panel's Allow Overlap switch on,
-which is never saved, aimed writes leave every neighbor alone and may overlap
-them. Processes preserve voxels already held by other
-segments. Import matches existing segment identities by exact name, sharing
-appearance and locks across images.
+preserve locked neighbors. With the Paint panel's Allow Overlap switch on, which
+is never saved, aimed writes leave every neighbor alone and may overlap them.
+Processes preserve voxels already held by other segments. Import matches
+existing segment identities by exact name, sharing appearance and locks across
+images.
 
 ## Labelmap interchange
 
@@ -68,3 +68,11 @@ editable masks and their saved-session files remain byte-sized.
 Export packs whole masks into separate files when they overlap. A part beyond
 65535 labels is split at that capacity. The export plan records these reasons
 separately, so capacity splitting is not reported as overlap.
+
+Processing inputs declaring multiple files receive every mask in overlap-free
+parts. A single-file input starts with the selected segment, then greedily adds
+whole non-overlapping masks in registry order up to the label capacity.
+Conflicting masks are omitted entirely and named in a warning beside the input.
+No mask is clipped to fit. Export and processing capture pixels, geometry, and
+appearance before asynchronous serialization so all parts describe the same
+state.

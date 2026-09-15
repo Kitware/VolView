@@ -17,22 +17,8 @@ import {
 export const labelmapInputFields = (model: TaskFormModel): SourceRefField[] =>
   sourceRefFields(model, TYPE_TAG_LABELMAP);
 
-// Only identity and attachment cross the store boundary into the pure binder.
-export type SegmentationInput = {
-  id: string;
-  parentImageId: string;
-};
-
-export const resolveLabelmapSegmentation = (
-  currentImageId: string | undefined,
-  segmentation: SegmentationInput | undefined
-): string | undefined =>
-  currentImageId && segmentation?.parentImageId === currentImageId
-    ? segmentation.id
-    : undefined;
-
 export type LabelmapBindingResult = {
-  segmentations: Record<string, string>;
+  segmentations: Record<string, { segmentationId: string; multiple: boolean }>;
   states: Record<string, SourceRefBindingState>;
   // Caller must suppress its generic issue for these param ids.
   issues: FormValidationIssue[];
@@ -46,7 +32,8 @@ const EMPTY_BINDING: LabelmapBindingResult = {
 
 const bindLabelmapFields = (
   fields: SourceRefField[],
-  segmentationId: string | undefined
+  segmentationId: string | undefined,
+  referenceAvailable: boolean
 ): LabelmapBindingResult => {
   if (fields.length === 0) return EMPTY_BINDING;
 
@@ -63,18 +50,32 @@ const bindLabelmapFields = (
     };
   }
 
+  if (!referenceAvailable) {
+    return {
+      segmentations: {},
+      ...unboundBinding(field, 'no-provenance', 'segmentation', true),
+    };
+  }
+
   return {
-    segmentations: { [field.id]: segmentationId },
+    segmentations: {
+      [field.id]: { segmentationId, multiple: field.multiple === true },
+    },
     states: { [field.id]: 'bound' },
     issues: [],
   };
 };
 
-export const bindResolvedLabelmapInputs = (
+export const bindLabelmapInputs = (
   model: TaskFormModel,
-  segmentationId: string | undefined
+  segmentationId: string | undefined,
+  referenceAvailable: boolean
 ): LabelmapBindingResult =>
-  bindLabelmapFields(labelmapInputFields(model), segmentationId);
+  bindLabelmapFields(
+    labelmapInputFields(model),
+    segmentationId,
+    referenceAvailable
+  );
 
 // `format` is omitted: the staged uri already carries the extension.
 export const mintLabelmapValue = (uris: string[]): InputValue => ({
