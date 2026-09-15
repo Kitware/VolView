@@ -140,7 +140,7 @@ describe('composing the segments of an image into one labelmap', () => {
     expect(Array.from(scalars).filter((value) => value !== 0)).toHaveLength(1);
   });
 
-  it('gives the later segment the voxel where two overlap', () => {
+  it('gives the earlier segment the voxel where two overlap', () => {
     const under = addMask('img-1', 'Under');
     const over = addMask('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
@@ -148,7 +148,7 @@ describe('composing the segments of an image into one labelmap', () => {
 
     const { labelmap, segments } = store().compositeLabelmap('img-1');
     expect(maskScalars(labelmap)[parentOffset(1, 1, 1)]).toBe(
-      segments[1].value
+      segments[0].value
     );
   });
 

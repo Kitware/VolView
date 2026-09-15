@@ -191,6 +191,7 @@ export const ACTION_TO_KEY = {
   ruler: 'm',
   paint: 'p',
   paintEraser: 'e',
+  paintEyedropper: 'd',
   brushSizeModifier: 'ctrl',
   decreaseBrushSize: '[',
   increaseBrushSize: ']',

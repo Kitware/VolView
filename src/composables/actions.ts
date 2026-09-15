@@ -94,6 +94,7 @@ export const ACTION_TO_FUNC = {
   ruler: setTool(Tools.Ruler),
   paint: startPaintInMode(PaintMode.CirclePaint),
   paintEraser: startPaintInMode(PaintMode.Erase),
+  paintEyedropper: NOOP,
   brushSizeModifier: NOOP, // act as modifier key rather than immediate effect, so no-op
   decreaseBrushSize: changeBrushSize(-1),
   increaseBrushSize: changeBrushSize(1),

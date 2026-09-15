@@ -330,6 +330,7 @@ const {
         <v-expansion-panel-text>
           <editable-item-list
             v-model="selectedSegmentOn"
+            :selection-revision="registry.selectionRevision.value"
             :items="rows"
             reorderable
             @move="registry.moveSegment"

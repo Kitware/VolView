@@ -30,10 +30,10 @@ const SEGMENT_OFFSET_FACTOR = -4;
 export const SEGMENT_ACTOR_OPACITY = 0.9999;
 
 /**
- * A mask's coincident-topology polygon offset, by its segment's position in
- * the registry. Overlap is representable, so segments sharing one offset would
- * z-fight. Later in that order draws in front, and the flattened export
- * resolves an overlap the same way, so two images stack one type alike.
+ * A mask's coincident-topology polygon offset, by back-to-front stack index.
+ * Overlapping segments need distinct offsets to avoid z-fighting. Greater
+ * stack indices sit closer to the viewer; the registry maps its first entry
+ * to the greatest index.
  */
 export function segmentCoincidentOffset(stackIndex: number) {
   return [SEGMENT_OFFSET_FACTOR, SEGMENT_OFFSET_FACTOR - stackIndex] as [

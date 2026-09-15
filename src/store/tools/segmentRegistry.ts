@@ -71,6 +71,7 @@ export const createSegmentRegistry = ({
   );
 
   const selectedSegmentId = ref<Maybe<string>>();
+  const selectionRevision = ref(0);
 
   // A type that is gone is not selected.
   const selectedSegment = computed(() =>
@@ -81,6 +82,8 @@ export const createSegmentRegistry = ({
 
   const selectSegment = (id: Maybe<string>) => {
     selectedSegmentId.value = id && segmentById.value[id] ? id : undefined;
+    // Reselecting the same segment can still request that its row be revealed.
+    if (selectedSegmentId.value) selectionRevision.value += 1;
   };
 
   const getSegment = (id: Maybe<string>) =>
@@ -259,6 +262,7 @@ export const createSegmentRegistry = ({
     segmentById,
     segmentList,
     selectedSegmentId,
+    selectionRevision,
     selectedSegment,
     selectSegment,
     getSegment,

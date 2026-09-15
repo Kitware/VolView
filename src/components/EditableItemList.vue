@@ -5,7 +5,7 @@
 >
 /* global T, KeyProp, TitleProp */
 
-import { computed, nextTick } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
 
 const emit = defineEmits([
@@ -24,6 +24,7 @@ const props = withDefaults(
     hideCreate?: boolean;
     reorderable?: boolean;
     modelValue: Maybe<T[KeyProp]>;
+    selectionRevision?: number;
     /** Whether an item has anything to show under it. */
     expandable?: (item: T) => boolean;
     /** Keys of the items whose expansion is open. */
@@ -45,6 +46,31 @@ const itemsToRender = computed(() =>
     title: item[props.itemTitle] as string | undefined,
     expandable: props.expandable(item),
   }))
+);
+
+const listElement = ref<HTMLElement>();
+watch(
+  [
+    () => props.modelValue,
+    () => props.selectionRevision,
+    () => props.items.length,
+    listElement,
+  ],
+  () => {
+    const list = listElement.value;
+    const row = list?.querySelector<HTMLElement>(
+      '.item-row[aria-current="true"]'
+    );
+    if (!list || !row || !list.clientHeight) return;
+    const bounds = list.getBoundingClientRect();
+    const item = row.getBoundingClientRect();
+    const top = bounds.top + list.clientTop;
+    const bottom = top + list.clientHeight;
+    // Move only this list, keeping the surrounding controls and image fixed.
+    if (item.top < top) list.scrollTop += item.top - top;
+    else if (item.bottom > bottom) list.scrollTop += item.bottom - bottom;
+  },
+  { flush: 'post' }
 );
 
 const isOpen = (key: string | number | symbol) => props.expanded.includes(key);
@@ -135,7 +161,7 @@ const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
   <v-list density="compact" bg-color="transparent" class="py-0">
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
-    <div class="item-list-scroll">
+    <div ref="listElement" class="item-list-scroll">
       <!-- Open expansion slots can change independently of their row data. -->
       <!-- eslint-disable vue/no-useless-template-attributes -- Vue compiles v-memo on the keyed v-for fragment. -->
       <template
@@ -167,7 +193,7 @@ const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
               class="reorder-handle"
               draggable="true"
               :aria-label="`Reorder ${title}`"
-              title="Drag to reorder. Alt+Up or Alt+Down also moves this segment."
+              title="Drag to reorder segments and shortcuts. Earlier segments render in front. Alt+Up or Alt+Down also moves this segment."
               @click.stop
               @dragstart.stop="startDrag($event, key)"
               @dragend="clearDrag"

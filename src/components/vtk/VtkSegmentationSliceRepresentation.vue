@@ -116,7 +116,7 @@ sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
 sliceRep.property.setUseLookupTableScalarRange(true);
 
 // Each segment gets its own offset, in front of the base image and of the
-// segments before it in the order: overlap is representable, so a shared offset
+// segments behind it in the stack: overlap is representable, so a shared offset
 // would z-fight.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
 watchEffect(() => {

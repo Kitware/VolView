@@ -17,10 +17,9 @@ import { emptyExtent, type Extent3D } from '@/src/types/segmentation';
 // index axis the view's LPS axis maps to.
 //
 // `segmentCoincidentOffset` gives each segment its own coincident-topology
-// polygon offset, by its position in `segmentation.order`. Overlap is
+// polygon offset, by its back-to-front stack index. Overlap is
 // representable, so segments sharing one offset would z-fight.
-// Later in the order draws in front: a segment is appended when it is added, so
-// the one just painted is the one on top.
+// Greater stack indices draw in front. Registry order is mapped in reverse.
 // ---------------------------------------------------------------------------
 
 const EXTENT: Extent3D = [1, 2, 0, 3, 2, 5];
@@ -63,7 +62,7 @@ describe('segmentCoincidentOffset', () => {
     expect(units).toBeLessThan(0);
   });
 
-  it('puts a later segment in front of an earlier one', () => {
+  it('puts a greater stack index in front of a smaller one', () => {
     const [earlierFactor, earlierUnits] = segmentCoincidentOffset(0);
     const [laterFactor, laterUnits] = segmentCoincidentOffset(1);
 

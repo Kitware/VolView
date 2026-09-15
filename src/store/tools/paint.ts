@@ -15,9 +15,11 @@ import {
   clipExtent,
   fullExtent,
   isEmptyExtent,
+  maskScalars,
   type Extent3D,
 } from '@/src/types/segmentation';
 import { Tools } from './types';
+import { useSegmentStore } from '../segments';
 import { useSegmentationStore } from '../segmentations';
 import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
@@ -63,7 +65,8 @@ export const usePaintToolStore = defineStore('paint', () => {
   const isPaintingModeActive = computed(
     () =>
       activeMode.value === PaintMode.CirclePaint ||
-      activeMode.value === PaintMode.Erase
+      activeMode.value === PaintMode.Erase ||
+      activeMode.value === PaintMode.Eyedropper
   );
   const activePaintMode = computed(() =>
     isPaintingModeActive.value ? activeMode.value : modeBeforeProcess.value
@@ -120,6 +123,8 @@ export const usePaintToolStore = defineStore('paint', () => {
    * into existence and refuses when there is nothing stored to take from.
    */
   function resolveStrokeTarget(imageID: string, allocate: boolean) {
+    if (![PaintMode.CirclePaint, PaintMode.Erase].includes(activeMode.value))
+      return undefined;
     const maskId = allocate
       ? segmentationStore.resolveEditTarget(imageID)
       : segmentationStore.findEditTarget(imageID);
@@ -146,6 +151,30 @@ export const usePaintToolStore = defineStore('paint', () => {
   function setBrushSize(this: _This, size: number) {
     brushSize.value = Math.round(size);
     this.$paint.setBrushSize(size);
+  }
+
+  function selectSegmentAt(worldPoint: vec3, imageID: string) {
+    const registry = useSegmentStore().segments;
+    // Earlier registry entries render in front, including locked segments.
+    const segments = registry.segmentList.value;
+    const hit = segments.find((segment) => {
+      if (!registry.appearanceOf(segment.id).visible) return false;
+      const binding = segmentationStore.maskFor(imageID, segment.id)
+        ?.representations.labelmap;
+      if (!binding || isEmptyExtent(binding.extent)) return false;
+      const point = [...worldPointToIndex(binding.image, worldPoint)].map(
+        Math.round
+      );
+      const dims = binding.image.getDimensions();
+      if (point.some((value, axis) => value < 0 || value >= dims[axis]))
+        return false;
+      const [i, j, k] = point;
+      return (
+        maskScalars(binding.image)[i + dims[0] * (j + dims[1] * k)] ===
+        SEGMENT_VALUE
+      );
+    });
+    if (hit) registry.selectSegment(hit.id);
   }
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
@@ -428,6 +457,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     setThresholdRange,
     setCrossPlaneSync,
     updatePaintPosition,
+    selectSegmentAt,
     startStroke,
     placeStrokePoint,
     endStroke,

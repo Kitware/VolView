@@ -17,7 +17,7 @@
               v-model="interactionMode"
               mandatory
               selected-class="selected"
-              class="d-flex align-center justify-start ga-4"
+              class="d-flex flex-wrap align-center justify-start ga-2"
             >
               <v-item
                 :value="PaintMode.CirclePaint"
@@ -50,6 +50,33 @@
                   <v-icon>mdi-eraser</v-icon>
                   <span class="text-caption">Erase</span>
                 </v-btn>
+              </v-item>
+              <v-item
+                :value="PaintMode.Eyedropper"
+                v-slot="{ selectedClass, toggle }"
+              >
+                <span>
+                  <v-btn
+                    variant="tonal"
+                    rounded="8"
+                    stacked
+                    :class="['mode-button', selectedClass]"
+                    :disabled="!isPaintingModeActive"
+                    :aria-pressed="interactionMode === PaintMode.Eyedropper"
+                    data-testid="paint-eyedropper-button"
+                    @click.stop="toggle"
+                  >
+                    <v-icon>mdi-eyedropper</v-icon>
+                    <span class="text-caption">Eyedropper</span>
+                  </v-btn>
+                  <v-tooltip :eager="false" activator="parent" location="top">
+                    {{
+                      isPaintingModeActive
+                        ? `Pick a label map segment. Hold ${eyedropperShortcut} for temporary use.`
+                        : 'Finish processing to pick a segment'
+                    }}
+                  </v-tooltip>
+                </span>
               </v-item>
             </v-item-group>
           </v-row>
@@ -138,6 +165,11 @@
 import { computed, ref } from 'vue';
 import { storeToRefs } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
+import { usePaintInteractionMode } from '@/src/composables/usePaintInteractionMode';
+import {
+  actionToKey,
+  readableBinding,
+} from '@/src/composables/useKeyboardShortcuts';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
 import ProcessControls from '@/src/components/ProcessControls.vue';
@@ -153,7 +185,6 @@ const paintControlsOpen = ref(false);
 const { setProcessControlsOpen } = paintStore;
 const {
   brushSize,
-  activePaintMode,
   processControlsOpen,
   isPaintingModeActive,
   thresholdRange,
@@ -190,8 +221,12 @@ const setBrushSize = (size: number) => {
   paintStore.setBrushSize(Number(size));
 };
 
+const effectiveMode = usePaintInteractionMode();
+const eyedropperShortcut = computed(() =>
+  readableBinding(actionToKey.value.paintEyedropper)
+);
 const interactionMode = computed({
-  get: () => activePaintMode.value,
+  get: () => effectiveMode.value,
   set: (m) => {
     paintStore.setMode(m);
   },

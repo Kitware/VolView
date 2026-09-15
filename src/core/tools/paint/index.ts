@@ -13,6 +13,7 @@ export enum PaintMode {
   CirclePaint,
   Erase,
   Process,
+  Eyedropper,
 }
 
 export default class PaintTool {

@@ -454,7 +454,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   /**
    * The given segments as one parent-shaped labelmap, built on demand and never
    * stored: what leaves VolView means the whole segmentation, not one segment's
-   * bounded mask. Later in the registry wins where two segments overlap, which
+   * bounded mask. Earlier in the registry wins where two segments overlap, which
    * is the order their actors stack in, so the flattened file resolves an
    * overlap the way the screen did. `members` defaults to the image's segments;
    * an export passes one group so no overlap is flattened away.
@@ -486,7 +486,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           labelValue
         )
       );
+    });
+    [...included].reverse().forEach((segment, index) => {
       const bounded = boundedMask(segment.representations.labelmap);
+      const labelValue = segments[included.length - 1 - index].value;
       if (bounded) writeMaskInto(values, dimensions, bounded, labelValue);
     });
 
@@ -531,9 +534,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * The masks of an image, with their segment's place in the registry: that
-   * order is what the renderer offsets by, so two images show one segment at
-   * the same depth.
+   * Back-to-front depth for each mask. Earlier registry entries get greater
+   * offsets toward the viewer, consistently across images.
    */
   function maskLayersForImage(parentImageId: string) {
     return imageMasks(parentImageId).flatMap((segment) => {
@@ -541,7 +543,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         ? [
             {
               maskId: segment.id,
-              stackIndex: segmentRegistry.orderIndexOf(segment.segmentId),
+              stackIndex:
+                segmentRegistry.segmentList.value.length -
+                1 -
+                segmentRegistry.orderIndexOf(segment.segmentId),
             },
           ]
         : [];

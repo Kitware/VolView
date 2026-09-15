@@ -8,6 +8,7 @@ import {
   toRefs,
   watchEffect,
   inject,
+  ref,
 } from 'vue';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { vec3 } from 'gl-matrix';
@@ -21,6 +22,9 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
+import { PaintMode } from '@/src/core/tools/paint';
+import { usePaintInteractionMode } from '@/src/composables/usePaintInteractionMode';
+import eyedropperCursor from '@/src/assets/eyedropper-cursor.svg?url';
 import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 
 export default defineComponent({
@@ -46,6 +50,10 @@ export default defineComponent({
     const slice = computed(() => sliceInfo.value?.slice);
 
     const paintStore = usePaintToolStore();
+    const interactionMode = usePaintInteractionMode();
+    const sampling = computed(
+      () => interactionMode.value === PaintMode.Eyedropper
+    );
     const widgetFactory = paintStore.getWidgetFactory();
     const widgetState = widgetFactory.getWidgetState();
 
@@ -80,10 +88,14 @@ export default defineComponent({
 
     // --- interaction --- //
 
-    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+    onVTKEvent(widget, 'onStartInteractionEvent', (event) => {
       if (!imageId.value) return;
-      paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       const origin = widgetState.getBrush().getOrigin()!;
+      if (event?.sampling) {
+        paintStore.selectSegmentAt(vec3.clone(origin), imageId.value);
+        return;
+      }
+      paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       paintStore.startStroke(
         vec3.clone(origin),
         viewAxisIndex.value,
@@ -130,12 +142,27 @@ export default defineComponent({
     // --- visibility --- //
 
     let checkIfPointerInView = false;
+    const pointerInView = ref(false);
+    const cursorStyles = view.widgetManager.getCursorStyles();
+    watchEffect(() => {
+      widget.setSampling(sampling.value);
+      widget.setVisibility(pointerInView.value && !sampling.value);
+      const cursor = sampling.value
+        ? `url("${eyedropperCursor}") 2 22, crosshair`
+        : cursorStyles.default;
+      view.widgetManager.setCursorStyles(
+        sampling.value
+          ? { ...cursorStyles, default: cursor, hover: cursor }
+          : cursorStyles
+      );
+      view.renderWindowView.set({ cursor });
+    });
 
     // Turn on widget visibility and update stencil if mouse starts within view
     const showPreviewOnFirstMove = () => {
       if (!checkIfPointerInView) return;
       checkIfPointerInView = false;
-      widget.setVisibility(true);
+      pointerInView.value = true;
       if (imageId.value) {
         paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       }
@@ -146,11 +173,11 @@ export default defineComponent({
       if (imageId.value) {
         paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
       }
-      widget.setVisibility(true);
+      pointerInView.value = true;
     });
 
     onVTKEvent(view.interactor, 'onMouseLeave', () => {
-      widget.setVisibility(false);
+      pointerInView.value = false;
     });
 
     watchEffect(() => {
@@ -179,6 +206,8 @@ export default defineComponent({
     });
 
     onUnmounted(() => {
+      view.widgetManager.setCursorStyles(cursorStyles);
+      view.renderWindowView.set({ cursor: cursorStyles.default });
       view.widgetManager.removeWidget(widgetFactory);
       view.renderWindowView
         .getContainer()

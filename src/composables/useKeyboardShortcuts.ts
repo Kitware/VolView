@@ -3,6 +3,7 @@ import {
   DefaultMagicKeysAliasMap,
   onKeyStroke,
   useMagicKeys,
+  useActiveElement,
 } from '@vueuse/core';
 
 import { getEntries, wrapInArray } from '../utils';
@@ -44,8 +45,13 @@ export const isDispatchable = (binding: string) =>
  */
 export const useActionHeld = (action: Action) => {
   const keys = useMagicKeys();
+  const activeElement = useActiveElement();
   return computed(() =>
-    bindingsOf(actionToKey.value[action]).some((binding) => keys[binding].value)
+    bindingsOf(actionToKey.value[action]).some(
+      (binding) =>
+        keys[binding].value &&
+        !shouldIgnoreKeyboardShortcuts(binding, activeElement.value)
+    )
   );
 };
 

@@ -59,6 +59,9 @@ export const ACTIONS = {
   paintEraser: {
     readable: 'Activate Paint tool with eraser',
   },
+  paintEyedropper: {
+    readable: 'Temporarily pick a segment while holding key in Paint',
+  },
   brushSizeModifier: {
     readable: 'Change brush size by holding key and scrolling',
   },
