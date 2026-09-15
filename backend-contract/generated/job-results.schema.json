@@ -114,7 +114,7 @@
                 "properties": {
                   "intent": {
                     "type": "string",
-                    "const": "add-segment-group"
+                    "const": "import-segmentation"
                   },
                   "id": {
                     "type": "string",
