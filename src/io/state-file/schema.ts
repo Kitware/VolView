@@ -41,7 +41,7 @@ import {
   type LayoutDirection,
   type LayoutItem,
 } from '@/src/types/layout';
-import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
 
 const FileSource = z.object({
   id: z.number(),

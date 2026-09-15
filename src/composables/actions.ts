@@ -7,11 +7,11 @@ import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
 import { useCineFrame } from './useCineFrame';
 import { useDatasetStore } from '../store/datasets';
-import { useSegmentStore } from '../store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
-import type { Segment } from '../types/segment';
+import type { Segment } from '@/src/segmentation/segment';
 
 // One registry holds the segments every tool draws into, so cycling it is not
 // scoped to a tool: paint takes the selection the same way a polygon does.

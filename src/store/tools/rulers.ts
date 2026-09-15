@@ -6,7 +6,7 @@ import { ToolID } from '@/src/types/annotation-tool';
 
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,

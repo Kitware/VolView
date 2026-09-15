@@ -3,15 +3,15 @@ import { setActivePinia, createPinia } from 'pinia';
 import {
   boundMasks,
   mintSegment,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { useCropStore } from '@/src/store/tools/crop';

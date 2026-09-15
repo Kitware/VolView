@@ -6,7 +6,7 @@ import { exists, hits, isTest, read, sourceFiles } from './sourceAudit';
 
 const SCALAR_PROBE = 'src/components/tools/ScalarProbe.vue';
 const SEGMENTATION_REPRESENTATION =
-  'src/components/vtk/VtkSegmentationSliceRepresentation.vue';
+  'src/segmentation/rendering/VtkSegmentationSliceRepresentation.vue';
 
 const DELETED = [
   'src/store/segmentGroups.ts',

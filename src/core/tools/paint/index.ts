@@ -3,7 +3,7 @@ import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { Maybe } from '@/src/types';
-import type { Extent3D } from '@/src/types/segmentation';
+import type { Extent3D } from '@/src/segmentation/model';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 

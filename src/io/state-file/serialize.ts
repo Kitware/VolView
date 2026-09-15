@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';

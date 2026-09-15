@@ -8,8 +8,8 @@ import {
   resolveArtifactRestoreSources,
 } from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 
 // ---------------------------------------------------------------------------

@@ -4,9 +4,9 @@ import {
   allocateMask,
   reframeMaskScalars,
   setMaskScalars,
-} from '../../../src/store/segmentMask';
-import { maskScalars, type Extent3D } from '../../../src/types/segmentation';
-import { segmentRenderMask } from '../../../src/components/vtk/segmentRenderMask';
+} from '@/src/segmentation/masks/storage';
+import { maskScalars, type Extent3D } from '@/src/segmentation/model';
+import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
@@ -17,7 +17,7 @@ import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunc
 import {
   SEGMENT_ACTOR_OPACITY,
   segmentOutlineTables,
-} from '../../../src/components/vtk/segmentDisplay';
+} from '@/src/segmentation/rendering/display';
 
 const renderer = vtkRenderer.newInstance();
 const renderWindow = vtkRenderWindow.newInstance();

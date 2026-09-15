@@ -7,7 +7,7 @@ import { histogram } from '@/src/utils/histogram';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { useMessageStore } from '@/src/store/messages';
-import { seatImage } from './segmentMaskFixtures';
+import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // Real Comlink messages and histogram results, with completion controlled at
 // the browser Worker boundary because the unit environment has no Workers.

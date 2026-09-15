@@ -1,10 +1,10 @@
-import { useSegmentationEditsStore } from '@/src/store/segmentationEdits';
+import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { computed, ref, unref, watch } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
@@ -18,10 +18,10 @@ import {
   isEmptyExtent,
   maskScalars,
   type Extent3D,
-} from '@/src/types/segmentation';
+} from '@/src/segmentation/model';
 import { Tools } from './types';
-import { useSegmentStore } from '../segments';
-import { useSegmentationStore } from '../segmentations';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import useViewSliceStore from '../view-configs/slicing';
 import { useViewStore } from '../views';
 import { useViewCameraStore } from '../view-configs/camera';

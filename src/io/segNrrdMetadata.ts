@@ -1,5 +1,5 @@
 import { clampValue } from '@/src/utils';
-import type { LabelmapSegment } from '@/src/types/segmentation';
+import type { LabelmapSegment } from '@/src/segmentation/model';
 
 const toColorString = (r: number, g: number, b: number) =>
   [r / 255, g / 255, b / 255].map((c) => c.toFixed(6)).join(' ');

@@ -10,11 +10,11 @@ import {
 } from '@/src/io/import/configJson';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { MessageType, useMessageStore } from '@/src/store/messages';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
+import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import { useViewStore } from '@/src/store/views';
 
 describe('config schema', () => {

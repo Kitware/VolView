@@ -6,14 +6,14 @@ import {
   mintSegment,
   manifestForImages,
   serializeToStateFiles,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 
 import { ManifestSchema } from '@/src/io/state-file/schema';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
-import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
 
 // ---------------------------------------------------------------------------
 // Display state on the wire: the per-image multipliers ride on the

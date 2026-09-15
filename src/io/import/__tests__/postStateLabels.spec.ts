@@ -7,7 +7,7 @@ import {
   recordingRestoreProcessors,
   yields,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 
 const sessionFile = () =>

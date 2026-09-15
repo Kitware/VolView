@@ -8,11 +8,11 @@ import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useToolStore } from '@/src/store/tools';
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { Tools } from '@/src/store/tools/types';
 import { useViewStore } from '@/src/store/views';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { boundMasks } from '@/src/store/__tests__/segmentMaskFixtures';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const seatAndView = (id: string) => {
   useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {

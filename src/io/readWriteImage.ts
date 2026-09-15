@@ -7,7 +7,7 @@ import {
 } from '@itk-wasm/image-io';
 import { vtiReader, vtiWriter } from '@/src/io/vtk/async';
 import { getWorker } from '@/src/io/itk/worker';
-import type { LabelmapSegment } from '@/src/types/segmentation';
+import type { LabelmapSegment } from '@/src/segmentation/model';
 import { maybeBuildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 
 export type ReadImageResult = {

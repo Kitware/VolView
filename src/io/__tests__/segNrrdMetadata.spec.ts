@@ -8,7 +8,7 @@ import {
   type ParsedSegment,
   type DecodedSegment,
 } from '@/src/io/segNrrdMetadata';
-import type { LabelmapSegment } from '@/src/types/segmentation';
+import type { LabelmapSegment } from '@/src/segmentation/model';
 
 // Tests the metadata-embedding layer rather than the ITK-wasm write, which
 // needs a worker + wasm the unit env cannot run. The key gate: names/colors

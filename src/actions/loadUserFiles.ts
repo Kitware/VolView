@@ -8,7 +8,7 @@ import {
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';

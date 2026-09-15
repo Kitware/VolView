@@ -4,7 +4,7 @@ import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import {
   isRegularImage,
   type DataSelection,

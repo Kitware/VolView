@@ -13,7 +13,7 @@ import PersistentOverlay from '@/src/components//PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;

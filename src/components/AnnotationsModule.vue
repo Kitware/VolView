@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import SegmentList from './SegmentList.vue';
+import SegmentList from '@/src/segmentation/components/SegmentList.vue';
 import ToolControls from './ToolControls.vue';
 import MeasurementsToolList from './MeasurementsToolList.vue';
 

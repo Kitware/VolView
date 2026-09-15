@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useSegmentShapes } from '@/src/composables/useSegmentShapes';
+import { useSegmentShapes } from '@/src/segmentation/composables/useSegmentShapes';
 import { removeSelectedTools } from '@/src/store/tools';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import SegmentAssignmentList from '@/src/components/SegmentAssignmentList.vue';
+import SegmentAssignmentList from '@/src/segmentation/components/SegmentAssignmentList.vue';
 
 const { shapes } = useSegmentShapes();
 const registry = useSegmentStore().segments;

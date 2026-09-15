@@ -10,10 +10,10 @@ import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
-import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/types/segmentation';
-import { segmentFillAlpha } from '@/src/components/vtk/segmentDisplay';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
+import { segmentFillAlpha } from '@/src/segmentation/rendering/display';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
   legacyAxialViewConfig,
@@ -21,7 +21,7 @@ import {
   manifestForImages,
   segmentationSnapshot,
   serializeToStateFiles,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // The 6.4.0 -> 7.0.0 structural migration. JSON only: every old segment group

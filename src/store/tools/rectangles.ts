@@ -3,7 +3,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,

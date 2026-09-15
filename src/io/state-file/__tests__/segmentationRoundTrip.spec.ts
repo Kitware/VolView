@@ -8,12 +8,12 @@ import {
   manifestForImages,
   segmentationSnapshot,
   serializeToStateFiles,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 // ---------------------------------------------------------------------------
 // The 7.0.0 wire schema round trip: a scene serializes to `segmentations` +

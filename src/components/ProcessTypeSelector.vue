@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
+import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import { PROCESS_DEFINITIONS } from './processes';
 
 const processStore = usePaintProcessStore();

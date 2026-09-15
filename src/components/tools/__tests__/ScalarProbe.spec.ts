@@ -12,8 +12,8 @@ import * as currentImage from '@/src/composables/useCurrentImage';
 import * as vtkEvent from '@/src/composables/onVTKEvent';
 import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import * as imageCache from '@/src/store/image-cache';
-import * as segments from '@/src/store/segments';
-import * as segmentations from '@/src/store/segmentations';
+import * as segments from '@/src/segmentation/segments';
+import * as segmentations from '@/src/segmentation/store';
 
 const state = {
   current: {} as ReturnType<typeof currentImage.useCurrentImage>,

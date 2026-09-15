@@ -3,7 +3,7 @@
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { COMPOUND_EXTENSIONS } from '@/src/utils/path';
 
 const MAX_ERROR_LENGTH = 4000;

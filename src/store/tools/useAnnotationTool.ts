@@ -10,8 +10,8 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
-import type { SegmentRegistry } from './segmentRegistry';
-import { declareSegmentReferences } from './segmentReferences';
+import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
+import { declareSegmentReferences } from '@/src/segmentation/segmentReferences';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop

@@ -6,7 +6,7 @@ import { mount } from '@vue/test-utils';
 import PatientStudyVolumeBrowser from '@/src/components/PatientStudyVolumeBrowser.vue';
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 
 const SlotStub = defineComponent({

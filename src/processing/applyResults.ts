@@ -27,11 +27,11 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import { cssColorToRGBA, listMasks } from '@/src/types/segmentation';
+import { cssColorToRGBA, listMasks } from '@/src/segmentation/model';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';

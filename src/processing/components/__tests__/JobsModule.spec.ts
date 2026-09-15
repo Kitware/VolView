@@ -1,4 +1,4 @@
-import * as segmentationComposition from '@/src/io/segmentationComposition';
+import * as segmentationComposition from '@/src/segmentation/io/composition';
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -34,12 +34,12 @@ import TaskForm from '@/src/processing/components/TaskForm.vue';
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import {
   seedVoxel,
   mintSegment,
   selectSegment,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';

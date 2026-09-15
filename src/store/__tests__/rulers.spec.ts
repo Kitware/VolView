@@ -1,15 +1,15 @@
 import { describe, it, beforeEach, expect } from 'vitest';
 
 import { setActivePinia, createPinia } from 'pinia';
-import { mintSegment } from '@/src/store/__tests__/segmentMaskFixtures';
+import { mintSegment } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import {
   STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
   TOOL_COLORS,
 } from '@/src/config';
-import { cssColorToRGBA, rgbaToCssColor } from '@/src/types/segmentation';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/model';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { Ruler } from '@/src/types/ruler';
 import { RequiredWithPartial } from '@/src/types';

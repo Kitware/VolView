@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { makeSpecImage } from '@/src/store/__tests__/segmentMaskFixtures';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { makeSpecImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
-import { listMasks } from '@/src/types/segmentation';
+import { listMasks } from '@/src/segmentation/model';
 
 // ---------------------------------------------------------------------------
 // Backward compatibility: manifests saved before `datasets` existed (and

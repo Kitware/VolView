@@ -9,13 +9,13 @@ import {
 } from '@/src/processing/applyResults';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
   seatImage,
   seedVoxel,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const registry = () => useSegmentStore().segments;
 const store = () => useSegmentationStore();

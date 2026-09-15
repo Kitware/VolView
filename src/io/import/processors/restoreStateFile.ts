@@ -17,8 +17,8 @@ import {
   summarizeDataSource,
 } from '@/src/io/state-file/dataSourceDisplayName';
 import { leafStateId } from '@/src/io/import/dataSource';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useToolStore } from '@/src/store/tools';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';

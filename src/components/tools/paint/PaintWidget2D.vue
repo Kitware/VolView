@@ -23,7 +23,7 @@ import { useSliceInfo } from '@/src/composables/useSliceInfo';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
-import { usePaintInteractionMode } from '@/src/composables/usePaintInteractionMode';
+import { usePaintInteractionMode } from '@/src/segmentation/composables/usePaintInteractionMode';
 import eyedropperCursor from '@/src/assets/eyedropper-cursor.svg?url';
 import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 

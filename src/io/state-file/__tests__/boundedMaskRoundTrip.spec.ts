@@ -3,17 +3,17 @@ import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 import JSZip from 'jszip';
 
-import { segmentRenderMask } from '@/src/components/vtk/segmentRenderMask';
+import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { migrateManifest } from '@/src/io/state-file/migrations';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { isEmptyExtent, listMasks } from '@/src/types/segmentation';
+import { isEmptyExtent, listMasks } from '@/src/segmentation/model';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import { type SegmentationArtifactIO } from '@/src/store/segmentations';
+import { type SegmentationArtifactIO } from '@/src/segmentation/store';
 import {
   addMask,
   inMemoryArtifactIO,
@@ -28,8 +28,8 @@ import {
   voxelCount,
   type Index3,
   boundMasks,
-} from '@/src/store/__tests__/segmentMaskFixtures';
-import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // ---------------------------------------------------------------------------
 // The state file carries N bounded masks. What goes into the archive is each

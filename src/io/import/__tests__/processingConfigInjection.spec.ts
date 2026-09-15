@@ -212,7 +212,7 @@ describe('multiple configs merge at section granularity, last-wins (in-flight de
     ] = await Promise.all([
       import('@/src/io/import/configJson'),
       import('@/src/store/view-configs/windowing'),
-      import('@/src/store/segmentations'),
+      import('@/src/segmentation/store'),
     ]);
 
     // Config A sets windowing.

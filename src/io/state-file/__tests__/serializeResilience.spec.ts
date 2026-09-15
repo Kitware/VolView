@@ -402,7 +402,7 @@ describe('state-file serialization resilience', () => {
       }) as unknown as Manifest;
 
     const warningsFrom = async (manifest: Manifest) => {
-      await import('@/src/store/segmentations');
+      await import('@/src/segmentation/store');
       const warn = vi.spyOn(debug, 'warn').mockImplementation(() => {});
       normalizeManifest(manifest, new JSZip());
       const messages = warn.mock.calls.map((call) => String(call[0]));

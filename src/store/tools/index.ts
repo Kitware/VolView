@@ -13,7 +13,7 @@ import { plural } from '@/src/utils';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 import { useToolSelectionStore } from './toolSelection';
-import { useSegmentStore } from '@/src/store/segments';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import {
   EffectiveView,

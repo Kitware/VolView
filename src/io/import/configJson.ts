@@ -10,8 +10,8 @@ import { ACTIONS } from '@/src/constants';
 import type { Action, Binding } from '@/src/constants';
 
 import { useMessageStore } from '@/src/store/messages';
-import { useSegmentStore } from '@/src/store/segments';
-import { tryCssColorToRGBA } from '@/src/types/segmentation';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { tryCssColorToRGBA } from '@/src/segmentation/model';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
@@ -20,7 +20,7 @@ import {
   isDispatchable,
 } from '@/src/composables/useKeyboardShortcuts';
 import { surfaceWarning } from '@/src/store/messages';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import useLoadDataStore from '@/src/store/load-data';
 import { layoutConfig } from '@/src/utils/layoutParsing';
 

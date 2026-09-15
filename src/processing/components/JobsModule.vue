@@ -124,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { layeredSegments } from '@/src/io/segmentationComposition';
+import { layeredSegments } from '@/src/segmentation/io/composition';
 
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type { Ref } from 'vue';
@@ -134,7 +134,7 @@ import { getErrorDetail, ensureError } from '@/src/utils';
 
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { useMaskRevision } from '@/src/composables/useMaskRevision';
+import { useMaskRevision } from '@/src/segmentation/composables/useMaskRevision';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useCropStore } from '@/src/store/tools/crop';
 import type {
@@ -162,7 +162,7 @@ import {
 } from '@/src/processing/engine/jobDisplay';
 import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 
 import { useMessageStore } from '@/src/store/messages';
 

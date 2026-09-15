@@ -1,10 +1,10 @@
-import { compositeLabelmap } from '@/src/io/segmentationComposition';
+import { compositeLabelmap } from '@/src/segmentation/io/composition';
 import { computed } from 'vue';
 
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useSegmentationStore } from '@/src/store/segmentations';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import { getDataSourceName } from '@/src/io/import/dataSource';
 import { stripExtension } from '@/src/utils/path';

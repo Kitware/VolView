@@ -14,18 +14,18 @@ import type {
 } from '@/src/processing/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
-import { useSegmentationStore } from '@/src/store/segmentations';
-import { useSegmentStore } from '@/src/store/segments';
-import { cssColorToRGBA } from '@/src/types/segmentation';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { cssColorToRGBA } from '@/src/segmentation/model';
 import {
   mintSegment,
   lockSegment,
-} from '@/src/store/__tests__/segmentMaskFixtures';
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
-import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // ---------------------------------------------------------------------------
 // Applying an `add-annotations` result.
