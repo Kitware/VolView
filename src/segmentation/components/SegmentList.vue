@@ -326,7 +326,7 @@ const {
           </div>
         </div>
 
-        <v-expansion-panel-text>
+        <v-expansion-panel-text class="segments-section-body">
           <editable-item-list
             v-model="selectedSegmentOn"
             :selection-revision="registry.selectionRevision.value"
@@ -337,7 +337,7 @@ const {
             item-title="name"
             create-text="New segment"
             @create="addNewSegment"
-            class="segment-items mb-2"
+            class="segment-items"
           >
             <template #item-prepend="{ item }">
               <!-- dot container keeps overflowing name from squishing dot width  -->
@@ -467,12 +467,23 @@ const {
   scrollbar-gutter: stable;
 }
 
+.segment-items :deep(.create-row-wrapper) {
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.segments-section-body :deep(.v-expansion-panel-text__wrapper) {
+  padding-bottom: 4px;
+}
+
 .segment-panel-header {
   position: relative;
 }
 
-.segment-items :deep(.item-row) {
-  padding-inline-end: 16px;
+.segment-items :deep(.item-row),
+.segment-items :deep(.create-row) {
+  padding-inline: 16px;
 }
 
 .segment-panel-header :deep(.v-expansion-panel-title) {

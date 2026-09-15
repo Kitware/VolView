@@ -239,7 +239,7 @@ const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
       <!-- eslint-enable vue/no-useless-template-attributes -->
     </div>
 
-    <div v-if="!hideCreate" role="listitem">
+    <div v-if="!hideCreate" role="listitem" class="create-row-wrapper">
       <v-list-item
         tag="button"
         type="button"
