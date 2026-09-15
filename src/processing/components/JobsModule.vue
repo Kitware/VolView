@@ -124,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { layeredSegments } from '@/src/segmentation/io/composition';
+import { planLabelmapExport } from '@/src/segmentation/io/composition';
 
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type { Ref } from 'vue';
@@ -529,8 +529,9 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
 // image's segments so that no group holds an overlap, and one file carries one
 // group.
 const segmentationOverlaps = (segmentationId: string) =>
-  layeredSegments(segmentationStore.segmentations[segmentationId].parentImageId)
-    .length > 1;
+  planLabelmapExport(
+    segmentationStore.segmentations[segmentationId].parentImageId
+  ).hasOverlap;
 
 // A job's input is the whole segmentation flattened into one file, where earlier
 // in the list wins. Said at the point of staging rather than only in code: the

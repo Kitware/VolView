@@ -273,7 +273,7 @@ export function groupByLayer<T>(
  * writes by precedence.
  */
 export function writeMaskInto(
-  values: Uint8Array,
+  values: Uint8Array | Uint16Array,
   dimensions: readonly number[],
   bounded: BoundedScalars,
   labelValue: number

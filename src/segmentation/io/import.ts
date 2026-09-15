@@ -1,7 +1,7 @@
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
@@ -15,15 +15,16 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import {
   LABELMAP_BACKGROUND_VALUE,
   makeDefaultSegmentName,
-  maskScalars,
   type LabelmapSegment,
 } from '@/src/segmentation/model';
 import {
   emptyExtent,
   extentSize,
+  extentUnion,
   isEmptyExtent,
   maskOffset,
   type Extent3D,
+  type MaskBounds,
   growExtent,
 } from '@/src/segmentation/geometry';
 import {
@@ -34,32 +35,13 @@ import {
 import vtkImageExtractComponents from '@/src/utils/imageExtractComponentsFilter';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
-const LabelmapArrayType = Uint8Array;
+import {
+  labelmapScalars,
+  normalizeLabelmapScalars,
+} from '@/src/segmentation/io/labelmap';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 export type ImportedSegment = { sourceValue: number; maskId: string };
-
-function convertToUint8(array: number[] | TypedArray): Uint8Array {
-  const uint8Array = new Uint8Array(array.length);
-  for (let i = 0; i < array.length; i++) {
-    const value = array[i];
-    uint8Array[i] = value < 0 || value > 255 ? 0 : value;
-  }
-  return uint8Array;
-}
-
-function getLabelMapScalars(imageData: vtkImageData) {
-  const scalars = imageData.getPointData().getScalars();
-  let values = scalars.getData();
-
-  if (!(values instanceof LabelmapArrayType)) {
-    values = convertToUint8(values);
-  }
-
-  return vtkDataArray.newInstance({
-    numberOfComponents: scalars.getNumberOfComponents(),
-    values,
-  });
-}
 
 export function toLabelMap(imageData: vtkImageData) {
   const labelmap = vtkLabelMap.newInstance(
@@ -69,8 +51,11 @@ export function toLabelMap(imageData: vtkImageData) {
   labelmap.setDimensions(imageData.getDimensions());
   labelmap.computeTransforms();
 
-  // outline rendering only supports UInt8Array image types
-  const scalars = getLabelMapScalars(imageData);
+  const source = imageData.getPointData().getScalars();
+  const scalars = vtkDataArray.newInstance({
+    numberOfComponents: source.getNumberOfComponents(),
+    values: normalizeLabelmapScalars(source.getData()),
+  });
   labelmap.getPointData().setScalars(scalars);
 
   return labelmap;
@@ -101,7 +86,7 @@ function labelValueBounds(labelmap: vtkLabelMap) {
   const cached = boundsCache.get(labelmap);
   if (cached?.mTime === labelmap.getMTime()) return cached.bounds;
 
-  const scalars = maskScalars(labelmap);
+  const scalars = labelmapScalars(labelmap);
   const [di, dj, dk] = labelmap.getDimensions();
   const bounds = new Map<number, Extent3D>();
 
@@ -122,65 +107,54 @@ function labelValueBounds(labelmap: vtkLabelMap) {
   return bounds;
 }
 
-type LabelmapSweep = {
-  scalars: Uint8Array;
-  dimensions: number[] | Int32Array;
-  value: number;
-};
-
-/** Copies one label value's voxels into `mask`, rewritten to `labelValue`. */
-function cropLabelValue(
-  sweep: LabelmapSweep,
-  extent: Extent3D,
-  mask: Uint8Array,
-  labelValue: number
-) {
-  const [di, dj] = sweep.dimensions;
-  const [mi, mj] = extentSize(extent);
-  const bounds = { extent, mi, mj };
-
-  const copyRow = (j: number, k: number) => {
-    const sourceStart = (j + k * dj) * di;
-    const maskStart = maskOffset(bounds, extent[0], j, k);
-    for (let i = extent[0]; i <= extent[1]; i += 1) {
-      if (sweep.scalars[sourceStart + i] !== sweep.value) continue;
-      mask[maskStart + i - extent[0]] = labelValue;
-    }
-  };
-
-  for (let k = extent[4]; k <= extent[5]; k += 1)
-    for (let j = extent[2]; j <= extent[3]; j += 1) copyRow(j, k);
-}
+type CropTarget = MaskBounds & { mask: Uint8Array };
 
 export type MaskMinter = (
   descriptor: LabelmapSegment,
   extent: Extent3D
-) => { labelValue: number; mask: Uint8Array };
+) => Uint8Array;
 
 /**
  * Each descriptor gets a mask cropped to the box its value's voxels span,
- * filled with the value the minter assigned it.
+ * holding SEGMENT_VALUE whatever the source called that value.
  */
 export function splitLabelmap(
   labelmap: vtkLabelMap,
   descriptors: LabelmapSegment[],
   mint: MaskMinter
 ) {
-  const scalars = maskScalars(labelmap);
-  const dimensions = labelmap.getDimensions();
+  const scalars = labelmapScalars(labelmap);
+  const [di, dj] = labelmap.getDimensions();
   const bounds = labelValueBounds(labelmap);
 
+  // Indexed by source value, so the sweep below reads each voxel once however
+  // many labels there are. Two descriptors may state one value.
+  const targets: CropTarget[][] = [];
   descriptors.forEach((descriptor) => {
     const extent = bounds.get(descriptor.value) ?? emptyExtent();
-    const { labelValue, mask } = mint(descriptor, extent);
+    const mask = mint(descriptor, extent);
     if (isEmptyExtent(extent)) return;
-    cropLabelValue(
-      { scalars, dimensions, value: descriptor.value },
-      extent,
-      mask,
-      labelValue
-    );
+    const [mi, mj] = extentSize(extent);
+    const target = { extent, mi, mj, mask };
+    (targets[descriptor.value] ??= []).push(target);
   });
+
+  const copyRow = (j: number, k: number, i0: number, i1: number) => {
+    const rowStart = (j + k * dj) * di;
+    for (let i = i0; i <= i1; i += 1) {
+      const hits = targets[scalars[rowStart + i]];
+      if (!hits) continue;
+      for (const hit of hits)
+        hit.mask[maskOffset(hit, i, j, k)] = SEGMENT_VALUE;
+    }
+  };
+
+  // A target's voxels all lie in its extent, so only their union is swept.
+  const extents = targets.flat().map(({ extent }) => extent);
+  if (!extents.length) return;
+  const [i0, i1, j0, j1, k0, k1] = extents.reduce(extentUnion);
+  for (let k = k0; k <= k1; k += 1)
+    for (let j = j0; j <= j1; j += 1) copyRow(j, k, i0, i1);
 }
 
 /** DICOM-SEG carries its own catalog; anything else has to be derived. */

@@ -6,8 +6,8 @@ export type ExportFile = {
 };
 
 /**
- * The name a group's file carries. The first keeps the plain stem, so a
- * segmentation with no overlap saves as the one file it always did.
+ * The name of one export part's file. Parts past the first come from overlap
+ * or from the 65535-label capacity; the first keeps the plain stem.
  */
 export const layerFileName = (stem: string, format: string, layer: number) =>
   layer === 0 ? `${stem}.${format}` : `${stem}_layer${layer}.${format}`;

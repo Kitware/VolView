@@ -2,7 +2,7 @@ import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { partition } from '@/src/utils';
 import type { VoxelGesture } from '@/src/segmentation/model';
-import type { useImageCacheStore } from '@/src/store/image-cache';
+import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { regrowMask } from '@/src/segmentation/masks/storage';
 import {
   boundScalars,
@@ -29,7 +29,7 @@ import {
 } from '@/src/segmentation/geometry';
 
 type VoxelAccessDeps = {
-  imageCacheStore: ReturnType<typeof useImageCacheStore>;
+  parentImageOfMask: (maskId: string) => vtkImageData;
   findMaskBinding: (maskId: string) => LabelmapBinding | undefined;
   getMask: (maskId: string) => SegmentMask;
   segmentationOfMask: (maskId: string) => Segmentation | undefined;
@@ -38,6 +38,9 @@ type VoxelAccessDeps = {
   overlapAllowed: () => boolean;
 };
 
+export const boundedMask = (binding?: LabelmapBinding) =>
+  binding && boundScalars(binding.image, binding.extent);
+
 /**
  * Reading and growing the voxels behind a mask. Split out so the store holds
  * the records; every accessor re-resolves its binding rather than capturing a
@@ -45,7 +48,7 @@ type VoxelAccessDeps = {
  */
 export function createVoxelAccess(deps: VoxelAccessDeps) {
   const {
-    imageCacheStore,
+    parentImageOfMask,
     findMaskBinding,
     getMask,
     segmentationOfMask,
@@ -53,14 +56,6 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
     maskLocked,
     overlapAllowed,
   } = deps;
-
-  function requireParentImage(maskId: string) {
-    const segmentation = segmentationOfMask(maskId);
-    if (!segmentation) throw new Error('No such mask');
-    const parent = imageCacheStore.getVtkImageData(segmentation.parentImageId);
-    if (!parent) throw new Error('No such parent image');
-    return parent;
-  }
 
   /**
    * Grows one mask, in place, to cover `extent` in parent index space, with
@@ -71,7 +66,7 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
 
     const binding = getMask(maskId).representations.labelmap;
     if (!binding) throw new Error('No storage: call materialize() first');
-    const parent = requireParentImage(maskId);
+    const parent = parentImageOfMask(maskId);
     // Refused before anything is touched, so a rejected growth leaves the mask
     // exactly as it was.
     const parentExtent = fullExtent(parent.getDimensions());
@@ -148,10 +143,6 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
   const findMaskVoxels = (maskId: string) =>
     voxelStorage(maskId, 'No such mask');
 
-  /** A bound segment's buffer, absent when it has none or holds nothing. */
-  const boundedMask = (binding?: LabelmapBinding) =>
-    binding && boundScalars(binding.image, binding.extent);
-
   /**
    * The masks of an image's other segments, split by what `gesture` does where
    * one of them holds a voxel: take the voxel from it, or yield to it and leave
@@ -202,12 +193,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
   }
 
   return {
-    requireParentImage,
-    ensureMaskContains,
     maskVoxels,
     findMaskVoxels,
-    boundedMask,
-    siblingMasks,
     voxelClaim,
   };
 }

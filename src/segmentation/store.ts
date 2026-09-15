@@ -1,3 +1,4 @@
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { defineStore } from 'pinia';
 import { markRaw, reactive, ref } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
@@ -5,10 +6,6 @@ import type { RGBAColor } from '@kitware/vtk.js/types';
 import { CATEGORICAL_COLORS } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
 import { createMaskFileNamer } from '@/src/segmentation/io/maskFileNaming';
-import {
-  LABELMAP_MAX_VALUE,
-  SEGMENT_VALUE,
-} from '@/src/segmentation/masks/labelValue';
 import { allocateMask } from '@/src/segmentation/masks/storage';
 import { createSegmentProjection } from '@/src/segmentation/rendering/projection';
 import { createVoxelAccess } from '@/src/segmentation/masks/voxelAccess';
@@ -17,9 +14,6 @@ import {
   createSegmentationWire,
   type LabelmapIO,
 } from '@/src/segmentation/io/stateFile';
-
-export type { LabelmapIO };
-export { LABELMAP_MAX_VALUE };
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import {
@@ -60,7 +54,7 @@ import {
 } from '@/src/utils';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
-export type { ImportedSegment } from '@/src/segmentation/io/import';
+export type { LabelmapIO };
 
 // The manifest references this store's remove cascade keeps clean (see the
 // onImageDeleted registration below), declared for the dev-only save backstop.
@@ -168,6 +162,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return mask;
   }
 
+  /** The image whose grid a mask's voxels sit on. */
+  function parentImageOfMask(maskId: string) {
+    const { parentImageId } = getSegmentationOfMask(maskId);
+    const image = imageCacheStore.getVtkImageData(parentImageId);
+    if (!image) throw new Error('No such parent image');
+    return image;
+  }
+
   const getSegmentationForImage = (parentImageId: string) =>
     Object.values(segmentations).find(
       (segmentation) => segmentation.parentImageId === parentImageId
@@ -204,32 +206,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentation.masks[id];
   }
 
-  /**
-   * A fresh binding over voxels on the parent's grid, covering `extent`. `name`
-   * is the name a manifest carried: it reaches the saved zip's entry path, so a
-   * restore that generated one instead would rename the file on every round
-   * trip. Duplicates are fine, serialize resolves the archive path against the
-   * ones it has already used.
-   */
-  function createBindingForImage(
-    parentImageId: string,
-    extent: Extent3D = emptyExtent(),
-    source?: ProcessingResultSource,
-    name?: string
-  ): LabelmapBinding {
-    const imageData = imageCacheStore.getVtkImageData(parentImageId);
-    if (!imageData) throw new Error('No such parent image');
-
-    const baseName =
-      imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME;
-    return {
-      image: markRaw(allocateMask(imageData, extent)),
-      extent,
-      name: name ?? maskFileNamer.pick(parentImageId, baseName),
-      ...(source ? { source } : {}),
-    };
-  }
-
   /** Attaches prepared storage to a mask without exposing its mutable record to importers. */
   function attachMaskBinding(maskId: string, binding: LabelmapBinding) {
     const mask = getMask(maskId);
@@ -244,16 +220,30 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return mask.representations.labelmap;
   }
 
-  function detachMask(segmentation: Segmentation, maskId: string) {
-    edits.beforeEdit();
-    const mask = segmentation.masks[maskId];
-    const { segmentId } = mask ?? {};
-    const boundName = mask?.representations.labelmap?.name;
-    removeFromArray(segmentation.order, maskId);
-    delete segmentation.masks[maskId];
-    const index = maskIdsBySegment.get(segmentation.id);
-    if (segmentId && index?.get(segmentId) === maskId) index.delete(segmentId);
-    if (boundName !== undefined) releaseMaskName(boundName);
+  /**
+   * Attaches fresh voxels on the parent's grid, covering `extent`. `name` is
+   * the name a manifest carried: it reaches the saved zip's entry path, so a
+   * restore that generated one instead would rename the file on every round
+   * trip. Duplicates are fine, serialize resolves the archive path against the
+   * ones it has already used.
+   */
+  function allocateMaskBinding(
+    maskId: string,
+    extent: Extent3D = emptyExtent(),
+    source?: ProcessingResultSource,
+    name?: string
+  ) {
+    const { parentImageId } = getSegmentationOfMask(maskId);
+    const imageData = parentImageOfMask(maskId);
+
+    const baseName =
+      imageCacheStore.getImageMetadata(parentImageId)?.name ?? NO_NAME;
+    return attachMaskBinding(maskId, {
+      image: allocateMask(imageData, extent),
+      extent,
+      name: name ?? maskFileNamer.pick(parentImageId, baseName),
+      ...(source ? { source } : {}),
+    });
   }
 
   // `locked` is required, so a per-stroke read skips resolving the appearance.
@@ -324,18 +314,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         bindDescriptorSegment(parentImageId, descriptor, options.ownSegments)
       );
 
-      const binding = createBindingForImage(
-        parentImageId,
+      const binding = allocateMaskBinding(
+        mask.id,
         extent,
         options.source,
         options.name
       );
-      attachMaskBinding(mask.id, binding);
       created.push(mask);
-
-      // The copy rewrites the source's value, so the mask holds SEGMENT_VALUE
-      // whatever the file it came from called this segment.
-      return { labelValue: SEGMENT_VALUE, mask: maskScalars(binding.image) };
+      return maskScalars(binding.image);
     });
 
     return created;
@@ -440,16 +426,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const saveFormat = ref('vti');
 
   /** The single voxel-allocation point: no other operation creates storage. */
-  function ensureLabelmapBinding(maskId: string) {
-    const segmentation = getSegmentationOfMask(maskId);
-    const mask = segmentation.masks[maskId];
-    if (mask.representations.labelmap) return mask.representations.labelmap;
-
-    return attachMaskBinding(
-      maskId,
-      createBindingForImage(segmentation.parentImageId)
-    );
-  }
+  const ensureLabelmapBinding = (maskId: string) =>
+    getMask(maskId).representations.labelmap ?? allocateMaskBinding(maskId);
 
   const findMaskBinding = (maskId: string) =>
     findMask(maskId)?.representations.labelmap;
@@ -458,7 +436,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const allowOverlap = ref(false);
 
   const { maskVoxels, findMaskVoxels, voxelClaim } = createVoxelAccess({
-    imageCacheStore,
+    parentImageOfMask,
     findMaskBinding,
     getMask,
     segmentationOfMask,
@@ -504,7 +482,15 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   /** The mask holds this segment and nothing else, so its voxels go with it. */
   function deleteMask(maskId: string) {
-    detachMask(getSegmentationOfMask(maskId), maskId);
+    const segmentation = getSegmentationOfMask(maskId);
+    edits.beforeEdit();
+    const { segmentId, representations } = segmentation.masks[maskId];
+    removeFromArray(segmentation.order, maskId);
+    delete segmentation.masks[maskId];
+    const index = maskIdsBySegment.get(segmentation.id);
+    if (index?.get(segmentId) === maskId) index.delete(segmentId);
+    if (representations.labelmap)
+      releaseMaskName(representations.labelmap.name);
   }
 
   function removeSegmentation(segmentationId: string) {
@@ -609,7 +595,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     segmentRegistry,
     labelmapDescriptorByMask,
     createMask,
-    createBindingForImage,
+    allocateMaskBinding,
     attachMaskBinding,
     decodeSegments,
     ensureSegmentationForImage,

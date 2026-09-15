@@ -132,7 +132,7 @@ describe('segment voxel accessor', () => {
       expect(voxelsOf(target).image()).toBe(image);
     });
 
-    it('gives each segment of an image its own mask, with distinct label values', () => {
+    it('gives each segment of an image its own mask', () => {
       const first = addMask('img-1', 'Tumor');
       const second = addMask('img-1', 'Node');
 

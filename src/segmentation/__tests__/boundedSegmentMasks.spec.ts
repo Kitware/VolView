@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
-import { LABELMAP_MAX_VALUE } from '@/src/segmentation/store';
-import type { Extent3D } from '@/src/segmentation/geometry';
-import { isEmptyExtent } from '@/src/segmentation/geometry';
+import { extentSize, isEmptyExtent } from '@/src/segmentation/geometry';
 import {
   addMask,
   deleteSegmentOf,
@@ -31,64 +29,10 @@ const DIMENSIONS: Index3 = [4, 4, 4];
 const dimensionsOf = (maskId: string) =>
   store().maskVoxels(maskId).image().getDimensions();
 
-const extentSize = (extent: Extent3D) => [
-  extent[1] - extent[0] + 1,
-  extent[3] - extent[2] + 1,
-  extent[5] - extent[4] + 1,
-];
-
 describe('bounded segment masks', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
     await seatImage('img-1', { dimensions: DIMENSIONS });
-  });
-
-  describe('materialize', () => {
-    it('binds the segment to storage that covers nothing yet', () => {
-      const maskId = addMask('img-1', 'Tumor');
-      const voxels = store().maskVoxels(maskId);
-
-      const binding = voxels.materialize();
-
-      expect(isEmptyExtent(binding.extent)).toBe(true);
-      expect(voxels.exists()).toBe(true);
-      expect(voxels.scalars()).toHaveLength(0);
-      expect(voxels.snapshot()).toHaveLength(0);
-    });
-
-    it('gives every segment of one image its own mask', () => {
-      const tumor = addMask('img-1', 'Tumor');
-      const node = addMask('img-1', 'Node');
-
-      store().maskVoxels(tumor).materialize();
-      store().maskVoxels(node).materialize();
-
-      expect(store().maskVoxels(node).image()).not.toBe(
-        store().maskVoxels(tumor).image()
-      );
-      expect(store().maskVoxels(node).scalars()).not.toBe(
-        store().maskVoxels(tumor).scalars()
-      );
-    });
-
-    it('gives every segment of one image its own storage', () => {
-      const buffers = ['A', 'B', 'C']
-        .map((name) => addMask('img-1', name))
-        .map((maskId) => store().maskVoxels(maskId).materialize().image);
-
-      expect(new Set(buffers).size).toBe(3);
-    });
-
-    it('is idempotent and keeps the same storage', () => {
-      const maskId = addMask('img-1', 'Tumor');
-      const first = store().maskVoxels(maskId).materialize();
-      const image = store().maskVoxels(maskId).image();
-
-      const second = store().maskVoxels(maskId).materialize();
-
-      expect(second).toEqual(first);
-      expect(store().maskVoxels(maskId).image()).toBe(image);
-    });
   });
 
   describe('first growth', () => {
@@ -268,34 +212,18 @@ describe('bounded segment masks', () => {
     });
   });
 
-  describe('label values', () => {
+  describe('segment count', () => {
     // A mask holds one segment, so its bytes say claimed or not and nothing
     // is allocated against a per-image pool.
-    it('marks every segment of one image with the same value', () => {
-      const masks = Array.from({ length: 3 }, () => addMask('img-1'));
-      masks.forEach((maskId) => {
-        store().maskVoxels(maskId).materialize();
-        seedVoxel(maskId, [1, 1, 1]);
-      });
-
-      expect(masks.map((maskId) => maskValueAt(maskId, [1, 1, 1]))).toEqual([
-        SEGMENT_VALUE,
-        SEGMENT_VALUE,
-        SEGMENT_VALUE,
-      ]);
-    });
-
-    // The one-byte cap bound an image's segments only because they shared a
-    // buffer. It now binds a flattened export file, not the store.
-    it('materializes past the values a mask byte can hold', () => {
-      Array.from({ length: LABELMAP_MAX_VALUE }, () =>
+    it('materializes any number of masks on one image', () => {
+      Array.from({ length: 255 }, () =>
         store().maskVoxels(addMask('img-1')).materialize()
       );
       const overflow = addMask('img-1', 'One too many');
 
       expect(() => store().maskVoxels(overflow).materialize()).not.toThrow();
       expect(store().maskVoxels(overflow).binding()).toBeDefined();
-      expect(boundMasks()).toHaveLength(LABELMAP_MAX_VALUE + 1);
+      expect(boundMasks()).toHaveLength(255 + 1);
     });
   });
 

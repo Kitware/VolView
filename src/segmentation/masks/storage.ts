@@ -30,15 +30,15 @@ export function placeMask(
       : parent.indexToWorld([extent[0], extent[2], extent[4]] as Vector3)
   );
   mask.setOrigin(origin as Vector3);
+  mask.setSpacing(parent.getSpacing());
+  mask.setDirection(parent.getDirection());
   mask.setDimensions(dimensions as Vector3);
   mask.computeTransforms();
   return dimensions;
 }
 
 export function allocateMask(parent: vtkImageData, extent: Extent3D) {
-  const mask = vtkLabelMap.newInstance(
-    parent.get('spacing', 'origin', 'direction')
-  );
+  const mask = vtkLabelMap.newInstance();
   const dimensions = placeMask(mask, parent, extent);
   setMaskScalars(
     mask,

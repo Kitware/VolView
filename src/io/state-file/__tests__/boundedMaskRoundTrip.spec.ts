@@ -97,6 +97,18 @@ const restoredSegment = (name: string) =>
     (segment) => nameOf(segment) === name
   )!;
 
+// Tumor's mask starts at parent index [1, 1, 1].
+const expectTumorOnParentGrid = () => {
+  const mask = store().maskVoxels(restoredSegment('Tumor').id).image();
+  const parent = parentImage('new-1');
+  expect(Array.from(mask.indexToWorld([1, 0, 0] as never))).toEqual(
+    Array.from(parent.indexToWorld([2, 1, 1] as never))
+  );
+  expect(Array.from(mask.getDirection())).toEqual(
+    Array.from(parent.getDirection())
+  );
+};
+
 async function buildScene() {
   await seatImage('img-1', { ...GRID, name: 'CT A' });
   await seatImage('img-2', { ...GRID, name: 'CT B' });
@@ -519,16 +531,22 @@ describe('bounded masks through the state file', () => {
 
     await roundTrip(inMemoryArtifactIO());
 
-    const tumor = listMasks(store().getSegmentationForImage('new-1')!).find(
-      (segment) => nameOf(segment) === 'Tumor'
-    )!;
-    const mask = store().maskVoxels(tumor.id).image();
-    expect(Array.from(mask.indexToWorld([0, 0, 0] as never))).toEqual(
-      Array.from(parentImage('new-1').indexToWorld([1, 1, 1] as never))
+    expectTumorOnParentGrid();
+  });
+
+  it('puts a mask on the parent grid whatever geometry its codec kept', async () => {
+    await buildScene();
+    const io = inMemoryArtifactIO();
+
+    // A codec that stores no spacing or direction reads back other ones.
+    await roundTrip(io, () =>
+      io.written.forEach((labelmap) => {
+        labelmap.setSpacing([1, 1, 1]);
+        labelmap.setDirection([0, 1, 0, 1, 0, 0, 0, 0, 1]);
+      })
     );
-    expect(Array.from(mask.getSpacing())).toEqual(
-      Array.from(parentImage('new-1').getSpacing())
-    );
+
+    expectTumorOnParentGrid();
   });
 });
 

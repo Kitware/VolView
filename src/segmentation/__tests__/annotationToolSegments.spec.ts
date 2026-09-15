@@ -44,7 +44,7 @@ const serializedToolForSegment = () => {
   };
 };
 
-describe('shape references to segment segments', () => {
+describe('shape references to segments', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);

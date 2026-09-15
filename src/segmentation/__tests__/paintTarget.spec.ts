@@ -47,7 +47,7 @@ describe('paint edit target', () => {
     setActivePinia(pinia);
   });
 
-  it('writes the active segment’s resolved label value', async () => {
+  it("writes SEGMENT_VALUE into the selected segment's mask", async () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Other');
@@ -60,7 +60,7 @@ describe('paint edit target', () => {
     expect(maskValueAt(active.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
-  it('writes into the artifact of the image being painted', async () => {
+  it("writes into the painted image's own mask", async () => {
     await seatImage('img-1');
     await seatImage('img-2');
     const first = store().ensureSegmentationForImage('img-1');

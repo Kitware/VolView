@@ -21,14 +21,14 @@
         ></v-select>
 
         <v-alert
-          v-if="parts.length > 1"
+          v-if="plan.parts.length > 1"
           type="info"
           variant="tonal"
           density="compact"
           data-testid="save-overlap-notice"
         >
-          Saving {{ parts.length }} files due to overlap, bundled into
-          {{ archiveName }}.
+          Saving {{ plan.parts.length }} files due to {{ splitReason }}, bundled
+          into {{ archiveName }}.
         </v-alert>
       </v-form>
     </v-card-text>
@@ -50,7 +50,7 @@
 <script setup lang="ts">
 import {
   compositeLabelmap,
-  layeredSegments,
+  planLabelmapExport,
 } from '@/src/segmentation/io/composition';
 
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
@@ -102,7 +102,15 @@ const fileName = computed({
   },
 });
 
-const parts = computed(() => layeredSegments(parentImageId.value));
+const plan = computed(() => planLabelmapExport(parentImageId.value));
+const splitReason = computed(() =>
+  [
+    plan.value.hasOverlap && 'overlap',
+    plan.value.exceedsCapacity && 'the label-value limit',
+  ]
+    .filter(Boolean)
+    .join(' and ')
+);
 // Named by the same function the download uses, so the notice cannot promise
 // an archive the save does not write.
 const archiveName = computed(() =>
@@ -116,11 +124,13 @@ const archiveName = computed(() =>
 async function writeParts(stem: string) {
   useSegmentationEditsStore().beforeRead();
   const format = fileFormat.value;
+  const parentId = parentImageId.value;
+  const parts = planLabelmapExport(parentId).parts;
   const files: ExportFile[] = [];
   // Written one at a time: serializing copies the whole buffer, and itk-wasm
   // queues the writes on one shared worker whatever the caller does.
-  for (const [index, members] of parts.value.entries()) {
-    const composite = compositeLabelmap(parentImageId.value, members);
+  for (const [index, members] of parts.entries()) {
+    const composite = compositeLabelmap(parentId, members);
     const data = await writeSegmentation(
       format,
       composite.labelmap,
