@@ -44,24 +44,21 @@ const dicomInfo = computed(() => {
   <v-menu
     open-on-hover
     location="bottom left"
-    left
-    nudge-left="10"
-    dark
     v-if="dicomInfo !== null"
     max-width="300px"
   >
     <template v-slot:activator="{ props }">
       <v-icon
         v-bind="props"
-        dark
+        color="white"
         size="medium"
-        class="pointer-events-all"
+        class="pointer-events-all dicom-info-trigger"
         @click.stop
       >
         mdi-information
       </v-icon>
     </template>
-    <v-list class="bg-grey-darken-3">
+    <v-list class="dicom-info-menu">
       <v-list-item>
         <v-list-item-title class="font-weight-bold">
           PATIENT / CASE
@@ -92,3 +89,13 @@ const dicomInfo = computed(() => {
 </template>
 
 <style scoped src="@/src/components/styles/utils.css"></style>
+<style scoped>
+.dicom-info-menu {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.3);
+}
+
+.dicom-info-trigger {
+  text-shadow: none;
+  letter-spacing: normal;
+}
+</style>

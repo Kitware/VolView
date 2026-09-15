@@ -213,6 +213,7 @@ export default defineComponent({
 .volume-card {
   padding: 8px;
   cursor: pointer;
+  border-color: rgba(var(--v-theme-on-surface), 0.2);
 }
 
 .series-desc {

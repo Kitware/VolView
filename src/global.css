@@ -19,16 +19,8 @@ body {
   white-space: nowrap;
 }
 
-.v-card--variant-outlined {
-  border: thin solid rgb(var(--v-theme-on-surface-variant)) !important;
-}
-
-.v-tooltip .v-overlay__content {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-}
-
-.v-slider-thumb__label {
-  background-color: rgba(255, 255, 255, 0.9) !important;
+.v-tooltip.v-theme--kw-light > .v-overlay__content {
+  outline: 1px solid rgb(var(--v-theme-on-surface-variant));
 }
 
 ul:not([class]),

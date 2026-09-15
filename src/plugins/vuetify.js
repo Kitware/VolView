@@ -32,8 +32,6 @@ const vuetify = createVuetify({
         colors: {
           'selection-bg-color': '#b3e5fc',
           'selection-border-color': '#b3e5fc',
-          surface: '#f0f0f0',
-          'on-surface-variant': '#d0d0d0',
         },
       },
     },

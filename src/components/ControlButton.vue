@@ -2,7 +2,6 @@
   <v-btn
     variant="text"
     :rounded="0"
-    dark
     :height="sizeV"
     :width="sizeV"
     :min-width="sizeV"

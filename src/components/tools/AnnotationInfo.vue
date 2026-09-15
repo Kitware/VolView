@@ -59,7 +59,7 @@ const offset = computed(() => {
       top: `${info.displayXY[1] - offset.y}px`,
       zIndex: 500, // stay under context menu
     }"
-    class="better-contrast"
+    class="annotation-tooltip"
   >
     <div class="tooltip-text font-weight-bold">{{ label }}</div>
     <div v-if="metadata.length > 0">
@@ -72,9 +72,7 @@ const offset = computed(() => {
 </template>
 
 <style scoped>
-.better-contrast :deep(.v-overlay__content) {
-  opacity: 1 !important;
-  background: rgba(255, 255, 255, 0.9) !important;
+.annotation-tooltip :deep(.v-overlay__content) {
   padding-left: 0;
   padding-right: 0;
   pointer-events: none;

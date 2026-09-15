@@ -41,6 +41,7 @@ function updateView(newViewName: string) {
     hide-details
     variant="solo"
     class="pointer-events-all view-type-select"
+    aria-label="View type"
   ></v-select>
 </template>
 
@@ -49,6 +50,9 @@ function updateView(newViewName: string) {
   max-width: 90px;
   font-size: 0.8125rem;
   margin-left: auto;
+  color: rgb(var(--v-theme-on-surface));
+  text-shadow: none;
+  letter-spacing: normal;
 }
 
 .view-type-select :deep(.v-field__input) {

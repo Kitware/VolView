@@ -90,10 +90,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 </script>
 
 <template>
-  <div
-    id="tools-strip"
-    class="bg-grey-darken-4 d-flex flex-column align-center"
-  >
+  <div id="tools-strip" class="bg-surface d-flex flex-column align-center">
     <control-button
       size="40"
       icon="mdi-folder-open"
@@ -175,7 +172,7 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
 <style src="@/src/components/styles/utils.css"></style>
 <style scoped>
 #tools-strip {
-  border-left: 1px solid #212121;
+  border-left: 1px solid rgba(var(--v-theme-on-surface), 0.12);
   flex: 0 0 40px;
 }
 
@@ -183,6 +180,6 @@ const { count: msgCount, badgeColor: msgBadgeColor } = useMessageBubble();
   width: 75%;
   height: 1px;
   border: none;
-  border-top: 1px solid rgb(112, 112, 112);
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
 }
 </style>
