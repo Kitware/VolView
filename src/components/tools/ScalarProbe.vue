@@ -79,16 +79,16 @@ const getSegments = () => {
       const segment = segmentationStore.getMask(layer.maskId);
       const voxels = segmentationStore.findMaskVoxels(layer.maskId);
       if (!voxels.exists()) return null;
-      const catalog =
-        segmentationStore.labelmapSegmentsByMask[layer.maskId] ?? [];
+      const descriptor =
+        segmentationStore.labelmapDescriptorByMask[layer.maskId];
       return {
         type: 'segment',
         id: layer.maskId,
         name: segments.appearanceOf(segment.segmentId).name,
         rep,
-        nameByLabelValue: Object.fromEntries(
-          catalog.map((entry) => [entry.value, entry.name])
-        ),
+        nameByLabelValue: descriptor
+          ? { [descriptor.value]: descriptor.name }
+          : {},
         image: voxels.image(),
       };
     })

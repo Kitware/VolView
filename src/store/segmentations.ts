@@ -9,11 +9,8 @@ import { createArtifactNamer } from '@/src/store/artifactNaming';
 import {
   LABELMAP_MAX_VALUE,
   SEGMENT_VALUE,
-  nextUnusedLabelValue,
 } from '@/src/store/segmentLabelValue';
 import { allocateMask } from '@/src/store/segmentMask';
-import {} from '@/src/store/segmentationRestore';
-import { groupByLayer, writeMaskInto } from '@/src/store/segmentLayers';
 import { createSegmentProjection } from '@/src/store/segmentProjection';
 import { createVoxelAccess } from '@/src/store/segmentVoxelAccess';
 import {
@@ -30,7 +27,6 @@ import {
   importLabelmapImage,
   splitLabelmap,
 } from '@/src/io/labelmapImport';
-import type {} from '@/src/io/state-file/schema';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
@@ -41,7 +37,6 @@ import {
 import {
   DEFAULT_SEGMENTATION_FILL_OPACITY,
   emptyExtent,
-  fullExtent,
   isEmptyExtent,
   listMasks,
   maskScalars,
@@ -52,7 +47,6 @@ import {
   type Segmentation,
   type SegmentationDisplayPatch,
 } from '@/src/types/segmentation';
-import { toLabelmapSegment } from '@/src/types/segment';
 import { useSegmentStore } from '@/src/store/segments';
 import { declareSegmentReferences } from '@/src/store/tools/segmentReferences';
 import { cleanUndefined, isRecord, removeFromArray } from '@/src/utils';
@@ -225,9 +219,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return segmentations[id];
   }
 
-  /** One mask per (image, segment); the caller has checked there is none. */
+  /** Creates one mask per (image, segment), refusing duplicate or dangling identity. */
   function createMask(segmentationId: string, segmentId: string) {
     const segmentation = getSegmentation(segmentationId);
+    if (!segmentRegistry.getSegment(segmentId))
+      throw new Error('No such segment type');
+    if (maskFor(segmentation.parentImageId, segmentId))
+      throw new Error('Segment already has a mask on this image');
     const id = useIdStore().nextId();
     segmentation.masks[id] = { id, segmentId, representations: {} };
     segmentation.order.push(id);
@@ -260,8 +258,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     };
   }
 
+  /** Attaches prepared storage to a mask without exposing its mutable record to importers. */
+  function attachMaskBinding(maskId: string, binding: LabelmapBinding) {
+    const mask = getMask(maskId);
+    if (mask.representations.labelmap)
+      throw new Error('Mask already has storage');
+    mask.representations.labelmap = {
+      ...binding,
+      image: markRaw(binding.image),
+      extent: [...binding.extent],
+    };
+    return mask.representations.labelmap;
+  }
+
   /** Drops a mask, and the voxels it held with it. */
   function detachMask(segmentation: Segmentation, maskId: string) {
+    edits.beforeEdit();
     removeFromArray(segmentation.order, maskId);
     delete segmentation.masks[maskId];
   }
@@ -342,7 +354,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         options.source,
         options.artifactName
       );
-      segment.representations.labelmap = binding;
+      attachMaskBinding(segment.id, binding);
       created.push(segment);
 
       // The copy rewrites the source's value, so the mask holds SEGMENT_VALUE
@@ -427,100 +439,29 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (segment.representations.labelmap)
       return segment.representations.labelmap;
 
-    segment.representations.labelmap = createBindingForImage(
-      segmentation.parentImageId
+    return attachMaskBinding(
+      maskId,
+      createBindingForImage(segmentation.parentImageId)
     );
-    return segment.representations.labelmap;
   }
 
   /** The binding of a segment that may already be gone. */
   const findMaskBinding = (maskId: string) =>
     findMask(maskId)?.representations.labelmap;
 
-  const { maskVoxels, findMaskVoxels, boundedMask, voxelClaim } =
-    createVoxelAccess({
-      imageCacheStore,
-      segmentRegistry,
-      findMask,
-      getMask,
-      segmentationOfMask,
-      ensureLabelmapBinding,
-      maskLocked,
-    });
+  const { maskVoxels, findMaskVoxels, voxelClaim } = createVoxelAccess({
+    imageCacheStore,
+    findMask,
+    getMask,
+    segmentationOfMask,
+    ensureLabelmapBinding,
+    maskLocked,
+  });
 
   /** The image's segments in `order`, or none when it has no segmentation. */
   function imageMasks(parentImageId: string) {
     const segmentation = getSegmentationForImage(parentImageId);
     return segmentation ? listMasks(segmentation) : [];
-  }
-
-  /**
-   * The given segments as one parent-shaped labelmap, built on demand and never
-   * stored: what leaves VolView means the whole segmentation, not one segment's
-   * bounded mask. Earlier in the registry wins where two segments overlap, which
-   * is the order their actors stack in, so the flattened file resolves an
-   * overlap the way the screen did. `members` defaults to the image's segments;
-   * an export passes one group so no overlap is flattened away.
-   */
-  function compositeLabelmap(parentImageId: string, members?: SegmentMask[]) {
-    edits.beforeRead();
-    const parent = imageCacheStore.getVtkImageData(parentImageId);
-    if (!parent) throw new Error('No such parent image');
-
-    const dimensions = parent.getDimensions();
-    const labelmap = allocateMask(parent, fullExtent(dimensions));
-    const values = maskScalars(labelmap);
-
-    const included = [...(members ?? imageMasks(parentImageId))].sort(
-      (first, second) =>
-        segmentRegistry.orderIndexOf(first.segmentId) -
-        segmentRegistry.orderIndexOf(second.segmentId)
-    );
-    // One file carries one label per voxel, so the values are assigned here
-    // rather than read off the masks, which all hold SEGMENT_VALUE. Callers
-    // pass a group layeredSegments already sized to fit them.
-    const used = new Set<number>();
-    const segments: LabelmapSegment[] = [];
-    included.forEach((segment) => {
-      const labelValue = nextUnusedLabelValue(used, LABELMAP_MAX_VALUE);
-      used.add(labelValue);
-      segments.push(
-        toLabelmapSegment(
-          segmentRegistry.getSegment(segment.segmentId),
-          labelValue
-        )
-      );
-    });
-    [...included].reverse().forEach((segment, index) => {
-      const bounded = boundedMask(segment.representations.labelmap);
-      const labelValue = segments[included.length - 1 - index].value;
-      if (bounded) writeMaskInto(values, dimensions, bounded, labelValue);
-    });
-
-    return { labelmap, segments };
-  }
-
-  /**
-   * The image's segments grouped so no group holds an overlap. A labelmap file
-   * carries one label per voxel, so an export writes a file per group. Always
-   * at least one group: an image with no segments still exports one file.
-   */
-  function layeredSegments(parentImageId: string) {
-    const groups = groupByLayer(imageMasks(parentImageId), (segment) =>
-      boundedMask(segment.representations.labelmap)
-    );
-    // One byte per voxel caps a file's segments however little they overlap,
-    // so a group past the cap is split into files that fit.
-    const sized = groups.flatMap((group) =>
-      group.length <= LABELMAP_MAX_VALUE
-        ? [group]
-        : Array.from(
-            { length: Math.ceil(group.length / LABELMAP_MAX_VALUE) },
-            (_, n) =>
-              group.slice(n * LABELMAP_MAX_VALUE, (n + 1) * LABELMAP_MAX_VALUE)
-          )
-    );
-    return sized.length ? sized : [[]];
   }
 
   /**
@@ -562,16 +503,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     patch: SegmentationDisplayPatch
   ) => Object.assign(getSegmentation(segmentationId), patch);
 
-  function reorderSegments(segmentationId: string, order: string[]) {
-    getSegmentation(segmentationId).order = [...order];
-  }
-
   /** The mask holds this segment and nothing else, so its voxels go with it. */
   function deleteMask(maskId: string) {
     detachMask(getSegmentationOfMask(maskId), maskId);
   }
 
   function removeSegmentation(segmentationId: string) {
+    edits.beforeEdit();
     delete segmentations[segmentationId];
   }
 
@@ -647,7 +585,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // --- render sync --- //
 
-  const labelmapSegmentsByMask = createSegmentProjection({
+  const labelmapDescriptorByMask = createSegmentProjection({
     segmentations,
     segmentRegistry,
   });
@@ -659,9 +597,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     saveFormat,
     imageCacheStore,
     segmentRegistry,
-    labelmapSegmentsByMask,
+    labelmapDescriptorByMask,
     createMask,
     detachMask,
+    attachMaskBinding,
     decodeSegments,
     ensureSegmentationForImage,
     getSegmentationForImage,
@@ -682,7 +621,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   return {
     segmentations,
     convertingLabelmaps,
-    labelmapSegmentsByMask,
+    labelmapDescriptorByMask,
     maskFor,
     findEditTarget,
     resolveEditTarget,
@@ -698,17 +637,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     ensureLabelmapBinding,
     isLocked,
     updateSegmentationDisplay,
-    reorderSegments,
     deleteMask,
     removeSegmentation,
-    createBindingForImage,
     splitLabelmapIntoMasks,
     decodeSegments,
     convertImageToLabelmap,
     saveFormat,
     voxelClaim,
-    compositeLabelmap,
-    layeredSegments,
     imageMasks,
     editableMasks,
     maskLayersForImage,

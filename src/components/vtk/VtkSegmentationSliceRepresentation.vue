@@ -47,9 +47,10 @@ const segmentation = computed(() =>
   segmentationStore.segmentationOfMask(maskId.value)
 );
 const extent = computed(() => binding.value?.extent);
-const segments = computed(
-  () => segmentationStore.labelmapSegmentsByMask[maskId.value]
-);
+const segments = computed(() => {
+  const descriptor = segmentationStore.labelmapDescriptorByMask[maskId.value];
+  return descriptor ? [descriptor] : undefined;
+});
 const revealPulse = revealPulseStrength(maskId);
 
 const sourceImageData = computed(() => {

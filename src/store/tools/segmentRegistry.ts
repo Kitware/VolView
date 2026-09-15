@@ -23,10 +23,6 @@ export type ConfiguredSegment = {
 export type ConfiguredSegments = Record<string, ConfiguredSegment>;
 
 export type SegmentRegistryOptions = {
-  /** Stem of the name a minted segment gets: `${namePrefix} 1`. */
-  namePrefix?: string;
-  /** Seeded through the config path, so a real config replaces them. */
-  defaults?: ConfiguredSegments;
   hasReferences?: (segmentId: string) => boolean;
   removeReferences?: (segmentId: string) => void;
 };
@@ -56,8 +52,6 @@ const configuredAppearance = ({
  * picker, shortcuts, serialization and labelmap stacking.
  */
 export const createSegmentRegistry = ({
-  namePrefix = 'Segment',
-  defaults,
   hasReferences = () => false,
   removeReferences = () => {},
 }: SegmentRegistryOptions = {}) => {
@@ -116,8 +110,8 @@ export const createSegmentRegistry = ({
   const defaultName = () => {
     const taken = new Set(segmentList.value.map((type) => type.name.trim()));
     let index = 1;
-    while (taken.has(`${namePrefix} ${index}`)) index += 1;
-    return `${namePrefix} ${index}`;
+    while (taken.has(`Segment ${index}`)) index += 1;
+    return `Segment ${index}`;
   };
 
   let nextColorIndex = 0;
@@ -238,8 +232,6 @@ export const createSegmentRegistry = ({
     // than minting one beside it.
     if (!selectedSegment.value) selectSegment(segmentList.value[0]?.id);
   };
-
-  replaceConfigSegments(defaults);
 
   // --- wire --- //
 

@@ -58,6 +58,9 @@ export type SegmentationArtifactIO = {
   ) => Promise<{ image: vtkImageData; headerMetadata?: Map<string, string> }>;
 };
 
+// ZIP entries are relative; extraction may prefix a root member with a slash.
+const archivePathKey = (path: string) => normalize(path).replace(/^\/+/, '');
+
 const defaultArtifactIO: SegmentationArtifactIO = {
   write: writeSegmentation,
   read: readImage,
@@ -69,9 +72,13 @@ export type SegmentationWireDeps = {
   saveFormat: Ref<string>;
   imageCacheStore: ReturnType<typeof useImageCacheStore>;
   segmentRegistry: SegmentRegistry;
-  labelmapSegmentsByMask: ComputedRef<Record<string, LabelmapSegment[]>>;
+  labelmapDescriptorByMask: ComputedRef<Record<string, LabelmapSegment>>;
   createMask: (segmentationId: string, segmentId: string) => SegmentMask;
   detachMask: (segmentation: Segmentation, maskId: string) => void;
+  attachMaskBinding: (
+    maskId: string,
+    binding: LabelmapBinding
+  ) => LabelmapBinding;
   decodeSegments: (
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
@@ -122,9 +129,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     saveFormat,
     imageCacheStore,
     segmentRegistry,
-    labelmapSegmentsByMask,
+    labelmapDescriptorByMask,
     createMask,
     detachMask,
+    attachMaskBinding,
     decodeSegments,
     ensureSegmentationForImage,
     getSegmentationForImage,
@@ -214,11 +222,9 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       entries.map(async ({ maskId, parentImageId, binding, path }) => {
         zip.file(
           path,
-          await io.write(
-            format,
-            writableMask(parentImageId, binding),
-            labelmapSegmentsByMask.value[maskId] ?? []
-          )
+          await io.write(format, writableMask(parentImageId, binding), [
+            labelmapDescriptorByMask.value[maskId],
+          ])
         );
       })
     );
@@ -258,7 +264,8 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     ) {
       if (artifact.path !== undefined) {
         const file = stateFiles.find(
-          (entry) => entry.archivePath === normalize(artifact.path!)
+          (entry) =>
+            archivePathKey(entry.archivePath) === archivePathKey(artifact.path!)
         )?.file;
         return io.read(file!);
       }
@@ -362,7 +369,9 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           if (binding?.path === undefined) return;
           const name = binding.name ?? '';
           const file = stateFiles.find(
-            (entry) => entry.archivePath === normalize(binding.path!)
+            (entry) =>
+              archivePathKey(entry.archivePath) ===
+              archivePathKey(binding.path!)
           )?.file;
           if (!file) {
             skipped.push({ name, reason: 'archive member is missing' });
@@ -460,7 +469,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           });
           awaitingSplit.set(artifactId, waiting);
         } else if (accepted) {
-          segment.representations.labelmap = accepted;
+          attachMaskBinding(segment.id, accepted);
         }
         maskIdMap[wireMask.id] = segment.id;
       });

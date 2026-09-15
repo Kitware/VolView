@@ -1,3 +1,4 @@
+import { compositeLabelmap } from '@/src/io/segmentationComposition';
 import { computed } from 'vue';
 
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -175,8 +176,7 @@ export function useInputStaging() {
     const parentImage =
       segmentationStore.segmentations[segmentGroupId]?.parentImageId;
     if (!parentImage) throw new Error('No such segmentation');
-    const { labelmap, segments } =
-      segmentationStore.compositeLabelmap(parentImage);
+    const { labelmap, segments } = compositeLabelmap(parentImage);
     const referenceImage = labelmapReferenceImage(segmentGroupId);
     if (!referenceImage) {
       throw new Error('Segment group reference image has no server provenance');

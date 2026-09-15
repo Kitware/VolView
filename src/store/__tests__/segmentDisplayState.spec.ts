@@ -160,9 +160,9 @@ describe('segmentation display state', () => {
         outlineOpacity: 0.25,
       });
 
-      expect(store().labelmapSegmentsByMask[segment.id]).toEqual([
-        expect.objectContaining({ fillOpacity: 0.4, outlineOpacity: 0.25 }),
-      ]);
+      expect(store().labelmapDescriptorByMask[segment.id]).toEqual(
+        expect.objectContaining({ fillOpacity: 0.4, outlineOpacity: 0.25 })
+      );
     });
 
     // A representation redraws when its mask's list changes identity, so
@@ -174,14 +174,14 @@ describe('segmentation display state', () => {
       store().maskVoxels(edited.id).materialize();
       store().maskVoxels(untouched.id).materialize();
 
-      const before = store().labelmapSegmentsByMask[untouched.id];
+      const before = store().labelmapDescriptorByMask[untouched.id];
       segments().updateSegment(edited.segmentId, { fillOpacity: 0.4 });
-      const after = store().labelmapSegmentsByMask;
+      const after = store().labelmapDescriptorByMask;
 
       expect(after[untouched.id]).toBe(before);
-      expect(after[edited.id]).toEqual([
-        expect.objectContaining({ fillOpacity: 0.4 }),
-      ]);
+      expect(after[edited.id]).toEqual(
+        expect.objectContaining({ fillOpacity: 0.4 })
+      );
     });
 
     // The whole projection is one watch source for the probe, so a change that
@@ -191,10 +191,10 @@ describe('segmentation display state', () => {
       const segment = store().createMask(segmentation.id, mintSegment());
       store().maskVoxels(segment.id).materialize();
 
-      const before = store().labelmapSegmentsByMask;
+      const before = store().labelmapDescriptorByMask;
       segments().updateSegment(segment.segmentId, { strokeWidth: 5 });
 
-      expect(store().labelmapSegmentsByMask).toBe(before);
+      expect(store().labelmapDescriptorByMask).toBe(before);
     });
   });
 });

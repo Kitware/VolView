@@ -89,7 +89,7 @@ export const toLabelmapSegment = (
 };
 
 /** Whether two projections of a segment would draw identically. */
-const sameLabelmapSegment = (a: LabelmapSegment, b: LabelmapSegment) =>
+export const sameLabelmapSegment = (a: LabelmapSegment, b: LabelmapSegment) =>
   a.value === b.value &&
   a.name === b.name &&
   a.visible === b.visible &&
@@ -97,11 +97,3 @@ const sameLabelmapSegment = (a: LabelmapSegment, b: LabelmapSegment) =>
   a.fillOpacity === b.fillOpacity &&
   a.outlineOpacity === b.outlineOpacity &&
   a.color.every((channel, index) => channel === b.color[index]);
-
-export const sameLabelmapSegments = (
-  a: Maybe<LabelmapSegment[]>,
-  b: LabelmapSegment[]
-) =>
-  !!a &&
-  a.length === b.length &&
-  a.every((seg, i) => sameLabelmapSegment(seg, b[i]));

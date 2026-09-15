@@ -105,11 +105,11 @@ describe('ScalarProbe segment samples', () => {
           image: () => state.masks.find((mask) => mask.id === id)!.image,
         }) as ReturnType<typeof store.findMaskVoxels>
     );
-    vi.spyOn(store, 'labelmapSegmentsByMask', 'get').mockImplementation(() =>
+    vi.spyOn(store, 'labelmapDescriptorByMask', 'get').mockImplementation(() =>
       Object.fromEntries(
         state.masks.map(({ id }) => [
           id,
-          [{ value: 1, name: id, color: [255, 0, 0, 255], visible: true }],
+          { value: 1, name: id, color: [255, 0, 0, 255], visible: true },
         ])
       )
     );

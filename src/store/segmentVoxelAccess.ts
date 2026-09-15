@@ -3,7 +3,6 @@ import type { TypedArray } from '@kitware/vtk.js/types';
 import type { Maybe } from '@/src/types';
 import type { VoxelGesture } from '@/src/store/segmentations';
 import type { useImageCacheStore } from '@/src/store/image-cache';
-import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
 import { regrowMask } from '@/src/store/segmentMask';
 import {
   boundScalars,
@@ -30,7 +29,6 @@ import {
 /** What voxel access needs from the store that owns the records. */
 export type VoxelAccessDeps = {
   imageCacheStore: ReturnType<typeof useImageCacheStore>;
-  segmentRegistry: SegmentRegistry;
   findMask: (maskId: string) => SegmentMask | undefined;
   getMask: (maskId: string) => SegmentMask;
   segmentationOfMask: (maskId: string) => Segmentation | undefined;

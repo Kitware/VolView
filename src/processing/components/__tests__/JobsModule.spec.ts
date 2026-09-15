@@ -1,3 +1,4 @@
+import * as segmentationComposition from '@/src/io/segmentationComposition';
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
@@ -643,9 +644,9 @@ describe('JobsModule — segment group staging', () => {
   it('does not rescan the masks when a stroke grows one', async () => {
     // The scan walks every pair of masks voxel by voxel, so a tracked one would
     // run on the render path while the user paints in another tab.
-    const { segmentStore, second, wrapper } = await seedDisjointPair();
+    const { second, wrapper } = await seedDisjointPair();
 
-    const scans = vi.spyOn(segmentStore, 'layeredSegments');
+    const scans = vi.spyOn(segmentationComposition, 'layeredSegments');
     // Grows B's box onto the voxel A holds, which is the overlap.
     seedVoxel(second.id, [0, 0, 0]);
     await flushPromises();

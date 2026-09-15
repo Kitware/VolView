@@ -46,11 +46,11 @@ describe('segment type registry', () => {
     expect(registry.segmentList.value.map((type) => type.id)).toEqual([id]);
   });
 
-  it('names a minted type after the registry prefix', () => {
-    const registry = createSegmentRegistry({ namePrefix: 'Ruler' });
+  it('assigns consecutive default segment names', () => {
+    const registry = createSegmentRegistry();
 
-    expect(registry.getSegment(registry.addSegment())?.name).toBe('Ruler 1');
-    expect(registry.getSegment(registry.addSegment())?.name).toBe('Ruler 2');
+    expect(registry.getSegment(registry.addSegment())?.name).toBe('Segment 1');
+    expect(registry.getSegment(registry.addSegment())?.name).toBe('Segment 2');
   });
 
   it('cycles the tool colors for minted segments', () => {

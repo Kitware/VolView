@@ -1,3 +1,7 @@
+import {
+  compositeLabelmap,
+  layeredSegments,
+} from '@/src/io/segmentationComposition';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -58,7 +62,7 @@ const parentOffset = flatIndex(DIMENSIONS);
 
 /** The composite of an image's segments, or of just the named members. */
 const compositeScalars = (imageId: string, members?: SegmentMask[]) =>
-  maskScalars(store().compositeLabelmap(imageId, members).labelmap);
+  maskScalars(compositeLabelmap(imageId, members).labelmap);
 
 const segmentIdsOf = (imageId: string) =>
   listMasks(store().getSegmentationForImage(imageId)!).map(
@@ -99,7 +103,7 @@ describe('composing the segments of an image into one labelmap', () => {
     const tumor = addMask('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
-    const { labelmap } = store().compositeLabelmap('img-1');
+    const { labelmap } = compositeLabelmap('img-1');
 
     const parent = parentImage('img-1');
     expect(labelmap.getDimensions()).toEqual(parent.getDimensions());
@@ -122,7 +126,7 @@ describe('composing the segments of an image into one labelmap', () => {
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
-    const { labelmap, segments } = store().compositeLabelmap('img-1');
+    const { labelmap, segments } = compositeLabelmap('img-1');
     const scalars = maskScalars(labelmap);
 
     expect(new Set(segments.map((segment) => segment.value)).size).toBe(2);
@@ -146,7 +150,7 @@ describe('composing the segments of an image into one labelmap', () => {
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
 
-    const { labelmap, segments } = store().compositeLabelmap('img-1');
+    const { labelmap, segments } = compositeLabelmap('img-1');
     expect(maskScalars(labelmap)[parentOffset(1, 1, 1)]).toBe(
       segments[0].value
     );
@@ -159,7 +163,7 @@ describe('composing the segments of an image into one labelmap', () => {
     const tumor = addMask('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
-    const { labelmap, segments } = store().compositeLabelmap('img-1');
+    const { labelmap, segments } = compositeLabelmap('img-1');
     const scalars = maskScalars(labelmap);
 
     // These are labelmap descriptors, which carry the resolved name already.
@@ -179,9 +183,7 @@ describe('composing the segments of an image into one labelmap', () => {
       addMask('img-1', `Segment ${index + 1}`)
     );
 
-    expect(() => store().compositeLabelmap('img-1')).toThrow(
-      /at most 255 segments/
-    );
+    expect(() => compositeLabelmap('img-1')).toThrow(/at most 255 segments/);
   });
 
   // The store holds as many segments as an image needs; the one-byte cap is
@@ -196,14 +198,14 @@ describe('composing the segments of an image into one labelmap', () => {
     // One voxel each, none shared, so overlap alone would leave one group.
     masks.forEach((maskId, index) => seedVoxel(maskId, [index, 0, 0]));
 
-    const groups = store().layeredSegments('img-wide');
+    const groups = layeredSegments('img-wide');
 
     expect(groups.flat()).toHaveLength(300);
     expect(groups.every((group) => group.length <= LABELMAP_MAX_VALUE)).toBe(
       true
     );
     groups.forEach((group) =>
-      expect(() => store().compositeLabelmap('img-wide', group)).not.toThrow()
+      expect(() => compositeLabelmap('img-wide', group)).not.toThrow()
     );
   });
 
@@ -216,7 +218,7 @@ describe('composing the segments of an image into one labelmap', () => {
       visible: false,
     });
 
-    const { segments } = store().compositeLabelmap('img-1');
+    const { segments } = compositeLabelmap('img-1');
 
     expect(segments.map((segment) => segment.name)).toEqual(['Tumor', 'Node']);
     expect(segments.map((segment) => segment.value)).toEqual([1, 2]);
@@ -225,7 +227,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('composes an image with no segments to an empty labelmap', () => {
-    const { labelmap, segments } = store().compositeLabelmap('img-1');
+    const { labelmap, segments } = compositeLabelmap('img-1');
 
     expect(segments).toEqual([]);
     expect(labelmap.getDimensions()).toEqual(
@@ -256,14 +258,12 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   const layerEntries = () =>
-    store()
-      .layeredSegments('img-1')
-      .map((group) =>
-        buildSegNrrdMetadata(
-          store().compositeLabelmap('img-1', group).segments,
-          DIMENSIONS
-        )
-      );
+    layeredSegments('img-1').map((group) =>
+      buildSegNrrdMetadata(
+        compositeLabelmap('img-1', group).segments,
+        DIMENSIONS
+      )
+    );
 
   it('leaves segments that do not overlap composed as one', () => {
     const tumor = addMask('img-1', 'Tumor');
@@ -271,14 +271,14 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
-    const groups = store().layeredSegments('img-1');
+    const groups = layeredSegments('img-1');
 
     expect(groups).toHaveLength(1);
     expect(compositeScalars('img-1', groups[0])).toEqual(
       compositeScalars('img-1')
     );
-    expect(store().compositeLabelmap('img-1', groups[0]).segments).toEqual(
-      store().compositeLabelmap('img-1').segments
+    expect(compositeLabelmap('img-1', groups[0]).segments).toEqual(
+      compositeLabelmap('img-1').segments
     );
   });
 
@@ -289,7 +289,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(over, [2, 2, 2]);
 
-    const groups = store().layeredSegments('img-1');
+    const groups = layeredSegments('img-1');
 
     expect(
       groups.map((group) => group.map((segment) => appearanceOf(segment).name))
@@ -312,9 +312,9 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(apart, [3, 3, 3]);
 
     expect(
-      store()
-        .layeredSegments('img-1')
-        .map((group) => group.map((segment) => appearanceOf(segment).name))
+      layeredSegments('img-1').map((group) =>
+        group.map((segment) => appearanceOf(segment).name)
+      )
     ).toEqual([['Under', 'Apart'], ['Over']]);
   });
 
@@ -342,7 +342,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('composes one labelmap for an image with no segments', () => {
-    expect(store().layeredSegments('img-1')).toEqual([[]]);
+    expect(layeredSegments('img-1')).toEqual([[]]);
   });
 });
 
@@ -440,7 +440,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
     ];
     await importLabelmap(marks);
 
-    const before = store().compositeLabelmap('parent-img').labelmap;
+    const before = compositeLabelmap('parent-img').labelmap;
     const beforeValues = Array.from(maskScalars(before));
     for (const id of segmentIdsOf('parent-img')) {
       const binding = store().maskVoxels(id).binding()!;
@@ -453,7 +453,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
       // A render-buffer write must never reach a saved segmentation.
       maskScalars(rendered).fill(9);
     }
-    const { labelmap, segments } = store().compositeLabelmap('parent-img');
+    const { labelmap, segments } = compositeLabelmap('parent-img');
     expect(labelmap.getDimensions()).toEqual(before.getDimensions());
     expect(labelmap.getOrigin()).toEqual(before.getOrigin());
     expect(labelmap.getSpacing()).toEqual(before.getSpacing());

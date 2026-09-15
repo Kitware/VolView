@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 
 import type { SegmentRegistry } from '@/src/store/tools/segmentRegistry';
-import { sameLabelmapSegments, toLabelmapSegment } from '@/src/types/segment';
+import { sameLabelmapSegment, toLabelmapSegment } from '@/src/types/segment';
 import { SEGMENT_VALUE } from '@/src/store/segmentLabelValue';
 import {
   listMasks,
@@ -15,41 +15,36 @@ export type SegmentProjectionDeps = {
   segmentRegistry: SegmentRegistry;
 };
 
-/**
- * The value-keyed projection the labelmap renderer colors by, one list per
- * bound mask. Any change to any segment rebuilds it, but a mask whose own list
- * is unchanged keeps its previous array: a representation reads one mask's
- * entry, and a fresh array there costs it a transfer function and label
- * outline table rebuild in every view it draws in.
- */
+/** One descriptor per bound mask; unchanged appearances retain object identity. */
 export function createSegmentProjection({
   segmentations,
   segmentRegistry,
 }: SegmentProjectionDeps) {
   function project() {
-    const byMask: Record<string, LabelmapSegment[]> = {};
+    const byMask: Record<string, LabelmapSegment> = {};
     Object.values(segmentations).forEach((segmentation) => {
       listMasks(segmentation).forEach((segment) => {
         if (!segment.representations.labelmap) return;
-        byMask[segment.id] = [
-          toLabelmapSegment(
-            segmentRegistry.getSegment(segment.segmentId),
-            SEGMENT_VALUE
-          ),
-        ];
+        byMask[segment.id] = toLabelmapSegment(
+          segmentRegistry.getSegment(segment.segmentId),
+          SEGMENT_VALUE
+        );
       });
     });
     return byMask;
   }
 
-  let projected: Record<string, LabelmapSegment[]> = {};
+  let projected: Record<string, LabelmapSegment> = {};
 
   return computed(() => {
     const fresh = project();
     const stable = Object.fromEntries(
       Object.entries(fresh).map(([maskId, list]) => {
         const previous = projected[maskId];
-        return [maskId, sameLabelmapSegments(previous, list) ? previous : list];
+        return [
+          maskId,
+          previous && sameLabelmapSegment(previous, list) ? previous : list,
+        ];
       })
     );
     // The record's own identity is what a consumer of the whole projection

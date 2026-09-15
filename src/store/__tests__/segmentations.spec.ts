@@ -338,7 +338,7 @@ describe('segmentation store', () => {
         visible: false,
         locked: true,
       });
-      store().reorderSegments(segmentationId, [second.id, first.id]);
+      segments().moveSegment(segmentOfMask(second.id), segmentOfMask(first.id));
 
       const renamed = store().getMask(first.id);
       expect(renamed.id).toBe(first.id);
@@ -352,9 +352,9 @@ describe('segmentation store', () => {
       expect(segments().appearanceOf(renamed.segmentId).locked).toBe(true);
       expect(renamed.representations.labelmap).toEqual(first.binding);
       expect(store().getMask(second.id).id).toBe(second.id);
-      expect(store().segmentations[segmentationId].order).toEqual([
-        second.id,
-        first.id,
+      expect(store().maskLayersForImage('img-1')).toEqual([
+        { maskId: first.id, stackIndex: 0 },
+        { maskId: second.id, stackIndex: 1 },
       ]);
     });
 

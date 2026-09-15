@@ -87,9 +87,12 @@ async function openHollowCube() {
 }
 
 async function previewFill() {
+  await AppPage.processModeButton.waitForClickable();
   await AppPage.processModeButton.click();
   await AppPage.selectFillHolesProcess();
+  await AppPage.fillHolesWholeVolumeButton.waitForClickable();
   await AppPage.fillHolesWholeVolumeButton.click();
+  await AppPage.processPreviewButton.waitForClickable();
   await AppPage.processPreviewButton.click();
   await AppPage.processApplyButton.waitForClickable();
 }
@@ -118,7 +121,9 @@ describe('Segment preview ownership', () => {
     await previewFill();
     expect(await exportedVoxelCount('during-preview')).toBe(originalCount);
     await expect(AppPage.processApplyButton).not.toBeDisplayed();
+    await AppPage.processPreviewButton.waitForClickable();
     await AppPage.processPreviewButton.click();
+    await AppPage.processApplyButton.waitForClickable();
     await AppPage.processApplyButton.waitForClickable();
     await AppPage.processApplyButton.click();
     expect(await exportedVoxelCount('applied-preview')).toBe(filledCount);

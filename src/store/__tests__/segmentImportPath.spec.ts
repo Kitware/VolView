@@ -1,3 +1,4 @@
+import { compositeLabelmap } from '@/src/io/segmentationComposition';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
@@ -240,7 +241,7 @@ describe('the import path answers on the segmentation store', () => {
     // stays reachable as store API and not only through the conversion.
     await seatConvertible();
     await store().convertImageToLabelmap('child-img', 'parent-img');
-    const composite = store().compositeLabelmap('parent-img');
+    const composite = compositeLabelmap('parent-img');
 
     const decoded = await store().decodeSegments(undefined, composite.labelmap);
 

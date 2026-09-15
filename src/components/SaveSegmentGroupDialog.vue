@@ -48,6 +48,11 @@
 </template>
 
 <script setup lang="ts">
+import {
+  compositeLabelmap,
+  layeredSegments,
+} from '@/src/io/segmentationComposition';
+
 import { useSegmentationEditsStore } from '@/src/store/segmentationEdits';
 import { computed, onMounted, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
@@ -97,9 +102,7 @@ const fileName = computed({
   },
 });
 
-const groups = computed(() =>
-  segmentationStore.layeredSegments(parentImageId.value)
-);
+const groups = computed(() => layeredSegments(parentImageId.value));
 // Named by the same function the download uses, so the notice cannot promise
 // an archive the save does not write.
 const archiveName = computed(() =>
@@ -117,10 +120,7 @@ async function writeGroups(stem: string) {
   // Written one at a time: serializing copies the whole buffer, and itk-wasm
   // queues the writes on one shared worker whatever the caller does.
   for (const [index, members] of groups.value.entries()) {
-    const composite = segmentationStore.compositeLabelmap(
-      parentImageId.value,
-      members
-    );
+    const composite = compositeLabelmap(parentImageId.value, members);
     const data = await writeSegmentation(
       format,
       composite.labelmap,

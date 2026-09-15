@@ -96,14 +96,9 @@ export type VoxelStorage = {
   exists(): boolean;
   /** The live labelmap. */
   image(): vtkLabelMap;
-  /**
-   * The buffer segment- and artifact-scoped storage holds, live: a write
-   * through it lands in that mask. Image-scoped storage spans a whole image
-   * and owns no buffer of its own, so what it hands back is a read model, and
-   * a write has to come back through `apply()` as a distinct array.
-   */
+  /** Live mask buffer. Writers publish changes through apply() or image().modified(). */
   scalars(): TypedArray;
-  /** Copy-out of the whole mask, every label value included. */
+  /** Detached copy of the mask buffer. */
   snapshot(): TypedArray;
   /** Bulk copy-in; keeps image() and scalars() identity, marks it modified. */
   apply(scalars: TypedArray | number[]): void;

@@ -318,14 +318,14 @@ describe('paint process storage', () => {
       expect(paintStore.activeMode).not.toBe(PaintMode.Process);
     });
 
-    it('toggles the preview without a write when the storage is gone', async () => {
+    it('ends the preview before its storage is deleted', async () => {
       const segmentationStore = useSegmentationStore();
       const { maskId, processStore } = await startedProcess();
 
       segmentationStore.deleteMask(maskId);
 
       expect(() => processStore.togglePreview()).not.toThrow();
-      expect(processStore.showingOriginal).toBe(true);
+      expect(processStore.processStep).toBe('start');
     });
 
     it('abandons the run when the storage goes away while the algorithm runs', async () => {
