@@ -1,3 +1,4 @@
+import { useSegmentationEditsStore } from '@/src/store/segmentationEdits';
 import type { Ref, ComputedRef } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
@@ -147,6 +148,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     state: StateFile,
     io: SegmentationArtifactIO = defaultArtifactIO
   ) {
+    useSegmentationEditsStore().beforeRead();
     const { zip, manifest } = state;
     const format = saveFormat.value;
     const usedArchivePaths = new Set<string>();

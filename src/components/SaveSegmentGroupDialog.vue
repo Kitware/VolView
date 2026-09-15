@@ -48,6 +48,7 @@
 </template>
 
 <script setup lang="ts">
+import { useSegmentationEditsStore } from '@/src/store/segmentationEdits';
 import { computed, onMounted, ref } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
@@ -110,6 +111,7 @@ const archiveName = computed(() =>
 // one label per voxel, so each group of segments that do not overlap makes its
 // own file.
 async function writeGroups(stem: string) {
+  useSegmentationEditsStore().beforeRead();
   const format = fileFormat.value;
   const files: ExportFile[] = [];
   // Written one at a time: serializing copies the whole buffer, and itk-wasm

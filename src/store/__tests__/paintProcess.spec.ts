@@ -174,7 +174,9 @@ describe('Paint process store', () => {
 
     expect(algorithm).toHaveBeenCalledTimes(1);
     expect(target).toMatchObject({ labelValue: SEGMENT_VALUE });
-    expect(target!.voxels.image()).toBe(labelMap);
+    expect(target!.scalars).not.toBe(
+      labelMap.getPointData().getScalars().getData()
+    );
   });
 
   it('refuses to process a locked segment', async () => {

@@ -83,8 +83,8 @@ const block = (from: number, to: number): Array<[number, number]> =>
 
 const fillHolesOn = async (target: ProcessTarget) => ({
   scalars: fillHoles({
-    data: target.voxels.scalars(),
-    dimensions: target.voxels.image().getDimensions() as Index3,
+    data: target.scalars,
+    dimensions: target.dimensions as Index3,
     axis: 2,
     sliceIndex: 0,
     label: target.labelValue,

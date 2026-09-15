@@ -50,7 +50,7 @@ type SegmentAlgorithm = (target: ProcessTarget) => ProcessResult;
 
 const runFillHoles: SegmentAlgorithm = (target) => ({
   scalars: fillHoles({
-    data: target.voxels.scalars(),
+    data: target.scalars,
     dimensions: DIMENSIONS,
     axis: 2,
     sliceIndex: HOLE[2],
@@ -61,7 +61,7 @@ const runFillHoles: SegmentAlgorithm = (target) => ({
 
 const runGaussianSmooth: SegmentAlgorithm = (target) =>
   gaussianSmoothLabelMapWorker({
-    data: target.voxels.scalars(),
+    data: target.scalars,
     dimensions: DIMENSIONS,
     spacing: [1, 1, 1],
     maskExtent: target.maskExtent,
@@ -71,7 +71,7 @@ const runGaussianSmooth: SegmentAlgorithm = (target) =>
 
 /** What contour interpolation leaves: a gap closed by the slices around it. */
 const runFillBetween: SegmentAlgorithm = (target) => {
-  const data = target.voxels.scalars();
+  const data = target.scalars;
   const plane = DIMENSIONS[0] * DIMENSIONS[1];
   const filled = data.slice();
   for (let offset = plane; offset < data.length - plane; offset += 1) {
@@ -202,7 +202,7 @@ describe('a process over a mask with no two dimensions alike', () => {
 
     const processStore = usePaintProcessStore();
     await processStore.startProcess(async (target) => {
-      const filled = (target.voxels.scalars() as TypedArray).slice();
+      const filled = (target.scalars as TypedArray).slice();
       filled.fill(target.labelValue);
       return { scalars: filled, extent: target.maskExtent };
     });

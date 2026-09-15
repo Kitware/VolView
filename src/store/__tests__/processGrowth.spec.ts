@@ -38,8 +38,8 @@ const cases = [
       i >= 1 && i <= 4 && j >= 1 && j <= 4 && k >= 1 && k <= 4,
     algorithm: () => async (target: ProcessTarget) =>
       gaussianSmoothLabelMapWorker({
-        data: target.voxels.scalars(),
-        dimensions: target.voxels.image().getDimensions(),
+        data: target.scalars,
+        dimensions: target.dimensions,
         spacing: [1, 1, 1],
         maskExtent: target.maskExtent,
         parentDimensions: target.parentDimensions,
@@ -206,12 +206,18 @@ describe('process result placement', () => {
     const id = await oneVoxel();
     const other = addMask('img', 'Other');
     seedVoxel(other, [4, 0, 0]);
+    const access = store().maskVoxels;
+    vi.spyOn(store(), 'maskVoxels').mockImplementation((maskId) => {
+      const voxels = access(maskId);
+      if (maskId === other)
+        vi.spyOn(voxels, 'apply').mockImplementationOnce(() => {
+          throw new Error('Failed write');
+        });
+      return voxels;
+    });
     await usePaintProcessStore().startProcess(
       async (target) => {
         if (target.maskId === id) return grownResult();
-        vi.spyOn(target.voxels, 'apply').mockImplementationOnce(() => {
-          throw new Error('Failed write');
-        });
         return { scalars: new Uint8Array([1]), extent: target.maskExtent };
       },
       { requiresActiveSegment: false }
@@ -219,6 +225,7 @@ describe('process result placement', () => {
     expect(usePaintProcessStore().processStep).toBe('start');
     expect(markedVoxels(id)).toEqual([[2, 0, 0, 1]]);
     expect(markedVoxels(other)).toEqual([[4, 0, 0, 1]]);
+    vi.restoreAllMocks();
   });
 
   it('leaves every allocation alone when another algorithm rejects', async () => {

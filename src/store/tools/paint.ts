@@ -1,3 +1,4 @@
+import { useSegmentationEditsStore } from '@/src/store/segmentationEdits';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
@@ -178,6 +179,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
+    useSegmentationEditsStore().beforeEdit();
     const erasing = activeMode.value === PaintMode.Erase;
     const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;

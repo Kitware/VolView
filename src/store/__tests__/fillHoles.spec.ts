@@ -162,7 +162,17 @@ describe('Fill Holes store', () => {
       ] as [number, number, number],
       maskId,
       labelValue,
-      voxels,
+      scalars: voxels.snapshot(),
+      dimensions: [...voxels.image().getDimensions()] as [
+        number,
+        number,
+        number,
+      ],
+      spacing: [...voxels.image().getSpacing()] as [number, number, number],
+      direction: Array.from(voxels.image().getDirection()),
+      parentOrigin: Array.from(
+        useImageCacheStore().getVtkImageData(parentImageId)!.getOrigin()
+      ),
       maskExtent: [...voxels.binding()!.extent] as Extent3D,
     };
   };
@@ -286,9 +296,7 @@ describe('Fill Holes store', () => {
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
       dimensions: [10, 10, 10],
     });
-    expect(fillHolesWorkerMock.mock.calls[0][0].data).toBe(
-      target.voxels.scalars()
-    );
+    expect(fillHolesWorkerMock.mock.calls[0][0].data).toBe(target.scalars);
   });
 
   it('fills only the selected segment when scoped to one', async () => {

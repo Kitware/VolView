@@ -34,19 +34,12 @@ async function gaussianSmoothLabelMap(
   target: ProcessTarget,
   params: { sigma: number; label: number }
 ) {
-  const { voxels } = target;
-  const labelMap = voxels.image();
-  // The worker structured-clones its input, so the live buffer is right here.
-  const originalData = voxels.scalars();
-  const dimensions = labelMap.getDimensions();
-  const spacing = labelMap.getSpacing() as [number, number, number];
-
   const worker = await getWorker();
 
   const workerInput = {
-    data: originalData,
-    dimensions,
-    spacing,
+    data: target.scalars,
+    dimensions: target.dimensions,
+    spacing: target.spacing,
     maskExtent: target.maskExtent,
     parentDimensions: target.parentDimensions,
     params,

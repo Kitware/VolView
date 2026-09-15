@@ -72,8 +72,8 @@ describe('polygon rasterize action', () => {
     ]);
     const processStore = usePaintProcessStore();
 
-    await processStore.startProcess(async ({ voxels, maskExtent }) => ({
-      scalars: new Uint8Array(voxels.scalars().length).fill(labelValue),
+    await processStore.startProcess(async ({ scalars, maskExtent }) => ({
+      scalars: new Uint8Array(scalars.length).fill(labelValue),
       extent: maskExtent,
     }));
     expect(maskValueAt(target, [0, 0, 0])).toBe(labelValue);
@@ -94,8 +94,8 @@ describe('polygon rasterize action', () => {
     seedVoxel(target, [0, 0, 0]);
     const processStore = usePaintProcessStore();
 
-    await processStore.startProcess(async ({ voxels, maskExtent }) => ({
-      scalars: new Uint8Array(voxels.scalars().length),
+    await processStore.startProcess(async ({ scalars, maskExtent }) => ({
+      scalars: new Uint8Array(scalars.length),
       extent: maskExtent,
     }));
     expect(maskValueAt(target, [0, 0, 0])).toBe(0);

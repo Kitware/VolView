@@ -21,6 +21,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { reframeMaskScalars } from '@/src/store/segmentMask';
 import { useSegmentationStore } from '../segmentations';
 import { useSegmentStore } from '../segments';
+import { useSegmentationEditsStore } from '../segmentationEdits';
 
 export enum ProcessType {
   FillHoles = 'fillHoles',
@@ -46,7 +47,7 @@ type ComputingState = TargetedState & {
 
 /** One segment's slot in a run: what it held, and what the algorithm made. */
 type PreviewRun = {
-  target: ProcessTarget;
+  target: ResolvedTarget;
   extent: Extent3D;
   originalScalars: TypedArray;
   processedScalars: TypedArray | number[];
@@ -66,24 +67,25 @@ type PreviewingState = TargetedState & {
 
 type ProcessState = StartState | ComputingState | PreviewingState;
 
-/**
- * The resolved storage a process writes into, passed instead of being
- * re-derived. Every process is scoped to one segment and writes one label into
- * that segment's own bounded mask; a run over every segment is a run per
- * segment, since one buffer cannot hold two labels in the same voxel.
- */
+/** Detached algorithm input. Mutating it cannot change a stored mask. */
 export type ProcessTarget = {
   parentImageId: string;
   parentDimensions: [number, number, number];
+  parentOrigin: number[];
   maskId: string;
-  voxels: VoxelStorage;
+  scalars: TypedArray;
+  dimensions: [number, number, number];
+  spacing: [number, number, number];
+  direction: number[];
   maskExtent: Extent3D;
   labelValue: number;
 };
 
+type ResolvedTarget = ProcessTarget & { voxels: VoxelStorage };
+
 /** What a resolved start has to run, and whose selection owns it. */
 type ResolvedRun = {
-  targets: ProcessTarget[];
+  targets: ResolvedTarget[];
   watchedMaskId?: string;
 };
 
@@ -132,7 +134,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     return state.step === 'previewing' ? state.showingOriginal : false;
   });
 
+  const edits = useSegmentationEditsStore();
+
   function resetState() {
+    edits.release(cancelProcess);
     processState.value = { step: 'start' };
   }
 
@@ -213,7 +218,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
    * separate buffer: aliasing storage would erase its result on the first toggle.
    */
   function buildRun(
-    target: ProcessTarget,
+    target: ResolvedTarget,
     originalScalars: TypedArray,
     result: ProcessResult | undefined
   ): PreviewRun[] {
@@ -334,11 +339,20 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     return {
       parentImageId,
       parentDimensions: [...image.getDimensions()] as [number, number, number],
+      parentOrigin: Array.from(image.getOrigin()),
       maskId,
       voxels,
+      scalars: voxels.snapshot(),
+      dimensions: [...binding.image.getDimensions()] as [
+        number,
+        number,
+        number,
+      ],
+      spacing: [...binding.image.getSpacing()] as [number, number, number],
+      direction: Array.from(binding.image.getDirection()),
       maskExtent: [...binding.extent] as Extent3D,
       labelValue: SEGMENT_VALUE,
-    } satisfies ProcessTarget;
+    } satisfies ResolvedTarget;
   }
 
   function resolveSegmentScoped(imageId: string): ResolvedRun | undefined {
@@ -417,6 +431,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       return;
     }
 
+    edits.beforeEdit();
+
     const resolveRun =
       options?.requiresActiveSegment === false
         ? resolveEverySegment
@@ -428,7 +444,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const processType = activeProcessType.value;
     const processRunId = ++activeProcessRunId;
 
-    const snapshots = targets.map((target) => target.voxels.snapshot());
+    const snapshots = targets.map((target) => target.scalars);
     let runs: PreviewRun[] = [];
 
     const targetedState = {
@@ -436,6 +452,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       watchedMaskId,
       targetMaskIds: targets.map((target) => target.maskId),
     };
+    edits.hold(cancelProcess);
     paintStore.enterProcessMode();
     processState.value = { step: 'computing', ...targetedState };
 
@@ -443,7 +460,20 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       // Started together, so every algorithm reads its own mask before any
       // result is written back: each run sees the state the user acted on.
       const outputs = await Promise.all(
-        targets.map((target) => algorithm(target))
+        targets.map((input) =>
+          algorithm({
+            parentImageId: input.parentImageId,
+            maskId: input.maskId,
+            labelValue: input.labelValue,
+            scalars: input.scalars.slice(),
+            maskExtent: [...input.maskExtent],
+            dimensions: [...input.dimensions],
+            spacing: [...input.spacing],
+            direction: [...input.direction],
+            parentOrigin: [...input.parentOrigin],
+            parentDimensions: [...input.parentDimensions],
+          })
+        )
       );
 
       if (runIsStale(processRunId) || cancelIfLocked()) return;

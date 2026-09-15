@@ -146,11 +146,11 @@ describe('paint process storage', () => {
         maskExtent: [0, 1, 0, 0, 0, 0],
         labelValue: SEGMENT_VALUE,
       });
-      expect(target.voxels.image()).toBe(labelMap);
+      expect(target.scalars).not.toBe(buffer(labelMap));
     });
 
     it('runs an all-segments process once per editable segment', async () => {
-      const { segmentationId, maskId, labelMap } = addActiveSegment(
+      const { segmentationId, maskId } = addActiveSegment(
         new Uint8Array([1, 0])
       );
       const other = addBoundSegment(segmentationId, 'Other');
@@ -162,8 +162,8 @@ describe('paint process storage', () => {
         other.maskId,
       ]);
       // Each run gets that segment's own mask, not a composite of them all.
-      expect(seen[0].voxels.image()).toBe(labelMap);
-      expect(seen[1].voxels.image()).not.toBe(labelMap);
+      expect(Array.from(seen[0].scalars)).toEqual([1, 0]);
+      expect(seen[1].scalars).not.toBe(seen[0].scalars);
       expect(seen.map((target) => target.labelValue)).toEqual([
         1,
         other.labelValue,
@@ -190,20 +190,20 @@ describe('paint process storage', () => {
       expect(seen.map((target) => target.maskId)).toEqual([maskId]);
     });
 
-    it('gives the target accessor the storage the process reads', async () => {
+    it('gives the algorithm a detached snapshot', async () => {
       const processStore = usePaintProcessStore();
       const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       let live: unknown;
       let seenAtCall: number[] = [];
 
       await processStore.startProcess(async (target) => {
-        live = target.voxels.scalars();
-        seenAtCall = Array.from(target.voxels.snapshot());
+        live = target.scalars;
+        seenAtCall = Array.from(target.scalars.slice());
         return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
       });
 
       // The algorithm reads the voxels as they stand when it runs.
-      expect(live).toBe(buffer(labelMap));
+      expect(live).not.toBe(buffer(labelMap));
       expect(seenAtCall).toEqual([1, 0]);
     });
   });
@@ -385,19 +385,21 @@ describe('paint process storage', () => {
     });
   });
 
-  describe('a result that is the storage buffer itself', () => {
-    it('is refused, reported, and rolled back', async () => {
+  describe('an algorithm that edits its input snapshot', () => {
+    it('previews its result and cancels back to the original', async () => {
       const processStore = usePaintProcessStore();
       const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
-      const original = buffer(labelMap);
 
       await processStore.startProcess(async (target) => {
-        const live = target.voxels.scalars();
+        const live = target.scalars;
         live[1] = 1;
+        expect(values(labelMap)).toEqual([1, 0]);
         return { scalars: live, extent: target.maskExtent };
       });
 
-      expectRolledBack(labelMap, original);
+      expect(values(labelMap)).toEqual([1, 1]);
+      processStore.cancelProcess();
+      expect(values(labelMap)).toEqual([1, 0]);
     });
   });
 

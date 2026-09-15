@@ -1,16 +1,14 @@
+import { mat3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import * as Comlink from 'comlink';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import type { ProcessTarget } from '@/src/store/tools/paintProcess';
-import { getImageMetadata } from '@/src/composables/useCurrentImage';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/core/tools/paint/fillHoles.worker';
-import { convertSliceIndex } from '@/src/utils/imageSpace';
 import { getLPSDirections } from '@/src/utils/lps';
 import type { LPSAxis } from '@/src/types/lps';
-import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 export enum FillHolesSliceScope {
   CurrentSlice = 'currentSlice',
@@ -47,23 +45,15 @@ async function getWorker() {
  */
 function maskSliceIndex(
   view: { viewInfo: { id: string }; axis: LPSAxis },
-  parentImageId: string,
-  segImage: vtkImageData,
-  sliceCount: number
+  target: ProcessTarget,
+  axis: number
 ) {
-  const parentMetadata = getImageMetadata(parentImageId);
   const sliceConfig = useViewSliceStore().getConfig(
     view.viewInfo.id,
-    parentImageId
+    target.parentImageId
   );
-  const parentSlice = sliceConfig.slice;
-  const sliceIndex = convertSliceIndex(
-    parentSlice,
-    parentMetadata.lpsOrientation,
-    parentMetadata.indexToWorld,
-    segImage,
-    view.axis
-  );
+  const sliceIndex = sliceConfig.slice - target.maskExtent[axis * 2];
+  const sliceCount = target.dimensions[axis];
   return sliceIndex < 0 || sliceIndex >= sliceCount ? undefined : sliceIndex;
 }
 
@@ -91,19 +81,27 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
-    const { parentImageId, voxels } = target;
-    const segImage = voxels.image();
-
-    const labelMapLpsOrientation = getLPSDirections(segImage.getDirection());
+    const labelMapLpsOrientation = getLPSDirections(
+      mat3.fromValues(
+        ...(target.direction as [
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+        ])
+      )
+    );
     const axis = labelMapLpsOrientation[effectiveView.axis];
-
-    const dimensions = segImage.getDimensions() as [number, number, number];
-    // The worker structured-clones its input, so the live buffer is right here.
-    const data = voxels.scalars();
+    const { dimensions, scalars: data } = target;
 
     const currentSlice = sliceScope.value === FillHolesSliceScope.CurrentSlice;
     const sliceIndex = currentSlice
-      ? maskSliceIndex(effectiveView, parentImageId, segImage, dimensions[axis])
+      ? maskSliceIndex(effectiveView, target, axis)
       : undefined;
     if (currentSlice && sliceIndex === undefined) {
       // The user named one segment, so say the slice misses it. An

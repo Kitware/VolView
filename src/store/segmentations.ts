@@ -1,3 +1,4 @@
+import { useSegmentationEditsStore } from '@/src/store/segmentationEdits';
 import { defineStore } from 'pinia';
 import { markRaw, reactive, ref } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
@@ -155,6 +156,7 @@ declareManifestRefs('segmentations', (manifest) => {
 });
 
 export const useSegmentationStore = defineStore('segmentation', () => {
+  const edits = useSegmentationEditsStore();
   const imageCacheStore = useImageCacheStore();
   const segmentRegistry = useSegmentStore().segments;
 
@@ -320,6 +322,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       segmentIdFor?: (descriptor: LabelmapSegment) => Maybe<string>;
     } = {}
   ) {
+    edits.beforeEdit();
     const segmentation = ensureSegmentationForImage(parentImageId);
     const created: SegmentMask[] = [];
 
@@ -460,6 +463,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * an export passes one group so no overlap is flattened away.
    */
   function compositeLabelmap(parentImageId: string, members?: SegmentMask[]) {
+    edits.beforeRead();
     const parent = imageCacheStore.getVtkImageData(parentImageId);
     if (!parent) throw new Error('No such parent image');
 
@@ -620,6 +624,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     imageId: string,
     preferredSegmentId?: Maybe<string>
   ) {
+    edits.beforeEdit();
     const segmentId =
       liveSegmentId(preferredSegmentId) ??
       segmentRegistry.ensureSelectedSegment();
