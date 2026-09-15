@@ -1,3 +1,4 @@
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -25,38 +26,84 @@ export function compositeLabelmap(
   members?: SegmentMask[]
 ) {
   useSegmentationEditsStore().beforeRead();
-  const imageCacheStore = useImageCacheStore();
-  const segmentRegistry = useSegmentStore().segments;
-  const imageMasks = useSegmentationStore().imageMasks;
-  const parent = imageCacheStore.getVtkImageData(parentImageId);
-  if (!parent) throw new Error('No such parent image');
+  const snapshot = captureLabelmapParts(parentImageId, [
+    members ?? useSegmentationStore().imageMasks(parentImageId),
+  ]);
+  return composeLabelmapPart(snapshot.parent, snapshot.parts[0]);
+}
 
-  const dimensions = parent.getDimensions();
-
-  const included = [...(members ?? imageMasks(parentImageId))].sort(
-    (first, second) =>
-      segmentRegistry.orderIndexOf(first.segmentId) -
-      segmentRegistry.orderIndexOf(second.segmentId)
-  );
-  const labelmap = allocateLabelmap(parent, included.length);
-  const values = labelmapScalars(labelmap);
-  const segments = included.map((segment, index) =>
-    toLabelmapSegment(segmentRegistry.getSegment(segment.segmentId), index + 1)
-  );
-  [...included].reverse().forEach((segment, index) => {
-    const bounded = boundedMask(segment.representations.labelmap);
-    const labelValue = segments[included.length - 1 - index].value;
-    if (bounded) writeMaskInto(values, dimensions, bounded, labelValue);
+/** Snapshot bounded geometry and appearance without allocating full-volume parts. */
+export function captureLabelmapParts(
+  parentImageId: string,
+  parts: SegmentMask[][]
+) {
+  const source = useImageCacheStore().getVtkImageData(parentImageId);
+  if (!source) throw new Error('No such parent image');
+  const parent = vtkImageData.newInstance({
+    origin: [...source.getOrigin()],
+    spacing: [...source.getSpacing()],
+    direction: [...source.getDirection()],
   });
+  parent.setDimensions(source.getDimensions());
+  parent.computeTransforms();
+  const registry = useSegmentStore().segments;
+  return {
+    parent,
+    parts: parts.map((part) =>
+      [...part]
+        .sort(
+          (a, b) =>
+            registry.orderIndexOf(a.segmentId) -
+            registry.orderIndexOf(b.segmentId)
+        )
+        .map((mask, index) => {
+          const bounded = boundedMask(mask.representations.labelmap);
+          return {
+            descriptor: toLabelmapSegment(
+              registry.getSegment(mask.segmentId),
+              index + 1
+            ),
+            bounded: bounded && {
+              ...bounded,
+              scalars: bounded.scalars.slice(),
+            },
+          };
+        })
+    ),
+  };
+}
 
-  return { labelmap, segments };
+type CapturedPart = ReturnType<typeof captureLabelmapParts>['parts'][number];
+
+export function composeLabelmapPart(parent: vtkImageData, part: CapturedPart) {
+  const labelmap = allocateLabelmap(parent, part.length);
+  const values = labelmapScalars(labelmap);
+  for (const { descriptor, bounded } of [...part].reverse()) {
+    if (bounded)
+      writeMaskInto(values, parent.getDimensions(), bounded, descriptor.value);
+  }
+  return { labelmap, segments: part.map(({ descriptor }) => descriptor) };
 }
 
 /** Plan overlap-free files and retain why more than one file is necessary. */
-export function planLabelmapExport(parentImageId: string) {
-  const layers = groupByLayer(
-    useSegmentationStore().imageMasks(parentImageId),
-    (segment) => boundedMask(segment.representations.labelmap)
+export function planLabelmapExport(
+  parentImageId: string,
+  preferredSegmentId?: string
+) {
+  const registry = useSegmentStore().segments;
+  const masks = [...useSegmentationStore().imageMasks(parentImageId)].sort(
+    (a, b) => {
+      if (a.segmentId === preferredSegmentId) return -1;
+      if (b.segmentId === preferredSegmentId) return 1;
+      return (
+        registry.orderIndexOf(a.segmentId) - registry.orderIndexOf(b.segmentId)
+      );
+    }
+  );
+  // A mask holding no voxels still takes a label value and ships as an empty
+  // segment: a consumer that declared the bin gets to see it came back empty.
+  const layers = groupByLayer(masks, (segment) =>
+    boundedMask(segment.representations.labelmap)
   );
   const parts = layers.flatMap((layer) =>
     Array.from(
