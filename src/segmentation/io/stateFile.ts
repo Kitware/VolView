@@ -4,7 +4,6 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
 import { allocateMask } from '@/src/segmentation/masks/storage';
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
   createLoadedImageReader,
   orderedWireMasks,
@@ -101,8 +100,8 @@ export type SegmentationWireDeps = {
   segmentRegistry: SegmentRegistry;
   labelmapDescriptorByMask: ComputedRef<Record<string, LabelmapSegment>>;
   createMask: (segmentationId: string, segmentId: string) => SegmentMask;
-  createBindingForImage: (
-    parentImageId: string,
+  allocateMaskBinding: (
+    maskId: string,
     extent: Extent3D,
     source?: ProcessingResultSource,
     name?: string
@@ -163,7 +162,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     segmentRegistry,
     labelmapDescriptorByMask,
     createMask,
-    createBindingForImage,
+    allocateMaskBinding,
     attachMaskBinding,
     decodeSegments,
     ensureSegmentationForImage,
@@ -575,17 +574,13 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           targets.map(({ descriptor }) => descriptor),
           (descriptor, extent) => {
             const mask = maskByDescriptor.get(descriptor)!;
-            const binding = createBindingForImage(
-              parentImageId,
+            const binding = allocateMaskBinding(
+              mask.id,
               extent,
               item.source,
               item.name
             );
-            attachMaskBinding(mask.id, binding);
-            return {
-              labelValue: SEGMENT_VALUE,
-              mask: maskScalars(binding.image),
-            };
+            return maskScalars(binding.image);
           }
         );
         restored = targets.map(({ mask }) => mask);
