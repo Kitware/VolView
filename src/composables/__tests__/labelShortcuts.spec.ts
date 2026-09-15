@@ -21,7 +21,7 @@ const seatAndView = (id: string) => {
   useViewStore().setDataForAllViews(id);
 };
 
-describe('next/previous type shortcuts', () => {
+describe('next/previous segment shortcuts', () => {
   beforeEach(() => {
     const pinia = createPinia().use(CorePiniaProviderPlugin());
     createApp({}).use(pinia);
@@ -61,15 +61,14 @@ describe('next/previous type shortcuts', () => {
   });
 
   it.each([
-    ['incrementLabel', 0],
+    ['incrementLabel', 1],
     ['decrementLabel', 2],
   ] as const)(
-    '%s with nothing selected lands on segment %i',
+    '%s with no segment chosen starts from the first and lands on segment %i',
     (action, expected) => {
       seatAndView('img-1');
       const { segments } = useSegmentStore();
-      const ids = ['A', 'B', 'C'].map((name) => segments.addSegment({ name }));
-      segments.selectSegment(undefined);
+      const ids = ['A', 'B', 'C'].map((name) => segments.mintSegment({ name }));
 
       ACTION_TO_FUNC[action]();
 

@@ -132,16 +132,14 @@ describe('polygon rasterize target', () => {
     );
   });
 
-  it('describes the first-segment fallback without selecting or allocating it', async () => {
+  it('describes the first-segment fallback without allocating it', async () => {
     await seatImage('img-1');
     const first = makeMask('img-1', 'First');
     lockSegment(first.record.id, true);
 
-    expect(segments().selectedSegmentId.value).toBeUndefined();
     expect(rasterizeTargetDisabledReason('')).toBe(
       'Unlock this segment to rasterize into it'
     );
-    expect(segments().selectedSegmentId.value).toBeUndefined();
     expect(
       store().getMask(first.record.id).representations.labelmap
     ).toBeUndefined();

@@ -1,3 +1,4 @@
+import { ZodError, z } from 'zod';
 import { ImportHandler, asConfigResult } from '@/src/io/import/common';
 import { ensureError, plural } from '@/src/utils';
 import { recognizeConfigFile } from '@/src/io/import/configJson';
@@ -22,7 +23,8 @@ const surfaceIgnoredConfigKeys = (ignoredKeys: string[]) => {
  * io/originGate), not to how the config arrived. A recognized config is emitted
  * as a config result; anything else falls through (`Skip`) to normal data
  * import. A config-shaped JSON carrying unknown top-level keys still applies its
- * known sections (forward-compat) — the stripped keys are surfaced as a warning.
+ * known sections (forward-compat). The stripped keys are surfaced as a warning,
+ * as are the legacy keys recognition converted or ignored.
  */
 const handleConfig: ImportHandler = async (dataSource) => {
   if (
@@ -37,22 +39,22 @@ const handleConfig: ImportHandler = async (dataSource) => {
       if (recognition.ignoredKeys.length > 0) {
         surfaceIgnoredConfigKeys(recognition.ignoredKeys);
       }
-      if (recognition.deprecatedKeys.length > 0) {
+      if (recognition.deprecations.length > 0) {
         surfaceWarning(
           'Deprecated configuration',
-          'io.segmentGroupExtension was migrated to io.segmentationExtension. Update your configuration to use io.segmentationExtension.'
+          recognition.deprecations.join(' ')
         );
       }
       return asConfigResult(dataSource, recognition.config);
     }
     return Skip;
   } catch (err) {
-    throw new Error(
-      `Failed to parse config file: ${ensureError(err).message}`,
-      {
-        cause: ensureError(err),
-      }
-    );
+    const error = ensureError(err);
+    const detail =
+      err instanceof ZodError ? z.prettifyError(err) : error.message;
+    throw new Error(`Failed to parse config file: ${detail}`, {
+      cause: error,
+    });
   }
 };
 

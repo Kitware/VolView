@@ -175,15 +175,18 @@ describe('Ruler segment segments', () => {
     expect(id).toBe(segmentId);
   });
 
-  it('selects a type, including back to unset', () => {
+  it('selects a type and keeps it when asked to select nothing', () => {
     const store = useRulerStore();
     const segmentId = seedSegment(store);
+    const node = store.segments.addSegment({ name: 'Node' });
+    store.segments.selectSegment(segmentId);
+
+    // Not the first row, which is what an empty choice falls back to.
+    store.segments.selectSegment(node);
+    expect(store.segments.selectedSegmentId.value).toBe(node);
 
     store.segments.selectSegment(undefined);
-    expect(store.segments.selectedSegmentId.value).toBeUndefined();
-
-    store.segments.selectSegment(segmentId);
-    expect(store.segments.selectedSegmentId.value).toBe(segmentId);
+    expect(store.segments.selectedSegmentId.value).toBe(node);
   });
 
   it('names its segments in the shared list, not one of its own', () => {

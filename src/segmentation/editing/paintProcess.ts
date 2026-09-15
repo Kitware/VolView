@@ -321,7 +321,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // it just holds nothing here yet.
   function segmentScopedRefusal(imageId: string) {
     if (!segmentRegistry.selectedSegmentId.value)
-      return 'No active segment selected';
+      return 'No segments to process';
     const maskId = segmentationStore.findEditTarget(imageId);
     if (maskId && segmentationStore.isLocked(maskId))
       return 'Cannot process locked segment';

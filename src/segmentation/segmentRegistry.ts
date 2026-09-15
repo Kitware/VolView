@@ -3,32 +3,25 @@ import { computed, ref, type Ref } from 'vue';
 import { TOOL_COLORS } from '@/src/config';
 import { useIdStore } from '@/src/store/id';
 import type { Maybe } from '@/src/types';
-import { cssColorToRGBA } from '@/src/segmentation/color';
+import { cssColorToRGBA, tryCssColorToRGBA } from '@/src/segmentation/color';
 import {
   resolveSegmentAppearance,
   type Segment,
   type SegmentInit,
 } from '@/src/segmentation/segment';
 import { cleanUndefined, cycle } from '@/src/utils';
-
-type ConfiguredSegment = {
-  color?: string;
-  fillOpacity?: number;
-  outlineOpacity?: number;
-  strokeWidth?: number;
-};
-
-type ConfiguredSegments = Record<string, ConfiguredSegment>;
+import type { ConfiguredSegments } from '@/src/io/import/configSegments';
 
 export type SegmentRegistryOptions = {
   hasReferences?: (segmentId: string) => boolean;
   removeReferences?: (segmentId: string) => void;
 };
 
-const fromConfigured = (name: string, configured: ConfiguredSegment) =>
+// An unparseable color is left out, so the segment keeps the color it has.
+const fromConfigured = (name: string, configured: ConfiguredSegments[string]) =>
   cleanUndefined({
     name,
-    color: configured.color ? cssColorToRGBA(configured.color) : undefined,
+    color: configured.color ? tryCssColorToRGBA(configured.color) : undefined,
     fillOpacity: configured.fillOpacity,
     outlineOpacity: configured.outlineOpacity,
     strokeWidth: configured.strokeWidth,
@@ -91,24 +84,25 @@ export const createSegmentRegistry = ({
 
   const nameTaken = (name: string) => idsByName.has(name);
 
-  const selectedSegmentId = ref<Maybe<string>>();
-  const selectionRevision = ref(0);
-
-  // A segment that is gone is not selected.
-  const selectedSegment = computed(() =>
-    selectedSegmentId.value
-      ? segmentById.value[selectedSegmentId.value]
-      : undefined
-  );
-
-  const selectSegment = (id: Maybe<string>) => {
-    selectedSegmentId.value = id && segmentById.value[id] ? id : undefined;
-    // Reselecting the same segment can still request that its row be revealed.
-    if (selectedSegmentId.value) selectionRevision.value += 1;
-  };
-
   const getSegment = (id: Maybe<string>) =>
     id ? segmentById.value[id] : undefined;
+
+  const chosenSegmentId = ref<Maybe<string>>();
+  const selectionRevision = ref(0);
+
+  // Whenever segments exist one is selected, so every edit lands where the
+  // highlighted row says: the user's choice while it exists, else the first.
+  const selectedSegmentId = computed(
+    () => (getSegment(chosenSegmentId.value) ?? segmentList.value[0])?.id
+  );
+
+  // Only a live segment can be chosen, so nothing clears a choice back to none.
+  const selectSegment = (id: Maybe<string>) => {
+    if (!getSegment(id)) return;
+    chosenSegmentId.value = id;
+    // Reselecting the same segment can still request that its row be revealed.
+    selectionRevision.value += 1;
+  };
 
   const appearanceOf = (id: Maybe<string>) =>
     resolveSegmentAppearance(getSegment(id));
@@ -150,7 +144,7 @@ export const createSegmentRegistry = ({
   const nextToolColor = cycle(TOOL_COLORS);
   const nextColor = () => cssColorToRGBA(nextToolColor());
 
-  /** Mints a segment without touching the selection. Allocates no voxels. */
+  /** Mints a segment without choosing it. Allocates no voxels. */
   const mintSegment = (init: SegmentInit = {}) => {
     const id = useIdStore().nextId();
     const stated = cleanUndefined(init);
@@ -204,9 +198,6 @@ export const createSegmentRegistry = ({
     segmentOrder.value = segmentOrder.value.filter((key) => key !== id);
     unindexName(segment.name, id);
     delete segmentById.value[id];
-    if (selectedSegmentId.value === id) {
-      selectSegment(segmentOrder.value[0]);
-    }
   };
 
   const moveSegment = (id: string, target: string, after = false) => {
@@ -221,16 +212,9 @@ export const createSegmentRegistry = ({
    * An empty registry has no answer, and what would be minted there is a fresh
    * segment carrying the defaults.
    */
-  const presumedSegmentId = () =>
-    selectedSegment.value?.id ?? segmentList.value[0]?.id;
+  const presumedSegmentId = () => selectedSegmentId.value;
 
-  const ensureSelectedSegment = () => {
-    if (selectedSegment.value) return selectedSegment.value.id;
-    const first = presumedSegmentId();
-    if (!first) return addSegment();
-    selectSegment(first);
-    return first;
-  };
+  const ensureSelectedSegment = () => selectedSegmentId.value ?? addSegment();
 
   /**
    * Exact-name lookup, minting on a miss. Import binds descriptors this way,
@@ -250,7 +234,11 @@ export const createSegmentRegistry = ({
   // a restored segment begins with its session appearance.
   const configEntries = new Map<
     string,
-    { id: string; appearance: ReturnType<typeof configuredAppearance> }
+    {
+      id: string;
+      appearance: ReturnType<typeof configuredAppearance>;
+      minted: boolean;
+    }
   >();
 
   const replaceConfigSegments = (configured: Maybe<ConfiguredSegments>) => {
@@ -259,8 +247,13 @@ export const createSegmentRegistry = ({
     Object.entries(next).forEach(([name, props]) => {
       let entry = configEntries.get(name);
       if (!entry || !getSegment(entry.id)) {
-        const id = findSegmentByName(name)?.id ?? mintSegment({ name });
-        entry = { id, appearance: configuredAppearance(getSegment(id)!) };
+        const matched = findSegmentByName(name)?.id;
+        const id = matched ?? mintSegment({ name });
+        entry = {
+          id,
+          appearance: configuredAppearance(getSegment(id)!),
+          minted: !matched,
+        };
       }
       updateSegment(entry.id, {
         ...entry.appearance,
@@ -270,17 +263,14 @@ export const createSegmentRegistry = ({
     });
 
     [...configEntries.entries()]
-      .filter(([name]) => !(name in next))
-      .forEach(([name, { id }]) => {
+      .filter(([name]) => !Object.hasOwn(next, name))
+      .forEach(([name, { id, minted }]) => {
         configEntries.delete(name);
-        // Content keeps the last configured appearance as session state.
-        if (segmentById.value[id] && !hasReferences(id)) deleteSegment(id);
+        // Content keeps its last configured appearance; a segment the config
+        // matched by name rather than minted is not the config's to drop.
+        if (minted && segmentById.value[id] && !hasReferences(id))
+          deleteSegment(id);
       });
-
-    // A configured registry offers a selection from the start; selecting
-    // creates nothing, so the first edit lands in a configured segment rather
-    // than minting one beside it.
-    if (!selectedSegment.value) selectSegment(segmentList.value[0]?.id);
   };
 
   // --- wire --- //
@@ -308,12 +298,17 @@ export const createSegmentRegistry = ({
     return idMap;
   };
 
+  /** Selects a restored segment unless the user already chose one. */
+  const restoreSelection = (id: Maybe<string>) => {
+    if (!getSegment(chosenSegmentId.value)) selectSegment(id);
+  };
+
   return {
     segmentList,
     selectedSegmentId,
     selectionRevision,
-    selectedSegment,
     selectSegment,
+    restoreSelection,
     getSegment,
     appearanceOf,
     orderIndexOf,

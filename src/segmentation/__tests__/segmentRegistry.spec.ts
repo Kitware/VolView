@@ -10,7 +10,10 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { createSegmentRegistry } from '@/src/segmentation/segmentRegistry';
+import {
+  createSegmentRegistry,
+  type SegmentRegistry,
+} from '@/src/segmentation/segmentRegistry';
 import { cssColorToRGBA } from '@/src/segmentation/color';
 
 const seatImage = (id: string, name = 'CT') =>
@@ -242,6 +245,79 @@ describe('segment type registry', () => {
     expect(registry.selectedSegmentId.value).toBeUndefined();
   });
 
+  it('selects the first segment in list order while none is chosen', () => {
+    const registry = createSegmentRegistry();
+    const first = registry.mintSegment({ name: 'Liver' });
+    const second = registry.mintSegment({ name: 'Spleen' });
+
+    expect(registry.selectedSegmentId.value).toBe(first);
+
+    registry.moveSegment(second, first);
+
+    expect(registry.selectedSegmentId.value).toBe(second);
+  });
+
+  it('keeps a choice when asked to select nothing or a missing segment', () => {
+    const registry = createSegmentRegistry();
+    registry.mintSegment({ name: 'Liver' });
+    const chosen = registry.mintSegment({ name: 'Spleen' });
+    registry.selectSegment(chosen);
+
+    registry.selectSegment(undefined);
+    registry.selectSegment(null);
+    registry.selectSegment('nope');
+
+    expect(registry.selectedSegmentId.value).toBe(chosen);
+  });
+
+  it('asks for the chosen row to be revealed again on reselection', () => {
+    const registry = createSegmentRegistry();
+    const chosen = registry.mintSegment({ name: 'Liver' });
+    registry.selectSegment(chosen);
+    const revision = registry.selectionRevision.value;
+
+    registry.selectSegment(chosen);
+
+    expect(registry.selectionRevision.value).toBe(revision + 1);
+  });
+
+  it('falls back to the first segment once the chosen one is deleted', () => {
+    const registry = createSegmentRegistry();
+    const first = registry.mintSegment({ name: 'Liver' });
+    const chosen = registry.mintSegment({ name: 'Spleen' });
+    registry.mintSegment({ name: 'Kidney' });
+    registry.selectSegment(chosen);
+
+    registry.deleteSegment(chosen);
+
+    expect(registry.selectedSegmentId.value).toBe(first);
+  });
+
+  it('selects a configured segment without minting one beside it', () => {
+    const registry = createSegmentRegistry();
+
+    registry.replaceConfigSegments({ Tumor: {}, Edema: {} });
+    const tumor = registry.findSegmentByName('Tumor')?.id;
+
+    expect(registry.selectedSegmentId.value).toBe(tumor);
+    expect(registry.ensureSelectedSegment()).toBe(tumor);
+    expect(namesOf(registry)).toEqual(['Tumor', 'Edema']);
+  });
+
+  it('keeps the current color when a configured color does not parse', () => {
+    const registry = createSegmentRegistry();
+    const id = registry.mintSegment({ name: 'Tumor', color: [0, 255, 0, 255] });
+
+    registry.replaceConfigSegments({
+      Tumor: { color: 'rgb(255, 0, 0)', strokeWidth: 3 },
+    });
+
+    expect(registry.getSegment(id)).toMatchObject({
+      color: [0, 255, 0, 255],
+      strokeWidth: 3,
+    });
+  });
+
   it('adopts restored segments under fresh ids, overwriting nothing', () => {
     const registry = createSegmentRegistry();
     const existing = registry.addSegment({
@@ -313,6 +389,51 @@ describe('segment type registry', () => {
     const [mintedId] = Object.values(idMap);
     expect(registry.getSegment(mintedId)?.name).toBe('A');
     expect(idMap.toString).toBeUndefined();
+  });
+
+  describe('a restored selection', () => {
+    const restoreSaved = (registry: SegmentRegistry) =>
+      registry.adopt([
+        {
+          id: 'saved',
+          name: 'Saved',
+          color: [1, 1, 1, 255],
+          visible: true,
+          locked: false,
+        },
+      ]).saved;
+
+    it('replaces the selection a config offered', () => {
+      const registry = createSegmentRegistry();
+      registry.replaceConfigSegments({ Tumor: {}, Edema: {} });
+      const saved = restoreSaved(registry);
+
+      registry.restoreSelection(saved);
+
+      expect(registry.selectedSegmentId.value).toBe(saved);
+    });
+
+    it('replaces the first-segment fallback', () => {
+      const registry = createSegmentRegistry();
+      registry.mintSegment({ name: 'Tumor' });
+      const saved = restoreSaved(registry);
+
+      registry.restoreSelection(saved);
+
+      expect(registry.selectedSegmentId.value).toBe(saved);
+    });
+
+    it('leaves a selection the user made', () => {
+      const registry = createSegmentRegistry();
+      registry.replaceConfigSegments({ Tumor: {}, Edema: {} });
+      const edema = registry.findSegmentByName('Edema')?.id;
+      registry.selectSegment(edema);
+      const saved = restoreSaved(registry);
+
+      registry.restoreSelection(saved);
+
+      expect(registry.selectedSegmentId.value).toBe(edema);
+    });
   });
 });
 

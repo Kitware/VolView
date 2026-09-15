@@ -187,7 +187,7 @@ describe('saving from the flat segment panel', () => {
     );
   });
 
-  it('follows the viewed image rather than the selected type', async () => {
+  it('follows the viewed image rather than the selected segment', async () => {
     const first = paintMask('img-1', 'Tumor');
     const second = store().ensureSegmentationForImage('img-2');
     const onSecond = store().createMask(

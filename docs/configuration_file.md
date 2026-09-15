@@ -169,23 +169,25 @@ visibility and lock state.
 
 Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
 
-Omitting the key leaves the registry alone. An empty record (`{}`) or `null` clears what an
-earlier config contributed, keeping any segment your content still references with its
-last configured appearance. A configured
-segment keeps its id across config changes, so renaming or recoloring one never detaches
-the masks and shapes that reference it.
+Omitting the key leaves the registry alone. An empty record (`{}`) or `null` clears what
+an earlier config contributed, keeping any segment your content still references with its
+last configured appearance. A configured segment keeps its id across config changes, so
+renaming or recoloring one never detaches the masks and shapes that reference it.
 
 ### Pre-7.0 `labels`
 
-A pre-7.0 `labels` section still loads. Its `defaultLabels`, `rulerLabels`,
-`rectangleLabels` and `polygonLabels` all describe the one registry now, so they read as
-`segments` entries. A name that appears in more than one becomes a single segment: the
-first record to declare it sets its appearance, reading `rulerLabels`, `rectangleLabels`
-and `polygonLabels` in that order and `defaultLabels` last, since it stood in only for the
-tools that declared no record of their own. A rectangle label's `fillColor` is dropped,
-since fill color is a property of the rectangle rather than of the segment. A config
-carrying both `segments` and `labels` has been converted already, so `segments` is read
-and `labels` is ignored.
+A pre-7.0 `labels` section is converted into `segments` at configuration ingestion, with
+a deprecation warning. Runtime configuration contains only `segments`. Its
+`defaultLabels`, `rulerLabels`, `rectangleLabels` and `polygonLabels` all describe the one
+registry now, so they read as `segments` entries. A name that appears in more than one
+becomes a single segment: the first record to declare it sets its appearance, reading
+`rulerLabels`, `rectangleLabels` and `polygonLabels` in that order and `defaultLabels`
+last. `defaultLabels` stood in for the tools that declared no record of their own, so it
+is read only when at least one of the three tool records is omitted. A section whose
+records are all omitted or `null` leaves the registry alone. A rectangle label's
+`fillColor` is dropped with a warning, since fill color is a property of the rectangle
+rather than of the segment. A config carrying both `segments` and `labels` has been
+converted already, so `segments` is read, `labels` is ignored, and the warning says so.
 
 Converting a config by hand:
 
@@ -211,16 +213,21 @@ becomes
 
 ## Session Mask File Format
 
-The `segmentGroupSaveFormat` key specifies the file extension of the mask images
+The `segmentationSaveFormat` key specifies the file extension of the mask images
 VolView will include in the volview.zip file.
 
 ```json
 {
   "io": {
-    "segmentGroupSaveFormat": "nii"
+    "segmentationSaveFormat": "nii"
   }
 }
 ```
+
+The legacy `io.segmentGroupSaveFormat` key is migrated at ingestion. Matching
+old and new values are accepted; conflicting values are rejected. This setting
+controls mask files inside saved sessions, independently of the explicit
+segmentation export dialog. Existing saved-session encodings remain readable.
 
 Working mask file formats:
 
@@ -348,7 +355,7 @@ To configure a key for an action, add its action name and the key(s) under the `
     "showKeyboardShortcuts": "t"
   },
   "io": {
-    "segmentGroupSaveFormat": "nrrd",
+    "segmentationSaveFormat": "nrrd",
     "segmentationExtension": "seg",
     "layerExtension": "layer"
   }
