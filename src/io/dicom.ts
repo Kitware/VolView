@@ -204,7 +204,7 @@ type ReadOverlappingSegmentationResultWithRealMeta =
     metaInfo: ReadOverlappingSegmentationMeta;
   };
 
-export async function buildSegmentGroups(file: File) {
+export async function readDicomSegmentation(file: File) {
   const inputImage = sanitizeFile(file);
   const result = (await readOverlappingSegmentation(inputImage, {
     webWorker: getWorker(),

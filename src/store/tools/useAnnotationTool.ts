@@ -155,7 +155,7 @@ export const useAnnotationTool = <
   // Delete-base cleanup: a removed image's tools
   // must not linger — they are invisible in the UI (tool lists filter to the
   // current image) and an orphaned imageID in the next save manifest is the
-  // backend's intentional fail-closed 400. Mirrors the segment-group cascade.
+  // backend's intentional fail-closed 400. Mirrors the segmentation cascade.
   onImageDeleted((deletedIDs) => {
     const deleted = new Set(deletedIDs);
     toolIDs.value

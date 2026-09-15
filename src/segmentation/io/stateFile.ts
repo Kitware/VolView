@@ -19,7 +19,7 @@ import {
   type LabelmapRestoreSource,
 } from '@/src/io/import/labelmapImports';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { makeSegmentGroupArchivePath } from '@/src/io/state-file/segmentGroupArchivePath';
+import { makeMaskArchivePath } from '@/src/io/state-file/maskArchivePath';
 import type { FileEntry } from '@/src/io/types';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
@@ -171,7 +171,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       listMasks(segmentation).flatMap((segment) => {
         const binding = segment.representations.labelmap;
         if (!binding) return [];
-        const path = makeSegmentGroupArchivePath(
+        const path = makeMaskArchivePath(
           binding.name,
           format,
           usedArchivePaths

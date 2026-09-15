@@ -4,7 +4,7 @@ import { computed, ref } from 'vue';
 import EditableItemList from '@/src/components/EditableItemList.vue';
 import IsolatedDialog from '@/src/components/IsolatedDialog.vue';
 import CloseableDialog from '@/src/components/CloseableDialog.vue';
-import SaveSegmentGroupDialog from '@/src/segmentation/components/SaveSegmentGroupDialog.vue';
+import SaveSegmentationDialog from '@/src/segmentation/components/SaveSegmentationDialog.vue';
 import SegmentEditor from '@/src/segmentation/components/SegmentEditor.vue';
 import SegmentListActions from '@/src/segmentation/components/SegmentListActions.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -411,7 +411,7 @@ const {
     <template v-slot="{ close }">
       <!-- The overlay keeps its content once opened, so the dialog is mounted
            per open to read the segmentation as it stands now. -->
-      <save-segment-group-dialog
+      <save-segmentation-dialog
         v-if="saveDialog && viewedSegmentation"
         :id="viewedSegmentation.id"
         @done="close"

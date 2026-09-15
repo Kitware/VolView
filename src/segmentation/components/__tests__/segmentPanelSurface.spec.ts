@@ -52,7 +52,7 @@ const BtnStub = defineComponent({
 });
 
 const SaveDialogStub = defineComponent({
-  name: 'SaveSegmentGroupDialog',
+  name: 'SaveSegmentationDialog',
   props: ['id'],
   emits: ['done'],
   template: `<div class="save-dialog-body" />`,
@@ -72,7 +72,7 @@ const globalOptions = {
   stubs: {
     EditableItemList: ItemListStub,
     SegmentEditor: { template: '<div class="segment-editor" />' },
-    SaveSegmentGroupDialog: SaveDialogStub,
+    SaveSegmentationDialog: SaveDialogStub,
     IsolatedDialog: DialogHostStub('IsolatedDialog'),
     CloseableDialog: DialogHostStub('CloseableDialog'),
     VDialog: DialogHostStub('VDialog'),
@@ -252,7 +252,7 @@ const SEGMENTATION_PANEL = [
   'src/segmentation/components/SegmentList.vue',
   'src/segmentation/components/SegmentEditor.vue',
   'src/segmentation/components/PaintControls.vue',
-  'src/segmentation/components/SaveSegmentGroupDialog.vue',
+  'src/segmentation/components/SaveSegmentationDialog.vue',
 ];
 
 const componentFiles = (dir: string): string[] =>

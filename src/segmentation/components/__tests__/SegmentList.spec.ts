@@ -178,7 +178,7 @@ const globalOptions = {
       template:
         '<div v-if="modelValue" class="dialog"><slot :close="() => {}" /></div>',
     },
-    SaveSegmentGroupDialog: { props: ['id'], template: '<div />' },
+    SaveSegmentationDialog: { props: ['id'], template: '<div />' },
     VBtn: BtnStub,
     VIcon: IconStub,
     VSpacer: { template: '<span />' },

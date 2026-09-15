@@ -505,7 +505,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   }
 
   // Rebuild an adopted job's missing parent id so a labelmap result attaches
-  // as a segment group instead of opening as a top-level dataset.
+  // as a segmentation instead of opening as a top-level dataset.
   async function ensureAdoptedParentId(
     provider: ProcessingProvider,
     key: string,

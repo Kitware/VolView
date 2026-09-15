@@ -240,7 +240,7 @@ export async function completeStateFileRestore(
     ...missingMembers,
     ...failedMembers,
     ...skippedLabelmaps.map(
-      ({ name, reason }) => `- segment group: ${name} (${reason})`
+      ({ name, reason }) => `- segmentation: ${name} (${reason})`
     ),
   ];
   if (missing.length > 0) {

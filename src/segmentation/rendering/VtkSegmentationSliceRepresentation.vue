@@ -130,14 +130,14 @@ watchEffect(() => {
   );
 });
 
-// Compute segment group's LPS orientation from its direction matrix
+// Compute labelmap's LPS orientation from its direction matrix
 const maskLpsOrientation = computed(() => {
   const mask = imageData.value;
   if (!mask) return null;
   return getLPSDirections(mask.getDirection());
 });
 
-// Set slicing mode based on segment group's own orientation
+// Set slicing mode based on labelmap's own orientation
 watchEffect(() => {
   const lpsOrientation = maskLpsOrientation.value;
   if (!lpsOrientation) return;
@@ -146,7 +146,7 @@ watchEffect(() => {
   sliceRep.mapper.setSlicingMode(mode);
 });
 
-// sync slicing - convert parent slice to segment group slice via world coordinates
+// sync slicing - convert parent slice to labelmap slice via world coordinates
 const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 
 // The extent is a watch source because growth moves the mask's origin, so the
@@ -194,7 +194,7 @@ const applySegmentColoring = () => {
 
   let maxValue = 0;
 
-  if (!segments.value) return; // segment group just deleted
+  if (!segments.value) return; // segmentation just deleted
 
   segments.value.forEach((segment) => {
     const r = segment.color[0] || 0;
@@ -228,21 +228,21 @@ const outlineThickness = computed(
 sliceRep.property.setUseLabelOutline(true);
 
 watchEffect(() => {
-  if (!segments.value) return; // segment group just deleted
+  if (!segments.value) return; // segmentation just deleted
 
-  const groupOpacity = Math.max(
+  const segmentationOpacity = Math.max(
     segmentation.value?.outlineOpacity ?? 1,
     revealPulse.value
   );
   const { thicknesses, opacities } = segmentOutlineTables(
     segments.value,
     outlineThickness.value,
-    groupOpacity
+    segmentationOpacity
   );
   sliceRep.property.setLabelOutlineThickness(thicknesses);
   // An empty table leaves every label without an opacity; fall back to a scalar.
   sliceRep.property.setLabelOutlineOpacity(
-    opacities.length ? opacities : groupOpacity
+    opacities.length ? opacities : segmentationOpacity
   );
 });
 

@@ -4,7 +4,7 @@
       Save Segments
     </v-card-title>
     <v-card-text>
-      <v-form v-model="valid" @submit.prevent="saveSegmentGroup">
+      <v-form v-model="valid" @submit.prevent="saveSegmentation">
         <v-text-field
           v-model="fileName"
           hint="Filename used for downloads."
@@ -21,13 +21,13 @@
         ></v-select>
 
         <v-alert
-          v-if="groups.length > 1"
+          v-if="parts.length > 1"
           type="info"
           variant="tonal"
           density="compact"
           data-testid="save-overlap-notice"
         >
-          Saving {{ groups.length }} files due to overlap, bundled into
+          Saving {{ parts.length }} files due to overlap, bundled into
           {{ archiveName }}.
         </v-alert>
       </v-form>
@@ -37,7 +37,7 @@
       <v-btn
         :loading="saving"
         color="secondary"
-        @click="saveSegmentGroup"
+        @click="saveSegmentation"
         :disabled="!valid"
       >
         <v-icon class="mr-2">mdi-content-save</v-icon>
@@ -66,7 +66,7 @@ import {
   type ExportFile,
 } from '@/src/segmentation/io/export';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
-import { sanitizeSegmentGroupFileStem } from '@/src/io/state-file/segmentGroupArchivePath';
+import { sanitizeSegmentationFileStem } from '@/src/io/state-file/maskArchivePath';
 
 const EXTENSIONS = [
   'seg.nrrd',
@@ -98,28 +98,28 @@ const parentImageId = computed(() => segmentation.value.parentImageId);
 const fileName = computed({
   get: () => fileNameValue.value,
   set: (value: string) => {
-    fileNameValue.value = sanitizeSegmentGroupFileStem(value, '');
+    fileNameValue.value = sanitizeSegmentationFileStem(value, '');
   },
 });
 
-const groups = computed(() => layeredSegments(parentImageId.value));
+const parts = computed(() => layeredSegments(parentImageId.value));
 // Named by the same function the download uses, so the notice cannot promise
 // an archive the save does not write.
 const archiveName = computed(() =>
-  archiveNameFor(sanitizeSegmentGroupFileStem(fileName.value))
+  archiveNameFor(sanitizeSegmentationFileStem(fileName.value))
 );
 
 // What leaves VolView is the image's whole segmentation, not one segment's
 // bounded mask, so the masks are composited on the way out. One file carries
 // one label per voxel, so each group of segments that do not overlap makes its
 // own file.
-async function writeGroups(stem: string) {
+async function writeParts(stem: string) {
   useSegmentationEditsStore().beforeRead();
   const format = fileFormat.value;
   const files: ExportFile[] = [];
   // Written one at a time: serializing copies the whole buffer, and itk-wasm
   // queues the writes on one shared worker whatever the caller does.
-  for (const [index, members] of groups.value.entries()) {
+  for (const [index, members] of parts.value.entries()) {
     const composite = compositeLabelmap(parentImageId.value, members);
     const data = await writeSegmentation(
       format,
@@ -131,16 +131,16 @@ async function writeGroups(stem: string) {
   return files;
 }
 
-async function saveSegmentGroup() {
+async function saveSegmentation() {
   if (fileName.value.trim().length === 0) {
     return;
   }
 
   saving.value = true;
   await useErrorMessage('Failed to save segments', async () => {
-    const sanitizedFileName = sanitizeSegmentGroupFileStem(fileName.value);
+    const sanitizedFileName = sanitizeSegmentationFileStem(fileName.value);
     fileNameValue.value = sanitizedFileName;
-    const files = await writeGroups(sanitizedFileName);
+    const files = await writeParts(sanitizedFileName);
     const bundle = await bundleExportFiles(sanitizedFileName, files);
     saveAs(bundle.blob, bundle.name);
   });
@@ -150,11 +150,11 @@ async function saveSegmentGroup() {
 
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
-  fileNameValue.value = sanitizeSegmentGroupFileStem(segmentation.value.name);
+  fileNameValue.value = sanitizeSegmentationFileStem(segmentation.value.name);
 });
 
 onKeyDown('Enter', () => {
-  saveSegmentGroup();
+  saveSegmentation();
 });
 
 function validFileName(name: string) {

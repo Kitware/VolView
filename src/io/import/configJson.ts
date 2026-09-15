@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { configIo } from '@/src/io/import/configIo';
 import {
   getEntries,
   isRecord,
@@ -82,13 +83,7 @@ const labels = z
 // --------------------------------------------------------------------------
 // IO
 
-const io = z
-  .object({
-    segmentGroupSaveFormat: z.string().optional(),
-    segmentGroupExtension: z.string().default(''),
-    layerExtension: z.string().default(''),
-  })
-  .optional();
+const io = configIo.optional();
 
 // --------------------------------------------------------------------------
 // Window Level
@@ -133,7 +128,13 @@ export type Config = z.infer<typeof config>;
 export type ConfigRecognition =
   // `ignoredKeys` lists the unknown top-level keys that were stripped (empty
   // when every top-level key was a known section).
-  { kind: 'config'; config: Config; ignoredKeys: string[] } | { kind: 'data' };
+  | {
+      kind: 'config';
+      config: Config;
+      ignoredKeys: string[];
+      deprecatedKeys: string[];
+    }
+  | { kind: 'data' };
 
 // ---------------------------------------------------------------------------
 // Config-section registry
@@ -188,7 +189,16 @@ export const recognizeConfig = async (
   // `fullConfig.parse` relies on zod's default (non-strict) object behavior to
   // drop unknown keys; adding `.strict()` would silently break forward-compat.
   const ignoredKeys = presentKeys.filter((key) => !knownKeys.has(key));
-  return { kind: 'config', config: fullConfig.parse(raw), ignoredKeys };
+  const deprecatedKeys =
+    isRecord(raw.io) && raw.io.segmentGroupExtension !== undefined
+      ? ['io.segmentGroupExtension']
+      : [];
+  return {
+    kind: 'config',
+    config: fullConfig.parse(raw),
+    ignoredKeys,
+    deprecatedKeys,
+  };
 };
 
 export const recognizeConfigFile = async (
@@ -311,7 +321,7 @@ const applyIo = (manifest: Config) => {
   if (manifest.io.segmentGroupSaveFormat)
     useSegmentationStore().saveFormat = manifest.io.segmentGroupSaveFormat;
   const loadDataStore = useLoadDataStore();
-  loadDataStore.segmentGroupExtension = manifest.io.segmentGroupExtension;
+  loadDataStore.segmentationExtension = manifest.io.segmentationExtension;
   loadDataStore.layerExtension = manifest.io.layerExtension;
 };
 

@@ -11,7 +11,7 @@ directly. For longer-running work, VolView also ships a Jobs panel that talks to
 a processing backend over the neutral API defined in the `backend-contract`
 package: the backend advertises its tasks, VolView builds the submission form
 from each task specification, and completed outputs load back into the scene as
-images, layers, or segment groups. Any service that implements the contract
+images, layers, or segmentations. Any service that implements the contract
 works, since VolView knows only the shared vocabulary and never a backend's
 native task format.
 

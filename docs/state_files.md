@@ -14,7 +14,11 @@ JSON files that reference remote data via URIs instead of embedding it. Useful f
 - Sharing annotations without duplicating large datasets
 - Integrating with external systems (AI pipelines, access control, etc.)
 
-Example manifest:
+Legacy 6.2.0 manifest example (still supported on import):
+
+The historical `segmentGroups` field is migrated into the current segmentation
+model. A segmentation owns an image's segment masks; labelmaps encode those
+masks for storage or interchange. New sessions use the current schema.
 
 ```json
 {

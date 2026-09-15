@@ -209,9 +209,9 @@ becomes
 }
 ```
 
-## Segment Group File Format
+## Session Mask File Format
 
-The `segmentGroupSaveFormat` key specifies the file extension of the segment group images
+The `segmentGroupSaveFormat` key specifies the file extension of the mask images
 VolView will include in the volview.zip file.
 
 ```json
@@ -222,36 +222,49 @@ VolView will include in the volview.zip file.
 }
 ```
 
-Working segment group file formats:
+Working mask file formats:
 
 hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 
-## Automatic Layers and Segment Groups by File Name
+## Automatic Layers and Segmentations by File Name
 
 When loading multiple files, VolView can automatically associate related images based on file naming patterns.
 Example: `base.[extension].nrrd` will match `base.nii`.
 
 The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot). Files matching `base.[extension]...` will be associated with a base image named `base.*`.
 
-**Ordering:** When multiple layers/segment groups match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
+**Ordering:** When multiple layers/segmentations match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
 
 For example, with a base image `patient001.nrrd`:
 
 - Layers (sorted alphabetically): `patient001.layer.1.pet.nii`, `patient001.layer.2.ct.mha`, `patient001.layer.3.overlay.vtk`
-- Segment groups: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
+- Segmentations: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
 
 Both features default to `''` which disables them.
 
-### Segment Groups
+### Configuration migration
 
-Use `segmentGroupExtension` to automatically convert matching non-DICOM images to segment groups.
-For example, `myFile.seg.nrrd` becomes a segment group for `myFile.nii`.
+Use `io.segmentationExtension` in new configuration. The old
+`io.segmentGroupExtension` key is accepted at ingestion and converted to the
+new key. If both keys are present, their values must match; conflicting values
+are rejected. An explicit empty string disables automatic matching.
+
+The value `seg` is the filename marker in `patient.seg.nii.gz`; `nii.gz` is
+its encoding extension. This setting preserves the existing filename matching
+rule and does not add support for additional segmentation formats.
+
+Directly loading an old key in VolView also reports a deprecation warning.
+
+### Segmentations
+
+Use `segmentationExtension` to automatically convert matching non-DICOM images to segmentations.
+For example, `myFile.seg.nrrd` becomes a segmentation for `myFile.nii`.
 Defaults to `''` which disables matching.
 
 ```json
 {
   "io": {
-    "segmentGroupExtension": "seg"
+    "segmentationExtension": "seg"
   }
 }
 ```
@@ -336,7 +349,7 @@ To configure a key for an action, add its action name and the key(s) under the `
   },
   "io": {
     "segmentGroupSaveFormat": "nrrd",
-    "segmentGroupExtension": "seg",
+    "segmentationExtension": "seg",
     "layerExtension": "layer"
   }
 }

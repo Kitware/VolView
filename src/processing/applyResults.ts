@@ -39,7 +39,7 @@ import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
 
 type ResultFile = { url: string; name: string };
 
-type SegmentGroupIntent = Extract<
+type SegmentationIntent = Extract<
   KnownResultIntent,
   { intent: 'add-segment-group' }
 >;
@@ -60,7 +60,7 @@ const sameResultSource = (
   source.outputId === target.outputId;
 
 function segmentResultInScene(
-  intent: SegmentGroupIntent,
+  intent: SegmentationIntent,
   segmentWriter: SegmentWriter
 ): boolean {
   const target = intent.source;
@@ -326,7 +326,7 @@ async function applyAnnotations(
 type FetchProcessingResult = typeof fetchProcessingResult;
 
 type SegmentWriter = {
-  /** Result provenance of every segment group in the scene, in scene order. */
+  /** Result provenance of every mask in the scene, in scene order. */
   resultSourcesInScene: () => Array<ResultSource | undefined>;
   convertImageToLabelmap: ReturnType<
     typeof useSegmentationStore
