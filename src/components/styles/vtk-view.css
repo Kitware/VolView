@@ -39,6 +39,7 @@
 .vtk-gutter {
   display: flex;
   flex-flow: column;
+  padding-top: 4px;
   background: black;
 }
 
@@ -82,6 +83,11 @@
 .annotation-cell {
   padding: 4px;
   white-space: nowrap;
+}
+
+.view-control-icon {
+  text-shadow: none;
+  letter-spacing: normal;
 }
 
 .loading-indicator {

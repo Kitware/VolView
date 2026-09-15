@@ -2,6 +2,7 @@
   <v-hover v-slot="{ isHovering, props }">
     <v-card
       :disabled="disabled"
+      class="image-list-card"
       variant="outlined"
       :ripple="!disabled"
       :class="{
@@ -48,6 +49,10 @@
 </template>
 
 <style scoped>
+.image-list-card {
+  border-color: rgba(var(--v-theme-on-surface), 0.2);
+}
+
 .image-list-card-active {
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));

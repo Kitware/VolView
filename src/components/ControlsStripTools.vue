@@ -244,7 +244,8 @@ export default defineComponent({
 
 <style>
 .tool-btn-selected {
-  background-color: rgb(var(--v-theme-selection-bg-color));
+  background-color: rgb(var(--v-theme-primary-darken-1));
+  color: rgb(var(--v-theme-on-primary-darken-1));
 }
 </style>
 
@@ -258,7 +259,7 @@ export default defineComponent({
   width: 75%;
   height: 1px;
   border: none;
-  border-top: 1px solid rgb(112, 112, 112);
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
 }
 
 .popup-menu {
