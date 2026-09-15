@@ -275,7 +275,7 @@ export const createSegmentRegistry = ({
     });
 
     [...configEntries.entries()]
-      .filter(([name]) => !(name in next))
+      .filter(([name]) => !Object.hasOwn(next, name))
       .forEach(([name, { id }]) => {
         configEntries.delete(name);
         // Content keeps the last configured appearance as session state.

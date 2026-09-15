@@ -232,6 +232,31 @@ describe('a second config replaces the first', () => {
     expect(typeNames()).toEqual(['Tumor']);
   });
 
+  it.each([
+    { replacement: {}, expected: [] },
+    { replacement: null, expected: [] },
+    {
+      replacement: { replacement: { color: 'white' } },
+      expected: ['replacement'],
+    },
+  ])(
+    'drops inherited-property names omitted by $replacement',
+    ({ replacement, expected }) => {
+      applyConfig({
+        segments: {
+          constructor: { color: 'red' },
+          toString: { color: 'blue' },
+          ordinary: { color: 'green' },
+        },
+      });
+      expect(typeNames()).toEqual(['constructor', 'toString', 'ordinary']);
+
+      applyConfig({ segments: replacement });
+
+      expect(typeNames()).toEqual(expected);
+    }
+  );
+
   it('keeps a dropped type that a mask still references', async () => {
     applyConfig(TWO_TYPES);
     await seatAndView('img-1');

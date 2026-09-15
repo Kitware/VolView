@@ -177,7 +177,7 @@ the masks and shapes that reference it.
 
 ### Pre-7.0 `labels`
 
-A pre-7.0 `labels` section still loads. Its `defaultLabels`, `rulerLabels`,
+A pre-7.0 `labels` section is converted into `segments` at configuration ingestion, with a deprecation warning. Runtime configuration contains only `segments`. Its `defaultLabels`, `rulerLabels`,
 `rectangleLabels` and `polygonLabels` all describe the one registry now, so they read as
 `segments` entries. A name that appears in more than one becomes a single segment: the
 first record to declare it sets its appearance, reading `rulerLabels`, `rectangleLabels`
@@ -211,16 +211,21 @@ becomes
 
 ## Session Mask File Format
 
-The `segmentGroupSaveFormat` key specifies the file extension of the mask images
+The `segmentationSaveFormat` key specifies the file extension of the mask images
 VolView will include in the volview.zip file.
 
 ```json
 {
   "io": {
-    "segmentGroupSaveFormat": "nii"
+    "segmentationSaveFormat": "nii"
   }
 }
 ```
+
+The legacy `io.segmentGroupSaveFormat` key is migrated at ingestion. Matching
+old and new values are accepted; conflicting values are rejected. This setting
+controls mask files inside saved sessions, independently of the explicit
+segmentation export dialog. Existing saved-session encodings remain readable.
 
 Working mask file formats:
 
@@ -348,7 +353,7 @@ To configure a key for an action, add its action name and the key(s) under the `
     "showKeyboardShortcuts": "t"
   },
   "io": {
-    "segmentGroupSaveFormat": "nrrd",
+    "segmentationSaveFormat": "nrrd",
     "segmentationExtension": "seg",
     "layerExtension": "layer"
   }

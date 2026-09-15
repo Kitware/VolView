@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 // Normalize before defaults so an explicitly empty legacy value still disables
-// filename matching. Runtime consumers see only segmentationExtension.
+// filename matching. Runtime consumers see only canonical segmentation keys.
 export const configIo = z
   .object({
+    segmentationSaveFormat: z.string().optional(),
     segmentGroupSaveFormat: z.string().optional(),
     segmentationExtension: z.string().optional(),
     segmentGroupExtension: z.string().optional(),
@@ -20,7 +21,28 @@ export const configIo = z
         'io.segmentGroupExtension conflicts with io.segmentationExtension. Use only io.segmentationExtension.',
     }
   )
-  .transform(({ segmentGroupExtension, segmentationExtension, ...io }) => ({
-    ...io,
-    segmentationExtension: segmentationExtension ?? segmentGroupExtension ?? '',
-  }));
+  .refine(
+    (io) =>
+      io.segmentGroupSaveFormat === undefined ||
+      io.segmentationSaveFormat === undefined ||
+      io.segmentGroupSaveFormat === io.segmentationSaveFormat,
+    {
+      path: ['segmentationSaveFormat'],
+      message:
+        'io.segmentGroupSaveFormat conflicts with io.segmentationSaveFormat. Use only io.segmentationSaveFormat.',
+    }
+  )
+  .transform(
+    ({
+      segmentGroupExtension,
+      segmentationExtension,
+      segmentGroupSaveFormat,
+      segmentationSaveFormat,
+      ...io
+    }) => ({
+      ...io,
+      segmentationExtension:
+        segmentationExtension ?? segmentGroupExtension ?? '',
+      segmentationSaveFormat: segmentationSaveFormat ?? segmentGroupSaveFormat,
+    })
+  );

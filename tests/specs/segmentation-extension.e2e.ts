@@ -1,6 +1,4 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { writeConfigImages } from './configurationImage';
 import { volViewPage } from '../pageobjects/volview.page';
 import { writeManifestToFile } from './utils';
 import {
@@ -8,32 +6,8 @@ import {
   waitForSegmentContent,
 } from './segmentationTestUtils';
 
-const writeImages = () => {
-  const header = [
-    'NRRD0005',
-    'type: unsigned char',
-    'dimension: 3',
-    'sizes: 8 8 8',
-    'space: left-posterior-superior',
-    'space directions: (1,0,0) (0,1,0) (0,0,1)',
-    'space origin: (0,0,0)',
-    'encoding: ascii',
-  ];
-  const pixels = Array.from({ length: 512 }, (_, i) =>
-    i % 8 > 2 ? 1 : 0
-  ).join(' ');
-  writeFileSync(
-    join(TEMP_DIR, 'extension-case.nrrd'),
-    `${header.join('\n')}\n\n${pixels}`
-  );
-  writeFileSync(
-    join(TEMP_DIR, 'extension-case.seg.nrrd'),
-    `${header.join('\n')}\nSegment0_LabelValue:=1\nSegment0_Name:=Matched mask\n\n${pixels}`
-  );
-};
-
 const openWithIo = async (io: Record<string, string>) => {
-  writeImages();
+  writeConfigImages('extension-case');
   const configName = 'segmentation-extension-config.json';
   await writeManifestToFile({ io }, configName);
   await volViewPage.open(

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { segments, labels, normalizeSegmentConfig } from './configSegments';
 import { configIo } from '@/src/io/import/configIo';
 import {
   getEntries,
@@ -42,44 +43,6 @@ const shortcuts = z
 // --------------------------------------------------------------------------
 // SegmentMask types
 
-// Every appearance field is optional and absent means the app default, so a
-// configured segment states only what it changes.
-const segment = z.object({
-  color: z.string().optional(),
-  fillOpacity: z.number().optional(),
-  outlineOpacity: z.number().optional(),
-  strokeWidth: z.number().optional(),
-});
-
-// Keyed by name. Omitted leaves the registry alone; an empty record or null
-// clears what an earlier config contributed.
-const segmentRecord = z.record(z.string(), segment).or(z.null()).optional();
-
-const segments = segmentRecord;
-
-// Pre-7.0 configs named one label record per tool, plus a fallback record.
-// The four describe the one registry now, so they read as `segments`. A
-// rectangle label's `fillColor` belongs to the rectangle rather than to the
-// segment and is dropped.
-const legacyLabel = z.object({
-  color: z.string(),
-  strokeWidth: z.number().optional(),
-});
-
-const legacyLabelRecord = z
-  .record(z.string(), legacyLabel)
-  .or(z.null())
-  .optional();
-
-const labels = z
-  .object({
-    defaultLabels: legacyLabelRecord,
-    rulerLabels: legacyLabelRecord,
-    rectangleLabels: legacyLabelRecord,
-    polygonLabels: legacyLabelRecord,
-  })
-  .optional();
-
 // --------------------------------------------------------------------------
 // IO
 
@@ -97,7 +60,7 @@ const windowing = z
 
 const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 
-export const config = z.object({
+const configInput = z.object({
   layouts,
   segments,
   labels,
@@ -106,6 +69,8 @@ export const config = z.object({
   windowing,
   disabledViewTypes,
 });
+
+export const config = configInput.transform(normalizeSegmentConfig);
 
 export type Config = z.infer<typeof config>;
 
@@ -163,7 +128,7 @@ export const registerConfigSection = <S extends z.ZodType>(
 
 // Base sections + every registered section define the known top-level keys.
 const fullConfigSchema = () =>
-  config.extend(
+  configInput.extend(
     Object.fromEntries(
       [...configSections.values()].map((section) => [
         section.key,
@@ -171,6 +136,12 @@ const fullConfigSchema = () =>
       ])
     )
   );
+
+export const CONFIG_KEY_REPLACEMENTS: Record<string, string> = {
+  'io.segmentGroupExtension': 'io.segmentationExtension',
+  'io.segmentGroupSaveFormat': 'io.segmentationSaveFormat',
+  labels: 'segments',
+};
 
 export const recognizeConfig = async (
   raw: unknown
@@ -189,13 +160,13 @@ export const recognizeConfig = async (
   // `fullConfig.parse` relies on zod's default (non-strict) object behavior to
   // drop unknown keys; adding `.strict()` would silently break forward-compat.
   const ignoredKeys = presentKeys.filter((key) => !knownKeys.has(key));
-  const deprecatedKeys =
-    isRecord(raw.io) && raw.io.segmentGroupExtension !== undefined
-      ? ['io.segmentGroupExtension']
-      : [];
+  const deprecatedKeys = Object.keys(CONFIG_KEY_REPLACEMENTS).filter((key) => {
+    if (key === 'labels') return raw.labels !== undefined;
+    return isRecord(raw.io) && raw.io[key.slice(3)] !== undefined;
+  });
   return {
     kind: 'config',
-    config: fullConfig.parse(raw),
+    config: fullConfig.transform(normalizeSegmentConfig).parse(raw),
     ignoredKeys,
     deprecatedKeys,
   };
@@ -205,34 +176,6 @@ export const recognizeConfigFile = async (
   file: File
 ): Promise<ConfigRecognition> => {
   return recognizeConfig(JSON.parse(await file.text()));
-};
-
-// One registry backs every tool, so a name in more than one record is one
-// segment and the record that declares it first sets its appearance, as a
-// migrated session resolves it. `defaultLabels` is read last because it stood
-// in only for the tools that declared no record of their own.
-const segmentsFromLabels = (legacy: NonNullable<Config['labels']>) =>
-  [
-    legacy.rulerLabels,
-    legacy.rectangleLabels,
-    legacy.polygonLabels,
-    legacy.defaultLabels,
-  ].reduce<NonNullable<Config['segments']>>(
-    (merged, record) => ({
-      ...merged,
-      ...Object.fromEntries(
-        Object.entries(record ?? {}).filter(([name]) => !(name in merged))
-      ),
-    }),
-    {}
-  );
-
-// `segments` states the whole registry, so a config carrying both has been
-// converted and the legacy section is spent.
-const configuredSegments = (manifest: Config) => {
-  if (manifest.segments !== undefined) return manifest.segments;
-  if (manifest.labels === undefined) return undefined;
-  return segmentsFromLabels(manifest.labels);
 };
 
 // A colour the parser does not know would otherwise resolve to opaque black,
@@ -256,7 +199,7 @@ const reportUnparseableColors = (
 // An omitted section leaves the registry alone; an empty record or null
 // clears what an earlier config contributed to it.
 const applySegments = (manifest: Config) => {
-  const configured = configuredSegments(manifest);
+  const configured = manifest.segments;
   if (configured === undefined) return;
   if (configured) reportUnparseableColors(configured);
   useSegmentStore().segments.replaceConfigSegments(configured);
@@ -318,8 +261,8 @@ const applyShortcuts = (manifest: Config) => {
 const applyIo = (manifest: Config) => {
   if (!manifest.io) return;
 
-  if (manifest.io.segmentGroupSaveFormat)
-    useSegmentationStore().saveFormat = manifest.io.segmentGroupSaveFormat;
+  if (manifest.io.segmentationSaveFormat)
+    useSegmentationStore().saveFormat = manifest.io.segmentationSaveFormat;
   const loadDataStore = useLoadDataStore();
   loadDataStore.segmentationExtension = manifest.io.segmentationExtension;
   loadDataStore.layerExtension = manifest.io.layerExtension;

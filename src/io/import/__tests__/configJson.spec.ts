@@ -285,6 +285,25 @@ describe('pre-7.0 labels', () => {
     expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#0000ff' }]);
   });
 
+  it('keeps inherited-property names and their first-source appearance', () => {
+    applyLabels({
+      rulerLabels: {
+        constructor: { color: '#0000ff' },
+        toString: { color: '#00ff00' },
+      },
+      polygonLabels: {
+        constructor: { color: '#ff0000' },
+        ordinary: { color: '#ffffff' },
+      },
+    });
+
+    expect(typeSummary()).toEqual([
+      { name: 'constructor', color: '#0000ff' },
+      { name: 'toString', color: '#00ff00' },
+      { name: 'ordinary', color: '#ffffff' },
+    ]);
+  });
+
   it('lets a tool record outrank the default of the same name', () => {
     applyLabels({
       defaultLabels: { Tumor: { color: '#00ff00' } },
