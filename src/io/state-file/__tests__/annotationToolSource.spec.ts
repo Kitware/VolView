@@ -11,7 +11,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 // ---------------------------------------------------------------------------
 // The optional structured `source` on an annotation tool is the durable
 // idempotency identity that stops a restored job result from being applied twice.
-// It only works if it survives the `.volview.zip` — and the manifest schema
+// It only works if it survives the `.volview.zip`: and the manifest schema
 // strips unknown keys on parse, so "does it round-trip" is the whole test.
 // ---------------------------------------------------------------------------
 
@@ -41,7 +41,7 @@ describe('annotation tool source', () => {
   it('round-trips a source through a full manifest parse', () => {
     const parsed = ManifestSchema.parse(
       manifestWith({
-        rulers: { tools: [ruler({ source })], labels: {} },
+        rulers: { tools: [ruler({ source })] },
       })
     );
     expect(parsed.tools?.rulers?.tools[0].source).toEqual(source);
@@ -50,7 +50,7 @@ describe('annotation tool source', () => {
   it('round-trips on rectangles and polygons too', () => {
     const parsed = ManifestSchema.parse(
       manifestWith({
-        rectangles: { tools: [ruler({ source })], labels: {} },
+        rectangles: { tools: [ruler({ source })] },
         polygons: {
           tools: [
             {
@@ -68,7 +68,6 @@ describe('annotation tool source', () => {
               source,
             },
           ],
-          labels: {},
         },
       })
     );
@@ -76,9 +75,9 @@ describe('annotation tool source', () => {
     expect(parsed.tools?.polygons?.tools[0].source).toEqual(source);
   });
 
-  it('is optional — a hand-placed tool has none', () => {
+  it('is optional: a hand-placed tool has none', () => {
     const parsed = ManifestSchema.parse(
-      manifestWith({ rulers: { tools: [ruler()], labels: {} } })
+      manifestWith({ rulers: { tools: [ruler()] } })
     );
     expect(parsed.tools?.rulers?.tools[0].source).toBeUndefined();
   });
@@ -87,17 +86,16 @@ describe('annotation tool source', () => {
     const bad = manifestWith({
       rulers: {
         tools: [ruler({ source: { providerId: 'p', jobId: 'j' } })],
-        labels: {},
       },
     });
     expect(ManifestSchema.safeParse(bad).success).toBe(false);
   });
 
-  it('passes a 6.4.0 manifest without touching its tools', () => {
+  it('migrates a 6.4.0 tool onto a segment and keeps its source-free geometry', () => {
     const old = JSON.stringify({
       version: '6.4.0',
       dataSources: [],
-      tools: { rulers: { tools: [ruler()], labels: {} } },
+      tools: { rulers: { tools: [ruler()] } },
     });
     const migrated = migrateManifest(old);
     expect(migrated.version).toBe(MANIFEST_VERSION);
@@ -110,7 +108,7 @@ describe('annotation tool source', () => {
   });
 });
 
-describe('annotation tool source — store serialize/restore', () => {
+describe('annotation tool source: store serialize/restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });

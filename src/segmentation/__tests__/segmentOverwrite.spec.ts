@@ -15,21 +15,7 @@ import {
 import type { Extent3D } from '@/src/segmentation/geometry';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
-// ---------------------------------------------------------------------------
-// Overwrite-all across N masks. A mask per segment erases nothing on its own,
-// so the write paths clear the voxel in every OTHER mask of the same parent
-// image themselves.
-//
-// The claim is a factory because the sibling storage is resolved once per
-// stroke, not once per voxel: it is made for every voxel a brush writes. It
-// takes PARENT index coordinates, the space extents are expressed in, and is
-// absent when no neighbour reaches the box the caller is about to walk.
-//
-// A locked segment is exempt. `locked` means not editable, and losing a voxel
-// to a neighbour is an edit, so the claim is refused where a locked sibling
-// holds the voxel and the writing segment goes around it. While overlap is
-// allowed the claim takes from nobody and refuses nothing.
-// ---------------------------------------------------------------------------
+// Aimed writes take a voxel from unlocked siblings and go around locked ones.
 
 const WHOLE_IMAGE: Extent3D = [0, 3, 0, 3, 0, 3];
 
@@ -78,7 +64,7 @@ describe('clearing the other segments of an image', () => {
     await seatImage('img-1');
   });
 
-  it('clears the voxel in another segment’s mask', () => {
+  it("clears the voxel in another segment's mask", () => {
     const { tumor, node } = pairAt([1, 1, 1]);
 
     clearFor(node)?.(1, 1, 1);
@@ -127,7 +113,7 @@ describe('clearing the other segments of an image', () => {
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
-  it('does not clear an aliased offset outside a neighbour’s extent', () => {
+  it("does not clear an aliased offset outside a neighbor's extent", () => {
     const tumor = addMask('img-1', 'Tumor');
     const node = addMask('img-1', 'Node');
     seedVoxel(tumor, [1, 2, 1]);
@@ -161,7 +147,7 @@ describe('clearing the other segments of an image', () => {
     expect(maskValueAt(there, [1, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
-  it('does nothing for a segment that has no neighbours', () => {
+  it('does nothing for a segment that has no neighbors', () => {
     const only = addMask('img-1', 'Only');
     seedVoxel(only, [1, 1, 1]);
 

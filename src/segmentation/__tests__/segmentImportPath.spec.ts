@@ -1,15 +1,14 @@
-import { compositeLabelmap } from '@/src/segmentation/io/composition';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
   boundMasks,
+  inMemoryArtifactIO,
+  makeImage,
   mintSegment,
+  seatImage,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { nextTick } from 'vue';
 import JSZip from 'jszip';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
 import { applyPreStateConfig, config } from '@/src/io/import/configJson';
@@ -17,48 +16,15 @@ import type { Manifest } from '@/src/io/state-file/schema';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { listMasks } from '@/src/segmentation/model';
-import type vtkLabelMap from '@/src/vtk/LabelMap';
-import { importLabelmapImage } from '@/src/segmentation/io/import';
+import { importLabelmapImage, toLabelMap } from '@/src/segmentation/io/import';
 import { defer } from '@/src/utils';
 
 const appearanceOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId);
 
-const DIMENSIONS = [4, 4, 4] as [number, number, number];
 const VOXEL_COUNT = 4 * 4 * 4;
 
 const offset = (i: number, j: number, k: number) => i + j * 4 + k * 16;
-
-function makeImage(values?: Uint8Array | Uint32Array, components = 1) {
-  const image = vtkImageData.newInstance({
-    spacing: [1, 1, 1],
-    origin: [0, 0, 0],
-  });
-  image.setDimensions(DIMENSIONS);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: components,
-      values: values ?? new Uint8Array(VOXEL_COUNT * components),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
-
-async function seat(
-  id: string,
-  name: string,
-  values?: Uint8Array | Uint32Array,
-  headerMetadata?: Map<string, string>,
-  components = 1
-) {
-  useImageCacheStore().addVTKImageData(makeImage(values, components), name, {
-    id,
-    headerMetadata,
-  });
-  await nextTick();
-  return id;
-}
 
 function labelValues() {
   const values = new Uint8Array(VOXEL_COUNT);
@@ -84,25 +50,12 @@ const describedBy = (imageId: string) =>
     color: [...appearanceOf(segment).color],
   }));
 
-/** A local codec: itk-wasm image IO has no counterpart in the node test env. */
-const makeArtifactIO = () => {
-  const formats: string[] = [];
-  const labelmaps = new Map<string, vtkLabelMap>();
-  return {
-    formats,
-    write: async (format: string, labelmap: vtkLabelMap) => {
-      formats.push(format);
-      const token = `labelmap-${labelmaps.size}`;
-      labelmaps.set(token, labelmap);
-      return token;
-    },
-    read: async (file: File) => ({ image: labelmaps.get(await file.text())! }),
-  };
-};
-
 async function seatConvertible() {
-  await seat('parent-img', 'CT');
-  await seat('child-img', 'Tumor.seg.nrrd', labelValues());
+  await seatImage('parent-img', { name: 'CT' });
+  await seatImage('child-img', {
+    name: 'Tumor.seg.nrrd',
+    values: labelValues(),
+  });
 }
 
 async function convertedColors() {
@@ -113,7 +66,7 @@ async function convertedColors() {
   ]);
 }
 
-describe('the import path answers on the segmentation store', () => {
+describe('importing a labelmap onto a parent image', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -171,9 +124,12 @@ describe('the import path answers on the segmentation store', () => {
   // Two parents are two conversions: the second caller must be handed its own
   // parent's masks, not the first parent's.
   it('converts one child onto two parents at once', async () => {
-    await seat('parent-a', 'CT A');
-    await seat('parent-b', 'CT B');
-    await seat('child-img', 'Tumor.seg.nrrd', labelValues());
+    await seatImage('parent-a', { name: 'CT A' });
+    await seatImage('parent-b', { name: 'CT B' });
+    await seatImage('child-img', {
+      name: 'Tumor.seg.nrrd',
+      values: labelValues(),
+    });
 
     const [ontoA, ontoB] = await Promise.all([
       store().convertImageToLabelmap('child-img', 'parent-a'),
@@ -201,14 +157,12 @@ describe('the import path answers on the segmentation store', () => {
   });
 
   it('refuses a child whose bounds miss the parent entirely', async () => {
-    await seat('parent-img', 'CT');
-    const far = makeImage(labelValues());
-    far.setOrigin([1000, 1000, 1000]);
-    far.computeTransforms();
-    useImageCacheStore().addVTKImageData(far, 'Far.seg.nrrd', {
-      id: 'far-img',
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('far-img', {
+      name: 'Far.seg.nrrd',
+      values: labelValues(),
+      origin: [1000, 1000, 1000],
     });
-    await nextTick();
 
     await expect(
       store().convertImageToLabelmap('far-img', 'parent-img')
@@ -216,8 +170,8 @@ describe('the import path answers on the segmentation store', () => {
   });
 
   it('creates nothing for an all-background labelmap', async () => {
-    await seat('parent-img', 'CT');
-    await seat('child-img', 'Empty.seg.nrrd');
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('child-img', { name: 'Empty.seg.nrrd' });
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -231,9 +185,9 @@ describe('the import path answers on the segmentation store', () => {
   ])(
     'creates no records when the parent is removed during %s decoding',
     async (_kind, values) => {
-      await seat('parent-img', 'CT');
-      await seat('healthy-img', 'MR');
-      await seat('child-img', 'Tumor.seg.nrrd', values);
+      await seatImage('parent-img', { name: 'CT' });
+      await seatImage('healthy-img', { name: 'MR' });
+      await seatImage('child-img', { name: 'Tumor.seg.nrrd', values });
       const decoding = defer<void>();
       const started = defer<void>();
 
@@ -269,12 +223,12 @@ describe('the import path answers on the segmentation store', () => {
   );
 
   it('tells the caller how many voxels lost a label past 16 bits', async () => {
-    await seat('parent-img', 'CT');
+    await seatImage('parent-img', { name: 'CT' });
     const values = new Uint32Array(VOXEL_COUNT);
     values[offset(1, 1, 1)] = 1;
     values[offset(2, 1, 1)] = 70000;
     values[offset(3, 3, 3)] = 70000;
-    await seat('child-img', 'Atlas.nrrd', values);
+    await seatImage('child-img', { name: 'Atlas.nrrd', values });
     const excluded: number[] = [];
 
     await importLabelmapImage('child-img', 'parent-img', {
@@ -290,8 +244,8 @@ describe('the import path answers on the segmentation store', () => {
   // name a descriptor-less labelmap carries, and it reaches the panel and the
   // .seg.nrrd header a save writes.
   it('names descriptor-less segments after the imported file', async () => {
-    await seat('parent-img', 'CT');
-    await seat('child-img', 'liver.nrrd', labelValues());
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('child-img', { name: 'liver.nrrd', values: labelValues() });
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -303,8 +257,8 @@ describe('the import path answers on the segmentation store', () => {
   it('numbers nothing when the import holds a single label value', async () => {
     const single = new Uint8Array(VOXEL_COUNT);
     single[offset(1, 1, 1)] = 4;
-    await seat('parent-img', 'CT');
-    await seat('child-img', 'liver.nrrd', single);
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('child-img', { name: 'liver.nrrd', values: single });
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -316,11 +270,10 @@ describe('the import path answers on the segmentation store', () => {
   it('decodes a labelmap the restore path already holds', async () => {
     // `deserialize` decodes a migrated artifact's buffer directly, so the decode
     // stays reachable as store API and not only through the conversion.
-    await seatConvertible();
-    await store().convertImageToLabelmap('child-img', 'parent-img');
-    const composite = compositeLabelmap('parent-img');
-
-    const decoded = await store().decodeSegments(undefined, composite.labelmap);
+    const decoded = await store().decodeSegments(
+      undefined,
+      toLabelMap(makeImage({ values: labelValues() })).labelmap
+    );
 
     expect(decoded.map((segment) => segment.value)).toEqual([1, 2]);
     expect(decoded.map((segment) => segment.name)).toEqual([
@@ -331,22 +284,21 @@ describe('the import path answers on the segmentation store', () => {
   });
 
   it('overlays embedded .seg.nrrd metadata onto the enumerated values', async () => {
-    await seat('parent-img', 'CT');
-    await seat(
-      'child-img',
-      'Tumor.seg.nrrd',
-      labelValues(),
-      new Map([
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('child-img', {
+      name: 'Tumor.seg.nrrd',
+      values: labelValues(),
+      headerMetadata: new Map([
         ['Segment0_LabelValue', '2'],
         ['Segment0_Name', 'Tumor core'],
         ['Segment0_Color', '1 0 0'],
-      ])
-    );
+      ]),
+    });
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
     // Merge, not replace: the described value takes the embedded name and
-    // colour, the undescribed one keeps its default.
+    // color, the undescribed one keeps its default.
     expect(describedBy('parent-img')).toEqual([
       { name: 'Tumor 1', color: categorical(0) },
       { name: 'Tumor core', color: [255, 0, 0, 255] },
@@ -374,8 +326,12 @@ describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
   it('shows the declaration as an empty row', async () => {
     const values = new Uint8Array(VOXEL_COUNT);
     values[offset(1, 1, 1)] = 1;
-    await seat('parent-img', 'CT');
-    await seat('child-img', 'Liver.seg.nrrd', values, HEADER);
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('child-img', {
+      name: 'Liver.seg.nrrd',
+      values,
+      headerMetadata: HEADER,
+    });
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -389,8 +345,13 @@ describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
   it('declares it once across the components of one file', async () => {
     const values = new Uint8Array(VOXEL_COUNT * 2);
     values[offset(1, 1, 1) * 2] = 1;
-    await seat('parent-img', 'CT');
-    await seat('child-img', 'Liver.seg.nrrd', values, HEADER, 2);
+    await seatImage('parent-img', { name: 'CT' });
+    await seatImage('child-img', {
+      name: 'Liver.seg.nrrd',
+      values,
+      headerMetadata: HEADER,
+      components: 2,
+    });
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
@@ -402,12 +363,12 @@ describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
   });
 });
 
-describe('the decode colour cursor after the merge', () => {
+describe('the decode color cursor', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('starts a session at the first categorical colours', async () => {
+  it('starts a session at the first categorical colors', async () => {
     await seatConvertible();
 
     await store().convertImageToLabelmap('child-img', 'parent-img');
@@ -419,11 +380,11 @@ describe('the decode colour cursor after the merge', () => {
     ).toEqual([categorical(0), categorical(1)]);
   });
 
-  it('decodes the same colours however many segments the session has created', async () => {
+  it('decodes the same colors however many segments the session has created', async () => {
     // The segment-creation cursor and the decode cursor stay separate: a
     // decoded catalog has to be reproducible regardless of what else the
     // session has made.
-    await seat('other-img', 'MR');
+    await seatImage('other-img', { name: 'MR' });
     const other = store().ensureSegmentationForImage('other-img');
     ['A', 'B', 'C'].forEach((name) =>
       store().createMask(other.id, mintSegment({ name }))
@@ -432,10 +393,10 @@ describe('the decode colour cursor after the merge', () => {
   });
 
   it('advances within a session and resets with the pinia instance', async () => {
-    await seat('parent-a', 'CT A');
-    await seat('parent-b', 'CT B');
-    await seat('child-a', 'A.seg.nrrd', labelValues());
-    await seat('child-b', 'B.seg.nrrd', labelValues());
+    await seatImage('parent-a', { name: 'CT A' });
+    await seatImage('parent-b', { name: 'CT B' });
+    await seatImage('child-a', { name: 'A.seg.nrrd', values: labelValues() });
+    await seatImage('child-b', { name: 'B.seg.nrrd', values: labelValues() });
 
     await store().convertImageToLabelmap('child-a', 'parent-a');
     await store().convertImageToLabelmap('child-b', 'parent-b');
@@ -450,7 +411,7 @@ describe('the decode colour cursor after the merge', () => {
   });
 });
 
-describe('the labelmap save format after the merge', () => {
+describe('the labelmap save format', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -461,7 +422,7 @@ describe('the labelmap save format after the merge', () => {
 
   it('takes the format a config manifest asks for', async () => {
     await applyPreStateConfig(
-      config.parse({ io: { segmentGroupSaveFormat: 'nrrd' } })
+      config.parse({ io: { segmentationSaveFormat: 'nrrd' } })
     );
 
     expect(store().saveFormat).toBe('nrrd');
@@ -472,7 +433,7 @@ describe('the labelmap save format after the merge', () => {
     await store().convertImageToLabelmap('child-img', 'parent-img');
     store().saveFormat = 'nrrd';
 
-    const io = makeArtifactIO();
+    const io = inMemoryArtifactIO();
     const manifest = {} as Manifest;
     await store().serialize({ zip: new JSZip(), manifest }, io);
 

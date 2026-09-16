@@ -1,14 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
   legacyAxialViewConfig,
-  makeSpecImage,
+  makeImage,
+  seatImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
@@ -27,36 +26,8 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 const BASE_URI = 'volview-backend:base/ct-chest-001';
 const ARTIFACT_URI = 'volview-backend:artifact/tumor-seg/v2';
 
-// A labelmap with voxel values {0, 1, 2}: background plus two segments.
-function makeLabelmapImage() {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  const values = new Uint8Array(4 * 4 * 4);
-  values.fill(0, 0, 20);
-  values.fill(1, 20, 44);
-  values.fill(2, 44);
-  image
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  image.computeTransforms();
-  return image;
-}
-
-function makeSparseLabelmapImage() {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  const values = new Uint8Array(4 * 4 * 4);
-  values.fill(1, 8, 16);
-  values.fill(255, 48);
-  image
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  image.computeTransforms();
-  return image;
-}
-
-/** The plain 4x4x4 parent every restore in this spec hangs off. */
-const makeParentImage = () => makeSpecImage();
+// Voxel values {0, 1, 2}: background plus two segments.
+const labelValues = () => new Uint8Array(4 * 4 * 4).fill(1, 20, 44).fill(2, 44);
 
 // A parent-bound, descriptor-less group: metadata carries name + parentImage,
 // NO segments. The migration turns it into an artifact no mask names, and the
@@ -102,25 +73,16 @@ const descriptorlessArchiveManifest = (name: string) =>
     ],
   });
 
-const seat = (
-  id: string,
-  name: string,
-  image: vtkImageData,
-  headerMetadata?: Map<string, string>
-) => useImageCacheStore().addVTKImageData(image, name, { id, headerMetadata });
-
-// The catalog now lives in the segmentation store: the image's segments, in
-// segmentation order. Identity is a stable id, so parity compares the
-// descriptive fields plus the label value the binding carries.
+// The image's segments in mask order, compared by appearance.
 const catalogFor = (parentImageId: string) => {
   const segmentation =
     useSegmentationStore().getSegmentationForImage(parentImageId);
   if (!segmentation) return [];
   return segmentation.order
     .map((id) => segmentation.masks[id])
-    .map((segment) => {
+    .map((mask) => {
       const appearance = useSegmentStore().segments.appearanceOf(
-        segment.segmentId
+        mask.segmentId
       );
       return {
         name: appearance.name,
@@ -138,7 +100,7 @@ async function archiveCatalog(
   decoded: { image: vtkImageData; headerMetadata?: Map<string, string> }
 ) {
   setActivePinia(createPinia());
-  seat('parent-store', 'CT Chest', makeParentImage());
+  await seatImage('parent-store', { name: 'CT Chest' });
   const store = useSegmentationStore();
   const deserialize = store.deserialize;
   const read = vi.spyOn(store, 'deserialize').mockImplementation((options) =>
@@ -168,8 +130,12 @@ async function archiveCatalog(
 // The LIVE path: what convertImageToLabelmap builds for this labelmap.
 async function liveCatalog(segmentMetadata?: Map<string, string>) {
   setActivePinia(createPinia());
-  seat('parent-img', 'CT Chest', makeParentImage());
-  seat('child-img', 'Tumor.seg.nrrd', makeLabelmapImage(), segmentMetadata);
+  await seatImage('parent-img', { name: 'CT Chest' });
+  await seatImage('child-img', {
+    name: 'Tumor.seg.nrrd',
+    values: labelValues(),
+    headerMetadata: segmentMetadata,
+  });
   const store = useSegmentationStore();
   await store.convertImageToLabelmap('child-img', 'parent-img');
   return catalogFor('parent-img');
@@ -182,13 +148,12 @@ async function coldCatalog(
   visibility = true
 ) {
   setActivePinia(createPinia());
-  seat('parent-store', 'CT Chest', makeParentImage());
-  seat(
-    'artifact-store',
-    'Tumor.seg.nrrd',
-    makeLabelmapImage(),
-    segmentMetadata
-  );
+  await seatImage('parent-store', { name: 'CT Chest' });
+  await seatImage('artifact-store', {
+    name: 'Tumor.seg.nrrd',
+    values: labelValues(),
+    headerMetadata: segmentMetadata,
+  });
   await completeStateFileRestore(
     descriptorlessComposedManifest(visibility),
     [],
@@ -223,18 +188,16 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     // multiplier, and 0.4 is what the legacy group showed.
     expect(
       masks.map(
-        (segment) =>
-          registry.appearanceOf(segment.segmentId).fillOpacity *
+        (mask) =>
+          registry.appearanceOf(mask.segmentId).fillOpacity *
           segmentation.fillOpacity
       )
     ).toEqual([0.4, 0.4]);
     expect(
-      masks.map(
-        (segment) => registry.appearanceOf(segment.segmentId).outlineOpacity
-      )
+      masks.map((mask) => registry.appearanceOf(mask.segmentId).outlineOpacity)
     ).toEqual([0.25, 0.25]);
     expect(
-      masks.map((segment) => registry.appearanceOf(segment.segmentId).visible)
+      masks.map((mask) => registry.appearanceOf(mask.segmentId).visible)
     ).toEqual([false, false]);
     expect(segmentation.outlineThickness).toBe(5);
   });
@@ -263,7 +226,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
   it('preserves embedded metadata from an archive-backed .seg.nrrd', async () => {
     const decoded = {
-      image: makeLabelmapImage(),
+      image: makeImage({ values: labelValues() }),
       headerMetadata: new Map<string, string>([
         ['Segment0_LabelValue', '2'],
         ['Segment0_Name', 'Tumor core'],
@@ -286,7 +249,9 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
   it('names archive segments after the whole group name, not a path tail', async () => {
     const name = 'Tumor W/O CONTRAST 2.5mm';
-    const catalog = await archiveCatalog(name, { image: makeLabelmapImage() });
+    const catalog = await archiveCatalog(name, {
+      image: makeImage({ values: labelValues() }),
+    });
 
     expect(catalog.map((segment) => segment.name)).toEqual([
       `${name} 1`,
@@ -296,8 +261,11 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
   it('enumerates only distinct sparse voxel labels', async () => {
     setActivePinia(createPinia());
-    seat('parent-img', 'CT Chest', makeParentImage());
-    seat('child-img', 'Sparse.seg.nrrd', makeSparseLabelmapImage());
+    await seatImage('parent-img', { name: 'CT Chest' });
+    await seatImage('child-img', {
+      name: 'Sparse.seg.nrrd',
+      values: new Uint8Array(4 * 4 * 4).fill(1, 8, 16).fill(255, 48),
+    });
     const store = useSegmentationStore();
 
     await store.convertImageToLabelmap('child-img', 'parent-img');

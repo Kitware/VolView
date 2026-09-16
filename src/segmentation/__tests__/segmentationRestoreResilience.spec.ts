@@ -18,7 +18,7 @@ import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 // Resilient segment-group restore:
 // deserialize must never hang on a missing dataIDMap key, and one group's
 // failure must never reject the whole restore. Skips are NON-silent: deserialize
-// returns `{ segmentGroupIDMap, skipped }` where each skip carries a concrete
+// returns `{ restoredImportIds, skipped }` where each skip carries a concrete
 // reason, and the caller aggregates those (with reasons) into the consolidated
 // notice.
 // ---------------------------------------------------------------------------
@@ -106,11 +106,8 @@ function makeEmptyScalarsImage() {
   return image;
 }
 
-// Mirrors production: the restore setup resolves each group's artifact state
-// source from the manifest (planLabelmapSources, the single-owner
-// policy) and hands it to deserialize alongside the dataIDMap. A restored
-// legacy group is split into one bounded mask per segment, so what a survivor
-// leaves behind is its segments, not a group record.
+// A restored legacy group is split into one bounded mask per segment, so what a
+// survivor leaves behind is its segments, not a group record.
 const maskCount = () => boundMasks().length;
 
 /** The image's segments that ended up with storage. */
@@ -120,12 +117,14 @@ const catalogFor = (parentImageId: string) => {
   if (!segmentation) return [];
   return segmentation.order
     .map((id) => segmentation.masks[id])
-    .filter((segment) => segment.representations.labelmap);
+    .filter((mask) => mask.representations.labelmap);
 };
 
 const nameOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId).name;
 
+// Mirrors production: the restore setup resolves each group's labelmap source
+// from the manifest and hands it to deserialize alongside the dataIDMap.
 const restoreGroups = (
   manifest: Manifest,
   stateFiles: { archivePath: string; file: File }[],
@@ -183,7 +182,7 @@ describe('migrated segment groups: resilient restore', () => {
     ]);
     const restored = catalogFor('store-ct');
     // Both groups name a Tumor; the skipped one came first.
-    expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor (2)']);
+    expect(restored.map(nameOf)).toEqual(['Tumor (2)']);
     expect([
       ...useSegmentStore().segments.appearanceOf(restored[0].segmentId).color,
     ]).toEqual([255, 0, 0, 255]);
@@ -279,9 +278,7 @@ describe('migrated segment groups: resilient restore', () => {
 
     // Only the survivor's segments attached, numbered after the skipped
     // group's Tumor.
-    expect(catalogFor('store-ct').map((segment) => nameOf(segment))).toEqual([
-      'Tumor (2)',
-    ]);
+    expect(catalogFor('store-ct').map(nameOf)).toEqual(['Tumor (2)']);
     expect(maskCount()).toBe(1);
 
     const warning = useMessageStore().messages.find(

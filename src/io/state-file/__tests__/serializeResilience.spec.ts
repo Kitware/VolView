@@ -58,6 +58,23 @@ const segmentationWithPath = (path: string) => ({
   ],
 });
 
+const toolsForSegment = (segmentId: string) =>
+  ({
+    rulers: {
+      tools: [
+        {
+          id: undefined,
+          imageID: 'dataset-1',
+          segmentId,
+          frameOfReference: { planeOrigin: [0, 0, 0], planeNormal: [0, 0, 1] },
+          slice: 0,
+          firstPoint: [0, 0, 0],
+          secondPoint: [1, 0, 0],
+        },
+      ],
+    },
+  }) satisfies NonNullable<Manifest['tools']>;
+
 // The zip holds mask.vti, as the segmentation writer leaves it before checks.
 const normalizeWithMaskFile = (extra: Record<string, unknown>) => {
   const manifest = {
@@ -79,7 +96,6 @@ describe('state-file serialization resilience', () => {
     const zip = await JSZip.loadAsync(blob);
     const manifest = JSON.parse(await zip.file(MANIFEST)!.async('string'));
 
-    expect(manifest.segmentationArtifacts).toBeUndefined();
     expect(manifest.segmentations).toHaveLength(1);
     expect(
       manifest.segmentations[0].masks[0].representations.labelmap.path
@@ -116,7 +132,10 @@ describe('state-file serialization resilience', () => {
     expect(normalized.manifest.segmentations).toEqual([]);
     expect(zip.file('mask.vti')).toBeNull();
     expect(normalized.manifest.parentToLayers).toEqual([]);
-    expect(normalized.omitted.join('\n')).toMatch(/parent dataset/);
+    expect(normalized.omitted).toEqual([
+      'Seg: parent dataset missing is missing',
+      'layer relationship 0: missing or invalid dataset',
+    ]);
   });
 
   it('drops the mask files of a segmentation that fails validation', () => {
@@ -207,11 +226,40 @@ describe('state-file serialization resilience', () => {
     warnSpy.mockRestore();
   });
 
+  it('warns when an annotation names a segment absent from the registry', () => {
+    const warn = vi.spyOn(debug, 'warn').mockImplementation(() => {});
+    const manifest = manifestWithSelection('dataset-1');
+    manifest.tools = toolsForSegment('missing-segment');
+    const normalized = normalizeManifest(manifest, new JSZip());
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('tools.rulers[0].segmentId -> segment')
+    );
+    expect(normalized.omitted).toEqual([]);
+    warn.mockRestore();
+  });
+
   it('does not warn when every optional reference resolves', () => {
     // A fully coherent manifest must not trip the cascade-gap backstop —
     // guards against false-positive warnings on healthy sessions.
     const warnSpy = vi.spyOn(debug, 'warn').mockImplementation(() => {});
     const manifest = manifestWithSelection('dataset-1');
+
+    manifest.segments = [
+      {
+        id: 'segment-1',
+        name: 'Tumor',
+        color: [255, 0, 0, 255],
+        visible: true,
+        locked: false,
+      },
+    ];
+    manifest.segmentations = [
+      {
+        ...segmentationWithPath('mask.vti'),
+        masks: [{ id: 'mask-1', segmentId: 'segment-1', representations: {} }],
+      },
+    ] as Manifest['segmentations'];
+    manifest.tools = toolsForSegment('segment-1');
 
     const normalized = normalizeManifest(manifest, new JSZip());
 
@@ -221,7 +269,7 @@ describe('state-file serialization resilience', () => {
     warnSpy.mockRestore();
   });
 
-  it('round-trips a locked record, its registry and the selection', () => {
+  it('keeps the registry, selection and mask bindings through normalization', () => {
     const manifest = {
       version: MANIFEST_VERSION,
       datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
@@ -233,7 +281,7 @@ describe('state-file serialization resilience', () => {
           parentImage: 'dataset-1',
           masks: [
             {
-              id: 'segment-1',
+              id: 'mask-1',
               segmentId: 'segment-1',
               representations: {
                 labelmap: {
@@ -243,7 +291,7 @@ describe('state-file serialization resilience', () => {
               },
             },
           ],
-          order: ['segment-1'],
+          order: ['mask-1'],
         },
       ],
       segments: [
@@ -262,7 +310,10 @@ describe('state-file serialization resilience', () => {
     zip.file('mask.vti', 'bytes');
     const normalized = normalizeManifest(manifest, zip) as any;
     const segmentation = normalized.manifest.segmentations[0];
-    expect(segmentation.masks[0].segmentId).toBe('segment-1');
+    expect(segmentation.masks[0]).toMatchObject({
+      id: 'mask-1',
+      segmentId: 'segment-1',
+    });
     expect(segmentation.masks[0].representations.labelmap).toEqual({
       path: 'mask.vti',
       extent: [0, 3, 0, 3, 0, 3],

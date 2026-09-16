@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  seatSpecImage as seatImage,
-  SPEC_DIMENSIONS as DIMENSIONS,
+  seatImage,
+  seatSpecImage,
+  SPEC_DIMENSIONS,
+  SPEC_VOXEL_COUNT,
   bindingOf,
   boundMasks,
   deleteSegmentOf,
@@ -11,27 +13,10 @@ import {
   segmentOfMask,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { nextTick } from 'vue';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { useSegmentStore } from '@/src/segmentation/segments';
-
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
-async function seatLabelValues(id: string, values: Uint8Array) {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS);
-  image
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, `${id}.seg.nrrd`, { id });
-  await nextTick();
-  return id;
-}
 
 const segments = () => useSegmentStore().segments;
 
@@ -44,7 +29,7 @@ function makeBoundSegment(segmentationId: string, name?: string) {
 }
 
 const oneLabelValues = () => {
-  const values = new Uint8Array(VOXEL_COUNT);
+  const values = new Uint8Array(SPEC_VOXEL_COUNT);
   values.fill(1, 4, 12);
   return values;
 };
@@ -59,10 +44,14 @@ const seatConversionSources = async (
   childIds: string[],
   values: Uint8Array
 ) => {
-  await seatImage('parent-img', 'Chest CT');
+  await seatSpecImage('parent-img', 'Chest CT');
   // Sequential: each seat awaits its own tick before the next is cached.
   for (const id of childIds) {
-    await seatLabelValues(id, values);
+    await seatImage(id, {
+      name: `${id}.seg.nrrd`,
+      dimensions: SPEC_DIMENSIONS,
+      values,
+    });
   }
 };
 
@@ -73,13 +62,13 @@ describe('segmentation store', () => {
 
   describe('one segmentation per parent image', () => {
     it('reports no segmentation for an image until one is ensured', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
 
       expect(store().getSegmentationForImage('img-1')).toBeFalsy();
     });
 
     it('ensures a segmentation bound to its parent image', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
 
       const segmentation = store().ensureSegmentationForImage('img-1');
 
@@ -91,7 +80,7 @@ describe('segmentation store', () => {
     });
 
     it('names a segmentation after its parent image', async () => {
-      await seatImage('img-1', 't2_tse_tra');
+      await seatSpecImage('img-1', 't2_tse_tra');
 
       const segmentation = store().ensureSegmentationForImage('img-1');
 
@@ -99,7 +88,7 @@ describe('segmentation store', () => {
     });
 
     it('returns the existing segmentation on a second ensure', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
 
       const first = store().ensureSegmentationForImage('img-1');
       store().createMask(first.id, mintSegment());
@@ -111,8 +100,8 @@ describe('segmentation store', () => {
     });
 
     it('keeps separate segmentations for separate images', async () => {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
 
       const first = store().ensureSegmentationForImage('img-1');
       const second = store().ensureSegmentationForImage('img-2');
@@ -125,7 +114,7 @@ describe('segmentation store', () => {
 
   describe('createMask', () => {
     it('needs no storage choice: the binding is absent until it is ensured', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
@@ -138,7 +127,7 @@ describe('segmentation store', () => {
     });
 
     it('appends the record to the segmentation order', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
@@ -153,7 +142,7 @@ describe('segmentation store', () => {
     });
 
     it('defaults to visible, unlocked records', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
@@ -165,7 +154,7 @@ describe('segmentation store', () => {
     });
 
     it('gives a record its own id, distinct from the segment it references', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const segmentId = mintSegment('Tumor');
@@ -178,7 +167,7 @@ describe('segmentation store', () => {
     });
 
     it('holds no identity of its own', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const segmentId = mintSegment('Tumor');
@@ -191,8 +180,8 @@ describe('segmentation store', () => {
     });
 
     it('lets two images hold a record for one segment', async () => {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
       const segmentId = mintSegment('Tumor');
 
       const first = maskOn('img-1', segmentId);
@@ -203,7 +192,7 @@ describe('segmentation store', () => {
     });
 
     it('keeps one record per segment on an image', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const segmentId = mintSegment('Tumor');
 
       const first = maskOn('img-1', segmentId);
@@ -216,7 +205,7 @@ describe('segmentation store', () => {
     });
 
     it('refuses a second mask for a segment on one image', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const segmentId = mintSegment('Tumor');
@@ -229,7 +218,7 @@ describe('segmentation store', () => {
     });
 
     it('refuses a mask for a segment that does not exist', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
@@ -242,7 +231,7 @@ describe('segmentation store', () => {
 
   describe('ensureLabelmapBinding', () => {
     it('allocates one mask on the parent image for the segment', async () => {
-      await seatImage('img-1', 'Chest CT');
+      await seatSpecImage('img-1', 'Chest CT');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
 
@@ -256,7 +245,7 @@ describe('segmentation store', () => {
 
   describe('stable identity', () => {
     it('keeps mask ids and bindings across a rename, a recolor and a reorder', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const first = makeBoundSegment(segmentationId, 'Tumor');
@@ -293,7 +282,7 @@ describe('segmentation store', () => {
     });
 
     it('leaves other records untouched when one is updated', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const first = store().createMask(segmentationId, mintSegment('Tumor'));
@@ -308,10 +297,10 @@ describe('segmentation store', () => {
     });
   });
 
-  describe('duplicate label values across artifacts', () => {
-    it('resolve to different segments', async () => {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+  describe('same-named segments on two images', () => {
+    it('keep their own masks and storage', async () => {
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
       const one = store().ensureSegmentationForImage('img-1').id;
       const two = store().ensureSegmentationForImage('img-2').id;
 
@@ -327,8 +316,8 @@ describe('segmentation store', () => {
   });
 
   describe('deleting a segment', () => {
-    it('leaves the neighbour mask alone', async () => {
-      await seatImage('img-1');
+    it('leaves the neighbor mask alone', async () => {
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const doomed = makeBoundSegment(segmentationId, 'Tumor');
@@ -348,7 +337,7 @@ describe('segmentation store', () => {
     });
 
     it('releases the segment mask with the segment', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const first = makeBoundSegment(segmentationId, 'Tumor');
@@ -365,7 +354,7 @@ describe('segmentation store', () => {
     });
 
     it('deletes an unbound segment without allocating storage', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
       const segment = store().createMask(segmentationId, mintSegment());
@@ -378,8 +367,8 @@ describe('segmentation store', () => {
   });
 
   describe('parent image deletion', () => {
-    it('removes the deleted image segmentation and its artifacts', async () => {
-      await seatImage('img-1');
+    it("removes the deleted image's segmentation and its masks", async () => {
+      await seatSpecImage('img-1');
       // The store subscribes to image deletion on setup, so instantiate it first.
       const { id: segmentationId } =
         store().ensureSegmentationForImage('img-1');
@@ -393,8 +382,8 @@ describe('segmentation store', () => {
     });
 
     it('leaves other images segmentations alone', async () => {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
       const doomed = store().ensureSegmentationForImage('img-1').id;
       const kept = store().ensureSegmentationForImage('img-2').id;
       const keptSegment = makeBoundSegment(kept, 'Tumor');
@@ -457,10 +446,9 @@ describe('segmentation store', () => {
 
     it('gives a second conversion of the same parent its own segments', async () => {
       await seatConversionSources(['child-a', 'child-b'], oneLabelValues());
-      const segmentGroups = store();
 
-      await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
-      await segmentGroups.convertImageToLabelmap('child-b', 'parent-img');
+      await store().convertImageToLabelmap('child-a', 'parent-img');
+      await store().convertImageToLabelmap('child-b', 'parent-img');
 
       expect(Object.keys(store().segmentations)).toHaveLength(1);
       const masks = store().imageMasks('parent-img');
@@ -473,10 +461,9 @@ describe('segmentation store', () => {
 
     it('reports which segment each source label value became', async () => {
       await seatConversionSources(['child-a', 'child-b'], oneLabelValues());
-      const segmentGroups = store();
 
-      await segmentGroups.convertImageToLabelmap('child-a', 'parent-img');
-      const [second] = await segmentGroups.convertImageToLabelmap(
+      await store().convertImageToLabelmap('child-a', 'parent-img');
+      const [second] = await store().convertImageToLabelmap(
         'child-b',
         'parent-img'
       );
@@ -490,8 +477,8 @@ describe('segmentation store', () => {
 
   describe('edit targets', () => {
     async function seatTwoImages() {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
       return {
         one: store().ensureSegmentationForImage('img-1').id,
         two: store().ensureSegmentationForImage('img-2').id,
@@ -510,8 +497,8 @@ describe('segmentation store', () => {
     });
 
     it('creates no segmentation for an image that has none', async () => {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
       const one = store().ensureSegmentationForImage('img-1').id;
       segments().addSegment({ name: 'Tumor' });
 
@@ -617,7 +604,7 @@ describe('segmentation store', () => {
     });
 
     it('mints and selects a segment on the first edit of a session', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
 
       const target = store().resolveEditTarget('img-1');
 
@@ -631,8 +618,8 @@ describe('segmentation store', () => {
       expect(segments().appearanceOf(segment.segmentId).name).toBe('Segment 1');
     });
 
-    it('uses a unique default name after the selected segment is deleted', async () => {
-      await seatImage('img-1');
+    it('falls back to the first segment and reuses the freed default name', async () => {
+      await seatSpecImage('img-1');
       const first = store().resolveEditTarget('img-1');
       const selected = segments().addSegment();
       segments().deleteSegment(selected);
@@ -650,7 +637,7 @@ describe('segmentation store', () => {
     });
 
     it('binds the minted record to storage for its own image', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
 
       const target = store().resolveEditTarget('img-1');
       const binding = store().ensureLabelmapBinding(target);
@@ -660,8 +647,8 @@ describe('segmentation store', () => {
     });
 
     it('gives each image its own record when nothing was ever selected', async () => {
-      await seatImage('img-1');
-      await seatImage('img-2', 'PET');
+      await seatSpecImage('img-1');
+      await seatSpecImage('img-2', 'PET');
 
       const first = store().resolveEditTarget('img-1');
       const second = store().resolveEditTarget('img-2');
@@ -671,7 +658,7 @@ describe('segmentation store', () => {
     });
 
     it('finds no target for a segment this image has no record for', async () => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       segments().addSegment({ name: 'Tumor' });
 
       expect(store().findEditTarget('img-1')).toBeUndefined();

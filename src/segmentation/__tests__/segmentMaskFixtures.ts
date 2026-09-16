@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
-import type vtkLabelMap from '@/src/vtk/LabelMap';
+import vtkLabelMap from '@/src/vtk/LabelMap';
 
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
@@ -22,6 +22,12 @@ import { listMasks } from '@/src/segmentation/model';
 import { type Extent3D } from '@/src/segmentation/geometry';
 import type { SegmentInit } from '@/src/segmentation/segment';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
+import {
+  captureLabelmapParts,
+  composeLabelmapPart,
+} from '@/src/segmentation/io/composition';
+import type { SegmentMask } from '@/src/segmentation/model';
 
 /** A point in the PARENT image's index space, which is where extents live. */
 export type Index3 = [number, number, number];
@@ -43,33 +49,70 @@ export const flatIndex =
   (dimensions: Index3) => (i: number, j: number, k: number) =>
     i + j * dimensions[0] + k * dimensions[0] * dimensions[1];
 
-export type SeatOptions = {
-  name?: string;
+export type ImageOptions = {
   dimensions?: Index3;
   spacing?: [number, number, number];
   origin?: [number, number, number];
   values?: TypedArray;
+  components?: number;
 };
 
-export async function seatImage(id: string, options: SeatOptions = {}) {
-  const {
-    name = id,
-    dimensions = [4, 4, 4] as Index3,
+export type SeatOptions = ImageOptions & {
+  name?: string;
+  headerMetadata?: Map<string, string>;
+};
+
+const shapeImage = <T extends vtkImageData>(
+  image: T,
+  {
+    dimensions = [4, 4, 4],
     spacing = [1, 1, 1],
     origin = [0, 0, 0],
     values,
-  } = options;
-
-  const image = vtkImageData.newInstance({ spacing, origin });
+    components = 1,
+  }: ImageOptions
+) => {
+  image.setSpacing(spacing);
+  image.setOrigin(origin);
   image.setDimensions(dimensions);
   image.getPointData().setScalars(
     vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: values ?? new Uint8Array(voxelCount(dimensions)),
+      numberOfComponents: components,
+      values: values ?? new Uint8Array(voxelCount(dimensions) * components),
     })
   );
   image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, name, { id });
+  return image;
+};
+
+/** An uncached image, 4x4x4 zeros unless told otherwise. */
+export const makeImage = (options: ImageOptions = {}) =>
+  shapeImage(vtkImageData.newInstance(), options);
+
+/** The same image as a labelmap, the type a split takes. */
+export const makeLabelmap = (options: ImageOptions = {}) =>
+  shapeImage(vtkLabelMap.newInstance(), options);
+
+/** Scalars holding each mark's value at its voxel, 16-bit past the byte limit. */
+export function labelmapValues(
+  dimensions: Index3,
+  marks: Array<{ value: number; at: Index3 }>
+) {
+  const Scalars = marks.some(({ value }) => value > 255)
+    ? Uint16Array
+    : Uint8Array;
+  const values = new Scalars(voxelCount(dimensions));
+  const offset = flatIndex(dimensions);
+  marks.forEach(({ value, at }) => {
+    values[offset(...at)] = value;
+  });
+  return values;
+}
+
+export async function seatImage(id: string, options: SeatOptions = {}) {
+  const { name = id, headerMetadata, ...shape } = options;
+  const image = makeImage(shape);
+  useImageCacheStore().addVTKImageData(image, name, { id, headerMetadata });
   await nextTick();
   return image;
 }
@@ -130,13 +173,19 @@ export const inMemoryArtifactIO = () => {
   const labelmaps = new Map<string, vtkLabelMap>();
   const written: vtkLabelMap[] = [];
   const formats: string[] = [];
+  const snapshots: Array<{ dimensions: number[]; values: number[] }> = [];
   return {
     written,
     formats,
+    snapshots,
     write: async (format: string, labelmap: vtkLabelMap) => {
       const token = `labelmap-${labelmaps.size}`;
       labelmaps.set(token, labelmap);
       written.push(labelmap);
+      snapshots.push({
+        dimensions: [...labelmap.getDimensions()],
+        values: Array.from(scalarsOf(labelmap)),
+      });
       formats.push(format);
       return token;
     },
@@ -164,11 +213,11 @@ export const segmentationSnapshot = (imageId: string) => {
         binding: binding && {
           extent: [...binding.extent],
           name: binding.name,
-          artifactSource: binding.source,
+          source: binding.source,
         },
       };
     }),
-    selectedTypeName: selectedSegmentId
+    selectedSegmentName: selectedSegmentId
       ? segments.appearanceOf(selectedSegmentId).name
       : undefined,
     display: {
@@ -226,6 +275,14 @@ const archivePathsIn = (parsed: any): string[] => [
   ),
 ];
 
+export const stateFilesOf = (zip: JSZip, parsed: any) =>
+  Promise.all(
+    archivePathsIn(parsed).map(async (path) => ({
+      archivePath: path,
+      file: new File([await zip.file(path)!.async('string')], 'artifact.vti'),
+    }))
+  );
+
 export const serializeToStateFiles = async (
   manifest: Manifest,
   io: LabelmapIO,
@@ -236,28 +293,12 @@ export const serializeToStateFiles = async (
   await store().serialize({ zip, manifest }, io);
   const parsed = ManifestSchema.parse(manifest) as any;
   tamper?.(parsed);
-  const stateFiles = await Promise.all(
-    archivePathsIn(parsed).map(async (path) => ({
-      archivePath: path,
-      file: new File([await zip.file(path)!.async('string')], 'artifact.vti'),
-    }))
-  );
+  const stateFiles = await stateFilesOf(zip, parsed);
   return { zip, parsed, stateFiles };
 };
 
 /** A plain 4x4x4 image, uncached: the shape most restore specs parent onto. */
-export const makeSpecImage = () => {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(4 * 4 * 4),
-    })
-  );
-  image.computeTransforms();
-  return image;
-};
+export const makeSpecImage = () => makeImage();
 
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
@@ -273,7 +314,14 @@ export function addMask(imageId: string, name?: string) {
   return store().createMask(segmentation.id, mintSegment(name)).id;
 }
 
-/** This image's record for a type, created without changing the selection. */
+export const bindEmptyMasks = (imageId: string, names: string[]) =>
+  names.map((name) => {
+    const maskId = addMask(imageId, name);
+    store().ensureLabelmapBinding(maskId);
+    return maskId;
+  });
+
+/** This image's mask for a segment, created without changing the selection. */
 export const maskOn = (imageId: string, segmentId: string) =>
   store().getMask(store().resolveEditTarget(imageId, segmentId));
 
@@ -330,9 +378,7 @@ export function addActiveSegment(
 
 export const boundMasks = () =>
   Object.values(store().segmentations).flatMap((segmentation) =>
-    listMasks(segmentation).filter(
-      (segment) => segment.representations.labelmap
-    )
+    listMasks(segmentation).filter((mask) => mask.representations.labelmap)
   );
 
 export const bindingOf = (maskId: string) =>
@@ -416,4 +462,19 @@ export function markedVoxels(maskId: string) {
     }
   }
   return marks;
+}
+
+/**
+ * `members` (the image's masks by default) composed as one export part:
+ * earlier in the registry wins where two overlap.
+ */
+export function compositeLabelmap(
+  parentImageId: string,
+  members?: SegmentMask[]
+) {
+  useSegmentationEditsStore().beforeRead();
+  const snapshot = captureLabelmapParts(parentImageId, [
+    members ?? store().imageMasks(parentImageId),
+  ]);
+  return composeLabelmapPart(snapshot.parent, snapshot.parts[0]);
 }

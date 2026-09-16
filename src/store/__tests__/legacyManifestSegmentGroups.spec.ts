@@ -53,10 +53,8 @@ const legacyManifest = ManifestSchema.parse(
   )
 );
 
-const makeImage = () => makeSpecImage();
-
 const seatImage = (id: string, name: string) =>
-  useImageCacheStore().addVTKImageData(makeImage(), name, { id });
+  useImageCacheStore().addVTKImageData(makeSpecImage(), name, { id });
 
 describe('migrated legacy manifests without `datasets`', () => {
   beforeEach(() => {

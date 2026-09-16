@@ -3,8 +3,10 @@ import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { flushPromises } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { Chunk } from '@/src/core/streaming/chunk';
+import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -186,6 +188,30 @@ describe('artifact restore parent lifetime', () => {
       new Set(['artifact-parent', 'artifact-healthy'])
     );
     expect(store().imageMasks('parent')).toHaveLength(1);
+  });
+
+  it('waits for a parent whose load has not started yet', async () => {
+    const { options } = await setupRestore();
+    const data = vtkImageData.newInstance();
+    data.setDimensions([4, 4, 1]);
+    data
+      .getPointData()
+      .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(16) }));
+    data.computeTransforms();
+    const idle = new LoadedVtkImage(data, 'parent');
+    idle.loaded.value = false;
+    idle.status.value = 'incomplete';
+    cache().addProgressiveImage(idle, { id: 'parent' });
+
+    const restore = store().deserialize(options);
+    await flushPromises();
+    idle.status.value = 'complete';
+    const result = await restore;
+
+    expect(result.skipped).toEqual([]);
+    expect(result.restoredImportIds).toEqual(
+      new Set(['artifact-parent', 'artifact-healthy'])
+    );
   });
 
   it('skips a terminal failed DICOM parent and permits downstream tool restore', async () => {

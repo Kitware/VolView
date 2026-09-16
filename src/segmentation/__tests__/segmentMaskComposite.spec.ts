@@ -1,13 +1,7 @@
-import {
-  compositeLabelmap,
-  planLabelmapExport,
-} from '@/src/segmentation/io/composition';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { useImageCacheStore } from '@/src/store/image-cache';
+import { planLabelmapExport } from '@/src/segmentation/io/composition';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
@@ -18,8 +12,10 @@ import {
 } from '@/src/segmentation/model';
 import {
   addMask,
+  compositeLabelmap,
   extentOf,
   flatIndex,
+  labelmapValues,
   maskValueAt,
   parentImage,
   seatImage,
@@ -34,22 +30,7 @@ import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 const appearanceOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId);
 
-// ---------------------------------------------------------------------------
-// The two directions between N bounded masks and one parent-shaped labelmap.
-//
-// COMPOSE is what leaves VolView: the save dialog's own codec call and the job
-// staging both hand a labelmap to `writeSegmentation`, and a single segment's
-// bounded mask is not what either of them means. It is built on demand, never
-// stored: storage stays N masks.
-//
-// GROUP is what a save composes first: one labelmap carries one label per
-// voxel, so segments that overlap are composed into separate ones and saved as
-// separate files.
-//
-// SPLIT is what arrives: an imported labelmap carries every segment in one
-// buffer, and each label value becomes a segment with a mask cropped to the
-// voxels that value actually occupies.
-// ---------------------------------------------------------------------------
+// Masks stay bounded; export composes a labelmap and import splits one.
 
 const DIMENSIONS: Index3 = [4, 4, 4];
 
@@ -59,33 +40,7 @@ const compositeScalars = (imageId: string, members?: SegmentMask[]) =>
   maskScalars(compositeLabelmap(imageId, members).labelmap);
 
 const segmentIdsOf = (imageId: string) =>
-  listMasks(store().getSegmentationForImage(imageId)!).map(
-    (segment) => segment.id
-  );
-
-/**
- * A child image in the parent's space, carrying one value per named voxel. A
- * label past the byte limit arrives in 16-bit scalars, as such a file does.
- */
-function makeLabelmapImage(marks: Array<{ value: number; at: Index3 }>) {
-  const image = vtkImageData.newInstance({
-    spacing: [2, 3, 4],
-    origin: [10, 20, 30],
-  });
-  image.setDimensions(DIMENSIONS);
-  const Scalars = marks.some(({ value }) => value > 255)
-    ? Uint16Array
-    : Uint8Array;
-  const values = new Scalars(voxelCount(DIMENSIONS));
-  marks.forEach(({ value, at }) => {
-    values[parentOffset(...at)] = value;
-  });
-  image
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  image.computeTransforms();
-  return image;
-}
+  listMasks(store().getSegmentationForImage(imageId)!).map((mask) => mask.id);
 
 const GRID = {
   dimensions: DIMENSIONS,
@@ -209,12 +164,9 @@ describe('composing the segments of an image into one labelmap', () => {
     expect(Array.from(values)).toEqual(
       Array.from({ length: 300 }, (_, i) => i + 1)
     );
-    groups.forEach((group) =>
-      expect(() => compositeLabelmap('img-wide', group)).not.toThrow()
-    );
   });
 
-  it('describes the image’s segments in order, keyed by label value', () => {
+  it("describes the image's segments in order, keyed by label value", () => {
     const tumor = addMask('img-1', 'Tumor');
     const node = addMask('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
@@ -298,7 +250,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     const groups = planLabelmapExport('img-1').parts;
 
     expect(
-      groups.map((group) => group.map((segment) => appearanceOf(segment).name))
+      groups.map((group) => group.map((mask) => appearanceOf(mask).name))
     ).toEqual([['Under'], ['Over']]);
     groups.forEach((group) => {
       const { labelmap, segments } = compositeLabelmap('img-1', group);
@@ -319,7 +271,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
 
     expect(
       planLabelmapExport('img-1').parts.map((group) =>
-        group.map((segment) => appearanceOf(segment).name)
+        group.map((mask) => appearanceOf(mask).name)
       )
     ).toEqual([['Under', 'Apart'], ['Over']]);
   });
@@ -400,15 +352,15 @@ describe('splitting an imported labelmap into bounded masks', () => {
   const importLabelmap = async (
     marks: Array<{ value: number; at: Index3 }>
   ) => {
-    useImageCacheStore().addVTKImageData(
-      makeLabelmapImage(marks),
-      'Tumor.seg.nrrd',
-      { id: 'child-img' }
-    );
+    await seatImage('child-img', {
+      ...GRID,
+      name: 'Tumor.seg.nrrd',
+      values: labelmapValues(DIMENSIONS, marks),
+    });
     await store().convertImageToLabelmap('child-img', 'parent-img');
   };
 
-  it('makes one segment per label value, bounded to that value’s voxels', async () => {
+  it("makes one segment per label value, bounded to that value's voxels", async () => {
     await importLabelmap([
       { value: 1, at: [1, 1, 1] },
       { value: 2, at: [3, 3, 3] },
@@ -438,7 +390,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
   });
 
   // The source value survives in the decoded name, not in the storage: a
-  // segment is told from its neighbours by identity, not by a byte.
+  // segment is told from its neighbors by identity, not by a byte.
   it('keeps each source label value in its decoded name', async () => {
     await importLabelmap([
       { value: 1, at: [1, 1, 1] },
@@ -447,7 +399,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
 
     const segmentation = store().getSegmentationForImage('parent-img')!;
     expect(
-      listMasks(segmentation).map((segment) => appearanceOf(segment).name)
+      listMasks(segmentation).map((mask) => appearanceOf(mask).name)
     ).toEqual(['Tumor 1', 'Tumor 3']);
     const [first, second] = segmentIdsOf('parent-img');
     expect(maskValueAt(first, [1, 1, 1])).toBe(SEGMENT_VALUE);
@@ -477,7 +429,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
 
     const segmentation = store().getSegmentationForImage('parent-img')!;
     expect(
-      listMasks(segmentation).map((segment) => appearanceOf(segment).name)
+      listMasks(segmentation).map((mask) => appearanceOf(mask).name)
     ).toEqual(['Tumor 1', 'Tumor 300']);
     const [first, second] = segmentIdsOf('parent-img');
     expect(store().maskVoxels(first).scalars()).toBeInstanceOf(Uint8Array);
@@ -516,9 +468,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
     expect(labelmap.getDirection()).toEqual(before.getDirection());
     expect(Array.from(maskScalars(labelmap))).toEqual(beforeValues);
     const composed = Array.from(maskScalars(labelmap));
-    const source = Array.from(
-      makeLabelmapImage(marks).getPointData().getScalars().getData()
-    );
+    const source = Array.from(labelmapValues(DIMENSIONS, marks));
 
     expect(segments.map((segment) => segment.name)).toEqual([
       'Tumor 1',

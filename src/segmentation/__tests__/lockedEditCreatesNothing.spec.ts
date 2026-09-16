@@ -6,7 +6,7 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { useMessageStore } from '@/src/store/messages';
 import {
   activateAppPinia,
-  seatSpecImage as seatImage,
+  seatSpecImage,
   store,
   strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -47,7 +47,7 @@ const expectNothingCreated = (imageId: string, segmentId: string) => {
 describe('a refused edit on a locked segment', () => {
   beforeEach(async () => {
     activateAppPinia();
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
   });
 
   it('creates no mask record for a refused stroke', () => {

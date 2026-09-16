@@ -6,7 +6,8 @@ import {
   addMask,
   inMemoryArtifactIO,
   manifestForImages,
-  seatSpecImage as seatImage,
+  seatSpecImage,
+  seedVoxel,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
@@ -24,17 +25,21 @@ describe('saving a session with an unconfirmed preview', () => {
   });
 
   it('cancels the preview and saves what the mask committed', async () => {
-    await seatImage('img-1', 'CT A');
-    store().ensureLabelmapBinding(addMask('img-1', 'Tumor'));
-    const cancelPreview = vi.fn();
+    await seatSpecImage('img-1', 'CT A');
+    const maskId = addMask('img-1', 'Tumor');
+    seedVoxel(maskId, [0, 0, 0]);
+    seedVoxel(maskId, [1, 0, 0]);
+    const voxels = store().maskVoxels(maskId);
+    const committed = new Uint8Array(voxels.scalars());
+    voxels.scalars().fill(0);
+    const cancelPreview = vi.fn(() => voxels.apply(committed));
     useSegmentationEditsStore().hold(cancelPreview);
 
     const manifest = manifestForImages(['img-1']);
-    await store().serialize(
-      { zip: new JSZip(), manifest },
-      inMemoryArtifactIO()
-    );
+    const io = inMemoryArtifactIO();
+    await store().serialize({ zip: new JSZip(), manifest }, io);
 
+    expect(io.snapshots[0].values).toEqual([1, 1]);
     expect(cancelPreview).toHaveBeenCalledTimes(1);
     expect(manifest.segmentations![0].masks).toHaveLength(1);
   });

@@ -28,7 +28,7 @@ const savedSegment = (id: string, name = 'Tumor'): Segment => ({
 
 const namesOf = (registry: {
   segmentList: { value: Array<{ name: string }> };
-}) => registry.segmentList.value.map((type) => type.name);
+}) => registry.segmentList.value.map((segment) => segment.name);
 
 describe('segment registry', () => {
   beforeEach(() => {
@@ -51,7 +51,9 @@ describe('segment registry', () => {
     registry.updateSegment(id, { name: 'Lesion' });
 
     expect(registry.getSegment(id)?.name).toBe('Lesion');
-    expect(registry.segmentList.value.map((type) => type.id)).toEqual([id]);
+    expect(registry.segmentList.value.map((segment) => segment.id)).toEqual([
+      id,
+    ]);
   });
 
   it('keeps the required fields a patch leaves undefined', () => {

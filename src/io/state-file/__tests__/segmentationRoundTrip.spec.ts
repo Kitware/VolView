@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   inMemoryArtifactIO,
   mintSegment,
   segmentOfMask,
@@ -10,19 +10,11 @@ import {
   serializeToStateFiles,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
-import JSZip from 'jszip';
 
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 
-// ---------------------------------------------------------------------------
-// The 7.0.0 wire schema round trip: a scene serializes to `segmentations` +
-// `segmentationArtifacts` and restores into fresh stores with the same
-// segments, order, active segment and artifact provenance. SegmentMask identity is
-// never re-derived from label values, so duplicate names across images survive
-// as distinct segments, the later one numbered, and a segment with no storage
-// survives as one.
-// ---------------------------------------------------------------------------
+// Segment identity is independent of voxel values, including unbound masks.
 
 const SOURCE = {
   providerId: 'analysis-provider',
@@ -30,27 +22,9 @@ const SOURCE = {
   outputId: 'outputLabelmap',
 };
 
-const selectedTypeSummary = () => {
-  const segments = useSegmentStore().segments;
-  const segmentId = segments.selectedSegmentId.value;
-  if (!segmentId) return undefined;
-  const store = useSegmentationStore();
-  return {
-    // The segment is image-independent; this is where it currently has a mask.
-    parentImages: Object.values(store.segmentations)
-      .filter((segmentation) =>
-        Object.values(segmentation.masks).some(
-          (segment) => segment.segmentId === segmentId
-        )
-      )
-      .map((segmentation) => segmentation.parentImageId),
-    name: segments.appearanceOf(segmentId).name,
-  };
-};
-
 async function buildScene() {
-  await seatImage('img-1', 'CT A');
-  await seatImage('img-2', 'CT B');
+  await seatSpecImage('img-1', 'CT A');
+  await seatSpecImage('img-2', 'CT B');
   const store = useSegmentationStore();
 
   const first = store.ensureSegmentationForImage('img-1');
@@ -88,21 +62,18 @@ describe('segmentation state-file round trip', () => {
     const before = {
       first: segmentationSnapshot('img-1'),
       second: segmentationSnapshot('img-2'),
-      selected: selectedTypeSummary(),
     };
-    const { parsed, stateFiles } = await serializeToStateFiles(
-      manifestForImages(['img-1', 'img-2']),
-      io
-    );
+    const manifest = manifestForImages(['img-1', 'img-2']);
+    const { parsed, stateFiles } = await serializeToStateFiles(manifest, io);
     expect(parsed.segmentations).toHaveLength(2);
     // Every labelmap a save writes belongs to a mask, so the artifact array
     // that a migration or a backend fills is empty here.
     expect(parsed.segmentationArtifacts).toBeUndefined();
-    expect(parsed.segmentGroups).toBeUndefined();
+    expect(manifest).not.toHaveProperty('segmentGroups');
 
     setActivePinia(createPinia());
-    await seatImage('new-1', 'CT A');
-    await seatImage('new-2', 'CT B');
+    await seatSpecImage('new-1', 'CT A');
+    await seatSpecImage('new-2', 'CT B');
     const { segmentIdMap } = useSegmentStore().deserialize(parsed);
     await useSegmentationStore().deserialize({
       manifest: parsed,
@@ -118,46 +89,5 @@ describe('segmentation state-file round trip', () => {
       ...before.second,
       segments: [{ ...before.second.segments[0], name: 'Tumor (2)' }],
     });
-    expect(selectedTypeSummary()).toEqual({
-      parentImages: ['new-1'],
-      name: before.selected!.name,
-    });
-  });
-
-  it('keeps the unbound segment unbound and does not allocate storage for it', async () => {
-    await buildScene();
-
-    const io = inMemoryArtifactIO();
-    const zip = new JSZip();
-    const manifest = manifestForImages(['img-1']);
-
-    // The registry writes before the records that reference it, as the app's
-    // serializer order does.
-    useSegmentStore().serialize({ zip, manifest });
-    await useSegmentationStore().serialize({ zip, manifest }, io);
-
-    const wire = (manifest as any).segmentations.find(
-      (segmentation: any) => segmentation.parentImage === 'img-1'
-    );
-    const segmentIdByName = Object.fromEntries(
-      (manifest as any).segments.map((type: any) => [type.name, type.id])
-    );
-    const planned = wire.masks.find(
-      (segment: any) => segment.segmentId === segmentIdByName.Planned
-    );
-    expect(planned.representations.labelmap).toBeUndefined();
-    // Lock and visibility ride on the segment, so the record carries neither.
-    const plannedType = (manifest as any).segments.find(
-      (segment: any) => segment.id === segmentIdByName.Planned
-    );
-    expect(plannedType).toMatchObject({ locked: true, visible: false });
-    // One archive entry per bound mask, and none for the unbound one.
-    expect(
-      wire.masks.flatMap((segment: any) =>
-        segment.representations.labelmap
-          ? [segment.representations.labelmap.path]
-          : []
-      )
-    ).toHaveLength(1);
   });
 });

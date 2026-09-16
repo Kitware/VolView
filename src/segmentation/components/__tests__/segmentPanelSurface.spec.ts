@@ -8,7 +8,7 @@ import { mount, VueWrapper } from '@vue/test-utils';
 
 import SegmentList from '@/src/segmentation/components/SegmentList.vue';
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   store,
   mintSegment,
   seedVoxel,
@@ -121,8 +121,8 @@ const paintMask = (imageId: string, name: string) => {
 describe('saving from the flat segment panel', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    await seatImage('img-1');
-    await seatImage('img-2', 'MR');
+    await seatSpecImage('img-1');
+    await seatSpecImage('img-2', 'MR');
     await viewImage('img-1');
   });
 

@@ -272,7 +272,7 @@ describe('asking whether another mask holds a voxel', () => {
 });
 
 describe('writing a mask into a parent-shaped buffer', () => {
-  it('marks the mask’s voxels at their parent indices', () => {
+  it("marks the mask's voxels at their parent indices", () => {
     const values = new Uint8Array(PARENT[0] * PARENT[1] * PARENT[2]);
 
     writeMaskInto(values, PARENT, voxelMask([1, 2, 3]), 7);
