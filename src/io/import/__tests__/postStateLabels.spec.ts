@@ -10,6 +10,8 @@ import {
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 const sessionFile = () =>
   new File(['{}'], 'session.volview.json', { type: 'application/json' });
@@ -63,6 +65,9 @@ describe('post-state segment type config', () => {
     const restore = recordingRestoreProcessors({
       setup,
       completion: async () => {
+        useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
+          id: 'img-1',
+        });
         const segmentIdMap = useSegmentStore().deserialize(RESTORED_MANIFEST);
         configWasVisibleDuringRestore =
           !!useSegmentStore().segments.findSegmentByName('Configured');

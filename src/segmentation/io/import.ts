@@ -329,12 +329,16 @@ export async function importLabelmapImage(
   // Sequential, not fanned out: the splits share one segmentation, and label
   // values are minted against the segments already in it.
   const created: ImportedSegment[][] = [];
+  const cache = useImageCacheStore();
   for (const [component, image] of images.entries()) {
     const matchingParentSpace = await ensureSameSpace(parentImage, image, true);
     requireParentImage(parentID);
     const labelmapImage = toLabelMap(matchingParentSpace);
     const descriptors = await hooks.decode(labelmapImage, component);
     requireParentImage(parentID);
+    if (!cache.imageById[imageID]) {
+      throw new Error('Labelmap image is no longer loaded');
+    }
     created.push(
       hooks.split(labelmapImage, descriptors).map((maskId, index) => ({
         sourceValue: descriptors[index].value,

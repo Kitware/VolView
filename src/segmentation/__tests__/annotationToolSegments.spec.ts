@@ -199,6 +199,35 @@ describe('shape references to segment segments', () => {
     expect(tool.segmentId).toBe(adopted[segmentId]);
     expect(restored.appearanceOfTool(tool.id).name).toBe('Tumor');
   });
+
+  it('skips restored shapes whose parent is unresolved or was deleted', () => {
+    const restored = usePolygonStore();
+    seatAndView('healthy-img');
+    useImageCacheStore().removeImage(IMAGE_ID);
+
+    restored.deserializeTools(
+      {
+        tools: ['deleted', 'unresolved', 'healthy'].map((imageID) => ({
+          imageID,
+          placing: false,
+        })),
+      },
+      {
+        deleted: IMAGE_ID,
+        healthy: 'healthy-img',
+      }
+    );
+
+    expect(
+      restored.tools.map(({ imageID, segmentId }) => ({
+        imageID,
+        segmentId,
+      }))
+    ).toEqual([{ imageID: 'healthy-img', segmentId: '' }]);
+    expect(
+      restored.serializeTools().tools.map(({ imageID }) => imageID)
+    ).toEqual(['healthy-img']);
+  });
 });
 
 describe('placing an annotation names its type', () => {

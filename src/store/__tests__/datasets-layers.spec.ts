@@ -80,6 +80,19 @@ describe('useLayersStore.addLayer return contract', () => {
       'no overlap in physical space'
     );
   });
+
+  it('settles and removes the provisional layer when the source is absent', async () => {
+    seatImage('parent', 0);
+    const store = useLayersStore();
+
+    const id = await store.addLayer('parent', 'missing-source');
+
+    expect(id).toBeUndefined();
+    expect(store.getLayers('parent')).toHaveLength(0);
+    expect(useMessageStore().messages[0].options.details).toContain(
+      'Image did not load'
+    );
+  });
 });
 
 describe('useLayersStore.remove', () => {

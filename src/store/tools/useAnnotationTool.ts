@@ -12,6 +12,7 @@ import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import { declareSegmentReferences } from '@/src/segmentation/segmentReferences';
+import { useImageCacheStore } from '@/src/store/image-cache';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
@@ -196,8 +197,12 @@ export const useAnnotationTool = <
     dataIDMap: Record<string, string>,
     segmentIdMap: Record<string, string> = {}
   ) {
+    const imageCache = useImageCacheStore();
     serialized?.tools
-      .filter(({ segmentId }) => {
+      .filter(({ imageID, segmentId }) => {
+        const mappedImageId = dataIDMap[imageID];
+        if (!mappedImageId || !imageCache.imageById[mappedImageId])
+          return false;
         const mappedId = segmentId && segmentIdMap[segmentId];
         return !mappedId || registry.getSegment(mappedId);
       })

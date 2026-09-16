@@ -173,9 +173,6 @@ describe('migrated segment groups: resilient restore', () => {
   };
 
   it('skips a path-less group whose artifact never materialized, without hanging', async () => {
-    // Before the guard, a missing leaf key for dataSourceId 3 flowed into
-    // untilLoaded(undefined) — an await with no timeout. This test completing
-    // at all IS the assertion that the hang is gone.
     const { restoredImportIds: groups, skipped } =
       await restoreTumorBesideLiver({ dataSourceId: 3 });
 

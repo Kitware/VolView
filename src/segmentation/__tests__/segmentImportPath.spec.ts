@@ -18,6 +18,8 @@ import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { listMasks } from '@/src/segmentation/model';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
+import { importLabelmapImage } from '@/src/segmentation/io/import';
+import { defer } from '@/src/utils';
 
 const appearanceOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId);
@@ -215,6 +217,49 @@ describe('the import path answers on the segmentation store', () => {
     expect(segmentsOf('parent-img')).toEqual([]);
     expect(boundMasks()).toEqual([]);
   });
+
+  it.each([
+    ['foreground', labelValues()],
+    ['background only', new Uint8Array(VOXEL_COUNT)],
+  ])(
+    'creates no records when the parent is removed during %s decoding',
+    async (_kind, values) => {
+      await seat('parent-img', 'CT');
+      await seat('healthy-img', 'MR');
+      await seat('child-img', 'Tumor.seg.nrrd', values);
+      const decoding = defer<void>();
+      const started = defer<void>();
+
+      const conversion = importLabelmapImage('child-img', 'parent-img', {
+        decode: async () => {
+          started.resolve();
+          await decoding.promise;
+          return values.some(Boolean)
+            ? [1, 2].map((value) => ({
+                value,
+                name: `Tumor ${value}`,
+                color: [255, 0, 0, 255] as [number, number, number, number],
+                visible: true,
+              }))
+            : [];
+        },
+        split: (labelmap, descriptors) =>
+          store()
+            .splitLabelmapIntoMasks('parent-img', labelmap, descriptors)
+            .map(({ id }) => id),
+      });
+      await started.promise;
+
+      useImageCacheStore().removeImage('parent-img');
+      decoding.resolve();
+
+      await expect(conversion).rejects.toThrow(/no longer loaded/i);
+      expect(store().getSegmentationForImage('parent-img')).toBeUndefined();
+      expect(useImageCacheStore().imageById['healthy-img']).toBeDefined();
+      expect(useSegmentStore().segments.segmentList.value).toEqual([]);
+      expect(boundMasks()).toEqual([]);
+    }
+  );
 
   // 'Segment 1' says nothing about what was imported. The file stem is the only
   // name a descriptor-less labelmap carries, and it reaches the panel and the

@@ -340,9 +340,9 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       (id) => imageCacheStore.getVtkImageData(id) ?? undefined
     );
 
-    // Skip BEFORE awaiting anything an item whose parent image is
-    // unresolved, or a path-less one whose datasource never materialized;
-    // `untilLoaded(undefined)` never times out and would hang restore forever.
+    // Skip before awaiting anything an item whose parent image is unresolved,
+    // or a path-less one whose datasource never materialized, so each item can
+    // be reported with its specific missing-reference reason.
     const attachable = imports.filter((item) => {
       if (dataIDMap[item.parentImage] === undefined) {
         skipped.push({

@@ -5,6 +5,8 @@ import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useRulerStore } from '@/src/store/tools/rulers';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 // ---------------------------------------------------------------------------
 // The optional structured `source` on an annotation tool is the durable
@@ -123,6 +125,9 @@ describe('annotation tool source — store serialize/restore', () => {
     expect(parsed.tools[0].source).toEqual(source);
 
     setActivePinia(createPinia());
+    useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
+      id: 'img-2',
+    });
     const restored = useRulerStore();
     restored.deserializeTools(parsed as never, { 'img-1': 'img-2' });
 
