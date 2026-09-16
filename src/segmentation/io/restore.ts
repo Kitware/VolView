@@ -68,6 +68,10 @@ function validExtent(
   parentImage: vtkImageData,
   reject: (reason: string) => void
 ) {
+  if (!extent.every(Number.isInteger)) {
+    reject('extent coordinates must be finite integers');
+    return false;
+  }
   if (isEmptyExtent(extent)) {
     const containsForeground = maskScalars(labelmap).some(
       (value) => value !== LABELMAP_BACKGROUND_VALUE

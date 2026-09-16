@@ -31,6 +31,8 @@ import {
   boundMasks,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { compositeLabelmap } from '@/src/segmentation/io/composition';
+import { labelmapScalars } from '@/src/segmentation/io/labelmap';
 
 // ---------------------------------------------------------------------------
 // The state file carries N bounded masks. What goes into the archive is each
@@ -482,6 +484,16 @@ describe('bounded masks through the state file', () => {
       extent: [3, 4, 1, 1, 1, 1],
       reason: 'extent leaves the parent image',
     },
+    {
+      title: 'an extent with fractional coordinates',
+      extent: [0.5, 1.5, 1, 1, 1, 1],
+      reason: 'extent coordinates must be finite integers',
+    },
+    {
+      title: 'a fractional extent whose axes otherwise look empty',
+      extent: [0.5, -0.5, 0, -1, 0, -1],
+      reason: 'extent coordinates must be finite integers',
+    },
   ])('rejects $title', async ({ extent, reason }) => {
     await buildScene();
 
@@ -494,6 +506,14 @@ describe('bounded masks through the state file', () => {
 
     expect(restoredSegment('Tumor').representations.labelmap).toBeUndefined();
     expect(result.skipped).toContainEqual({ name: storage!.name, reason });
+    expect(markedVoxels(restoredSegment('Node').id)).toEqual([
+      [3, 3, 3, SEGMENT_VALUE],
+    ]);
+    expect(
+      Array.from(labelmapScalars(compositeLabelmap('new-1').labelmap)).flatMap(
+        (value, index) => (value === 0 ? [] : [[index, value]])
+      )
+    ).toEqual([[63, 2]]);
     expect(boundMasks()).toHaveLength(3);
   });
 
