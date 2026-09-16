@@ -2,10 +2,10 @@ import type { Ref, ComputedRef } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import vtkLabelMap from '@/src/vtk/LabelMap';
+import { untilLoaded } from '@/src/composables/untilLoaded';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
 import { allocateMask } from '@/src/segmentation/masks/storage';
 import {
-  createLoadedImageReader,
   orderedWireMasks,
   prepareRestoreBindings,
   unlistedWireMasks,
@@ -340,10 +340,13 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       return read;
     }
 
-    const loadedImage = createLoadedImageReader(
-      (id) => imageCacheStore.imageById[id],
-      (id) => imageCacheStore.getVtkImageData(id) ?? undefined
-    );
+    // Settles by the rule a live import waits by, so both treat an image alike.
+    const loadedImage = async (imageId: string) => {
+      await untilLoaded(imageId);
+      const image = imageCacheStore.getVtkImageData(imageId);
+      if (!image) throw new Error('Could not get input image data');
+      return image;
+    };
 
     // Skip before awaiting anything an item whose parent image is unresolved,
     // whose archive member is missing, or whose datasource never materialized,

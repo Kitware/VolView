@@ -1,45 +1,32 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   SPEC_DIMENSIONS as DIMENSIONS,
+  labelmapValues,
+  makeLabelmap,
   mintSegment,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
-import vtkLabelMap from '@/src/vtk/LabelMap';
 
-// ---------------------------------------------------------------------------
-// Display state lives on the model: fill and outline opacity on the
-// segment, the two multipliers plus outline thickness on the per-image
-// segmentation. An unset field means the app default, so a scene that never
-// touches them renders as it did before.
-// ---------------------------------------------------------------------------
-
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
+// Segments hold opacity; the per-image segmentation holds its multipliers.
 
 const segments = () => useSegmentStore().segments;
 
 /** A labelmap in the parent's space, carrying one voxel of value 1. */
-function makeImportedLabelmap() {
-  const labelmap = vtkLabelMap.newInstance();
-  labelmap.setDimensions(DIMENSIONS);
-  const values = new Uint8Array(VOXEL_COUNT);
-  values[0] = 1;
-  labelmap
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  labelmap.computeTransforms();
-  return labelmap;
-}
+const makeImportedLabelmap = () =>
+  makeLabelmap({
+    dimensions: DIMENSIONS,
+    values: labelmapValues(DIMENSIONS, [{ value: 1, at: [0, 0, 0] }]),
+  });
 
 describe('segmentation display state', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
   });
 
   describe('defaults', () => {
@@ -133,7 +120,7 @@ describe('segmentation display state', () => {
 
   // Without this the editor's sliders write state nothing renders from.
   describe('reaching the renderer', () => {
-    it('projects each segment’s opacities onto its mask', () => {
+    it("projects each segment's opacities onto its mask", () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       const segment = store().createMask(
         segmentation.id,

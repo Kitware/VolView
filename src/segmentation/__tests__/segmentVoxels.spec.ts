@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   expectCoveredExtentIsNoop,
   expectExtentPastParentThrows,
   SPEC_FULL_EXTENT as FULL_EXTENT,
@@ -51,7 +51,7 @@ const scalarsOf = (labelmap: vtkLabelMap) =>
 
 beforeEach(async () => {
   setActivePinia(createPinia());
-  await seatImage('img-1');
+  await seatSpecImage('img-1');
 });
 
 describe('segment voxel accessor', () => {

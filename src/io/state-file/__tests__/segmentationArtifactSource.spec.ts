@@ -34,10 +34,8 @@ const segmentation = {
   parentImage: 'img-1',
   masks: [
     {
-      id: 'segment-1',
+      id: 'mask-1',
       segmentId: 'segment-1',
-      visible: true,
-      locked: false,
       representations: {
         labelmap: {
           path: 'mask.vti',
@@ -46,7 +44,7 @@ const segmentation = {
       },
     },
   ],
-  order: ['segment-1'],
+  order: ['mask-1'],
 };
 
 const segments = [
@@ -108,14 +106,39 @@ describe('SegmentationArtifact.source', () => {
 describe('Segmentation wire shape', () => {
   it('carries the mask id, its segment and the order', () => {
     const parsed = Segmentation.parse(segmentation);
-    expect(parsed.masks[0].id).toBe('segment-1');
+    expect(parsed.masks[0].id).toBe('mask-1');
     expect(parsed.masks[0].segmentId).toBe('segment-1');
     expect(parsed.masks[0].representations.labelmap).toEqual({
       path: 'mask.vti',
       extent: [0, 3, 0, 3, 0, 1],
     });
-    expect(parsed.order).toEqual(['segment-1']);
+    expect(parsed.order).toEqual(['mask-1']);
   });
+
+  it.each([{ path: 'mask.vti', artifactId: 'artifact-1' }, {}])(
+    'rejects a mask binding with ambiguous or missing storage %j',
+    (storage) => {
+      const parsed = ManifestSchema.safeParse({
+        version: MANIFEST_VERSION,
+        dataSources: [],
+        segments,
+        segmentations: [
+          {
+            ...segmentation,
+            masks: [
+              {
+                ...segmentation.masks[0],
+                representations: {
+                  labelmap: { ...storage, extent: [0, 3, 0, 3, 0, 1] },
+                },
+              },
+            ],
+          },
+        ],
+      });
+      expect(parsed.success).toBe(false);
+    }
+  );
 
   it('defaults a segment to visible and unlocked', () => {
     const parsed = Segment.parse({
@@ -142,24 +165,6 @@ describe('Segmentation wire shape', () => {
       masks: [{ id: 'mask-1', representations: {} }],
     });
     expect(parsed.success).toBe(false);
-  });
-});
-
-describe('paint wire block', () => {
-  it('no longer carries a segment group id or a label value', () => {
-    const parsed = ManifestSchema.parse({
-      version: MANIFEST_VERSION,
-      dataSources: [],
-      tools: {
-        paint: {
-          activeSegmentGroupID: 'sg-1',
-          activeSegment: 3,
-          brushSize: 5,
-          crossPlaneSync: true,
-        },
-      },
-    });
-    expect(parsed.tools?.paint).toEqual({ brushSize: 5, crossPlaneSync: true });
   });
 });
 

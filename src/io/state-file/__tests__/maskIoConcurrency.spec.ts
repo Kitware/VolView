@@ -4,11 +4,12 @@ import { nextTick } from 'vue';
 import JSZip from 'jszip';
 
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   addMask,
   inMemoryArtifactIO,
   markedVoxels,
-  mintSegment,
+  bindEmptyMasks,
+  stateFilesOf,
   manifestForImages,
   seedVoxel,
   deleteSegmentOf,
@@ -17,7 +18,6 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { MASK_IO_CONCURRENCY } from '@/src/segmentation/io/stateFile';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
-import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { defer } from '@/src/utils';
@@ -32,9 +32,6 @@ import type { LabelmapSegment } from '@/src/segmentation/model';
 // ---------------------------------------------------------------------------
 
 const MASK_COUNT = 12;
-// The cap itself, not a copy of it: a spec that restated the number would keep
-// passing for a save and restore that stopped bounding anything.
-const LIMIT = MASK_IO_CONCURRENCY;
 
 /** Resolves after enough microtasks for every already-started call to start. */
 const settleLate = async () => {
@@ -70,15 +67,11 @@ const countingIO = () => {
 };
 
 const buildScene = async () => {
-  await seatImage('img-1', 'CT A');
-  const segmentation = store().ensureSegmentationForImage('img-1');
-  for (let index = 0; index < MASK_COUNT; index += 1) {
-    const mask = store().createMask(
-      segmentation.id,
-      mintSegment({ name: `Segment ${index}` })
-    );
-    store().ensureLabelmapBinding(mask.id);
-  }
+  await seatSpecImage('img-1', 'CT A');
+  bindEmptyMasks(
+    'img-1',
+    Array.from({ length: MASK_COUNT }, (_, index) => `Segment ${index}`)
+  );
   await nextTick();
 };
 
@@ -89,10 +82,7 @@ const seedMasks = (count: number) =>
     return maskId;
   });
 
-/**
- * Saves img-1 with the first LIMIT writes held open, which is exactly what
- * leaves the mask past the cap unwritten and editable until finish().
- */
+// Holding a full batch leaves the next mask editable until its write starts.
 const startGatedSave = () => {
   const io = inMemoryArtifactIO();
   const queued = defer<void>();
@@ -107,8 +97,8 @@ const startGatedSave = () => {
     ) => {
       described.push(segments);
       const written = io.write(format, labelmap);
-      if (described.length === LIMIT) queued.resolve();
-      if (described.length <= LIMIT) await released.promise;
+      if (described.length === MASK_IO_CONCURRENCY) queued.resolve();
+      if (described.length <= MASK_IO_CONCURRENCY) await released.promise;
       return written;
     },
   };
@@ -144,12 +134,12 @@ describe('mask io concurrency', () => {
     );
     const wire = parsed.segmentations[0];
     expect(wire.masks).toHaveLength(MASK_COUNT);
-    expect(io.peak.write).toBe(LIMIT);
+    expect(io.peak.write).toBe(MASK_IO_CONCURRENCY);
 
     setActivePinia(createPinia());
-    await seatImage('new-1', 'CT A');
+    await seatSpecImage('new-1', 'CT A');
     const { segmentIdMap } = useSegmentStore().deserialize(parsed);
-    const result = await useSegmentationStore().deserialize({
+    const result = await store().deserialize({
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
@@ -158,7 +148,7 @@ describe('mask io concurrency', () => {
     });
     await nextTick();
 
-    expect(io.peak.read).toBe(LIMIT);
+    expect(io.peak.read).toBe(MASK_IO_CONCURRENCY);
     expect(result.skipped).toEqual([]);
     expect(store().getSegmentationForImage('new-1')!.order).toHaveLength(
       MASK_COUNT
@@ -168,25 +158,46 @@ describe('mask io concurrency', () => {
   it('keeps the masks in wire order', async () => {
     await buildScene();
 
-    const io = countingIO();
+    const io = inMemoryArtifactIO();
     const { parsed, stateFiles } = await serializeToStateFiles(
       manifestForImages(['img-1']),
       io
     );
-    const names = parsed.segments.map((segment: any) => segment.name);
+    const wire = parsed.segmentations[0];
+    wire.order.reverse();
+    const names = wire.order.map((id: string) => {
+      const mask = wire.masks.find((entry: any) => entry.id === id);
+      return parsed.segments.find(
+        (segment: any) => segment.id === mask.segmentId
+      ).name;
+    });
+    const completed: number[] = [];
+    const unorderedIO = {
+      ...io,
+      read: async (file: File) => {
+        const index = Number((await file.text()).split('-')[1]);
+        for (let pending = index + 1; pending > 0; pending -= 1) {
+          await Promise.resolve();
+        }
+        const result = await io.read(file);
+        completed.push(index);
+        return result;
+      },
+    };
 
     setActivePinia(createPinia());
-    await seatImage('new-1', 'CT A');
+    await seatSpecImage('new-1', 'CT A');
     const { segmentIdMap } = useSegmentStore().deserialize(parsed);
-    await useSegmentationStore().deserialize({
+    await store().deserialize({
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
       segmentIdMap,
-      io,
+      io: unorderedIO,
     });
     await nextTick();
 
+    expect(completed.map((index) => `Segment ${index}`)).not.toEqual(names);
     const segments = useSegmentStore().segments;
     const segmentation = store().getSegmentationForImage('new-1')!;
     expect(
@@ -201,8 +212,8 @@ describe('mask io concurrency', () => {
   // written long after the manifest was assembled: what the file says about
   // the last one has to describe the voxels its write was handed.
   it('restores a mask grown while the writes ahead of it were queued', async () => {
-    await seatImage('img-1', 'CT A');
-    const grown = seedMasks(LIMIT + 1)[LIMIT];
+    await seatSpecImage('img-1', 'CT A');
+    const grown = seedMasks(MASK_IO_CONCURRENCY + 1)[MASK_IO_CONCURRENCY];
 
     const save = startGatedSave();
     await save.queued;
@@ -210,22 +221,11 @@ describe('mask io concurrency', () => {
     await save.finish();
 
     const parsed = ManifestSchema.parse(save.manifest) as any;
-    const stateFiles = await Promise.all(
-      parsed.segmentations[0].masks.map(async (mask: any) => {
-        const { path } = mask.representations.labelmap;
-        return {
-          archivePath: path,
-          file: new File(
-            [await save.zip.file(path)!.async('string')],
-            'mask.vti'
-          ),
-        };
-      })
-    );
+    const stateFiles = await stateFilesOf(save.zip, parsed);
 
     setActivePinia(createPinia());
-    await seatImage('new-1', 'CT A');
-    const result = await useSegmentationStore().deserialize({
+    await seatSpecImage('new-1', 'CT A');
+    const result = await store().deserialize({
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
@@ -235,7 +235,7 @@ describe('mask io concurrency', () => {
     await nextTick();
 
     expect(result.skipped).toEqual([]);
-    const restored = store().imageMasks('new-1')[LIMIT];
+    const restored = store().imageMasks('new-1')[MASK_IO_CONCURRENCY];
     expect([...restored.representations.labelmap!.extent]).toEqual([
       0, 3, 0, 0, 0, 0,
     ]);
@@ -246,16 +246,16 @@ describe('mask io concurrency', () => {
   });
 
   it('writes a mask whose segment is deleted while queued as the manifest describes it', async () => {
-    await seatImage('img-1', 'CT A');
-    const deleted = seedMasks(LIMIT + 1)[LIMIT];
+    await seatSpecImage('img-1', 'CT A');
+    const deleted = seedMasks(MASK_IO_CONCURRENCY + 1)[MASK_IO_CONCURRENCY];
 
     const save = startGatedSave();
     await save.queued;
     deleteSegmentOf(deleted);
     await save.finish();
 
-    expect(save.described[LIMIT].map(({ name }) => name)).toEqual([
-      `Segment ${LIMIT}`,
-    ]);
+    expect(save.described[MASK_IO_CONCURRENCY].map(({ name }) => name)).toEqual(
+      [`Segment ${MASK_IO_CONCURRENCY}`]
+    );
   });
 });

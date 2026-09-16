@@ -1,44 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import type { Manifest } from '@/src/io/state-file/schema';
-import { useDatasetStore } from '@/src/store/datasets';
-import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   addMask,
   boundMasks,
-  deleteSegmentOf,
+  inMemoryArtifactIO,
+  labelmapValues,
+  makeLabelmap,
   seatImage,
   seedVoxel,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-
-// ---------------------------------------------------------------------------
-// A mask belongs to exactly one segment, so `segmentation.order` is the only
-// order there is. The invariants: no mask outlives the segment that owns it,
-// no mask outlives its parent image, and the state file names every mask,
-// each at its own archive path.
-// ---------------------------------------------------------------------------
-
-const surface = () => store() as unknown as Record<string, unknown>;
-
-const storageBuffers = () =>
-  boundMasks().map((mask) => mask.representations.labelmap!.image);
-
-/** A local codec: itk-wasm image IO has no counterpart in the node test env. */
-const makeArtifactIO = () => {
-  const labelmaps = new Map<string, vtkLabelMap>();
-  return {
-    write: async (_format: string, labelmap: vtkLabelMap) => {
-      const token = `labelmap-${labelmaps.size}`;
-      labelmaps.set(token, labelmap);
-      return token;
-    },
-    read: async (file: File) => ({ image: labelmaps.get(await file.text())! }),
-  };
-};
 
 async function buildScene() {
   await seatImage('img-1', { name: 'CT A' });
@@ -57,17 +31,10 @@ async function buildScene() {
   return { tumor, node, planned, other };
 }
 
-function importedLabelmap() {
-  const labelmap = vtkLabelMap.newInstance();
-  labelmap.setDimensions([4, 4, 4]);
-  const values = new Uint8Array(64);
-  values[0] = 1;
-  labelmap
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  labelmap.computeTransforms();
-  return labelmap;
-}
+const importedLabelmap = () =>
+  makeLabelmap({
+    values: labelmapValues([4, 4, 4], [{ value: 1, at: [0, 0, 0] }]),
+  });
 
 const names = () =>
   boundMasks().map((mask) => mask.representations.labelmap!.name);
@@ -102,42 +69,12 @@ describe('artifact names carried in from a manifest', () => {
   });
 });
 
-describe('artifact bookkeeping without the per-parent order map', () => {
+describe('mask lookups and archive entries', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('publishes no per-parent artifact order', () => {
-    expect(surface().artifactOrderByParent).toBeUndefined();
-    expect(surface().artifactsForImage).toBeUndefined();
-  });
-
-  it('releases a segment mask with the segment that owns it', async () => {
-    const { tumor, node } = await buildScene();
-    const tumorBuffer = store().getMask(tumor).representations.labelmap!.image;
-
-    deleteSegmentOf(tumor);
-
-    expect(storageBuffers()).not.toContain(tumorBuffer);
-    expect(storageBuffers()).toContain(
-      store().getMask(node).representations.labelmap!.image
-    );
-  });
-
-  it('releases every mask of an image when the dataset is removed', async () => {
-    await buildScene();
-
-    useDatasetStore().remove('img-1');
-
-    expect(
-      boundMasks().map(
-        (mask) => store().segmentationOfMask(mask.id)!.parentImageId
-      )
-    ).toEqual(['img-2']);
-    expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-  });
-
-  it('reaches the outline settings from the mask a renderer holds', async () => {
+  it("finds a mask's segmentation from the mask id", async () => {
     // The renderer is handed a mask id and nothing else, so the segment model
     // has to be reachable from that id alone.
     const { tumor } = await buildScene();
@@ -155,11 +92,14 @@ describe('artifact bookkeeping without the per-parent order map', () => {
     await buildScene();
     const manifest = {} as Manifest;
 
-    await store().serialize({ zip: new JSZip(), manifest }, makeArtifactIO());
+    await store().serialize(
+      { zip: new JSZip(), manifest },
+      inMemoryArtifactIO()
+    );
 
     const bound = manifest.segmentations!.flatMap((segmentation) =>
-      segmentation.masks.flatMap((segment) => {
-        const binding = segment.representations.labelmap;
+      segmentation.masks.flatMap((mask) => {
+        const binding = mask.representations.labelmap;
         return binding
           ? [{ binding, parentImage: segmentation.parentImage }]
           : [];

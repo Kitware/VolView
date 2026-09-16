@@ -1,24 +1,24 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
+import { DEFAULT_SEGMENTATION_DISPLAY } from '@/src/segmentation/model';
 import { segmentFillAlpha } from '@/src/segmentation/rendering/display';
 import { cssColorToRGBA } from '@/src/segmentation/color';
 import { TOOL_COLORS } from '@/src/config';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
   legacyAxialViewConfig,
+  seatImage,
+  SPEC_DIMENSIONS,
+  SPEC_VOXEL_COUNT,
   inMemoryArtifactIO,
   manifestForImages,
   segmentationSnapshot,
@@ -102,7 +102,7 @@ const EDEMA: LegacyMask = {
 // No `visible`/`locked` keys at all: the old schema defaulted them on parse.
 const BARE = { value: 3, name: '', color: [1, 2, 3, 4] } as LegacyMask;
 
-// What the slice renderer multiplies out for a visible, opaque-coloured
+// What the slice renderer multiplies out for a visible, opaque-colored
 // segment: the segment's fill opacity times the image's multiplier. A legacy
 // group's opacity has to survive as this product, not as either factor alone.
 const effectiveFill = (migrated: any, record: any, segmentation: any) =>
@@ -110,7 +110,7 @@ const effectiveFill = (migrated: any, record: any, segmentation: any) =>
     {
       visible: true,
       color: [0, 0, 0, 255],
-      fillOpacity: segmentOfMask(migrated, record)?.fillOpacity ?? 1,
+      fillOpacity: wireSegmentOf(migrated, record)?.fillOpacity ?? 1,
     } as any,
     segmentation.fillOpacity
   );
@@ -120,36 +120,60 @@ const segmentationFor = (migrated: any, parentImage: string) =>
     (entry: any) => entry.parentImage === parentImage
   );
 
-const segmentOfMask = (migrated: any, mask: any) =>
+const wireSegmentOf = (migrated: any, mask: any) =>
   migrated.segments.find((segment: any) => segment.id === mask.segmentId);
 
 const namedMasks = (migrated: any, segmentation: any) =>
   orderedMasks(segmentation).map((mask: any) => ({
     ...mask,
-    segment: segmentOfMask(migrated, mask),
+    segment: wireSegmentOf(migrated, mask),
   }));
 
 const orderedMasks = (segmentation: any) =>
   segmentation.order.map((id: string) =>
-    segmentation.masks.find((segment: any) => segment.id === id)
+    segmentation.masks.find((mask: any) => mask.id === id)
   );
 
 const boundTo = (segmentation: any, artifactId: string, sourceValue: number) =>
   orderedMasks(segmentation).find(
-    (segment: any) =>
-      segment.representations.labelmap?.artifactId === artifactId &&
-      segment.representations.labelmap?.sourceValue === sourceValue
+    (mask: any) =>
+      mask.representations.labelmap?.artifactId === artifactId &&
+      mask.representations.labelmap?.sourceValue === sourceValue
   );
 
 describe('migrate640To700: structural stage', () => {
-  it('reaches the current manifest version from every legacy version', () => {
-    ['6.2.0', '6.3.0', '6.4.0'].forEach((version) => {
+  it('keeps colliding legacy identifiers as distinct segments', () => {
+    const migrated = migrate({
+      segmentGroups: [
+        legacyGroup('polygons', 'ds-ct', [
+          { value: 1, name: 'Voxels', color: [1, 2, 3, 255] },
+        ]),
+      ],
+      tools: {
+        polygons: {
+          labels: { '1': { labelName: 'Vector', color: '#00ff00' } },
+          tools: [{ id: 't1', label: '1', imageID: 'ds-ct' }],
+        },
+      },
+    });
+
+    const segmentIds = migrated.segments.map((segment: any) => segment.id);
+    // Both sources interpolate to 'polygons-1'; the second is suffixed.
+    expect(segmentIds).toEqual(['polygons-1', 'polygons-1-2']);
+    expect(migrated.tools.polygons.tools[0].segmentId).toBe('polygons-1-2');
+    // The record that group became keeps an id of its own.
+    expect(migrated.segmentations[0].masks[0].segmentId).toBe('polygons-1');
+  });
+
+  it.each(['5.0.1', '6.0.0', '6.1.0', '6.1.1', '6.2.0', '6.3.0', '6.4.0'])(
+    'reaches the current manifest version from %s',
+    (version) => {
       const migrated = migrateManifest(
         JSON.stringify({ version, dataSources: [] })
       ) as any;
       expect(migrated.version).toBe(MANIFEST_VERSION);
-    });
-  });
+    }
+  );
 
   it('migrates a one-group manifest losslessly', () => {
     const migrated = migrate({
@@ -178,15 +202,15 @@ describe('migrate640To700: structural stage', () => {
     expect(segmentation.parentImage).toBe('ds-ct');
     expect(segmentation.order).toHaveLength(3);
 
-    const segments = namedMasks(migrated, segmentation);
+    const masks = namedMasks(migrated, segmentation);
     expect(
-      segments.map((segment: any) => ({
-        name: segment.segment.name,
-        color: segment.segment.color,
-        visible: segment.segment.visible,
-        locked: segment.segment.locked,
-        sourceValue: segment.representations.labelmap.sourceValue,
-        artifactId: segment.representations.labelmap.artifactId,
+      masks.map((mask: any) => ({
+        name: mask.segment.name,
+        color: mask.segment.color,
+        visible: mask.segment.visible,
+        locked: mask.segment.locked,
+        sourceValue: mask.representations.labelmap.sourceValue,
+        artifactId: mask.representations.labelmap.artifactId,
       }))
     ).toEqual([
       {
@@ -215,8 +239,8 @@ describe('migrate640To700: structural stage', () => {
       },
     ]);
     // The extent is a placeholder resolved against the parent at load time.
-    segments.forEach((segment: any) =>
-      expect(segment.representations.labelmap.extent).toHaveLength(6)
+    masks.forEach((mask: any) =>
+      expect(mask.representations.labelmap.extent).toHaveLength(6)
     );
 
     const parsed = ManifestSchema.parse(migrated);
@@ -225,33 +249,35 @@ describe('migrate640To700: structural stage', () => {
     // migration itself is otherwise lossless.
     const expectedSegmentations = migrated.segmentations.map((wire: any) => ({
       ...wire,
-      fillOpacity: DEFAULT_SEGMENTATION_FILL_OPACITY,
-      outlineOpacity: 1,
-      outlineThickness: 2,
+      ...DEFAULT_SEGMENTATION_DISPLAY,
     }));
     expect(parsed.segmentations).toEqual(expectedSegmentations);
     expect(parsed.segments).toEqual(migrated.segments);
     expect(parsed.segmentationArtifacts![0]).toMatchObject({ id: 'sg-1' });
   });
 
-  it('preserves a path-less group’s dataSourceId', () => {
-    const migrated = migrate({
-      segmentGroups: [
-        {
-          id: 'sg-1',
-          dataSourceId: 7,
-          metadata: { name: 'Painted', parentImage: 'ds-ct' },
-        },
-      ],
-    });
+  it.each(['6.3.0', '6.4.0'])(
+    "preserves a path-less group's dataSourceId from %s",
+    (version) => {
+      const migrated = migrate({
+        version,
+        segmentGroups: [
+          {
+            id: 'sg-1',
+            dataSourceId: 7,
+            metadata: { name: 'Painted', parentImage: 'ds-ct' },
+          },
+        ],
+      });
 
-    expect(migrated.segmentationArtifacts[0]).toMatchObject({
-      id: 'sg-1',
-      dataSourceId: 7,
-    });
-    expect(migrated.segmentationArtifacts[0].path).toBeUndefined();
-    expect(() => ManifestSchema.parse(migrated)).not.toThrow();
-  });
+      expect(migrated.segmentationArtifacts[0]).toMatchObject({
+        id: 'sg-1',
+        dataSourceId: 7,
+      });
+      expect(migrated.segmentationArtifacts[0].path).toBeUndefined();
+      expect(() => ManifestSchema.parse(migrated)).not.toThrow();
+    }
+  );
 
   it('keeps multi-group order deterministic', () => {
     const migrated = migrate({
@@ -271,9 +297,9 @@ describe('migrate640To700: structural stage', () => {
 
     const ct = segmentationFor(migrated, 'ds-ct');
     expect(
-      namedMasks(migrated, ct).map((segment: any) => [
-        segment.segment.name,
-        segment.representations.labelmap.artifactId,
+      namedMasks(migrated, ct).map((mask: any) => [
+        mask.segment.name,
+        mask.representations.labelmap.artifactId,
       ])
     ).toEqual([
       ['Tumor', 'sg-a'],
@@ -296,20 +322,16 @@ describe('migrate640To700: structural stage', () => {
     });
 
     const ct = segmentationFor(migrated, 'ds-ct');
-    const segments = namedMasks(migrated, ct);
-    expect(segments.map((segment: any) => segment.segment.name)).toEqual([
+    const masks = namedMasks(migrated, ct);
+    expect(masks.map((mask: any) => mask.segment.name)).toEqual([
       'Segment 1',
       'Segment 1',
     ]);
-    expect(new Set(segments.map((segment: any) => segment.id)).size).toBe(2);
+    expect(new Set(masks.map((mask: any) => mask.id)).size).toBe(2);
     // One segment per legacy segment: an equal name is not the same identity.
+    expect(new Set(masks.map((mask: any) => mask.segmentId)).size).toBe(2);
     expect(
-      new Set(segments.map((segment: any) => segment.segmentId)).size
-    ).toBe(2);
-    expect(
-      segments.map(
-        (segment: any) => segment.representations.labelmap.artifactId
-      )
+      masks.map((mask: any) => mask.representations.labelmap.artifactId)
     ).toEqual(['sg-a', 'sg-b']);
   });
 
@@ -338,7 +360,7 @@ describe('migrate640To700: structural stage', () => {
       },
     });
 
-    const painted = segmentOfMask(
+    const painted = wireSegmentOf(
       migrated,
       orderedMasks(segmentationFor(migrated, 'ds-ct'))[0]
     );
@@ -387,7 +409,7 @@ describe('migrate640To700: structural stage', () => {
       })
     ) as any;
 
-    const painted = segmentOfMask(
+    const painted = wireSegmentOf(
       migrated,
       orderedMasks(segmentationFor(migrated, 'ds-ct'))[0]
     );
@@ -485,7 +507,7 @@ describe('migrate640To700: structural stage', () => {
     const segmentation = segmentationFor(migrated, 'ds-ct');
     const [record] = orderedMasks(segmentation);
     // A legacy group described what it showed, so both land on its segment.
-    expect(segmentOfMask(migrated, record)).toMatchObject({
+    expect(wireSegmentOf(migrated, record)).toMatchObject({
       visible: false,
       outlineOpacity: 0.25,
     });
@@ -532,10 +554,10 @@ describe('migrate640To700: structural stage', () => {
     const segmentation = segmentationFor(migrated, 'ds-ct');
     expect(
       effectiveFill(migrated, orderedMasks(segmentation)[0], segmentation)
-    ).toBeCloseTo(DEFAULT_SEGMENTATION_FILL_OPACITY);
+    ).toBeCloseTo(DEFAULT_SEGMENTATION_DISPLAY.fillOpacity);
   });
 
-  it('keeps each merged group’s own fill when they disagree', () => {
+  it("keeps each merged group's own fill when they disagree", () => {
     const migrated = ManifestSchema.parse(
       migrate({
         segmentGroups: [
@@ -560,11 +582,10 @@ describe('migrate640To700: structural stage', () => {
     const [tumor, edema] = orderedMasks(segmentation);
     expect(effectiveFill(migrated, tumor, segmentation)).toBeCloseTo(0.2);
     expect(effectiveFill(migrated, edema, segmentation)).toBeCloseTo(0.8);
-    // The per-segment share only holds a fraction, so the larger of the two is
-    // what the segmentation carries.
+    expect(segmentation.fillOpacity).toBeCloseTo(0.8);
     expect(
       orderedMasks(segmentation).map(
-        (record: any) => segmentOfMask(migrated, record).fillOpacity <= 1
+        (record: any) => wireSegmentOf(migrated, record).fillOpacity <= 1
       )
     ).toEqual([true, true]);
   });
@@ -732,8 +753,8 @@ describe('migrate640To700: structural stage', () => {
       ['Tumor', 3],
       ['Node', 1],
     ]);
-    const [tumorType] = migrated.segments;
-    expect(migrated.tools.polygons.tools[0].segmentId).toBe(tumorType.id);
+    const [tumorSegment] = migrated.segments;
+    expect(migrated.tools.polygons.tools[0].segmentId).toBe(tumorSegment.id);
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
 
@@ -961,7 +982,6 @@ describe('migrate640To700: structural stage', () => {
         color: [255, 0, 0, 255],
       },
     ]);
-    expect(migrated.rulerSegments).toBeUndefined();
     expect(migrated.tools.rulers.labels).toBeUndefined();
     expect(migrated.tools.rulers.tools[0].segmentId).toBe(
       migrated.segments[0].id
@@ -978,27 +998,6 @@ describe('migrate640To700: structural stage', () => {
 // import path, resolves its placeholder extents against the loaded parent, and
 // re-saves as 7.0.0 that reloads identically.
 // ---------------------------------------------------------------------------
-
-const DIMENSIONS: [number, number, number] = [4, 4, 2];
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-
-function makeImage(fill: (values: Uint8Array) => void = () => {}) {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(DIMENSIONS);
-  const values = new Uint8Array(VOXEL_COUNT);
-  fill(values);
-  image
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  image.computeTransforms();
-  return image;
-}
-
-const seatImage = async (id: string, name: string, image = makeImage()) => {
-  useImageCacheStore().addVTKImageData(image, name, { id });
-  await nextTick();
-  return id;
-};
 
 const legacyScene = () =>
   JSON.stringify({
@@ -1052,15 +1051,15 @@ const legacyScene = () =>
 
 const restoreLegacyScene = async (scene = legacyScene()) => {
   const manifest = ManifestSchema.parse(migrateManifest(scene));
-  await seatImage('store-ct', 'CT');
-  await seatImage(
-    'store-tumor',
-    'Tumor',
-    makeImage((values) => {
-      values.fill(1, 4, 12);
-      values.fill(2, 12, 20);
-    })
-  );
+  await seatImage('store-ct', { name: 'CT', dimensions: SPEC_DIMENSIONS });
+  const values = new Uint8Array(SPEC_VOXEL_COUNT);
+  values.fill(1, 4, 12);
+  values.fill(2, 12, 20);
+  await seatImage('store-tumor', {
+    name: 'Tumor',
+    dimensions: SPEC_DIMENSIONS,
+    values,
+  });
   await completeStateFileRestore(manifest, [], {
     'ds-ct': 'store-ct',
     [leafStateId(3)]: 'store-tumor',
@@ -1123,7 +1122,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     records.forEach((record) => {
       const appearance = segments.appearanceOf(record.segmentId);
       expect(appearance.outlineOpacity).toBeCloseTo(0.25);
-      // Both groups rendered at the legacy 0.4, and that is what the restored
+      // Both segments rendered at the legacy group's 0.4, so the restored
       // pair of opacities has to come to.
       expect(appearance.fillOpacity * segmentation.fillOpacity).toBeCloseTo(
         0.4
@@ -1181,15 +1180,16 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     expect(before.name).toBe('CT');
 
     const io = inMemoryArtifactIO();
+    const manifest = manifestForImages(['store-ct'], { tools: {} });
     const { parsed: saved, stateFiles } = await serializeToStateFiles(
-      manifestForImages(['store-ct'], { tools: {} }),
+      manifest,
       io
     );
     expect(saved.version).toBe(MANIFEST_VERSION);
-    expect(saved.segmentGroups).toBeUndefined();
+    expect(manifest).not.toHaveProperty('segmentGroups');
 
     setActivePinia(createPinia());
-    await seatImage('new-ct', 'CT');
+    await seatImage('new-ct', { name: 'CT', dimensions: SPEC_DIMENSIONS });
     await useSegmentationStore().deserialize({
       manifest: saved,
       stateFiles,
@@ -1200,46 +1200,5 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     await nextTick();
 
     expect(segmentationSnapshot('new-ct')).toEqual(before);
-  });
-
-  it('keeps colliding legacy identifiers as distinct segments', () => {
-    // Group 'polygons' value 1 and a polygon label '1' both interpolate to
-    // 'polygons-1'.
-    const migrated: any = migrateManifest(
-      JSON.stringify({
-        version: '6.4.0',
-        datasets: [{ id: 'img-2', dataSourceId: 1 }],
-        dataSources: [{ id: 1, type: 'uri', uri: '/img-2' }],
-        segmentGroups: [
-          {
-            id: 'polygons',
-            path: 'group.vti',
-            metadata: {
-              parentImage: 'img-2',
-              name: 'Group',
-              segments: {
-                order: [1],
-                byValue: {
-                  '1': { value: 1, name: 'Voxels', color: [1, 2, 3, 255] },
-                },
-              },
-            },
-          },
-        ],
-        tools: {
-          polygons: {
-            labels: { '1': { labelName: 'Vector', color: '#00ff00' } },
-            tools: [{ id: 't1', label: '1', imageID: 'img-2' }],
-          },
-        },
-      })
-    );
-
-    const segmentIds = migrated.segments.map((segment: any) => segment.id);
-    // Both sources interpolate to 'polygons-1'; the second is suffixed.
-    expect(segmentIds).toEqual(['polygons-1', 'polygons-1-2']);
-    expect(migrated.tools.polygons.tools[0].segmentId).toBe('polygons-1-2');
-    // The record that group became keeps an id of its own.
-    expect(migrated.segmentations[0].masks[0].segmentId).toBe('polygons-1');
   });
 });

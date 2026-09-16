@@ -1,5 +1,4 @@
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
@@ -14,26 +13,13 @@ import {
   LABELMAP_MAX_VALUE,
 } from '@/src/segmentation/io/labelmap';
 import { type SegmentMask } from '@/src/segmentation/model';
+import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
 import { chunk } from '@/src/utils';
 
-/**
- * The given segments as one parent-shaped labelmap, built on demand and never
- * stored: what leaves VolView means the whole segmentation, not one segment's
- * bounded mask. Earlier in the registry wins where two segments overlap, the
- * precedence the reorder control documents. `members` defaults to the image's
- * segments; an export passes one group so no overlap is flattened away.
- */
-export function compositeLabelmap(
-  parentImageId: string,
-  members?: SegmentMask[]
-) {
-  useSegmentationEditsStore().beforeRead();
-  const snapshot = captureLabelmapParts(parentImageId, [
-    members ?? useSegmentationStore().imageMasks(parentImageId),
-  ]);
-  return composeLabelmapPart(snapshot.parent, snapshot.parts[0]);
-}
+const byRegistryOrder =
+  (registry: SegmentRegistry) => (a: SegmentMask, b: SegmentMask) =>
+    registry.orderIndexOf(a.segmentId) - registry.orderIndexOf(b.segmentId);
 
 /** Snapshot bounded geometry and appearance without allocating full-volume parts. */
 export function captureLabelmapParts(
@@ -53,25 +39,19 @@ export function captureLabelmapParts(
   return {
     parent,
     parts: parts.map((part) =>
-      [...part]
-        .sort(
-          (a, b) =>
-            registry.orderIndexOf(a.segmentId) -
-            registry.orderIndexOf(b.segmentId)
-        )
-        .map((mask, index) => {
-          const bounded = boundScalars(mask.representations.labelmap);
-          return {
-            descriptor: toLabelmapSegment(
-              registry.getSegment(mask.segmentId),
-              index + 1
-            ),
-            bounded: bounded && {
-              ...bounded,
-              scalars: bounded.scalars.slice(),
-            },
-          };
-        })
+      [...part].sort(byRegistryOrder(registry)).map((mask, index) => {
+        const bounded = boundScalars(mask.representations.labelmap);
+        return {
+          descriptor: toLabelmapSegment(
+            registry.getSegment(mask.segmentId),
+            index + 1
+          ),
+          bounded: bounded && {
+            ...bounded,
+            scalars: bounded.scalars.slice(),
+          },
+        };
+      })
     ),
   };
 }
@@ -93,14 +73,12 @@ export function planLabelmapExport(
   parentImageId: string,
   preferredSegmentId?: string
 ) {
-  const registry = useSegmentStore().segments;
+  const inRegistryOrder = byRegistryOrder(useSegmentStore().segments);
   const masks = [...useSegmentationStore().imageMasks(parentImageId)].sort(
     (a, b) => {
       if (a.segmentId === preferredSegmentId) return -1;
       if (b.segmentId === preferredSegmentId) return 1;
-      return (
-        registry.orderIndexOf(a.segmentId) - registry.orderIndexOf(b.segmentId)
-      );
+      return inRegistryOrder(a, b);
     }
   );
   // A mask holding no voxels still takes a label value and ships as an empty

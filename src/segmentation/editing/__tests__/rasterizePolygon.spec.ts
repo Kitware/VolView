@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
-import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
+import {
+  rasterizePolygon,
+  rasterizeTargetDisabledReason,
+} from '@/src/segmentation/editing/rasterizePolygon';
+import { useMessageStore } from '@/src/store/messages';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { listMasks } from '@/src/segmentation/model';
 import {
@@ -19,15 +23,7 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
-// ---------------------------------------------------------------------------
-// The mask grows to hold the polygon before `fillPoly` runs (a mask that does
-// not reach the polygon silently swallows every pixel), and the filled voxels
-// are cleared in the other UNLOCKED segments of the image. A locked one keeps
-// its voxels and the fill goes around them.
-//
-// Unit spacing and a zero origin make world points index points, and an
-// identity direction maps the Axial view axis to K.
-// ---------------------------------------------------------------------------
+// Unit spacing and a zero origin make world points index points, Axial on K.
 
 const DIMENSIONS: Index3 = [6, 6, 2];
 
@@ -64,7 +60,7 @@ const rasterize = (segmentId: string | undefined, points = SQUARE, slice = 0) =>
     viewAxis: 'Axial',
   });
 
-/** What a polygon carries: the type, not the record it lands in. */
+/** What a polygon carries: the segment, not the mask it lands in. */
 const rasterizeInto = (
   maskId: string | undefined,
   points = SQUARE,
@@ -73,9 +69,11 @@ const rasterizeInto = (
 
 const segments = () => useSegmentStore().segments;
 
+const UNLOCK_REASON = 'Unlock this segment to rasterize into it';
+
 const segmentNamesOf = (imageId: string) =>
   listMasks(store().getSegmentationForImage(imageId)!).map(
-    (segment) => segments().appearanceOf(segment.segmentId).name
+    (mask) => segments().appearanceOf(mask.segmentId).name
   );
 
 describe('rasterizing a polygon into a bounded mask', () => {
@@ -109,8 +107,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(markedVoxels(maskId)).toHaveLength(16);
   });
 
-  it('clears the filled voxels in another segment’s mask', () => {
-    const neighbor = addMask('img-1', 'Neighbour');
+  it("clears the filled voxels in another segment's mask", () => {
+    const neighbor = addMask('img-1', 'Neighbor');
     seedVoxel(neighbor, [2, 3, 0]);
     seedVoxel(neighbor, [0, 0, 0]);
     const maskId = addMask('img-1', 'Tumor');
@@ -121,7 +119,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(neighbor, [0, 0, 0])).toBe(SEGMENT_VALUE);
   });
 
-  it('fills around the voxels a locked neighbour holds', () => {
+  it('fills around the voxels a locked neighbor holds', () => {
     const locked = addMask('img-1', 'Locked');
     const unlocked = addMask('img-1', 'Unlocked');
     seedVoxel(locked, [2, 3, 0]);
@@ -139,8 +137,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(maskId, [3, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
-  it('deletes a neighbour the fill takes every voxel from', () => {
-    const neighbor = addMask('img-1', 'Neighbour');
+  it('deletes a neighbor the fill takes every voxel from', () => {
+    const neighbor = addMask('img-1', 'Neighbor');
     seedVoxel(neighbor, [2, 3, 0]);
     const maskId = addMask('img-1', 'Tumor');
 
@@ -155,7 +153,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const voxels = store().maskVoxels(locked);
     voxels.materialize();
     voxels.ensureContains([0, 5, 0, 5, 0, 1]);
-    voxels.scalars().fill(1);
+    voxels.scalars().fill(SEGMENT_VALUE);
     lockSegment(locked, true);
     const tumor = segments().addSegment({ name: 'Tumor' });
 
@@ -166,7 +164,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(markedVoxels(locked)).toHaveLength(72);
   });
 
-  it('shares the filled voxels with every neighbour while overlap is allowed', () => {
+  it('shares the filled voxels with every neighbor while overlap is allowed', () => {
     const locked = addMask('img-1', 'Locked');
     const unlocked = addMask('img-1', 'Unlocked');
     seedVoxel(locked, [2, 3, 0]);
@@ -190,7 +188,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
         const voxels = store().maskVoxels(id);
         voxels.materialize();
         voxels.ensureContains([0, 5, 0, 5, 0, 1]);
-        if (name === 'First' || name === 'Second') voxels.scalars().fill(1);
+        if (name === 'First' || name === 'Second')
+          voxels.scalars().fill(SEGMENT_VALUE);
         // Held inside the polygon, so the fill goes around it.
         if (name === 'Locked') {
           seedVoxel(id, [1, 2, 0]);
@@ -219,8 +218,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(neighbors.map(({ modified }) => modified.mock.calls.length)).toEqual(
       [2, 2, 0, 0]
     );
-    expect(maskValueAt(target, [2, 3, 1])).toBe(1);
-    expect(maskValueAt(neighbors[0].id, [0, 0, 0])).toBe(1);
+    expect(maskValueAt(target, [2, 3, 1])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(neighbors[0].id, [0, 0, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('creates nothing for a polygon that covers no voxel', () => {
@@ -240,8 +239,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
   });
 
   it('refuses a locked segment and leaves every mask as it was', () => {
-    const neighbour = addMask('img-1', 'Neighbour');
-    seedVoxel(neighbour, [2, 3, 0]);
+    const neighbor = addMask('img-1', 'Neighbor');
+    seedVoxel(neighbor, [2, 3, 0]);
     const maskId = addMask('img-1', 'Tumor');
     lockSegment(maskId, true);
 
@@ -251,8 +250,55 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(result.maskId).toBeUndefined();
     expect(result.segmentId).toBe(segmentOfMask(maskId));
     expect(maskValueAt(maskId, [2, 3, 0])).toBeFalsy();
-    // The clearer never ran, so the neighbour keeps what a fill would take.
-    expect(maskValueAt(neighbour, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    // The clearer never ran, so the neighbor keeps what a fill would take.
+    expect(maskValueAt(neighbor, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(store().getMask(maskId).representations.labelmap).toBeUndefined();
+    expect(useMessageStore().messages.map(({ title }) => title)).toContain(
+      'Cannot rasterize into a locked segment'
+    );
+    expect(rasterizeTargetDisabledReason(segmentOfMask(maskId))).toBe(
+      UNLOCK_REASON
+    );
+  });
+
+  it('names the locked first segment for a polygon carrying none, without allocating it', () => {
+    const first = addMask('img-1', 'First');
+    lockSegment(first, true);
+
+    expect(rasterizeTargetDisabledReason('')).toBe(UNLOCK_REASON);
+    expect(store().getMask(first).representations.labelmap).toBeUndefined();
+  });
+
+  it('falls back to the selected segment when the polygon names a deleted one', () => {
+    const stale = segmentOfMask(addMask('img-1', 'Deleted'));
+    const fallback = addMask('img-1', 'Selected');
+    segments().selectSegment(segmentOfMask(fallback));
+    segments().deleteSegment(stale);
+    lockSegment(fallback, true);
+
+    expect(rasterizeTargetDisabledReason(stale)).toBe(UNLOCK_REASON);
+    expect(rasterizeTargetDisabledReason('')).toBe(UNLOCK_REASON);
+
+    lockSegment(fallback, false);
+    expect(rasterizeTargetDisabledReason(stale)).toBe('');
+    expect(rasterize(stale)).toEqual({
+      segmentId: segmentOfMask(fallback),
+      maskId: fallback,
+    });
+    expect(maskValueAt(fallback, [2, 3, 0])).toBe(SEGMENT_VALUE);
+  });
+
+  it('mints a segment when the polygon names the only one, since deleted', () => {
+    const deleted = segments().addSegment({ name: 'Tumor' });
+    segments().deleteSegment(deleted);
+
+    const result = rasterize(deleted);
+
+    expect(result.segmentId).not.toBe(deleted);
+    expect(store().getSegmentationForImage('img-1')!.order).toEqual([
+      result.maskId,
+    ]);
+    expect(maskValueAt(result.maskId!, [2, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('keeps an earlier polygon when a later one grows the mask', () => {
@@ -337,26 +383,9 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(segments().selectedSegmentId.value).toBe(tumor);
     expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
   });
-
-  it('rasterizes into the segment it was given, not the selected one', () => {
-    const active = addMask('img-1', 'Active');
-    segments().selectSegment(segmentOfMask(active));
-    const named = addMask('img-1', 'Named');
-
-    const result = rasterizeInto(named);
-
-    expect(result.maskId).toBe(named);
-    expect(maskValueAt(named, [2, 3, 0])).toBe(SEGMENT_VALUE);
-    expect(maskValueAt(active, [2, 3, 0])).toBeFalsy();
-  });
 });
 
-// ---------------------------------------------------------------------------
-// The voxels a polygon fills are a property of the polygon and the parent
-// image, not of how much of the image its mask currently holds. Triangles with
-// integer vertices are where an edge can cross a scanline exactly on a pixel
-// centre, which is the tie an allocation-dependent fill resolves differently.
-// ---------------------------------------------------------------------------
+// Integer-vertex triangles put edges on pixel centers, where allocation must not decide.
 
 const GRID: Index3 = [40, 40, 1];
 const GRID_EXTENT = [0, 39, 0, 39, 0, 0] as const;

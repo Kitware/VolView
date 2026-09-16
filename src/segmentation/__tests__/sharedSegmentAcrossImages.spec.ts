@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
+import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
-import { resolveRasterizeTarget } from '@/src/segmentation/editing/rasterizePolygon';
+import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
-  seatSpecImage as seatImage,
+  markedVoxels,
+  maskValueAt,
+  seatSpecImage,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
@@ -30,11 +34,27 @@ const recordIdsOf = (imageId: string) =>
 const nameOf = (maskId: string) =>
   segments().appearanceOf(store().getMask(maskId).segmentId).name;
 
+const SQUARE: Vector3[] = [
+  [0, 0, 0],
+  [2, 0, 0],
+  [2, 2, 0],
+  [0, 2, 0],
+];
+
+const rasterizeOn = (imageId: string, segmentId: string) =>
+  rasterizePolygon({
+    imageId,
+    segmentId,
+    points: SQUARE,
+    slice: 0,
+    viewAxis: 'Axial',
+  });
+
 describe('one segment across images', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    await seatImage('img-1');
-    await seatImage('img-2');
+    await seatSpecImage('img-1');
+    await seatSpecImage('img-2');
   });
 
   it('keeps the selection when the viewed image changes', async () => {
@@ -79,8 +99,8 @@ describe('one segment across images', () => {
 describe('placing and rasterizing on another image', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    await seatImage('img-1');
-    await seatImage('img-2');
+    await seatSpecImage('img-1');
+    await seatSpecImage('img-2');
     await viewImage('img-1');
   });
 
@@ -101,11 +121,11 @@ describe('placing and rasterizing on another image', () => {
     const origin = store().resolveEditTarget('img-1');
 
     await viewImage('img-2');
-    const target = resolveRasterizeTarget('img-2', segmentId)!;
+    const result = rasterizeOn('img-2', segmentId);
 
-    expect(target.segmentId).toBe(segmentId);
-    expect(nameOf(target.maskId)).toBe('Lesion');
-    expect(recordIdsOf('img-2')).toEqual([target.maskId]);
+    expect(result.segmentId).toBe(segmentId);
+    expect(nameOf(result.maskId!)).toBe('Lesion');
+    expect(recordIdsOf('img-2')).toEqual([result.maskId]);
     expect(recordIdsOf('img-1')).toEqual([origin]);
   });
 
@@ -115,11 +135,10 @@ describe('placing and rasterizing on another image', () => {
     store().ensureLabelmapBinding(origin);
 
     await viewImage('img-2');
-    const target = resolveRasterizeTarget('img-2', segmentId)!;
+    const { maskId } = rasterizeOn('img-2', segmentId);
 
-    expect(target.maskId).not.toBe(origin);
-    expect(target.voxels.image()).not.toBe(
-      store().getMask(origin).representations.labelmap!.image
-    );
+    expect(maskId).not.toBe(origin);
+    expect(maskValueAt(maskId!, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(markedVoxels(origin)).toEqual([]);
   });
 });

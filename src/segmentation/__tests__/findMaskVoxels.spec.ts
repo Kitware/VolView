@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   SPEC_FULL_EXTENT as FULL_EXTENT,
   SPEC_VOXEL_COUNT as VOXEL_COUNT,
   deleteSegmentOf,
@@ -33,7 +33,7 @@ function seatMask(imageId: string) {
 describe('tolerant mask voxel accessor', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
   });
 
   describe('resolution', () => {

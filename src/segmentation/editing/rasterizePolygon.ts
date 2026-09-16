@@ -33,10 +33,7 @@ export const rasterizeTargetDisabledReason = (segmentId: Maybe<string>) =>
  * point that resolves and creates masks: a polygon carrying no segment, or one
  * whose segment was deleted, lands in the selected segment rather than failing.
  */
-export function resolveRasterizeTarget(
-  imageId: string,
-  segmentId: Maybe<string>
-) {
+function resolveRasterizeTarget(imageId: string, segmentId: Maybe<string>) {
   const segmentationStore = useSegmentationStore();
 
   // A locked segment is not editable, the same refusal paint and the processes

@@ -1,19 +1,14 @@
 import { markRaw } from 'vue';
-import { until } from '@vueuse/core';
-import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import type { Segmentation } from '@/src/io/state-file/schema';
 import { placeMask, setMaskScalars } from '@/src/segmentation/masks/storage';
-import {
-  LABELMAP_BACKGROUND_VALUE,
-  maskScalars,
-  type LabelmapBinding,
-} from '@/src/segmentation/model';
+import { maskScalars, type LabelmapBinding } from '@/src/segmentation/model';
 import {
   extentContains,
   extentSize,
   fullExtent,
+  hasMarkedVoxel,
   isEmptyExtent,
   type Extent3D,
 } from '@/src/segmentation/geometry';
@@ -21,23 +16,6 @@ import { arrayEquals } from '@/src/utils';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 
 export type WireMask = Segmentation['masks'][number];
-
-export function createLoadedImageReader(
-  getImage: (id: string) => ProgressiveImage | undefined,
-  getVtkImageData: (id: string) => vtkImageData | undefined
-) {
-  return async (imageId: string) => {
-    // A stopped, incomplete load cannot supply the grid for an input.
-    // Removal also settles the watcher, including removal before it starts.
-    await until(() => !getImage(imageId)?.loading.value).toBe(true);
-    if (getImage(imageId)?.status.value !== 'complete') {
-      throw new Error('Image did not load');
-    }
-    const image = getVtkImageData(imageId);
-    if (!image) throw new Error('Could not get input image data');
-    return image;
-  };
-}
 
 export type SkippedRestoreItem = { name: string; reason: string };
 
@@ -52,33 +30,22 @@ type RestoreBindingInput = {
   getParentImage: (id: string) => vtkImageData | undefined;
 };
 
-const sameDimensions = (extent: Extent3D, dimensions: number[]) =>
-  arrayEquals(extentSize(extent), dimensions);
-
-function validExtent(
+function extentProblem(
   extent: Extent3D,
   labelmap: vtkLabelMap,
-  parentImage: vtkImageData,
-  reject: (reason: string) => void
+  parentImage: vtkImageData
 ) {
-  if (isEmptyExtent(extent)) {
-    const containsForeground = maskScalars(labelmap).some(
-      (value) => value !== LABELMAP_BACKGROUND_VALUE
-    );
-    if (!containsForeground) return true;
-    reject('empty extent references a mask with foreground voxels');
-    return false;
-  }
-
-  if (!sameDimensions(extent, labelmap.getDimensions())) {
-    reject('extent does not match the loaded mask dimensions');
-    return false;
-  }
-  if (!extentContains(fullExtent(parentImage.getDimensions()), extent)) {
-    reject('extent leaves the parent image');
-    return false;
-  }
-  return true;
+  if (!extent.every(Number.isInteger))
+    return 'extent coordinates must be finite integers';
+  if (isEmptyExtent(extent))
+    return hasMarkedVoxel(maskScalars(labelmap))
+      ? 'empty extent references a mask with foreground voxels'
+      : undefined;
+  if (!arrayEquals(extentSize(extent), labelmap.getDimensions()))
+    return 'extent does not match the loaded mask dimensions';
+  if (!extentContains(fullExtent(parentImage.getDimensions()), extent))
+    return 'extent leaves the parent image';
+  return undefined;
 }
 
 /**
@@ -108,7 +75,11 @@ export function prepareRestoreBindings(input: RestoreBindingInput) {
     }
 
     const extent = [...wireBinding.extent] as Extent3D;
-    if (!validExtent(extent, labelmap, parentImage, reject)) return;
+    const problem = extentProblem(extent, labelmap, parentImage);
+    if (problem) {
+      reject(problem);
+      return;
+    }
 
     placeMask(labelmap, parentImage, extent);
     if (isEmptyExtent(extent)) setMaskScalars(labelmap, new Uint8Array(0));

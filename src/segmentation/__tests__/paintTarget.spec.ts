@@ -7,7 +7,7 @@ import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
   activateAppPinia,
   bindingOf,
-  seatSpecImage as seatImage,
+  seatSpecImage,
   markedVoxels,
   maskValueAt,
   offsetOf,
@@ -36,7 +36,7 @@ describe('paint edit target', () => {
   });
 
   it("writes SEGMENT_VALUE into the selected segment's mask", async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Other');
     const active = boundSegment(segmentation.id, 'Tumor');
@@ -49,8 +49,8 @@ describe('paint edit target', () => {
   });
 
   it("writes into the painted image's own mask", async () => {
-    await seatImage('img-1');
-    await seatImage('img-2');
+    await seatSpecImage('img-1');
+    await seatSpecImage('img-2');
     const first = store().ensureSegmentationForImage('img-1');
     const source = boundSegment(first.id, 'Tumor');
     selectSegment(source.id);
@@ -68,7 +68,7 @@ describe('paint edit target', () => {
   });
 
   it('seeds a segmentation and a segment on the first stroke', async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
 
     strokeAt('img-1', [1, 1, 0]);
 
@@ -84,7 +84,7 @@ describe('paint edit target', () => {
   });
 
   it("erases only the active segment's voxels", async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const neighbor = boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
@@ -107,7 +107,7 @@ describe('paint edit target', () => {
   // A mask holds SEGMENT_VALUE and nothing else, so any other byte in it is
   // not this segment's to clear.
   it('does not erase a foreign label value from the active buffer', async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const active = boundSegment(segmentation.id, 'Tumor');
     selectSegment(active.id);
@@ -123,7 +123,7 @@ describe('paint edit target', () => {
   });
 
   it('blocks a stroke when the active segment is locked', async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
@@ -136,7 +136,7 @@ describe('paint edit target', () => {
   });
 
   it('paints around a locked neighbor without overwriting it', async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const neighbor = boundSegment(segmentation.id, 'Neighbor');
     const active = boundSegment(segmentation.id, 'Tumor');
@@ -156,7 +156,7 @@ describe('paint edit target', () => {
   });
 
   it('creates nothing when the paint tool is merely activated', async () => {
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
     const paintStore = usePaintToolStore();
 
     paintStore.activateTool();
@@ -168,7 +168,7 @@ describe('paint edit target', () => {
   it.each([false, true])(
     'publishes overwritten voxels at the end of a paint sample (throws: %s)',
     async (throws) => {
-      await seatImage('img-1');
+      await seatSpecImage('img-1');
       const segmentation = store().ensureSegmentationForImage('img-1');
       const neighbor = boundSegment(segmentation.id, 'Neighbor');
       const voxels = store().maskVoxels(neighbor.id);

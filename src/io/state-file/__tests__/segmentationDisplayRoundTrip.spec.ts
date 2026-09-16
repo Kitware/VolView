@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  seatSpecImage as seatImage,
+  seatSpecImage,
   inMemoryArtifactIO,
   mintSegment,
   manifestForImages,
@@ -9,11 +9,10 @@ import {
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
-import JSZip from 'jszip';
 
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
+import { DEFAULT_SEGMENTATION_DISPLAY } from '@/src/segmentation/model';
 
 // ---------------------------------------------------------------------------
 // Display state on the wire: the per-image multipliers ride on the
@@ -26,22 +25,20 @@ const baseManifest = () => manifestForImages(['img-1']);
 /** A scene whose display state is nowhere near the defaults. */
 function buildScene() {
   const segmentation = store().ensureSegmentationForImage('img-1');
-  const segments = useSegmentStore().segments;
-  const tumorType = mintSegment({
+  const tumorSegmentId = mintSegment({
     name: 'Tumor',
     fillOpacity: 0.25,
     outlineOpacity: 0.75,
   });
-  const tumor = store().createMask(segmentation.id, tumorType);
+  const tumor = store().createMask(segmentation.id, tumorSegmentId);
   store().ensureLabelmapBinding(tumor.id);
-  const plannedType = mintSegment({ name: 'Planned', fillOpacity: 0 });
-  store().createMask(segmentation.id, plannedType);
+  const plannedSegmentId = mintSegment({ name: 'Planned', fillOpacity: 0 });
+  store().createMask(segmentation.id, plannedSegmentId);
 
   const model = store().segmentations[segmentation.id];
   model.fillOpacity = 0.5;
   model.outlineOpacity = 0.125;
   model.outlineThickness = 5;
-  return { segments, tumorType, plannedType };
 }
 
 const opacitiesOf = (segmentIds: string[]) => {
@@ -71,18 +68,17 @@ const manifest700 = () => ({
 describe('segmentation display state on the wire', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
-    await seatImage('img-1');
+    await seatSpecImage('img-1');
   });
 
   it('serializes the per-image multipliers and the per-segment opacities', async () => {
     buildScene();
 
-    const zip = new JSZip();
-    const manifest = baseManifest();
-    useSegmentStore().serialize({ zip, manifest });
-    await store().serialize({ zip, manifest }, inMemoryArtifactIO());
-
-    const parsed = ManifestSchema.parse(manifest);
+    const { parsed: saved } = await serializeToStateFiles(
+      baseManifest(),
+      inMemoryArtifactIO()
+    );
+    const parsed = ManifestSchema.parse(saved);
     const wire = parsed.segmentations![0];
     expect(wire.fillOpacity).toBe(0.5);
     expect(wire.outlineOpacity).toBe(0.125);
@@ -91,14 +87,10 @@ describe('segmentation display state on the wire', () => {
       parsed.segments!.map((segment) => [segment.id, segment])
     );
     expect(
-      wire.masks.map(
-        (segment) => segmentById.get(segment.segmentId)!.fillOpacity
-      )
+      wire.masks.map((mask) => segmentById.get(mask.segmentId)!.fillOpacity)
     ).toEqual([0.25, 0]);
     expect(
-      wire.masks.map(
-        (segment) => segmentById.get(segment.segmentId)!.outlineOpacity
-      )
+      wire.masks.map((mask) => segmentById.get(mask.segmentId)!.outlineOpacity)
     ).toEqual([0.75, undefined]);
   });
 
@@ -112,7 +104,7 @@ describe('segmentation display state on the wire', () => {
     );
 
     setActivePinia(createPinia());
-    await seatImage('new-1');
+    await seatSpecImage('new-1');
     await store().deserialize({
       manifest: parsed,
       stateFiles: stateFiles,
@@ -137,9 +129,7 @@ describe('segmentation display state on the wire', () => {
     const parsed = ManifestSchema.parse(manifest700());
     const wire = parsed.segmentations![0];
 
-    expect(wire.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
-    expect(wire.outlineOpacity).toBe(1);
-    expect(wire.outlineThickness).toBe(2);
+    expect(wire).toMatchObject(DEFAULT_SEGMENTATION_DISPLAY);
     // Absent on a segment means the app default, supplied by the resolver.
     expect(parsed.segments![0].fillOpacity).toBeUndefined();
     expect(parsed.segments![0].outlineOpacity).toBeUndefined();
@@ -158,11 +148,9 @@ describe('segmentation display state on the wire', () => {
     await nextTick();
 
     const restored = store().getSegmentationForImage('img-1')!;
-    expect(restored.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
-    expect(restored.outlineOpacity).toBe(1);
-    expect(restored.outlineThickness).toBe(2);
-    const segment = restored.masks[restored.order[0]];
-    const opacities = opacitiesOf([segment.segmentId]);
+    expect(restored).toMatchObject(DEFAULT_SEGMENTATION_DISPLAY);
+    const mask = restored.masks[restored.order[0]];
+    const opacities = opacitiesOf([mask.segmentId]);
     expect(opacities.fill).toEqual([1]);
     expect(opacities.outline).toEqual([1]);
   });
