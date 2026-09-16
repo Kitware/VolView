@@ -54,13 +54,13 @@ export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
 
 /** Everything that renders a shape or its selection outline shares this. */
 export const isToolVisible = (
-  store: AnnotationToolStore,
   tool: Pick<AnnotationTool, 'hidden' | 'placing' | 'segmentId'>
 ) =>
   !tool.hidden &&
   // Keep the active placement widget alive until it commits. Completed
   // shapes inherit the segment's visibility without changing child flags.
-  (tool.placing || store.segments.appearanceOf(tool.segmentId).visible);
+  (tool.placing ||
+    (useSegmentStore().segments.getSegment(tool.segmentId)?.visible ?? true));
 
 export const useCurrentTools = <S extends AnnotationToolStore>(
   toolStore: S,
@@ -89,7 +89,7 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
       return (
         tool.imageID === curImageID &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata) &&
-        isToolVisible(toolStore, tool)
+        isToolVisible(tool)
       );
     });
   });

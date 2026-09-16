@@ -9,8 +9,8 @@ image; the mask's bounded labelmap is allocated only when needed.
 - `segment.ts`, `model.ts`, `geometry.ts`, and `color.ts` define the model and
   calculations. They do not depend on stores or components.
 - `segments.ts` and `segmentRegistry.ts` own shared identity, selection, and
-  appearance. `segmentReferences.ts` coordinates reference removal across
-  masks and annotation tools.
+  appearance. Stores holding masks or annotation tools declare their segment
+  references on the registry, which hands them the removal.
 - `store.ts` owns mask identity, attachment, lookup, and lifecycle. Import and
   restore use its operations to create records and attach prepared storage.
 - `masks/` contains allocation, growth, overlap operations, and voxel access.

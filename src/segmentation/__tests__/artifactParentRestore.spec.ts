@@ -10,6 +10,7 @@ import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { type LabelmapIO } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';
+import { useRulerStore } from '@/src/store/tools/rulers';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
 import { useImageStatsStore } from '@/src/store/image-stats';
@@ -69,7 +70,10 @@ const expectPartialRestore = (
 ) => {
   expect(result.restoredImportIds).toEqual(new Set(['artifact-healthy']));
   expect(result.skipped).toHaveLength(1 + alsoSkipped.length);
-  expect(result.skipped[0].name).toBe('Mask parent');
+  expect(result.skipped[0]).toEqual({
+    name: 'Mask parent',
+    reason: 'parent image is unavailable',
+  });
   expect(result.skipped.slice(1)).toEqual(alsoSkipped);
   expect(store().getSegmentationForImage('parent')).toBeUndefined();
   expect(store().imageMasks('healthy')).toHaveLength(1);
@@ -213,9 +217,24 @@ describe('artifact restore parent lifetime', () => {
         (message) =>
           message.title === 'Some scene content could not be restored'
       )?.options.details
-    ).toContain('Mask parent');
+    ).toContain('Mask parent (parent image did not load)');
     injectIO.mockRestore();
     tools.mockRestore();
+  });
+
+  it('reports an artifact whose archive member is missing', async () => {
+    await seatImage('parent', { dimensions: [4, 4, 1] });
+    const { options } = await setupRestore();
+    options.stateFiles = options.stateFiles.filter(
+      ({ archivePath }) => archivePath !== 'parent.vti'
+    );
+
+    const result = await store().deserialize(options);
+
+    expect(result.skipped).toEqual([
+      { name: 'Mask parent', reason: 'archive member is missing' },
+    ]);
+    expect(result.restoredImportIds).toEqual(new Set(['artifact-healthy']));
   });
 
   it('does not recreate a parent removed after its artifact loaded', async () => {
@@ -264,6 +283,101 @@ describe('artifact restore parent lifetime', () => {
     expectPartialRestore(result, [
       { name: 'saved.vti', reason: 'its segment is not in the file' },
     ]);
+  });
+
+  it('does not restore annotations after their parent is removed during mask IO', async () => {
+    await seatImage('parent', { dimensions: [4, 4, 1] });
+    const { image, options } = await setupRestore();
+    options.manifest.tools = {
+      rulers: {
+        tools: ['parent', 'healthy'].map((imageID) => ({
+          id: undefined,
+          imageID,
+          slice: 0,
+          frameOfReference: {
+            planeOrigin: [0, 0, 0],
+            planeNormal: [0, 0, 1],
+          },
+          firstPoint: [0, 0, 0],
+          secondPoint: [1, 0, 0],
+        })),
+      },
+    };
+    const reading = defer<void>();
+    const release = defer<void>();
+    options.io.read = async () => {
+      reading.resolve();
+      await release.promise;
+      return { image };
+    };
+    const originalDeserialize = store().deserialize;
+    const injectIO = vi
+      .spyOn(store(), 'deserialize')
+      .mockImplementation((args) =>
+        originalDeserialize({ ...args, io: options.io })
+      );
+    const restore = completeStateFileRestore(
+      options.manifest,
+      options.stateFiles,
+      options.dataIDMap
+    );
+    await reading.promise;
+
+    cache().removeImage('parent');
+    release.resolve();
+    await restore;
+
+    expect(useRulerStore().rulers.map(({ imageID }) => imageID)).toEqual([
+      'healthy',
+    ]);
+    expect(
+      useRulerStore()
+        .serializeTools()
+        .tools.map(({ imageID }) => imageID)
+    ).toEqual(['healthy']);
+    injectIO.mockRestore();
+  });
+});
+
+describe('live conversion source lifetime', () => {
+  it.each(['failure', 'removal'])('settles on source %s', async (action) => {
+    await seatImage('parent', { dimensions: [4, 4, 1] });
+    await seatImage('healthy', { dimensions: [4, 4, 1] });
+    const { decoded } = await pendingImage('source');
+    const conversion = store().convertImageToLabelmap('source', 'parent');
+    await nextTick();
+
+    expect(store().convertingLabelmaps.has('source')).toBe(true);
+    if (action === 'failure') decoded.reject(new Error('Pixel read failed'));
+    else {
+      cache().removeImage('source');
+      decoded.resolve();
+    }
+
+    await expect(conversion).rejects.toThrow(/did not load/i);
+    expect(store().convertingLabelmaps.has('source')).toBe(false);
+    expect(store().getSegmentationForImage('parent')).toBeUndefined();
+    expect(cache().imageById.healthy).toBeDefined();
+  });
+
+  it('waits for a slow source and converts it after loading completes', async () => {
+    await seatImage('parent', { dimensions: [4, 4, 1] });
+    const { decoded } = await pendingImage('source');
+    let settled = false;
+    const conversion = store()
+      .convertImageToLabelmap('source', 'parent')
+      .then((result) => {
+        settled = true;
+        return result;
+      });
+    await nextTick();
+
+    expect(settled).toBe(false);
+    decoded.resolve();
+    await conversion;
+
+    expect(store().convertingLabelmaps.has('source')).toBe(false);
+    expect(store().imageMasks('parent')).toHaveLength(1);
   });
 });
 

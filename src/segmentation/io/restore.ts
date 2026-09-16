@@ -32,7 +32,7 @@ export function createLoadedImageReader(
     // Removal also settles the watcher, including removal before it starts.
     await until(() => !getImage(imageId)?.loading.value).toBe(true);
     if (getImage(imageId)?.status.value !== 'complete') {
-      throw new Error('Labelmap image did not load');
+      throw new Error('Image did not load');
     }
     const image = getVtkImageData(imageId);
     if (!image) throw new Error('Could not get input image data');

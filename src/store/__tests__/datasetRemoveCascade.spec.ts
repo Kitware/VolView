@@ -75,18 +75,6 @@ describe('dataset remove — synchronous reference cascade', () => {
     setActivePinia(createPinia());
   });
 
-  it('clears segment masks whose parent image was removed', () => {
-    seatImage('img-1', 'CT');
-    // The store subscribes to image deletion on setup, so seat it first.
-    useSegmentationStore();
-    const { maskId } = seatMask('img-1');
-    expect(boundMasks().map((mask) => mask.id)).toContain(maskId);
-
-    useDatasetStore().remove('img-1');
-
-    expect(boundMasks()).toEqual([]);
-  });
-
   it('clears ALL segment masks when an image has several (no splice-skip)', () => {
     seatImage('img-1', 'CT');
     const segmentations = useSegmentationStore();

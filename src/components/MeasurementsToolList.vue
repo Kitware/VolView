@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useSegmentShapes } from '@/src/segmentation/composables/useSegmentShapes';
 import { removeSelectedTools } from '@/src/store/tools';
+import { isToolVisible } from '@/src/composables/annotationTool';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import SegmentAssignmentList from '@/src/segmentation/components/SegmentAssignmentList.vue';
@@ -21,8 +22,8 @@ const rows = computed(() =>
       ...shape,
       appearance,
       name,
-      // A hidden segment hides its shapes whatever their own flag says.
-      drawn: !shape.hidden && appearance.visible,
+      // The rule the viewers draw by; every listed shape is finished.
+      drawn: isToolVisible({ ...shape, placing: false }),
       visibilityReason: appearance.visible
         ? ''
         : `Show segment ${name} to show or hide this measurement`,

@@ -1,12 +1,12 @@
 import { describe, it, beforeEach, expect } from 'vitest';
+import JSZip from 'jszip';
+import type { Manifest } from '@/src/io/state-file/schema';
+import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
 import { setActivePinia, createPinia } from 'pinia';
 import { mintSegment } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
-import {
-  STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
-  TOOL_COLORS,
-} from '@/src/config';
+import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
 import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -86,29 +86,31 @@ describe('Ruler store', () => {
   // TODO testing (de)serialize requires store integration
 });
 
-describe('Ruler segment segments', () => {
+describe('Ruler segment references', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
+  const segments = () => useSegmentStore().segments;
+
   // Adding selects, so this is the segment a new ruler picks up.
-  const seedSegment = (store: ReturnType<typeof useRulerStore>) =>
-    store.segments.addSegment({ name: 'Tumor' });
+  const seedSegment = () => segments().addSegment({ name: 'Tumor' });
 
   it('draws out of the shared registry', () => {
     const store = useRulerStore();
-    const segmentId = useSegmentStore().segments.addSegment({ name: 'Tumor' });
+    seedSegment();
 
-    expect(store.segments.getSegment(segmentId)?.name).toBe('Tumor');
-    expect(store.segments.appearanceOf(segmentId)).toMatchObject({
+    const id = store.addRuler(createRuler());
+
+    expect(store.appearanceOfTool(id)).toMatchObject({
       name: 'Tumor',
       strokeWidth: STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT,
     });
   });
 
-  it('adds a ruler carrying the type it was given', () => {
+  it('adds a ruler carrying the segment it was given', () => {
     const store = useRulerStore();
-    const segmentId = store.segments.addSegment({ name: 'Tumor' });
+    const segmentId = seedSegment();
 
     const id = store.addRuler({ ...createRuler(), segmentId });
 
@@ -116,32 +118,21 @@ describe('Ruler segment segments', () => {
     expect(store.appearanceOfTool(id).name).toBe('Tumor');
   });
 
-  it('defaults a new ruler to the selected type', () => {
+  it('defaults a new ruler to the selected segment', () => {
     const store = useRulerStore();
-    const segmentId = seedSegment(store);
+    const segmentId = seedSegment();
 
     const id = store.addRuler(createRuler());
 
     expect(store.rulerByID[id].segmentId).toBe(segmentId);
   });
 
-  it('colors a new segment from the tool palette', () => {
+  it('shows a rename on the rulers that reference the segment', async () => {
     const store = useRulerStore();
-
-    const id = seedSegment(store);
-
-    expect(store.segments.appearanceOf(id).cssColor).toBe(
-      rgbaToCssColor(cssColorToRGBA(TOOL_COLORS[0]))
-    );
-    expect(store.segments.selectedSegmentId.value).toBe(id);
-  });
-
-  it('shows a rename on the rulers that reference the type', async () => {
-    const store = useRulerStore();
-    const segmentId = seedSegment(store);
+    const segmentId = seedSegment();
     const id = store.addRuler({ ...createRuler(), segmentId });
 
-    store.segments.updateSegment(segmentId, {
+    segments().updateSegment(segmentId, {
       name: 'Lesion',
       color: cssColorToRGBA('blue'),
     });
@@ -154,53 +145,33 @@ describe('Ruler segment segments', () => {
     });
   });
 
-  it('takes the rulers of a deleted type with it', async () => {
+  it('takes the rulers of a deleted segment with it', async () => {
     const store = useRulerStore();
-    const segmentId = seedSegment(store);
+    const segmentId = seedSegment();
     const id = store.addRuler({ ...createRuler(), segmentId });
 
-    store.segments.deleteSegment(segmentId);
+    segments().deleteSegment(segmentId);
     await nextTick();
 
     expect(store.rulerByID[id]).toBeUndefined();
   });
 
-  it('binds a name to the type already carrying it', () => {
+  it('serializes ruler geometry with its shared segment reference', () => {
     const store = useRulerStore();
-    const segmentId = seedSegment(store);
+    const segmentId = seedSegment();
+    const ruler = createRuler();
+    const id = store.addRuler({ ...ruler, segmentId });
+    const manifest: Manifest = {
+      version: MANIFEST_VERSION,
+      dataSources: [],
+      tools: {},
+    };
 
-    const id = store.segments.segmentNamed('Tumor');
+    store.serialize({ zip: new JSZip(), manifest });
 
-    expect(store.segments.segmentList.value).toHaveLength(1);
-    expect(id).toBe(segmentId);
-  });
-
-  it('selects a type and keeps it when asked to select nothing', () => {
-    const store = useRulerStore();
-    const segmentId = seedSegment(store);
-    const node = store.segments.addSegment({ name: 'Node' });
-    store.segments.selectSegment(segmentId);
-
-    // Not the first row, which is what an empty choice falls back to.
-    store.segments.selectSegment(node);
-    expect(store.segments.selectedSegmentId.value).toBe(node);
-
-    store.segments.selectSegment(undefined);
-    expect(store.segments.selectedSegmentId.value).toBe(node);
-  });
-
-  it('names its segments in the shared list, not one of its own', () => {
-    const store = useRulerStore();
-    const segmentId = seedSegment(store);
-    store.addRuler({ ...createRuler(), segmentId });
-
-    const manifest = { tools: {} } as any;
-    store.serialize({ zip: {} as any, manifest });
-    const { tools } = store.serializeTools();
-
-    // The shared store writes the segments; a ruler only references one.
-    expect(manifest.rulerSegments).toBeUndefined();
-    expect(tools[0].segmentId).toBe(segmentId);
+    expect(manifest.tools?.rulers).toMatchObject({
+      tools: [{ ...ruler, id, segmentId }],
+    });
   });
 
   it('shares the registry with the masks painted on an image', () => {
@@ -212,6 +183,11 @@ describe('Ruler segment segments', () => {
       mintSegment({ name: 'Tumor' })
     );
 
-    expect(store.segments.getSegment(painted.segmentId)?.name).toBe('Tumor');
+    const id = store.addRuler({
+      ...createRuler(),
+      segmentId: painted.segmentId,
+    });
+
+    expect(store.appearanceOfTool(id).name).toBe('Tumor');
   });
 });

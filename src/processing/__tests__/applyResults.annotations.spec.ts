@@ -654,8 +654,8 @@ describe('applyIntent — add-annotations', () => {
   });
 
   it('rejects the whole result when any frame is not axis-aligned, before mutating', async () => {
-    const rulerStore = useRulerStore();
-    const typesBefore = rulerStore.segments.segmentList.value.map((type) => ({
+    const registry = useSegmentStore().segments;
+    const typesBefore = registry.segmentList.value.map((type) => ({
       ...type,
     }));
 
@@ -675,7 +675,7 @@ describe('applyIntent — add-annotations', () => {
     // All-or-nothing: not even the rulers that WOULD have placed, and not the
     // registry, since binding a name mints or restyles a segment.
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
-    expect(rulerStore.segments.segmentList.value).toEqual(typesBefore);
+    expect(registry.segmentList.value).toEqual(typesBefore);
   });
 
   it('places a plane past the image bounds, as the renderer already does', async () => {

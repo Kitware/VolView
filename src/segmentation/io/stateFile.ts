@@ -280,7 +280,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     // A path-less item's store id: the restore setup already resolved which
     // STATE id carries its bytes; this only maps that id through dataIDMap.
     const sourceStoreId = (item: LabelmapImport) => {
-      if ('path' in item.input) return undefined;
+      if (item.path !== undefined) return undefined;
       const source = labelmapSources[item.id];
       return source !== undefined ? dataIDMap[source.stateId] : undefined;
     };
@@ -297,16 +297,16 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
     const sourceReads = new Map<string, ReturnType<LabelmapIO['read']>>();
     function readImport(item: LabelmapImport, storeId: string | undefined) {
-      const input = item.input;
+      const { path } = item;
       const key =
-        'path' in input
-          ? `archive:${archivePathKey(input.path)}`
+        path !== undefined
+          ? `archive:${archivePathKey(path)}`
           : `dataset:${storeId}`;
       let read = sourceReads.get(key);
       if (!read) {
         read = (async () => {
-          if ('path' in input) {
-            const file = archiveMember(input.path);
+          if (path !== undefined) {
+            const file = archiveMember(path);
             if (!file) throw new Error('Archive member is missing');
             return io.read(file);
           }
@@ -325,9 +325,9 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       (id) => imageCacheStore.getVtkImageData(id) ?? undefined
     );
 
-    // Skip BEFORE awaiting anything an item whose parent image is
-    // unresolved, or a path-less one whose datasource never materialized;
-    // `untilLoaded(undefined)` never times out and would hang restore forever.
+    // Skip before awaiting anything an item whose parent image is unresolved,
+    // whose archive member is missing, or whose datasource never materialized,
+    // so each item can be reported with its specific missing-reference reason.
     const attachable = imports.filter((item) => {
       if (dataIDMap[item.parentImage] === undefined) {
         skipped.push({
@@ -336,7 +336,11 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         });
         return false;
       }
-      if ('path' in item.input) return true;
+      if (item.path !== undefined) {
+        if (archiveMember(item.path)) return true;
+        skipped.push({ name: item.name, reason: 'archive member is missing' });
+        return false;
+      }
       const hasImport = sourceStoreId(item) !== undefined;
       if (!hasImport) {
         skipped.push({
@@ -373,12 +377,19 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
               });
               return undefined;
             }
+            const parentId = dataIDMap[item.parentImage];
+            const parent = await loadedImage(parentId).catch(() => undefined);
+            if (!parent) {
+              skipped.push({
+                name: item.name,
+                reason: imageCacheStore.imageById[parentId]
+                  ? 'parent image did not load'
+                  : 'parent image is unavailable',
+              });
+              return undefined;
+            }
             const labelmap = toLabelMap(
-              await ensureSameSpace(
-                await loadedImage(dataIDMap[item.parentImage]),
-                image,
-                true
-              )
+              await ensureSameSpace(parent, image, true)
             );
             // A group that carried no descriptors is enumerated here, through
             // the same decode live import uses, while its source image is

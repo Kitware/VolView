@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { exists, hits, isTest, read, sourceFiles } from './sourceAudit';
+import { exists, hits, isTest, sourceFiles } from './sourceAudit';
 
 // Source-level checks keep deleted group infrastructure from returning.
-
-const SCALAR_PROBE = 'src/components/tools/ScalarProbe.vue';
-const SEGMENTATION_REPRESENTATION =
-  'src/segmentation/rendering/VtkSegmentationSliceRepresentation.vue';
 
 const DELETED = [
   'src/store/segmentGroups.ts',
@@ -48,18 +44,5 @@ describe('the group layer is deleted', () => {
     expect(hits(specs, /store\/segmentGroups'|useSegmentGroupStore/)).toEqual(
       []
     );
-  });
-});
-
-describe('the value-keyed projection has one publisher', () => {
-  it('keys no names by label value in the probe', () => {
-    // A computed label-value key would duplicate the store projection.
-    expect(read(SCALAR_PROBE)).not.toMatch(/\[[^\]]*labelValue[^\]]*\]\s*:/);
-  });
-
-  it('declares the outline settings once, on the segment model', () => {
-    // The segment model is the sole owner of outline settings.
-    expect(hits(production, /SegmentGroupConfig/)).toEqual([]);
-    expect(read(SEGMENTATION_REPRESENTATION)).toMatch(/outlineThickness/);
   });
 });

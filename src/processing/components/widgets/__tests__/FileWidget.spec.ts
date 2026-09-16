@@ -92,21 +92,16 @@ const mountLabelmap = (
   });
 
 describe('FileWidget segmentation inputs', () => {
-  it('names the segmentation for a multiple param', () => {
-    const wrapper = mountLabelmap(labelmapParam({ multiple: true }));
+  it.each([false, true])(
+    'names the segmentation for multiple=%s',
+    (multiple) => {
+      const wrapper = mountLabelmap(labelmapParam({ multiple }));
 
-    expect(wrapper.get('.key-text').text()).toBe(
-      'Segmentation on active dataset'
-    );
-  });
-
-  it('names the segmentation for a singular param', () => {
-    const wrapper = mountLabelmap(labelmapParam());
-
-    expect(wrapper.get('.key-text').text()).toBe(
-      'Segmentation on active dataset'
-    );
-  });
+      expect(wrapper.get('.key-text').text()).toBe(
+        'Segmentation on active dataset'
+      );
+    }
+  );
 
   it('keeps the segmentation caption once the binder resolves a union param', () => {
     const wrapper = mountLabelmap(
@@ -127,23 +122,16 @@ describe('FileWidget segmentation inputs', () => {
     expect(wrapper.get('.key-text').text()).toBe('Active dataset');
   });
 
-  it('drops the select remedy from the unbound message', () => {
-    const wrapper = mountLabelmap(labelmapParam({ multiple: true }), {
-      binding: 'no-segmentation',
-    });
+  it.each([false, true])(
+    'offers the painting remedy for multiple=%s',
+    (multiple) => {
+      const wrapper = mountLabelmap(labelmapParam({ multiple }), {
+        binding: 'no-segmentation',
+      });
 
-    expect(wrapper.get('.input-value').text()).toBe(
-      'Paint a segment on the current image first.'
-    );
-  });
-
-  it('offers the same remedy for a singular param', () => {
-    const wrapper = mountLabelmap(labelmapParam(), {
-      binding: 'no-segmentation',
-    });
-
-    expect(wrapper.get('.input-value').text()).toBe(
-      'Paint a segment on the current image first.'
-    );
-  });
+      expect(wrapper.get('.input-value').text()).toBe(
+        'Paint a segment on the current image first.'
+      );
+    }
+  );
 });

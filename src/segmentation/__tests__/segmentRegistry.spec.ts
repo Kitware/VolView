@@ -202,9 +202,10 @@ describe('segment type registry', () => {
 
   it('hands a referenced type to the removal callback before dropping it', () => {
     const removed: string[] = [];
-    const registry = createSegmentRegistry({
-      hasReferences: (segmentId) => removed.length === 0 && !!segmentId,
-      removeReferences: (segmentId) => removed.push(segmentId),
+    const registry = createSegmentRegistry();
+    registry.declareReferences('test', {
+      has: (segmentId) => removed.length === 0 && !!segmentId,
+      remove: (segmentId) => removed.push(segmentId),
     });
     const id = registry.addSegment({ name: 'Tumor' });
 
@@ -444,12 +445,13 @@ describe('the shared registry', () => {
   });
 
   it('shares one registry across paint, rectangles, polygons and rulers', () => {
-    const shared = useSegmentStore().segments;
-    const id = usePolygonStore().segments.addSegment({ name: 'Tumor' });
+    const id = useSegmentStore().segments.addSegment({ name: 'Tumor' });
 
-    expect(useRectangleStore().segments.getSegment(id)?.name).toBe('Tumor');
-    expect(useRulerStore().segments.getSegment(id)?.name).toBe('Tumor');
-    expect(shared.selectedSegmentId.value).toBe(id);
+    const tools = [usePolygonStore(), useRectangleStore(), useRulerStore()].map(
+      (store) => store.toolByID[store.addTool({ imageID: 'img-1' })]
+    );
+
+    expect(tools.map((tool) => tool.segmentId)).toEqual([id, id, id]);
     expect(maskOn('img-1', id).segmentId).toBe(id);
   });
 
