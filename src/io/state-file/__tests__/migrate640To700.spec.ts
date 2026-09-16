@@ -1140,7 +1140,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
   it('offers a legacy label no tool used as a type with no content', async () => {
     await restoreLegacyScene();
 
-    const segments = usePolygonStore().segments;
+    const segments = useSegmentStore().segments;
     expect(segments.segmentList.value.map((segment) => segment.name)).toContain(
       'Planned'
     );

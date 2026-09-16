@@ -36,6 +36,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
@@ -242,12 +243,11 @@ const reportUnparseableColors = (rejected: Set<string>) => {
 // Wire namespaces are per kind but bind into one registry, so the first kind to
 // bind a name sets its style. Unreferenced labels stay out of the picker.
 const bindReferencedSegments = (
-  kind: AnnotationToolKind,
   tools: readonly PreparedCore[],
   namespace: Record<string, AnnotationLabel>,
   rejected: Set<string>
 ): Record<string, string> => {
-  const { segments } = annotationToolStore(kind);
+  const { segments } = useSegmentStore();
   const names = new Set(
     tools.flatMap((tool) => (tool.labelName ? [tool.labelName] : []))
   );
@@ -326,7 +326,6 @@ async function applyAnnotations(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
       bindReferencedSegments(
-        kind,
         prepared[kind],
         decoded.labels[kind],
         rejectedColors

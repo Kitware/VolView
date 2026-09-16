@@ -10,7 +10,6 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -38,7 +37,6 @@ const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {
 export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults,
-    segments: () => useSegmentStore().segments,
     manifestKey: 'polygons',
   });
 

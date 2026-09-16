@@ -119,15 +119,10 @@ describe('a configured segment creates nothing', () => {
   it('reaches every annotation tool, rulers included', () => {
     applyConfig(TWO_TYPES);
 
-    expect(
-      usePolygonStore().segments.segmentList.value.map((t) => t.name)
-    ).toEqual(['Tumor', 'Node']);
-    expect(
-      useRectangleStore().segments.segmentList.value.map((t) => t.name)
-    ).toEqual(['Tumor', 'Node']);
-    expect(
-      useRulerStore().segments.segmentList.value.map((t) => t.name)
-    ).toEqual(['Tumor', 'Node']);
+    const rulers = useRulerStore();
+    const ruler = rulers.addTool({ imageID: 'img-1' });
+
+    expect(rulers.appearanceOfTool(ruler).name).toBe('Tumor');
   });
 });
 

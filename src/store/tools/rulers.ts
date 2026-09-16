@@ -6,7 +6,6 @@ import { ToolID } from '@/src/types/annotation-tool';
 
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
-import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -24,7 +23,6 @@ const rulerDefaults = () => ({
 export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
-    segments: () => useSegmentStore().segments,
     manifestKey: 'rulers',
   });
 

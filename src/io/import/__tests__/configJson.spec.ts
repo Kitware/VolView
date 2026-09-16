@@ -11,11 +11,18 @@ import {
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import { useViewStore } from '@/src/store/views';
+
+const segments = () => useSegmentStore().segments;
+
+const typeSummary = () =>
+  segments().segmentList.value.map((type) => ({
+    name: type.name,
+    color: segments().appearanceOf(type.id).cssColor,
+  }));
 
 describe('config schema', () => {
   describe('shortcuts', () => {
@@ -86,19 +93,13 @@ describe('config schema', () => {
   });
 });
 
-describe('segment type config', () => {
+describe('segment config', () => {
   const seatAndView = (id: string) => {
     useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
       id,
     });
     useViewStore().setDataForAllViews(id);
   };
-
-  const typeSummary = (registry: SegmentRegistry) =>
-    registry.segmentList.value.map((type) => ({
-      name: type.name,
-      color: registry.appearanceOf(type.id).cssColor,
-    }));
 
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -114,12 +115,7 @@ describe('segment type config', () => {
     seatAndView('img-1');
     await nextTick();
 
-    expect(typeSummary(usePolygonStore().segments)).toEqual([
-      { name: 'Tumor', color: '#00ff00' },
-    ]);
-    expect(typeSummary(useRectangleStore().segments)).toEqual([
-      { name: 'Tumor', color: '#00ff00' },
-    ]);
+    expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#00ff00' }]);
   });
 
   // Functional CSS notation is not parsed. Falling back to black would read as
@@ -150,15 +146,12 @@ describe('segment type config', () => {
     seatAndView('img-1');
     await nextTick();
 
-    expect(typeSummary(useRulerStore().segments)).toEqual([
-      { name: 'Tumor', color: '#00ff00' },
-    ]);
-    expect(typeSummary(usePolygonStore().segments)).toEqual([
-      { name: 'Tumor', color: '#00ff00' },
-    ]);
-    expect(useRulerStore().segments.selectedSegmentId.value).toBe(
-      useRulerStore().segments.findSegmentByName('Tumor')?.id
-    );
+    const rulers = useRulerStore();
+    const ruler = rulers.addTool({ imageID: 'img-1' });
+    expect(rulers.appearanceOfTool(ruler)).toMatchObject({
+      name: 'Tumor',
+      cssColor: '#00ff00',
+    });
   });
 
   it('applies segments to an image that is already loaded', async () => {
@@ -169,9 +162,7 @@ describe('segment type config', () => {
       config.parse({ segments: { Tumor: { color: '#00ff00' } } })
     );
 
-    expect(typeSummary(usePolygonStore().segments)).toEqual([
-      { name: 'Tumor', color: '#00ff00' },
-    ]);
+    expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#00ff00' }]);
   });
 
   it('offers the same segments on each image the user views', async () => {
@@ -184,18 +175,16 @@ describe('segment type config', () => {
     seatAndView('img-2');
     await nextTick();
 
-    expect(typeSummary(usePolygonStore().segments)).toEqual([
-      { name: 'Tumor', color: '#00ff00' },
-    ]);
-    // Offered, not minted: a configured type gets a mask on the first edit.
+    expect(typeSummary()).toEqual([{ name: 'Tumor', color: '#00ff00' }]);
+    // Offered, not minted: a configured segment gets a mask on the first edit.
     expect(
       useSegmentationStore().getSegmentationForImage('img-1')
     ).toBeUndefined();
   });
 
-  // The type carries the appearance, so one configured entry reaches paint,
+  // The segment carries the appearance, so one configured entry reaches paint,
   // rectangles and polygons alike.
-  it('keeps the configured appearance on the type an edit lands in', async () => {
+  it('keeps the configured appearance on the segment an edit lands in', async () => {
     applyPostStateConfig(
       config.parse({
         segments: { Tumor: { color: '#00ff00', strokeWidth: 9 } },
@@ -204,19 +193,18 @@ describe('segment type config', () => {
     seatAndView('img-1');
     await nextTick();
 
-    const polygons = usePolygonStore();
-    const rectangles = useRectangleStore();
-    const segmentId = polygons.segments.findSegmentByName('Tumor')!.id;
-    polygons.segments.selectSegment(segmentId);
+    const segmentId = segments().findSegmentByName('Tumor')!.id;
+    segments().selectSegment(segmentId);
     const maskId = useSegmentationStore().resolveEditTarget('img-1');
+    const rectangles = useRectangleStore();
+    const rectangle = rectangles.addTool({ imageID: 'img-1' });
 
     expect(useSegmentationStore().getMask(maskId).segmentId).toBe(segmentId);
-    expect(polygons.segments.appearanceOf(segmentId)).toMatchObject({
+    expect(rectangles.appearanceOfTool(rectangle)).toMatchObject({
       name: 'Tumor',
       cssColor: '#00ff00',
       strokeWidth: 9,
     });
-    expect(rectangles.segments.appearanceOf(segmentId).name).toBe('Tumor');
   });
 
   it('creates nothing when no segments are configured', async () => {
@@ -225,20 +213,14 @@ describe('segment type config', () => {
     seatAndView('img-1');
     await nextTick();
 
-    expect(usePolygonStore().segments.segmentList.value).toEqual([]);
+    expect(segments().segmentList.value).toEqual([]);
     expect(
       useSegmentationStore().getSegmentationForImage('img-1')
     ).toBeUndefined();
   });
 });
 
-describe('pre-7.0 labels', () => {
-  const typeSummary = () =>
-    usePolygonStore().segments.segmentList.value.map((type) => ({
-      name: type.name,
-      color: usePolygonStore().segments.appearanceOf(type.id).cssColor,
-    }));
-
+describe('legacy labels', () => {
   const applyLabels = (labels: unknown) =>
     applyPostStateConfig(config.parse({ labels }));
 
@@ -271,9 +253,8 @@ describe('pre-7.0 labels', () => {
   it('carries a label stroke width onto its segment', () => {
     applyLabels({ polygonLabels: { Tumor: { color: 'red', strokeWidth: 4 } } });
 
-    const registry = usePolygonStore().segments;
-    const segmentId = registry.findSegmentByName('Tumor')!.id;
-    expect(registry.appearanceOf(segmentId).strokeWidth).toBe(4);
+    const segmentId = segments().findSegmentByName('Tumor')!.id;
+    expect(segments().appearanceOf(segmentId).strokeWidth).toBe(4);
   });
 
   it('gives a name several tools declared one segment', () => {

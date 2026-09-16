@@ -3,7 +3,6 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -22,7 +21,6 @@ const rectangleDefaults = () => ({
 export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults: rectangleDefaults,
-    segments: () => useSegmentStore().segments,
     manifestKey: 'rectangles',
   });
 

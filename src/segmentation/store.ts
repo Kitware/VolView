@@ -50,7 +50,6 @@ import {
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { declareSegmentReferences } from '@/src/segmentation/segmentReferences';
 import { useMessageStore } from '@/src/store/messages';
 import {
   cleanUndefined,
@@ -585,7 +584,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       return maskId ? [maskId] : [];
     });
 
-  declareSegmentReferences('labelmaps', {
+  segmentRegistry.declareReferences('labelmaps', {
     has: (segmentId) => maskIdsOfSegment(segmentId).length > 0,
     remove: (segmentId) =>
       maskIdsOfSegment(segmentId).forEach((maskId) => deleteMask(maskId)),

@@ -4,6 +4,7 @@ import { useElementSize } from '@vueuse/core';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { OverlayInfo } from '@/src/composables/annotationTool';
 import { NO_NAME } from '@/src/constants';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 const TOOLTIP_PADDING_X = 30;
 const TOOLTIP_PADDING_Y = 16;
@@ -12,6 +13,8 @@ const props = defineProps<{
   info: OverlayInfo;
   toolStore: AnnotationToolStore;
 }>();
+
+const { segments } = useSegmentStore();
 
 const visible = computed(() => {
   return props.info.visible;
@@ -32,7 +35,7 @@ const metadata = computed(() => {
 const label = computed(() => {
   if (!props.info.visible) return '';
   const { segmentId } = props.toolStore.toolByID[props.info.toolID];
-  return props.toolStore.segments.appearanceOf(segmentId).name || NO_NAME;
+  return segments.appearanceOf(segmentId).name || NO_NAME;
 });
 
 const tooltip = ref();

@@ -23,11 +23,10 @@ const seatAndView = (id: string) => {
     id,
   });
   useViewStore().setDataForAllViews(id);
-  return useSegmentationStore().ensureSegmentationForImage(id);
 };
 
-const recordsOf = (imageId: string) =>
-  useSegmentationStore().getSegmentationForImage(imageId)!.order;
+const segmentationOf = (imageId: string) =>
+  useSegmentationStore().getSegmentationForImage(imageId);
 
 const colouredSegment = () => ({
   store: usePolygonStore(),
@@ -52,14 +51,13 @@ describe('shape references to segment segments', () => {
   });
 
   it('lists every type in the shared registry, content or not', () => {
-    const store = usePolygonStore();
     const segmentId = segments().addSegment({ name: 'Tumor' });
 
-    expect(store.segments.segmentList.value.map((type) => type.id)).toEqual([
+    expect(segments().segmentList.value.map((type) => type.id)).toEqual([
       segmentId,
     ]);
-    expect(store.segments.appearanceOf(segmentId).name).toBe('Tumor');
-    expect(recordsOf(IMAGE_ID)).toEqual([]);
+    expect(segments().appearanceOf(segmentId).name).toBe('Tumor');
+    expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 
   it('keeps the selected type when the viewed image changes', async () => {
@@ -69,7 +67,7 @@ describe('shape references to segment segments', () => {
     seatAndView('img-2');
     await nextTick();
 
-    expect(store.segments.selectedSegmentId.value).toBe(segmentId);
+    expect(segments().selectedSegmentId.value).toBe(segmentId);
     const id = store.addTool({ imageID: 'img-2', placing: false });
     expect(store.toolByID[id].segmentId).toBe(segmentId);
   });
@@ -121,15 +119,6 @@ describe('shape references to segment segments', () => {
     );
   });
 
-  it('shares one registry between polygons and rectangles', () => {
-    const polygons = usePolygonStore();
-    const rectangles = useRectangleStore();
-    const segmentId = polygons.segments.addSegment({ name: 'Tumor' });
-
-    expect(rectangles.segments.getSegment(segmentId)?.name).toBe('Tumor');
-    expect(rectangles.segments.selectedSegmentId.value).toBe(segmentId);
-  });
-
   it('lets several shapes reference one type', () => {
     const polygons = usePolygonStore();
     const rectangles = useRectangleStore();
@@ -160,7 +149,7 @@ describe('shape references to segment segments', () => {
 
     segments().addSegment({ name: 'Tumor' });
 
-    expect(recordsOf(IMAGE_ID)).toEqual([]);
+    expect(segmentationOf(IMAGE_ID)).toBeUndefined();
     expect(boundMasks()).toEqual([]);
     expect(store.toolIDs).toEqual([]);
   });
@@ -175,7 +164,7 @@ describe('shape references to segment segments', () => {
     restored.deserializeTools(serialized, { [IMAGE_ID]: IMAGE_ID });
 
     expect(restored.toolByID[restored.toolIDs[0]].segmentId).toBe('');
-    expect(recordsOf(IMAGE_ID)).toEqual([]);
+    expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 
   it('remaps a restored shape onto the type the registry adopted', () => {
@@ -199,6 +188,35 @@ describe('shape references to segment segments', () => {
     expect(tool.segmentId).toBe(adopted[segmentId]);
     expect(restored.appearanceOfTool(tool.id).name).toBe('Tumor');
   });
+
+  it('skips restored shapes whose parent is unresolved or was deleted', () => {
+    const restored = usePolygonStore();
+    seatAndView('healthy-img');
+    useImageCacheStore().removeImage(IMAGE_ID);
+
+    restored.deserializeTools(
+      {
+        tools: ['deleted', 'unresolved', 'healthy'].map((imageID) => ({
+          imageID,
+          placing: false,
+        })),
+      },
+      {
+        deleted: IMAGE_ID,
+        healthy: 'healthy-img',
+      }
+    );
+
+    expect(
+      restored.tools.map(({ imageID, segmentId }) => ({
+        imageID,
+        segmentId,
+      }))
+    ).toEqual([{ imageID: 'healthy-img', segmentId: '' }]);
+    expect(
+      restored.serializeTools().tools.map(({ imageID }) => imageID)
+    ).toEqual(['healthy-img']);
+  });
 });
 
 describe('placing an annotation names its type', () => {
@@ -215,7 +233,7 @@ describe('placing an annotation names its type', () => {
 
   it('mints a type for an annotation placed against nothing', () => {
     const store = useRectangleStore();
-    expect(store.segments.selectedSegmentId.value).toBeUndefined();
+    expect(segments().selectedSegmentId.value).toBeUndefined();
 
     const id = place(store);
 
@@ -223,7 +241,7 @@ describe('placing an annotation names its type', () => {
     expect(segments().getSegment(segmentId)).toBeDefined();
     expect(store.appearanceOfTool(id).name).toBe('Segment 1');
     // Geometry only: the mask waits for an edit that writes voxels.
-    expect(recordsOf(IMAGE_ID)).toEqual([]);
+    expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 
   it('mints the type while the annotation is still being placed', () => {
@@ -266,8 +284,8 @@ describe('placing an annotation names its type', () => {
     const id = place(rectangles);
     const segmentId = rectangles.toolByID[id].segmentId!;
 
-    expect(polygons.segments.getSegment(segmentId)).toBeDefined();
-    expect(polygons.segments.selectedSegmentId.value).toBe(segmentId);
+    const polygon = polygons.addTool({ imageID: IMAGE_ID, placing: false });
+    expect(polygons.toolByID[polygon].segmentId).toBe(segmentId);
     // Paint resolves the same type into this image's mask.
     expect(
       useSegmentationStore().getMask(
@@ -288,11 +306,11 @@ describe('placing an annotation names its type', () => {
 
   it('keeps the stub a widget is placing into when its segment is deleted', () => {
     const store = useRulerStore();
-    const segmentId = store.segments.addSegment({ name: 'Long axis' });
+    const segmentId = segments().addSegment({ name: 'Long axis' });
     const stub = store.addTool({ imageID: IMAGE_ID, placing: true, segmentId });
     const placed = store.addTool({ imageID: IMAGE_ID, segmentId });
 
-    store.segments.deleteSegment(segmentId);
+    segments().deleteSegment(segmentId);
 
     // The placed ruler goes with its segment; the stub the widget still holds
     // stays, and naming it is deferred to the placement that commits it.
@@ -302,22 +320,31 @@ describe('placing an annotation names its type', () => {
     store.placeTool(stub);
 
     expect(
-      store.segments.getSegment(store.toolByID[stub].segmentId!)
+      segments().getSegment(store.toolByID[stub].segmentId!)
     ).toBeDefined();
   });
 
   it('does not count a stub as a reference that keeps a segment alive', () => {
     const store = useRulerStore();
-    const segmentId = store.segments.addSegment({ name: 'Long axis' });
-    store.addTool({ imageID: IMAGE_ID, placing: true, segmentId });
+    // Dropping a config key deletes the segment it minted unless content
+    // references it.
+    const configured = () => {
+      segments().replaceConfigSegments({ 'Long axis': {} });
+      return segments().findSegmentByName('Long axis')!.id;
+    };
+    const unconfigure = () => segments().replaceConfigSegments({});
 
-    expect(store.hasToolsOfSegment(segmentId)).toBe(false);
+    const stubbed = configured();
+    store.addTool({ imageID: IMAGE_ID, placing: true, segmentId: stubbed });
+    unconfigure();
 
-    const placed = store.addTool({ imageID: IMAGE_ID, segmentId });
+    expect(segments().getSegment(stubbed)).toBeUndefined();
 
-    expect(store.hasToolsOfSegment(segmentId)).toBe(true);
-    store.removeTool(placed);
-    expect(store.hasToolsOfSegment(segmentId)).toBe(false);
+    const measured = configured();
+    store.addTool({ imageID: IMAGE_ID, segmentId: measured });
+    unconfigure();
+
+    expect(segments().getSegment(measured)).toBeDefined();
   });
 
   it('places a ruler in the shared registry, painting nothing', () => {
@@ -329,6 +356,6 @@ describe('placing an annotation names its type', () => {
     expect(store.toolByID[id].placing).toBe(false);
     // A ruler names a segment like any other annotation, and marks no voxels.
     expect(segments().getSegment(store.toolByID[id].segmentId!)).toBeDefined();
-    expect(recordsOf(IMAGE_ID)).toEqual([]);
+    expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 });

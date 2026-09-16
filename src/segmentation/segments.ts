@@ -3,18 +3,13 @@ import { markRaw } from 'vue';
 
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { createSegmentRegistry } from '@/src/segmentation/segmentRegistry';
-import { activeSegmentReferences } from '@/src/segmentation/segmentReferences';
 
 /**
  * Paint, rectangles, polygons and rulers share this registry and selection.
  * The same segment can hold masks and shapes on every image.
  */
 export const useSegmentStore = defineStore('segments', () => {
-  const references = activeSegmentReferences();
-  const registry = createSegmentRegistry({
-    hasReferences: references.isReferenced,
-    removeReferences: references.remove,
-  });
+  const registry = createSegmentRegistry();
 
   function serialize(state: StateFile) {
     state.manifest.segments = registry.serialize();

@@ -201,10 +201,10 @@ const selectionPoints = computed(() => {
       return { store, tool: store.toolByID[sel.id] };
     })
     .filter(
-      ({ store, tool }) =>
+      ({ tool }) =>
         tool.imageID === currentImageID.value &&
         tool.frame === currentFrame.value &&
-        isToolVisible(store, tool)
+        isToolVisible(tool)
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));
 });

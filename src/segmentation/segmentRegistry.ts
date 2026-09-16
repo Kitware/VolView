@@ -12,9 +12,9 @@ import {
 import { cleanUndefined, cycle } from '@/src/utils';
 import type { ConfiguredSegments } from '@/src/io/import/configSegments';
 
-export type SegmentRegistryOptions = {
-  hasReferences?: (segmentId: string) => boolean;
-  removeReferences?: (segmentId: string) => void;
+type SegmentReferenceHolder = {
+  has: (segmentId: string) => boolean;
+  remove: (segmentId: string) => void;
 };
 
 // An unparseable color is left out, so the segment keeps the color it has.
@@ -39,10 +39,17 @@ const configuredAppearance = ({
  * paint, rectangles, polygons and rulers together. Explicit order drives the
  * picker, shortcuts, serialization and labelmap stacking.
  */
-export const createSegmentRegistry = ({
-  hasReferences = () => false,
-  removeReferences = () => {},
-}: SegmentRegistryOptions = {}) => {
+export const createSegmentRegistry = () => {
+  // Stores holding masks or shapes declare them here; the registry knows neither.
+  const referenceHolders = new Map<string, SegmentReferenceHolder>();
+  const declareReferences = (name: string, holder: SegmentReferenceHolder) => {
+    referenceHolders.set(name, holder);
+  };
+  const hasReferences = (segmentId: string) =>
+    [...referenceHolders.values()].some((holder) => holder.has(segmentId));
+  const removeReferences = (segmentId: string) =>
+    referenceHolders.forEach((holder) => holder.remove(segmentId));
+
   const segmentById = ref<Record<string, Segment>>({}) as Ref<
     Record<string, Segment>
   >;
@@ -325,6 +332,7 @@ export const createSegmentRegistry = ({
     replaceConfigSegments,
     serialize,
     adopt,
+    declareReferences,
   };
 };
 

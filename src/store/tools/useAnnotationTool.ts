@@ -10,14 +10,14 @@ import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
-import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
-import { declareSegmentReferences } from '@/src/segmentation/segmentReferences';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { useImageCacheStore } from '@/src/store/image-cache';
+
+type AnnotationToolKey = 'rulers' | 'rectangles' | 'polygons';
 
 // Shared manifest-ref declaration for the annotation-tool stores. Each store
 // calls this at module scope next to its serialize, pairing the dev-backstop
 // coverage with the onImageDeleted cascade this composable registers.
-export type AnnotationToolKey = 'rulers' | 'rectangles' | 'polygons';
-
 export const declareAnnotationToolManifestRefs = (key: AnnotationToolKey) =>
   declareManifestRefs(`tools.${key}`, (manifest) => {
     const tools = isRecord(manifest.tools) ? manifest.tools : {};
@@ -64,12 +64,9 @@ export const useAnnotationTool = <
   MakeToolDefaults extends (...args: any) => any,
 >({
   toolDefaults,
-  segments,
   manifestKey,
 }: {
   toolDefaults: MakeToolDefaults;
-  // Factory, not the invoked registry: tools are created inside store setup.
-  segments: () => SegmentRegistry;
   // The manifest section this tool owns, which is also its reference-holder id.
   manifestKey: AnnotationToolKey;
 }) => {
@@ -92,7 +89,7 @@ export const useAnnotationTool = <
     tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
 
-  const registry = segments();
+  const registry = useSegmentStore().segments;
 
   function addTool(tool: ToolPatch): ToolID {
     const id = useIdStore().nextId() as ToolID;
@@ -195,15 +192,18 @@ export const useAnnotationTool = <
     dataIDMap: Record<string, string>,
     segmentIdMap: Record<string, string> = {}
   ) {
+    const imageCache = useImageCacheStore();
     serialized?.tools
-      .filter(({ segmentId }) => {
+      .filter(({ imageID, segmentId }) => {
+        // An image that did not load leaves its annotations with nothing to
+        // hang on: they cannot be drawn, and seating them with a missing image
+        // would make the next save's whole tools section invalid.
+        const mappedImageId = dataIDMap[imageID];
+        if (!mappedImageId || !imageCache.imageById[mappedImageId])
+          return false;
         const mappedId = segmentId && segmentIdMap[segmentId];
         return !mappedId || registry.getSegment(mappedId);
       })
-      // An image that did not load leaves its annotations with nothing to hang
-      // on: they cannot be drawn, and seating them with a missing image would
-      // make the next save's whole tools section invalid.
-      .filter(({ imageID }) => dataIDMap[imageID] !== undefined)
       .map(
         ({ imageID, segmentId, ...rest }) =>
           ({
@@ -231,7 +231,7 @@ export const useAnnotationTool = <
   const hasToolsOfSegment = (segmentId: string) =>
     toolIDs.value.some((id) => referencesSegment(id, segmentId));
 
-  declareSegmentReferences(manifestKey, {
+  registry.declareReferences(manifestKey, {
     has: hasToolsOfSegment,
     remove: removeToolsOfSegment,
   });
@@ -239,8 +239,6 @@ export const useAnnotationTool = <
   return {
     segments: markRaw(registry),
     appearanceOfTool,
-    removeToolsOfSegment,
-    hasToolsOfSegment,
     toolIDs,
     toolByID,
     tools,

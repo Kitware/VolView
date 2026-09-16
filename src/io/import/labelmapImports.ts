@@ -12,7 +12,7 @@ export type LabelmapImport = {
   id: string;
   parentImage: string;
   name: string;
-  input: { path: string } | { dataSourceId: number };
+  path?: string;
   source?: ProcessingResultSource;
   masks: Array<{ maskId: string; value: number }>;
   decode: boolean;
@@ -72,10 +72,7 @@ export function planLabelmapImports(manifest: Manifest) {
         id: entry.id,
         parentImage: entry.parentImage,
         name: entry.name,
-        input:
-          entry.path !== undefined
-            ? { path: entry.path }
-            : { dataSourceId: entry.dataSourceId! },
+        path: entry.path,
         source: entry.source,
         masks,
         decode: masks.length === 0,
