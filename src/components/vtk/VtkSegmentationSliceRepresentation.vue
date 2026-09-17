@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject, computed, unref } from 'vue';
+import {
+  toRefs,
+  watchEffect,
+  inject,
+  computed,
+  unref,
+  onScopeDispose,
+} from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { LPSAxis } from '@/src/types/lps';
@@ -52,11 +59,14 @@ const sliceRep = useSliceRepresentation(view, imageData);
 // Let widget fill representations be picked through the segment overlay
 sliceRep.actor.setPickable(false);
 
-sliceRep.property.setRGBTransferFunction(
-  0,
-  vtkColorTransferFunction.newInstance()
-);
-sliceRep.property.setScalarOpacity(0, vtkPiecewiseFunction.newInstance());
+const ownedColorTransferFunction = vtkColorTransferFunction.newInstance();
+const ownedOpacityFunction = vtkPiecewiseFunction.newInstance();
+sliceRep.property.setRGBTransferFunction(0, ownedColorTransferFunction);
+sliceRep.property.setScalarOpacity(0, ownedOpacityFunction);
+onScopeDispose(() => {
+  ownedColorTransferFunction.delete();
+  ownedOpacityFunction.delete();
+});
 sliceRep.property.setInterpolationType(InterpolationType.NEAREST);
 // needed for vtk.js >= 23.0.0
 sliceRep.property.setUseLookupTableScalarRange(true);

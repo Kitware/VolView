@@ -8,7 +8,6 @@ import {
   watchEffect,
 } from 'vue';
 import { onKeyDown, onKeyUp } from '@vueuse/core';
-import { PresetNameList } from '@/src/vtk/ColorMaps';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
 import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
@@ -25,11 +24,9 @@ import {
   getColorFunctionRangeFromPreset,
   getShiftedOpacityFromPreset,
 } from '@/src/utils/vtk-helpers';
-import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
-const THUMBNAIL_SIZE = 80;
 
 export default defineComponent({
   name: 'VolumeRendering',
@@ -182,6 +179,8 @@ export default defineComponent({
     onBeforeUnmount(() => {
       pwfWidget.unbindMouseListeners();
       pwfWidget.setContainer(null);
+      pwfWidget.delete();
+      colorTransferFunc.delete();
     });
 
     watch(
@@ -238,10 +237,6 @@ export default defineComponent({
       },
       { immediate: true }
     );
-
-    // -- thumbnailing -- //
-
-    const { currentThumbnails } = useVolumeThumbnailing(THUMBNAIL_SIZE);
 
     // --- selection and updates --- //
 
@@ -335,7 +330,6 @@ export default defineComponent({
     return {
       editorContainerRef,
       pwfEditorRef,
-      thumbnails: currentThumbnails,
       hasCurrentImage,
       preset: selectedPreset,
       fullMappingRange,
@@ -348,8 +342,6 @@ export default defineComponent({
         const step = Math.min(1, width / 256);
         return step > 1 ? Math.round(step) : step;
       }),
-      presetList: PresetNameList,
-      size: THUMBNAIL_SIZE,
       rangeShiftMin: computed(() => -fullMappingRangeWidth.value / 2),
       rangeShiftMax: computed(() => fullMappingRangeWidth.value / 2),
       rangeShift,
