@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject, computed } from 'vue';
+import { toRefs, watchEffect, inject, computed, onScopeDispose } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { LPSAxis } from '@/src/types/lps';
@@ -39,11 +39,14 @@ const imageData = computed(() =>
 );
 const sliceRep = useSliceRepresentation(view, imageData);
 
-sliceRep.property.setRGBTransferFunction(
-  0,
-  vtkColorTransferFunction.newInstance()
-);
-sliceRep.property.setScalarOpacity(0, vtkPiecewiseFunction.newInstance());
+const ownedColorTransferFunction = vtkColorTransferFunction.newInstance();
+const ownedOpacityFunction = vtkPiecewiseFunction.newInstance();
+sliceRep.property.setRGBTransferFunction(0, ownedColorTransferFunction);
+sliceRep.property.setScalarOpacity(0, ownedOpacityFunction);
+onScopeDispose(() => {
+  ownedColorTransferFunction.delete();
+  ownedOpacityFunction.delete();
+});
 sliceRep.property.setUseLookupTableScalarRange(false);
 
 // set slice ordering to be in front of the segmentations

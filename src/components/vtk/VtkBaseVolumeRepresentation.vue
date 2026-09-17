@@ -7,6 +7,7 @@ import {
   watch,
   shallowRef,
   Ref,
+  onScopeDispose,
 } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useVolumeRepresentation } from '@/src/core/vtk/useVolumeRepresentation';
@@ -67,6 +68,10 @@ const rep = useVolumeRepresentation(view, imageData);
 
 const cfun = vtkColorTransferFunction.newInstance();
 const ofun = vtkPiecewiseFunction.newInstance();
+onScopeDispose(() => {
+  cfun.delete();
+  ofun.delete();
+});
 rep.property.setRGBTransferFunction(0, cfun);
 rep.property.setScalarOpacity(0, ofun);
 rep.property.setShade(true);

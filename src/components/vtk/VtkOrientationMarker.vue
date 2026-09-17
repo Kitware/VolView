@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject } from 'vue';
+import { inject, onScopeDispose } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useOrientationMarker } from '@/src/core/vtk/useOrientationMarker';
 import vtkAnnotatedCubeActor from '@kitware/vtk.js/Rendering/Core/AnnotatedCubeActor';
@@ -13,6 +13,7 @@ AnnotatedCubePresets.applyPreset('default', actor); // applies color
 AnnotatedCubePresets.applyPreset('lps', actor);
 
 useOrientationMarker(actor, view.interactor);
+onScopeDispose(() => actor.delete());
 </script>
 
 <template><slot></slot></template>

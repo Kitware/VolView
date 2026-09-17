@@ -22,12 +22,13 @@ export default defineComponent({
       const activeView = viewStore.getView(viewStore.activeView);
       if (
         activeView?.type === '3D' &&
-        activeView.dataID === currentImageID.value
+        activeView.dataID === currentImageID.value &&
+        viewStore.visibleViews.includes(activeView)
       ) {
         return activeView.id;
       }
 
-      const any3DView = Object.values(viewStore.viewByID).find(
+      const any3DView = viewStore.visibleViews.find(
         (v) => v.type === '3D' && v.dataID === currentImageID.value
       );
       return any3DView?.id;

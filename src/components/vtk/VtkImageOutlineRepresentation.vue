@@ -13,7 +13,7 @@ import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { syncRefs, watchImmediate } from '@vueuse/core';
-import { inject, toRefs, watchEffect } from 'vue';
+import { inject, onScopeDispose, toRefs, watchEffect } from 'vue';
 
 interface Props {
   viewId: string;
@@ -40,6 +40,7 @@ const outline = outlineFilter.getOutputData<vtkPolyData>(0);
 
 // slicing plane
 const slicePlane = vtkPlane.newInstance();
+onScopeDispose(() => slicePlane.delete());
 const cutterFilter = useVtkFilter(vtkCutter, outline);
 (cutterFilter.filter as any).setCutFunction(slicePlane);
 

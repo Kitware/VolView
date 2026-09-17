@@ -1,0 +1,68 @@
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
+index 7defbee..70178df 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
+@@ -32,11 +32,16 @@ function splitStringOnEnter(inputString) {
+ }
+ function vtkOpenGLImageMapper(publicAPI, model) {
+ 	model.classHierarchy.push("vtkOpenGLImageMapper");
++	function unregisterTextureResource(renderWindow, coreObject, texture) {
++		if (coreObject) renderWindow.unregisterGraphicsResourceUser(coreObject, publicAPI);
++		else texture?.releaseGraphicsResources(renderWindow);
++	}
+ 	function unregisterGraphicsResources(renderWindow) {
+ 		model.openGLTexture.releaseGraphicsResources(renderWindow);
++		model.tris.releaseGraphicsResources(renderWindow);
++		unregisterTextureResource(renderWindow, model._colorTransferFunc, model.colorTexture);
++		unregisterTextureResource(renderWindow, model._pwFunc, model.pwfTexture);
+ 		[
+-			model._colorTransferFunc,
+-			model._pwFunc,
+ 			model._labelOutlineThicknessArray,
+ 			model._labelOutlineOpacity
+ 		].forEach((coreObject) => renderWindow.unregisterGraphicsResourceUser(coreObject, publicAPI));
+@@ -567,6 +572,11 @@ function vtkOpenGLImageMapper(publicAPI, model) {
+ 		const firstColorTransferFunc = actorProperty.getRGBTransferFunction();
+ 		const cTex = model._openGLRenderWindow.getGraphicsResourceForObject(firstColorTransferFunc);
+ 		if (!cTex?.oglObject?.getHandle() || cTex?.hash !== cfunToString) {
++			if (!firstColorTransferFunc) {
++				if (model._colorTransferFunc) model._openGLRenderWindow.unregisterGraphicsResourceUser(model._colorTransferFunc, publicAPI);
++				else model.colorTexture?.releaseGraphicsResources(model._openGLRenderWindow);
++				model._colorTransferFunc = null;
++			}
+ 			model.colorTexture = Texture_default.newInstance({ resizable: true });
+ 			model.colorTexture.setOpenGLRenderWindow(model._openGLRenderWindow);
+ 			let cWidth = model.renderable.getColorTextureWidth();
+@@ -629,6 +639,11 @@ function vtkOpenGLImageMapper(publicAPI, model) {
+ 		const firstPwFunc = actorProperty.getPiecewiseFunction();
+ 		const pwfTex = model._openGLRenderWindow.getGraphicsResourceForObject(firstPwFunc);
+ 		if (!pwfTex?.oglObject?.getHandle() || pwfTex?.hash !== pwfunToString) {
++			if (!firstPwFunc) {
++				if (model._pwFunc) model._openGLRenderWindow.unregisterGraphicsResourceUser(model._pwFunc, publicAPI);
++				else model.pwfTexture?.releaseGraphicsResources(model._openGLRenderWindow);
++				model._pwFunc = null;
++			}
+ 			let pwfWidth = model.renderable.getOpacityTextureWidth();
+ 			if (pwfWidth <= 0) pwfWidth = model.context.getParameter(model.context.MAX_TEXTURE_SIZE);
+ 			const pwfSize = pwfWidth * textureHeight;
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
+index 3563142..111214c 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
+@@ -182,7 +182,7 @@ function vtkOpenGLTexture(publicAPI, model) {
+ 	publicAPI.deactivate = () => {
+ 		if (model._openGLRenderWindow) model._openGLRenderWindow.deactivateTexture(publicAPI);
+ 	};
+-	publicAPI.releaseGraphicsResources = (rwin) => {
++	publicAPI.releaseGraphicsResources = (rwin = model._openGLRenderWindow) => {
+ 		if (rwin && model.handle) {
+ 			rwin.activateTexture(publicAPI);
+ 			rwin.deactivateTexture(publicAPI);
+@@ -863,6 +863,7 @@ function vtkOpenGLTexture(publicAPI, model) {
+ 	publicAPI.enableUseHalfFloat = (use) => {
+ 		model.enableUseHalfFloat = use;
+ 	};
++	publicAPI.delete = macros_exports.chain(() => publicAPI.releaseGraphicsResources(), publicAPI.delete);
+ }
+ var DEFAULT_VALUES = {
+ 	_openGLRenderWindow: null,

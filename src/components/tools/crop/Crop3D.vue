@@ -83,6 +83,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       widgetManager.removeWidget(factory);
+      (factory as unknown as { delete(): void }).delete();
     });
 
     const { metadata: imageMetadata } = useImage(imageId);

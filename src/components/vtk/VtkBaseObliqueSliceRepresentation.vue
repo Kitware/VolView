@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRefs, watchEffect, inject } from 'vue';
+import { toRefs, watchEffect, inject, onScopeDispose } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useResliceRepresentation } from '@/src/core/vtk/useResliceRepresentation';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
@@ -42,6 +42,7 @@ sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(1, 1);
 
 // create slicing plane
 const slicePlane = vtkPlane.newInstance();
+onScopeDispose(() => slicePlane.delete());
 sliceRep.mapper.setSlicePlane(slicePlane);
 
 // initialize visual properties
