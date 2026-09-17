@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, watch, computed, toRefs } from 'vue';
+import { inject, watch, computed, toRefs, onScopeDispose } from 'vue';
 import type { ReadonlyVec3 } from 'gl-matrix';
 import { vec3 } from 'gl-matrix';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
@@ -94,6 +94,7 @@ const sampleSet = computed(() => {
 
 const pointPicker = vtkPointPicker.newInstance();
 pointPicker.setPickFromList(true);
+onScopeDispose(() => pointPicker.delete());
 
 watch(
   () => baseRep.value?.actor,

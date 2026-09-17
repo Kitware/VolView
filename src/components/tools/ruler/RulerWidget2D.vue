@@ -122,6 +122,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
     widget.setManipulator(manipulator);
+    onUnmounted(() => manipulator.delete());
 
     watchEffect(() => {
       updatePlaneManipulatorFor2DView(

@@ -34,6 +34,7 @@ export function useOrientationMarker(
 
   onScopeDispose(() => {
     widget.setEnabled(false);
+    widget.delete();
   });
 
   const corner = computed(() => unref(options)?.corner ?? DEFAULT_CORNER);

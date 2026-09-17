@@ -68,6 +68,7 @@ export default defineComponent({
 
     const manipulator = vtkPlaneManipulator.newInstance();
     widget.setManipulator(manipulator);
+    onUnmounted(() => manipulator.delete());
 
     const { metadata: imageMetadata } = useImage(imageId);
     watchEffect(() => {
