@@ -3,6 +3,8 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { View } from '@/src/core/vtk/types';
 import { Maybe } from '@/src/types';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
+import { releaseOpenGLRenderWindow } from '@/src/core/vtk/releaseRenderWindow';
+import { deleteInteractor } from '@/src/core/vtk/deleteInteractor';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
@@ -18,23 +20,6 @@ import {
   watchEffect,
   watchPostEffect,
 } from 'vue';
-
-// vtk.js' public interactor.cancelAnimation() is a no-op while the
-// post-wheel extension window is still open (model._animationExtendedEnd),
-// so on dispose during that window a pending rAF survives and fires against
-// the deleted interactor. Reach into the private animationRequest field to
-// cancel it directly.
-function cancelPendingInteractorAnimationFrame(
-  interactor: vtkRenderWindowInteractor
-) {
-  const model = (
-    interactor as unknown as { get(): { animationRequest?: number | null } }
-  ).get();
-  if (model.animationRequest == null) return;
-
-  cancelAnimationFrame(model.animationRequest);
-  model.animationRequest = null;
-}
 
 export function useWebGLRenderWindow(
   renderWindow: vtkRenderWindow,
@@ -57,10 +42,12 @@ export function useWebGLRenderWindow(
   });
 
   onScopeDispose(() => {
+    // a child node draws through its parent's context, so only the standalone
+    // case has one of its own to release
     if (parent?.renderWindowView) {
       parent.renderWindowView.removeNode(renderWindowView);
     } else {
-      renderWindowView.delete();
+      releaseOpenGLRenderWindow(renderWindowView);
     }
   });
 
@@ -76,6 +63,8 @@ export function useWebGLRenderWindow(
 export function useWidgetManager(renderer: vtkRenderer) {
   const manager = vtkWidgetManager.newInstance();
   manager.setRenderer(renderer);
+
+  onScopeDispose(() => manager.delete());
 
   const updatePickingState = () => {
     const enabled = manager.getPickingEnabled();
@@ -98,6 +87,15 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
   const renderer = vtkRenderer.newInstance();
   const renderWindow = vtkRenderWindow.newInstance();
   renderWindow.addRenderer(renderer);
+
+  let disposed = false;
+
+  // Registered before the view cleanup because the parent rebuilds its scene
+  // graph from its own child render window list.
+  onScopeDispose(() => {
+    disposed = true;
+    parent?.renderWindow.removeRenderWindow(renderWindow);
+  });
 
   parent?.renderWindow.addRenderWindow(renderWindow);
 
@@ -141,7 +139,10 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     renderWindow.render();
   };
 
+  // requests outlive the view: vtk event handlers and promises that settle
+  // after dispose has deleted the scene graph nodes a render would traverse
   const requestRender = ({ immediate } = { immediate: false }) => {
+    if (disposed) return;
     if (immediate) {
       immediateRender();
     }
@@ -176,12 +177,10 @@ export function useVtkView(container: MaybeRef<Maybe<HTMLElement>>): View {
     deferredRender.cancel();
 
     renderWindow.removeRenderer(renderer);
-    parent?.renderWindow.removeRenderWindow(renderWindow);
 
     renderer.delete();
     renderWindow.delete();
-    cancelPendingInteractorAnimationFrame(interactor);
-    interactor.delete();
+    deleteInteractor(interactor);
   });
 
   return {

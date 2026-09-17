@@ -48,6 +48,8 @@ onVTKEvent(
     // whatever its last tracked mouse move resolved, which can be a different
     // position or, mid capture, nothing at all.
     const selectedData = await view.widgetManager.getSelectedDataForXY(x, y);
+    // the pick spans a capture, which the view teardown can outrun
+    if (view.widgetManager.isDeleted()) return;
     if ('widget' in selectedData) {
       const widget =
         selectedData.widget as Partial<vtkAnnotationToolWidget> | null;
