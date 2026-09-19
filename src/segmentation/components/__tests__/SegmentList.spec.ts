@@ -1307,3 +1307,88 @@ describe('deleting a segment says what went with it', () => {
     expect(titles()).toEqual(['Deleted 2 masks on 2 images and 2 annotations']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// A row is rebuilt from every annotation in the scene, and dragging one ruler
+// is a store write per pointer move. The list hands back the row object it
+// built last time when nothing the row shows has changed, so the item list's
+// per-row memo holds and only the rows that changed re-render.
+// ---------------------------------------------------------------------------
+
+describe('segment row identity', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1');
+    await viewImage('img-1');
+  });
+
+  const rulerOn = (segmentId: string, slice = 0) =>
+    useRulerStore().addTool({
+      imageID: 'img-1',
+      segmentId,
+      slice,
+      frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+    });
+
+  const rowsOf = (wrapper: VueWrapper) =>
+    itemList(wrapper).props('items') as Array<{ id: string }>;
+
+  it('keeps every row when an annotation moves', async () => {
+    const first = makeMask('img-1', 'Tumor');
+    const second = makeMask('img-1', 'Node');
+    const ruler = rulerOn(first.segmentId);
+    const wrapper = mountList();
+    await nextTick();
+    const before = rowsOf(wrapper);
+
+    useRulerStore().updateTool(ruler, { slice: 1 });
+    await nextTick();
+
+    const after = rowsOf(wrapper);
+    expect(useRulerStore().toolByID[ruler].slice).toBe(1);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after.map((row) => row.id)).toEqual([first.id, second.id]);
+  });
+
+  it('replaces only the row whose annotation count changed', async () => {
+    makeMask('img-1', 'Tumor');
+    const second = makeMask('img-1', 'Node');
+    const wrapper = mountList();
+    await nextTick();
+    const before = rowsOf(wrapper);
+
+    rulerOn(second.segmentId);
+    await nextTick();
+
+    const after = rowsOf(wrapper);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).not.toBe(before[1]);
+  });
+
+  it('replaces only the row whose own fields changed', async () => {
+    makeMask('img-1', 'Tumor');
+    const second = makeMask('img-1', 'Node');
+    const wrapper = mountList();
+    await nextTick();
+    const before = rowsOf(wrapper);
+
+    segments().updateSegment(second.segmentId, { name: 'Lesion' });
+    await nextTick();
+
+    const after = rowsOf(wrapper);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).not.toBe(before[1]);
+  });
+
+  it('still offers reveal for a segment that only has annotations', async () => {
+    const shaped = makeSegment('Shaped');
+    rulerOn(shaped);
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(
+      revealButton(wrapper, shaped).attributes('disabled')
+    ).toBeUndefined();
+  });
+});
