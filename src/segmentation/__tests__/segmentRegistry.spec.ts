@@ -191,6 +191,33 @@ describe('segment type registry', () => {
     expect(registry.getSegment(idMap[existing])?.color).toEqual([2, 2, 2, 255]);
     expect(namesOf(registry)).toEqual(['Tumor', 'Tumor']);
   });
+
+  it('adopts the first of a repeated id and seats no segment for the rest', () => {
+    const registry = createSegmentRegistry();
+
+    const idMap = registry.adopt([
+      {
+        id: 'dup',
+        name: 'A',
+        color: [1, 1, 1, 255],
+        visible: true,
+        locked: false,
+      },
+      {
+        id: 'dup',
+        name: 'B',
+        color: [2, 2, 2, 255],
+        visible: true,
+        locked: false,
+      },
+    ]);
+
+    // Only one segment can answer for an id, so the second entry seats
+    // nothing rather than a segment no mask or shape could reference.
+    expect(Object.keys(idMap)).toEqual(['dup']);
+    expect(namesOf(registry)).toEqual(['A']);
+    expect(registry.getSegment(idMap.dup)?.name).toBe('A');
+  });
 });
 
 describe('the shared registry', () => {

@@ -153,6 +153,15 @@ describe('the name index the registry answers from', () => {
     expect(registry().uniqueName('Spleen')).toBe('Spleen (2)');
   });
 
+  it('answers in the same space the index keys on', () => {
+    registry().mintSegment({ name: 'Liver' });
+
+    // The index ignores surrounding space, so a padded stem is the same name:
+    // answering it unchanged would seat a row nothing could tell apart.
+    expect(registry().uniqueName(' Liver ')).toBe('Liver (2)');
+    expect(registry().uniqueName(' Spleen ')).toBe('Spleen');
+  });
+
   it('takes the first in registry order when a name repeats', () => {
     const first = registry().mintSegment({ name: 'Liver' });
     const second = registry().mintSegment({ name: 'Other' });
