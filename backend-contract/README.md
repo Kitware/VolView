@@ -110,8 +110,10 @@ Two versions on separate clocks:
   `info.version`, kept in lockstep by `processing/__tests__/openapi.spec.ts`.
   Versions this package as a published thing.
 - **Shape versions**: `INTENT_VOCABULARY_VERSION` (`processing/wire.ts`) and
-  the task-spec `specVersion`. These version the wire vocabulary for additive
-  compatibility negotiation.
+  the task-spec `specVersion`. These name the shape of the wire vocabulary in
+  the generated OpenAPI description and in release notes. Neither travels on
+  the wire, so neither is negotiated: additive compatibility rests on both
+  sides failing open on a value they do not know.
 
 ### Result instruction rollout
 
