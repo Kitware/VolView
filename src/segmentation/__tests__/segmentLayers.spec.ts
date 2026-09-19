@@ -72,6 +72,13 @@ function countingMask(bounded: BoundedScalars) {
   return { mask: { ...bounded, scalars }, reads };
 }
 
+// The pair below is the shape a stride mistake shows up in: two differently
+// sized boxes, a shared box of 6 by 3 by 2 with no two sides alike, and the
+// one voxel they share in its far corner. Testing two masks needs no parent,
+// so these reach past the one the rest of the file writes into.
+const STRIDE_WIDE: Extent3D = [0, 7, 0, 3, 0, 3];
+const STRIDE_NARROW: Extent3D = [1, 6, 1, 3, 2, 3];
+
 describe('deciding which masks can share a file', () => {
   it('keeps two segments that hold no voxel in common in one group', () => {
     const groups = layersOf({
@@ -129,6 +136,85 @@ describe('deciding which masks can share a file', () => {
   });
 });
 
+describe('grouping masks whose boxes overlap', () => {
+  // A layer answers from an occupancy buffer once it holds more than one mask,
+  // so these keep three or more masks in a box they all share: the case a
+  // whole-body segmentation is made of, and the one a stride mistake in that
+  // buffer would show up in.
+  const SHARED: Extent3D = [0, 3, 0, 3, 0, 3];
+
+  it('keeps masks that share a box but no voxel in one group', () => {
+    const groups = layersOf({
+      liver: maskOf(SHARED, [
+        [0, 0, 0],
+        [1, 0, 0],
+      ]),
+      spleen: maskOf(SHARED, [[2, 0, 0]]),
+      kidney: maskOf(SHARED, [
+        [0, 3, 3],
+        [3, 3, 3],
+      ]),
+    });
+
+    expect(groups).toEqual([['liver', 'spleen', 'kidney']]);
+  });
+
+  it('splits a mask off a group holding one voxel of it', () => {
+    const groups = layersOf({
+      liver: maskOf(SHARED, [[0, 0, 0]]),
+      spleen: maskOf(SHARED, [[1, 0, 0]]),
+      tumor: maskOf(SHARED, [
+        [1, 0, 0],
+        [3, 3, 3],
+      ]),
+    });
+
+    expect(groups).toEqual([['liver', 'spleen'], ['tumor']]);
+  });
+
+  it('keeps the order masks were given inside and across groups', () => {
+    const names = ['liver', 'spleen', 'tumor', 'node'];
+    const groups = layersOf({
+      liver: maskOf(SHARED, [[0, 0, 0]]),
+      spleen: maskOf(SHARED, [[1, 0, 0]]),
+      tumor: maskOf(SHARED, [[0, 0, 0]]),
+      node: maskOf(SHARED, [[1, 0, 0]]),
+    });
+
+    expect(groups).toEqual([
+      ['liver', 'spleen'],
+      ['tumor', 'node'],
+    ]);
+    expect(
+      names.map((name) => groups.findIndex((group) => group.includes(name)))
+    ).toEqual([0, 0, 1, 1]);
+  });
+
+  it('reads a mask at its own stride against the group it is tested on', () => {
+    const groups = layersOf({
+      wide: maskOf(STRIDE_WIDE, [[4, 3, 3]]),
+      corner: maskOf(STRIDE_WIDE, [[0, 0, 0]]),
+      narrow: maskOf(STRIDE_NARROW, [[4, 3, 3]]),
+    });
+
+    expect(groups).toEqual([['wide', 'corner'], ['narrow']]);
+  });
+
+  it('leaves a smaller mask missing every held voxel in the group', () => {
+    const groups = layersOf({
+      wide: maskOf(STRIDE_WIDE, [[4, 3, 3]]),
+      corner: maskOf(STRIDE_WIDE, [[0, 0, 0]]),
+      narrow: maskOf(STRIDE_NARROW, [
+        [4, 3, 2],
+        [3, 3, 3],
+        [4, 2, 3],
+      ]),
+    });
+
+    expect(groups).toEqual([['wide', 'corner', 'narrow']]);
+  });
+});
+
 describe('testing two masks for a shared voxel', () => {
   it('rejects masks whose boxes miss without reading a voxel', () => {
     const near = countingMask(voxelMask([0, 0, 0]));
@@ -153,13 +239,6 @@ describe('testing two masks for a shared voxel', () => {
 
     expect(masksIntersect(wide, tall)).toBe(true);
   });
-
-  // The pair below is the shape a stride mistake shows up in: two differently
-  // sized boxes, a shared box of 6 by 3 by 2 with no two sides alike, and the
-  // one voxel they share in its far corner. Testing two masks needs no parent,
-  // so these reach past the one the rest of the file writes into.
-  const STRIDE_WIDE: Extent3D = [0, 7, 0, 3, 0, 3];
-  const STRIDE_NARROW: Extent3D = [1, 6, 1, 3, 2, 3];
 
   it('finds a shared voxel with each mask read at its own stride', () => {
     const wide = maskOf(STRIDE_WIDE, [[4, 3, 3]]);
