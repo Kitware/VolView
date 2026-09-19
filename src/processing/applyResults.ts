@@ -34,7 +34,7 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useMessageStore } from '@/src/store/messages';
+import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
 
 type ResultFile = { url: string; name: string };
@@ -489,6 +489,17 @@ export async function applyIntent(
   }
 }
 
+// The applier routes on the declared intent, so a result carrying one it
+// cannot read is skipped. Say so: the completion toast has already promised
+// the results, and the skip otherwise leaves a plain download and no reason.
+function reportUnroutableIntent(result: ProcessingResult) {
+  if (!result.intent) return;
+  surfaceWarning(
+    `Did not load ${result.name}`,
+    `This version cannot apply the result intent "${result.intent}". The result is still available for download in the Jobs panel.`
+  );
+}
+
 export async function autoLoadProcessingResults(
   results: ProcessingResult[],
   context: SubmittedJobContext | undefined,
@@ -497,7 +508,10 @@ export async function autoLoadProcessingResults(
   const failedResultIds: string[] = [];
   for (const result of results) {
     const intent = resultToIntent(result);
-    if (!intent) continue;
+    if (!intent) {
+      reportUnroutableIntent(result);
+      continue;
+    }
     const outcome = await applyIntent(intent, context, dependencies);
     if (outcome.status === 'failed') {
       failedResultIds.push(result.id);
