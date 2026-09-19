@@ -195,6 +195,11 @@ export const useCropStore = defineStore('crop', () => {
 
     Object.entries(cropping).forEach(([imageID, planes]) => {
       const newImageID = dataIDMap[imageID];
+      // An image that did not load has no extent to clamp against and no view
+      // to crop. Seating its planes anyway keys them by a missing id, and the
+      // cascade above can never drop that entry because no such image is ever
+      // deleted: it is written back out on every later save.
+      if (newImageID === undefined) return;
       setCropping(newImageID, planes);
     });
   }
