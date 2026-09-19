@@ -24,12 +24,14 @@
             "type": "object",
             "properties": {
               "color": {
+                "description": "A hex color such as `#d60000` or a CSS color keyword such as `lime`. It styles only a segment the label creates: a label whose name the client already holds keeps that segment's color and stroke width. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored and reported to the user, and a new segment then takes an automatic color.",
                 "type": "string"
               },
               "strokeWidth": {
                 "type": "number"
               },
               "fillColor": {
+                "description": "Accepted so an existing producer keeps validating, and ignored on labels.",
                 "type": "string"
               }
             },
@@ -46,12 +48,14 @@
             "type": "object",
             "properties": {
               "color": {
+                "description": "A hex color such as `#d60000` or a CSS color keyword such as `lime`. It styles only a segment the label creates: a label whose name the client already holds keeps that segment's color and stroke width. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored and reported to the user, and a new segment then takes an automatic color.",
                 "type": "string"
               },
               "strokeWidth": {
                 "type": "number"
               },
               "fillColor": {
+                "description": "Accepted so an existing producer keeps validating, and ignored on labels.",
                 "type": "string"
               }
             },
@@ -68,12 +72,14 @@
             "type": "object",
             "properties": {
               "color": {
+                "description": "A hex color such as `#d60000` or a CSS color keyword such as `lime`. It styles only a segment the label creates: a label whose name the client already holds keeps that segment's color and stroke width. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored and reported to the user, and a new segment then takes an automatic color.",
                 "type": "string"
               },
               "strokeWidth": {
                 "type": "number"
               },
               "fillColor": {
+                "description": "Accepted so an existing producer keeps validating, and ignored on labels.",
                 "type": "string"
               }
             },
