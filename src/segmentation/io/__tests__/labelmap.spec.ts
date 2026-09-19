@@ -52,4 +52,18 @@ describe('labelmap interchange storage', () => {
       new Uint8Array([0, 1])
     );
   });
+
+  it('excludes invalid values from a plain number array', () => {
+    const values = normalizeLabelmapScalars([
+      0,
+      3,
+      -2,
+      NaN,
+      Infinity,
+      -Infinity,
+      7,
+    ]);
+    expect(values).toBeInstanceOf(Uint8Array);
+    expect(Array.from(values)).toEqual([0, 3, 0, 0, 0, 0, 7]);
+  });
 });
