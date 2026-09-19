@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { reorientLabelImage } from '../reorientLabelImage';
+import type { Matrix3x3 } from '@kitware/vtk.js/types';
+import { reorientLabelImage } from '@/src/io/resample/reorientLabelImage';
 
 const image = (dimensions: [number, number, number]) => {
   const result = vtkImageData.newInstance();
@@ -23,17 +24,7 @@ describe('label-grid reorientation', () => {
     (flips) => {
       const source = image([3, 4, 5]);
       const target = image([3, 4, 5]);
-      const direction: [
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-        number,
-      ] = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+      const direction: Matrix3x3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
       const origin: [number, number, number] = [0, 0, 0];
       [3, 4, 5].forEach((size, axis) => {
         if (flips & (1 << axis)) {
@@ -89,15 +80,41 @@ describe('label-grid reorientation', () => {
     ]).toEqual([...source.getPointData().getScalars().getData()]);
   });
 
-  it('defers fractional shifts, different sampling, and cropping to interpolation', () => {
+  it('returns the source itself when it already sits on the target grid', () => {
+    const spacing: [number, number, number] = [0.7, 0.7, 3];
+    const origin: [number, number, number] = [-120.1, -98.4, 33.7];
     const source = image([3, 4, 5]);
     const target = image([3, 4, 5]);
-    source.setOrigin([0.25, 0, 0]);
+    [source, target].forEach((im) => {
+      im.setSpacing(spacing);
+      im.setOrigin(origin);
+    });
+    expect(reorientLabelImage(target, source)).toBe(source);
+
+    // The same geometry laid out along a flipped axis is a different grid and
+    // still has to go through the reslice.
+    const flipped = image([3, 4, 5]);
+    flipped.setSpacing(spacing);
+    flipped.setOrigin([origin[0] + spacing[0] * 2, origin[1], origin[2]]);
+    flipped.setDirection([-1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const output = reorientLabelImage(target, flipped)!;
+    expect(output).not.toBe(flipped);
+    const values = output.getPointData().getScalars().getData();
+    for (let k = 0; k < 5; k++)
+      for (let j = 0; j < 4; j++)
+        for (let i = 0; i < 3; i++)
+          expect(values[i + 3 * (j + 4 * k)]).toBe(1 + (2 - i) + 3 * (j + 4 * k));
+  });
+
+  it.each([
+    { label: 'fractional shifts', origin: [0.25, 0, 0] },
+    { label: 'different sampling', spacing: [0.5, 1, 1] },
+    { label: 'cropping', targetDimensions: [1, 4, 5] },
+  ])('defers $label to interpolation', ({ origin, spacing, targetDimensions }) => {
+    const source = image([3, 4, 5]);
+    const target = image((targetDimensions ?? [3, 4, 5]) as [number, number, number]);
+    if (origin) source.setOrigin([origin[0], origin[1], origin[2]]);
+    if (spacing) source.setSpacing([spacing[0], spacing[1], spacing[2]]);
     expect(reorientLabelImage(target, source)).toBeNull();
-    source.setOrigin([0, 0, 0]);
-    source.setSpacing([0.5, 1, 1]);
-    expect(reorientLabelImage(target, source)).toBeNull();
-    source.setSpacing([1, 1, 1]);
-    expect(reorientLabelImage(image([1, 4, 5]), source)).toBeNull();
   });
 });
