@@ -15,8 +15,10 @@ import {
   extentContainsIndex,
   extentSize,
   fullExtent,
+  inPlaneAxes,
   isEmptyExtent,
   maskOffset,
+  sliceExtent,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import { getLPSDirections } from '@/src/utils/lps';
@@ -79,7 +81,7 @@ function createGridAccessor(
   const bounds = { extent, mi, mj };
   // One scratch voxel with the slice already in place: the setter runs per
   // filled pixel, so it allocates nothing.
-  const [axisU, axisV] = [0, 1, 2].filter((axis) => axis !== axisIdx);
+  const [axisU, axisV] = inPlaneAxes(axisIdx);
   const ijk = [0, 0, 0];
   ijk[axisIdx] = slice;
 
@@ -107,18 +109,10 @@ function polygonBounds(
   slice: number
 ) {
   if (indexPoints.length === 0) return emptyExtent();
-  const bounds = [0, 0, 0, 0, 0, 0] as Extent3D;
-  [0, 1, 2].forEach((axis) => {
-    if (axis === axisIndex) {
-      bounds[axis * 2] = slice;
-      bounds[axis * 2 + 1] = slice;
-      return;
-    }
+  return sliceExtent(axisIndex, slice, (axis) => {
     const values = indexPoints.map((point) => point[axis]);
-    bounds[axis * 2] = Math.floor(Math.min(...values));
-    bounds[axis * 2 + 1] = Math.ceil(Math.max(...values));
+    return [Math.floor(Math.min(...values)), Math.ceil(Math.max(...values))];
   });
-  return bounds;
 }
 
 /**

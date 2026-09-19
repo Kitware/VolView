@@ -13,11 +13,13 @@ import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
-import { maskScalars } from '@/src/segmentation/model';
+import { boundScalars } from '@/src/segmentation/masks/overlap';
 import {
   clipExtent,
+  extentContainsIndex,
   fullExtent,
   isEmptyExtent,
+  maskOffset,
 } from '@/src/segmentation/geometry';
 import { Tools } from './types';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -119,7 +121,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   /**
-   * The segment this operation writes into. It is allocated for a stroke that
+   * The mask this stroke writes into. It is allocated for a stroke that
    * writes voxels; an erase takes what is already there, so it resolves nothing
    * into existence and refuses when there is nothing stored to take from.
    */
@@ -153,24 +155,26 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function selectSegmentAt(worldPoint: vec3, imageID: string) {
+    const parent = useImageCacheStore().getVtkImageData(imageID);
+    if (!parent) return;
+    // Masks share the parent grid, so one parent index addresses every mask.
+    const [i, j, k] = [...worldPointToIndex(parent, worldPoint)].map(
+      Math.round
+    );
     const registry = useSegmentStore().segments;
-    // Earlier registry entries render in front, including locked segments.
-    const segments = registry.segmentList.value;
-    const hit = segments.find((segment) => {
-      if (!registry.appearanceOf(segment.id).visible) return false;
-      const binding = segmentationStore.maskFor(imageID, segment.id)
-        ?.representations.labelmap;
-      if (!binding || isEmptyExtent(binding.extent)) return false;
-      const point = [...worldPointToIndex(binding.image, worldPoint)].map(
-        Math.round
-      );
-      const dims = binding.image.getDimensions();
-      if (point.some((value, axis) => value < 0 || value >= dims[axis]))
-        return false;
-      const [i, j, k] = point;
+    // The eyedropper takes the first registry entry covering the point,
+    // including locked segments.
+    const hit = registry.segmentList.value.find((segment) => {
+      const bounds =
+        segment.visible &&
+        boundScalars(
+          segmentationStore.maskFor(imageID, segment.id)?.representations
+            .labelmap
+        );
       return (
-        maskScalars(binding.image)[i + dims[0] * (j + dims[1] * k)] ===
-        SEGMENT_VALUE
+        !!bounds &&
+        extentContainsIndex(bounds.extent, i, j, k) &&
+        bounds.scalars[maskOffset(bounds, i, j, k)] === SEGMENT_VALUE
       );
     });
     if (hit) registry.selectSegment(hit.id);
@@ -226,7 +230,6 @@ export const usePaintToolStore = defineStore('paint', () => {
     if (!target) return;
 
     const { voxels, maskId } = target;
-    this.$paint.setBrushValue(SEGMENT_VALUE);
     const underlyingImagePixels = parentImage
       .getPointData()
       .getScalars()
@@ -353,6 +356,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     // allocated by the first stroke, so picking up the brush and putting it
     // down again leaves the image untouched.
     this.$paint.setBrushSize(this.brushSize);
+    this.$paint.setBrushValue(SEGMENT_VALUE);
 
     isActive.value = true;
     return true;

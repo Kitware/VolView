@@ -1,5 +1,6 @@
 import { TypedArray } from '@kitware/vtk.js/types';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { inPlaneAxes } from '@/src/segmentation/geometry';
 
 // 4-connected neighbor offsets, shared so the flood-fill loops never allocate
 // a neighbor array per visited voxel.
@@ -110,8 +111,7 @@ export function fillHoles(opts: FillHolesOptions) {
   const sliceStride = strides[axis];
   const sliceCount = dimensions[axis];
 
-  // The two in-plane axes (everything that isn't the slice axis).
-  const [uAxis, vAxis] = [0, 1, 2].filter((a) => a !== axis);
+  const [uAxis, vAxis] = inPlaneAxes(axis);
   const uDim = dimensions[uAxis];
   const vDim = dimensions[vAxis];
   const uStride = strides[uAxis];

@@ -2,12 +2,17 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
-import { Maybe } from '@/src/types';
-import type { Extent3D } from '@/src/segmentation/geometry';
+import { inPlaneAxes, sliceExtent } from '@/src/segmentation/geometry';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 
 export const ERASE_BRUSH_VALUE = 0;
+
+// The brush and a stroke's growth box must anchor the stencil at the same pixel.
+const stencilCenter = (size: readonly number[]) => [
+  Math.floor((size[0] - 1) / 2),
+  Math.floor((size[1] - 1) / 2),
+];
 
 export enum PaintMode {
   CirclePaint,
@@ -20,7 +25,7 @@ export default class PaintTool {
   readonly factory: vtkPaintWidget;
   private mode: PaintMode;
   private brush: IPaintBrush;
-  private brushValue: Maybe<number>;
+  private brushValue: number;
 
   constructor() {
     this.factory = vtkPaintWidget.newInstance();
@@ -50,13 +55,7 @@ export default class PaintTool {
     this.mode = mode;
   }
 
-  /**
-   * Sets the brush value.
-   *
-   * If the brush value is null | undefined, then no paint will occur.
-   * @param value
-   */
-  setBrushValue(value: Maybe<number>) {
+  setBrushValue(value: number) {
     this.brushValue = value;
   }
 
@@ -72,32 +71,21 @@ export default class PaintTool {
     const end = endPoint ? round(endPoint) : [...start];
 
     const { size } = this.brush.getStencil();
-    const center = [
-      Math.floor((size[0] - 1) / 2),
-      Math.floor((size[1] - 1) / 2),
-    ];
+    const center = stencilCenter(size);
 
-    const bounds = [0, 0, 0, 0, 0, 0] as Extent3D;
-    bounds[sliceAxis * 2] = start[sliceAxis];
-    bounds[sliceAxis * 2 + 1] = start[sliceAxis];
-    [0, 1, 2]
-      .filter((axis) => axis !== sliceAxis)
-      .forEach((axis, planeIndex) => {
-        bounds[axis * 2] =
-          Math.min(start[axis], end[axis]) - center[planeIndex];
-        bounds[axis * 2 + 1] =
-          Math.max(start[axis], end[axis]) +
-          size[planeIndex] -
-          1 -
-          center[planeIndex];
-      });
-    return bounds;
+    return sliceExtent(sliceAxis, start[sliceAxis], (axis, planeIndex) => [
+      Math.min(start[axis], end[axis]) - center[planeIndex],
+      Math.max(start[axis], end[axis]) +
+        size[planeIndex] -
+        1 -
+        center[planeIndex],
+    ]);
   }
 
   private strokeValue() {
     const inBrushingMode =
       this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
-    if (this.brushValue == null || !inBrushingMode) return undefined;
+    if (!inBrushingMode) return undefined;
     return this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
   }
 
@@ -174,15 +162,14 @@ export default class PaintTool {
       point[2] < originK + labelmapDims[2];
 
     const { pixels, size } = stencil;
-    const centerX = Math.floor((size[0] - 1) / 2);
-    const centerY = Math.floor((size[1] - 1) / 2);
+    const [centerX, centerY] = stencilCenter(size);
 
     const point1 = [...start];
     const point2 = [...end];
     const rounded = [0, 0, 0];
     rounded[sliceAxis] = ijkSlice;
     // The two in-plane axes, in the order the line's points state them.
-    const [axisU, axisV] = [0, 1, 2].filter((axis) => axis !== sliceAxis);
+    const [axisU, axisV] = inPlaneAxes(sliceAxis);
     const curPoint: number[] = [0, 0];
 
     const paintLine = () => {

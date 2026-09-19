@@ -34,6 +34,7 @@ import {
   type SegmentationDisplayPatch,
 } from '@/src/segmentation/model';
 import { markedSlices } from '@/src/segmentation/geometry';
+import { sameFields } from '@/src/utils';
 
 const registry = useSegmentStore().segments;
 const { shapesOf } = useSegmentShapes();
@@ -64,15 +65,6 @@ type Row = {
   shapeCount: number;
 };
 
-// Fields compare by identity, which the constraint keeps meaningful: a row
-// that gained an object or array field would never equal its predecessor.
-const sameRow = <
-  R extends Record<keyof R, string | number | boolean | undefined>,
->(
-  one: R,
-  other: R
-) => (Object.keys(one) as (keyof R)[]).every((key) => one[key] === other[key]);
-
 // Unchanged rows keep their identity: EditableItemList memoizes on it, and a
 // ruler drag recomputes every row's shape count per pointer move.
 // Rows omit mask bounds, so growing a painted mask does not rebuild the list.
@@ -92,7 +84,7 @@ const rows = computed((previous?: Row[]) => {
       shapeCount: shapesOf(segment.id).length,
     };
     const kept = before.get(segment.id);
-    return kept && sameRow(kept, row) ? kept : row;
+    return kept && sameFields(kept, row) ? kept : row;
   });
 });
 
@@ -353,11 +345,9 @@ const {
             @update:model-value="registry.selectSegment"
             :selection-revision="registry.selectionRevision.value"
             :items="rows"
-            reorderable
             @move="registry.moveSegment"
-            item-key="id"
-            item-title="name"
             create-text="New segment"
+            reorder-hint="Drag to reorder segments and shortcuts. Earlier segments win picking and flattened export; overlaps blend in the view. Alt+Up or Alt+Down also moves this segment."
             @create="registry.addSegment()"
             class="segment-items"
           >
@@ -385,12 +375,16 @@ const {
             </template>
             <template #item-append="{ item }">
               <span class="segment-shortcut-slot">
-                <kbd
+                <kbd v-if="item.shortcut" class="segment-shortcut">{{
+                  item.shortcut
+                }}</kbd>
+                <v-tooltip
                   v-if="item.shortcut"
-                  class="segment-shortcut"
-                  :title="`Select ${item.name}: ${item.shortcut}`"
-                  >{{ item.shortcut }}</kbd
-                >
+                  :eager="false"
+                  :text="`Select ${item.name}: ${item.shortcut}`"
+                  activator="parent"
+                  location="top"
+                />
               </span>
               <segment-list-actions
                 :name="item.name"

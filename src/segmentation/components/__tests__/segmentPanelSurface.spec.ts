@@ -34,7 +34,7 @@ const viewImage = async (id: string) => {
 
 const ItemListStub = defineComponent({
   name: 'EditableItemList',
-  props: ['items', 'itemKey', 'itemTitle', 'modelValue', 'createText'],
+  props: ['items', 'modelValue', 'createText'],
   emits: ['update:model-value', 'create'],
   template: `
     <div class="item-list">
@@ -222,6 +222,7 @@ const VISIBLE_ATTRIBUTES = [
   'subtitle',
   'aria-label',
   'create-text',
+  'reorder-hint',
 ];
 
 /**

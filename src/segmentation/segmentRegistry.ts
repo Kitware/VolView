@@ -37,7 +37,7 @@ const configuredAppearance = ({
 /**
  * Identity and shared appearance for a family of segments: one instance backs
  * paint, rectangles, polygons and rulers together. Explicit order drives the
- * picker, shortcuts, serialization and labelmap stacking.
+ * picker, shortcuts, serialization and export precedence.
  */
 export const createSegmentRegistry = () => {
   // Stores holding masks or shapes declare them here; the registry knows neither.
@@ -114,8 +114,7 @@ export const createSegmentRegistry = () => {
   const appearanceOf = (id: Maybe<string>) =>
     resolveSegmentAppearance(getSegment(id));
 
-  // Cached: the renderer asks for one index per mask per re-render, and the
-  // export sort asks twice per comparison.
+  // Cached: the export sort asks twice per comparison.
   const orderIndex = computed(
     () => new Map(segmentOrder.value.map((id, index) => [id, index]))
   );

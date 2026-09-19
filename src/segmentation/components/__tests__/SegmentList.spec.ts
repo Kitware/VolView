@@ -62,14 +62,7 @@ const makeSegment = (name: string) => segments().mintSegment({ name });
 // the list uses today.
 const ItemListStub = defineComponent({
   name: 'EditableItemList',
-  props: [
-    'items',
-    'itemKey',
-    'itemTitle',
-    'modelValue',
-    'createText',
-    'hideCreate',
-  ],
+  props: ['items', 'modelValue', 'createText'],
   emits: ['update:model-value', 'create', 'select', 'edit'],
   template: `
     <div class="item-list">
@@ -82,7 +75,7 @@ const ItemListStub = defineComponent({
         <slot name="item-prepend" :key="item.id" :item="item" />
         <slot name="item-append" :key="item.id" :item="item" />
       </div>
-      <button v-if="!hideCreate" class="create-row" @click="$emit('create')" />
+      <button class="create-row" @click="$emit('create')" />
     </div>
   `,
 });
@@ -243,7 +236,6 @@ describe('flat segment list', () => {
     await nextTick();
 
     expect(rowIds(wrapper)).toEqual([first.id, second.id]);
-    expect(itemList(wrapper).props('itemKey')).toBe('id');
     expect(
       itemList(wrapper)
         .props('items')
