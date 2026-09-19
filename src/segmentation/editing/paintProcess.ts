@@ -536,24 +536,35 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     }
   }
 
-  function togglePreview() {
+  /**
+   * Shows the original or the processed result, stated rather than flipped:
+   * the buttons that offer the two name the one they show, so re-clicking the
+   * one already showing has to leave the preview alone.
+   */
+  function setShowingOriginal(showOriginal: boolean) {
     if (cancelIfLocked()) return;
     const state = processState.value;
 
-    if (state.step === 'previewing') {
-      const newShowingOriginal = !state.showingOriginal;
+    if (state.step === 'previewing' && state.showingOriginal !== showOriginal) {
       state.runs.forEach((run) =>
         writeIfPresent(
           run.target.voxels,
-          newShowingOriginal ? run.originalScalars : run.processedScalars
+          showOriginal ? run.originalScalars : run.processedScalars
         )
       );
 
       processState.value = {
         ...state,
-        showingOriginal: newShowingOriginal,
+        showingOriginal: showOriginal,
       };
     }
+  }
+
+  function togglePreview() {
+    const state = processState.value;
+    setShowingOriginal(
+      state.step === 'previewing' ? !state.showingOriginal : false
+    );
   }
 
   watch(
@@ -626,6 +637,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     startProcess,
     confirmProcess,
     cancelProcess,
+    setShowingOriginal,
     togglePreview,
   };
 });
