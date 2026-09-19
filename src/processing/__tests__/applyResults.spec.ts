@@ -358,6 +358,58 @@ describe('autoLoadProcessingResults', () => {
     expect(deps.openVolumeUrls).not.toHaveBeenCalled();
   });
 
+  it('says which result was skipped and why, naming the intent', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // The name a 0.2.0 backend still emits for what is now import-segmentation.
+    await autoLoad(
+      [result({ name: 'seg.nrrd', intent: 'add-segment-group' })],
+      context('parent')
+    );
+    expect(errorMessages()).toEqual([
+      expect.objectContaining({
+        title: 'Did not load seg.nrrd',
+        options: expect.objectContaining({
+          details: expect.stringContaining('add-segment-group'),
+        }),
+      }),
+    ]);
+  });
+
+  it('blames the payload, not the client, for a known intent it rejects', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // import-segmentation is routed, but a three-component color fails the
+    // segment descriptor, so the result carries no directive.
+    await autoLoad(
+      [
+        result({
+          name: 'otsu.nii.gz',
+          intent: 'import-segmentation',
+          segments: [
+            { value: 1, name: 'Bin 1', color: [255, 0, 0] },
+          ] as unknown as ProcessingResult['segments'],
+        }),
+      ],
+      context('parent')
+    );
+    expect(deps.segmentWriter.convertImageToLabelmap).not.toHaveBeenCalled();
+    expect(errorMessages()).toEqual([
+      expect.objectContaining({
+        title: 'Did not load otsu.nii.gz',
+        options: expect.objectContaining({
+          details: expect.stringContaining('import-segmentation'),
+        }),
+      }),
+    ]);
+    expect(errorMessages()[0].options.details).not.toContain(
+      'This version cannot apply'
+    );
+  });
+
+  it('stays quiet about a result that declares no intent', async () => {
+    await autoLoad([result()], context('parent'));
+    expect(errorMessages()).toEqual([]);
+  });
+
   it('opens base images even when there is no originating dataset', async () => {
     await autoLoad([result({ intent: 'add-base-image' })], context(undefined));
     expect(deps.openVolumeUrls).toHaveBeenCalledWith({
