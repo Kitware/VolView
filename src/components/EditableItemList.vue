@@ -191,7 +191,7 @@ const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
               class="reorder-handle"
               draggable="true"
               :aria-label="`Reorder ${title}`"
-              title="Drag to reorder segments and shortcuts. Earlier segments render in front. Alt+Up or Alt+Down also moves this segment."
+              title="Drag to reorder segments and shortcuts. Earlier segments win picking and flattened export; overlaps blend in the view. Alt+Up or Alt+Down also moves this segment."
               @click.stop
               @dragstart.stop="startDrag($event, key)"
               @dragend="clearDrag"

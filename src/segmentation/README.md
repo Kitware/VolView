@@ -47,9 +47,11 @@ must distinguish an existing mask record from allocated voxel storage.
 
 ## Ordering and overlap
 
-Registry order controls the sidebar, shortcuts, rendering depth, and flattened
-export precedence. Per-image mask order preserves insertion and restored file
-order. Interchange packing uses registry order.
+Registry order controls the sidebar, shortcuts, selection and picking, and
+flattened export precedence. It does not control what is drawn on top:
+overlapping segments blend in the slice view, and moving one above another
+leaves the overlap looking the same. Per-image mask order preserves insertion
+and restored file order. Interchange packing uses registry order.
 
 Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
 preserve locked neighbors. Processes preserve voxels already held by other
