@@ -140,9 +140,14 @@ export function useInputStaging() {
   // so the context is assembled here rather than re-wiring them at the caller.
   const sourceRefContext = (): SourceRefBindingContext => {
     const currentImageId = currentImageID.value ?? undefined;
-    const segmentation = currentImageId
+    const record = currentImageId
       ? segmentationStore.getSegmentationForImage(currentImageId)
       : undefined;
+    // A record with no masks would stage an all-background file, so it is not
+    // an input at all: the binder falls to its own 'no-segmentation' branch,
+    // and staging never sees the parameter. Display settings and deleting the
+    // last segment both leave such a record behind.
+    const segmentation = record?.order.length ? record : undefined;
     return {
       activeDataSource: activeDataSource(),
       currentImageId,
