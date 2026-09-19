@@ -557,7 +557,9 @@ const overlapSignal = () =>
     ),
   ].join('|');
 
-watch([taskModel, segmentRegistry.selectedSegmentId], refreshInputWarnings);
+// Selection is not watched here: overlapSignal already carries it, so leaving
+// it out keeps one selection change from sweeping the masks twice.
+watch(taskModel, refreshInputWarnings);
 watchDebounced(overlapSignal, refreshInputWarnings, { debounce: 150 });
 
 const sourceRefNames = computed(() => {

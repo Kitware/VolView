@@ -679,6 +679,24 @@ describe('JobsModule segmentation staging', () => {
     expect(overlapNotice(wrapper).exists()).toBe(true);
   });
 
+  it('sweeps the masks once when the selection changes', async () => {
+    const { second, wrapper } = await seedDisjointPair();
+
+    // spyOn hands back the spy an earlier case already installed on the
+    // module, so start from a clean tally.
+    const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
+    scans.mockClear();
+    selectSegment(second.id);
+    await flushPromises();
+
+    expect(scans).not.toHaveBeenCalled();
+
+    await afterDebounce();
+
+    expect(scans).toHaveBeenCalledTimes(1);
+    expect(overlapNotice(wrapper).exists()).toBe(false);
+  });
+
   it('rescans when a stroke overlaps inside a box it already had', async () => {
     const { segmentStore, second, wrapper } = await seedDisjointPair([
       0, 1, 0, 1, 0, 1,
