@@ -112,25 +112,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     DataSelection,
     ReturnType<typeof importLabelmapImage>
   >();
-  const allBindings = () =>
-    Object.values(segmentations).flatMap((segmentation) =>
-      listMasks(segmentation).flatMap((segment) =>
-        segment.representations.labelmap
-          ? [segment.representations.labelmap]
-          : []
-      )
-    );
   /**
-   * The names bound masks already hold. Kept as bindings attach so picking a
-   * default name probes a set rather than walking every mask in the scene;
-   * removals are rare enough to rebuild it.
+   * How many bound masks hold each name, so picking a default name probes this
+   * rather than walking every mask in the scene. A restore attaches the names
+   * the file states, which may repeat, so it counts holders instead of only
+   * remembering the name: releasing one mask must not free a name another
+   * still holds.
    */
-  const takenMaskNames = new Set<string>();
-  const rebuildTakenMaskNames = () => {
-    takenMaskNames.clear();
-    allBindings().forEach((binding) => takenMaskNames.add(binding.name));
+  const maskNameHolders = new Map<string, number>();
+  const holdMaskName = (name: string) =>
+    maskNameHolders.set(name, (maskNameHolders.get(name) ?? 0) + 1);
+  const releaseMaskName = (name: string) => {
+    const holders = maskNameHolders.get(name) ?? 0;
+    if (holders > 1) maskNameHolders.set(name, holders - 1);
+    else maskNameHolders.delete(name);
   };
-  const maskFileNamer = createMaskFileNamer(() => takenMaskNames);
+  const maskFileNamer = createMaskFileNamer(() => maskNameHolders);
 
   /**
    * Each segmentation's mask id per segment. One image holds at most one mask
@@ -242,19 +239,21 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       image: markRaw(binding.image),
       extent: [...binding.extent],
     };
-    takenMaskNames.add(mask.representations.labelmap.name);
+    holdMaskName(mask.representations.labelmap.name);
     return mask.representations.labelmap;
   }
 
   /** Drops a mask, and the voxels it held with it. */
   function detachMask(segmentation: Segmentation, maskId: string) {
     edits.beforeEdit();
-    const { segmentId } = segmentation.masks[maskId] ?? {};
+    const mask = segmentation.masks[maskId];
+    const { segmentId } = mask ?? {};
+    const boundName = mask?.representations.labelmap?.name;
     removeFromArray(segmentation.order, maskId);
     delete segmentation.masks[maskId];
     const index = maskIdsBySegment.get(segmentation.id);
     if (segmentId && index?.get(segmentId) === maskId) index.delete(segmentId);
-    rebuildTakenMaskNames();
+    if (boundName !== undefined) releaseMaskName(boundName);
   }
 
   /** A mask is editable when the segment it delineates is unlocked. */
@@ -503,9 +502,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   function removeSegmentation(segmentationId: string) {
     edits.beforeEdit();
+    const segmentation = segmentations[segmentationId];
+    if (segmentation)
+      listMasks(segmentation).forEach((mask) => {
+        const binding = mask.representations.labelmap;
+        if (binding) releaseMaskName(binding.name);
+      });
     delete segmentations[segmentationId];
     maskIdsBySegment.delete(segmentationId);
-    rebuildTakenMaskNames();
   }
 
   // --- edit targets --- //

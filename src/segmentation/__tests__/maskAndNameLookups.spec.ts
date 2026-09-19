@@ -113,6 +113,22 @@ describe('the names bound masks hold', () => {
     ]);
   });
 
+  it('frees a shared name only when its last holder goes', () => {
+    // A restore attaches the names the file states, so two masks can carry
+    // one name however the namer would have picked them.
+    const first = splitCarrying('Segment Group 1 for CT A');
+    splitCarrying('Segment Group 1 for CT A');
+
+    store().deleteMask(first.id);
+    store().ensureLabelmapBinding(addMask('img-1'));
+
+    // The surviving mask still holds the name, so the next one skips past it.
+    expect(bindingNames()).toEqual([
+      'Segment Group 1 for CT A',
+      'Segment Group 2 for CT A',
+    ]);
+  });
+
   it('hands a removed mask name back to the next one', () => {
     const removed = splitCarrying('Segment Group 2 for CT A');
     store().deleteMask(removed.id);
