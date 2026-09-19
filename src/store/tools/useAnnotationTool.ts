@@ -202,14 +202,18 @@ export const useAnnotationTool = <
         const mappedId = segmentId && segmentIdMap[segmentId];
         return !mappedId || registry.getSegment(mappedId);
       })
-      .map(({ imageID, segmentId, ...rest }) => {
-        const newImageID = dataIDMap[imageID];
-        return {
-          ...rest,
-          imageID: newImageID,
-          segmentId: (segmentId && segmentIdMap[segmentId]) || '',
-        } as ToolPatch;
-      })
+      // An image that did not load leaves its annotations with nothing to hang
+      // on: they cannot be drawn, and seating them with a missing image would
+      // make the next save's whole tools section invalid.
+      .filter(({ imageID }) => dataIDMap[imageID] !== undefined)
+      .map(
+        ({ imageID, segmentId, ...rest }) =>
+          ({
+            ...rest,
+            imageID: dataIDMap[imageID],
+            segmentId: (segmentId && segmentIdMap[segmentId]) || '',
+          }) as ToolPatch
+      )
       .forEach((tool) => addTool(tool));
   }
 
