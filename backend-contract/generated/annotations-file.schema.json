@@ -24,12 +24,14 @@
             "type": "object",
             "properties": {
               "color": {
+                "description": "A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.",
                 "type": "string"
               },
               "strokeWidth": {
                 "type": "number"
               },
               "fillColor": {
+                "description": "Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.",
                 "type": "string"
               }
             },
@@ -46,12 +48,14 @@
             "type": "object",
             "properties": {
               "color": {
+                "description": "A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.",
                 "type": "string"
               },
               "strokeWidth": {
                 "type": "number"
               },
               "fillColor": {
+                "description": "Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.",
                 "type": "string"
               }
             },
@@ -68,12 +72,14 @@
             "type": "object",
             "properties": {
               "color": {
+                "description": "A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.",
                 "type": "string"
               },
               "strokeWidth": {
                 "type": "number"
               },
               "fillColor": {
+                "description": "Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.",
                 "type": "string"
               }
             },

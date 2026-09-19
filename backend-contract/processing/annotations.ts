@@ -89,9 +89,19 @@ export type WirePolygon = z.infer<typeof wirePolygonSchema>;
 
 // A label's style. Every field is optional: a label may exist purely as a name.
 export const annotationLabelSchema = z.strictObject({
-  color: z.string().optional(),
+  color: z
+    .string()
+    .optional()
+    .describe(
+      'A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.'
+    ),
   strokeWidth: z.number().optional(),
-  fillColor: z.string().optional(),
+  fillColor: z
+    .string()
+    .optional()
+    .describe(
+      'Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.'
+    ),
 });
 export type AnnotationLabel = z.infer<typeof annotationLabelSchema>;
 

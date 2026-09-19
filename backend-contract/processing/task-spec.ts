@@ -136,7 +136,7 @@ const sourceRefParam = z.object({
     .boolean()
     .optional()
     .describe(
-      'When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. The client currently stages the whole segmentation of the active image as one flattened labelmap file for either setting; the flag does not select additional segmentations.'
+      "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. For a labelmap input the client stages the active image's segmentation as overlap-free parts: when true, every mask, spread across as many files as it takes for no two masks to share a voxel; when absent or false, only the non-conflicting subset that fits one file, with the remaining masks omitted whole and reported to the user. No mask is ever clipped to fit."
     ),
 });
 

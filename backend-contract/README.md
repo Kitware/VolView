@@ -60,7 +60,11 @@ validate `annotations-file.schema.json`, then enforce
 `validateAnnotationsFileSemantics` — every nonempty `labelName` must be declared
 in its own tool-kind label namespace, which JSON Schema cannot express either.
 Backend conformance tests must also assert that every payload under
-`fixtures/negative/` is rejected by the combined validation path.
+`fixtures/negative/` is rejected by the combined validation path. The one
+exception is `negative/wrong-length-color.json`, which only the strict
+known-intent union rejects: `result-intent.schema.json` is deliberately open,
+so it accepts the row and demotes it to an ordinary result carrying no state
+action.
 
 ## The neutral REST surface (OpenAPI)
 
