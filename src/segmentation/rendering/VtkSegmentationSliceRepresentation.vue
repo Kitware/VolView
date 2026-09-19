@@ -24,7 +24,7 @@ import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import {
   SEGMENT_ACTOR_OPACITY,
-  segmentCoincidentOffset,
+  SEGMENT_COINCIDENT_OFFSET,
   segmentFillAlpha,
   segmentOutlineTables,
   sliceWithinExtent,
@@ -36,13 +36,11 @@ import { revealPulseStrength } from '@/src/segmentation/composables/useSegmentRe
 type Props = {
   viewId: string;
   maskId: string;
-  // Position in `segmentation.order`, which is what the actors stack by.
-  stackIndex: number;
   axis: LPSAxis;
 };
 
 const props = defineProps<Props>();
-const { viewId, maskId, stackIndex, axis } = toRefs(props);
+const { viewId, maskId, axis } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -127,17 +125,12 @@ sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
 // needed for vtk.js >= 23.0.0
 sliceRep.property.setUseLookupTableScalarRange(true);
 
-// Each segment gets its own offset, in front of the base image and of the
-// segments behind it in the stack: overlap is representable, so a shared offset
-// would z-fight.
+// Segments are coplanar with the base image, so they draw at an offset that
+// lifts them off it. The offset is the same for every segment.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-watchEffect(() => {
-  const [factor, units] = segmentCoincidentOffset(stackIndex.value);
-  sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
-    factor,
-    units
-  );
-});
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
+  ...SEGMENT_COINCIDENT_OFFSET
+);
 
 // Compute labelmap's LPS orientation from its direction matrix
 const maskLpsOrientation = computed(() => {
