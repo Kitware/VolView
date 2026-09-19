@@ -31,16 +31,17 @@ export function resolveRasterizeTarget(
 ) {
   const segmentationStore = useSegmentationStore();
 
-  const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
   // A locked segment is not editable, the same refusal paint and the processes
-  // make. Checked before storage is allocated, so a refused polygon leaves no
-  // empty mask behind. A locked neighbour is a different rule and keeps the
-  // voxels a fill claims, which an aimed `voxelClaim` already honours.
-  if (segmentationStore.isLocked(resolved)) {
+  // make. Asked of the segment before the target is resolved, since resolving
+  // mints the mask record and its segmentation: a refused polygon leaves
+  // neither behind. A locked neighbour is a different rule and keeps the voxels
+  // a fill claims, which an aimed `voxelClaim` already honours.
+  if (segmentationStore.editTargetLocked(segmentId)) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
   }
 
+  const resolved = segmentationStore.resolveEditTarget(imageId, segmentId);
   const voxels = segmentationStore.maskVoxels(resolved);
   // The binding's extent goes stale the moment the fill grows the mask, so
   // the accessor is what travels, not anything read off it now.

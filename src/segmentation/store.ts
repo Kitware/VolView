@@ -519,8 +519,21 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
+   * Whether the segment an edit would land in is locked. The refusal cannot
+   * wait for a resolved mask: `resolveEditTarget` returns a mask id, so it has
+   * to mint the record and its segmentation before anything can be asked about
+   * the lock, and a refused edit would leave both behind. This answers from the
+   * segment alone, creating nothing, so every edit path can refuse first.
+   */
+  const editTargetLocked = (preferredSegmentId?: Maybe<string>) =>
+    segmentRegistry.appearanceOf(
+      liveSegmentId(preferredSegmentId) ?? segmentRegistry.presumedSegmentId()
+    ).locked;
+
+  /**
    * Resolves or creates the mask an edit targets. With nothing selected the
    * first edit mints and selects a segment, then takes this image's mask of it.
+   * Callers refusing a locked segment ask `editTargetLocked` before this.
    */
   function resolveEditTarget(
     imageId: string,
@@ -589,6 +602,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     maskFor,
     findEditTarget,
     resolveEditTarget,
+    editTargetLocked,
     maskExists,
     getSegmentationForImage,
     ensureSegmentationForImage,

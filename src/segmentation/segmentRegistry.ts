@@ -173,6 +173,14 @@ export const createSegmentRegistry = ({
     segmentOrder.value = order;
   };
 
+  /**
+   * Where `ensureSelectedSegment` would land, selecting and minting nothing.
+   * An empty registry has no answer, and what would be minted there is a fresh
+   * segment carrying the defaults.
+   */
+  const presumedSegmentId = () =>
+    selectedSegment.value?.id ?? segmentList.value[0]?.id;
+
   /** Reuse the selection or first segment, minting only for an empty registry. */
   const ensureSelectedSegment = () => {
     if (selectedSegment.value) return selectedSegment.value.id;
@@ -267,6 +275,7 @@ export const createSegmentRegistry = ({
     updateSegment,
     moveSegment,
     deleteSegment,
+    presumedSegmentId,
     ensureSelectedSegment,
     segmentNamed,
     replaceConfigSegments,
