@@ -16,7 +16,22 @@ export type ProcessWorkerHost<Api> = {
   // return type is a union hands back a union of promises, and the result
   // type has to survive that.
   call<T>(use: (api: Comlink.Remote<Api>) => T): Promise<Awaited<T>>;
+  /** Drop the worker, ending the calls in flight. */
+  terminate(): void;
 };
+
+/** Every host built here, so a cancelled run can drop the lot. */
+const hosts = new Set<{ terminate: () => void }>();
+
+/**
+ * Ends every process worker. A job already posted to a worker cannot be
+ * called back: the worker runs it to the end and only then takes the next one.
+ * A cancelled run's jobs would therefore keep the worker busy with results
+ * nobody wants, and the run replacing them would wait behind that work.
+ */
+export function terminateProcessWorkers() {
+  hosts.forEach((host) => host.terminate());
+}
 
 /** What the worker said, or which event ended it when it said nothing. */
 function workerFailure(event: Event) {
@@ -29,38 +44,50 @@ function workerFailure(event: Event) {
 export function createProcessWorkerHost<Api>(
   spawn: () => Worker
 ): ProcessWorkerHost<Api> {
-  let proxy: Comlink.Remote<Api> | null = null;
-  let died: Promise<never> | null = null;
+  let live: {
+    proxy: Comlink.Remote<Api>;
+    died: Promise<never>;
+    discard: (reason: Error) => void;
+  } | null = null;
 
   function start() {
     const worker = spawn();
-    const started = Comlink.wrap<Api>(worker);
-    const ended = new Promise<never>((_resolve, reject) => {
-      const die = (event: Event) => {
-        // Only this worker's own death drops the cache: a later run may
-        // already have started a replacement.
-        if (proxy === started) {
-          proxy = null;
-          died = null;
-        }
-        reject(workerFailure(event));
-      };
-      worker.addEventListener('error', die);
-      worker.addEventListener('messageerror', die);
+    const proxy = Comlink.wrap<Api>(worker);
+    let end: (reason: Error) => void = () => {};
+    const died = new Promise<never>((_resolve, reject) => {
+      end = reject;
     });
-    // Calls in flight see the rejection through `call`; a worker that dies
-    // while idle is not a failure anyone is waiting on.
-    ended.catch(() => undefined);
-    proxy = started;
-    died = ended;
+    const discard = (reason: Error) => {
+      // Only this worker's own end drops the cache: a later run may already
+      // have started its replacement.
+      if (live?.proxy === proxy) live = null;
+      worker.terminate();
+      end(reason);
+    };
+    const die = (event: Event) => discard(workerFailure(event));
+    worker.addEventListener('error', die);
+    worker.addEventListener('messageerror', die);
+    // Calls in flight see the rejection through `call`; a worker dropped with
+    // nothing running is not a failure anyone is waiting on.
+    died.catch(() => undefined);
+    live = { proxy, died, discard };
+    return live;
   }
 
   async function call<T>(
     use: (api: Comlink.Remote<Api>) => T
   ): Promise<Awaited<T>> {
-    if (!proxy || !died) start();
-    return Promise.race([use(proxy!), died!]) as Promise<Awaited<T>>;
+    const instance = live ?? start();
+    return Promise.race([use(instance.proxy), instance.died]) as Promise<
+      Awaited<T>
+    >;
   }
 
-  return { call };
+  const host = {
+    call,
+    terminate: () =>
+      live?.discard(new Error('The process worker was stopped.')),
+  };
+  hosts.add(host);
+  return host;
 }

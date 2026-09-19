@@ -24,6 +24,7 @@ import { reframeMaskScalars } from '@/src/segmentation/masks/storage';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
+import { terminateProcessWorkers } from '@/src/segmentation/editing/processWorker';
 
 export enum ProcessType {
   FillHoles = 'fillHoles',
@@ -283,6 +284,11 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         writeIfPresent(run.target.voxels, run.originalScalars)
       );
     }
+    // A run still computing has jobs sitting in the workers, one of which is
+    // running now and cannot be called back. Their results are already
+    // discarded, so the worker goes with them: the run that replaces this one
+    // starts on a fresh worker instead of waiting behind abandoned work.
+    if (state.step === 'computing') terminateProcessWorkers();
     resetState();
     paintStore.restoreModeAfterProcess();
   }

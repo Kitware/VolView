@@ -22,6 +22,7 @@ import {
   type ProcessTarget,
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
+import { hostOverSilentWorkers } from '@/src/segmentation/editing/__tests__/silentWorker';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 /** Seats a two-voxel image and makes it the one the active view shows. */
@@ -127,6 +128,35 @@ describe('Paint process store', () => {
     expect(paintStore.activeMode).toBe(PaintMode.CirclePaint);
     expect(paintStore.activePaintMode).toBe(PaintMode.CirclePaint);
     expect(paintStore.isPaintingModeActive).toBe(true);
+    expect(getScalars(labelMap)).toEqual([0, 0]);
+  });
+
+  it('drops the process worker when a computing run is cancelled', async () => {
+    // A job already posted runs to the end, so a cancelled run's work would
+    // occupy the worker and the run replacing it would wait behind results
+    // nobody wants. Cancelling ends the worker instead.
+    const processStore = usePaintProcessStore();
+    const { labelMap } = addActiveSegment();
+    const { host, workers } = hostOverSilentWorkers();
+    host.call((api) => api.smooth(1)).catch(() => undefined);
+
+    const pending = deferred<Uint8Array>();
+    const run = processStore.startProcess(async (target) => ({
+      scalars: await pending.promise,
+      extent: target.maskExtent,
+    }));
+    expect(processStore.processState.step).toBe('computing');
+
+    processStore.cancelProcess();
+
+    expect(workers[0].terminated).toBe(true);
+    // The next run starts on a worker of its own.
+    host.call((api) => api.smooth(2)).catch(() => undefined);
+    expect(workers).toHaveLength(2);
+
+    pending.resolve(new Uint8Array([4, 4]));
+    await run;
+    expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([0, 0]);
   });
 
