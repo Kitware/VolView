@@ -221,6 +221,7 @@ export default tseslint.config(
           'rendering/**',
           'editing/coordinator',
           'editing/paintProcess',
+          'editing/processWorker',
           'editing/fillHoles',
           'editing/fillBetween',
           'editing/gaussianSmooth',

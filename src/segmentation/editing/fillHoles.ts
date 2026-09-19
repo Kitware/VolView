@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import * as Comlink from 'comlink';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/segmentation/editing/algorithms/fillHoles.worker';
+import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
 import { getLPSDirections } from '@/src/utils/lps';
 import type { LPSAxis } from '@/src/types/lps';
 
@@ -23,21 +23,16 @@ type WorkerApi = {
   fillHolesWorker: typeof fillHolesWorker;
 };
 
-let workerInstance: Comlink.Remote<WorkerApi> | null = null;
-
-async function getWorker() {
-  if (!workerInstance) {
-    const worker = new Worker(
+const workerHost = createProcessWorkerHost<WorkerApi>(
+  () =>
+    new Worker(
       new URL(
         '@/src/segmentation/editing/algorithms/fillHoles.worker.ts',
         import.meta.url
       ),
       { type: 'module' }
-    );
-    workerInstance = Comlink.wrap<WorkerApi>(worker);
-  }
-  return workerInstance;
-}
+    )
+);
 
 /**
  * The current parent slice in the mask's own index space, or undefined when the
@@ -104,14 +99,15 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       return undefined;
     }
 
-    const worker = await getWorker();
-    const scalars = await worker.fillHolesWorker({
-      data,
-      dimensions,
-      axis,
-      sliceIndex,
-      label: target.labelValue,
-    });
+    const scalars = await workerHost.call((worker) =>
+      worker.fillHolesWorker({
+        data,
+        dimensions,
+        axis,
+        sliceIndex,
+        label: target.labelValue,
+      })
+    );
     return { scalars, extent: target.maskExtent };
   }
 
