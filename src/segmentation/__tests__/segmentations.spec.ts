@@ -533,6 +533,38 @@ describe('segmentation store', () => {
       expect(store().convertingLabelmaps.has('child-img')).toBe(false);
     });
 
+    it('joins a conversion already running for the same image', async () => {
+      await seatConversionSources(['child-img'], twoLabelValues());
+
+      // Two entry points fire without awaiting: a load starts one and the
+      // browser's Convert button starts the other before the first settles.
+      const first = store().convertImageToLabelmap('child-img', 'parent-img');
+      const second = store().convertImageToLabelmap('child-img', 'parent-img');
+
+      expect(store().convertingLabelmaps.has('child-img')).toBe(true);
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+      // The image reports converting until the one conversion really ends.
+      expect(store().convertingLabelmaps.has('child-img')).toBe(false);
+
+      // One split, so one segment per label value and no suffixed duplicates.
+      expect(secondResult).toEqual(firstResult);
+      const masks = masksOfImage('parent-img');
+      expect(
+        masks.map((mask) => segments().appearanceOf(mask.segmentId).name)
+      ).toEqual(['child-img 1', 'child-img 2']);
+    });
+
+    it('converts the same image again once the first conversion ended', async () => {
+      await seatConversionSources(['child-img'], twoLabelValues());
+
+      await store().convertImageToLabelmap('child-img', 'parent-img');
+      await store().convertImageToLabelmap('child-img', 'parent-img');
+
+      // A second, separate conversion still adds its own segments: the guard
+      // only joins calls that overlap.
+      expect(masksOfImage('parent-img')).toHaveLength(4);
+    });
+
     it('creates one bound segment per discovered label value', async () => {
       await seatConversionSources(['child-img'], twoLabelValues());
 
