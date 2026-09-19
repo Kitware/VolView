@@ -147,6 +147,24 @@ export function arrayEquals<T>(a: ArrayLike<T>, b: ArrayLike<T>) {
   return true;
 }
 
+/**
+ * Whether two records hold identical values under the same keys. Values
+ * compare by identity, which the constraint keeps meaningful: a record with an
+ * object or array field would never equal a copy of itself.
+ */
+export const sameFields = <
+  R extends Partial<Record<keyof R, string | number | boolean>>,
+>(
+  one: R,
+  other: R
+) => {
+  const keys = Object.keys(one) as (keyof R)[];
+  return (
+    keys.length === Object.keys(other).length &&
+    keys.every((key) => one[key] === other[key])
+  );
+};
+
 type ComparatorFunction<T> = (a: T, b: T) => boolean;
 export function arrayEqualsWithComparator<T>(
   a: T[],

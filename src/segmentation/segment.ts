@@ -6,7 +6,7 @@ import {
 } from '@/src/config';
 import { NO_NAME } from '@/src/constants';
 import type { Maybe } from '@/src/types';
-import { cleanUndefined } from '@/src/utils';
+import { arrayEquals, cleanUndefined, sameFields } from '@/src/utils';
 import type { LabelmapSegment } from '@/src/segmentation/model';
 import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
 
@@ -91,11 +91,7 @@ export const toLabelmapSegment = (
   };
 };
 
-export const sameLabelmapSegment = (a: LabelmapSegment, b: LabelmapSegment) =>
-  a.value === b.value &&
-  a.name === b.name &&
-  a.visible === b.visible &&
-  a.locked === b.locked &&
-  a.fillOpacity === b.fillOpacity &&
-  a.outlineOpacity === b.outlineOpacity &&
-  a.color.every((channel, index) => channel === b.color[index]);
+export const sameLabelmapSegment = (
+  { color, ...fields }: LabelmapSegment,
+  { color: otherColor, ...otherFields }: LabelmapSegment
+) => arrayEquals(color, otherColor) && sameFields(fields, otherFields);

@@ -20,10 +20,9 @@ import { chunk } from '@/src/utils';
 /**
  * The given segments as one parent-shaped labelmap, built on demand and never
  * stored: what leaves VolView means the whole segmentation, not one segment's
- * bounded mask. Earlier in the registry wins where two segments overlap, which
- * is the order their actors stack in, so the flattened file resolves an
- * overlap the way the screen did. `members` defaults to the image's segments;
- * an export passes one group so no overlap is flattened away.
+ * bounded mask. Earlier in the registry wins where two segments overlap, the
+ * precedence the reorder control documents. `members` defaults to the image's
+ * segments; an export passes one group so no overlap is flattened away.
  */
 export function compositeLabelmap(
   parentImageId: string,

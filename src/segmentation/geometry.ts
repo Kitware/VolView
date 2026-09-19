@@ -60,6 +60,28 @@ export function extentContainsIndex(
   );
 }
 
+/** The two axes a slice along `axis` spans, in index order. */
+export const inPlaneAxes = (axis: number) =>
+  [0, 1, 2].filter((other) => other !== axis) as [number, number];
+
+/**
+ * The box one plane thick at `slice` along `axis`, spanning on each in-plane
+ * axis what `span` gives it, which is asked in index order.
+ */
+export function sliceExtent(
+  axis: number,
+  slice: number,
+  span: (inPlane: number, planeIndex: number) => [number, number]
+) {
+  const extent: Extent3D = [0, 0, 0, 0, 0, 0];
+  extent[axis * 2] = slice;
+  extent[axis * 2 + 1] = slice;
+  inPlaneAxes(axis).forEach((inPlane, planeIndex) => {
+    [extent[inPlane * 2], extent[inPlane * 2 + 1]] = span(inPlane, planeIndex);
+  });
+  return extent;
+}
+
 /** Whether the plane at `slice` along `axis` passes through `extent`. */
 export const extentReachesSlice = (
   extent: Extent3D,

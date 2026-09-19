@@ -333,16 +333,16 @@ const ImportedLabelmapBinding = LabelmapBinding.extend({
   { message: 'A labelmap binding names either a path or an artifact' }
 );
 
-// Everything the user sees or sets lives on the type; a record is one image's
-// mask for it.
+// Everything the user sees or sets lives on the segment; a record is one
+// image's mask for it.
 const SegmentMask = z.object({
   id: z.string(),
   segmentId: z.string(),
   representations: z.object({ labelmap: LabelmapBinding.optional() }),
 });
 
-// Serialized as an ordered array, unused types included: the order is what the
-// picker lists and the renderer offsets by, and restore re-mints ids in it.
+// Serialized in order, unused segments included: the picker lists them and
+// export precedence follows that order, and restore re-mints ids in it.
 export const Segment = z.object({
   id: z.string(),
   name: z.string(),
@@ -440,7 +440,7 @@ const annotationTool = z.object({
   source: ProcessingResultSource.optional(),
 });
 
-// Every shape names a type in its registry; the registries themselves are
+// Every shape names a segment in its registry; the registries themselves are
 // manifest roots, so a tool entry carries geometry only.
 const makeToolEntry = <T extends z.ZodRawShape>(tool: z.ZodObject<T>) =>
   z.object({

@@ -1,50 +1,22 @@
-<script
-  setup
-  lang="ts"
-  generic="T, KeyProp extends keyof T, TitleProp extends keyof T"
->
-/* global T, KeyProp, TitleProp */
+<script setup lang="ts" generic="T extends { id: string; name: string }">
+/* global T */
 
-import { computed, nextTick, ref, watch } from 'vue';
+import { nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
 
-const emit = defineEmits([
-  'create',
-  'update:model-value',
-  'update:expanded',
-  'move',
-]);
+const emit = defineEmits<{
+  create: [];
+  'update:model-value': [id: string];
+  move: [id: string, target: string, after: boolean];
+}>();
 
-const props = withDefaults(
-  defineProps<{
-    items: Array<T>;
-    itemKey: T[KeyProp] extends string | number | symbol ? KeyProp : never;
-    itemTitle: T[TitleProp] extends string ? TitleProp : never;
-    createText?: string;
-    hideCreate?: boolean;
-    reorderable?: boolean;
-    modelValue: Maybe<T[KeyProp]>;
-    selectionRevision?: number;
-    expandable?: (item: T) => boolean;
-    expanded?: Array<string | number | symbol>;
-  }>(),
-  {
-    createText: 'Create',
-    hideCreate: false,
-    reorderable: false,
-    expandable: () => false,
-    expanded: () => [],
-  }
-);
-
-const itemsToRender = computed(() =>
-  props.items.map((item) => ({
-    item,
-    key: item[props.itemKey] as string | number | symbol,
-    title: item[props.itemTitle] as string | undefined,
-    expandable: props.expandable(item),
-  }))
-);
+const props = defineProps<{
+  items: Array<T>;
+  createText: string;
+  reorderHint: string;
+  modelValue: Maybe<string>;
+  selectionRevision?: number;
+}>();
 
 const listElement = ref<HTMLElement>();
 watch(
@@ -71,18 +43,7 @@ watch(
   { flush: 'post' }
 );
 
-const isOpen = (key: string | number | symbol) => props.expanded.includes(key);
-
-const toggleOpen = (key: string | number | symbol) =>
-  emit(
-    'update:expanded',
-    isOpen(key)
-      ? props.expanded.filter((open) => open !== key)
-      : [...props.expanded, key]
-  );
-
-type ItemKey = string | number | symbol;
-let draggedKey: ItemKey | undefined;
+let draggedId: string | undefined;
 let highlightedRow: HTMLElement | undefined;
 
 // Drag feedback only changes the previous and current row, not list data.
@@ -92,15 +53,15 @@ const clearIndicator = () => {
 };
 
 const clearDrag = () => {
-  draggedKey = undefined;
+  draggedId = undefined;
   clearIndicator();
 };
 
-const startDrag = (event: DragEvent, key: ItemKey) => {
+const startDrag = (event: DragEvent, id: string) => {
   if (!event.dataTransfer) return;
-  draggedKey = key;
+  draggedId = id;
   event.dataTransfer.effectAllowed = 'move';
-  event.dataTransfer.setData('application/x-volview-segment-id', String(key));
+  event.dataTransfer.setData('application/x-volview-item-id', id);
 };
 
 const isAfter = (event: DragEvent) => {
@@ -108,9 +69,9 @@ const isAfter = (event: DragEvent) => {
   return event.clientY > bounds.top + bounds.height / 2;
 };
 
-const dragOver = (event: DragEvent, key: ItemKey) => {
-  if (draggedKey === undefined) return;
-  if (draggedKey === key) {
+const dragOver = (event: DragEvent, id: string) => {
+  if (draggedId === undefined) return;
+  if (draggedId === id) {
     clearIndicator();
     return;
   }
@@ -136,20 +97,20 @@ const leaveRow = (event: DragEvent) => {
   }
 };
 
-const drop = (event: DragEvent, key: ItemKey) => {
-  if (draggedKey === undefined) return;
+const drop = (event: DragEvent, id: string) => {
+  if (draggedId === undefined) return;
   event.preventDefault();
   event.stopPropagation();
-  if (draggedKey !== key) emit('move', draggedKey, key, isAfter(event));
+  if (draggedId !== id) emit('move', draggedId, id, isAfter(event));
   clearDrag();
 };
 
-const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
-  const index = itemsToRender.value.findIndex((item) => item.key === key);
-  const target = itemsToRender.value[index + offset];
+const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
+  const index = props.items.findIndex((item) => item.id === id);
+  const target = props.items[index + offset];
   if (!target) return;
   const handle = event.currentTarget as HTMLElement;
-  emit('move', key, target.key, offset > 0);
+  emit('move', id, target.id, offset > 0);
   await nextTick();
   handle.focus();
 };
@@ -160,90 +121,62 @@ const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
     <div ref="listElement" class="item-list-scroll">
-      <!-- Open expansion slots can change independently of their row data. -->
-      <!-- eslint-disable vue/no-useless-template-attributes -- Vue compiles v-memo on the keyed v-for fragment. -->
-      <template
-        v-for="{ item, key, title, expandable: hasMore } in itemsToRender"
-        :key="key"
-        v-memo="[
-          item,
-          title,
-          key === modelValue,
-          hasMore,
-          isOpen(key) ? {} : false,
-          reorderable,
-        ]"
+      <v-list-item
+        v-for="item in items"
+        :key="item.id"
+        v-memo="[item, item.id === modelValue]"
+        class="item-row"
+        @dragover="dragOver($event, item.id)"
+        @drop="drop($event, item.id)"
+        @dragleave="leaveRow"
+        :active="item.id === modelValue"
+        :aria-label="item.name"
+        :aria-current="item.id === modelValue ? 'true' : undefined"
+        @click="emit('update:model-value', item.id)"
       >
-        <v-list-item
-          class="item-row"
-          @dragover="dragOver($event, key)"
-          @drop="drop($event, key)"
-          @dragleave="leaveRow"
-          :active="key === modelValue"
-          :aria-label="title"
-          :aria-current="key === modelValue ? 'true' : undefined"
-          @click="$emit('update:model-value', key)"
-        >
-          <div class="d-flex align-center flex-nowrap">
-            <button
-              v-if="reorderable"
-              type="button"
-              class="reorder-handle"
-              draggable="true"
-              :aria-label="`Reorder ${title}`"
-              title="Drag to reorder segments and shortcuts. Earlier segments render in front. Alt+Up or Alt+Down also moves this segment."
-              @click.stop
-              @dragstart.stop="startDrag($event, key)"
-              @dragend="clearDrag"
-              @keydown.alt.up.stop.prevent="moveBy(key, -1, $event)"
-              @keydown.alt.down.stop.prevent="moveBy(key, 1, $event)"
-            >
-              <v-icon size="16">mdi-drag-horizontal-variant</v-icon>
-            </button>
-            <v-btn
-              v-if="hasMore"
-              icon
-              size="small"
-              density="compact"
-              variant="plain"
-              class="expand-button mr-1"
-              data-testid="expand-segment-button"
-              :aria-label="`Details for ${title}`"
-              :aria-expanded="isOpen(key)"
-              @click.stop="toggleOpen(key)"
-            >
-              <v-icon>{{
-                isOpen(key) ? 'mdi-chevron-down' : 'mdi-chevron-right'
-              }}</v-icon>
-            </v-btn>
-            <slot name="item-prepend" :item="item"></slot>
-            <v-tooltip :eager="false" :text="title" location="end">
-              <template #activator="{ props: tooltip }">
-                <v-list-item-title v-bind="tooltip">{{
-                  title
-                }}</v-list-item-title>
-              </template>
-            </v-tooltip>
-            <span class="ml-auto flex-shrink-0 d-flex align-center">
-              <slot name="item-append" :item="item"></slot>
-            </span>
-          </div>
-        </v-list-item>
-
-        <div v-if="hasMore && isOpen(key)" class="item-expansion">
-          <slot name="item-expansion" :item="item"></slot>
+        <div class="d-flex align-center flex-nowrap">
+          <button
+            type="button"
+            class="reorder-handle"
+            draggable="true"
+            :aria-label="`Reorder ${item.name}`"
+            @click.stop
+            @dragstart.stop="startDrag($event, item.id)"
+            @dragend="clearDrag"
+            @keydown.alt.up.stop.prevent="moveBy(item.id, -1, $event)"
+            @keydown.alt.down.stop.prevent="moveBy(item.id, 1, $event)"
+          >
+            <v-icon size="16">mdi-drag-horizontal-variant</v-icon>
+            <v-tooltip
+              :eager="false"
+              :text="reorderHint"
+              activator="parent"
+              location="top"
+              max-width="320"
+            />
+          </button>
+          <slot name="item-prepend" :item="item"></slot>
+          <v-tooltip :eager="false" :text="item.name" location="end">
+            <template #activator="{ props: tooltip }">
+              <v-list-item-title v-bind="tooltip">{{
+                item.name
+              }}</v-list-item-title>
+            </template>
+          </v-tooltip>
+          <span class="ml-auto flex-shrink-0 d-flex align-center">
+            <slot name="item-append" :item="item"></slot>
+          </span>
         </div>
-      </template>
-      <!-- eslint-enable vue/no-useless-template-attributes -->
+      </v-list-item>
     </div>
 
-    <div v-if="!hideCreate" role="listitem" class="create-row-wrapper">
+    <div role="listitem" class="create-row-wrapper">
       <v-list-item
         tag="button"
         type="button"
         role="button"
         class="create-row w-100"
-        @click="$emit('create')"
+        @click="emit('create')"
       >
         <div class="d-flex align-center">
           <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
@@ -302,16 +235,5 @@ const moveBy = async (key: ItemKey, offset: number, event: KeyboardEvent) => {
 
 .create-icon {
   flex: 0 0 18px;
-}
-
-/* Square keeps the chevron round instead of squashed by the row. */
-.expand-button {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-}
-
-.item-expansion {
-  margin-left: 44px;
 }
 </style>
