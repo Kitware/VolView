@@ -1,71 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
+import { terminateProcessWorkers } from '@/src/segmentation/editing/processWorker';
+import { hostOverSilentWorkers } from '@/src/segmentation/editing/__tests__/silentWorker';
 
 // ---------------------------------------------------------------------------
-// A process worker that dies. Comlink answers a call only when the worker
-// posts a reply, so a worker that fails to load its module chunk, or that the
-// browser kills, leaves the call waiting forever: the process stays in
-// `computing`, nothing is rolled back, and the cached instance poisons every
-// later run. The host below is what turns that silence into a rejection.
+// A process worker that dies, and one a cancelled run walks away from. Comlink
+// answers a call only when the worker posts a reply, so a worker that fails to
+// load its module chunk, or that the browser kills, leaves the call waiting
+// forever: the process stays in `computing`, nothing is rolled back, and the
+// cached instance poisons every later run. A job already posted cannot be
+// called back either, so a cancelled run's work would keep the worker busy.
 // ---------------------------------------------------------------------------
-
-/** A Comlink endpoint that accepts messages and never answers one. */
-class SilentWorker {
-  static created: SilentWorker[] = [];
-
-  private listeners = new Map<string, Array<(event: unknown) => void>>();
-
-  posted: unknown[] = [];
-
-  constructor() {
-    SilentWorker.created.push(this);
-  }
-
-  addEventListener(type: string, listener: (event: unknown) => void) {
-    const forType = this.listeners.get(type) ?? [];
-    forType.push(listener);
-    this.listeners.set(type, forType);
-  }
-
-  removeEventListener(type: string, listener: (event: unknown) => void) {
-    const forType = this.listeners.get(type) ?? [];
-    this.listeners.set(
-      type,
-      forType.filter((entry) => entry !== listener)
-    );
-  }
-
-  postMessage(message: unknown) {
-    this.posted.push(message);
-  }
-
-  /** What the browser does to a worker that fails: an event, no reply. */
-  emit(event: { type: string; message?: string }) {
-    [...(this.listeners.get(event.type) ?? [])].forEach((listener) =>
-      listener(event)
-    );
-  }
-}
-
-type Api = { smooth: (value: number) => Promise<number> };
-
-function hostOverSilentWorkers() {
-  SilentWorker.created = [];
-  const host = createProcessWorkerHost<Api>(
-    () => new SilentWorker() as unknown as Worker
-  );
-  return {
-    host,
-    workers: SilentWorker.created,
-  };
-}
 
 describe('a process worker host', () => {
   it('reuses one worker across calls', async () => {
     const { host, workers } = hostOverSilentWorkers();
 
-    host.call((api) => api.smooth(1));
-    host.call((api) => api.smooth(2));
+    // Discarded results get a catch: a call the host later ends rejects, and
+    // a promise nobody holds would report that as unhandled.
+    host.call((api) => api.smooth(1)).catch(() => undefined);
+    host.call((api) => api.smooth(2)).catch(() => undefined);
 
     expect(workers).toHaveLength(1);
     // Both calls reached the same endpoint rather than being dropped.
@@ -100,9 +53,31 @@ describe('a process worker host', () => {
     workers[0].emit({ type: 'error', message: 'worker gone' });
     await expect(call).rejects.toThrow('worker gone');
 
-    host.call((api) => api.smooth(2));
+    host.call((api) => api.smooth(2)).catch(() => undefined);
 
     // The dead instance is dropped, so the next run is not answered by it.
     expect(workers).toHaveLength(2);
+  });
+
+  it('ends the calls in flight when the host is terminated', async () => {
+    const { host, workers } = hostOverSilentWorkers();
+
+    const call = host.call((api) => api.smooth(1));
+    host.terminate();
+
+    await expect(call).rejects.toThrow(/stopped/);
+    expect(workers[0].terminated).toBe(true);
+  });
+
+  it('starts a fresh worker for the run after a terminate', async () => {
+    const { host, workers } = hostOverSilentWorkers();
+
+    host.call((api) => api.smooth(1)).catch(() => undefined);
+    terminateProcessWorkers();
+    host.call((api) => api.smooth(2)).catch(() => undefined);
+
+    expect(workers[0].terminated).toBe(true);
+    expect(workers).toHaveLength(2);
+    expect(workers[1].terminated).toBe(false);
   });
 });
