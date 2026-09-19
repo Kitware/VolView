@@ -38,6 +38,10 @@ export type VoxelAccessDeps = {
   maskLocked: (mask: SegmentMask) => boolean;
 };
 
+/** A bound segment's buffer, absent when it has none or holds nothing. */
+export const boundedMask = (binding?: LabelmapBinding) =>
+  binding && boundScalars(binding.image, binding.extent);
+
 /**
  * Reading and growing the voxels behind a mask. Split out so the store holds
  * the records; every accessor re-resolves its binding rather than capturing a
@@ -167,10 +171,6 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       }
     );
 
-  /** A bound segment's buffer, absent when it has none or holds nothing. */
-  const boundedMask = (binding?: LabelmapBinding) =>
-    binding && boundScalars(binding.image, binding.extent);
-
   /**
    * The masks of an image's other segments that `gesture` may take a voxel
    * from, resolved once per run because the caller below runs per voxel. A
@@ -210,12 +210,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
   }
 
   return {
-    requireParentImage,
-    ensureMaskContains,
     maskVoxels,
     findMaskVoxels,
-    boundedMask,
-    siblingMasks,
     voxelClaim,
   };
 }
