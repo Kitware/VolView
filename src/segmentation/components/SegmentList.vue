@@ -8,6 +8,7 @@ import SaveSegmentationDialog from '@/src/segmentation/components/SaveSegmentati
 import SegmentEditor from '@/src/segmentation/components/SegmentEditor.vue';
 import SegmentListActions from '@/src/segmentation/components/SegmentListActions.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { deleteSegmentAndReport } from '@/src/segmentation/composables/deleteSegment';
 import { useSegmentEditing } from '@/src/segmentation/composables/useSegmentEditing';
 import { pulseSegmentMask } from '@/src/segmentation/composables/useSegmentRevealPulse';
 import { revealSegmentContent } from '@/src/core/annotations/locator';
@@ -206,7 +207,7 @@ function toggleGlobalLocked() {
 
 function deleteSegment(id: string) {
   if (registry.appearanceOf(id).locked) return;
-  registry.deleteSegment(id);
+  deleteSegmentAndReport(registry, id);
 }
 
 // --- editing state --- //

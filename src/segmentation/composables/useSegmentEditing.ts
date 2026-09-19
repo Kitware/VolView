@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue';
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import type { Maybe } from '@/src/types';
 import { cssColorToRGBA } from '@/src/segmentation/color';
+import { deleteSegmentAndReport } from '@/src/segmentation/composables/deleteSegment';
 
 /**
  * The edit dialog both pickers open: one editor, one set of fields, one place
@@ -77,7 +78,8 @@ export function useSegmentEditing(registry: () => SegmentRegistry) {
   // Deleting a segment takes its masks on every image and its shapes with it.
   function deleteEditingSegment() {
     const id = editingSegmentId.value;
-    if (id && !registry().appearanceOf(id).locked) registry().deleteSegment(id);
+    if (id && !registry().appearanceOf(id).locked)
+      deleteSegmentAndReport(registry(), id);
     stopEditing(false);
   }
 
