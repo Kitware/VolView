@@ -126,11 +126,13 @@ export const usePaintToolStore = defineStore('paint', () => {
   function resolveStrokeTarget(imageID: string, allocate: boolean) {
     if (![PaintMode.CirclePaint, PaintMode.Erase].includes(activeMode.value))
       return undefined;
+    // Asked of the segment before the target is resolved, since resolving mints
+    // the mask record and its segmentation: a refused stroke leaves neither.
+    if (segmentationStore.editTargetLocked()) return undefined;
     const maskId = allocate
       ? segmentationStore.resolveEditTarget(imageID)
       : segmentationStore.findEditTarget(imageID);
     if (!maskId) return undefined;
-    if (segmentationStore.isLocked(maskId)) return undefined;
 
     const binding = allocate
       ? segmentationStore.ensureLabelmapBinding(maskId)
