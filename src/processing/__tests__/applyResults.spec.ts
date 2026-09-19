@@ -359,6 +359,28 @@ describe('autoLoadProcessingResults', () => {
     expect(deps.openVolumeUrls).not.toHaveBeenCalled();
   });
 
+  it('says which result was skipped and why, naming the intent', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // The name a 0.2.0 backend still emits for what is now import-segmentation.
+    await autoLoad(
+      [result({ name: 'seg.nrrd', intent: 'add-segment-group' })],
+      context('parent')
+    );
+    expect(errorMessages()).toEqual([
+      expect.objectContaining({
+        title: 'Did not load seg.nrrd',
+        options: expect.objectContaining({
+          details: expect.stringContaining('add-segment-group'),
+        }),
+      }),
+    ]);
+  });
+
+  it('stays quiet about a result that declares no intent', async () => {
+    await autoLoad([result()], context('parent'));
+    expect(errorMessages()).toEqual([]);
+  });
+
   it('opens base images even when there is no originating dataset', async () => {
     await autoLoad([result({ intent: 'add-base-image' })], context(undefined));
     expect(deps.openVolumeUrls).toHaveBeenCalledWith({
