@@ -64,6 +64,33 @@ export const createSegmentRegistry = ({
     segmentOrder.value.map((id) => segmentById.value[id])
   );
 
+  /**
+   * Trimmed name to the ids carrying it. Maintained as segments arrive, are
+   * renamed and leave, so a name lookup and the uniqueness scans cost a probe
+   * instead of a walk over every segment: an import mints one segment per
+   * label, and a thousand-label labelmap is in scope.
+   */
+  const idsByName = new Map<string, string[]>();
+
+  const indexName = (name: string, id: string) => {
+    const key = name.trim();
+    const ids = idsByName.get(key);
+    if (ids) ids.push(id);
+    else idsByName.set(key, [id]);
+  };
+
+  const unindexName = (name: string, id: string) => {
+    const key = name.trim();
+    const ids = idsByName.get(key);
+    if (!ids) return;
+    const at = ids.indexOf(id);
+    if (at !== -1) ids.splice(at, 1);
+    if (ids.length === 0) idsByName.delete(key);
+  };
+
+  /** Whether a segment already carries this name, ignoring surrounding space. */
+  const nameTaken = (name: string) => idsByName.has(name);
+
   const selectedSegmentId = ref<Maybe<string>>();
   const selectionRevision = ref(0);
 
@@ -96,21 +123,28 @@ export const createSegmentRegistry = ({
     (id === undefined || id === null ? undefined : orderIndex.value.get(id)) ??
     -1;
 
-  const findSegmentByName = (name: Maybe<string>) =>
-    segmentList.value.find((type) => type.name === name);
+  const findSegmentByName = (name: Maybe<string>) => {
+    if (name === undefined || name === null) return undefined;
+    const candidates = idsByName.get(name.trim()) ?? [];
+    // The index keys on the trimmed name; the answer is still an exact match.
+    const matches = candidates.filter(
+      (id) => segmentById.value[id]?.name === name
+    );
+    if (matches.length <= 1) return getSegment(matches[0]);
+    // Several segments carry the name: the first in registry order answers.
+    return segmentList.value.find((type) => matches.includes(type.id));
+  };
 
   const uniqueName = (stem: string) => {
-    const taken = new Set(segmentList.value.map((type) => type.name.trim()));
-    if (!taken.has(stem)) return stem;
+    if (!nameTaken(stem)) return stem;
     let index = 2;
-    while (taken.has(`${stem} (${index})`)) index += 1;
+    while (nameTaken(`${stem} (${index})`)) index += 1;
     return `${stem} (${index})`;
   };
 
   const defaultName = () => {
-    const taken = new Set(segmentList.value.map((type) => type.name.trim()));
     let index = 1;
-    while (taken.has(`Segment ${index}`)) index += 1;
+    while (nameTaken(`Segment ${index}`)) index += 1;
     return `Segment ${index}`;
   };
 
@@ -124,18 +158,21 @@ export const createSegmentRegistry = ({
   /** Mints a segment without touching the selection. Allocates no voxels. */
   const mintSegment = (init: SegmentInit = {}) => {
     const id = useIdStore().nextId();
-    segmentById.value = {
-      ...segmentById.value,
-      [id]: {
-        name: defaultName(),
-        color: nextColor(),
-        visible: true,
-        locked: false,
-        ...cleanUndefined(init),
-        id,
-      },
+    const stated = cleanUndefined(init);
+    // Mutated in place, and the default name is searched for only when the
+    // caller states none: copying the record and the order per mint made an
+    // import quadratic in its label count.
+    const segment = {
+      name: stated.name ?? defaultName(),
+      color: nextColor(),
+      visible: true,
+      locked: false,
+      ...stated,
+      id,
     };
-    segmentOrder.value = [...segmentOrder.value, id];
+    segmentById.value[id] = segment;
+    segmentOrder.value.push(id);
+    indexName(segment.name, id);
     return id;
   };
 
@@ -148,18 +185,22 @@ export const createSegmentRegistry = ({
   const updateSegment = (id: string, patch: SegmentInit) => {
     const type = segmentById.value[id];
     if (!type) return;
-    segmentById.value = {
-      ...segmentById.value,
-      [id]: { ...type, ...patch, id },
-    };
+    const next = { ...type, ...patch, id };
+    if (next.name !== type.name) {
+      unindexName(type.name, id);
+      indexName(next.name, id);
+    }
+    segmentById.value[id] = next;
   };
 
   // Deleting a referenced segment takes its masks and shapes with it; the
   // caller owns the confirmation.
   const deleteSegment = (id: string) => {
-    if (!segmentById.value[id]) return;
+    const type = segmentById.value[id];
+    if (!type) return;
     removeReferences(id);
     segmentOrder.value = segmentOrder.value.filter((key) => key !== id);
+    unindexName(type.name, id);
     segmentById.value = omit(segmentById.value, id);
     if (selectedSegmentId.value === id) {
       selectSegment(segmentOrder.value[0]);
