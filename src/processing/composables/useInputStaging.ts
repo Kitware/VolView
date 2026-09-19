@@ -200,11 +200,13 @@ export function useInputStaging() {
     bindings: SourceRefBindings,
     model: TaskFormModel
   ): Promise<Record<string, ProcessingValue>> => {
+    const requests = Object.entries(bindings.labelmap.segmentations);
+    // Reading committed voxels resolves an unconfirmed preview, so a task that
+    // takes no labelmap must not ask for the read and discard the preview.
+    if (!requests.length) return {};
     useSegmentationEditsStore().beforeRead();
     const staged: Record<string, ProcessingValue> = {};
-    for (const [parameterId, segmentationId] of Object.entries(
-      bindings.labelmap.segmentations
-    )) {
+    for (const [parameterId, segmentationId] of requests) {
       const plan = planSegmentationInput(
         segmentationId,
         acceptsMultipleLabelmaps(model, parameterId)

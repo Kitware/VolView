@@ -1,33 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createPinia, setActivePinia } from 'pinia';
-import { createApp } from 'vue';
 
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import { useDatasetStore } from '@/src/store/datasets';
-import { useViewStore } from '@/src/store/views';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import type { ProcessingProvider } from '@/src/processing/types';
-import {
-  addMask,
-  seatImage,
-} from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { addMask } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { bindSourceRefs } from '../sourceRefs';
-import type { TaskFormModel } from '../formModel';
-
-const model: TaskFormModel = {
-  id: 'task',
-  title: 'Task',
-  fields: [
-    {
-      kind: 'sourceRef',
-      id: 'inputSeg',
-      accepts: ['labelmap'],
-      required: true,
-    },
-  ],
-  hidden: [],
-};
+import { labelmapTaskModel as model, seatStagingScene } from './stagingScene';
 
 // A provider that would throw if staging ever reached it.
 const refusingProvider = {
@@ -38,21 +16,7 @@ const refusingProvider = {
 
 describe('an empty segmentation is not a labelmap input', () => {
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
-    await seatImage('image-1', { name: 'image.nrrd', dimensions: [2, 2, 2] });
-    useDatasetStore().addDataSources([
-      {
-        dataID: 'image-1',
-        dataSource: {
-          type: 'uri',
-          uri: 'girder://file/image-1',
-          name: 'image.nrrd',
-        },
-      },
-    ]);
-    useViewStore().setDataForAllViews('image-1');
+    await seatStagingScene();
   });
 
   it('reports no-segmentation until the record holds a mask', async () => {
