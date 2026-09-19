@@ -28,11 +28,14 @@
         divided
         density="compact"
       >
-        <v-btn :value="0" @click="processStore.togglePreview()">
+        <!-- A mandatory toggle keeps its selection when the selected button
+             is clicked again, but still fires the click, so each button states
+             what it shows rather than flipping the preview. -->
+        <v-btn :value="0" @click="processStore.setShowingOriginal(true)">
           <v-icon start>mdi-eye-outline</v-icon>
           Original
         </v-btn>
-        <v-btn :value="1" @click="processStore.togglePreview()">
+        <v-btn :value="1" @click="processStore.setShowingOriginal(false)">
           <v-icon start>mdi-eye-settings</v-icon>
           Processed
         </v-btn>
