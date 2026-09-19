@@ -12,6 +12,7 @@ import {
   seatImage,
   seedVoxel,
   segmentOfMask,
+  selectSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const seed = async () => {
@@ -104,5 +105,54 @@ describe('processing labelmap packing', () => {
       '',
     ]);
     expect(second.labelmap.getSpacing()).toEqual([1, 1, 1]);
+  });
+});
+
+// Alpha and Beta overlap on one image; Gamma lives on another one entirely.
+const seedTwoImages = async () => {
+  await seatImage('image-a', { dimensions: [8, 1, 1] });
+  await seatImage('image-b', { dimensions: [8, 1, 1] });
+  const alpha = addMask('image-a', 'Alpha');
+  const beta = addMask('image-a', 'Beta');
+  const gamma = addMask('image-b', 'Gamma');
+  seedVoxel(alpha, [0, 0, 0]);
+  seedVoxel(beta, [0, 0, 0]);
+  seedVoxel(beta, [1, 0, 0]);
+  seedVoxel(gamma, [0, 0, 0]);
+  return {
+    alpha,
+    gamma,
+    segmentation: useSegmentationStore().getSegmentationForImage('image-a')!,
+  };
+};
+
+describe('single-file packing against a selection from another image', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+
+  it('packs a mask this image holds and says where to select', async () => {
+    const { gamma, segmentation } = await seedTwoImages();
+    selectSegment(gamma);
+
+    const plan = planSegmentationInput(segmentation.id, false);
+    const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
+
+    expect(
+      namesAtVoxels(composeLabelmapPart(snapshot.parent, snapshot.parts[0]))
+    ).toEqual(['Alpha', '', '', '', '', '', '', '']);
+    expect(plan.warning).toBe(
+      'This input accepts one labelmap. Omitted whole segments: Beta.' +
+        ' Select a segment on this image to prioritize it.'
+    );
+  });
+
+  it('drops the advice once a segment on this image is selected', async () => {
+    const { alpha, segmentation } = await seedTwoImages();
+    selectSegment(alpha);
+
+    const plan = planSegmentationInput(segmentation.id, false);
+
+    expect(plan.warning).toBe(
+      'This input accepts one labelmap. Omitted whole segments: Beta.'
+    );
   });
 });
