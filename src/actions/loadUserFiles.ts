@@ -259,7 +259,7 @@ function loadSegmentations(
   const segmentationStore = useSegmentationStore();
   [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
     const loadable = toDataSelection(ds);
-    segmentationStore.convertImageToLabelmap(
+    segmentationStore.startLabelmapConversion(
       loadable,
       toDataSelection(primaryDataSource)
     );
