@@ -233,21 +233,28 @@ function forEachClippedVoxel(
   }
 }
 
-function extractSubVolume(
+/**
+ * The label's own binary mask over `bounds`, which is the only thing the
+ * filter reads. Built in one pass rather than copying the labels out and
+ * thresholding them afterwards: the copy is a second volume-sized Float32
+ * array, live at the same time as this one.
+ */
+function extractSubMask(
   data: TypedArray | number[],
   dimensions: number[],
-  bounds: number[]
+  bounds: number[],
+  label: number
 ) {
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
   const subDims = [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1];
   // Zero filled, so everything outside the buffer stays background.
-  const subData = new Float32Array(subDims[0] * subDims[1] * subDims[2]);
+  const subMask = new Float32Array(subDims[0] * subDims[1] * subDims[2]);
 
   forEachClippedVoxel(dimensions, bounds, (origIndex, subIndex) => {
-    subData[subIndex] = data[origIndex] as number;
+    subMask[subIndex] = data[origIndex] === label ? 255.0 : 0.0;
   });
 
-  return { subData, subDims };
+  return { subMask, subDims };
 }
 
 // Output storage includes the padding ring: mirroring at a parent face can
@@ -267,14 +274,6 @@ function copySubVolumeBack(
   });
 }
 
-function createBinaryMask(data: TypedArray | number[], label: number) {
-  const mask = new Float32Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    mask[i] = data[i] === label ? 255.0 : 0.0;
-  }
-  return mask;
-}
-
 export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
   const {
     data: originalData,
@@ -290,27 +289,14 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     throw new Error('Sigma must be positive');
   }
 
-  let originalLabelCount = 0;
-  for (let i = 0; i < originalData.length; i++) {
-    if (originalData[i] === label) {
-      originalLabelCount++;
-    }
-  }
-
-  if (originalLabelCount === 0) {
-    const outputData = createTypedArrayLike(originalData, originalData.length);
-    for (let i = 0; i < originalData.length; i++) {
-      outputData[i] = originalData[i];
-    }
-    return { scalars: outputData, extent: maskExtent };
-  }
-
   const sigmaPixels: [number, number, number] = [
     sigma / spacing[0],
     sigma / spacing[1],
     sigma / spacing[2],
   ];
 
+  // Absent when the label is nowhere in the mask, which is also the whole
+  // answer for a mask with nothing to smooth: it comes back as it went in.
   const bounds = calculateBoundingBox(originalData, dimensions, label);
   if (!bounds) {
     const outputData = createTypedArrayLike(originalData, originalData.length);
@@ -326,19 +312,14 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     parentDimensions,
     sigmaPixels,
   });
-  const { subData, subDims } = extractSubVolume(
+  const { subMask, subDims } = extractSubMask(
     originalData,
     dimensions,
-    expandedBounds
+    expandedBounds,
+    label
   );
 
-  const subBinaryMask = createBinaryMask(subData, label);
-  const smoothedSubMask = gaussianFilter3D(
-    subBinaryMask,
-    subDims,
-    sigmaPixels,
-    1.5
-  );
+  const smoothedSubMask = gaussianFilter3D(subMask, subDims, sigmaPixels, 1.5);
 
   const expandedExtent = expandedBounds.map(
     (value, axis) => value + maskExtent[axis - (axis % 2)]
