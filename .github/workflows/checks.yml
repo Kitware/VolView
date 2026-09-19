@@ -9,6 +9,10 @@ jobs:
     name: Code check and tests
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The ratchets diff against the merge base with the target branch, so
+          # the checkout needs history rather than a single commit.
+          fetch-depth: 0
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -19,6 +23,16 @@ jobs:
         run: npx prettier --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
       - name: Lint
         run: npm run lint
+      - name: Quality ratchets
+        # On a pull request the checkout is the merge commit, so the merge base
+        # with the target branch is what the change is measured against. The
+        # merge queue has no pull request to read a base from.
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          git fetch --no-tags origin \
+            "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          node scripts/checks/check.mjs --base "origin/$BASE_REF"
       - name: Tests
         run: npm test
 
