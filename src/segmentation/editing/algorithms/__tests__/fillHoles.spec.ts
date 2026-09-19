@@ -14,7 +14,7 @@ function flatFromGrid(grid: number[][]) {
 const fillAxialSlice = (
   data: Uint8Array,
   dimensions: [number, number, number]
-) => fillHoles({ data, dimensions, axis: 2, sliceIndex: 0, label: 1 });
+) => fillHoles({ data, dimensions, axis: 2, sliceIndex: 0 }).out;
 
 const flatOf = (grid: number[][]) => Array.from(flatFromGrid(grid).data);
 
@@ -63,48 +63,55 @@ describe('fillHoles', () => {
     expect(Array.from(data)).toEqual(before);
   });
 
-  it('fills enclosed background but preserves encircled segments', () => {
-    // 7 wide x 5 tall. Left block is a ring of 1 enclosing 0s and 2s; a stray
-    // 2 sits outside the ring on the right border.
+  it('fills enclosed holes while leaving disconnected foreground alone', () => {
     const { data, dimensions } = flatFromGrid([
-      [1, 1, 1, 1, 1, 0, 2],
-      [1, 0, 2, 0, 1, 0, 0],
-      [1, 2, 2, 2, 1, 0, 0],
-      [1, 0, 2, 0, 1, 0, 0],
+      [1, 1, 1, 1, 1, 0, 1],
+      [1, 0, 1, 0, 1, 0, 0],
+      [1, 1, 1, 1, 1, 0, 0],
+      [1, 0, 1, 0, 1, 0, 0],
       [1, 1, 1, 1, 1, 0, 0],
     ]);
     const out = fillAxialSlice(data, dimensions);
-    // Enclosed background (0) becomes 1; the enclosed 2s stay 2.
     expect(Array.from(out)).toEqual(
       flatOf([
-        [1, 1, 1, 1, 1, 0, 2],
-        [1, 1, 2, 1, 1, 0, 0],
-        [1, 2, 2, 2, 1, 0, 0],
-        [1, 1, 2, 1, 1, 0, 0],
+        [1, 1, 1, 1, 1, 0, 1],
+        [1, 1, 1, 1, 1, 0, 0],
+        [1, 1, 1, 1, 1, 0, 0],
+        [1, 1, 1, 1, 1, 0, 0],
         [1, 1, 1, 1, 1, 0, 0],
       ])
     );
   });
 
-  it('does not override a segment it fully encircles', () => {
-    // Segment 1 forms a ring around segment 2 with a background gap between.
+  it('fills the gap around an island', () => {
     const { data, dimensions } = flatFromGrid([
       [1, 1, 1, 1, 1],
       [1, 0, 0, 0, 1],
-      [1, 0, 2, 0, 1],
+      [1, 0, 1, 0, 1],
       [1, 0, 0, 0, 1],
       [1, 1, 1, 1, 1],
     ]);
     const out = fillAxialSlice(data, dimensions);
-    // The background gap fills with 1; the encircled 2 is untouched.
     expect(Array.from(out)).toEqual(
       flatOf([
         [1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1],
-        [1, 1, 2, 1, 1],
+        [1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1],
         [1, 1, 1, 1, 1],
       ])
+    );
+  });
+
+  it('counts the voxels it filled', () => {
+    const { data, dimensions } = flatFromGrid([
+      [1, 1, 1, 1, 0],
+      [1, 0, 1, 1, 0],
+      [1, 0, 0, 1, 0],
+      [1, 1, 1, 1, 0],
+    ]);
+    expect(fillHoles({ data, dimensions, axis: 2, sliceIndex: 0 }).filled).toBe(
+      3
     );
   });
 
@@ -118,7 +125,7 @@ describe('fillHoles', () => {
     // A border voxel that must stay 0 (corner of the i=0 plane).
     data[0] = 0;
 
-    const out = fillHoles({ data, dimensions, axis: 0, label: 1 });
+    const { out } = fillHoles({ data, dimensions, axis: 0 });
     for (let i = 0; i < 3; i += 1) {
       expect(out[holeOffset(i)]).toBe(1);
     }
@@ -131,12 +138,11 @@ describe('fillHoles', () => {
     const holeOffset = (i: number) => i + 1 * 3 + 1 * 9;
     for (let i = 0; i < 3; i += 1) data[holeOffset(i)] = 0;
 
-    const out = fillHoles({
+    const { out } = fillHoles({
       data,
       dimensions,
       axis: 0,
       sliceIndex: 1,
-      label: 1,
     });
     expect(out[holeOffset(0)]).toBe(0);
     expect(out[holeOffset(1)]).toBe(1);
@@ -150,7 +156,6 @@ describe('fillHolesWorker', () => {
       ...flatFromGrid(grid),
       axis: 2,
       sliceIndex: 0,
-      label: 1,
     });
 
   it('hands back nothing when no hole is enclosed', () => {

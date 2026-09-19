@@ -86,10 +86,18 @@ const fillHolesOn = async (target: ProcessTarget) => ({
     dimensions: target.dimensions as Index3,
     axis: 2,
     sliceIndex: 0,
-    label: target.labelValue,
-  }),
+  }).out,
   extent: target.maskExtent,
 });
+
+const recordingTargets = () => {
+  const seen: ProcessTarget[] = [];
+  const algorithm = (target: ProcessTarget) => {
+    seen.push(target);
+    return fillHolesOn(target);
+  };
+  return { seen, algorithm };
+};
 
 const runOverEverySegment = (algorithm: ProcessAlgorithm = fillHolesOn) =>
   usePaintProcessStore().startProcess(algorithm, {
@@ -200,6 +208,29 @@ describe('a process running over every segment', () => {
 
     expect(maskValueAt(locked, [1, 1, 0])).toBe(0);
     expect(maskValueAt(open, [5, 5, 0])).toBe(labelValueOf(open));
+  });
+
+  it('runs once per editable segment on its own mask, in registry order', async () => {
+    const left = segmentAt('Left', ringAround(1, 1));
+    const right = segmentAt('Right', ringAround(5, 5));
+    const { seen, algorithm } = recordingTargets();
+
+    await runOverEverySegment(algorithm);
+
+    expect(seen.map((target) => target.maskId)).toEqual([left, right]);
+    expect(seen.map((target) => target.scalars.filter(Boolean).length)).toEqual(
+      [8, 8]
+    );
+  });
+
+  it('skips a segment that holds no voxels', async () => {
+    const filled = segmentAt('Filled', ringAround(1, 1));
+    store().maskVoxels(addMask('img-1', 'Empty')).materialize();
+    const { seen, algorithm } = recordingTargets();
+
+    await runOverEverySegment(algorithm);
+
+    expect(seen.map((target) => target.maskId)).toEqual([filled]);
   });
 
   it('restores every segment when the preview is cancelled', async () => {

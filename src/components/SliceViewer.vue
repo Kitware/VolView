@@ -105,13 +105,11 @@
             :axis="viewAxis"
           ></vtk-base-slice-representation>
           <vtk-segmentation-slice-representation
-            v-for="layer in segmentLayers"
-            :key="`seg-${layer.maskId}`"
+            v-for="maskId in segmentMaskIds"
+            :key="`seg-${maskId}`"
             :view-id="viewId"
-            :mask-id="layer.maskId"
-            :stack-index="layer.stackIndex"
+            :mask-id="maskId"
             :axis="viewAxis"
-            ref="segSliceReps"
           ></vtk-segmentation-slice-representation>
           <template v-if="currentImageID">
             <vtk-layer-slice-representation
@@ -163,7 +161,6 @@
           <scalar-probe
             :base-rep="baseSliceRep"
             :layer-reps="layerSliceReps"
-            :segment-reps="segSliceReps"
           ></scalar-probe>
           <slot></slot>
         </vtk-slice-view>
@@ -223,7 +220,6 @@ type Props = {
 const vtkView = ref<VtkViewApi>();
 const baseSliceRep = ref();
 const layerSliceReps = ref([]);
-const segSliceReps = ref([]);
 
 const props = defineProps<Props>();
 const { viewId } = toRefs(props);
@@ -277,10 +273,10 @@ onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
 
-// One actor per segment, stacked by its place in `segmentation.order`.
-const segmentLayers = computed(() => {
+// One representation per mask with storage on this image.
+const segmentMaskIds = computed(() => {
   if (!currentImageID.value) return [];
-  return useSegmentationStore().maskLayersForImage(currentImageID.value);
+  return useSegmentationStore().boundMaskIds(currentImageID.value);
 });
 
 // --- selection points --- //

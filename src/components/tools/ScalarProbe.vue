@@ -13,16 +13,16 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { useProbeStore } from '@/src/store/probe';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { NO_NAME } from '@/src/constants';
+import { plural } from '@/src/utils';
 
 type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
 
 const props = defineProps<{
   baseRep: SliceRepresentationType;
   layerReps: SliceRepresentationType[];
-  segmentReps: SliceRepresentationType[];
 }>();
 
-const { baseRep, layerReps, segmentReps } = toRefs(props);
+const { baseRep, layerReps } = toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
@@ -34,7 +34,7 @@ const {
 } = useCurrentImage();
 const imageCacheStore = useImageCacheStore();
 const segmentationStore = useSegmentationStore();
-const { segments: segments } = useSegmentStore();
+const { segments } = useSegmentStore();
 const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
@@ -67,32 +67,23 @@ const getLayers = () =>
     })
     .filter(Boolean);
 
-// Paired positionally with the slice view's segment actors, which come off the
-// same ordered list.
 const getSegments = () => {
   if (!currentImageID.value) return [];
-  const layers = segmentationStore.maskLayersForImage(currentImageID.value);
-  return segmentReps.value
-    .map((rep, index) => {
-      const layer = layers[index];
-      if (!layer) return null;
-      const segment = segmentationStore.getMask(layer.maskId);
-      const voxels = segmentationStore.findMaskVoxels(layer.maskId);
-      if (!voxels.exists()) return null;
-      const descriptor =
-        segmentationStore.labelmapDescriptorByMask[layer.maskId];
-      return {
-        type: 'segment',
-        id: layer.maskId,
-        name: segments.appearanceOf(segment.segmentId).name,
-        rep,
-        nameByLabelValue: descriptor
-          ? { [descriptor.value]: descriptor.name }
-          : {},
-        image: voxels.image(),
-      };
-    })
-    .filter(Boolean);
+  return segmentationStore
+    .boundMaskIds(currentImageID.value)
+    .flatMap((maskId) => {
+      const { segmentId, representations } = segmentationStore.getMask(maskId);
+      // A bound mask always has a labelmap; this only narrows the type.
+      if (!representations.labelmap) return [];
+      return [
+        {
+          type: 'segment',
+          id: maskId,
+          name: segments.appearanceOf(segmentId).name || NO_NAME,
+          image: representations.labelmap.image,
+        },
+      ];
+    });
 };
 
 const sampleSet = computed(() => {
@@ -125,7 +116,7 @@ const getImageSamples = (x: number, y: number) => {
     currentImageData.value.indexToWorld(pickedIjk) as vec3
   );
 
-  const samples = sampleSet.value
+  const sampled = sampleSet.value
     .map((item: any) => {
       // Convert world position to this specific image's IJK
       const itemIjk = worldPointToIndex(item.image, worldPosition);
@@ -150,23 +141,37 @@ const getImageSamples = (x: number, y: number) => {
       }
 
       const index = dims[0] * dims[1] * k + dims[0] * j + i;
-      const scalars = scalarData.getTuple(index) as number[];
-      const baseInfo = { id: item.id, name: item.name };
-
-      if (item.type === 'segment') {
-        // A mask's bounding box can contain empty voxels from other segments.
-        if (scalars.every((value) => value === 0)) return null;
-
-        return {
-          ...baseInfo,
-          displayValues: scalars.map(
-            (v) => item.nameByLabelValue[v] || 'Background'
-          ),
-        };
-      }
-      return { ...baseInfo, displayValues: scalars };
+      return { item, scalars: scalarData.getTuple(index) as number[] };
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
+
+  // Every mask holds one value, so a voxel reads as the segments covering it.
+  // Zero is background: a mask whose components are all zero has no voxel here.
+  const covering = sampled
+    .filter(
+      ({ item, scalars }) =>
+        item.type === 'segment' && scalars.some((value) => value !== 0)
+    )
+    .map(({ item }) => item.name);
+  const segmentSamples = covering.length
+    ? [
+        {
+          id: 'segments',
+          name: plural(covering.length, 'Segment'),
+          displayValues: covering,
+        },
+      ]
+    : [];
+  const samples = [
+    ...segmentSamples,
+    ...sampled
+      .filter(({ item }) => item.type !== 'segment')
+      .map(({ item, scalars }) => ({
+        id: item.id,
+        name: item.name,
+        displayValues: scalars,
+      })),
+  ];
 
   return {
     pos: worldPosition,

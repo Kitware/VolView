@@ -160,11 +160,7 @@ describe('Fill Holes store', () => {
   }
 
   /** Every fill is one segment's own bounded mask, in either segment scope. */
-  const segmentTarget = (
-    parentImageId: string,
-    maskId: string,
-    labelValue: number
-  ) => {
+  const segmentTarget = (parentImageId: string, maskId: string) => {
     const voxels = useSegmentationStore().maskVoxels(maskId);
     return {
       parentImageId,
@@ -172,7 +168,6 @@ describe('Fill Holes store', () => {
         ...useImageCacheStore().getVtkImageData(parentImageId)!.getDimensions(),
       ] as [number, number, number],
       maskId,
-      labelValue,
       scalars: voxels.snapshot(),
       dimensions: [...voxels.image().getDimensions()] as [
         number,
@@ -201,9 +196,7 @@ describe('Fill Holes store', () => {
       0
     );
 
-    await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, maskId, 1)
-    );
+    await fillHolesStore.computeAlgorithm(segmentTarget(parentImageID, maskId));
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -221,9 +214,7 @@ describe('Fill Holes store', () => {
     );
     fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
 
-    await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, maskId, 1)
-    );
+    await fillHolesStore.computeAlgorithm(segmentTarget(parentImageID, maskId));
 
     expect(fillHolesWorkerMock).toHaveBeenCalledTimes(1);
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
@@ -248,7 +239,7 @@ describe('Fill Holes store', () => {
       fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
 
       await expect(
-        fillHolesStore.computeAlgorithm(segmentTarget(parentImageID, maskId, 1))
+        fillHolesStore.computeAlgorithm(segmentTarget(parentImageID, maskId))
       ).rejects.toThrow(/nothing on this slice/i);
       expect(fillHolesWorkerMock).not.toHaveBeenCalled();
     }
@@ -261,9 +252,7 @@ describe('Fill Holes store', () => {
       4
     );
 
-    await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, maskId, 1)
-    );
+    await fillHolesStore.computeAlgorithm(segmentTarget(parentImageID, maskId));
 
     expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({
       axis: 2,
@@ -286,7 +275,7 @@ describe('Fill Holes store', () => {
     const held = Array.from(voxels.scalars());
 
     const out = await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, maskId, 1)
+      segmentTarget(parentImageID, maskId)
     );
 
     expect(fillHolesWorkerMock).not.toHaveBeenCalled();
@@ -300,7 +289,7 @@ describe('Fill Holes store', () => {
       [0, 9, 0, 9, 0, 9],
       0
     );
-    const target = segmentTarget(parentImageID, maskId, 1);
+    const target = segmentTarget(parentImageID, maskId);
 
     await fillHolesStore.computeAlgorithm(target);
 
@@ -310,21 +299,6 @@ describe('Fill Holes store', () => {
     expect(fillHolesWorkerMock.mock.calls[0][0].data).toBe(target.scalars);
     // And moves it there rather than leaving the boundary to clone it.
     expect(transferred).toEqual([[target.scalars.buffer]]);
-  });
-
-  it('fills only the selected segment when scoped to one', async () => {
-    const { fillHolesStore, parentImageID, maskId } = await setupFillHolesRun(
-      { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
-      [0, 9, 0, 9, 0, 9],
-      0
-    );
-    fillHolesStore.setSegmentScope(FillHolesSegmentScope.SelectedSegment);
-
-    await fillHolesStore.computeAlgorithm(
-      segmentTarget(parentImageID, maskId, 1)
-    );
-
-    expect(fillHolesWorkerMock.mock.calls[0][0]).toMatchObject({ label: 1 });
   });
 
   it('wires the segment scope into process target selection', async () => {
@@ -362,9 +336,9 @@ describe('Fill Holes store', () => {
       ])
     );
     fillHolesStore.setSliceScope(FillHolesSliceScope.WholeVolume);
-    fillHolesWorkerMock.mockImplementation(async ({ data, label }) => {
+    fillHolesWorkerMock.mockImplementation(async ({ data }) => {
       const filled = new Uint8Array(data);
-      filled[4] = label;
+      filled[4] = SEGMENT_VALUE;
       return filled;
     });
     const definition = PROCESS_DEFINITIONS.find(

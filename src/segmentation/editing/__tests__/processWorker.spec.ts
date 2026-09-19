@@ -2,15 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { terminateProcessWorkers } from '@/src/segmentation/editing/processWorker';
 import { hostOverSilentWorkers } from '@/src/segmentation/editing/__tests__/silentWorker';
 
-// ---------------------------------------------------------------------------
-// A process worker that dies, and one a cancelled run walks away from. Comlink
-// answers a call only when the worker posts a reply, so a worker that fails to
-// load its module chunk, or that the browser kills, leaves the call waiting
-// forever: the process stays in `computing`, nothing is rolled back, and the
-// cached instance poisons every later run. A job already posted cannot be
-// called back either, so a cancelled run's work would keep the worker busy.
-// ---------------------------------------------------------------------------
-
 describe('a process worker host', () => {
   it('reuses one worker across calls', async () => {
     const { host, workers } = hostOverSilentWorkers();
@@ -24,6 +15,23 @@ describe('a process worker host', () => {
     // Both calls reached the same endpoint rather than being dropped.
     await Promise.resolve();
     expect(workers[0].posted.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps separate hosts and their endpoints independent', async () => {
+    const first = hostOverSilentWorkers();
+    const second = hostOverSilentWorkers();
+    const firstCall = first.host.call((api) => api.smooth(1));
+    const secondCall = second.host.call((api) => api.smooth(2));
+
+    expect(first.workers).toHaveLength(1);
+    expect(second.workers).toHaveLength(1);
+    first.host.terminate();
+    await expect(firstCall).rejects.toThrow();
+    expect(first.workers[0].terminated).toBe(true);
+    expect(second.workers[0].terminated).toBe(false);
+
+    second.host.terminate();
+    await expect(secondCall).rejects.toThrow();
   });
 
   it('rejects the calls in flight when the worker errors', async () => {

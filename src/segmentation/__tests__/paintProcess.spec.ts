@@ -24,7 +24,7 @@ import {
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import { hostOverSilentWorkers } from '@/src/segmentation/editing/__tests__/silentWorker';
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { defer } from '@/src/utils';
 
 async function viewImage(id: string) {
   const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
@@ -44,16 +44,6 @@ async function viewImage(id: string) {
 
 function getScalars(labelMap: vtkLabelMap) {
   return Array.from(labelMap.getPointData().getScalars().getData());
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }
 
 describe('Paint process store', () => {
@@ -140,7 +130,7 @@ describe('Paint process store', () => {
     const { host, workers } = hostOverSilentWorkers();
     host.call((api) => api.smooth(1)).catch(() => undefined);
 
-    const pending = deferred<Uint8Array>();
+    const pending = defer<Uint8Array>();
     const run = processStore.startProcess(async (target) => ({
       scalars: await pending.promise,
       extent: target.maskExtent,
@@ -167,8 +157,8 @@ describe('Paint process store', () => {
     paintStore.activeMode = PaintMode.Process;
     const processStore = usePaintProcessStore();
 
-    const first = deferred<Uint8Array>();
-    const second = deferred<Uint8Array>();
+    const first = defer<Uint8Array>();
+    const second = defer<Uint8Array>();
     const firstRun = processStore.startProcess(async (target) => ({
       scalars: await first.promise,
       extent: target.maskExtent,
@@ -189,24 +179,6 @@ describe('Paint process store', () => {
 
     expect(processStore.processState.step).toBe('previewing');
     expect(getScalars(labelMap)).toEqual([2, 2]);
-  });
-
-  it('hands the algorithm the active segment’s resolved label value', async () => {
-    const processStore = usePaintProcessStore();
-    const { labelMap } = addActiveSegment(new Uint8Array([0, 0]), 3);
-    let target: ProcessTarget | undefined;
-    const algorithm = vi.fn(async (resolved: ProcessTarget) => {
-      target = resolved;
-      return { scalars: new Uint8Array([3, 3]), extent: resolved.maskExtent };
-    });
-
-    await processStore.startProcess(algorithm);
-
-    expect(algorithm).toHaveBeenCalledTimes(1);
-    expect(target).toMatchObject({ labelValue: SEGMENT_VALUE });
-    expect(target!.scalars).not.toBe(
-      labelMap.getPointData().getScalars().getData()
-    );
   });
 
   it('says why a run cannot start without starting one', () => {

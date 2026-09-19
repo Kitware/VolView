@@ -36,12 +36,7 @@ describe('polygon rasterize target', () => {
 
     const target = targetOf('img-1', segment.segmentId);
 
-    expect(target.labelValue).toBe(SEGMENT_VALUE);
-    expect(
-      store()
-        .maskLayersForImage('img-1')
-        .map((layer) => layer.maskId)
-    ).toEqual([target.maskId]);
+    expect(store().boundMaskIds('img-1')).toEqual([target.maskId]);
     expect(target.voxels.image()).toBe(
       store().findMaskBinding(target.maskId)!.image
     );
@@ -71,7 +66,7 @@ describe('polygon rasterize target', () => {
     const second = targetOf('img-1', segment.segmentId);
 
     expect(second.voxels.image()).toBe(first.voxels.image());
-    expect(store().maskLayersForImage('img-1')).toHaveLength(1);
+    expect(store().boundMaskIds('img-1')).toHaveLength(1);
   });
 
   it('leaves the selected segment alone', async () => {
@@ -106,7 +101,7 @@ describe('polygon rasterize target', () => {
     expect(
       store().getMask(segment.record.id).representations.labelmap
     ).toBeUndefined();
-    expect(store().maskLayersForImage('img-1')).toEqual([]);
+    expect(store().boundMaskIds('img-1')).toEqual([]);
     expect(
       useMessageStore().messages.map((message) => message.title)
     ).toContain('Cannot rasterize into a locked segment');
@@ -173,7 +168,6 @@ describe('polygon rasterize target', () => {
     const second = targetOf('img-1', undefined);
 
     expect(second.voxels.image()).toBe(first.voxels.image());
-    expect(second.labelValue).toBe(first.labelValue);
     expect(
       Object.keys(store().getSegmentationForImage('img-1')!.masks)
     ).toHaveLength(1);
@@ -187,7 +181,7 @@ describe('polygon rasterize target', () => {
     target.voxels.ensureContains([0, 3, 0, 0, 0, 0]);
     // fillPoly writes voxel offsets into the live buffer, so a copy would be
     // rasterized and thrown away.
-    target.voxels.scalars()[3] = target.labelValue;
+    target.voxels.scalars()[3] = SEGMENT_VALUE;
 
     expect(
       store()
@@ -195,7 +189,7 @@ describe('polygon rasterize target', () => {
         .image.getPointData()
         .getScalars()
         .getData()[3]
-    ).toBe(target.labelValue);
+    ).toBe(SEGMENT_VALUE);
   });
 
   it('rasterizes into a minted segment when the tool names a deleted one', async () => {

@@ -25,29 +25,6 @@ const workerHost = createProcessWorkerHost<WorkerApi>(
     )
 );
 
-async function gaussianSmoothLabelMap(
-  target: ProcessTarget,
-  params: { sigma: number; label: number }
-) {
-  const workerInput = {
-    data: target.scalars,
-    dimensions: target.dimensions,
-    spacing: target.spacing,
-    maskExtent: target.maskExtent,
-    parentDimensions: target.parentDimensions,
-    params,
-  };
-
-  // The input is the process manager's own detached copy, and nothing reads it
-  // once the worker has it, so the buffer moves to the worker rather than being
-  // cloned into it: one mask's worth of bytes less per run.
-  return workerHost.call((worker) =>
-    worker.gaussianSmoothLabelMapWorker(
-      Comlink.transfer(workerInput, [target.scalars.buffer as ArrayBuffer])
-    )
-  );
-}
-
 export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
   const sigma = ref(DEFAULT_SIGMA);
 
@@ -56,12 +33,20 @@ export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {
   }
 
   async function computeAlgorithm(target: ProcessTarget) {
-    const params = {
-      sigma: sigma.value,
-      label: target.labelValue,
+    const input = {
+      data: target.scalars,
+      dimensions: target.dimensions,
+      spacing: target.spacing,
+      maskExtent: target.maskExtent,
+      parentDimensions: target.parentDimensions,
+      params: { sigma: sigma.value },
     };
-
-    return gaussianSmoothLabelMap(target, params);
+    // The detached input is not read again, so move it rather than clone it.
+    return workerHost.call((worker) =>
+      worker.gaussianSmoothLabelMapWorker(
+        Comlink.transfer(input, [target.scalars.buffer as ArrayBuffer])
+      )
+    );
   }
 
   return {

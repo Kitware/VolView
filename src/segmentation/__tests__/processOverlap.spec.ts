@@ -3,9 +3,11 @@ import { setActivePinia, createPinia } from 'pinia';
 import { createApp } from 'vue';
 import type { TypedArray } from '@kitware/vtk.js/types';
 
+import { morphologicalContourInterpolationNode } from '@itk-wasm/morphological-contour-interpolation';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { fillHoles } from '@/src/segmentation/editing/algorithms/fillHoles';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
+import { useFillBetweenStore } from '@/src/segmentation/editing/fillBetween';
 import {
   usePaintProcessStore,
   type ProcessTarget,
@@ -14,7 +16,6 @@ import {
 import { useViewStore } from '@/src/store/views';
 import {
   addMask,
-  flatIndex,
   labelValueOf,
   markedVoxels,
   maskValueAt,
@@ -34,9 +35,8 @@ import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 // not, and takes nothing from anyone. Nothing outside the active segment
 // changes, so the preview is what confirm leaves behind.
 //
-// The three processes are driven through their real algorithms where those are
-// plain functions. Fill Between's interpolator is itk-wasm, which has no build
-// that loads in this environment, so its result is produced here instead.
+// The three processes run their real algorithms, Fill Between through the Node
+// build of its interpolator.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [5, 5, 5];
@@ -44,9 +44,16 @@ const HOLE: Index3 = [2, 2, 2];
 /** A voxel the cube holds throughout, on a slice no process here touches. */
 const INSIDE: Index3 = [2, 2, 1];
 
-const offsetOf = flatIndex(DIMENSIONS);
+/** The parent index of an offset into a mask covering the whole image. */
+const indexAt = (offset: number): Index3 => [
+  offset % DIMENSIONS[0],
+  Math.floor(offset / DIMENSIONS[0]) % DIMENSIONS[1],
+  Math.floor(offset / (DIMENSIONS[0] * DIMENSIONS[1])),
+];
 
-type SegmentAlgorithm = (target: ProcessTarget) => ProcessResult;
+type SegmentAlgorithm = (
+  target: ProcessTarget
+) => ProcessResult | Promise<ProcessResult>;
 
 const runFillHoles: SegmentAlgorithm = (target) => ({
   scalars: fillHoles({
@@ -54,8 +61,7 @@ const runFillHoles: SegmentAlgorithm = (target) => ({
     dimensions: DIMENSIONS,
     axis: 2,
     sliceIndex: HOLE[2],
-    label: target.labelValue,
-  }),
+  }).out,
   extent: target.maskExtent,
 });
 
@@ -66,33 +72,35 @@ const runGaussianSmooth: SegmentAlgorithm = (target) =>
     spacing: [1, 1, 1],
     maskExtent: target.maskExtent,
     parentDimensions: target.parentDimensions,
-    params: { sigma: 1, label: target.labelValue },
+    params: { sigma: 1 },
   })!;
 
-/** What contour interpolation leaves: a gap closed by the slices around it. */
-const runFillBetween: SegmentAlgorithm = (target) => {
-  const data = target.scalars;
-  const plane = DIMENSIONS[0] * DIMENSIONS[1];
-  const filled = data.slice();
-  for (let offset = plane; offset < data.length - plane; offset += 1) {
-    const enclosed =
-      data[offset - plane] === target.labelValue &&
-      data[offset + plane] === target.labelValue;
-    if (data[offset] === 0 && enclosed) filled[offset] = target.labelValue;
-  }
-  return { scalars: filled, extent: target.maskExtent };
-};
+const runFillBetween: SegmentAlgorithm = (target) =>
+  useFillBetweenStore().computeAlgorithm(
+    target,
+    morphologicalContourInterpolationNode
+  );
 
-function cubeWithHole(imageId: string) {
+/** Every voxel but HOLE, which fill holes and smoothing close. */
+const cubeWithHole = (index: Index3) =>
+  index.some((n, axis) => n !== HOLE[axis]);
+
+// Interpolation only closes a slice with no contour, so HOLE's is left empty.
+const squaresAroundHole = ([i, j, k]: Index3) =>
+  Math.abs(k - HOLE[2]) === 1 &&
+  Math.abs(i - HOLE[0]) <= 1 &&
+  Math.abs(j - HOLE[1]) <= 1;
+
+function tumorHolding(imageId: string, holds: (index: Index3) => boolean) {
   const maskId = addMask(imageId, 'Tumor');
   selectSegment(maskId);
   const voxels = store().maskVoxels(maskId);
   voxels.materialize();
-  const labelValue = SEGMENT_VALUE;
   voxels.ensureContains([0, 4, 0, 4, 0, 4]);
   const scalars = voxels.scalars();
-  scalars.fill(labelValue);
-  scalars[offsetOf(...HOLE)] = 0;
+  scalars.forEach((_, offset) => {
+    if (holds(indexAt(offset))) scalars[offset] = SEGMENT_VALUE;
+  });
   voxels.image().modified();
   return maskId;
 }
@@ -105,10 +113,10 @@ function neighbourOwningTheHole(imageId: string, locked: boolean) {
 }
 
 describe.each([
-  ['fill holes', runFillHoles],
-  ['fill between', runFillBetween],
-  ['gaussian smooth', runGaussianSmooth],
-])('%s writing only into empty space', (_name, run) => {
+  ['fill holes', runFillHoles, cubeWithHole],
+  ['fill between', runFillBetween, squaresAroundHole],
+  ['gaussian smooth', runGaussianSmooth, cubeWithHole],
+])('%s writing only into empty space', (_name, run, holds) => {
   let tumor: string;
 
   beforeEach(async () => {
@@ -117,7 +125,7 @@ describe.each([
     setActivePinia(pinia);
     await seatImage('img-1', { dimensions: DIMENSIONS });
     useViewStore().setDataForAllViews('img-1');
-    tumor = cubeWithHole('img-1');
+    tumor = tumorHolding('img-1', holds);
   });
 
   const process = async () => {
@@ -201,7 +209,7 @@ describe('a process over a mask with no two dimensions alike', () => {
     const processStore = usePaintProcessStore();
     await processStore.startProcess(async (target) => {
       const filled = (target.scalars as TypedArray).slice();
-      filled.fill(target.labelValue);
+      filled.fill(SEGMENT_VALUE);
       return { scalars: filled, extent: target.maskExtent };
     });
     processStore.confirmProcess();

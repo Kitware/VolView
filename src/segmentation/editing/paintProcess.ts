@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { TypedArray } from '@kitware/vtk.js/types';
 import type { Maybe } from '@/src/types';
-import { arrayEquals } from '@/src/utils';
+import { arrayEquals, omit } from '@/src/utils';
 import {
   LABELMAP_BACKGROUND_VALUE,
   maskHasContent,
@@ -15,15 +15,14 @@ import {
   fullExtent,
   isEmptyExtent,
   markedExtent,
+  reframeMaskScalars,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import { usePaintToolStore } from '@/src/store/tools/paint';
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useMessageStore } from '@/src/store/messages';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { reframeMaskScalars } from '@/src/segmentation/masks/storage';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
@@ -84,7 +83,6 @@ export type ProcessTarget = {
   spacing: [number, number, number];
   direction: number[];
   maskExtent: Extent3D;
-  labelValue: number;
 };
 
 type ResolvedTarget = ProcessTarget & { voxels: VoxelStorage };
@@ -203,7 +201,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
    */
   function buildRun(
     target: ResolvedTarget,
-    originalScalars: TypedArray,
     result: ProcessResult | undefined
   ): PreviewRun[] {
     if (result === undefined) return [];
@@ -218,8 +215,8 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
         target,
         extent,
         originalScalars: arrayEquals(extent, target.maskExtent)
-          ? originalScalars
-          : reframeMaskScalars(originalScalars, target.maskExtent, extent),
+          ? target.scalars
+          : reframeMaskScalars(target.scalars, target.maskExtent, extent),
         processedScalars: arrayEquals(extent, result.extent)
           ? result.scalars
           : reframeMaskScalars(result.scalars, result.extent, extent),
@@ -302,12 +299,9 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   }
 
   function targetFor(parentImageId: string, maskId: string) {
-    const segmentation =
-      segmentationStore.getSegmentationForImage(parentImageId);
     const voxels = segmentationStore.maskVoxels(maskId);
     const binding = voxels.binding();
-    const image =
-      segmentation && imageCacheStore.getVtkImageData(parentImageId);
+    const image = imageCacheStore.getVtkImageData(parentImageId);
     if (!binding || isEmptyExtent(binding.extent) || !image) return undefined;
     return {
       parentImageId,
@@ -316,15 +310,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       maskId,
       voxels,
       scalars: voxels.snapshot(),
-      dimensions: [...binding.image.getDimensions()] as [
-        number,
-        number,
-        number,
-      ],
+      dimensions: extentSize(binding.extent),
       spacing: [...binding.image.getSpacing()] as [number, number, number],
       direction: Array.from(binding.image.getDirection()),
       maskExtent: [...binding.extent] as Extent3D,
-      labelValue: SEGMENT_VALUE,
     } satisfies ResolvedTarget;
   }
 
@@ -444,7 +433,6 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const label = options.label ?? 'Process';
     const processRunId = ++activeProcessRunId;
 
-    const snapshots = targets.map((target) => target.scalars);
     const written: PreviewRun[] = [];
 
     const targetedState = {
@@ -461,25 +449,14 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       // result is written back: each run sees the state the user acted on.
       const outputs = await Promise.all(
         targets.map((input) =>
-          algorithm({
-            parentImageId: input.parentImageId,
-            maskId: input.maskId,
-            labelValue: input.labelValue,
-            scalars: input.scalars.slice(),
-            maskExtent: [...input.maskExtent],
-            dimensions: [...input.dimensions],
-            spacing: [...input.spacing],
-            direction: [...input.direction],
-            parentOrigin: [...input.parentOrigin],
-            parentDimensions: [...input.parentDimensions],
-          })
+          algorithm(structuredClone(omit(input, 'voxels')))
         )
       );
 
       if (runIsStale(processRunId)) return;
 
       const runs = targets.flatMap((target, index) =>
-        buildRun(target, snapshots[index], outputs[index])
+        buildRun(target, outputs[index])
       );
 
       // No segment came back with anything to write: every mask was deleted

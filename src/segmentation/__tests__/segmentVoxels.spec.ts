@@ -4,24 +4,23 @@ import {
   seatSpecImage as seatImage,
   expectCoveredExtentIsNoop,
   expectExtentPastParentThrows,
-  SPEC_DIMENSIONS as DIMENSIONS,
+  SPEC_FULL_EXTENT as FULL_EXTENT,
+  SPEC_VOXEL_COUNT as VOXEL_COUNT,
   deleteSegmentOf,
   mintSegment,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
-import { isEmptyExtent, type Extent3D } from '@/src/segmentation/geometry';
+import { isEmptyExtent } from '@/src/segmentation/geometry';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
 // ---------------------------------------------------------------------------
 // The segment voxel accessor: the one contract every labelmap consumer that
 // holds a segment routes through. Growth itself is pinned in
 // boundedSegmentMasks.spec.ts; what is here is the accessor's own contract
-// against a mask grown to the whole parent image.
+// against a mask grown to the whole parent image, which the tolerant accessor
+// shares once storage exists.
 // ---------------------------------------------------------------------------
-
-const VOXEL_COUNT = DIMENSIONS[0] * DIMENSIONS[1] * DIMENSIONS[2];
-const FULL_EXTENT: Extent3D = [0, 3, 0, 3, 0, 1];
 
 /** A segment with no storage: "add segment" never allocates voxels. */
 function addMask(imageId: string, name?: string) {
@@ -51,7 +50,7 @@ function seatArtifactSegment(imageId: string, values: Uint8Array) {
   store().maskVoxels(first.maskId).apply(values);
 
   return {
-    labelmap: store().maskVoxels(first.maskId).image(),
+    labelmap: store().maskVoxels(first.maskId).binding()!.image,
     segmentationId: first.segmentationId,
     first,
     second,
@@ -64,12 +63,12 @@ const voxelsOf = (target: { segmentationId: string; maskId: string }) =>
 const scalarsOf = (labelmap: vtkLabelMap) =>
   labelmap.getPointData().getScalars().getData();
 
-describe('segment voxel accessor', () => {
-  beforeEach(async () => {
-    setActivePinia(createPinia());
-    await seatImage('img-1');
-  });
+beforeEach(async () => {
+  setActivePinia(createPinia());
+  await seatImage('img-1');
+});
 
+describe('segment voxel accessor', () => {
   describe('resolution', () => {
     it('throws for a mask that does not exist', () => {
       store().ensureSegmentationForImage('img-1');
@@ -95,7 +94,7 @@ describe('segment voxel accessor', () => {
       const target = addMask('img-1');
 
       expect(voxelsOf(target).binding()).toBeUndefined();
-      expect(store().maskLayersForImage('img-1')).toHaveLength(0);
+      expect(store().boundMaskIds('img-1')).toHaveLength(0);
     });
 
     it('refuses voxel access instead of allocating on read', () => {
@@ -106,7 +105,7 @@ describe('segment voxel accessor', () => {
       expect(() => voxels.snapshot()).toThrow();
       expect(() => voxels.apply(new Uint8Array(VOXEL_COUNT))).toThrow();
       expect(() => voxels.ensureContains(FULL_EXTENT)).toThrow();
-      expect(store().maskLayersForImage('img-1')).toHaveLength(0);
+      expect(store().boundMaskIds('img-1')).toHaveLength(0);
     });
   });
 
@@ -115,8 +114,8 @@ describe('segment voxel accessor', () => {
       const target = addMask('img-1');
       const binding = voxelsOf(target).materialize();
 
-      expect(store().maskLayersForImage('img-1')).toHaveLength(1);
-      expect(store().maskLayersForImage('img-1')[0].maskId).toBe(target.maskId);
+      expect(store().boundMaskIds('img-1')).toHaveLength(1);
+      expect(store().boundMaskIds('img-1')[0]).toBe(target.maskId);
       expect(isEmptyExtent(binding.extent)).toBe(true);
       expect(voxelsOf(target).image().getDimensions()).toEqual([0, 0, 0]);
       expect(scalarsOf(voxelsOf(target).image())).toHaveLength(0);
@@ -129,7 +128,7 @@ describe('segment voxel accessor', () => {
       const second = voxelsOf(target).materialize();
 
       expect(second).toEqual(first);
-      expect(store().maskLayersForImage('img-1')).toHaveLength(1);
+      expect(store().boundMaskIds('img-1')).toHaveLength(1);
       expect(voxelsOf(target).image()).toBe(image);
     });
 
@@ -140,51 +139,59 @@ describe('segment voxel accessor', () => {
       const a = voxelsOf(first).materialize();
       const b = voxelsOf(second).materialize();
 
-      expect(store().maskLayersForImage('img-1')).toHaveLength(2);
+      expect(store().boundMaskIds('img-1')).toHaveLength(2);
       expect(b.image).not.toBe(a.image);
       expect(voxelsOf(second).image()).not.toBe(voxelsOf(first).image());
     });
   });
 
+  describe('scalars()', () => {
+    it('refuses before materialize', () => {
+      const target = addMask('img-1');
+
+      expect(() => voxelsOf(target).scalars()).toThrow(/No storage/);
+      expect(store().boundMaskIds('img-1')).toHaveLength(0);
+    });
+  });
+});
+
+describe.each([
+  ['strict', (maskId: string) => store().maskVoxels(maskId)],
+  ['tolerant', (maskId: string) => store().findMaskVoxels(maskId)],
+])('the %s accessor on a grown mask', (_name, accessorOf) => {
+  const seatVoxels = (values = new Uint8Array(VOXEL_COUNT)) => {
+    const seat = seatArtifactSegment('img-1', values);
+    return { ...seat, voxels: accessorOf(seat.first.maskId) };
+  };
+
   describe('image()', () => {
     it('hands back the live labelmap the binding holds', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
-      const voxels = voxelsOf(seat.first);
+      const { voxels, labelmap } = seatVoxels();
 
-      expect(voxels.image()).toBe(seat.labelmap);
-      expect(voxels.binding()?.image).toBe(seat.labelmap);
+      expect(voxels.image()).toBe(labelmap);
     });
 
     it('sees writes made through it', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
-      const voxels = voxelsOf(seat.first);
+      const { voxels, labelmap } = seatVoxels();
 
       scalarsOf(voxels.image())[5] = 1;
 
       expect(Array.from(voxels.snapshot())[5]).toBe(1);
-      expect(Array.from(scalarsOf(seat.labelmap))[5]).toBe(1);
+      expect(Array.from(scalarsOf(labelmap))[5]).toBe(1);
     });
   });
 
   describe('scalars()', () => {
     it('aliases the live buffer rather than copying it', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
-      const voxels = voxelsOf(seat.first);
+      const { voxels, labelmap } = seatVoxels();
 
       // The paint stroke reads this per candidate voxel while the brush writes
       // the same buffer, so a copy would be both stale and a per-stroke
       // allocation the size of the volume.
-      expect(voxels.scalars()).toBe(scalarsOf(seat.labelmap));
+      expect(voxels.scalars()).toBe(scalarsOf(labelmap));
 
       voxels.scalars()[5] = 1;
-      expect(scalarsOf(seat.labelmap)[5]).toBe(1);
-    });
-
-    it('refuses before materialize', () => {
-      const target = addMask('img-1');
-
-      expect(() => voxelsOf(target).scalars()).toThrow(/No storage/);
-      expect(store().maskLayersForImage('img-1')).toHaveLength(0);
+      expect(scalarsOf(labelmap)[5]).toBe(1);
     });
   });
 
@@ -192,16 +199,15 @@ describe('segment voxel accessor', () => {
     it('copies the voxels instead of aliasing them', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
-      const seat = seatArtifactSegment('img-1', values);
-      const voxels = voxelsOf(seat.first);
+      const { voxels, labelmap } = seatVoxels(values);
 
       const copy = voxels.snapshot();
-      expect(Array.from(copy)).toEqual(Array.from(scalarsOf(seat.labelmap)));
+      expect(Array.from(copy)).toEqual(Array.from(scalarsOf(labelmap)));
 
       copy[0] = 9;
-      expect(scalarsOf(seat.labelmap)[0]).toBe(1);
+      expect(scalarsOf(labelmap)[0]).toBe(1);
 
-      scalarsOf(seat.labelmap)[1] = 7;
+      scalarsOf(labelmap)[1] = 7;
       expect(copy[1]).toBe(0);
     });
 
@@ -209,65 +215,69 @@ describe('segment voxel accessor', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
       values[1] = 2;
-      const seat = seatArtifactSegment('img-1', values);
+      const { voxels, second } = seatVoxels(values);
 
-      expect(Array.from(voxelsOf(seat.first).snapshot()).slice(0, 2)).toEqual([
-        1, 2,
-      ]);
-      expect(voxelsOf(seat.second).snapshot()).toHaveLength(VOXEL_COUNT);
+      expect(Array.from(voxels.snapshot()).slice(0, 2)).toEqual([1, 2]);
+      expect(accessorOf(second.maskId).snapshot()).toHaveLength(VOXEL_COUNT);
     });
   });
 
   describe('apply()', () => {
-    it('replaces the voxels and marks the image modified', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
-      const voxels = voxelsOf(seat.first);
-      const before = seat.labelmap.getMTime();
+    it('writes through the live buffer and marks the image modified', () => {
+      const { voxels, labelmap } = seatVoxels();
+      const buffer = scalarsOf(labelmap);
+      const before = labelmap.getMTime();
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[3] = 1;
       next[4] = 2;
       voxels.apply(next);
 
-      expect(Array.from(voxels.snapshot()).slice(3, 5)).toEqual([1, 2]);
-      // Actors bind to the image, so bulk replace must not swap it out.
-      expect(voxels.image()).toBe(seat.labelmap);
-      expect(seat.labelmap.getMTime()).toBeGreaterThan(before);
+      // Mappers and the paint engine hold the buffer, and actors the image.
+      expect(scalarsOf(labelmap)).toBe(buffer);
+      expect(voxels.image()).toBe(labelmap);
+      expect(Array.from(buffer).slice(3, 5)).toEqual([1, 2]);
+      expect(labelmap.getMTime()).toBeGreaterThan(before);
+    });
+
+    it('copies the given scalars instead of adopting them', () => {
+      const { voxels, labelmap } = seatVoxels();
+
+      const next = new Uint8Array(VOXEL_COUNT);
+      next[0] = 1;
+      voxels.apply(next);
+      next[0] = 7;
+
+      expect(scalarsOf(labelmap)[0]).toBe(1);
     });
 
     it('rejects a wrong-length array and leaves the voxels alone', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
-      const seat = seatArtifactSegment('img-1', values);
-      const voxels = voxelsOf(seat.first);
+      const { voxels, labelmap } = seatVoxels(values);
 
       expect(() => voxels.apply(new Uint8Array(VOXEL_COUNT - 1))).toThrow();
-      expect(Array.from(voxels.snapshot())).toEqual(
-        Array.from(scalarsOf(seat.labelmap))
-      );
-      expect(scalarsOf(seat.labelmap)[0]).toBe(1);
+      expect(Array.from(scalarsOf(labelmap))).toEqual(Array.from(values));
     });
   });
 
   describe('ensureContains()', () => {
     it('reports no invalidation for an extent the storage already covers', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
+      const { voxels, labelmap } = seatVoxels();
 
-      expectCoveredExtentIsNoop(voxelsOf(seat.first), seat.labelmap);
+      expectCoveredExtentIsNoop(voxels, labelmap);
     });
 
     it('treats an empty extent as already covered', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
+      const { voxels } = seatVoxels();
 
-      expect(voxelsOf(seat.first).ensureContains([0, -1, 0, -1, 0, -1])).toBe(
-        false
-      );
+      expect(voxels.ensureContains([0, -1, 0, -1, 0, -1])).toBe(false);
     });
 
     it('rejects an extent that leaves the parent image', () => {
-      const seat = seatArtifactSegment('img-1', new Uint8Array(VOXEL_COUNT));
+      const { voxels, labelmap } = seatVoxels();
 
-      expectExtentPastParentThrows(voxelsOf(seat.first), seat.labelmap);
+      expectExtentPastParentThrows(voxels, labelmap);
     });
   });
 });

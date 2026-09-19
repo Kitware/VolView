@@ -1,3 +1,5 @@
+import type { TypedArray } from '@kitware/vtk.js/types';
+
 /** vtk.js index-space extent order: [iMin, iMax, jMin, jMax, kMin, kMax]. */
 export type Extent3D = [number, number, number, number, number, number];
 
@@ -58,6 +60,13 @@ export function extentContainsIndex(
   );
 }
 
+/** Whether the plane at `slice` along `axis` passes through `extent`. */
+export const extentReachesSlice = (
+  extent: Extent3D,
+  axis: number,
+  slice: number
+) => slice >= extent[axis * 2] && slice <= extent[axis * 2 + 1];
+
 /** A mask's extent with the row and plane strides that extent implies. */
 export type MaskBounds = {
   extent: Extent3D;
@@ -76,6 +85,45 @@ export const maskOffset = (
   bounds.extent[0] +
   (j - bounds.extent[2]) * bounds.mi +
   (k - bounds.extent[4]) * bounds.mi * bounds.mj;
+
+/**
+ * Copies a mask onto another extent of its parent grid, padding with zero.
+ * An output buffer must match the destination size and not alias the source.
+ */
+export function reframeMaskScalars(
+  scalars: TypedArray | number[],
+  from: Extent3D,
+  to: Extent3D,
+  output?: Uint8Array
+) {
+  const [mi, mj, mk] = extentSize(to);
+  const size = isEmptyExtent(to) ? 0 : mi * mj * mk;
+  const values = output ?? new Uint8Array(size);
+  if (values.length !== size) throw new Error('Mask output size mismatch');
+  if (output) values.fill(0);
+  const shared = clipExtent(from, to);
+  if (isEmptyExtent(shared)) return values;
+  const [si, sj] = extentSize(from);
+  // Bounds can be reactive; read them once before the per-row copy loop.
+  const source = { extent: [...from] as Extent3D, mi: si, mj: sj };
+  const destination = { extent: [...to] as Extent3D, mi, mj };
+  const count = shared[1] - shared[0] + 1;
+  for (let k = shared[4]; k <= shared[5]; k += 1) {
+    for (let j = shared[2]; j <= shared[3]; j += 1) {
+      const start = maskOffset(source, shared[0], j, k);
+      const end = maskOffset(destination, shared[0], j, k);
+      if (count === 1) {
+        values[end] = scalars[start];
+      } else {
+        const row = Array.isArray(scalars)
+          ? scalars.slice(start, start + count)
+          : scalars.subarray(start, start + count);
+        values.set(row, end);
+      }
+    }
+  }
+  return values;
+}
 
 /**
  * The box the claimed voxels actually occupy inside a mask bounded by
@@ -137,16 +185,26 @@ export function extentUnion(a: Extent3D, b: Extent3D): Extent3D {
   ];
 }
 
-export function padExtent(extent: Extent3D, padding: number): Extent3D {
+/** Grows `extent` by `padding` voxels on every side, or by one per axis. */
+export function padExtent(
+  extent: Extent3D,
+  padding: number | readonly number[]
+): Extent3D {
+  const [pi, pj, pk] =
+    typeof padding === 'number' ? [padding, padding, padding] : padding;
   return [
-    extent[0] - padding,
-    extent[1] + padding,
-    extent[2] - padding,
-    extent[3] + padding,
-    extent[4] - padding,
-    extent[5] + padding,
+    extent[0] - pi,
+    extent[1] + pi,
+    extent[2] - pj,
+    extent[3] + pj,
+    extent[4] - pk,
+    extent[5] + pk,
   ];
 }
+
+/** `extent` in the index space of a buffer that covers `frame`. */
+export const extentWithin = (extent: Extent3D, frame: Extent3D) =>
+  extent.map((value, index) => value - frame[index - (index % 2)]) as Extent3D;
 
 export function clipExtent(extent: Extent3D, bounds: Extent3D): Extent3D {
   return [

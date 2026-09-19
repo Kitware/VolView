@@ -52,7 +52,6 @@ export function resolveRasterizeTarget(
   // the accessor is what travels, not anything read off it now.
   voxels.materialize();
   return {
-    labelValue: SEGMENT_VALUE,
     voxels,
     maskId: resolved,
     segmentId: segmentationStore.getMask(resolved).segmentId,
@@ -190,7 +189,7 @@ export function rasterizePolygon({
   );
 
   try {
-    fillPoly(grid, points2D, target.labelValue);
+    fillPoly(grid, points2D, SEGMENT_VALUE);
   } finally {
     claimVoxel?.finish();
     mask.modified();

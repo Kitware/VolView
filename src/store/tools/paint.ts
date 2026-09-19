@@ -139,7 +139,6 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     return {
       maskId,
-      labelValue: SEGMENT_VALUE,
       voxels: segmentationStore.maskVoxels(maskId),
     };
   }
@@ -227,8 +226,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;
 
-    const { voxels, labelValue, maskId } = target;
-    this.$paint.setBrushValue(labelValue);
+    const { voxels, maskId } = target;
+    this.$paint.setBrushValue(SEGMENT_VALUE);
     const underlyingImagePixels = parentImage
       .getPointData()
       .getScalars()
@@ -266,7 +265,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     const shouldPaint = (offset: number, point: number[]) => {
       // Erase clears the active segment only.
-      if (erasing && maskData[offset] !== labelValue) return false;
+      if (erasing && maskData[offset] !== SEGMENT_VALUE) return false;
 
       const pixValue = underlyingImagePixels[parentOffset(point)];
       return minThreshold <= pixValue && pixValue <= maxThreshold;

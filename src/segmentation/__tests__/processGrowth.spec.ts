@@ -12,6 +12,7 @@ import {
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import { useMessageStore } from '@/src/store/messages';
+import { defer } from '@/src/utils';
 import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import {
   addMask,
@@ -33,7 +34,7 @@ const smoothAlgorithm = () => async (target: ProcessTarget) =>
     spacing: [1, 1, 1],
     maskExtent: target.maskExtent,
     parentDimensions: target.parentDimensions,
-    params: { sigma: 1, label: target.labelValue },
+    params: { sigma: 1 },
   });
 
 // Both real algorithms run in process previews. Interpolation uses the
@@ -192,14 +193,11 @@ describe('process result placement', () => {
     const id = await oneVoxel();
     const voxels = store().maskVoxels(id);
     const buffer = voxels.scalars();
-    let resolve!: (value: ProcessResult) => void;
-    const promise = new Promise<ProcessResult>((done) => {
-      resolve = done;
-    });
+    const result = defer<ProcessResult>();
     const process = usePaintProcessStore();
-    const run = process.startProcess(async () => promise);
+    const run = process.startProcess(async () => result.promise);
     process.cancelProcess();
-    resolve(grownResult());
+    result.resolve(grownResult());
     await run;
     expect(voxels.scalars()).toBe(buffer);
     expect(markedVoxels(id)).toEqual([[2, 0, 0, 1]]);
@@ -251,8 +249,7 @@ describe('process result placement', () => {
 
   it('says an emptied mask has nothing to smooth rather than previewing it', async () => {
     const id = await oneVoxel();
-    // Erasing the last voxel keeps the allocation, so the run has a target
-    // whose buffer holds none of the label.
+    // A mask allocated but holding no voxel, which no edit leaves behind.
     store().maskVoxels(id).scalars().fill(0);
     const process = usePaintProcessStore();
 

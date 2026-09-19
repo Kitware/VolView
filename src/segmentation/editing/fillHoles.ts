@@ -8,7 +8,7 @@ import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/segmentation/editing/algorithms/fillHoles.worker';
 import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
 import { getLPSDirections } from '@/src/utils/lps';
-import type { LPSAxis } from '@/src/types/lps';
+import { extentReachesSlice } from '@/src/segmentation/geometry';
 
 export enum FillHolesSliceScope {
   CurrentSlice = 'currentSlice',
@@ -41,18 +41,11 @@ const workerHost = createProcessWorkerHost<WorkerApi>(
  * slice outside it converts to an index the worker would fold back onto a real
  * slice of the mask and fill the wrong one.
  */
-function maskSliceIndex(
-  view: { viewInfo: { id: string }; axis: LPSAxis },
-  target: ProcessTarget,
-  axis: number
-) {
-  const sliceConfig = useViewSliceStore().getConfig(
-    view.viewInfo.id,
-    target.parentImageId
-  );
-  const sliceIndex = sliceConfig.slice - target.maskExtent[axis * 2];
-  const sliceCount = target.dimensions[axis];
-  return sliceIndex < 0 || sliceIndex >= sliceCount ? undefined : sliceIndex;
+function maskSliceIndex(viewId: string, target: ProcessTarget, axis: number) {
+  const { slice } = useViewSliceStore().getConfig(viewId, target.parentImageId);
+  return extentReachesSlice(target.maskExtent, axis, slice)
+    ? slice - target.maskExtent[axis * 2]
+    : undefined;
 }
 
 export const useFillHolesStore = defineStore('fillHoles', () => {
@@ -87,7 +80,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
 
     const currentSlice = sliceScope.value === FillHolesSliceScope.CurrentSlice;
     const sliceIndex = currentSlice
-      ? maskSliceIndex(effectiveView, target, axis)
+      ? maskSliceIndex(effectiveView.viewInfo.id, target, axis)
       : undefined;
     if (currentSlice && sliceIndex === undefined) {
       // The user named one segment, so say the slice misses it. An
@@ -100,9 +93,7 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       return undefined;
     }
 
-    // The input is the process manager's own detached copy, and nothing reads
-    // it once the worker has it, so the buffer moves to the worker rather than
-    // being cloned into it: one mask's worth of bytes less per run.
+    // The detached input is not read again, so move it rather than clone it.
     const scalars = await workerHost.call((worker) =>
       worker.fillHolesWorker(
         Comlink.transfer(
@@ -111,7 +102,6 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
             dimensions,
             axis,
             sliceIndex,
-            label: target.labelValue,
           },
           [data.buffer as ArrayBuffer]
         )

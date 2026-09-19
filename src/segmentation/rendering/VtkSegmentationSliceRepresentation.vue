@@ -24,25 +24,27 @@ import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import {
   SEGMENT_ACTOR_OPACITY,
-  segmentCoincidentOffset,
+  SEGMENT_COINCIDENT_OFFSET,
   segmentFillAlpha,
   segmentOutlineTables,
   sliceWithinExtent,
 } from '@/src/segmentation/rendering/display';
 import { isEmptyExtent } from '@/src/segmentation/geometry';
-import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
+import {
+  segmentRenderMask,
+  type RenderMaskSlot,
+} from '@/src/segmentation/rendering/renderMask';
+import { DEFAULT_SEGMENTATION_DISPLAY } from '@/src/segmentation/model';
 import { revealPulseStrength } from '@/src/segmentation/composables/useSegmentRevealPulse';
 
 type Props = {
   viewId: string;
   maskId: string;
-  // Position in `segmentation.order`, which is what the actors stack by.
-  stackIndex: number;
   axis: LPSAxis;
 };
 
 const props = defineProps<Props>();
-const { viewId, maskId, stackIndex, axis } = toRefs(props);
+const { viewId, maskId, axis } = toRefs(props);
 
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
@@ -51,6 +53,9 @@ const segmentationStore = useSegmentationStore();
 const binding = computed(() => segmentationStore.findMaskBinding(maskId.value));
 const segmentation = computed(() =>
   segmentationStore.segmentationOfMask(maskId.value)
+);
+const display = computed(
+  () => segmentation.value ?? DEFAULT_SEGMENTATION_DISPLAY
 );
 const extent = computed(() => binding.value?.extent);
 const descriptor = computed(
@@ -79,6 +84,7 @@ const maskRevision = ref(0);
 onVTKEvent(sourceImageData, 'onModified', () => {
   maskRevision.value += 1;
 });
+const renderSlot: RenderMaskSlot = {};
 const imageData = computed(() => {
   // VTK modifications are not Vue reactive (painting can keep the same image).
   void maskRevision.value;
@@ -94,6 +100,7 @@ const imageData = computed(() => {
     ? segmentRenderMask(source, parent, bounds, {
         axis: ijkAxis,
         index: storedSlice.value,
+        slot: renderSlot,
       })
     : null;
 });
@@ -127,17 +134,12 @@ sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
 // needed for vtk.js >= 23.0.0
 sliceRep.property.setUseLookupTableScalarRange(true);
 
-// Each segment gets its own offset, in front of the base image and of the
-// segments behind it in the stack: overlap is representable, so a shared offset
-// would z-fight.
+// Segments are coplanar with the base image, so they draw at an offset that
+// lifts them off it. The offset is the same for every segment.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
-watchEffect(() => {
-  const [factor, units] = segmentCoincidentOffset(stackIndex.value);
-  sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
-    factor,
-    units
-  );
-});
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
+  ...SEGMENT_COINCIDENT_OFFSET
+);
 
 // Compute labelmap's LPS orientation from its direction matrix
 const maskLpsOrientation = computed(() => {
@@ -210,10 +212,7 @@ const applySegmentColoring = () => {
     const g = segment.color[1] || 0;
     const b = segment.color[2] || 0;
     cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
-    const normalAlpha = segmentFillAlpha(
-      segment,
-      segmentation.value?.fillOpacity ?? 1
-    );
+    const normalAlpha = segmentFillAlpha(segment, display.value.fillOpacity);
     const pulseAlpha = segment.visible ? 0.7 * revealPulse.value : 0;
     ofun.addPoint(segment.value, Math.max(normalAlpha, pulseAlpha));
 
@@ -232,7 +231,7 @@ const applySegmentColoring = () => {
 watchEffect(applySegmentColoring);
 
 const outlineThickness = computed(
-  () => (segmentation.value?.outlineThickness ?? 2) + 3 * revealPulse.value
+  () => display.value.outlineThickness + 3 * revealPulse.value
 );
 sliceRep.property.setUseLabelOutline(true);
 
@@ -240,7 +239,7 @@ watchEffect(() => {
   if (!segments.value) return; // segmentation just deleted
 
   const segmentationOpacity = Math.max(
-    segmentation.value?.outlineOpacity ?? 1,
+    display.value.outlineOpacity,
     revealPulse.value
   );
   const { thicknesses, opacities } = segmentOutlineTables(
