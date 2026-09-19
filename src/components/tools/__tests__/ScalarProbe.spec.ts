@@ -93,7 +93,7 @@ describe('ScalarProbe segment samples', () => {
     );
     const store = segmentations.useSegmentationStore();
     vi.spyOn(store, 'maskLayersForImage').mockImplementation(() =>
-      state.masks.map(({ id }) => ({ maskId: id, stackIndex: 0 }))
+      state.masks.map(({ id }) => ({ maskId: id }))
     );
     vi.spyOn(store, 'getMask').mockImplementation(
       (id) => ({ segmentId: id }) as ReturnType<typeof store.getMask>

@@ -101,7 +101,6 @@
             :key="`seg-${layer.maskId}`"
             :view-id="viewId"
             :mask-id="layer.maskId"
-            :stack-index="layer.stackIndex"
             :axis="viewAxis"
             ref="segSliceReps"
           ></vtk-segmentation-slice-representation>
@@ -266,7 +265,7 @@ onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
 
-// One actor per segment, stacked by its place in `segmentation.order`.
+// One actor per segment, in `segmentation.order`.
 const segmentLayers = computed(() => {
   if (!currentImageID.value) return [];
   return useSegmentationStore().maskLayersForImage(currentImageID.value);
