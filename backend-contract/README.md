@@ -109,9 +109,13 @@ Two versions on separate clocks:
 - **Artifact version**: `package.json` `version` and the OpenAPI
   `info.version`, kept in lockstep by `processing/__tests__/openapi.spec.ts`.
   Versions this package as a published thing.
-- **Shape versions**: `INTENT_VOCABULARY_VERSION` (`processing/wire.ts`) and
-  the task-spec `specVersion`. These version the wire vocabulary for additive
-  compatibility negotiation.
+- **Shape versions**: `INTENT_VOCABULARY_VERSION` (`processing/wire.ts`) names
+  the shape of the result intent vocabulary in the generated OpenAPI
+  description and in release notes. It never travels on the wire, so adding an
+  intent rests on both sides failing open on a name they do not know. The
+  task-spec `specVersion` does travel: every task spec carries it, and a client
+  rejects a spec whose version it does not know. Bump it only on a shape
+  change, never for a new optional field.
 
 ### Result instruction rollout
 

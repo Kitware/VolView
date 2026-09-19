@@ -18,9 +18,8 @@ import {
 } from './task-spec';
 import { pathSegmentIdSchema } from './ids';
 
-// Bump when the intent vocabulary's shape changes so producers and the applier
-// can negotiate compatibility. Adding an intent is a compatible bump: an older
-// client demotes the unknown intent through the fail-open branch above.
+// Names the intent vocabulary's shape in the OpenAPI text; never sent. An older
+// client demotes an unknown intent through `resultIntentSchema` below.
 export const INTENT_VOCABULARY_VERSION = 3;
 
 // ---------------------------------------------------------------------------
