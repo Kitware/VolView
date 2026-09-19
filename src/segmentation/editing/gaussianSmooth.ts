@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import * as Comlink from 'comlink';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
 import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
+import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
 
 export const DEFAULT_SIGMA = 1.0;
 export const MIN_SIGMA = 0.1;
@@ -13,29 +13,21 @@ type WorkerApi = {
   gaussianSmoothLabelMapWorker: typeof gaussianSmoothLabelMapWorker;
 };
 
-let workerInstance: Comlink.Remote<WorkerApi> | null = null;
-
-async function getWorker() {
-  if (!workerInstance) {
-    // Set up worker with Comlink
-    const worker = new Worker(
+const workerHost = createProcessWorkerHost<WorkerApi>(
+  () =>
+    new Worker(
       new URL(
         '@/src/segmentation/editing/algorithms/gaussianSmooth.worker.ts',
         import.meta.url
       ),
       { type: 'module' }
-    );
-    workerInstance = Comlink.wrap<WorkerApi>(worker);
-  }
-  return workerInstance;
-}
+    )
+);
 
 async function gaussianSmoothLabelMap(
   target: ProcessTarget,
   params: { sigma: number; label: number }
 ) {
-  const worker = await getWorker();
-
   const workerInput = {
     data: target.scalars,
     dimensions: target.dimensions,
@@ -45,7 +37,9 @@ async function gaussianSmoothLabelMap(
     params,
   };
 
-  return worker.gaussianSmoothLabelMapWorker(workerInput);
+  return workerHost.call((worker) =>
+    worker.gaussianSmoothLabelMapWorker(workerInput)
+  );
 }
 
 export const useGaussianSmoothStore = defineStore('gaussianSmooth', () => {

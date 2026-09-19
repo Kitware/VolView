@@ -85,6 +85,8 @@ describe('Fill Holes store', () => {
     vi.stubGlobal(
       'Worker',
       class {
+        addEventListener() {}
+
         terminate() {}
       }
     );
