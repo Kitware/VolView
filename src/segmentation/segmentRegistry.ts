@@ -135,11 +135,16 @@ export const createSegmentRegistry = ({
     return segmentList.value.find((type) => matches.includes(type.id));
   };
 
+  // The name index and every lookup ignore surrounding space, so the stem has
+  // to be trimmed as well: asked for a free name for 'Liver ' while 'Liver' is
+  // taken, an untrimmed stem answered 'Liver ' and seated a second row nothing
+  // could tell apart from the first.
   const uniqueName = (stem: string) => {
-    if (!nameTaken(stem)) return stem;
+    const base = stem.trim();
+    if (!nameTaken(base)) return base;
     let index = 2;
-    while (nameTaken(`${stem} (${index})`)) index += 1;
-    return `${stem} (${index})`;
+    while (nameTaken(`${base} (${index})`)) index += 1;
+    return `${base} (${index})`;
   };
 
   const defaultName = () => {
@@ -291,13 +296,17 @@ export const createSegmentRegistry = ({
    * and every incoming reference is remapped through the returned map, so an
    * import into a populated scene overwrites nothing.
    */
-  const adopt = (incoming: Maybe<Segment[]>) =>
-    Object.fromEntries(
-      (incoming ?? []).map(({ id, ...init }) => [
-        id,
-        mintSegment(init as SegmentInit), // side effect in Array.map
-      ])
-    );
+  const adopt = (incoming: Maybe<Segment[]>) => {
+    const idMap: Record<string, string> = {};
+    (incoming ?? []).forEach(({ id, ...init }) => {
+      // Nothing makes a file's ids unique, and only one segment can answer for
+      // an id. The first entry wins; minting the rest as well would leave
+      // segments in the sidebar that no mask or shape can ever reference.
+      if (id in idMap) return;
+      idMap[id] = mintSegment(init as SegmentInit);
+    });
+    return idMap;
+  };
 
   return {
     segmentById,
