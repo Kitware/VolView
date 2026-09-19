@@ -3,7 +3,10 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { allocateMask, regrowMask } from '@/src/segmentation/masks/storage';
 import { maskScalars } from '@/src/segmentation/model';
 import { type Extent3D } from '@/src/segmentation/geometry';
-import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
+import {
+  segmentRenderMask,
+  type RenderMaskSlot,
+} from '@/src/segmentation/rendering/renderMask';
 
 function scene(extent: Extent3D) {
   const parent = vtkImageData.newInstance({
@@ -77,23 +80,26 @@ describe('render-only segment slices', () => {
   it('refreshes after edits, slice changes and growth', () => {
     const extent: Extent3D = [6, 6, 7, 7, 8, 9];
     const { parent, source } = scene(extent);
+    const slot: RenderMaskSlot = {};
     const first = segmentRenderMask(source, parent, extent, {
       axis: 2,
       index: 8,
+      slot,
     })!;
     expect(
-      segmentRenderMask(source, parent, extent, { axis: 2, index: 8 })
+      segmentRenderMask(source, parent, extent, { axis: 2, index: 8, slot })
     ).toBe(first);
     maskScalars(source)[0] = 0;
     source.modified();
     expect(
-      segmentRenderMask(source, parent, extent, { axis: 2, index: 8 })
+      segmentRenderMask(source, parent, extent, { axis: 2, index: 8, slot })
     ).toBe(first);
     expect([...maskScalars(first)].every((v) => v === 0)).toBe(true);
     expect(first.getPointData().getScalars().getRange()).toEqual([0, 0]);
     const nextSlice = segmentRenderMask(source, parent, extent, {
       axis: 2,
       index: 9,
+      slot,
     })!;
     expect([...maskScalars(nextSlice)]).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0]);
     expect(
@@ -106,9 +112,38 @@ describe('render-only segment slices', () => {
     const next = segmentRenderMask(source, parent, grown, {
       axis: 2,
       index: 8,
+      slot,
     })!;
     expect(next.getDimensions()).toEqual([4, 3, 1]);
     expect(next.getPointData().getScalars().getRange()).toEqual([0, 1]);
     expect([...maskScalars(next)].reduce((a, b) => a + b, 0)).toBe(1);
+  });
+
+  it('keeps each slot on its own slice of the same axis', () => {
+    const extent: Extent3D = [6, 6, 7, 7, 8, 9];
+    const { parent, source } = scene(extent);
+    const upper: RenderMaskSlot = {};
+    const lower: RenderMaskSlot = {};
+    const onUpper = () =>
+      segmentRenderMask(source, parent, extent, {
+        axis: 2,
+        index: 8,
+        slot: upper,
+      });
+    const onLower = () =>
+      segmentRenderMask(source, parent, extent, {
+        axis: 2,
+        index: 9,
+        slot: lower,
+      });
+    const first = { upper: onUpper(), lower: onLower() };
+
+    maskScalars(source)[1] = 0;
+    source.modified();
+
+    expect(onUpper()).toBe(first.upper);
+    expect(onLower()).toBe(first.lower);
+    expect([...maskScalars(first.upper!)].reduce((a, b) => a + b, 0)).toBe(1);
+    expect([...maskScalars(first.lower!)].every((v) => v === 0)).toBe(true);
   });
 });

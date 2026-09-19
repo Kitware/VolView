@@ -18,6 +18,7 @@ import * as segmentations from '@/src/segmentation/store';
 const state = {
   current: {} as ReturnType<typeof currentImage.useCurrentImage>,
   masks: [] as { id: string; image: vtkImageData }[],
+  names: {} as Record<string, string>,
   events: {} as Record<string, (event: unknown) => void>,
 };
 
@@ -39,7 +40,6 @@ function probe() {
     props: {
       baseRep: rep,
       layerReps: [rep],
-      segmentReps: state.masks.map(() => rep),
     },
     global: {
       provide: { [VtkViewContext as symbol]: { renderer: {}, interactor: {} } },
@@ -64,6 +64,7 @@ describe('ScalarProbe segment samples', () => {
       currentLayers: ref([{ id: 'overlay', selection: 'overlay' }]),
     } as ReturnType<typeof currentImage.useCurrentImage>;
     state.masks = [];
+    state.names = {};
     state.events = {};
     vi.spyOn(currentImage, 'useCurrentImage').mockImplementation(
       () => state.current
@@ -89,29 +90,24 @@ describe('ScalarProbe segment samples', () => {
     const registry = segments.useSegmentStore();
     vi.spyOn(registry.segments, 'appearanceOf').mockImplementation(
       (id) =>
-        ({ name: id }) as ReturnType<typeof registry.segments.appearanceOf>
+        ({ name: state.names[id!] ?? id }) as ReturnType<
+          typeof registry.segments.appearanceOf
+        >
     );
     const store = segmentations.useSegmentationStore();
-    vi.spyOn(store, 'maskLayersForImage').mockImplementation(() =>
-      state.masks.map(({ id }) => ({ maskId: id, stackIndex: 0 }))
+    vi.spyOn(store, 'boundMaskIds').mockImplementation(() =>
+      state.masks.map(({ id }) => id)
     );
     vi.spyOn(store, 'getMask').mockImplementation(
-      (id) => ({ segmentId: id }) as ReturnType<typeof store.getMask>
-    );
-    vi.spyOn(store, 'findMaskVoxels').mockImplementation(
       (id) =>
         ({
-          exists: () => true,
-          image: () => state.masks.find((mask) => mask.id === id)!.image,
-        }) as ReturnType<typeof store.findMaskVoxels>
-    );
-    vi.spyOn(store, 'labelmapDescriptorByMask', 'get').mockImplementation(() =>
-      Object.fromEntries(
-        state.masks.map(({ id }) => [
-          id,
-          { value: 1, name: id, color: [255, 0, 0, 255], visible: true },
-        ])
-      )
+          segmentId: id,
+          representations: {
+            labelmap: {
+              image: state.masks.find((mask) => mask.id === id)!.image,
+            },
+          },
+        }) as ReturnType<typeof store.getMask>
     );
   });
 
@@ -124,7 +120,7 @@ describe('ScalarProbe segment samples', () => {
     const result = probe();
     expect(Array.from(result!.pos)).toEqual([1, 0, 0]);
     expect(result!.samples).toEqual([
-      { id: 'Liver', name: 'Liver', displayValues: ['Liver'] },
+      { id: 'segments', name: 'Segment', displayValues: ['Liver'] },
       { id: 'overlay', name: 'Overlay', displayValues: [0] },
       { id: 'ct', name: 'CT', displayValues: [42] },
     ]);
@@ -136,15 +132,23 @@ describe('ScalarProbe segment samples', () => {
       { id: 'Second', image: image([0, 0, 0, 1, 0, 0], 2) },
       { id: 'Empty', image: image([1, 0, 0, 0, 0, 1], 2) },
     ];
-    expect(probe()!.samples.slice(0, 2)).toEqual([
-      { id: 'First', name: 'First', displayValues: ['First'] },
-      { id: 'Second', name: 'Second', displayValues: ['Background', 'Second'] },
+    expect(
+      probe()!.samples.map(({ name, displayValues }) => [name, displayValues])
+    ).toEqual([
+      ['Segments', ['First', 'Second']],
+      ['Overlay', [0]],
+      ['CT', [42]],
     ]);
-    expect(probe()!.samples.map(({ id }) => id)).toEqual([
-      'First',
-      'Second',
-      'overlay',
-      'ct',
-    ]);
+  });
+
+  it('names a covering segment that has no name', () => {
+    state.masks = [{ id: 'unnamed', image: image([0, 1, 0]) }];
+    state.names = { unnamed: '' };
+
+    expect(probe()!.samples[0]).toEqual({
+      id: 'segments',
+      name: 'Segment',
+      displayValues: ['(no name)'],
+    });
   });
 });

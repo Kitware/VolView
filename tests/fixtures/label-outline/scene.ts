@@ -1,13 +1,12 @@
 import '@kitware/vtk.js/Rendering/Profiles/Volume';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import {
-  allocateMask,
-  reframeMaskScalars,
-  setMaskScalars,
-} from '@/src/segmentation/masks/storage';
+import { allocateMask, setMaskScalars } from '@/src/segmentation/masks/storage';
 import { maskScalars } from '@/src/segmentation/model';
-import type { Extent3D } from '@/src/segmentation/geometry';
-import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
+import { reframeMaskScalars, type Extent3D } from '@/src/segmentation/geometry';
+import {
+  segmentRenderMask,
+  type RenderMaskSlot,
+} from '@/src/segmentation/rendering/renderMask';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
@@ -47,9 +46,14 @@ extent[axis * 2 + 1] = 0;
 const source = allocateMask(parent, extent);
 maskScalars(source).fill(1);
 source.modified();
+const renderSlot: RenderMaskSlot = {};
 const mask = params.has('fullGrid')
   ? allocateMask(parent, parent.getExtent() as Extent3D)
-  : segmentRenderMask(source, parent, extent, { axis: axis, index: 0 })!;
+  : segmentRenderMask(source, parent, extent, {
+      axis: axis,
+      index: 0,
+      slot: renderSlot,
+    })!;
 if (params.has('fullGrid')) {
   setMaskScalars(
     mask,
@@ -125,7 +129,11 @@ function renderOutline(thickness = 3, outlineOpacity = 1) {
 function editMask(value: number) {
   maskScalars(source).fill(value);
   source.modified();
-  segmentRenderMask(source, parent, extent, { axis: axis, index: 0 });
+  segmentRenderMask(source, parent, extent, {
+    axis: axis,
+    index: 0,
+    slot: renderSlot,
+  });
   return renderOutline();
 }
 

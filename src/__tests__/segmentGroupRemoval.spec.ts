@@ -52,11 +52,9 @@ describe('the group layer is deleted', () => {
 });
 
 describe('the value-keyed projection has one publisher', () => {
-  it('reads segment names from the store projection in the probe', () => {
-    const source = read(SCALAR_PROBE);
-    expect(source).toContain('labelmapDescriptorByMask');
+  it('keys no names by label value in the probe', () => {
     // A computed label-value key would duplicate the store projection.
-    expect(source).not.toMatch(/\[[^\]]*labelValue[^\]]*\]\s*:/);
+    expect(read(SCALAR_PROBE)).not.toMatch(/\[[^\]]*labelValue[^\]]*\]\s*:/);
   });
 
   it('declares the outline settings once, on the segment model', () => {

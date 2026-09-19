@@ -8,8 +8,7 @@ import {
 // freeze the UI, mirroring gaussianSmooth.worker.ts. Undefined when no hole was
 // filled, which is the process's "nothing to do".
 export function fillHolesWorker(input: FillHolesOptions) {
-  const out = fillHoles(input);
-  const filled = out.some((value, index) => value !== input.data[index]);
+  const { out, filled } = fillHoles(input);
   if (!filled) return undefined;
   // Moved back rather than cloned, as the input was moved in.
   return Comlink.transfer(

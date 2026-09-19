@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
-const LABEL = 3;
 type Dims = [number, number, number];
 
 /** Reconstructs the whole parent, including growth outside the input mask. */
@@ -18,7 +18,7 @@ function smooth(
     spacing: [1, 1, 1],
     maskExtent,
     parentDimensions,
-    params: { sigma: 1, label: LABEL },
+    params: { sigma: 1 },
   })!;
   const [pi, pj, pk] = parentDimensions;
   const parent = new Uint8Array(pi * pj * pk);
@@ -39,7 +39,7 @@ function boxInParent(extent: Extent3D, dimensions: Dims) {
   for (let k = extent[4]; k <= extent[5]; k += 1) {
     for (let j = extent[2]; j <= extent[3]; j += 1) {
       for (let i = extent[0]; i <= extent[1]; i += 1) {
-        parent[i + pi * (j + pj * k)] = LABEL;
+        parent[i + pi * (j + pj * k)] = SEGMENT_VALUE;
       }
     }
   }
@@ -49,7 +49,7 @@ function boxInParent(extent: Extent3D, dimensions: Dims) {
 describe('gaussianSmoothLabelMapWorker', () => {
   it('smooths an isolated voxel away even when the mask is that one voxel', () => {
     const smoothed = smooth(
-      new Uint8Array([LABEL]),
+      new Uint8Array([SEGMENT_VALUE]),
       [1, 1, 1],
       [1, 1, 1, 1, 1, 1],
       [3, 3, 3]
@@ -74,7 +74,7 @@ describe('gaussianSmoothLabelMapWorker', () => {
       ];
       const data = new Uint8Array(
         dimensions[0] * dimensions[1] * dimensions[2]
-      ).fill(LABEL);
+      ).fill(SEGMENT_VALUE);
       const croppedResult = smooth(data, dimensions, extent, parentDimensions);
       const parentResult = smooth(
         boxInParent(extent, parentDimensions),
@@ -86,46 +86,48 @@ describe('gaussianSmoothLabelMapWorker', () => {
 
   it('retains all 62 voxels when mirroring grows a box toward parent faces', () => {
     const smoothed = smooth(
-      new Uint8Array(64).fill(LABEL),
+      new Uint8Array(64).fill(SEGMENT_VALUE),
       [4, 4, 4],
       [1, 4, 1, 4, 1, 4],
       [9, 9, 9]
     );
-    expect(smoothed.filter((value) => value === LABEL)).toHaveLength(62);
-    expect(smoothed[0 + 2 * 9 + 2 * 81]).toBe(LABEL);
+    expect(smoothed.filter((value) => value === SEGMENT_VALUE)).toHaveLength(
+      62
+    );
+    expect(smoothed[0 + 2 * 9 + 2 * 81]).toBe(SEGMENT_VALUE);
   });
 
-  it('erodes a cropped cube at its corners and keeps its centre', () => {
+  it('erodes a cropped cube at its corners and keeps its center', () => {
     const smoothed = smooth(
-      new Uint8Array(27).fill(LABEL),
+      new Uint8Array(27).fill(SEGMENT_VALUE),
       [3, 3, 3],
       [1, 3, 1, 3, 1, 3],
       [5, 5, 5]
     );
     expect(smoothed[1 + 1 * 5 + 1 * 25]).toBe(0);
-    expect(smoothed[2 + 2 * 5 + 2 * 25]).toBe(LABEL);
+    expect(smoothed[2 + 2 * 5 + 2 * 25]).toBe(SEGMENT_VALUE);
   });
 
   it('mirrors only at parent faces, not at the mask allocation', () => {
-    const data = new Uint8Array(27).fill(LABEL);
+    const data = new Uint8Array(27).fill(SEGMENT_VALUE);
     const againstFace = smooth(data, [3, 3, 3], [0, 2, 2, 4, 2, 4], [9, 9, 9]);
     const awayFromFace = smooth(data, [3, 3, 3], [1, 3, 2, 4, 2, 4], [9, 9, 9]);
-    expect(againstFace[0 + 3 * 9 + 3 * 81]).toBe(LABEL);
+    expect(againstFace[0 + 3 * 9 + 3 * 81]).toBe(SEGMENT_VALUE);
     expect(awayFromFace[0 + 3 * 9 + 3 * 81]).toBe(0);
   });
 
-  it('says a buffer with none of the label has nothing to do', () => {
+  it('says a buffer with nothing marked has nothing to do', () => {
     // Not a copy of the input: an identical result would put the user in a
     // preview whose two states are the same.
     const dimensions: Dims = [4, 1, 1];
     expect(
       gaussianSmoothLabelMapWorker({
-        data: new Uint8Array([0, 1, 0, 1]),
+        data: new Uint8Array(4),
         dimensions,
         spacing: [1, 1, 1],
         maskExtent: fullExtent(dimensions),
         parentDimensions: dimensions,
-        params: { sigma: 1, label: LABEL },
+        params: { sigma: 1 },
       })
     ).toBeUndefined();
   });

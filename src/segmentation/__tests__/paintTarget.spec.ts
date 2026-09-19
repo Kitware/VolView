@@ -167,7 +167,7 @@ describe('paint edit target', () => {
     paintStore.activateTool();
 
     expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-    expect(store().maskLayersForImage('img-1')).toEqual([]);
+    expect(store().boundMaskIds('img-1')).toEqual([]);
   });
 
   it.each([false, true])(

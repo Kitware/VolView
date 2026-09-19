@@ -1,18 +1,27 @@
 import * as Comlink from 'comlink';
 import { TypedArray } from '@kitware/vtk.js/types';
-import { createTypedArrayLike } from '@/src/utils';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
+  clipExtent,
   extentSize,
   extentUnion,
+  extentWithin,
+  fullExtent,
+  isEmptyExtent,
+  markedExtent,
+  padExtent,
+  reframeMaskScalars,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 
-export type GaussianSmoothParams = {
+// The kernel's reach and the padding grown for it must agree.
+const RADIUS_FACTOR = 1.5;
+
+type GaussianSmoothParams = {
   sigma: number;
-  label: number;
 };
 
-export type GaussianSmoothInput = {
+type GaussianSmoothInput = {
   data: TypedArray | number[];
   dimensions: number[];
   spacing: [number, number, number];
@@ -21,8 +30,8 @@ export type GaussianSmoothInput = {
   params: GaussianSmoothParams;
 };
 
-function generateGaussianKernel(sigma: number, radiusFactor = 1.5) {
-  const radius = Math.ceil(sigma * radiusFactor);
+function generateGaussianKernel(sigma: number) {
+  const radius = Math.ceil(sigma * RADIUS_FACTOR);
   const size = 2 * radius + 1;
   const kernel = new Float32Array(size);
   const center = radius;
@@ -125,13 +134,12 @@ function convolve1D(
 function gaussianFilter3D(
   inputData: TypedArray | number[],
   dimensions: number[],
-  sigmaPixels: [number, number, number],
-  radiusFactor = 1.5
+  sigmaPixels: [number, number, number]
 ) {
   const totalSize = dimensions[0] * dimensions[1] * dimensions[2];
-  const kernelX = generateGaussianKernel(sigmaPixels[0], radiusFactor);
-  const kernelY = generateGaussianKernel(sigmaPixels[1], radiusFactor);
-  const kernelZ = generateGaussianKernel(sigmaPixels[2], radiusFactor);
+  const kernelX = generateGaussianKernel(sigmaPixels[0]);
+  const kernelY = generateGaussianKernel(sigmaPixels[1]);
+  const kernelZ = generateGaussianKernel(sigmaPixels[2]);
   const temp = new Float32Array(totalSize);
   const output = new Float32Array(totalSize);
 
@@ -140,89 +148,6 @@ function gaussianFilter3D(
   convolve1D(temp, output, kernelZ, { dimensions, axis: 2 });
 
   return output;
-}
-
-// What a bounding-box scan holds still: the voxels being read, the bounds
-// being widened, and the row addressing. Built once, so scanning a row
-// allocates nothing.
-type RowScan = {
-  data: TypedArray | number[];
-  bounds: number[];
-  dimX: number;
-  sliceSize: number;
-  label: number;
-};
-
-// Its own function so that the per-voxel test sits two blocks deep rather than
-// four.
-function growBoundsOverRow(scan: RowScan, y: number, z: number) {
-  const { data, bounds, dimX, sliceSize, label } = scan;
-  const rowStart = y * dimX + z * sliceSize;
-
-  for (let x = 0; x < dimX; x++) {
-    if (data[rowStart + x] !== label) continue;
-    bounds[0] = Math.min(bounds[0], x);
-    bounds[1] = Math.max(bounds[1], x);
-    bounds[2] = Math.min(bounds[2], y);
-    bounds[3] = Math.max(bounds[3], y);
-    bounds[4] = Math.min(bounds[4], z);
-    bounds[5] = Math.max(bounds[5], z);
-  }
-}
-
-function calculateBoundingBox(
-  data: TypedArray | number[],
-  dimensions: number[],
-  label: number
-) {
-  const [dimX, dimY, dimZ] = dimensions;
-  const bounds = [dimX, -1, dimY, -1, dimZ, -1];
-  const scan: RowScan = {
-    data,
-    bounds,
-    dimX,
-    sliceSize: dimX * dimY,
-    label,
-  };
-
-  for (let z = 0; z < dimZ; z++) {
-    for (let y = 0; y < dimY; y++) {
-      growBoundsOverRow(scan, y, z);
-    }
-  }
-
-  if (bounds[1] === -1) return null;
-
-  return bounds;
-}
-
-function expandBoundingBox({
-  bounds,
-  maskExtent,
-  parentDimensions,
-  sigmaPixels,
-  radiusFactor = 1.5,
-}: {
-  bounds: number[];
-  maskExtent: GaussianSmoothInput['maskExtent'];
-  parentDimensions: GaussianSmoothInput['parentDimensions'];
-  sigmaPixels: [number, number, number];
-  radiusFactor?: number;
-}) {
-  return sigmaPixels.flatMap((sigma, axis) => {
-    const padding = Math.ceil(sigma * radiusFactor);
-    // The parent-image faces, stated in mask coordinates. Ending the
-    // convolution volume there keeps the established mirrored boundary
-    // wherever the mask sits, so the result does not depend on how much of
-    // the parent the mask happens to be allocated over. Crop faces are not
-    // clamped: outside the buffer reads as background.
-    const parentLow = -maskExtent[axis * 2];
-    const parentHigh = parentDimensions[axis] - 1 - maskExtent[axis * 2];
-    return [
-      Math.max(parentLow, bounds[axis * 2] - padding),
-      Math.min(parentHigh, bounds[axis * 2 + 1] + padding),
-    ];
-  });
 }
 
 /**
@@ -254,16 +179,15 @@ function forEachClippedVoxel(
 }
 
 /**
- * The label's own binary mask over `bounds`, which is the only thing the
- * filter reads. Built in one pass rather than copying the labels out and
- * thresholding them afterwards: the copy is a second volume-sized Float32
+ * The segment's binary mask over `bounds`, which is the only thing the
+ * filter reads. Built in one pass rather than copying the mask out and
+ * thresholding it afterwards: the copy is a second volume-sized Float32
  * array, live at the same time as this one.
  */
 function extractSubMask(
   data: TypedArray | number[],
   dimensions: number[],
-  bounds: number[],
-  label: number
+  bounds: number[]
 ) {
   const [minX, maxX, minY, maxY, minZ, maxZ] = bounds;
   const subDims = [maxX - minX + 1, maxY - minY + 1, maxZ - minZ + 1];
@@ -271,7 +195,7 @@ function extractSubMask(
   const subMask = new Float32Array(subDims[0] * subDims[1] * subDims[2]);
 
   forEachClippedVoxel(dimensions, bounds, (origIndex, subIndex) => {
-    subMask[subIndex] = data[origIndex] === label ? 255.0 : 0.0;
+    subMask[subIndex] = data[origIndex] === SEGMENT_VALUE ? 255.0 : 0.0;
   });
 
   return { subMask, subDims };
@@ -282,17 +206,13 @@ function extractSubMask(
 function copySubVolumeBack(
   subData: Float32Array,
   originalData: TypedArray | number[],
-  region: { dimensions: number[]; bounds: number[] },
-  label: number
+  region: { dimensions: number[]; bounds: number[] }
 ) {
   forEachClippedVoxel(
     region.dimensions,
     region.bounds,
     (origIndex, subIndex) => {
-      const origLabel = originalData[origIndex];
-      if (origLabel === label || origLabel === 0) {
-        originalData[origIndex] = subData[subIndex] > 127.5 ? label : 0;
-      }
+      originalData[origIndex] = subData[subIndex] > 127.5 ? SEGMENT_VALUE : 0;
     }
   );
 }
@@ -306,7 +226,7 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     parentDimensions,
     params,
   } = input;
-  const { sigma, label } = params;
+  const { sigma } = params;
 
   if (sigma <= 0) {
     throw new Error('Sigma must be positive');
@@ -318,62 +238,42 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     sigma / spacing[2],
   ];
 
-  // Absent when the label is nowhere in the mask. There is then nothing to
-  // smooth, which is the caller's "nothing to do": handing back a copy of the
-  // input instead would open a preview between two identical states.
-  const bounds = calculateBoundingBox(originalData, dimensions, label);
-  if (!bounds) return undefined;
+  // Absent when the mask claims no voxel. There is then nothing to smooth,
+  // which is the caller's "nothing to do": handing back a copy of the input
+  // instead would open a preview between two identical states.
+  const marked = markedExtent(originalData, maskExtent);
+  if (isEmptyExtent(marked)) return undefined;
 
-  const expandedBounds = expandBoundingBox({
-    bounds,
-    maskExtent,
-    parentDimensions,
-    sigmaPixels,
-  });
+  // Ending the convolution volume at the parent's faces keeps the established
+  // mirrored boundary wherever the mask sits, so the result does not depend on
+  // how much of the parent the mask happens to be allocated over. Crop faces
+  // are not clamped: outside the buffer reads as background.
+  const smoothedExtent = clipExtent(
+    padExtent(
+      marked,
+      sigmaPixels.map((axisSigma) => Math.ceil(axisSigma * RADIUS_FACTOR))
+    ),
+    fullExtent(parentDimensions)
+  );
   const { subMask, subDims } = extractSubMask(
     originalData,
     dimensions,
-    expandedBounds,
-    label
+    extentWithin(smoothedExtent, maskExtent)
   );
 
-  const smoothedSubMask = gaussianFilter3D(subMask, subDims, sigmaPixels, 1.5);
+  const smoothedSubMask = gaussianFilter3D(subMask, subDims, sigmaPixels);
 
-  const expandedExtent = expandedBounds.map(
-    (value, axis) => value + maskExtent[axis - (axis % 2)]
-  ) as Extent3D;
-  const extent = extentUnion(maskExtent, expandedExtent);
-  const outputDimensions = extentSize(extent);
-  const outputData = createTypedArrayLike(
-    originalData,
-    outputDimensions[0] * outputDimensions[1] * outputDimensions[2]
-  );
-  const outputBoundsInInput = extent.map(
-    (value, axis) => value - maskExtent[axis - (axis % 2)]
-  );
-  forEachClippedVoxel(
-    dimensions,
-    outputBoundsInInput,
-    (origIndex, outIndex) => {
-      outputData[outIndex] = originalData[origIndex];
-    }
-  );
-  const smoothedBoundsInOutput = expandedExtent.map(
-    (value, axis) => value - extent[axis - (axis % 2)]
-  );
-
-  copySubVolumeBack(
-    smoothedSubMask,
-    outputData,
-    { dimensions: outputDimensions, bounds: smoothedBoundsInOutput },
-    label
-  );
+  const extent = extentUnion(maskExtent, smoothedExtent);
+  const outputData = reframeMaskScalars(originalData, maskExtent, extent);
+  copySubVolumeBack(smoothedSubMask, outputData, {
+    dimensions: extentSize(extent),
+    bounds: extentWithin(smoothedExtent, extent),
+  });
 
   // Moved back rather than cloned, as the input was moved in.
-  return Comlink.transfer(
-    { scalars: outputData, extent },
-    ArrayBuffer.isView(outputData) ? [outputData.buffer as ArrayBuffer] : []
-  );
+  return Comlink.transfer({ scalars: outputData, extent }, [
+    outputData.buffer as ArrayBuffer,
+  ]);
 }
 
 const workerApi = {

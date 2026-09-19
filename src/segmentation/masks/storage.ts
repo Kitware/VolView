@@ -1,13 +1,12 @@
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { TypedArray, Vector3 } from '@kitware/vtk.js/types';
+import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { maskScalars } from '@/src/segmentation/model';
 import {
-  clipExtent,
   extentSize,
   isEmptyExtent,
-  maskOffset,
+  reframeMaskScalars,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import vtkLabelMap from '@/src/vtk/LabelMap';
@@ -46,45 +45,6 @@ export function allocateMask(parent: vtkImageData, extent: Extent3D) {
     new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2])
   );
   return mask;
-}
-
-/**
- * Copies a mask onto another extent of its parent grid, padding with zero.
- * An output buffer must match the destination size and not alias the source.
- */
-export function reframeMaskScalars(
-  scalars: TypedArray | number[],
-  from: Extent3D,
-  to: Extent3D,
-  output?: Uint8Array
-) {
-  const [mi, mj, mk] = extentSize(to);
-  const size = isEmptyExtent(to) ? 0 : mi * mj * mk;
-  const values = output ?? new Uint8Array(size);
-  if (values.length !== size) throw new Error('Mask output size mismatch');
-  if (output) values.fill(0);
-  const shared = clipExtent(from, to);
-  if (isEmptyExtent(shared)) return values;
-  const [si, sj] = extentSize(from);
-  // Bounds can be reactive; read them once before the per-row copy loop.
-  const source = { extent: [...from] as Extent3D, mi: si, mj: sj };
-  const destination = { extent: [...to] as Extent3D, mi, mj };
-  const count = shared[1] - shared[0] + 1;
-  for (let k = shared[4]; k <= shared[5]; k += 1) {
-    for (let j = shared[2]; j <= shared[3]; j += 1) {
-      const start = maskOffset(source, shared[0], j, k);
-      const end = maskOffset(destination, shared[0], j, k);
-      if (count === 1) {
-        values[end] = scalars[start];
-      } else {
-        const row = Array.isArray(scalars)
-          ? scalars.slice(start, start + count)
-          : scalars.subarray(start, start + count);
-        values.set(row, end);
-      }
-    }
-  }
-  return values;
 }
 
 /** Preserves the vtk image instance while replacing its scalar storage. */

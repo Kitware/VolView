@@ -284,10 +284,12 @@ describe('segmentation store', () => {
       expect(segments().appearanceOf(renamed.segmentId).locked).toBe(true);
       expect(renamed.representations.labelmap).toEqual(first.binding);
       expect(store().getMask(second.id).id).toBe(second.id);
-      expect(store().maskLayersForImage('img-1')).toEqual([
-        { maskId: first.id, stackIndex: 0 },
-        { maskId: second.id, stackIndex: 1 },
-      ]);
+      // The move reorders the registry; the image's masks keep their own
+      // insertion order, and every one of them still draws.
+      expect(segments().segmentList.value.map((segment) => segment.id)).toEqual(
+        [segmentOfMask(second.id), segmentOfMask(first.id)]
+      );
+      expect(store().boundMaskIds('img-1')).toEqual([first.id, second.id]);
     });
 
     it('leaves other records untouched when one is updated', async () => {

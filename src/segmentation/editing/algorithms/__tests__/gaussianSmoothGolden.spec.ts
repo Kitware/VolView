@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // A byte-exact record of the filter's output. The rest of the smoothing suite
 // asserts on shape properties, which a change in the arithmetic can satisfy
 // while every voxel moves; this catches that.
 //
-// Each entry is one row of the volume, '1' where the label survives, so a
+// Each entry is one row of the volume, '1' where the segment survives, so a
 // failure names the rows that moved. To refresh one after a deliberate change
-// in behaviour, print `asRows(smooth(...))`.
+// in behavior, print `asRows(smooth(...))`.
 
-const LABEL = 3;
 const DIMENSIONS: [number, number, number] = [9, 8, 7];
 
 const SIGMA_0_6 = [
@@ -193,7 +193,7 @@ const blob = () => {
   const [di, dj, dk] = DIMENSIONS;
   const data = new Uint8Array(di * dj * dk);
   const mark = (i: number, j: number, k: number) => {
-    data[i + j * di + k * di * dj] = LABEL;
+    data[i + j * di + k * di * dj] = SEGMENT_VALUE;
   };
   for (let k = 1; k <= 5; k += 1) {
     for (let j = 1; j <= 5; j += 1) {
@@ -214,11 +214,11 @@ const smooth = (sigma: number, spacing: [number, number, number]) =>
     spacing,
     maskExtent: [0, 8, 0, 7, 0, 6],
     parentDimensions: DIMENSIONS,
-    params: { sigma, label: LABEL },
+    params: { sigma },
   })!.scalars;
 
 const asRows = (output: ArrayLike<number>) => {
-  const bits = Array.from(output, (value) => (value ? '1' : '0')).join('');
+  const bits = Array.from(output, String).join('');
   return bits.match(new RegExp(`.{${DIMENSIONS[0]}}`, 'g'));
 };
 

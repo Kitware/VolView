@@ -1,47 +1,60 @@
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
-import {
-  allocateMask,
-  reframeMaskScalars,
-} from '@/src/segmentation/masks/storage';
+import { allocateMask } from '@/src/segmentation/masks/storage';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { maskScalars } from '@/src/segmentation/model';
 import {
   clipExtent,
+  extentReachesSlice,
   isEmptyExtent,
   padExtent,
+  reframeMaskScalars,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 
-// Keep only the current slice per axis, outside segmentation storage and export.
-const renderMasks = new WeakMap<
-  vtkLabelMap,
-  Map<
-    number,
-    {
-      image: vtkLabelMap;
-      key: string;
-      mtime: number;
-    }
-  >
->();
+type RenderSlice = {
+  source: vtkLabelMap;
+  image: vtkLabelMap;
+  key: string;
+  mtime: number;
+};
+
+// Held by one representation, so views on different slices of one axis do not
+// evict each other's slice. Kept outside segmentation storage and export.
+export type RenderMaskSlot = { slice?: RenderSlice };
+
+// The displayed plane padded with known background, or null off the mask.
+function renderExtent(
+  extent: Extent3D,
+  parent: vtkImageData,
+  axis: number,
+  slice: number
+) {
+  if (isEmptyExtent(extent)) return null;
+  const index = Math.round(slice);
+  if (!extentReachesSlice(extent, axis, index)) return null;
+  const padded = clipExtent(
+    padExtent(extent, 1),
+    parent.getExtent() as Extent3D
+  );
+  padded[axis * 2] = index;
+  padded[axis * 2 + 1] = index;
+  return padded;
+}
 
 /** Add known background within the scan, without inventing data beyond it. */
 export function segmentRenderMask(
   source: vtkLabelMap,
   parent: vtkImageData,
   extent: Extent3D,
-  { axis, index: slice }: { axis: number; index: number }
+  {
+    axis,
+    index,
+    slot = {},
+  }: { axis: number; index: number; slot?: RenderMaskSlot }
 ) {
-  if (isEmptyExtent(extent)) return null;
-  const padded = clipExtent(
-    padExtent(extent, 1),
-    parent.getExtent() as Extent3D
-  );
-  const index = Math.round(slice);
-  if (index < extent[axis * 2] || index > extent[axis * 2 + 1]) return null;
-  padded[axis * 2] = index;
-  padded[axis * 2 + 1] = index;
+  const padded = renderExtent(extent, parent, axis, index);
+  if (!padded) return null;
   const key = [
     ...extent,
     ...padded,
@@ -49,15 +62,10 @@ export function segmentRenderMask(
     ...parent.getSpacing(),
     ...parent.getDirection(),
   ].join(',');
-  let slices = renderMasks.get(source);
-  if (!slices) {
-    slices = new Map();
-    renderMasks.set(source, slices);
-  }
-  let cached = slices.get(axis);
-  if (!cached || cached.key !== key) {
-    cached = { image: allocateMask(parent, padded), key, mtime: -1 };
-    slices.set(axis, cached);
+  let cached = slot.slice;
+  if (!cached || cached.source !== source || cached.key !== key) {
+    cached = { source, image: allocateMask(parent, padded), key, mtime: -1 };
+    slot.slice = cached;
   }
   if (cached.mtime !== source.getMTime()) {
     const values = reframeMaskScalars(

@@ -485,24 +485,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * Back-to-front depth for each mask. Earlier registry entries get greater
-   * offsets toward the viewer, consistently across images.
+   * The ids of the masks an image draws, in `order`. One actor each; they are
+   * translucent, so the renderer blends them rather than stacking them by this
+   * order.
    */
-  function maskLayersForImage(parentImageId: string) {
-    return imageMasks(parentImageId).flatMap((segment) => {
-      return segment.representations.labelmap
-        ? [
-            {
-              maskId: segment.id,
-              stackIndex:
-                segmentRegistry.segmentList.value.length -
-                1 -
-                segmentRegistry.orderIndexOf(segment.segmentId),
-            },
-          ]
-        : [];
-    });
-  }
+  const boundMaskIds = (parentImageId: string) =>
+    imageMasks(parentImageId)
+      .filter((mask) => mask.representations.labelmap)
+      .map((mask) => mask.id);
 
   const updateSegmentationDisplay = (
     segmentationId: string,
@@ -667,7 +657,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     voxelClaim,
     imageMasks,
     editableMasks,
-    maskLayersForImage,
+    boundMaskIds,
     serialize,
     deserialize,
   };

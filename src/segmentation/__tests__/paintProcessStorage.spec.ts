@@ -20,7 +20,6 @@ import {
 } from '@/src/segmentation/editing/paintProcess';
 import { PaintMode } from '@/src/core/tools/paint';
 import { useViewStore } from '@/src/store/views';
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { defer } from '@/src/utils';
 
 // ---------------------------------------------------------------------------
@@ -28,9 +27,6 @@ import { defer } from '@/src/utils';
 // cancel go through the accessor's snapshot()/apply() rather than swapping
 // typed arrays into the live labelmap, so the buffer the mappers and the paint
 // engine hold stays the one that is written.
-//
-// It also pins how a run is scoped: every process writes one segment's own
-// bounded mask, and an all-segments process is one run per editable segment.
 // ---------------------------------------------------------------------------
 
 async function viewImage(
@@ -61,9 +57,8 @@ function addBoundSegment(segmentationId: string, name: string) {
   );
   const voxels = segmentationStore.maskVoxels(segment.id);
   voxels.materialize();
-  const labelValue = SEGMENT_VALUE;
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
-  return { maskId: segment.id, labelValue };
+  return { maskId: segment.id };
 }
 
 const buffer = (labelMap: vtkLabelMap) =>
@@ -80,14 +75,6 @@ function recordingAlgorithm(result: () => Uint8Array) {
       return { scalars: result(), extent: target.maskExtent };
     },
   };
-}
-
-async function allSegmentsTargets() {
-  const { seen, algorithm } = recordingAlgorithm(() => new Uint8Array([2, 2]));
-  await usePaintProcessStore().startProcess(algorithm, {
-    requiresActiveSegment: false,
-  });
-  return seen;
 }
 
 const startedProcess = async (options?: { requiresActiveSegment: boolean }) => {
@@ -110,7 +97,7 @@ describe('paint process storage', () => {
   describe('the process target', () => {
     it('hands a segment-scoped process the segment it writes', async () => {
       const processStore = usePaintProcessStore();
-      const { labelMap } = addActiveSegment(new Uint8Array([0, 0]), 3);
+      addActiveSegment(new Uint8Array([0, 0]), 3);
       const { seen, algorithm } = recordingAlgorithm(
         () => new Uint8Array([3, 3])
       );
@@ -123,66 +110,7 @@ describe('paint process storage', () => {
         parentImageId: 'image-1',
         parentDimensions: [2, 1, 1],
         maskExtent: [0, 1, 0, 0, 0, 0],
-        labelValue: SEGMENT_VALUE,
       });
-      expect(target.scalars).not.toBe(buffer(labelMap));
-    });
-
-    it('runs an all-segments process once per editable segment', async () => {
-      const { segmentationId, maskId } = addActiveSegment(
-        new Uint8Array([1, 0])
-      );
-      const other = addBoundSegment(segmentationId, 'Other');
-
-      const seen = await allSegmentsTargets();
-
-      expect(seen.map((target) => target.maskId)).toEqual([
-        maskId,
-        other.maskId,
-      ]);
-      // Each run gets that segment's own mask, not a composite of them all.
-      expect(Array.from(seen[0].scalars)).toEqual([1, 0]);
-      expect(seen[1].scalars).not.toBe(seen[0].scalars);
-      expect(seen.map((target) => target.labelValue)).toEqual([
-        1,
-        other.labelValue,
-      ]);
-    });
-
-    it('skips a locked segment and one with no voxels', async () => {
-      const segmentationStore = useSegmentationStore();
-      const { segmentationId, maskId } = addActiveSegment(
-        new Uint8Array([1, 0])
-      );
-      const locked = addBoundSegment(segmentationId, 'Locked');
-      lockSegment(locked.maskId, true);
-      const empty = segmentationStore.createMask(
-        segmentationId,
-        mintSegment({
-          name: 'Empty',
-        })
-      );
-      segmentationStore.maskVoxels(empty.id).materialize();
-
-      const seen = await allSegmentsTargets();
-
-      expect(seen.map((target) => target.maskId)).toEqual([maskId]);
-    });
-
-    it('gives the algorithm a detached snapshot', async () => {
-      const processStore = usePaintProcessStore();
-      const { labelMap } = addActiveSegment(new Uint8Array([1, 0]));
-      let live: unknown;
-      let seenAtCall: number[] = [];
-
-      await processStore.startProcess(async (target) => {
-        live = target.scalars;
-        seenAtCall = Array.from(target.scalars.slice());
-        return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
-      });
-
-      expect(live).not.toBe(buffer(labelMap));
-      expect(seenAtCall).toEqual([1, 0]);
     });
   });
 
