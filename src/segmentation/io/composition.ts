@@ -3,24 +3,15 @@ import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinato
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import {
-  boundScalars,
-  groupByLayer,
-  writeMaskInto,
-} from '@/src/segmentation/masks/overlap';
+import { groupByLayer, writeMaskInto } from '@/src/segmentation/masks/overlap';
+import { boundedMask } from '@/src/segmentation/masks/voxelAccess';
 import {
   allocateLabelmap,
   labelmapScalars,
   LABELMAP_MAX_VALUE,
 } from '@/src/segmentation/io/labelmap';
-import {
-  type SegmentMask,
-  type LabelmapBinding,
-} from '@/src/segmentation/model';
+import { type SegmentMask } from '@/src/segmentation/model';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
-
-const boundedMask = (binding?: LabelmapBinding) =>
-  binding && boundScalars(binding.image, binding.extent);
 
 /**
  * The given segments as one parent-shaped labelmap, built on demand and never
