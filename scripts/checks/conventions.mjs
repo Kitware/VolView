@@ -1,12 +1,23 @@
 #!/usr/bin/env node
-// Two checks that need no judgement: no committed binaries outside the visual
-// baseline directory, and no drift between a feature's modules on disk and the
-// hand-maintained upper-module list its pure layer is guarded against.
+// Two checks that need no judgement: no committed binaries outside the
+// directories that hold them, and no drift between a feature's modules on disk
+// and the hand-maintained upper-module list its pure layer is guarded against.
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { git, stagedContext } from './git.mjs';
 
-const BASELINE = 'tests/baseline/';
+// The directories that already track binaries: visual baselines, documentation
+// and application images, the favicons, and the itk wasm build output. Editing
+// one of those is routine; a binary anywhere else is what this check is for.
+const BINARY_DIRS = [
+  'tests/baseline/',
+  'docs/assets/',
+  'docs/public/',
+  'public/',
+  'src/assets/',
+  'src/io/itk-dicom/emscripten-build/',
+  'src/io/resample/emscripten-build/',
+];
 const { base, changed, worktree } = stagedContext();
 
 const failures = [];
@@ -18,10 +29,10 @@ numstat
   .filter(Boolean)
   .map((line) => line.split('\t'))
   .filter(([added, removed, file]) => added === '-' && removed === '-' && file)
-  .filter(([, , file]) => !file.startsWith(BASELINE))
+  .filter(([, , file]) => !BINARY_DIRS.some((dir) => file.startsWith(dir)))
   .forEach(([, , file]) =>
     failures.push(
-      `${file} is a binary file. Generate test data (tests/specs/syntheticDicom.ts) or download it lazily; only ${BASELINE} holds committed binaries.`
+      `${file} is a binary file. Generate test data (tests/specs/syntheticDicom.ts) or download it lazily; committed binaries belong in ${BINARY_DIRS.join(', ')}.`
     )
   );
 
