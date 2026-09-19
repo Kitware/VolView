@@ -42,16 +42,22 @@ export function normalizeLabelmapScalars(
   input: number[] | TypedArray
 ): LabelmapScalars {
   if (input instanceof Uint8Array) return input;
-  const valid = (value: number) =>
-    Number.isFinite(value) && value >= 0 && value <= LABELMAP_MAX_VALUE;
+  // Both passes are hot over whole volumes, so they index the input directly
+  // and compare inline. NaN and the infinities fail every comparison below,
+  // which is what excludes them; a fresh typed array is already zeroed, so an
+  // excluded voxel needs no write.
+  const { length } = input;
   let maximum = 0;
-  for (const value of input)
-    if (valid(value)) maximum = Math.max(maximum, value);
+  for (let index = 0; index < length; index += 1) {
+    const value = input[index];
+    if (value > maximum && value <= LABELMAP_MAX_VALUE) maximum = value;
+  }
   const ArrayType = labelmapArrayType(maximum);
   if (input instanceof ArrayType) return input;
-  const values = new ArrayType(input.length);
-  for (let index = 0; index < input.length; index += 1) {
-    values[index] = valid(input[index]) ? input[index] : 0;
+  const values = new ArrayType(length);
+  for (let index = 0; index < length; index += 1) {
+    const value = input[index];
+    if (value >= 0 && value <= LABELMAP_MAX_VALUE) values[index] = value;
   }
   return values;
 }
