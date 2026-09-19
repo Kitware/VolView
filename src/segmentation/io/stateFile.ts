@@ -65,6 +65,34 @@ const defaultLabelmapIO: LabelmapIO = {
   read: readImage,
 };
 
+/**
+ * Each mask is its own codec call and each codec call is its own worker, so a
+ * scene with many masks would start one worker per mask and hold every parsed
+ * mask at once. Save and restore run this many at a time instead.
+ */
+const MASK_IO_CONCURRENCY = 4;
+
+/** Promise.all with a bound on how many run at once; results stay in order. */
+async function mapWithLimit<T, R>(
+  items: T[],
+  limit: number,
+  run: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await run(items[index]);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, worker)
+  );
+  return results;
+}
+
 /** What the wire needs from the store that owns the records. */
 export type SegmentationWireDeps = {
   segmentations: Record<string, Segmentation>;
@@ -219,15 +247,17 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       })
     );
 
-    await Promise.all(
-      entries.map(async ({ maskId, parentImageId, binding, path }) => {
+    await mapWithLimit(
+      entries,
+      MASK_IO_CONCURRENCY,
+      async ({ maskId, parentImageId, binding, path }) => {
         zip.file(
           path,
           await io.write(format, writableMask(parentImageId, binding), [
             labelmapDescriptorByMask.value[maskId],
           ])
         );
-      })
+      }
     );
   }
 
@@ -367,35 +397,33 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     // A saved mask names an archive entry of its own, read into a buffer of
     // its own: masks share no storage, whatever a hand-edited manifest says.
     const maskLabelmaps = new Map<WireMask, LoadedLabelmap>();
-    await Promise.all(
-      (manifest.segmentations ?? []).flatMap((wire) =>
-        orderedWireMasks(wire).map(async (wireMask) => {
-          const binding = wireMask.representations.labelmap;
-          if (binding?.path === undefined) return;
-          const name = binding.name ?? '';
-          const file = stateFiles.find(
-            (entry) =>
-              archivePathKey(entry.archivePath) ===
-              archivePathKey(binding.path!)
-          )?.file;
-          if (!file) {
-            skipped.push({ name, reason: 'archive member is missing' });
-            return;
-          }
-          try {
-            const { image } = await io.read(file);
-            maskLabelmaps.set(wireMask, {
-              labelmap: toLabelMap(image),
-              name,
-              ...(binding.source ? { source: binding.source } : {}),
-            });
-          } catch {
-            // One unreadable mask never rejects the restore; the rest attach.
-            skipped.push({ name, reason: 'could not read/parse labelmap' });
-          }
-        })
-      )
+    const wireMasks = (manifest.segmentations ?? []).flatMap((wire) =>
+      orderedWireMasks(wire)
     );
+    await mapWithLimit(wireMasks, MASK_IO_CONCURRENCY, async (wireMask) => {
+      const binding = wireMask.representations.labelmap;
+      if (binding?.path === undefined) return;
+      const name = binding.name ?? '';
+      const file = stateFiles.find(
+        (entry) =>
+          archivePathKey(entry.archivePath) === archivePathKey(binding.path!)
+      )?.file;
+      if (!file) {
+        skipped.push({ name, reason: 'archive member is missing' });
+        return;
+      }
+      try {
+        const { image } = await io.read(file);
+        maskLabelmaps.set(wireMask, {
+          labelmap: toLabelMap(image),
+          name,
+          ...(binding.source ? { source: binding.source } : {}),
+        });
+      } catch {
+        // One unreadable mask never rejects the restore; the rest attach.
+        skipped.push({ name, reason: 'could not read/parse labelmap' });
+      }
+    });
 
     // Reads, resampling and decoding yield to image deletion. Recheck before
     // creating any masks, after every asynchronous placement step has settled.
