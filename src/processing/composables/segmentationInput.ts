@@ -15,12 +15,22 @@ export function planSegmentationInput(
   segmentationId: string,
   multiple: boolean
 ) {
-  const segmentation = useSegmentationStore().segmentations[segmentationId];
+  const segmentationStore = useSegmentationStore();
+  const segmentation = segmentationStore.segmentations[segmentationId];
   if (!segmentation) throw new Error('No such segmentation');
   const registry = useSegmentStore().segments;
+  const { parentImageId } = segmentation;
+  // The selection is shared across images, so it can name a segment this image
+  // holds no mask for. Packing then starts from the first mask in registry
+  // order instead, and the advice to select a segment has to say where.
+  const selected = registry.selectedSegmentId.value;
+  const preferred =
+    selected && segmentationStore.maskFor(parentImageId, selected)
+      ? selected
+      : undefined;
   const plan = planLabelmapExport(
-    segmentation.parentImageId,
-    multiple ? undefined : (registry.selectedSegmentId.value ?? undefined)
+    parentImageId,
+    multiple ? undefined : preferred
   );
   const parts = multiple ? plan.parts : plan.parts.slice(0, 1);
   const omitted = multiple
@@ -32,12 +42,15 @@ export function planSegmentationInput(
           (mask) =>
             registry.getSegment(mask.segmentId)?.name ?? 'Unnamed segment'
         );
+  const advice = preferred
+    ? ''
+    : ' Select a segment on this image to prioritize it.';
   return {
-    parentId: segmentation.parentImageId,
+    parentId: parentImageId,
     name: segmentation.name,
     parts,
     warning: omitted.length
-      ? `This input accepts one labelmap. Omitted whole segments: ${omitted.join(', ')}. Select a segment to prioritize it.`
+      ? `This input accepts one labelmap. Omitted whole segments: ${omitted.join(', ')}.${advice}`
       : undefined,
   };
 }
