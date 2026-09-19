@@ -1,3 +1,4 @@
+import path from 'node:path';
 import js from '@eslint/js';
 import eslintPluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
@@ -21,6 +22,25 @@ import globals from 'globals';
 // the full pattern set its files need, and no block silently erases another
 // feature's boundary.
 // ---------------------------------------------------------------------------
+// A pure file may sit at the feature root (model.ts), one level down (masks/)
+// or two (editing/algorithms/), and the relative spelling of an upper module
+// differs at each depth. Collect the directories pure files live in so the
+// deny-list can carry the spelling each of them would actually write.
+const pureDirs = (feature) =>
+  new Set(
+    feature.pure.files.flatMap((file) => {
+      const dir = path.posix.dirname(file.slice(`src/${feature.dir}/`.length));
+      if (!dir.includes('*')) return [dir === '.' ? '' : dir];
+      const base = dir.replace(/\/?\*+.*$/, '');
+      return [base, `${base}/*`];
+    })
+  );
+const relativeSpellings = (feature, mod) =>
+  [...pureDirs(feature)].map((dir) => {
+    const spelling = path.posix.relative(dir, mod);
+    return spelling.startsWith('.') ? spelling : `./${spelling}`;
+  });
+
 // `pure.upperModules` is a hand-maintained list of the feature's non-pure
 // modules: a new one has to be added here or the pure layer may import it.
 const featureBoundaries = (features) => {
@@ -68,13 +88,15 @@ const featureBoundaries = (features) => {
             patterns: [
               {
                 group: [
-                  ...feature.pure.upperModules.flatMap((mod) => [
-                    `@/src/${feature.dir}/${mod}`,
-                    `./${mod}`,
-                    `../${mod}`,
-                  ]),
+                  ...new Set(
+                    feature.pure.upperModules.flatMap((mod) => [
+                      `@/src/${feature.dir}/${mod}`,
+                      ...relativeSpellings(feature, mod),
+                    ])
+                  ),
                   '@/src/store/**',
                   '@/src/components/**',
+                  '@/src/composables/**',
                 ],
                 message: `The ${feature.dir} pure layer must not import stores, components, or upper feature modules — dependencies point downward only.`,
               },
