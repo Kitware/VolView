@@ -5,8 +5,10 @@ import {
 } from '@/src/segmentation/model';
 import {
   clipExtent,
+  emptyExtent,
   extentContainsIndex,
   extentSize,
+  extentUnion,
   isEmptyExtent,
   maskOffset,
   type Extent3D,
@@ -142,28 +144,123 @@ export function masksIntersect(a: BoundedScalars, b: BoundedScalars) {
 }
 
 /**
+ * A layer's claimed voxels, one bit each, over a box that takes in every mask
+ * being grouped. Asking whether one more mask fits is then a single sweep of
+ * that mask's own extent, rather than a sweep of a shared box per mask already
+ * in the layer.
+ */
+type Occupancy = MaskBounds & { bits: Uint8Array };
+
+function newOccupancy(extent: Extent3D): Occupancy {
+  const [mi, mj, mk] = extentSize(extent);
+  return {
+    extent,
+    mi,
+    mj,
+    bits: new Uint8Array(Math.ceil((mi * mj * mk) / 8)),
+  };
+}
+
+/**
+ * Walks `bounded`'s extent a row at a time, handing each row the offset it
+ * starts at in the mask, the offset the same voxel sits at in `into`, and how
+ * many voxels the row holds. Stops at the first row answering true. `into`
+ * must take in the mask's extent.
+ */
+function maskRows(
+  bounded: BoundedScalars,
+  into: MaskBounds,
+  row: (from: number, to: number, count: number) => boolean
+) {
+  const { extent } = bounded;
+  const [ni, nj, nk] = extentSize(extent);
+  for (let index = 0; index < nj * nk; index += 1) {
+    const j = extent[2] + (index % nj);
+    const k = extent[4] + Math.floor(index / nj);
+    const from = maskOffset(bounded, extent[0], j, k);
+    const to = maskOffset(into, extent[0], j, k);
+    if (row(from, to, ni)) return true;
+  }
+  return false;
+}
+
+/** Whether this mask claims a voxel the layer already holds. */
+const occupancyHits = (occupied: Occupancy, bounded: BoundedScalars) =>
+  maskRows(bounded, occupied, (from, to, count) => {
+    for (let n = 0; n < count; n += 1) {
+      const at = to + n;
+      if (bounded.scalars[from + n] && occupied.bits[at >> 3] & (1 << (at & 7)))
+        return true;
+    }
+    return false;
+  });
+
+/** Adds this mask's voxels to the ones the layer holds. */
+function occupy(occupied: Occupancy, bounded: BoundedScalars) {
+  maskRows(bounded, occupied, (from, to, count) => {
+    for (let n = 0; n < count; n += 1) {
+      const at = to + n;
+      // Background is 0, so a voxel the mask leaves unclaimed claims nothing.
+      if (bounded.scalars[from + n]) occupied.bits[at >> 3] |= 1 << (at & 7);
+    }
+    return false;
+  });
+}
+
+/** The box taking in every one of these masks, empty when there are none. */
+function maskedBounds(masks: Array<BoundedScalars | undefined>) {
+  let bounds: Extent3D | undefined;
+  masks.forEach((bounded) => {
+    if (!bounded) return;
+    bounds = bounds ? extentUnion(bounds, bounded.extent) : bounded.extent;
+  });
+  return bounds;
+}
+
+/**
  * Items grouped so no group holds two masks that claim a voxel in common.
  * Greedy first fit: an item takes the lowest group it does not intersect, so a
  * segmentation with no overlap stays one group, in order. An item with no mask
  * claims nothing and joins the first group.
+ *
+ * A layer answers from its occupancy once it holds more than one mask, which
+ * is what keeps the cost with the masks' extent instead of with mask pairs. A
+ * layer holding one mask is asked directly, so layers that never take a second
+ * mask - every mask overlapping every other - allocate nothing.
  */
 export function groupByLayer<T>(
   items: T[],
   maskOf: (item: T) => BoundedScalars | undefined
 ) {
-  const layers: Array<{ items: T[]; masks: BoundedScalars[] }> = [];
-  const fits = (
-    layer: { masks: BoundedScalars[] },
-    mask: BoundedScalars | undefined
-  ) => !mask || layer.masks.every((other) => !masksIntersect(mask, other));
+  type Layer = { items: T[]; masks: BoundedScalars[]; occupied?: Occupancy };
+  const masks = items.map(maskOf);
+  const bounds = maskedBounds(masks) ?? emptyExtent();
+  const layers: Layer[] = [];
 
-  items.forEach((item) => {
-    const mask = maskOf(item);
+  const fits = (layer: Layer, mask: BoundedScalars | undefined) => {
+    if (!mask) return true;
+    if (layer.occupied) return !occupancyHits(layer.occupied, mask);
+    return layer.masks.every((other) => !masksIntersect(mask, other));
+  };
+
+  const accept = (layer: Layer, mask: BoundedScalars) => {
+    layer.masks.push(mask);
+    if (layer.occupied) {
+      occupy(layer.occupied, mask);
+      return;
+    }
+    if (layer.masks.length < 2) return;
+    const occupied = newOccupancy(bounds);
+    layer.masks.forEach((held) => occupy(occupied, held));
+    layer.occupied = occupied;
+  };
+
+  masks.forEach((mask, index) => {
     const found = layers.find((layer) => fits(layer, mask));
     const layer = found ?? { items: [], masks: [] };
     if (!found) layers.push(layer);
-    layer.items.push(item);
-    if (mask) layer.masks.push(mask);
+    layer.items.push(items[index]);
+    if (mask) accept(layer, mask);
   });
 
   return layers.map((layer) => layer.items);
