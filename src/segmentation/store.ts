@@ -47,7 +47,13 @@ import {
 } from '@/src/segmentation/geometry';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { declareSegmentReferences } from '@/src/segmentation/segmentReferences';
-import { cleanUndefined, isRecord, removeFromArray } from '@/src/utils';
+import { useMessageStore } from '@/src/store/messages';
+import {
+  cleanUndefined,
+  ensureError,
+  isRecord,
+  removeFromArray,
+} from '@/src/utils';
 import { cycleColors } from '@/src/utils/color';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 
@@ -273,6 +279,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       name?: string;
     } = {}
   ) {
+    // Identity is committed before storage: the segmentation, the registry
+    // segment and the mask record all precede the binding that would be the
+    // first to notice the parent has gone. Refuse up front, so a conversion
+    // whose parent was removed while it ran mints nothing at all.
+    if (!imageCacheStore.getVtkImageData(parentImageId))
+      throw new Error('No such parent image');
     edits.beforeEdit();
     const segmentation = ensureSegmentationForImage(parentImageId);
     const created: SegmentMask[] = [];
@@ -363,6 +375,23 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     } finally {
       convertingLabelmaps.delete(imageID);
     }
+  }
+
+  /**
+   * Starts a conversion nobody awaits, and reports its failure. A conversion
+   * outlives the load or the click that started it -- the parent image can be
+   * removed while the resample runs -- so the rejection needs somewhere to
+   * land instead of going unhandled.
+   */
+  function startLabelmapConversion(
+    imageID: DataSelection,
+    parentID: DataSelection
+  ) {
+    return convertImageToLabelmap(imageID, parentID).catch((error) => {
+      useMessageStore().addError('Failed to convert image to a labelmap', {
+        error: ensureError(error),
+      });
+    });
   }
 
   const saveFormat = ref('vti');
@@ -577,6 +606,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     splitLabelmapIntoMasks,
     decodeSegments,
     convertImageToLabelmap,
+    startLabelmapConversion,
     saveFormat,
     voxelClaim,
     imageMasks,

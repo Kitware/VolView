@@ -264,6 +264,17 @@ export type LabelmapImportHooks = {
 };
 
 /**
+ * Resampling and decoding both yield, and an image can be removed while they
+ * run, so the parent is resolved through the cache again after every await:
+ * nothing may be decoded or minted against an image that left the scene.
+ */
+function requireParentImage(parentID: DataSelection) {
+  const parentImage = getImage(parentID);
+  if (!parentImage) throw new Error('Parent image is no longer loaded');
+  return parentImage;
+}
+
+/**
  * Converts an image to a labelmap, one bounded mask per label value.
  *
  * Returns the segments created per component of the source image (one entry
@@ -310,8 +321,10 @@ export async function importLabelmapImage(
   const created: ImportedSegment[][] = [];
   for (const [component, image] of images.entries()) {
     const matchingParentSpace = await ensureSameSpace(parentImage, image, true);
+    requireParentImage(parentID);
     const labelmapImage = toLabelMap(matchingParentSpace);
     const descriptors = await hooks.decode(labelmapImage, component);
+    requireParentImage(parentID);
     created.push(
       hooks.split(labelmapImage, descriptors).map((maskId, index) => ({
         sourceValue: descriptors[index].value,

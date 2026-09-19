@@ -157,7 +157,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (currentImageID.value) {
-        segmentationStore.convertImageToLabelmap(key, currentImageID.value);
+        segmentationStore.startLabelmapConversion(key, currentImageID.value);
       }
     }
 
