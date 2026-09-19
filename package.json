@@ -21,7 +21,7 @@
     "test:e2e:chrome": "cross-env VITE_SHOW_SAMPLE_DATA=true npm run build && wdio run ./wdio.chrome.conf.ts",
     "test:e2e:chrome:skip-build": "wdio run ./wdio.chrome.conf.ts",
     "test:e2e:dev": "cross-env VITE_SHOW_SAMPLE_DATA=true concurrently -P \"npm run dev\"  \"wdio run ./wdio.dev.conf.ts --watch {@}\"",
-    "lint": "vue-tsc --noEmit && eslint \"src/**/*.{js,ts,vue}\" \"tests/**/*.{js,ts}\"",
+    "lint": "vue-tsc --noEmit && eslint \"src/**/*.{js,ts,vue}\" \"tests/**/*.{js,ts}\" \"scripts/**/*.mjs\"",
     "build:all": "npm run build:dicom && npm run build:resample && npm run build",
     "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",
     "build:dicom:debug": "itk-wasm -s src/io/itk-dicom/ build -- -DCMAKE_BUILD_TYPE=Debug",
@@ -120,7 +120,7 @@
     "commit-msg": "commitlint --edit $1"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,vue}": [
+    "*.{js,jsx,ts,tsx,vue,mjs}": [
       "eslint",
       "prettier --write"
     ]
