@@ -17,6 +17,8 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { cssColorToRGBA } from '@/src/segmentation/color';
+import { useMessageStore } from '@/src/store/messages';
+import { TOOL_COLORS } from '@/src/config';
 import {
   mintSegment,
   lockSegment,
@@ -355,6 +357,65 @@ describe('applyIntent — add-annotations', () => {
     // The registry's own appearance wins on a name match.
     expect(registry.appearanceOf(existingId).cssColor).toBe('#ff0000');
     expect(onlyTool(rulerStore).segmentId).toBe(existingId);
+  });
+
+  it('keeps a segment’s colour when a label states one the parser rejects', async () => {
+    const registry = useSegmentStore().segments;
+    const existingId = registry.addSegment({
+      name: 'Measured',
+      color: cssColorToRGBA('#ff0000'),
+    });
+
+    const file = annotationsFile();
+    // Functional CSS colours are not part of the accepted syntax.
+    file.labels.rulers = {
+      Measured: { color: 'rgb(0, 255, 0)' },
+      Fresh: { color: 'rgb(0, 255, 0)' },
+    };
+    file.tools.rulers = [
+      { ...file.tools.rulers[0], labelName: 'Measured' },
+      { ...file.tools.rulers[0], labelName: 'Fresh' },
+    ];
+    file.tools.rectangles = [];
+    file.tools.polygons = [];
+    serveFile(file);
+
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
+
+    // The bound segment keeps what it had, and a minted one keeps its
+    // automatic palette colour — neither turns opaque black.
+    expect(registry.appearanceOf(existingId).cssColor).toBe('#ff0000');
+    const minted = registry.segmentList.value.find(
+      (segment) => segment.name === 'Fresh'
+    )!;
+    expect(TOOL_COLORS).toContain(registry.appearanceOf(minted.id).cssColor);
+
+    const titles = useMessageStore().messages.map((message) => message.title);
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toContain('Measured (rgb(0, 255, 0))');
+    expect(titles[0]).toContain('Fresh (rgb(0, 255, 0))');
+  });
+
+  it('applies a hex or CSS keyword label colour', async () => {
+    const file = annotationsFile();
+    file.labels.rulers = { Hexed: { color: '#00ff00' } };
+    file.tools.rulers[0].labelName = 'Hexed';
+    file.labels.polygons = { Named: { color: 'lime' } };
+    file.tools.polygons[0].labelName = 'Named';
+    file.tools.rectangles = [];
+    serveFile(file);
+
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
+
+    const rulers = useRulerStore();
+    const polygons = usePolygonStore();
+    expect(rulers.appearanceOfTool(onlyTool(rulers).id).cssColor).toBe(
+      '#00ff00'
+    );
+    expect(polygons.appearanceOfTool(onlyTool(polygons).id).cssColor).toBe(
+      '#00ff00'
+    );
+    expect(useMessageStore().messages).toHaveLength(0);
   });
 
   it('binds a locked segment’s type without touching its mask', async () => {

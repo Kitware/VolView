@@ -18,7 +18,7 @@ import {
 } from '@/src/processing/engine/annotationsWire';
 import { fetchProcessingResult } from '@/src/processing/engine/resultDownload';
 import { annotationToolStore } from '@/src/processing/annotationKinds';
-import { cleanUndefined, ensureError } from '@/src/utils';
+import { cleanUndefined, ensureError, plural } from '@/src/utils';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 import { uriToDataSource } from '@/src/io/import/dataSource';
 import {
@@ -28,7 +28,7 @@ import {
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
 import { listMasks } from '@/src/segmentation/model';
-import { cssColorToRGBA } from '@/src/segmentation/color';
+import { tryCssColorToRGBA } from '@/src/segmentation/color';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
@@ -218,6 +218,36 @@ const prepareAnnotations = (
     ])
   ) as PreparedAnnotations;
 
+// A colour the parser does not know would otherwise resolve to opaque black,
+// which reads as a deliberate choice by the task. The segment keeps whatever
+// colour it already has instead, and the label's claim is recorded so the user
+// hears about it.
+const segmentInit = (
+  name: string,
+  style: AnnotationLabel,
+  rejected: Set<string>
+) => {
+  const color = style.color ? tryCssColorToRGBA(style.color) : undefined;
+  if (style.color && !color) rejected.add(`${name} (${style.color})`);
+  return {
+    ...(color ? { color } : {}),
+    ...(style.strokeWidth === undefined
+      ? {}
+      : { strokeWidth: style.strokeWidth }),
+  };
+};
+
+// Reported at the boundary that owns the file, naming the label and what it
+// said, the way an imported config reports the same mistake.
+const reportUnparseableColors = (rejected: Set<string>) => {
+  if (rejected.size === 0) return;
+  useMessageStore().addError(
+    `Unrecognized ${plural(rejected.size, 'color')} in result labels: ` +
+      `${[...rejected].join(', ')}. ` +
+      'Use a hex value such as #d60000, or a CSS color keyword.'
+  );
+};
+
 // Type identity across the boundary is the NAME, inside its own registry:
 // binding returns the type id a tool must point at, minting on a miss. Only
 // names the tools actually reference are bound — a declaration nothing uses
@@ -225,25 +255,21 @@ const prepareAnnotations = (
 const bindReferencedSegments = (
   kind: AnnotationToolKind,
   tools: readonly PreparedCore[],
-  namespace: Record<string, AnnotationLabel>
+  namespace: Record<string, AnnotationLabel>,
+  rejected: Set<string>
 ): Record<string, string> => {
   const { segments } = annotationToolStore(kind);
   const names = new Set(
     tools.flatMap((tool) => (tool.labelName ? [tool.labelName] : []))
   );
   return Object.fromEntries(
-    [...names].map((name) => {
-      const style = namespace[name] ?? {};
-      return [
+    [...names].map((name) => [
+      name,
+      segments.segmentNamed(
         name,
-        segments.segmentNamed(name, {
-          ...(style.color ? { color: cssColorToRGBA(style.color) } : {}),
-          ...(style.strokeWidth === undefined
-            ? {}
-            : { strokeWidth: style.strokeWidth }),
-        }),
-      ];
-    })
+        segmentInit(name, namespace[name] ?? {}, rejected)
+      ),
+    ])
   );
 };
 
@@ -300,12 +326,19 @@ async function applyAnnotations(
 
   // Types first for every kind, then the tools: a tool points at the type id
   // its name bound to.
+  const rejectedColors = new Set<string>();
   const segmentIds = Object.fromEntries(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
-      bindReferencedSegments(kind, prepared[kind], decoded.labels[kind]),
+      bindReferencedSegments(
+        kind,
+        prepared[kind],
+        decoded.labels[kind],
+        rejectedColors
+      ),
     ])
   ) as Record<AnnotationToolKind, Record<string, string>>;
+  reportUnparseableColors(rejectedColors);
 
   ANNOTATION_TOOL_KINDS.forEach((kind) => {
     const store = annotationToolStore(kind);
