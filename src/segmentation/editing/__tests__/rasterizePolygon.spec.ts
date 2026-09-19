@@ -158,6 +158,38 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(neighbors[0].id, [0, 0, 0])).toBe(1);
   });
 
+  it('creates nothing for a polygon that covers no voxel', () => {
+    // Resolving the target mints the record, its segmentation and its
+    // storage, so a polygon with nothing to fill is answered before that.
+    const empty = rasterize(undefined, []);
+    const outside = rasterize(undefined, [
+      [-4, -4, 0],
+      [-2, -4, 0],
+      [-2, -2, 0],
+      [-4, -2, 0],
+    ]);
+
+    expect(empty).toEqual({ segmentId: undefined, maskId: undefined });
+    expect(outside).toEqual({ segmentId: undefined, maskId: undefined });
+    expect(store().getSegmentationForImage('img-1')).toBeUndefined();
+  });
+
+  it('consults the neighbours over the polygon, not the whole mask', () => {
+    const maskId = addMask('img-1', 'Tumor');
+    // A mask over the whole image: its own box says nothing about where this
+    // polygon lands, and every neighbour touching it would be walked per
+    // filled pixel.
+    const voxels = store().maskVoxels(maskId);
+    voxels.materialize();
+    voxels.ensureContains([0, 5, 0, 5, 0, 1]);
+    const voxelClaim = vi.spyOn(store(), 'voxelClaim');
+
+    rasterizeInto(maskId);
+
+    expect(voxelClaim).toHaveBeenCalledTimes(1);
+    expect(voxelClaim.mock.calls[0][2]).toEqual([1, 4, 1, 4, 0, 0]);
+  });
+
   it('refuses a locked segment and leaves every mask as it was', () => {
     const neighbour = addMask('img-1', 'Neighbour');
     seedVoxel(neighbour, [2, 3, 0]);

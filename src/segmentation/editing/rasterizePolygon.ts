@@ -131,19 +131,24 @@ export function rasterizePolygon({
   const parent = useImageCacheStore().getVtkImageData(imageId);
   if (!parent) throw new Error('No such parent image');
 
+  const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
+  const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
+
+  // The part of the image the polygon lands on: what the mask has to grow to
+  // hold, and the only place this fill can take a voxel from a neighbour.
+  // Asked before the target is resolved, since resolving mints the mask record
+  // and its storage: a polygon covering nothing leaves neither behind.
+  const polygonExtent = clipExtent(
+    polygonBounds(indexPoints, axisIndex, slice),
+    fullExtent(parent.getDimensions())
+  );
+  if (isEmptyExtent(polygonExtent)) return { segmentId, maskId: undefined };
+
   // A refusal names the segment it was given and no mask: nothing was written.
   const target = resolveRasterizeTarget(imageId, segmentId);
   if (!target) return { segmentId, maskId: undefined };
 
-  const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
-  const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
-
-  target.voxels.ensureContains(
-    clipExtent(
-      polygonBounds(indexPoints, axisIndex, slice),
-      fullExtent(parent.getDimensions())
-    )
-  );
+  target.voxels.ensureContains(polygonExtent);
 
   // Copied out of the reactive tree: the claim below runs per filled pixel.
   const extent = [...target.voxels.binding()!.extent] as Extent3D;
@@ -159,11 +164,13 @@ export function rasterizePolygon({
     return local as Vector2;
   });
 
-  // A polygon is aimed at a place, so filling it takes the voxel.
+  // A polygon is aimed at a place, so filling it takes the voxel. Scoped to
+  // the polygon rather than the whole mask: a neighbour the polygon does not
+  // reach has nothing here to give up, and it would be walked per filled pixel.
   const claimVoxel = segmentationStore.voxelClaim(
     target.maskId,
     'aimed',
-    extent
+    polygonExtent
   );
   const mask = target.voxels.image();
   const grid = createGridAccessor(
