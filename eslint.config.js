@@ -139,6 +139,17 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-function-type': 'off',
     },
   },
+  // Node tooling (scripts/checks/, fixture servers). The block above matches
+  // only .js/.ts/.vue, so without this eslint reports `process`, `console` and
+  // `URL` as undefined in every .mjs file.
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: globals.node,
+    },
+  },
   {
     files: ['**/tests/pageobjects/**/*.ts'],
     rules: {
