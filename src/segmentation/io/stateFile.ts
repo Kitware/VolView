@@ -446,6 +446,18 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     skipped.push(...prepared.skipped);
     const { acceptedBindings } = prepared;
 
+    // Why a wire mask cannot become a record, or undefined when it can: a
+    // mask whose segment did not restore has no identity to show, and a
+    // second mask for a segment already on this image cannot exist.
+    const dropReason = (imageId: string, segmentId: Maybe<string>) => {
+      if (!segmentId) return 'its segment is not in the file';
+      if (!segmentRegistry.getSegment(segmentId))
+        return 'its segment did not restore';
+      if (maskFor(imageId, segmentId))
+        return 'the image already has a mask for its segment';
+      return undefined;
+    };
+
     (manifest.segmentations ?? []).forEach((wire) => {
       const parentImageId = dataIDMap[wire.parentImage];
       if (!imageCacheStore.getVtkImageData(parentImageId)) return;
@@ -463,15 +475,15 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       }
 
       orderedWireMasks(wire).forEach((wireMask) => {
-        // A mask whose segment did not restore has no identity to show, and a
-        // second mask for a segment already on this image cannot exist.
         const segmentId = segmentIdMap[wireMask.segmentId];
-        if (
-          !segmentId ||
-          !segmentRegistry.getSegment(segmentId) ||
-          maskFor(parentImageId, segmentId)
-        )
+        const reason = dropReason(parentImageId, segmentId);
+        if (reason) {
+          skipped.push({
+            name: wireMask.representations.labelmap?.name ?? '',
+            reason,
+          });
           return;
+        }
 
         const segment = createMask(segmentation.id, segmentId);
 

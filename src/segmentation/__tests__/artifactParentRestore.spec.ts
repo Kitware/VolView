@@ -61,11 +61,14 @@ const setupRestore = async () => {
 };
 
 const expectPartialRestore = (
-  result: Awaited<ReturnType<ReturnType<typeof store>['deserialize']>>
+  result: Awaited<ReturnType<ReturnType<typeof store>['deserialize']>>,
+  // Drops a scenario's own wire masks report, after the artifact's own.
+  alsoSkipped: Array<{ name: string; reason: string }> = []
 ) => {
   expect(result.restoredImportIds).toEqual(new Set(['artifact-healthy']));
-  expect(result.skipped).toHaveLength(1);
+  expect(result.skipped).toHaveLength(1 + alsoSkipped.length);
   expect(result.skipped[0].name).toBe('Mask parent');
+  expect(result.skipped.slice(1)).toEqual(alsoSkipped);
   expect(store().getSegmentationForImage('parent')).toBeUndefined();
   expect(store().imageMasks('healthy')).toHaveLength(1);
 };
@@ -254,7 +257,11 @@ describe('artifact restore parent lifetime', () => {
 
     const result = await store().deserialize(options);
 
-    expectPartialRestore(result);
+    // The saved mask names a segment this restore was given no mapping for,
+    // so it is dropped, and the drop is reported rather than silent.
+    expectPartialRestore(result, [
+      { name: '', reason: 'its segment is not in the file' },
+    ]);
   });
 });
 
