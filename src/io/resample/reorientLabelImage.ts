@@ -62,7 +62,11 @@ export function reorientLabelImage(target: vtkImageData, source: vtkImageData) {
       return null;
   }
 
-  if (matrix.every((value, index) => value === (index % 5 === 0 ? 1 : 0)))
+  // The corner check just proved both grids coincide within `tolerance`, so an
+  // unpermuted, unflipped mapping means the source already sits on the target
+  // grid. Demanding a bit-exact identity here instead would reslice every real
+  // image, whose transforms never multiply back to exactly one.
+  if (axes.every((axis, column) => axis === column && matrix[5 * column] > 0))
     return source;
 
   const filter = vtkImageReslice.newInstance();
