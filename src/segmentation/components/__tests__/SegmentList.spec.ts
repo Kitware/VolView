@@ -15,6 +15,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import SegmentList from '@/src/segmentation/components/SegmentList.vue';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
@@ -1197,4 +1198,112 @@ describe('locked segment editor routes', () => {
       expectPreserved();
     }
   );
+});
+
+// ---------------------------------------------------------------------------
+// Deleting a segment cascades to its mask on every image and to every
+// annotation naming it, none of which need be visible here, and there is no
+// undo. No dialog asks first, as everywhere else in the app, so the list says
+// afterwards what went — the way removeSelectedTools does.
+// ---------------------------------------------------------------------------
+
+describe('deleting a segment says what went with it', () => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
+    await seatImage('img-1');
+    await seatImage('img-2');
+    await viewImage('img-1');
+  });
+
+  const titles = () =>
+    useMessageStore().messages.map((message) => message.title);
+
+  /** A segment with a mask and a ruler on each of the given images. */
+  const spreadSegment = (imageIDs: string[], name = 'Tumor') => {
+    const segmentId = segments().addSegment({ name });
+    const rulers = useRulerStore();
+    imageIDs.forEach((imageID) => {
+      const mask = maskOn(imageID, segmentId);
+      seedVoxel(mask.id, [1, 1, 0]);
+      rulers.addTool({
+        imageID,
+        segmentId,
+        slice: 0,
+        frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+      });
+    });
+    return segmentId;
+  };
+
+  const deleteRow = async (wrapper: VueWrapper, id: string) => {
+    await rowButton(wrapper, id, ['mdi-delete']).trigger('click');
+    await nextTick();
+  };
+
+  it('counts the masks, the images they were on, and the annotations', async () => {
+    const segmentId = spreadSegment(['img-1', 'img-2']);
+    const wrapper = mountList();
+    await nextTick();
+
+    await deleteRow(wrapper, segmentId);
+
+    expect(titles()).toEqual(['Deleted 2 masks on 2 images and 2 annotations']);
+  });
+
+  it('says one of each in the singular', async () => {
+    const segmentId = spreadSegment(['img-2']);
+    const wrapper = mountList();
+    await nextTick();
+
+    await deleteRow(wrapper, segmentId);
+
+    expect(titles()).toEqual(['Deleted 1 mask on 1 image and 1 annotation']);
+  });
+
+  it('names only what the segment had', async () => {
+    const painted = makeMask('img-1', 'Painted');
+    const shaped = segments().addSegment({ name: 'Shaped' });
+    useRulerStore().addTool({
+      imageID: 'img-1',
+      segmentId: shaped,
+      slice: 0,
+      frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+    });
+    const wrapper = mountList();
+    await nextTick();
+
+    await deleteRow(wrapper, painted.id);
+    await deleteRow(wrapper, shaped);
+
+    expect(titles()).toEqual([
+      'Deleted 1 mask on 1 image',
+      'Deleted 1 annotation',
+    ]);
+  });
+
+  it('stays quiet when the segment held nothing', async () => {
+    const empty = makeSegment('Empty');
+    const wrapper = mountList();
+    await nextTick();
+
+    await deleteRow(wrapper, empty);
+
+    expect(segments().getSegment(empty)).toBeUndefined();
+    expect(titles()).toEqual([]);
+  });
+
+  it('reports the same cascade when the editor deletes', async () => {
+    const segmentId = spreadSegment(['img-1', 'img-2']);
+    const wrapper = mountList();
+    await nextTick();
+    await wrapper
+      .get(`[data-id="${segmentId}"] [data-testid="segment-color-button"]`)
+      .trigger('click');
+
+    editor(wrapper).vm.$emit('delete');
+    await nextTick();
+
+    expect(segments().getSegment(segmentId)).toBeUndefined();
+    expect(titles()).toEqual(['Deleted 2 masks on 2 images and 2 annotations']);
+  });
 });
