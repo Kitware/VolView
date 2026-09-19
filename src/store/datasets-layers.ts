@@ -135,8 +135,14 @@ export const useLayersStore = defineStore('layer', () => {
     parentToLayersSerialized.forEach(
       ({ selectionKey, sourceSelectionKeys }) => {
         const parent = remapSelection(selectionKey);
+        // An image that did not load cannot be a layer parent or a layer
+        // source. Handing `addLayer` a missing id only fails later, after it
+        // has already written the relationship into `parentToLayers` under
+        // that missing id, where the next serialize trips over it.
+        if (parent === undefined) return;
         sourceSelectionKeys.forEach((sourceKey) => {
           const source = remapSelection(sourceKey);
+          if (source === undefined) return;
           addLayer(parent, source);
         });
       }
