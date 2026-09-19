@@ -106,6 +106,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   const segmentations = reactive<Record<string, Segmentation>>({});
   const convertingLabelmaps = reactive(new Set<DataSelection>());
+  // The conversion running for an image, so a second caller joins it instead
+  // of splitting the same labelmap twice.
+  const conversions = new Map<
+    DataSelection,
+    ReturnType<typeof importLabelmapImage>
+  >();
   const allBindings = () =>
     Object.values(segmentations).flatMap((segmentation) =>
       listMasks(segmentation).flatMap((segment) =>
@@ -364,6 +370,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       Pick<LabelmapSegment, 'value'> & Partial<Omit<LabelmapSegment, 'value'>>
     > = []
   ) {
+    // A second conversion of an image already converting would split it again
+    // and mint a suffixed duplicate of every segment, and the first call's
+    // cleanup would clear the pending flag while the second still ran. Both
+    // callers share the one conversion and see it end when it really ends.
+    const running = conversions.get(imageID);
+    if (running) return running;
+
     const bySourceValue = new Map(
       descriptions.map((descriptor) => [
         descriptor.value,
@@ -371,31 +384,34 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       ])
     );
     convertingLabelmaps.add(imageID);
+    const conversion = importLabelmapImage(imageID, parentID, {
+      decode: (labelmap, component) =>
+        decodeSegments(imageID, labelmap, { component }) as Promise<
+          LabelmapSegment[]
+        >,
+      split: (labelmap, descriptors) => {
+        const created = splitLabelmapIntoMasks(
+          parentID,
+          labelmap,
+          // Identity is chosen by name, so explicit descriptions must precede
+          // binding to a type shared by other images.
+          descriptors.map((descriptor) => ({
+            ...descriptor,
+            ...bySourceValue.get(descriptor.value),
+          })),
+          { source }
+        );
+        if (created.length && !segmentRegistry.selectedSegment.value) {
+          segmentRegistry.selectSegment(created[0].segmentId);
+        }
+        return created.map((segment) => segment.id);
+      },
+    });
+    conversions.set(imageID, conversion);
     try {
-      return await importLabelmapImage(imageID, parentID, {
-        decode: (labelmap, component) =>
-          decodeSegments(imageID, labelmap, { component }) as Promise<
-            LabelmapSegment[]
-          >,
-        split: (labelmap, descriptors) => {
-          const created = splitLabelmapIntoMasks(
-            parentID,
-            labelmap,
-            // Identity is chosen by name, so explicit descriptions must precede
-            // binding to a type shared by other images.
-            descriptors.map((descriptor) => ({
-              ...descriptor,
-              ...bySourceValue.get(descriptor.value),
-            })),
-            { source }
-          );
-          if (created.length && !segmentRegistry.selectedSegment.value) {
-            segmentRegistry.selectSegment(created[0].segmentId);
-          }
-          return created.map((segment) => segment.id);
-        },
-      });
+      return await conversion;
     } finally {
+      conversions.delete(imageID);
       convertingLabelmaps.delete(imageID);
     }
   }
