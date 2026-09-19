@@ -5,11 +5,9 @@
 // the series has to reach a usable state anyway.
 import * as path from 'path';
 import * as fs from 'fs';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
-import { writeManifestToFile } from './utils';
+import { makeTempDir, writeManifestToFile } from './utils';
 
 const IMAGE_ORIENTATION_PATIENT = [1, 0, 0, 0, 1, 0] as const;
 const SLICE_COUNT = 5;
@@ -29,11 +27,7 @@ async function writeSeries(
   outlierSlice: number,
   manifestName: string
 ) {
-  const dir = path.join(TEMP_DIR, dirName);
-  fs.mkdirSync(dir, { recursive: true });
-  cleanuptotal.addCleanup(async () => {
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
+  const dir = makeTempDir(dirName);
 
   const studyUid = newUid();
   const seriesUid = newUid();

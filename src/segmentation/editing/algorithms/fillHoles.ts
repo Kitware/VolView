@@ -5,9 +5,11 @@ import { TypedArray } from '@kitware/vtk.js/types';
 const NEIGHBOR_DU = [-1, 1, 0, 0];
 const NEIGHBOR_DV = [0, 0, -1, 1];
 
+type MaskData = TypedArray | number[];
+
 export type FillHolesOptions = {
   // Flat label-map scalar array, indexed as i + j*dimI + k*dimI*dimJ.
-  data: TypedArray | number[];
+  data: MaskData;
   // Label-map IJK dimensions [dimI, dimJ, dimK].
   dimensions: [number, number, number];
   // IJK axis perpendicular to the fill plane (the slice axis).
@@ -20,6 +22,101 @@ export type FillHolesOptions = {
   // segment's own; running over several segments is one call each.
   label: number;
 };
+
+// One slice's in-plane coordinate system: its two dimensions and the flat
+// offset a plane coordinate maps to.
+type Plane = {
+  uDim: number;
+  vDim: number;
+  offset: (u: number, v: number) => number;
+};
+
+// Everything a flood fill over one slice works on. `visited` and `stack` are
+// reused across slices, so the whole run allocates them once.
+// `visited`: 0 = unvisited, 1 = outside (border-connected), 2 = hole.
+type Flood = {
+  plane: Plane;
+  out: MaskData;
+  label: number;
+  visited: Uint8Array;
+  stack: number[];
+};
+
+const inPlane = (plane: Plane, u: number, v: number) =>
+  u >= 0 && u < plane.uDim && v >= 0 && v < plane.vDim;
+
+// Drain `stack`, expanding the region into unvisited non-foreground neighbors
+// (each marked with `mark`). `collect`, when given, receives the flat offset of
+// every region cell.
+function drain(flood: Flood, mark: number, collect?: number[]) {
+  const { plane, out, label, visited, stack } = flood;
+  while (stack.length) {
+    const p = stack.pop()!;
+    const u = p % plane.uDim;
+    const v = (p - u) / plane.uDim;
+    if (collect) collect.push(plane.offset(u, v));
+    for (let n = 0; n < 4; n++) {
+      const nu = u + NEIGHBOR_DU[n];
+      const nv = v + NEIGHBOR_DV[n];
+      if (!inPlane(plane, nu, nv)) continue;
+      const np = nu + nv * plane.uDim;
+      if (out[plane.offset(nu, nv)] !== label && visited[np] === 0) {
+        visited[np] = mark;
+        stack.push(np);
+      }
+    }
+  }
+}
+
+// Flood the non-foreground cells reachable from the slice border, marking them
+// "outside". Whatever it does not reach is enclosed.
+function markOutside(flood: Flood) {
+  const { plane, out, label, visited, stack } = flood;
+  const seed = (u: number, v: number) => {
+    const p = u + v * plane.uDim;
+    if (visited[p] === 0 && out[plane.offset(u, v)] !== label) {
+      visited[p] = 1;
+      stack.push(p);
+    }
+  };
+  for (let u = 0; u < plane.uDim; u++) {
+    seed(u, 0);
+    seed(u, plane.vDim - 1);
+  }
+  for (let v = 0; v < plane.vDim; v++) {
+    seed(0, v);
+    seed(plane.uDim - 1, v);
+  }
+  drain(flood, 1);
+}
+
+// Only fill background. A voxel another segment holds is not this segment's to
+// take here; the write path decides that on confirm.
+function fillBackground(out: MaskData, cells: number[], label: number) {
+  for (let c = 0; c < cells.length; c++) {
+    if (out[cells[c]] === 0) {
+      out[cells[c]] = label;
+    }
+  }
+}
+
+// Any non-foreground cell not marked "outside" is part of a hole. Group each
+// hole into a connected component and fill it.
+function fillEnclosed(flood: Flood) {
+  const { plane, out, label, visited, stack } = flood;
+  for (let v = 0; v < plane.vDim; v++) {
+    for (let u = 0; u < plane.uDim; u++) {
+      const p = u + v * plane.uDim;
+      if (visited[p] !== 0 || out[plane.offset(u, v)] === label) continue;
+
+      const holeCells: number[] = [];
+      visited[p] = 2;
+      stack.push(p);
+      drain(flood, 2, holeCells);
+      fillBackground(out, holeCells, label);
+    }
+  }
+}
 
 // Fills enclosed background regions ("holes") on 2D slices of a label map.
 // A hole is background that does not connect to the slice border. Only
@@ -39,10 +136,8 @@ export function fillHoles(opts: FillHolesOptions) {
   const vDim = dimensions[vAxis];
   const uStride = strides[uAxis];
   const vStride = strides[vAxis];
-  const planeSize = uDim * vDim;
 
-  // 0 = unvisited, 1 = outside (border-connected non-foreground), 2 = hole.
-  const visited = new Uint8Array(planeSize);
+  const visited = new Uint8Array(uDim * vDim);
   const stack: number[] = [];
 
   const firstSlice = sliceIndex ?? 0;
@@ -52,70 +147,20 @@ export function fillHoles(opts: FillHolesOptions) {
     const base = slice * sliceStride;
     visited.fill(0);
 
-    const planeOffset = (u: number, v: number) =>
-      base + u * uStride + v * vStride;
-
-    // Drain `stack`, expanding the region into unvisited non-foreground
-    // neighbors (each marked with `mark`). `collect`, when given, receives the
-    // flat offset of every region cell.
-    const drain = (mark: number, collect?: number[]) => {
-      while (stack.length) {
-        const p = stack.pop()!;
-        const u = p % uDim;
-        const v = (p - u) / uDim;
-        if (collect) collect.push(planeOffset(u, v));
-        for (let n = 0; n < 4; n++) {
-          const nu = u + NEIGHBOR_DU[n];
-          const nv = v + NEIGHBOR_DV[n];
-          if (nu < 0 || nu >= uDim || nv < 0 || nv >= vDim) continue;
-          const np = nu + nv * uDim;
-          if (out[planeOffset(nu, nv)] !== label && visited[np] === 0) {
-            visited[np] = mark;
-            stack.push(np);
-          }
-        }
-      }
+    const flood: Flood = {
+      plane: {
+        uDim,
+        vDim,
+        offset: (u, v) => base + u * uStride + v * vStride,
+      },
+      out,
+      label,
+      visited,
+      stack,
     };
 
-    // Flood non-foreground cells reachable from the slice border ("outside").
-    const seedOutside = (u: number, v: number) => {
-      const p = u + v * uDim;
-      if (visited[p] === 0 && out[planeOffset(u, v)] !== label) {
-        visited[p] = 1;
-        stack.push(p);
-      }
-    };
-    for (let u = 0; u < uDim; u++) {
-      seedOutside(u, 0);
-      seedOutside(u, vDim - 1);
-    }
-    for (let v = 0; v < vDim; v++) {
-      seedOutside(0, v);
-      seedOutside(uDim - 1, v);
-    }
-    drain(1);
-
-    // Any non-foreground cell not marked "outside" is part of a hole. Group
-    // each hole into a connected component and fill it.
-    for (let v = 0; v < vDim; v++) {
-      for (let u = 0; u < uDim; u++) {
-        const p = u + v * uDim;
-        if (visited[p] !== 0 || out[planeOffset(u, v)] === label) continue;
-
-        const holeCells: number[] = [];
-        visited[p] = 2;
-        stack.push(p);
-        drain(2, holeCells);
-
-        for (let c = 0; c < holeCells.length; c++) {
-          // Only fill background. A voxel another segment holds is not this
-          // segment's to take here; the write path decides that on confirm.
-          if (out[holeCells[c]] === 0) {
-            out[holeCells[c]] = label;
-          }
-        }
-      }
-    }
+    markOutside(flood);
+    fillEnclosed(flood);
   }
 
   return out;

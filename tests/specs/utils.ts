@@ -41,6 +41,19 @@ export const downloadFile = async (url: string, fileName: string) => {
   return linkCachedDataset(fileName);
 };
 
+/**
+ * A directory under TEMP_DIR for one spec's generated files, removed with
+ * everything in it once the run finishes.
+ */
+export function makeTempDir(dirName: string) {
+  const dir = path.join(TEMP_DIR, dirName);
+  fs.mkdirSync(dir, { recursive: true });
+  cleanuptotal.addCleanup(async () => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  return dir;
+}
+
 export async function writeManifestToFile(manifest: unknown, fileName: string) {
   const filePath = path.join(TEMP_DIR, fileName);
   await fs.promises.writeFile(filePath, JSON.stringify(manifest));

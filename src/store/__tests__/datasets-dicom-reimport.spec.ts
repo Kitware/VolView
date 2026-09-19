@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 import type { Chunk } from '@/src/core/streaming/chunk';
-import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { instanceTags } from '@/src/store/__tests__/dicomTagFixtures';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 
 const mocks = vi.hoisted(() => {
@@ -67,27 +67,13 @@ vi.mock('@/src/core/streaming/dicomChunkImage', () => ({
 }));
 
 function chunk(sopInstanceUid: string) {
-  const metadata = [
-    [Tags.SOPClassUID, '1.2.840.10008.5.1.4.1.1.2'],
-    [Tags.NumberOfFrames, '1'],
-    [Tags.SOPInstanceUID, sopInstanceUid],
-    [Tags.PatientID, 'patient-1'],
-    [Tags.PatientName, 'Test Patient'],
-    [Tags.PatientBirthDate, ''],
-    [Tags.PatientSex, ''],
-    [Tags.StudyID, 'study-1'],
-    [Tags.StudyInstanceUID, 'study-uid'],
-    [Tags.StudyDate, ''],
-    [Tags.StudyTime, ''],
-    [Tags.AccessionNumber, ''],
-    [Tags.StudyDescription, ''],
-    [Tags.Modality, 'CT'],
-    [Tags.SeriesInstanceUID, 'series-uid'],
-    [Tags.SeriesNumber, '7'],
-    [Tags.SeriesDescription, 'Incremental series'],
-    [Tags.WindowLevel, ''],
-    [Tags.WindowWidth, ''],
-  ] as [string, string][];
+  const metadata = instanceTags({
+    sopClassUid: '1.2.840.10008.5.1.4.1.1.2',
+    numberOfFrames: '1',
+    sopInstanceUid,
+    modality: 'CT',
+    seriesDescription: 'Incremental series',
+  });
   return {
     metadata,
     metaBlob: new Blob([new Uint8Array([1])]),
