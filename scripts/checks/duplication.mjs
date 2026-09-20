@@ -94,7 +94,10 @@ try {
   const added = duplicates.filter((clone) => clone.isNew);
 
   if (added.length > 0) {
-    console.error('\nTest duplication ratchet: these clones are new since %s.\n', baseRef);
+    console.error(
+      '\nTest duplication ratchet: these clones are new since %s.\n',
+      baseRef
+    );
     added.forEach(({ firstFile, secondFile, tokens }) => {
       console.error(
         `  ${unflatten(firstFile.name)}:${firstFile.start}-${firstFile.end}` +

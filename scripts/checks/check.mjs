@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 if (process.env.CHECKS_SKIP === '1') {
   console.log('Additional checks skipped (CHECKS_SKIP=1).');
 } else {
-  for (const script of ['complexity.mjs', 'duplication.mjs', 'conventions.mjs']) {
+  for (const script of [
+    'complexity.mjs',
+    'duplication.mjs',
+    'conventions.mjs',
+  ]) {
     const result = spawnSync(
       process.execPath,
       [
