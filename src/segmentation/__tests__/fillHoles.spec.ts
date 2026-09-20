@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
+import { nextTick } from 'vue';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
@@ -16,13 +15,13 @@ import {
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import {
+  activateAppPinia,
   selectSegment,
   mintSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewStore } from '@/src/store/views';
 import type { Extent3D } from '@/src/segmentation/geometry';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 const fillHolesWorkerMock = vi.hoisted(() => vi.fn(async (input) => input));
@@ -86,9 +85,7 @@ const UNIT: Vector3 = [1, 1, 1];
 
 describe('Fill Holes store', () => {
   beforeEach(() => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    activateAppPinia();
     fillHolesWorkerMock.mockClear();
     transferred.length = 0;
     vi.stubGlobal(

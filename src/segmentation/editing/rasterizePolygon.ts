@@ -21,7 +21,6 @@ import {
   sliceExtent,
   type Extent3D,
 } from '@/src/segmentation/geometry';
-import { getLPSDirections } from '@/src/utils/lps';
 
 export const rasterizeTargetDisabledReason = (segmentId: Maybe<string>) =>
   useSegmentationStore().editTargetLocked(segmentId)
@@ -122,7 +121,8 @@ function polygonBounds(
  * pixel swallows it silently, and each filled voxel is claimed from the other
  * segments under the aimed rule of `voxelClaim`. World points, parent slice
  * index. Resolving the edit target cancels any competing preview before
- * storage changes.
+ * storage changes. A mask the fill leaves holding nothing, its own or a
+ * neighbor's, is deleted, and a deleted target is not named back.
  */
 export function rasterizePolygon({
   imageId,
@@ -138,10 +138,12 @@ export function rasterizePolygon({
   viewAxis: LPSAxis;
 }) {
   const segmentationStore = useSegmentationStore();
-  const parent = useImageCacheStore().getVtkImageData(imageId);
-  if (!parent) throw new Error('No such parent image');
+  const imageCache = useImageCacheStore();
+  const parent = imageCache.getVtkImageData(imageId);
+  const metadata = imageCache.getImageMetadata(imageId);
+  if (!parent || !metadata) throw new Error('No such parent image');
 
-  const axisIndex = getLPSDirections(parent.getDirection())[viewAxis];
+  const axisIndex = metadata.lpsOrientation[viewAxis];
   const indexPoints = points.map((point) => [...parent.worldToIndex(point)]);
 
   // The part of the image the polygon lands on: what the mask has to grow to
@@ -190,8 +192,14 @@ export function rasterizePolygon({
   try {
     fillPoly(grid, points2D, SEGMENT_VALUE);
   } finally {
-    claimVoxel?.finish();
+    const cleared = claimVoxel?.finish() ?? [];
     mask.modified();
+    segmentationStore.deleteEmptyMasks([target.maskId, ...cleared]);
   }
-  return { segmentId: target.segmentId, maskId: target.maskId };
+  return {
+    segmentId: target.segmentId,
+    maskId: segmentationStore.maskExists(target.maskId)
+      ? target.maskId
+      : undefined,
+  };
 }

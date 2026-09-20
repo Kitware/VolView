@@ -9,8 +9,10 @@ import {
   extentContainsIndex,
   extentSize,
   extentUnion,
+  fullExtent,
   isEmptyExtent,
   maskOffset,
+  walkExtentRows,
   type Extent3D,
   type MaskBounds,
 } from '@/src/segmentation/geometry';
@@ -42,7 +44,10 @@ export function boundScalars(binding?: {
  * Clipping once here keeps a mask that misses the box out of the per-voxel
  * containment test, and lets the caller skip the walk when none is left.
  */
-const masksReaching = (masks: BoundedScalars[], within: Extent3D) =>
+const masksReaching = <T extends BoundedScalars>(
+  masks: T[],
+  within: Extent3D
+) =>
   masks.filter((bounded) => !isEmptyExtent(clipExtent(bounded.extent, within)));
 
 /**
@@ -75,9 +80,12 @@ export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
  * Absent when no mask reaches `within`, the box the caller is about to walk. A
  * mask that does not reach the voxel has nothing there to clear, so nothing
  * grows. Finish the operation in a finally block to publish each changed mask
- * once, including partial writes.
+ * once, including partial writes; finish returns the masks it changed.
  */
-export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
+export function masksClearing<T extends BoundedScalars>(
+  masks: T[],
+  within: Extent3D
+) {
   const reaching = masksReaching(masks, within);
   if (reaching.length === 0) return undefined;
   // Flagged by position: a Set would hash a mask per cleared voxel.
@@ -99,10 +107,10 @@ export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
   return {
     clear,
     finish: () => {
-      reaching.forEach((bounded, index) => {
-        if (changed[index]) bounded.mask.modified();
-      });
+      const cleared = reaching.filter((_, index) => changed[index]);
+      cleared.forEach((bounded) => bounded.mask.modified());
       changed.fill(0);
+      return cleared;
     },
   };
 }
@@ -181,15 +189,14 @@ function maskRows(
   row: (from: number, to: number, count: number) => boolean
 ) {
   const { extent } = bounded;
-  const [ni, nj, nk] = extentSize(extent);
-  for (let index = 0; index < nj * nk; index += 1) {
-    const j = extent[2] + (index % nj);
-    const k = extent[4] + Math.floor(index / nj);
-    const from = maskOffset(bounded, extent[0], j, k);
-    const to = maskOffset(into, extent[0], j, k);
-    if (row(from, to, ni)) return true;
-  }
-  return false;
+  const [ni] = extentSize(extent);
+  return walkExtentRows(extent, (j, k) =>
+    row(
+      maskOffset(bounded, extent[0], j, k),
+      maskOffset(into, extent[0], j, k),
+      ni
+    )
+  );
 }
 
 const occupancyHits = (occupied: Occupancy, bounded: BoundedScalars) =>
@@ -279,19 +286,15 @@ export function writeMaskInto(
   bounded: BoundedScalars,
   labelValue: number
 ) {
-  const { extent, scalars } = bounded;
-  const [dx, dy] = dimensions;
-  const [ni, nj, nk] = extentSize(extent);
-  // One flat row loop: nested j and k loops exceed the depth limit.
-  for (let row = 0; row < nj * nk; row += 1) {
-    const j = extent[2] + (row % nj);
-    const k = extent[4] + Math.floor(row / nj);
-    const to = extent[0] + j * dx + k * dx * dy;
-    const from = maskOffset(bounded, extent[0], j, k);
-    for (let n = 0; n < ni; n += 1) {
+  const { scalars } = bounded;
+  const [mi, mj] = dimensions;
+  const parent = { extent: fullExtent(dimensions), mi, mj };
+  maskRows(bounded, parent, (from, to, count) => {
+    for (let n = 0; n < count; n += 1) {
       // Background is 0, so a voxel this mask leaves unclaimed keeps whatever
       // the buffer already holds there.
       if (scalars[from + n]) values[to + n] = labelValue;
     }
-  }
+    return false;
+  });
 }

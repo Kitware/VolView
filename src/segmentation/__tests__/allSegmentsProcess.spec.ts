@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
+import { nextTick } from 'vue';
 
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { fillHoles } from '@/src/segmentation/editing/algorithms/fillHoles';
 import { useMessageStore } from '@/src/store/messages';
 import {
@@ -13,6 +11,7 @@ import {
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import {
+  activateAppPinia,
   addMask,
   deleteSegmentOf,
   labelValueOf,
@@ -106,9 +105,7 @@ const runOverEverySegment = (algorithm: ProcessAlgorithm = fillHolesOn) =>
 
 describe('a process running over every segment', () => {
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    activateAppPinia();
     await seatImage('img-1', { dimensions: DIMENSIONS });
     useViewStore().setDataForAllViews('img-1');
   });

@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp } from 'vue';
 
 import { PaintMode } from '@/src/core/tools/paint';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
+  activateAppPinia,
   seatSpecImage as seatImage,
   markedVoxels,
   maskValueAt,
@@ -16,6 +14,7 @@ import {
   mintSegment,
   lockSegment,
   store,
+  strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const bindingOf = (maskId: string) => store().findMaskBinding(maskId);
@@ -26,14 +25,6 @@ function boundSegment(segmentationId: string, name: string) {
   return segment;
 }
 
-/** A one-voxel stroke on the K axis; unit spacing makes world points index points. */
-function strokeAt(imageId: string, point: [number, number, number]) {
-  const paintStore = usePaintToolStore();
-  paintStore.setBrushSize(1);
-  paintStore.startStroke(point, 2, imageId);
-  paintStore.endStroke(point, 2, imageId);
-}
-
 function paintAndLock(maskId: string) {
   selectSegment(maskId);
   strokeAt('img-1', [1, 1, 0]);
@@ -42,9 +33,7 @@ function paintAndLock(maskId: string) {
 
 describe('paint edit target', () => {
   beforeEach(() => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    activateAppPinia();
   });
 
   it("writes SEGMENT_VALUE into the selected segment's mask", async () => {
@@ -112,7 +101,8 @@ describe('paint edit target', () => {
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
     expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
-    expect(markedVoxels(active.id)).toEqual([]);
+    // Erased to nothing, so the active mask went with its voxels.
+    expect(store().maskExists(active.id)).toBe(false);
   });
 
   // A mask holds SEGMENT_VALUE and nothing else, so any other byte in it is
@@ -158,9 +148,12 @@ describe('paint edit target', () => {
     strokeAt('img-1', [1, 1, 0]);
     strokeAt('img-1', [3, 1, 0]);
 
+    // The first stroke painted nothing and left no mask, so the second one
+    // minted the mask the segment has now.
+    const painted = store().maskFor('img-1', active.segmentId)!.id;
     expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
-    expect(maskValueAt(active.id, [1, 1, 0])).toBeFalsy();
-    expect(maskValueAt(active.id, [3, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(painted, [1, 1, 0])).toBeFalsy();
+    expect(maskValueAt(painted, [3, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('creates nothing when the paint tool is merely activated', async () => {

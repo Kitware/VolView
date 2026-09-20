@@ -1,13 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { nextTick } from 'vue';
 import vtkLabelMap from '@/src/vtk/LabelMap';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import {
+  viewImage,
+  type Index3,
+  activateAppPinia,
   mintSegment,
   lockSegment,
   addActiveSegment,
@@ -19,7 +17,6 @@ import {
   type ProcessTarget,
 } from '@/src/segmentation/editing/paintProcess';
 import { PaintMode } from '@/src/core/tools/paint';
-import { useViewStore } from '@/src/store/views';
 import { defer } from '@/src/utils';
 
 // ---------------------------------------------------------------------------
@@ -29,24 +26,7 @@ import { defer } from '@/src/utils';
 // engine hold stays the one that is written.
 // ---------------------------------------------------------------------------
 
-async function viewImage(
-  id: string,
-  dimensions: [number, number, number] = [2, 1, 1]
-) {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions(dimensions);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(dimensions[0] * dimensions[1] * dimensions[2]),
-    })
-  );
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, id, { id });
-  useViewStore().setDataForAllViews(id);
-  await nextTick();
-  return id;
-}
+const TWO_VOXELS = { dimensions: [2, 1, 1] as Index3 };
 
 /** Another segment of the same image, grown to the same two voxels. */
 function addBoundSegment(segmentationId: string, name: string) {
@@ -88,18 +68,16 @@ const startedProcess = async (options?: { requiresActiveSegment: boolean }) => {
 
 describe('paint process storage', () => {
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
-    await viewImage('image-1');
+    activateAppPinia();
+    await viewImage('image-1', TWO_VOXELS);
   });
 
   describe('the process target', () => {
     it('hands a segment-scoped process the segment it writes', async () => {
       const processStore = usePaintProcessStore();
-      addActiveSegment(new Uint8Array([0, 0]), 3);
+      addActiveSegment(new Uint8Array([0, 0]));
       const { seen, algorithm } = recordingAlgorithm(
-        () => new Uint8Array([3, 3])
+        () => new Uint8Array([1, 1])
       );
 
       await processStore.startProcess(algorithm);
@@ -121,27 +99,27 @@ describe('paint process storage', () => {
       const original = buffer(labelMap);
 
       await processStore.startProcess(async (target: ProcessTarget) => ({
-        scalars: new Uint8Array([2, 2]),
+        scalars: new Uint8Array([1, 1]),
         extent: target.maskExtent,
       }));
 
       expect(processStore.processState.step).toBe('previewing');
       expect(buffer(labelMap)).toBe(original);
-      expect(values(labelMap)).toEqual([2, 2]);
+      expect(values(labelMap)).toEqual([1, 1]);
     });
 
     it('copies the algorithm result instead of adopting it', async () => {
       const processStore = usePaintProcessStore();
       const { labelMap } = addActiveSegment();
-      const result = new Uint8Array([2, 2]);
+      const result = new Uint8Array([1, 1]);
 
       await processStore.startProcess(async (target) => ({
         scalars: result,
         extent: target.maskExtent,
       }));
-      result[0] = 9;
+      result[0] = 0;
 
-      expect(values(labelMap)).toEqual([2, 2]);
+      expect(values(labelMap)).toEqual([1, 1]);
     });
   });
 
@@ -264,8 +242,8 @@ describe('paint process storage', () => {
     it('cancels without throwing when another tool grew the mask', async () => {
       const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
-      await viewImage('image-2', [4, 1, 1]);
-      const { maskId } = addActiveSegment(new Uint8Array([1, 0]), 1, 'image-2');
+      await viewImage('image-2', { dimensions: [4, 1, 1] });
+      const { maskId } = addActiveSegment(new Uint8Array([1, 0]), 'image-2');
 
       await processStore.startProcess(async (target: ProcessTarget) => ({
         scalars: new Uint8Array([1, 1]),

@@ -1,14 +1,18 @@
 import { expect } from 'vitest';
-import { nextTick } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
+import { createApp, nextTick } from 'vue';
 import JSZip from 'jszip';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import type vtkLabelMap from '@/src/vtk/LabelMap';
 
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { usePaintToolStore } from '@/src/store/tools/paint';
+import { useViewStore } from '@/src/store/views';
 import {
   useSegmentationStore,
   type LabelmapIO,
@@ -23,6 +27,14 @@ import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 export type Index3 = [number, number, number];
 
 export const store = () => useSegmentationStore();
+
+/** A pinia installed on an app, since the stores inject the app's providers. */
+export const activateAppPinia = () => {
+  const pinia = createPinia().use(CorePiniaProviderPlugin());
+  createApp({}).use(pinia);
+  setActivePinia(pinia);
+  return pinia;
+};
 
 export const voxelCount = (dimensions: Index3) =>
   dimensions[0] * dimensions[1] * dimensions[2];
@@ -58,6 +70,14 @@ export async function seatImage(id: string, options: SeatOptions = {}) {
   );
   image.computeTransforms();
   useImageCacheStore().addVTKImageData(image, name, { id });
+  await nextTick();
+  return image;
+}
+
+/** Seats an image and shows it in every view, which makes it the current one. */
+export async function viewImage(id: string, options: SeatOptions = {}) {
+  const image = await seatImage(id, options);
+  useViewStore().setDataForAllViews(id);
   await nextTick();
   return image;
 }
@@ -270,25 +290,25 @@ export const lockSegment = (maskId: string, locked = true) =>
 export const selectSegment = (maskId: string) =>
   useSegmentStore().segments.selectSegment(store().getMask(maskId).segmentId);
 
+/** A stroke on the K axis; unit spacing makes world points index points. */
+export function strokeAt(
+  imageId: string,
+  from: Index3,
+  to = from,
+  brushSize = 1
+) {
+  const paintStore = usePaintToolStore();
+  paintStore.setBrushSize(brushSize);
+  paintStore.startStroke(from, 2, imageId);
+  paintStore.endStroke(to, 2, imageId);
+}
+
 export function addActiveSegment(
   values = new Uint8Array([0, 0]),
-  labelValue = 1,
   imageId = 'image-1'
 ) {
   const segmentationStore = useSegmentationStore();
   const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
-  // Label values are minted per image, so the ones below the wanted value are
-  // taken by placeholder segments.
-  for (let value = 1; value < labelValue; value += 1) {
-    const filler = segmentationStore.createMask(
-      segmentation.id,
-      mintSegment({
-        name: `Filler ${value}`,
-      })
-    );
-    segmentationStore.maskVoxels(filler.id).materialize();
-  }
-
   const segment = segmentationStore.createMask(
     segmentation.id,
     mintSegment({

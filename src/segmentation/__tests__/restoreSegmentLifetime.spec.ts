@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPinia, disposePinia, setActivePinia } from 'pinia';
-import { createApp } from 'vue';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import { createPinia, disposePinia } from 'pinia';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -9,6 +7,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { defer } from '@/src/utils';
 import {
+  activateAppPinia,
   manifestForImages,
   seatImage,
   store,
@@ -16,9 +15,7 @@ import {
 
 let pinia: ReturnType<typeof createPinia>;
 beforeEach(() => {
-  pinia = createPinia().use(CorePiniaProviderPlugin());
-  createApp({}).use(pinia);
-  setActivePinia(pinia);
+  pinia = activateAppPinia();
 });
 afterEach(() => {
   vi.restoreAllMocks();

@@ -52,6 +52,9 @@ export const usePaintToolStore = defineStore('paint', () => {
   const crossPlaneSync = ref(false);
   const paintPosition = ref<Vector3>([0, 0, 0]);
   const activePaintViewID = ref<Maybe<string>>(null);
+  // Masks strokes wrote or cleared, checked for emptiness when a stroke ends
+  // rather than per sample. A stroke that never ended leaves them to the next.
+  const strokeMaskIds = new Set<string>();
 
   const { currentImageID, currentImageMetadata } = useCurrentImage('global');
   const imageStatsStore = useImageStatsStore();
@@ -282,7 +285,8 @@ export const usePaintToolStore = defineStore('paint', () => {
         shouldPaint,
       });
     } finally {
-      claimVoxel?.finish();
+      strokeMaskIds.add(maskId);
+      claimVoxel?.finish().forEach((cleared) => strokeMaskIds.add(cleared));
     }
   }
 
@@ -323,7 +327,13 @@ export const usePaintToolStore = defineStore('paint', () => {
     imageID: string
   ) {
     strokePoints.value.push(worldPoint);
-    doPaintStroke.call(this, axisIndex, imageID);
+    try {
+      doPaintStroke.call(this, axisIndex, imageID);
+    } finally {
+      const touched = [...strokeMaskIds];
+      strokeMaskIds.clear();
+      segmentationStore.deleteEmptyMasks(touched);
+    }
   }
 
   const currentImageStats = computed(() => {

@@ -141,6 +141,33 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(maskId, [3, 3, 0])).toBe(labelValueOf(maskId));
   });
 
+  it('deletes a neighbour the fill takes every voxel from', () => {
+    const neighbor = addMask('img-1', 'Neighbour');
+    seedVoxel(neighbor, [2, 3, 0]);
+    const maskId = addMask('img-1', 'Tumor');
+
+    rasterizeInto(maskId);
+
+    expect(store().maskExists(neighbor)).toBe(false);
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
+  });
+
+  it('deletes the mask of a fill that lands nowhere and names none', () => {
+    const locked = addMask('img-1', 'Locked');
+    const voxels = store().maskVoxels(locked);
+    voxels.materialize();
+    voxels.ensureContains([0, 5, 0, 5, 0, 1]);
+    voxels.scalars().fill(1);
+    lockSegment(locked, true);
+    const tumor = segments().addSegment({ name: 'Tumor' });
+
+    const result = rasterize(tumor);
+
+    expect(result).toEqual({ segmentId: tumor, maskId: undefined });
+    expect(store().maskFor('img-1', tumor)).toBeUndefined();
+    expect(markedVoxels(locked)).toHaveLength(72);
+  });
+
   it('shares the filled voxels with every neighbour while overlap is allowed', () => {
     const locked = addMask('img-1', 'Locked');
     const unlocked = addMask('img-1', 'Unlocked');

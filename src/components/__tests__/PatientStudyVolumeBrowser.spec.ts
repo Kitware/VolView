@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
@@ -7,6 +7,7 @@ import PatientStudyVolumeBrowser from '@/src/components/PatientStudyVolumeBrowse
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import * as labelmapImport from '@/src/segmentation/io/import';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 
 const SlotStub = defineComponent({
@@ -58,9 +59,21 @@ describe('DICOM segmentation conversion progress', () => {
     } as ProgressiveImage;
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('covers the source thumbnail while it is becoming a segmentation', async () => {
-    const segmentations = useSegmentationStore();
-    segmentations.convertingLabelmaps.add('seg-volume');
+    let finish!: () => void;
+    vi.spyOn(labelmapImport, 'importLabelmapImage').mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve([]);
+      })
+    );
+    const conversion = useSegmentationStore().convertImageToLabelmap(
+      'seg-volume',
+      'parent'
+    );
     const wrapper = mountBrowser();
     await nextTick();
 
@@ -72,7 +85,8 @@ describe('DICOM segmentation conversion progress', () => {
     expect(wrapper.findAll('.progress')).toHaveLength(1);
     expect(wrapper.find('.series-selector').exists()).toBe(true);
 
-    segmentations.convertingLabelmaps.delete('seg-volume');
+    finish();
+    await conversion;
     await nextTick();
     expect(
       wrapper.find('[data-testid="segmentation-conversion-progress"]').exists()

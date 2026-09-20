@@ -1,16 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useMessageStore } from '@/src/store/messages';
-import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
+  activateAppPinia,
   seatSpecImage as seatImage,
   store,
+  strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
@@ -37,14 +35,6 @@ const lockedSelection = () => {
   return segmentId;
 };
 
-/** Unit spacing makes world points index points. */
-function strokeAt(imageId: string, point: [number, number, number]) {
-  const paintStore = usePaintToolStore();
-  paintStore.setBrushSize(1);
-  paintStore.startStroke(point, 2, imageId);
-  paintStore.endStroke(point, 2, imageId);
-}
-
 const messageTitles = () =>
   useMessageStore().messages.map((message) => message.title);
 
@@ -56,9 +46,7 @@ const expectNothingCreated = (imageId: string, segmentId: string) => {
 
 describe('a refused edit on a locked segment', () => {
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    activateAppPinia();
     await seatImage('img-1');
   });
 

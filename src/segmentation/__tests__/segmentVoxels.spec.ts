@@ -6,8 +6,8 @@ import {
   expectExtentPastParentThrows,
   SPEC_FULL_EXTENT as FULL_EXTENT,
   SPEC_VOXEL_COUNT as VOXEL_COUNT,
+  addMask,
   deleteSegmentOf,
-  mintSegment,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
@@ -22,16 +22,6 @@ import vtkLabelMap from '@/src/vtk/LabelMap';
 // shares once storage exists.
 // ---------------------------------------------------------------------------
 
-/** A segment with no storage: "add segment" never allocates voxels. */
-function addMask(imageId: string, name?: string) {
-  const segmentation = store().ensureSegmentationForImage(imageId);
-  const segment = store().createMask(
-    segmentation.id,
-    mintSegment(name ? { name } : undefined)
-  );
-  return { segmentationId: segmentation.id, maskId: segment.id };
-}
-
 /**
  * Two segments of one image, each with its own mask grown to the whole parent
  * image, so identity assertions have a labelmap reference to compare against.
@@ -40,25 +30,21 @@ function seatArtifactSegment(imageId: string, values: Uint8Array) {
   const first = addMask(imageId, 'Tumor');
   const second = addMask(imageId, 'Node');
 
-  const grow = (target: { maskId: string }) => {
-    const voxels = store().maskVoxels(target.maskId);
+  const grow = (maskId: string) => {
+    const voxels = store().maskVoxels(maskId);
     voxels.materialize();
     voxels.ensureContains(FULL_EXTENT);
   };
   grow(first);
   grow(second);
-  store().maskVoxels(first.maskId).apply(values);
+  store().maskVoxels(first).apply(values);
 
   return {
-    labelmap: store().maskVoxels(first.maskId).binding()!.image,
-    segmentationId: first.segmentationId,
+    labelmap: store().maskVoxels(first).binding()!.image,
     first,
     second,
   };
 }
-
-const voxelsOf = (target: { segmentationId: string; maskId: string }) =>
-  store().maskVoxels(target.maskId);
 
 const scalarsOf = (labelmap: vtkLabelMap) =>
   labelmap.getPointData().getScalars().getData();
@@ -77,14 +63,14 @@ describe('segment voxel accessor', () => {
 
     it('resolves the segment on every call rather than capturing it', () => {
       const target = addMask('img-1');
-      const voxels = voxelsOf(target);
+      const voxels = store().maskVoxels(target);
       expect(voxels.binding()).toBeUndefined();
 
       // Materializing through a second accessor is visible through the first.
-      voxelsOf(target).materialize();
+      store().maskVoxels(target).materialize();
       expect(voxels.binding()?.image).toBeDefined();
 
-      deleteSegmentOf(target.maskId);
+      deleteSegmentOf(target);
       expect(() => voxels.binding()).toThrow();
     });
   });
@@ -93,13 +79,13 @@ describe('segment voxel accessor', () => {
     it('reports no storage and allocates none', () => {
       const target = addMask('img-1');
 
-      expect(voxelsOf(target).binding()).toBeUndefined();
+      expect(store().maskVoxels(target).binding()).toBeUndefined();
       expect(store().boundMaskIds('img-1')).toHaveLength(0);
     });
 
     it('refuses voxel access instead of allocating on read', () => {
       const target = addMask('img-1');
-      const voxels = voxelsOf(target);
+      const voxels = store().maskVoxels(target);
 
       expect(() => voxels.image()).toThrow();
       expect(() => voxels.snapshot()).toThrow();
@@ -112,36 +98,40 @@ describe('segment voxel accessor', () => {
   describe('materialize', () => {
     it('allocates a mask that covers nothing and binds the segment to it', () => {
       const target = addMask('img-1');
-      const binding = voxelsOf(target).materialize();
+      const binding = store().maskVoxels(target).materialize();
 
       expect(store().boundMaskIds('img-1')).toHaveLength(1);
-      expect(store().boundMaskIds('img-1')[0]).toBe(target.maskId);
+      expect(store().boundMaskIds('img-1')[0]).toBe(target);
       expect(isEmptyExtent(binding.extent)).toBe(true);
-      expect(voxelsOf(target).image().getDimensions()).toEqual([0, 0, 0]);
-      expect(scalarsOf(voxelsOf(target).image())).toHaveLength(0);
+      expect(store().maskVoxels(target).image().getDimensions()).toEqual([
+        0, 0, 0,
+      ]);
+      expect(scalarsOf(store().maskVoxels(target).image())).toHaveLength(0);
     });
 
     it('is idempotent', () => {
       const target = addMask('img-1');
-      const first = voxelsOf(target).materialize();
-      const image = voxelsOf(target).image();
-      const second = voxelsOf(target).materialize();
+      const first = store().maskVoxels(target).materialize();
+      const image = store().maskVoxels(target).image();
+      const second = store().maskVoxels(target).materialize();
 
-      expect(second).toEqual(first);
+      expect(second).toBe(first);
       expect(store().boundMaskIds('img-1')).toHaveLength(1);
-      expect(voxelsOf(target).image()).toBe(image);
+      expect(store().maskVoxels(target).image()).toBe(image);
     });
 
     it('gives each segment of an image its own mask', () => {
       const first = addMask('img-1', 'Tumor');
       const second = addMask('img-1', 'Node');
 
-      const a = voxelsOf(first).materialize();
-      const b = voxelsOf(second).materialize();
+      const a = store().maskVoxels(first).materialize();
+      const b = store().maskVoxels(second).materialize();
 
       expect(store().boundMaskIds('img-1')).toHaveLength(2);
       expect(b.image).not.toBe(a.image);
-      expect(voxelsOf(second).image()).not.toBe(voxelsOf(first).image());
+      expect(store().maskVoxels(second).image()).not.toBe(
+        store().maskVoxels(first).image()
+      );
     });
   });
 
@@ -149,7 +139,7 @@ describe('segment voxel accessor', () => {
     it('refuses before materialize', () => {
       const target = addMask('img-1');
 
-      expect(() => voxelsOf(target).scalars()).toThrow(/No storage/);
+      expect(() => store().maskVoxels(target).scalars()).toThrow(/No storage/);
       expect(store().boundMaskIds('img-1')).toHaveLength(0);
     });
   });
@@ -161,7 +151,7 @@ describe.each([
 ])('the %s accessor on a grown mask', (_name, accessorOf) => {
   const seatVoxels = (values = new Uint8Array(VOXEL_COUNT)) => {
     const seat = seatArtifactSegment('img-1', values);
-    return { ...seat, voxels: accessorOf(seat.first.maskId) };
+    return { ...seat, voxels: accessorOf(seat.first) };
   };
 
   describe('image()', () => {
@@ -204,21 +194,21 @@ describe.each([
       const copy = voxels.snapshot();
       expect(Array.from(copy)).toEqual(Array.from(scalarsOf(labelmap)));
 
-      copy[0] = 9;
+      copy[0] = 0;
       expect(scalarsOf(labelmap)[0]).toBe(1);
 
-      scalarsOf(labelmap)[1] = 7;
+      scalarsOf(labelmap)[1] = 1;
       expect(copy[1]).toBe(0);
     });
 
     it('covers the whole mask the segment writes through', () => {
       const values = new Uint8Array(VOXEL_COUNT);
       values[0] = 1;
-      values[1] = 2;
+      values[2] = 1;
       const { voxels, second } = seatVoxels(values);
 
-      expect(Array.from(voxels.snapshot()).slice(0, 2)).toEqual([1, 2]);
-      expect(accessorOf(second.maskId).snapshot()).toHaveLength(VOXEL_COUNT);
+      expect(Array.from(voxels.snapshot()).slice(0, 3)).toEqual([1, 0, 1]);
+      expect(accessorOf(second).snapshot()).toHaveLength(VOXEL_COUNT);
     });
   });
 
@@ -230,13 +220,13 @@ describe.each([
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[3] = 1;
-      next[4] = 2;
+      next[5] = 1;
       voxels.apply(next);
 
       // Mappers and the paint engine hold the buffer, and actors the image.
       expect(scalarsOf(labelmap)).toBe(buffer);
       expect(voxels.image()).toBe(labelmap);
-      expect(Array.from(buffer).slice(3, 5)).toEqual([1, 2]);
+      expect(Array.from(buffer).slice(3, 6)).toEqual([1, 0, 1]);
       expect(labelmap.getMTime()).toBeGreaterThan(before);
     });
 
@@ -246,7 +236,7 @@ describe.each([
       const next = new Uint8Array(VOXEL_COUNT);
       next[0] = 1;
       voxels.apply(next);
-      next[0] = 7;
+      next[0] = 0;
 
       expect(scalarsOf(labelmap)[0]).toBe(1);
     });
