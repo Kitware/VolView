@@ -90,8 +90,17 @@ describe('processing labelmap packing', () => {
   it('retains captured pixels and metadata after live masks and the parent change', async () => {
     const { masks, segmentation, parent } = await seed();
     const plan = planSegmentationInput(segmentation.id, true);
+    useSegmentStore().segments.updateSegment(segmentOfMask(masks[1]), {
+      color: [1, 2, 3, 255],
+    });
     const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
-    useSegmentStore().segments.deleteSegment(segmentOfMask(masks[1]));
+    const segmentId = segmentOfMask(masks[1]);
+    useSegmentStore().segments.updateSegment(segmentId, {
+      name: 'Changed',
+      color: [10, 20, 30, 255],
+    });
+    useSegmentationStore().maskVoxels(masks[1]).scalars().fill(0);
+    useSegmentStore().segments.deleteSegment(segmentId);
     parent.setSpacing([2, 2, 2]);
     const second = composeLabelmapPart(snapshot.parent, snapshot.parts[1]);
     expect(namesAtVoxels(second)).toEqual([
@@ -104,6 +113,10 @@ describe('processing labelmap packing', () => {
       '',
       '',
     ]);
+    expect(second.segments[0]).toMatchObject({
+      name: 'Crossing',
+      color: [1, 2, 3, 255],
+    });
     expect(second.labelmap.getSpacing()).toEqual([1, 1, 1]);
   });
 });

@@ -32,8 +32,6 @@ describe('an empty segmentation is not a labelmap input', () => {
       {}
     );
 
-    // A segment declared but never painted, as a result that found nothing
-    // leaves one, stages the same all-background file.
     const maskId = addMask('image-1', 'Tumor');
     expect(
       bindSourceRefs(model, staging.sourceRefContext()).states.inputSeg

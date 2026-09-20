@@ -1,10 +1,10 @@
 <template>
-  <v-card>
+  <v-card ref="card">
     <v-card-title class="d-flex flex-row align-center">
       Save Segments
     </v-card-title>
     <v-card-text>
-      <v-form v-model="valid" @submit.prevent="saveSegmentation">
+      <v-form v-model="valid" @submit.prevent>
         <v-text-field
           v-model="fileName"
           hint="Filename used for downloads."
@@ -48,20 +48,21 @@
 </template>
 
 <script setup lang="ts">
-import { planLabelmapExport } from '@/src/segmentation/io/composition';
-
-import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
-import { computed, onMounted, ref } from 'vue';
+import {
+  computed,
+  onMounted,
+  ref,
+  useTemplateRef,
+  type ComponentPublicInstance,
+} from 'vue';
 import { onKeyDown } from '@vueuse/core';
-import { saveAs } from 'file-saver';
+import { planLabelmapExport } from '@/src/segmentation/io/composition';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import {
   archiveNameFor,
-  bundleExportFiles,
   segmentationFileStem,
-  writeLabelmapParts,
-  type ExportFile,
 } from '@/src/segmentation/io/export';
+import { saveLabelmapExport } from '@/src/segmentation/components/saveLabelmapExport';
 import { useErrorMessage } from '@/src/composables/useErrorMessage';
 import { sanitizeSegmentationFileStem } from '@/src/io/state-file/maskArchivePath';
 
@@ -78,9 +79,15 @@ const EXTENSIONS = [
   'iwi.cbor',
 ];
 
-const props = defineProps<{
-  id: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    id: string;
+    // Spelled out: `typeof` an import compiles to an untyped prop, whose
+    // function default Vue would call as a factory.
+    save?: (parentId: string, stem: string, format: string) => Promise<void>;
+  }>(),
+  { save: saveLabelmapExport }
+);
 
 const emit = defineEmits<{ done: [] }>();
 
@@ -114,26 +121,9 @@ const archiveName = computed(() =>
   archiveNameFor(sanitizeSegmentationFileStem(fileName.value))
 );
 
-// What leaves VolView is the image's whole segmentation, not one segment's
-// bounded mask, so the masks are composited on the way out. One file carries
-// one label per voxel, so each group of segments that do not overlap makes its
-// own file.
-async function writeParts(stem: string) {
-  useSegmentationEditsStore().beforeRead();
-  const parentId = parentImageId.value;
-  const files: ExportFile[] = [];
-  await writeLabelmapParts(
-    { parentId, parts: planLabelmapExport(parentId).parts },
-    stem,
-    fileFormat.value,
-    (file) => {
-      files.push(file);
-    }
-  );
-  return files;
-}
-
 async function saveSegmentation() {
+  // Enter on the focused Save button fires the key handler and then the click.
+  if (saving.value) return;
   if (fileName.value.trim().length === 0) {
     return;
   }
@@ -142,9 +132,7 @@ async function saveSegmentation() {
   await useErrorMessage('Failed to save segments', async () => {
     const sanitizedFileName = sanitizeSegmentationFileStem(fileName.value);
     fileNameValue.value = sanitizedFileName;
-    const files = await writeParts(sanitizedFileName);
-    const bundle = await bundleExportFiles(sanitizedFileName, files);
-    saveAs(bundle.blob, bundle.name);
+    await props.save(parentImageId.value, sanitizedFileName, fileFormat.value);
   });
   saving.value = false;
   emit('done');
@@ -158,9 +146,16 @@ onMounted(() => {
   );
 });
 
-onKeyDown('Enter', () => {
-  saveSegmentation();
-});
+// Card-scoped, so Enter in the teleported format menu never lands here; an Enter
+// a control already consumed, such as the format select opening, is not a save.
+const card = useTemplateRef<ComponentPublicInstance>('card');
+onKeyDown(
+  'Enter',
+  (event) => {
+    if (!event.defaultPrevented) saveSegmentation();
+  },
+  { target: () => card.value?.$el }
+);
 
 function validFileName(name: string) {
   return name.trim().length > 0 || 'Required';
