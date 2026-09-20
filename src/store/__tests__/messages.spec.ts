@@ -1,5 +1,10 @@
 import { describe, it, beforeEach, expect } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { nextTick } from 'vue';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { useImageStore } from '@/src/store/datasets-images';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { MessageType, useMessageStore } from '@/src/store/messages';
 
 describe('Message store', () => {
@@ -65,5 +70,28 @@ describe('Message store', () => {
 
     messageStore.clearAll();
     expect(messageStore.messages).to.be.empty;
+  });
+
+  it('still reports an error when a dataset image was disposed', async () => {
+    // addError builds a bug report from the image cache, so a dataset the
+    // cache can no longer read must not cost the user the message itself.
+    const image = vtkImageData.newInstance();
+    image.setDimensions(2, 2, 2);
+    image.getPointData().setScalars(
+      vtkDataArray.newInstance({
+        name: 'scalars',
+        numberOfComponents: 1,
+        values: new Uint8Array(8),
+      })
+    );
+    useImageStore().addVTKImageData('CT', image, { id: 'img-1' });
+    await nextTick();
+    useImageCacheStore().imageById['img-1'].dispose();
+
+    const messageStore = useMessageStore();
+    messageStore.addError('an error', { error: new Error('boom') });
+
+    expect(messageStore.messages).toHaveLength(1);
+    expect(messageStore.messages[0].title).toBe('an error');
   });
 });
