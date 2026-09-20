@@ -297,12 +297,16 @@ export const createSegmentRegistry = ({
    * import into a populated scene overwrites nothing.
    */
   const adopt = (incoming: Maybe<Segment[]>) => {
-    const idMap: Record<string, string> = {};
+    // Prototype-free: a file's ids are its own, so an id spelling an
+    // Object.prototype key ('constructor', 'toString') must not read as
+    // already seen here, nor hand a caller an inherited member in place of a
+    // miss when it looks the id up in the returned map.
+    const idMap: Record<string, string> = Object.create(null);
     (incoming ?? []).forEach(({ id, ...init }) => {
       // Nothing makes a file's ids unique, and only one segment can answer for
       // an id. The first entry wins; minting the rest as well would leave
       // segments in the sidebar that no mask or shape can ever reference.
-      if (id in idMap) return;
+      if (Object.hasOwn(idMap, id)) return;
       idMap[id] = mintSegment(init as SegmentInit);
     });
     return idMap;

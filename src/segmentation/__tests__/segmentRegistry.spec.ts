@@ -218,6 +218,28 @@ describe('segment type registry', () => {
     expect(namesOf(registry)).toEqual(['A']);
     expect(registry.getSegment(idMap.dup)?.name).toBe('A');
   });
+
+  // A file's ids are its own, so one that happens to spell an Object.prototype
+  // key is an ordinary id: it seats a segment, and a lookup on the returned map
+  // answers with that segment rather than with an inherited member.
+  it('adopts a segment whose id spells a prototype member', () => {
+    const registry = createSegmentRegistry();
+
+    const idMap = registry.adopt([
+      {
+        id: 'constructor',
+        name: 'A',
+        color: [1, 1, 1, 255],
+        visible: true,
+        locked: false,
+      },
+    ]);
+
+    expect(Object.keys(idMap)).toEqual(['constructor']);
+    expect(namesOf(registry)).toEqual(['A']);
+    expect(registry.getSegment(idMap.constructor as string)?.name).toBe('A');
+    expect(idMap.toString).toBeUndefined();
+  });
 });
 
 describe('the shared registry', () => {
