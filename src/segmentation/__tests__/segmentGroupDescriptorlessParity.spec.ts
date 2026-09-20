@@ -266,11 +266,15 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
 
     const catalog = catalogFor('parent-store');
     expect(catalog).toHaveLength(2);
-    expect(catalog[0].name).toBe('Segment 1');
     expect(catalog[1]).toMatchObject({
       name: 'Tumor core',
       color: [255, 0, 0, 255],
     });
+    // Bytes read straight from the archive have no loaded dataset to take a
+    // name from, and 'Segment 1' says nothing about what was restored: the
+    // undescribed value is named after the labelmap, as the live conversion
+    // names it after the file it arrived in.
+    expect(catalog).toEqual(await liveCatalog(decoded.headerMetadata));
   });
 
   it('enumerates only distinct sparse voxel labels', async () => {

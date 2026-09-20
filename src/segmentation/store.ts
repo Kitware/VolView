@@ -360,15 +360,19 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     image: vtkLabelMap,
     options: Pick<
       DecodeOptions,
-      'component' | 'headerMetadata' | 'declared'
+      'component' | 'headerMetadata' | 'declared' | 'baseName'
     > = {}
   ) {
     return decodeLabelmapSegments(imageId, image, {
       ...options,
       // A descriptor-less labelmap reads as the file it arrived in, not as
       // 'Segment N'; the cold restore decodes through here too, so the two
-      // paths keep naming one labelmap alike.
-      baseName: imageId === undefined ? undefined : getSelectionStem(imageId),
+      // paths keep naming one labelmap alike. A caller reading bytes no loaded
+      // image holds says what they arrived as, since there is no selection
+      // here to take a name from.
+      baseName:
+        options.baseName ??
+        (imageId === undefined ? undefined : getSelectionStem(imageId)),
       nextColor: getNextDecodeColor,
     });
   }

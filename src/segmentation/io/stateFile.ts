@@ -24,7 +24,7 @@ import type { FileEntry } from '@/src/io/types';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
 import { cleanUndefined } from '@/src/utils';
-import { normalize } from '@/src/utils/path';
+import { normalize, stripExtension } from '@/src/utils/path';
 import { splitLabelmap, toLabelMap } from '@/src/segmentation/io/import';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -114,7 +114,11 @@ export type SegmentationWireDeps = {
   decodeSegments: (
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
-    options?: { component?: number; headerMetadata?: Map<string, string> }
+    options?: {
+      component?: number;
+      headerMetadata?: Map<string, string>;
+      baseName?: string;
+    }
   ) => Promise<Array<Omit<LabelmapSegment, 'color'> & { color: number[] }>>;
   ensureSegmentationForImage: (parentImageId: string) => Segmentation;
   getSegmentationForImage: (parentImageId: string) => Segmentation | undefined;
@@ -387,6 +391,14 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             const decoded = item.decode
               ? ((await decodeSegments(storeId, labelmap, {
                   headerMetadata,
+                  // Read straight from the archive there is no loaded dataset
+                  // to name the segments after, and 'Segment 1' says nothing
+                  // about what arrived: the saved labelmap's own name is what
+                  // the live conversion would have read off the file.
+                  baseName:
+                    storeId === undefined
+                      ? stripExtension(item.name) || undefined
+                      : undefined,
                 })) as LabelmapSegment[])
               : undefined;
             return { item, labelmap, decoded };
