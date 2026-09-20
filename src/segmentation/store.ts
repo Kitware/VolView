@@ -22,6 +22,7 @@ import {
   decodeLabelmapSegments,
   importLabelmapImage,
   splitLabelmap,
+  type DecodeOptions,
 } from '@/src/segmentation/io/import';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -357,7 +358,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function decodeSegments(
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
-    options: { component?: number; headerMetadata?: Map<string, string> } = {}
+    options: Pick<
+      DecodeOptions,
+      'component' | 'headerMetadata' | 'declared'
+    > = {}
   ) {
     return decodeLabelmapSegments(imageId, image, {
       ...options,
@@ -376,9 +380,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * declared value with no voxels reaches the split only by being appended
    * here. This mirrors the seg.nrrd header path, where overlaySegmentMetadata
    * appends described values missing from the enumeration 'so nothing
-   * described is lost', so a declaration reaches the catalog whichever of the
-   * two it arrived on. The header overlay still runs per component and repeats
-   * its empties once per one; only this path is component-aware.
+   * described is lost'; both import paths now keep the same segments, across
+   * the components of one file as well.
    *
    * 0 is background, never a segment. A declaration any component covered is
    * left where that component put it, so appearance stays merged onto the
@@ -437,11 +440,15 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       // position, so the two lists have to be the same one. They wait for the
       // last component, once every component has said which values it carries.
       decode: async (labelmap, component, componentCount) => {
+        const last = component === componentCount - 1;
         const decoded = (await decodeSegments(imageID, labelmap, {
           component,
+          // The file header's own declarations wait for the last component the
+          // same way, through the same covered values.
+          declared: { covered: coveredValues, last },
         })) as LabelmapSegment[];
         decoded.forEach((descriptor) => coveredValues.add(descriptor.value));
-        if (component < componentCount - 1) return decoded;
+        if (!last) return decoded;
         return withDeclaredEmpties(decoded, bySourceValue, coveredValues);
       },
       split: (labelmap, descriptors) => {
