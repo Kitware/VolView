@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createPinia, setActivePinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import { nextTick } from 'vue';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
 import { morphologicalContourInterpolationNode } from '@itk-wasm/morphological-contour-interpolation';
 import { useFillBetweenStore } from '@/src/segmentation/editing/fillBetween';
@@ -15,6 +13,7 @@ import { useMessageStore } from '@/src/store/messages';
 import { defer } from '@/src/utils';
 import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import {
+  activateAppPinia,
   addMask,
   deleteSegmentOf,
   markedVoxels,
@@ -74,9 +73,7 @@ const cases = [
 ];
 
 beforeEach(async () => {
-  const pinia = createPinia().use(CorePiniaProviderPlugin());
-  createApp({}).use(pinia);
-  setActivePinia(pinia);
+  activateAppPinia();
 });
 
 describe.each(cases)('$name with bounded storage', (fixture) => {

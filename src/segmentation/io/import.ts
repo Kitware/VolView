@@ -9,6 +9,7 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import {
   overlaySegmentMetadata,
   parseSegNrrdMetadata,
+  type DecodedSegment,
 } from '@/src/io/segNrrdMetadata';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -190,7 +191,30 @@ export type DecodeOptions = {
   headerMetadata?: Map<string, string>;
   /** What undescribed segments are named after, in place of 'Segment'. */
   baseName?: string;
+  /**
+   * The values the components read so far carry, and whether this is the last
+   * component of the file. Reading one component of a multi-component labelmap
+   * passes it, so a value the header describes but no component carries is
+   * declared once for the file rather than once per component.
+   */
+  declared?: { covered: Set<number>; last: boolean };
   nextColor: () => readonly number[];
+};
+
+/** A declared value is one bin per file, empty if no component carries it. */
+const declaredOncePerFile = (
+  merged: DecodedSegment[],
+  carried: number[],
+  declared: DecodeOptions['declared']
+) => {
+  if (!declared) return merged;
+  const enumerated = new Set(carried);
+  enumerated.forEach((value) => declared.covered.add(value));
+  return merged.filter(
+    (segment) =>
+      enumerated.has(segment.value) ||
+      (declared.last && !declared.covered.has(segment.value))
+  );
 };
 
 /** A lone value carries the base name bare: there is nothing to tell apart. */
@@ -231,18 +255,26 @@ export async function decodeLabelmapSegments(
   const values = distinctLabelValues(image);
   const nameFor = fallbackNamer(values, options.baseName);
 
-  return overlaySegmentMetadata(values, described, (value) => ({
+  const merged = overlaySegmentMetadata(values, described, (value) => ({
     value,
     name: nameFor(value),
     color: [...options.nextColor()] as RGBAColor,
     visible: true,
   }));
+  return declaredOncePerFile(merged, values, options.declared);
 }
 
 export type LabelmapImportHooks = {
+  /**
+   * Descriptors for one component. `componentCount` is how many components
+   * this image has in all, so a decode that adds a descriptor the voxels never
+   * carried can add it once, on the last component, instead of once per
+   * component. A value can have voxels in one component and none in another.
+   */
   decode: (
     labelmap: vtkLabelMap,
-    component: number
+    component: number,
+    componentCount: number
   ) => Promise<LabelmapSegment[]>;
   /** Mints the masks for one decoded labelmap, in descriptor order. */
   split: (labelmap: vtkLabelMap, descriptors: LabelmapSegment[]) => string[];
@@ -307,7 +339,11 @@ export async function importLabelmapImage(
     const matchingParentSpace = await ensureSameSpace(parentImage, image, true);
     requireParentImage(parentID);
     const labelmapImage = toLabelMap(matchingParentSpace);
-    const descriptors = await hooks.decode(labelmapImage, component);
+    const descriptors = await hooks.decode(
+      labelmapImage,
+      component,
+      images.length
+    );
     requireParentImage(parentID);
     if (!cache.imageById[imageID]) {
       throw new Error('Labelmap image is no longer loaded');

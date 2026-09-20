@@ -53,6 +53,9 @@ its voxels: painting goes around it. Turn on "Allow Overlap" to paint over other
 segments without taking anything from them, so the segments overlap. The same
 rules apply when a polygon is rasterized.
 
+Erasing or painting over everything a segment holds on an image removes its mask
+there. The segment stays in the list, with nothing on that image to reveal or save.
+
 ### Rectangle
 
 When the rectangle tool is selected, the left mouse button is used to place and adjust rectangle control points.

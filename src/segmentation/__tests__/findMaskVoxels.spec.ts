@@ -78,9 +78,9 @@ describe('tolerant mask voxel accessor', () => {
     it('shows a tolerant accessor write through the strict one', () => {
       const maskId = seatMask('img-1');
 
-      store().findMaskVoxels(maskId).scalars()[6] = 2;
+      store().findMaskVoxels(maskId).scalars()[6] = 1;
 
-      expect(Array.from(store().maskVoxels(maskId).snapshot())[6]).toBe(2);
+      expect(Array.from(store().maskVoxels(maskId).snapshot())[6]).toBe(1);
     });
   });
 });

@@ -1,6 +1,5 @@
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { defineStore } from 'pinia';
-import { markRaw, reactive, ref } from 'vue';
+import { markRaw, reactive, readonly, ref, shallowReactive } from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
@@ -20,6 +19,7 @@ import {
   decodeLabelmapSegments,
   importLabelmapImage,
   splitLabelmap,
+  type DecodeOptions,
 } from '@/src/segmentation/io/import';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -31,6 +31,8 @@ import {
 import {
   DEFAULT_SEGMENTATION_DISPLAY,
   listMasks,
+  makeDefaultSegmentName,
+  maskHasContent,
   maskScalars,
   type LabelmapBinding,
   type LabelmapSegment,
@@ -40,7 +42,7 @@ import {
 } from '@/src/segmentation/model';
 import {
   emptyExtent,
-  isEmptyExtent,
+  hasMarkedVoxel,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -91,22 +93,30 @@ declareManifestRefs('segmentations', (manifest) => {
   });
 });
 
+/**
+ * What a caller says about one source label value. Only `value` identifies the
+ * bin; everything else overrides what the labelmap's own metadata decoded.
+ */
+type SourceDescription = Pick<LabelmapSegment, 'value'> &
+  Partial<Omit<LabelmapSegment, 'value'>>;
+
 export const useSegmentationStore = defineStore('segmentation', () => {
   const edits = useSegmentationEditsStore();
   const imageCacheStore = useImageCacheStore();
   const segmentRegistry = useSegmentStore().segments;
 
   const segmentations = reactive<Record<string, Segmentation>>({});
-  const convertingLabelmaps = reactive(new Set<DataSelection>());
   // The conversions running for each child image, by parent, so a second
   // caller for the same pair joins it instead of splitting the same labelmap
   // twice. The parent belongs in the key: the same child going onto another
   // parent is other work, and joining it would hand that caller masks made on
-  // an image it never named.
-  const conversions = new Map<
-    DataSelection,
-    Map<DataSelection, ReturnType<typeof importLabelmapImage>>
-  >();
+  // an image it never named. Shallow: readers only ask whether a child has one.
+  const conversions = shallowReactive(
+    new Map<
+      DataSelection,
+      Map<DataSelection, ReturnType<typeof importLabelmapImage>>
+    >()
+  );
   /**
    * How many bound masks hold each name, so picking a default name probes this
    * rather than walking every mask in the scene. A restore attaches the names
@@ -336,7 +346,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   function decodeSegments(
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
-    options: { component?: number; headerMetadata?: Map<string, string> } = {}
+    options: Pick<
+      DecodeOptions,
+      'component' | 'headerMetadata' | 'declared'
+    > = {}
   ) {
     return decodeLabelmapSegments(imageId, image, {
       ...options,
@@ -348,13 +361,30 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     });
   }
 
+  // A declared value no component carried becomes an empty segment, so a
+  // result that found nothing reads differently from one that never looked.
+  function withDeclaredEmpties(
+    decoded: LabelmapSegment[],
+    bySourceValue: Map<number, Partial<SourceDescription>>,
+    covered: Set<number>
+  ) {
+    const empties = [...bySourceValue]
+      .filter(([value]) => value !== 0 && !covered.has(value))
+      .map(([value, description]) => ({
+        ...description,
+        value,
+        name: description.name ?? makeDefaultSegmentName(value),
+        color: [...(description.color ?? getNextDecodeColor())] as RGBAColor,
+        visible: description.visible ?? true,
+      }));
+    return [...decoded, ...empties];
+  }
+
   async function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
     source?: ProcessingResultSource,
-    descriptions: Array<
-      Pick<LabelmapSegment, 'value'> & Partial<Omit<LabelmapSegment, 'value'>>
-    > = []
+    descriptions: SourceDescription[] = []
   ) {
     // A second conversion of an image already converting onto the same parent
     // would split it again and mint a suffixed duplicate of every segment, and
@@ -370,12 +400,26 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         cleanUndefined(descriptor),
       ])
     );
-    convertingLabelmaps.add(imageID);
+    // Every source value any component of this image carries voxels for. A
+    // declaration is empty only when none of them did.
+    const coveredValues = new Set<number>();
     const conversion = importLabelmapImage(imageID, parentID, {
-      decode: (labelmap, component) =>
-        decodeSegments(imageID, labelmap, { component }) as Promise<
-          LabelmapSegment[]
-        >,
+      // The empties join the descriptor list here, not at the split: the
+      // import pairs the masks the split returns with these descriptors by
+      // position, so the two lists have to be the same one. They wait for the
+      // last component, once every component has said which values it carries.
+      decode: async (labelmap, component, componentCount) => {
+        const last = component === componentCount - 1;
+        const decoded = (await decodeSegments(imageID, labelmap, {
+          component,
+          // The file header's own declarations wait for the last component the
+          // same way, through the same covered values.
+          declared: { covered: coveredValues, last },
+        })) as LabelmapSegment[];
+        decoded.forEach((descriptor) => coveredValues.add(descriptor.value));
+        if (!last) return decoded;
+        return withDeclaredEmpties(decoded, bySourceValue, coveredValues);
+      },
       split: (labelmap, descriptors) => {
         const created = splitLabelmapIntoMasks(
           parentID,
@@ -399,10 +443,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     } finally {
       ontoParents.delete(parentID);
       // The child is still converting while it goes onto another parent.
-      if (ontoParents.size === 0) {
-        conversions.delete(imageID);
-        convertingLabelmaps.delete(imageID);
-      }
+      if (ontoParents.size === 0) conversions.delete(imageID);
     }
   }
 
@@ -456,14 +497,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * is not editable, and holding voxels, since an empty mask has no content to
    * process.
    */
-  function editableMasks(parentImageId: string) {
-    return imageMasks(parentImageId).flatMap((mask) => {
-      const binding = mask.representations.labelmap;
-      if (maskLocked(mask) || !binding || isEmptyExtent(binding.extent))
-        return [];
-      return [{ maskId: mask.id, labelValue: SEGMENT_VALUE }];
-    });
-  }
+  const editableMasks = (parentImageId: string) =>
+    imageMasks(parentImageId)
+      .filter((mask) => !maskLocked(mask) && maskHasContent(mask))
+      .map((mask) => mask.id);
 
   /**
    * The ids of the masks an image draws, in `order`. One actor each; they are
@@ -491,6 +528,19 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (index?.get(segmentId) === maskId) index.delete(segmentId);
     if (representations.labelmap)
       releaseMaskName(representations.labelmap.name);
+  }
+
+  /**
+   * Deletes each of these masks that holds no voxel, since an erase never
+   * shrinks the allocation that content is read from. Edits call it once they
+   * end, with the masks they wrote or cleared; an id already gone is skipped.
+   */
+  function deleteEmptyMasks(maskIds: Iterable<string>) {
+    new Set(maskIds).forEach((maskId) => {
+      const binding = findMaskBinding(maskId);
+      if (binding && !hasMarkedVoxel(maskScalars(binding.image)))
+        deleteMask(maskId);
+    });
   }
 
   function removeSegmentation(segmentationId: string) {
@@ -616,7 +666,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   return {
     segmentations,
-    convertingLabelmaps,
+    convertingLabelmaps: readonly(conversions),
     labelmapDescriptorByMask,
     maskFor,
     findEditTarget,
@@ -641,6 +691,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     saveFormat,
     allowOverlap,
     voxelClaim,
+    deleteEmptyMasks,
     imageMasks,
     editableMasks,
     boundMaskIds,

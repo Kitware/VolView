@@ -42,8 +42,11 @@ export type SegmentMask = {
 /**
  * Whether a mask holds anything. A record alone is not content, and neither is
  * storage bound over an empty extent: both mean the segment was resolved on
- * this image but never painted. Readers that count or gate on what an image
- * actually has ask this instead of whether the record exists.
+ * this image but never painted. Storage over any other extent holds a voxel,
+ * since an edit deletes a mask it leaves empty once it ends; only a restored
+ * file, or an edit that has not ended, can still bind an allocation holding
+ * none. Readers that count or gate on what an image actually has ask this
+ * instead of whether the record exists.
  */
 export const maskHasContent = (mask: SegmentMask) => {
   const binding = mask.representations.labelmap;

@@ -158,9 +158,10 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       others
     );
     const bounded = (masks: SegmentMask[]) =>
-      masks.flatMap(
-        (mask) => boundScalars(mask.representations.labelmap) ?? []
-      );
+      masks.flatMap((mask) => {
+        const scalars = boundScalars(mask.representations.labelmap);
+        return scalars ? [{ ...scalars, maskId: mask.id }] : [];
+      });
     return { takeFrom: bounded(takeFrom), yieldTo: bounded(yieldTo) };
   }
 
@@ -175,6 +176,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    *
    * `gesture` is the whole of the policy, so see {@link VoxelGesture}. An aimed
    * operation must call finish in a finally block after its last voxel write.
+   * Finish returns the ids of the masks it took a voxel from, which the
+   * operation hands to `deleteEmptyMasks` once it is over.
    */
   function voxelClaim(maskId: string, gesture: VoxelGesture, within: Extent3D) {
     const { takeFrom, yieldTo } = siblingMasks(maskId, gesture);
@@ -187,7 +190,7 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
         clearing?.clear(i, j, k);
         return true;
       },
-      finish: () => clearing?.finish(),
+      finish: () => clearing?.finish().map((bounded) => bounded.maskId) ?? [],
     };
   }
 

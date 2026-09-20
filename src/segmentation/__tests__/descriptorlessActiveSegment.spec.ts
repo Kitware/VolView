@@ -1,17 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { listMasks } from '@/src/segmentation/model';
+import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // A pre-7 group with no descriptors has no segments to activate when
@@ -23,16 +21,6 @@ import { listMasks } from '@/src/segmentation/model';
 
 const BASE_URI = 'volview-backend:base/ct-chest-001';
 
-function makeImage(values: Uint8Array) {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image
-    .getPointData()
-    .setScalars(vtkDataArray.newInstance({ numberOfComponents: 1, values }));
-  image.computeTransforms();
-  return image;
-}
-
 function makeLabelmapValues() {
   const values = new Uint8Array(4 * 4 * 4);
   values.fill(1, 20, 44);
@@ -41,7 +29,7 @@ function makeLabelmapValues() {
 }
 
 const seat = (id: string, name: string, values: Uint8Array) =>
-  useImageCacheStore().addVTKImageData(makeImage(values), name, { id });
+  seatImage(id, { name, values });
 
 const twoGroupManifest = (activeValue: number): Manifest =>
   ManifestSchema.parse(
@@ -74,11 +62,10 @@ const twoGroupManifest = (activeValue: number): Manifest =>
   );
 
 async function restoreTwoGroups(activeValue: number, populate = () => {}) {
-  setActivePinia(createPinia());
   populate();
-  seat('parent-store', 'CT Chest', new Uint8Array(4 * 4 * 4));
-  seat('a-store', 'A.seg.nrrd', makeLabelmapValues());
-  seat('b-store', 'B.seg.nrrd', makeLabelmapValues());
+  await seat('parent-store', 'CT Chest', new Uint8Array(4 * 4 * 4));
+  await seat('a-store', 'A.seg.nrrd', makeLabelmapValues());
+  await seat('b-store', 'B.seg.nrrd', makeLabelmapValues());
 
   await completeStateFileRestore(twoGroupManifest(activeValue), [], {
     'ds-ct': 'parent-store',
@@ -185,10 +172,10 @@ const twoImageManifest = (): Manifest =>
 describe('restoring same-named descriptorless groups on two images', () => {
   it('keeps the display the second group migrated with', async () => {
     setActivePinia(createPinia());
-    seat('ct-store', 'CT Chest', new Uint8Array(4 * 4 * 4));
-    seat('mr-store', 'MR Chest', new Uint8Array(4 * 4 * 4));
-    seat('a-store', 'Mask.nrrd', makeLabelmapValues());
-    seat('b-store', 'Mask.nrrd', makeLabelmapValues());
+    await seat('ct-store', 'CT Chest', new Uint8Array(4 * 4 * 4));
+    await seat('mr-store', 'MR Chest', new Uint8Array(4 * 4 * 4));
+    await seat('a-store', 'Mask.nrrd', makeLabelmapValues());
+    await seat('b-store', 'Mask.nrrd', makeLabelmapValues());
 
     await completeStateFileRestore(twoImageManifest(), [], {
       'ds-ct': 'ct-store',

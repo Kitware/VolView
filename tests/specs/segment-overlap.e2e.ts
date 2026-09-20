@@ -12,6 +12,7 @@ import {
   allowOverlap,
   lockSegment,
   openAnnotationSegments,
+  segmentRow,
   waitForSegmentContent,
   waitForNamedSegments,
 } from './segmentationTestUtils';
@@ -140,6 +141,10 @@ describe('Painting one segment over another', function () {
     expect(baseline.foreground.length).toBeGreaterThan(0);
     await paintNewSegment();
     await waitForSegmentContent('Segment 2');
+    const replaced = await segmentRow('Segment 1');
+    await expect(
+      replaced.$('[data-testid="reveal-segment-button"]')
+    ).toBeDisabled();
     await openSaveDialog();
 
     await expect(overlapNotice()).not.toBeDisplayed();

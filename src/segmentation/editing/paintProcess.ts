@@ -16,6 +16,7 @@ import {
   isEmptyExtent,
   markedExtent,
   reframeMaskScalars,
+  walkExtentRows,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import { usePaintToolStore } from '@/src/store/tools/paint';
@@ -174,12 +175,10 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
 
     const before = run.originalScalars;
     const after = run.processedScalars;
-    const [ni, nj, nk] = extentSize(extent);
-    // Rows flat in one loop, as the mask sweeps are: a voxel's parent index is
-    // then a step along i from the row's own start, not a divide per voxel.
-    for (let row = 0; row < nj * nk; row += 1) {
-      const j = extent[2] + (row % nj);
-      const k = extent[4] + Math.floor(row / nj);
+    const [ni] = extentSize(extent);
+    // By rows, as the mask sweeps go: a voxel's parent index is then a step
+    // along i from the row's own start, not a divide per voxel.
+    walkExtentRows(extent, (j, k, row) => {
       const from = row * ni;
       for (let n = 0; n < ni; n += 1) {
         const turnedOn =
@@ -189,7 +188,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
           after[from + n] = LABELMAP_BACKGROUND_VALUE;
         }
       }
-    }
+    });
   }
 
   /**
@@ -235,6 +234,11 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       );
     }
     endRun();
+    // After the run ends, since deleting a mask cancels a preview still held.
+    if (state.step === 'previewing')
+      segmentationStore.deleteEmptyMasks(
+        state.runs.map((run) => run.target.maskId)
+      );
   }
 
   const segmentationStore = useSegmentationStore();
@@ -371,10 +375,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   function resolveEverySegment(imageId: string): ResolvedRun | undefined {
     const targets = segmentationStore
       .editableMasks(imageId)
-      .flatMap(({ maskId }) => {
-        const target = targetFor(imageId, maskId);
-        return target ? [target] : [];
-      });
+      .flatMap((maskId) => targetFor(imageId, maskId) ?? []);
     if (targets.length === 0) {
       messageStore.addError(nothingEditable(imageId));
       return undefined;

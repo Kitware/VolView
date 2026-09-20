@@ -60,6 +60,8 @@ function setUpOverlappingSegments(extent: Extent3D) {
   growMask(target, extent);
   const neighbor = addMask('img-1', 'Neighbor');
   seedVoxel(neighbor, [2, 3, 0]);
+  // Outside the polygon, so the neighbor keeps a voxel and its mask.
+  seedVoxel(neighbor, [5, 5, 0]);
   return { target, neighbor, labelValue: labelValueOf(target)! };
 }
 

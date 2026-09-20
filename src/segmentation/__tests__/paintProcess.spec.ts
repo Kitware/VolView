@@ -1,46 +1,33 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { nextTick } from 'vue';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { PaintMode } from '@/src/core/tools/paint';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import {
+  viewImage,
+  type Index3,
+  activateAppPinia,
   selectSegment,
   mintSegment,
   lockSegment,
   addActiveSegment,
+  addMask,
   boundMasks,
+  markedVoxels,
+  seedVoxel,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   usePaintProcessStore,
   type ProcessTarget,
 } from '@/src/segmentation/editing/paintProcess';
-import { useViewStore } from '@/src/store/views';
 import { hostOverSilentWorkers } from '@/src/segmentation/editing/__tests__/silentWorker';
 import { defer } from '@/src/utils';
 
-async function viewImage(id: string) {
-  const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-  image.setDimensions([2, 1, 1]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(2),
-    })
-  );
-  image.computeTransforms();
-  useImageCacheStore().addVTKImageData(image, id, { id });
-  useViewStore().setDataForAllViews(id);
-  await nextTick();
-  return id;
-}
+const TWO_VOXELS = { dimensions: [2, 1, 1] as Index3 };
 
 function getScalars(labelMap: vtkLabelMap) {
   return Array.from(labelMap.getPointData().getScalars().getData());
@@ -48,10 +35,8 @@ function getScalars(labelMap: vtkLabelMap) {
 
 describe('Paint process store', () => {
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
-    await viewImage('image-1');
+    activateAppPinia();
+    await viewImage('image-1', TWO_VOXELS);
   });
 
   it('opens process controls without changing the paint interaction mode', () => {
@@ -76,7 +61,7 @@ describe('Paint process store', () => {
     expect(paintStore.processControlsOpen).toBe(false);
 
     await processStore.startProcess(async (target: ProcessTarget) => ({
-      scalars: new Uint8Array([2, 2]),
+      scalars: new Uint8Array([1, 1]),
       extent: target.maskExtent,
     }));
 
@@ -85,7 +70,7 @@ describe('Paint process store', () => {
     expect(paintStore.activeMode).toBe(PaintMode.Process);
     expect(paintStore.activePaintMode).toBe(PaintMode.Erase);
     expect(paintStore.isPaintingModeActive).toBe(false);
-    expect(getScalars(labelMap)).toEqual([2, 2]);
+    expect(getScalars(labelMap)).toEqual([1, 1]);
 
     processStore.confirmProcess();
 
@@ -105,11 +90,11 @@ describe('Paint process store', () => {
     paintStore.setProcessControlsOpen(true);
 
     await processStore.startProcess(async (target: ProcessTarget) => ({
-      scalars: new Uint8Array([3, 3]),
+      scalars: new Uint8Array([1, 1]),
       extent: target.maskExtent,
     }));
 
-    expect(getScalars(labelMap)).toEqual([3, 3]);
+    expect(getScalars(labelMap)).toEqual([1, 1]);
 
     processStore.cancelProcess();
 
@@ -144,7 +129,7 @@ describe('Paint process store', () => {
     host.call((api) => api.smooth(2)).catch(() => undefined);
     expect(workers).toHaveLength(2);
 
-    pending.resolve(new Uint8Array([4, 4]));
+    pending.resolve(new Uint8Array([1, 1]));
     await run;
     expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([0, 0]);
@@ -168,17 +153,17 @@ describe('Paint process store', () => {
       extent: target.maskExtent,
     }));
 
-    first.resolve(new Uint8Array([9, 9]));
+    first.resolve(new Uint8Array([1, 1]));
     await firstRun;
 
     expect(processStore.processState.step).toBe('computing');
     expect(getScalars(labelMap)).toEqual([0, 0]);
 
-    second.resolve(new Uint8Array([2, 2]));
+    second.resolve(new Uint8Array([0, 1]));
     await secondRun;
 
     expect(processStore.processState.step).toBe('previewing');
-    expect(getScalars(labelMap)).toEqual([2, 2]);
+    expect(getScalars(labelMap)).toEqual([0, 1]);
   });
 
   it('says why a run cannot start without starting one', () => {
@@ -241,7 +226,7 @@ describe('Paint process store', () => {
     lockSegment(maskId);
 
     await processStore.startProcess(async (target: ProcessTarget) => ({
-      scalars: new Uint8Array([2, 2]),
+      scalars: new Uint8Array([1, 1]),
       extent: target.maskExtent,
     }));
 
@@ -254,24 +239,25 @@ describe('Paint process store', () => {
     ).toBe(true);
   });
 
-  it('does not create state for a segment-scoped process on a bare image', async () => {
-    const processStore = usePaintProcessStore();
-    const segmentationStore = useSegmentationStore();
-    const messageStore = useMessageStore();
-    const algorithm = vi.fn();
+  it.each([
+    ['a segment-scoped', true],
+    ['an all-segments', false],
+  ])(
+    'creates no state for %s process on a bare image',
+    async (_scope, requiresActiveSegment) => {
+      const processStore = usePaintProcessStore();
+      const algorithm = vi.fn();
 
-    await processStore.startProcess(algorithm);
+      await processStore.startProcess(algorithm, { requiresActiveSegment });
 
-    expect(algorithm).not.toHaveBeenCalled();
-    expect(
-      segmentationStore.getSegmentationForImage('image-1')
-    ).toBeUndefined();
-    expect(boundMasks()).toHaveLength(0);
-    expect(processStore.processState.step).toBe('start');
-    expect(messageStore.messages.map(({ title }) => title)).toContain(
-      'No segments to process'
-    );
-  });
+      expect(algorithm).not.toHaveBeenCalled();
+      expect(
+        useSegmentationStore().getSegmentationForImage('image-1')
+      ).toBeUndefined();
+      expect(boundMasks()).toHaveLength(0);
+      expect(processStore.processState.step).toBe('start');
+    }
+  );
 
   it('does not allocate storage for an unbound active segment', async () => {
     const processStore = usePaintProcessStore();
@@ -328,24 +314,26 @@ describe('Paint process store', () => {
     );
   });
 
-  it('does not clone the active segment onto the image being viewed', async () => {
-    const processStore = usePaintProcessStore();
-    const segmentationStore = useSegmentationStore();
-    const { labelMap: firstLabelMap } = addActiveSegment();
-    const algorithm = vi.fn(async (target: ProcessTarget) => ({
-      scalars: new Uint8Array([4, 4]),
-      extent: target.maskExtent,
-    }));
+  it.each([
+    ['a segment-scoped', true],
+    ['an all-segments', false],
+  ])(
+    'does not clone the active segment onto a viewed image for %s process',
+    async (_scope, requiresActiveSegment) => {
+      const processStore = usePaintProcessStore();
+      const { labelMap } = addActiveSegment();
+      const algorithm = vi.fn();
 
-    await viewImage('image-2');
-    await processStore.startProcess(algorithm);
+      await viewImage('image-2', TWO_VOXELS);
+      await processStore.startProcess(algorithm, { requiresActiveSegment });
 
-    expect(algorithm).not.toHaveBeenCalled();
-    expect(
-      segmentationStore.getSegmentationForImage('image-2')
-    ).toBeUndefined();
-    expect(getScalars(firstLabelMap)).toEqual([0, 0]);
-  });
+      expect(algorithm).not.toHaveBeenCalled();
+      expect(
+        useSegmentationStore().getSegmentationForImage('image-2')
+      ).toBeUndefined();
+      expect(getScalars(labelMap)).toEqual([0, 0]);
+    }
+  );
 
   it('cancels the preview when the active segment changes', async () => {
     const processStore = usePaintProcessStore();
@@ -353,7 +341,7 @@ describe('Paint process store', () => {
     const { segmentationId, labelMap } = addActiveSegment();
 
     await processStore.startProcess(async (target: ProcessTarget) => ({
-      scalars: new Uint8Array([2, 2]),
+      scalars: new Uint8Array([1, 1]),
       extent: target.maskExtent,
     }));
     expect(processStore.processState.step).toBe('previewing');
@@ -371,32 +359,6 @@ describe('Paint process store', () => {
     expect(getScalars(labelMap)).toEqual([0, 0]);
   });
 
-  it('does not create a segment for an all-segments process on a bare image', async () => {
-    const processStore = usePaintProcessStore();
-    const segmentationStore = useSegmentationStore();
-    const messageStore = useMessageStore();
-
-    await processStore.startProcess(
-      async (target: ProcessTarget) => ({
-        scalars: new Uint8Array([2, 2]),
-        extent: target.maskExtent,
-      }),
-      {
-        requiresActiveSegment: false,
-      }
-    );
-
-    expect(
-      segmentationStore.getSegmentationForImage('image-1')
-    ).toBeUndefined();
-    expect(processStore.processState.step).toBe('start');
-    expect(
-      messageStore.messages.some(
-        (m) => m.title === 'No segmentation to process'
-      )
-    ).toBe(true);
-  });
-
   it('names the lock rather than reporting nothing to process', async () => {
     const processStore = usePaintProcessStore();
     const messageStore = useMessageStore();
@@ -405,7 +367,7 @@ describe('Paint process store', () => {
 
     await processStore.startProcess(
       async (target: ProcessTarget) => ({
-        scalars: new Uint8Array([2, 2]),
+        scalars: new Uint8Array([0, 0]),
         extent: target.maskExtent,
       }),
       {
@@ -433,7 +395,7 @@ describe('Paint process store', () => {
 
     await processStore.startProcess(
       async (target: ProcessTarget) => ({
-        scalars: new Uint8Array([2, 2]),
+        scalars: new Uint8Array([0, 0]),
         extent: target.maskExtent,
       }),
       {
@@ -446,24 +408,58 @@ describe('Paint process store', () => {
     expect(titles).not.toContain('Every segment is locked');
   });
 
-  it('does not clone the active segment onto a merely viewed image', async () => {
+  const emptyingProcess = async (target: ProcessTarget) => ({
+    scalars: new Uint8Array(target.scalars.length),
+    extent: target.maskExtent,
+  });
+
+  it('deletes a mask the applied result leaves empty once it is applied', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    addActiveSegment();
-    await viewImage('image-2');
+    const { maskId } = addActiveSegment(new Uint8Array([1, 1]));
+
+    await processStore.startProcess(emptyingProcess);
+    const whilePreviewing = segmentationStore.maskExists(maskId);
+    // Applied from the original view, so the result is written back first.
+    processStore.setShowingOriginal(true);
+    processStore.confirmProcess();
+
+    expect(whilePreviewing).toBe(true);
+    expect(segmentationStore.maskExists(maskId)).toBe(false);
+  });
+
+  it('keeps the mask of an emptying preview that is cancelled', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const { maskId, labelMap } = addActiveSegment(new Uint8Array([1, 1]));
+
+    await processStore.startProcess(emptyingProcess);
+    processStore.cancelProcess();
+
+    expect(segmentationStore.maskExists(maskId)).toBe(true);
+    expect(getScalars(labelMap)).toEqual([1, 1]);
+  });
+
+  it('deletes only the masks an applied run leaves empty', async () => {
+    const processStore = usePaintProcessStore();
+    const segmentationStore = useSegmentationStore();
+    const emptied = addMask('image-1', 'Emptied');
+    const kept = addMask('image-1', 'Kept');
+    seedVoxel(emptied, [0, 0, 0]);
+    seedVoxel(kept, [0, 0, 0]);
+    seedVoxel(kept, [1, 0, 0]);
 
     await processStore.startProcess(
-      async (target: ProcessTarget) => ({
-        scalars: new Uint8Array([2, 2]),
-        extent: target.maskExtent,
-      }),
-      {
-        requiresActiveSegment: false,
-      }
+      async (target: ProcessTarget) =>
+        target.maskId === emptied
+          ? emptyingProcess(target)
+          : { scalars: new Uint8Array([0, 1]), extent: target.maskExtent },
+      { requiresActiveSegment: false }
     );
+    processStore.confirmProcess();
 
-    expect(
-      segmentationStore.getSegmentationForImage('image-2')
-    ).toBeUndefined();
+    expect(segmentationStore.maskExists(emptied)).toBe(false);
+    // The run ends before the deletion, which would otherwise roll this back.
+    expect(markedVoxels(kept)).toEqual([[1, 0, 0, SEGMENT_VALUE]]);
   });
 });

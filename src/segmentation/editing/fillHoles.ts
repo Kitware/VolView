@@ -7,7 +7,7 @@ import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
 import { getEffectiveView } from '@/src/core/views/effectiveView';
 import { fillHolesWorker } from '@/src/segmentation/editing/algorithms/fillHoles.worker';
 import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
-import { getLPSDirections } from '@/src/utils/lps';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { extentReachesSlice } from '@/src/segmentation/geometry';
 
 export enum FillHolesSliceScope {
@@ -72,10 +72,12 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       );
     }
 
-    const labelMapLpsOrientation = getLPSDirections(
-      Float32Array.from(target.direction)
+    // A mask sits on its parent's grid, so the parent's axes are the mask's.
+    const metadata = useImageCacheStore().getImageMetadata(
+      target.parentImageId
     );
-    const axis = labelMapLpsOrientation[effectiveView.axis];
+    if (!metadata) throw new Error('No such parent image');
+    const axis = metadata.lpsOrientation[effectiveView.axis];
     const { dimensions, scalars: data } = target;
 
     const currentSlice = sliceScope.value === FillHolesSliceScope.CurrentSlice;

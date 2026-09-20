@@ -148,13 +148,30 @@ export function reframeMaskScalars(
 }
 
 /**
+ * Walks `extent` one row along i at a time, handing each row its j and k and
+ * its position among the rows. Stops at the first row answering true and says
+ * whether one did. One flat loop, so no caller nests a j and a k loop.
+ */
+export function walkExtentRows(
+  extent: Extent3D,
+  visit: (j: number, k: number, row: number) => boolean | void
+) {
+  const [, nj, nk] = extentSize(extent);
+  for (let row = 0; row < nj * nk; row += 1) {
+    if (visit(extent[2] + (row % nj), extent[4] + Math.floor(row / nj), row))
+      return true;
+  }
+  return false;
+}
+
+/**
  * The box the claimed voxels actually occupy inside a mask bounded by
  * `extent`, empty when it claims nothing. A binding's extent is the
  * allocation, padded and never shrunk by an erase, so it is not the segment's
  * bounds. Background is 0, so a claimed voxel is a truthy one.
  */
 export function markedExtent(scalars: ArrayLike<number>, extent: Extent3D) {
-  const [ni, nj, nk] = extentSize(extent);
+  const [ni] = extentSize(extent);
   let bounds: Extent3D | undefined;
 
   const scanRow = (rowStart: number, j: number, k: number) => {
@@ -166,11 +183,16 @@ export function markedExtent(scalars: ArrayLike<number>, extent: Extent3D) {
     }
   };
 
-  for (let row = 0; row < nj * nk; row += 1) {
-    scanRow(row * ni, extent[2] + (row % nj), extent[4] + Math.floor(row / nj));
-  }
-
+  walkExtentRows(extent, (j, k, row) => scanRow(row * ni, j, k));
   return bounds ?? emptyExtent();
+}
+
+/** Whether any voxel is claimed, stopping at the first one found. */
+export function hasMarkedVoxel(scalars: ArrayLike<number>) {
+  for (let offset = 0; offset < scalars.length; offset += 1) {
+    if (scalars[offset]) return true;
+  }
+  return false;
 }
 
 /** The parent-image slice indices holding a claimed voxel, for i, j and k. */
@@ -239,6 +261,6 @@ export function clipExtent(extent: Extent3D, bounds: Extent3D): Extent3D {
   ];
 }
 
-export function fullExtent(dimensions: number[] | Int32Array): Extent3D {
+export function fullExtent(dimensions: ArrayLike<number>): Extent3D {
   return [0, dimensions[0] - 1, 0, dimensions[1] - 1, 0, dimensions[2] - 1];
 }

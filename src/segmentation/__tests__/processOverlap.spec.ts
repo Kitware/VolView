@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { createApp } from 'vue';
 import type { TypedArray } from '@kitware/vtk.js/types';
 
 import { morphologicalContourInterpolationNode } from '@itk-wasm/morphological-contour-interpolation';
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { fillHoles } from '@/src/segmentation/editing/algorithms/fillHoles';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
 import { useFillBetweenStore } from '@/src/segmentation/editing/fillBetween';
@@ -15,6 +12,7 @@ import {
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import {
+  activateAppPinia,
   addMask,
   labelValueOf,
   markedVoxels,
@@ -120,9 +118,7 @@ describe.each([
   let tumor: string;
 
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    activateAppPinia();
     await seatImage('img-1', { dimensions: DIMENSIONS });
     useViewStore().setDataForAllViews('img-1');
     tumor = tumorHolding('img-1', holds);
@@ -190,9 +186,7 @@ describe('a process over a mask with no two dimensions alike', () => {
   const OWNED: Index3 = [1, 2, 3];
 
   beforeEach(async () => {
-    const pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    activateAppPinia();
     await seatImage('img-1', { dimensions: SHAPE });
     useViewStore().setDataForAllViews('img-1');
   });
