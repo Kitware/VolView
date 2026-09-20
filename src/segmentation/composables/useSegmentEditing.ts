@@ -4,7 +4,7 @@ import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import type { Maybe } from '@/src/types';
 import { cssColorToRGBA } from '@/src/segmentation/color';
 import { cleanUndefined } from '@/src/utils';
-import { deleteSegmentAndReport } from '@/src/segmentation/composables/deleteSegment';
+import { deleteSegmentAndReport } from '@/src/segmentation/deleteSegment';
 
 /**
  * The segment edit dialog: one editor, one set of fields, one place that

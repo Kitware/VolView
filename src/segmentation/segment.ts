@@ -72,7 +72,7 @@ export const resolveSegmentAppearance = (segment: Maybe<Segment>) => {
 export const toLabelmapSegment = (
   segment: Maybe<Segment>,
   labelValue: number
-): LabelmapSegment => {
+) => {
   const resolved = resolveSegmentAppearance(segment);
   return {
     value: labelValue,
