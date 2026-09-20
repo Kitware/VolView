@@ -61,15 +61,31 @@ const sameResultSource = (
   source.outputId === target.outputId;
 
 function segmentResultInScene(
-  intent: SegmentationIntent,
+  target: ResultSource | undefined,
   segmentWriter: SegmentWriter
 ): boolean {
-  const target = intent.source;
   if (!target) return false;
   return segmentWriter
     .resultSourcesInScene()
     .some((source) => sameResultSource(source, target));
 }
+
+// `source` is optional on the wire, and without one a re-applied segmentation
+// has no receipt to recognize: after a reload the re-adopted job's Load button
+// imports every mask again. The client already knows the same three facts — the
+// provider and job it submitted, and the result row it is applying — so it
+// mints the key itself. Nothing new travels on the wire; the minted key is
+// scene provenance, stored and restored exactly like a producer's own.
+const segmentResultSource = (
+  intent: SegmentationIntent,
+  context: SubmittedJobContext | undefined
+): ResultSource | undefined =>
+  intent.source ??
+  (context && {
+    providerId: context.providerId,
+    jobId: context.jobId,
+    outputId: intent.id,
+  });
 
 async function loadAsImport(file: ResultFile) {
   const ds = uriToDataSource(file.url, file.name);
@@ -448,7 +464,8 @@ export async function applyIntent(
         // Session-restored groups retain their result source. Treat that
         // durable provenance as an application receipt so retrying Load is
         // idempotent instead of creating a duplicate group.
-        if (segmentResultInScene(intent, dependencies.segmentWriter))
+        const source = segmentResultSource(intent, context);
+        if (segmentResultInScene(source, dependencies.segmentWriter))
           return { status: 'applied' };
         if (!parentSelection) {
           return await openVolumeAsDatasetOutcome(intent);
@@ -460,7 +477,7 @@ export async function applyIntent(
           await dependencies.segmentWriter.convertImageToLabelmap(
             childSelection,
             parentSelection,
-            intent.source,
+            source,
             intent.segments
           );
           return { status: 'applied' };
