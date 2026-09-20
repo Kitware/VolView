@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SEGMENT_COINCIDENT_OFFSET,
+  segmentDrawsOnSlice,
   sliceWithinExtent,
 } from '@/src/segmentation/rendering/display';
 import { emptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 
 // ---------------------------------------------------------------------------
-// The two view-layer rules a mask per segment needs.
+// The view-layer rules a mask per segment needs.
 //
 // `sliceWithinExtent` answers whether a segment's actor has anything to draw on
 // the slice being viewed. A bounded mask covers only part of the volume, and
@@ -15,6 +16,9 @@ import { emptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 // actor left visible off its own extent paints a stale slice over the image.
 // The slice and the extent are both in the PARENT image's index space, on the
 // index axis the view's LPS axis maps to.
+//
+// `segmentDrawsOnSlice` adds the segment's own visibility: a hidden segment's
+// actor is taken out of the scene rather than drawn at zero alpha.
 //
 // `SEGMENT_COINCIDENT_OFFSET` is the coincident-topology polygon offset every
 // segment draws at, which lifts it off the coplanar base image. It carries no
@@ -51,6 +55,25 @@ describe('sliceWithinExtent', () => {
     expect(sliceWithinExtent(emptyExtent(), 0, 0)).toBe(false);
     expect(sliceWithinExtent(emptyExtent(), 1, 0)).toBe(false);
     expect(sliceWithinExtent(emptyExtent(), 2, 0)).toBe(false);
+  });
+});
+
+describe('segmentDrawsOnSlice', () => {
+  it('draws a visible segment on a slice inside its extent', () => {
+    expect(segmentDrawsOnSlice({ visible: true }, EXTENT, 2, 3)).toBe(true);
+  });
+
+  it('does not draw a hidden segment, even inside its extent', () => {
+    expect(segmentDrawsOnSlice({ visible: false }, EXTENT, 2, 3)).toBe(false);
+  });
+
+  it('does not draw a visible segment off its extent', () => {
+    expect(segmentDrawsOnSlice({ visible: true }, EXTENT, 2, 6)).toBe(false);
+  });
+
+  it('does not draw a segment that is gone or has no extent', () => {
+    expect(segmentDrawsOnSlice(undefined, EXTENT, 2, 3)).toBe(false);
+    expect(segmentDrawsOnSlice({ visible: true }, undefined, 2, 3)).toBe(false);
   });
 });
 

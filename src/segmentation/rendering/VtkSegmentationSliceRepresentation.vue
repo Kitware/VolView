@@ -27,7 +27,7 @@ import {
   SEGMENT_COINCIDENT_OFFSET,
   segmentFillAlpha,
   segmentOutlineTables,
-  sliceWithinExtent,
+  segmentDrawsOnSlice,
 } from '@/src/segmentation/rendering/display';
 import { isEmptyExtent } from '@/src/segmentation/geometry';
 import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
@@ -177,10 +177,9 @@ watchEffect(() => {
   const bounds = extent.value;
   const ijkIndex = parentMetadata.value?.lpsOrientation?.[axis.value];
   const drawsHere =
-    !!bounds &&
     ijkIndex !== undefined &&
     storedSlice.value != null &&
-    sliceWithinExtent(bounds, ijkIndex, storedSlice.value);
+    segmentDrawsOnSlice(descriptor.value, bounds, ijkIndex, storedSlice.value);
   sliceRep.actor.setVisibility(drawsHere);
 });
 

@@ -18,6 +18,19 @@ export function sliceWithinExtent(
   return slice >= extent[axisIndex * 2] && slice <= extent[axisIndex * 2 + 1];
 }
 
+/**
+ * Whether a segment's actor is drawn at all. A hidden segment has zero fill and
+ * outline, but a visible actor is still traversed and drawn on every render,
+ * which adds up across a scene of many segments.
+ */
+export const segmentDrawsOnSlice = (
+  segment: Pick<LabelmapSegment, 'visible'> | undefined,
+  extent: Extent3D | undefined,
+  axisIndex: number,
+  slice: number
+) =>
+  !!segment?.visible && !!extent && sliceWithinExtent(extent, axisIndex, slice);
+
 const SEGMENT_OFFSET_FACTOR = -4;
 
 /**
