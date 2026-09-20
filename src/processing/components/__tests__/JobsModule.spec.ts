@@ -1,5 +1,5 @@
 import * as segmentationComposition from '@/src/segmentation/io/composition';
-import { describe, it, beforeEach, expect, vi } from 'vitest';
+import { describe, it, afterEach, beforeEach, expect, vi } from 'vitest';
 import { shallowMount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createApp } from 'vue';
@@ -433,10 +433,19 @@ describe('JobsModule segmentation staging', () => {
   let pinia: ReturnType<typeof createPinia>;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     ioMocks.writeSegmentation.mockClear();
     pinia = createPinia().use(CorePiniaProviderPlugin());
     createApp({}).use(pinia);
     setActivePinia(pinia);
+  });
+
+  // A spy left on the composition module outlives its case and is handed back
+  // to the next spyOn with its tally, so the cases below would only agree on a
+  // call count in the order they happen to sit in the file.
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   const mount = () => mountJobsModule(pinia);
@@ -657,10 +666,10 @@ describe('JobsModule segmentation staging', () => {
     return { segmentStore, second, wrapper };
   };
 
+  // The overlap sweep is debounced by 150 ms; fake timers let the cases step
+  // past it without a real wait.
   const afterDebounce = async () => {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 300);
-    });
+    await vi.advanceTimersByTimeAsync(300);
     await flushPromises();
   };
 
@@ -682,10 +691,7 @@ describe('JobsModule segmentation staging', () => {
   it('sweeps the masks once when the selection changes', async () => {
     const { second, wrapper } = await seedDisjointPair();
 
-    // spyOn hands back the spy an earlier case already installed on the
-    // module, so start from a clean tally.
     const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
-    scans.mockClear();
     selectSegment(second.id);
     await flushPromises();
 
