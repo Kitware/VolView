@@ -75,6 +75,18 @@ npm run lint
 
 ---
 
+## Quality checks
+
+The pre-commit hook and CI run `node scripts/checks/check.mjs`. It compares the files you changed with the base (`HEAD` locally, the target branch in CI), so existing code is left alone and only a change that makes a file worse fails.
+
+- Complexity: in `src`, a function stays within cyclomatic complexity 10, nesting depth 3 and 4 parameters, and a file within 600 lines. A file already over a limit may not go further over, and a new file must be within all of them.
+- Duplication: a change to the tests may not add a block of 60 or more tokens that repeats another test.
+- Conventions: no new binary files outside the directories that already hold them, such as `tests/baseline`.
+
+The limits are in `scripts/checks/config.mjs`. Stage your changes before running the script by hand, since it reads the index. `CHECKS_SKIP=1 git commit` skips it for one commit.
+
+---
+
 ## Testing
 
 ```bash

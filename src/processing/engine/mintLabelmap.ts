@@ -1,14 +1,20 @@
 import type { InputValue } from '@/backend-contract';
 import { TYPE_TAG_LABELMAP } from '@/backend-contract';
 import type { DataSource } from '@/src/io/import/dataSource';
-import type { FormValidationIssue, TaskFormModel } from './formModel';
-import type { SourceRefBindingState, SourceRefField } from './mintInput';
+import type {
+  FormValidationIssue,
+  TaskFormModel,
+} from '@/src/processing/engine/formModel';
+import type {
+  SourceRefBindingState,
+  SourceRefField,
+} from '@/src/processing/engine/mintInput';
 import {
   ambiguousBinding,
   mintInputValue,
   sourceRefFields,
   unboundBinding,
-} from './mintInput';
+} from '@/src/processing/engine/mintInput';
 
 export const labelmapInputFields = (model: TaskFormModel): SourceRefField[] =>
   sourceRefFields(model, TYPE_TAG_LABELMAP);
