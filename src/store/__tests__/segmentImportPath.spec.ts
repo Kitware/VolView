@@ -44,7 +44,12 @@ describe('labelmap import index alignment', () => {
     const runWasm = useNodeResampling();
     const parent = makeImage();
     const child = makeImage();
-    expect(await ensureSameSpace(parent, child, true)).toBe(child);
+    const result = await ensureSameSpace(parent, child, true);
+    // The contract is no resampling and no voxel copy. The wrapper is the
+    // caller's to own, so it is not the candidate itself.
+    expect(result.getPointData().getScalars().getData()).toBe(
+      child.getPointData().getScalars().getData()
+    );
     expect(runWasm).not.toHaveBeenCalled();
   });
 

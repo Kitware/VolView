@@ -12,6 +12,7 @@ import {
   OpacityNodes,
 } from '@/src/types/views';
 import vtkFieldData from '@kitware/vtk.js/Common/DataModel/DataSetAttributes/FieldData';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Maybe } from '@/src/types';
 
 export function computeWorldToDisplay(
@@ -289,4 +290,25 @@ export function getDataArray(
 
 export function isZeroWidthRange(range: [number, number] | number[]) {
   return range[0] === range[1];
+}
+
+/**
+ * Copies an image's geometry into a new vtkImageData sharing the same scalars.
+ *
+ * vtk.js `delete()` wipes only the object's own model, so the shared scalar
+ * array outlives either copy. Point data beyond the active scalars, cell data
+ * and field data are not copied.
+ *
+ * vtkImageData.shallowCopy assigns the index/world matrices by reference and
+ * computeTransforms rewrites them in place, so a later setSpacing on either
+ * image would corrupt the other.
+ */
+export function shallowCopyImageData(image: vtkImageData) {
+  const copy = vtkImageData.newInstance();
+  copy.setExtent(image.getExtent());
+  copy.setOrigin(image.getOrigin());
+  copy.setSpacing(image.getSpacing());
+  copy.setDirection(image.getDirection());
+  copy.getPointData().setScalars(image.getPointData().getScalars());
+  return copy;
 }
