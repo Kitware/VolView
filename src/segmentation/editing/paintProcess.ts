@@ -520,12 +520,16 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
       messageStore.addError(`${processType} Operation Failed`, {
         error: error as Error,
       });
+      // Only the masks this run wrote are restored. A target the run never
+      // built a run for still holds exactly what the user left there, and
+      // writing its snapshot back would invalidate its renderer for nothing.
       targets.forEach((target, index) => {
         const run = runs.find((candidate) => candidate.target === target);
+        if (!run) return;
         const binding = segmentationStore.findMaskBinding(target.maskId);
-        const grown =
-          run &&
-          binding?.extent.every((value, axis) => value === run.extent[axis]);
+        const grown = binding?.extent.every(
+          (value, axis) => value === run.extent[axis]
+        );
         writeIfPresent(
           target.voxels,
           grown ? run.originalScalars : snapshots[index]

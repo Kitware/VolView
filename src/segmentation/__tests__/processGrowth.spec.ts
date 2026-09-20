@@ -246,6 +246,26 @@ describe('process result placement', () => {
     expect(markedVoxels(other)).toEqual([[4, 0, 0, 1]]);
   });
 
+  it('leaves a mask the failed run never wrote untouched', async () => {
+    const id = await oneVoxel();
+    const other = addMask('img', 'Other');
+    seedVoxel(other, [4, 0, 0]);
+    const untouched = store().maskVoxels(other);
+    const buffer = untouched.scalars();
+    const revision = untouched.image().getMTime();
+    await usePaintProcessStore().startProcess(
+      async () => {
+        throw new Error('Interpolation failed');
+      },
+      { requiresActiveSegment: false }
+    );
+    expect(usePaintProcessStore().processStep).toBe('start');
+    expect(store().maskVoxels(other).scalars()).toBe(buffer);
+    expect(store().maskVoxels(other).image().getMTime()).toBe(revision);
+    expect(markedVoxels(other)).toEqual([[4, 0, 0, 1]]);
+    expect(markedVoxels(id)).toEqual([[2, 0, 0, 1]]);
+  });
+
   it('restores the original when a smaller output erases old edge voxels', async () => {
     const id = await oneVoxel();
     seedVoxel(id, [1, 0, 0]);
