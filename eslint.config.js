@@ -41,6 +41,26 @@ const relativeSpellings = (feature, mod) =>
     return spelling.startsWith('.') ? spelling : `./${spelling}`;
   });
 
+// A bare directory resolves to the index file inside it, so a feature whose
+// index is an upper module also has to deny '.', '..' and `@/src/<dir>` — they
+// reach the same module as './index', '../index' and `@/src/<dir>/index`.
+// These are exact paths, not patterns: the pattern '..' would also deny every
+// '../sibling' the pure layer imports from itself.
+const entryPointSpellings = (feature) =>
+  feature.pure.upperModules.includes('index')
+    ? [
+        `@/src/${feature.dir}`,
+        ...new Set(
+          [...pureDirs(feature)].map(
+            (dir) => path.posix.relative(dir, '') || '.'
+          )
+        ),
+      ]
+    : [];
+
+const upperLayerMessage = (feature) =>
+  `The ${feature.dir} pure layer must not import stores, components, or upper feature modules — dependencies point downward only.`;
+
 // `pure.upperModules` is a hand-maintained list of the feature's non-pure
 // modules: a new one has to be added here or the pure layer may import it.
 const featureBoundaries = (features) => {
@@ -81,10 +101,16 @@ const featureBoundaries = (features) => {
         'no-restricted-imports': [
           'error',
           {
-            paths: ['pinia', 'vue'].map((name) => ({
-              name,
-              message: `The ${feature.dir} pure layer must stay framework-free — no ${name}.`,
-            })),
+            paths: [
+              ...['pinia', 'vue'].map((name) => ({
+                name,
+                message: `The ${feature.dir} pure layer must stay framework-free — no ${name}.`,
+              })),
+              ...entryPointSpellings(feature).map((name) => ({
+                name,
+                message: upperLayerMessage(feature),
+              })),
+            ],
             patterns: [
               {
                 group: [
@@ -98,7 +124,7 @@ const featureBoundaries = (features) => {
                   '@/src/components/**',
                   '@/src/composables/**',
                 ],
-                message: `The ${feature.dir} pure layer must not import stores, components, or upper feature modules — dependencies point downward only.`,
+                message: upperLayerMessage(feature),
               },
               ...otherSurfaces(feature),
             ],
