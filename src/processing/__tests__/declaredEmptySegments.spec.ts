@@ -70,16 +70,36 @@ const importResult = (segments: SegmentDescriptor[]) =>
     }
   );
 
-/** What each mask on an image is named, and where its voxels sit. */
+/** What each mask on an image is named, how it looks, and where its voxels sit. */
 const segmentsOn = (imageId: string) =>
-  listMasks(store().getSegmentationForImage(imageId)!).map((segment) => ({
-    name: registry().appearanceOf(segment.segmentId).name,
-    color: [...registry().appearanceOf(segment.segmentId).color],
-    extent: segment.representations.labelmap
-      ? [...segment.representations.labelmap.extent]
-      : undefined,
-    marks: markedVoxels(segment.id),
-  }));
+  listMasks(store().getSegmentationForImage(imageId)!).map((segment) => {
+    const appearance = registry().appearanceOf(segment.segmentId);
+    return {
+      name: appearance.name,
+      color: [...appearance.color],
+      visible: appearance.visible,
+      extent: segment.representations.labelmap
+        ? [...segment.representations.labelmap.extent]
+        : undefined,
+      marks: markedVoxels(segment.id),
+    };
+  });
+
+/** The two rows every import in this file has to produce, spelled out once. */
+const LIVER_ROW = {
+  name: 'Liver',
+  color: red,
+  visible: true,
+  extent: [1, 1, 1, 1, 1, 1],
+  marks: [[...LIVER_INDEX, SEGMENT_VALUE]],
+};
+const EMPTY_SPLEEN_ROW = {
+  name: 'Spleen',
+  color: blue,
+  visible: true,
+  extent: [0, -1, 0, -1, 0, -1],
+  marks: [],
+};
 
 const liverOffset = () =>
   LIVER_INDEX[0] + LIVER_INDEX[1] * 4 + LIVER_INDEX[2] * 16;
@@ -101,15 +121,7 @@ describe('a segment a result declares but leaves empty', () => {
   it('appears as an empty row beside the segment that has voxels', async () => {
     expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
 
-    expect(segmentsOn('parent')).toEqual([
-      {
-        name: 'Liver',
-        color: red,
-        extent: [1, 1, 1, 1, 1, 1],
-        marks: [[...LIVER_INDEX, SEGMENT_VALUE]],
-      },
-      { name: 'Spleen', color: blue, extent: [0, -1, 0, -1, 0, -1], marks: [] },
-    ]);
+    expect(segmentsOn('parent')).toEqual([LIVER_ROW, EMPTY_SPLEEN_ROW]);
     // The empty row is a real mask record, holding no voxels.
     const spleen = listMasks(store().getSegmentationForImage('parent')!)[1];
     expect(store().maskVoxels(spleen.id).scalars()).toHaveLength(0);
@@ -146,18 +158,18 @@ describe('a segment a result declares but leaves empty', () => {
 
       expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
 
-      expect(
-        segmentsOn('parent').map(({ name, marks }) => [name, marks])
-      ).toEqual([
-        ['Liver', [[...LIVER_INDEX, SEGMENT_VALUE]]],
-        ['Spleen', []],
-      ]);
+      // Compared whole: a twin is not the only way this can go wrong, and a
+      // mis-coloured, hidden or wrongly bounded empty must fail here too.
+      expect(segmentsOn('parent')).toEqual([LIVER_ROW, EMPTY_SPLEEN_ROW]);
     }
   );
 
   it('keeps both segments across a save and restore', async () => {
     await importResult(DECLARED);
     const before = segmentsOn('parent');
+    // Stated outright, so the comparison below cannot pass on a scene that
+    // dropped the empty row before it was ever saved.
+    expect(before).toEqual([LIVER_ROW, EMPTY_SPLEEN_ROW]);
     const io = inMemoryArtifactIO();
 
     const { parsed, stateFiles } = await serializeToStateFiles(

@@ -376,7 +376,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * declared value with no voxels reaches the split only by being appended
    * here. This mirrors the seg.nrrd header path, where overlaySegmentMetadata
    * appends described values missing from the enumeration 'so nothing
-   * described is lost'; both import paths now keep the same segments.
+   * described is lost', so a declaration reaches the catalog whichever of the
+   * two it arrived on. The header overlay still runs per component and repeats
+   * its empties once per one; only this path is component-aware.
    *
    * 0 is background, never a segment. A declaration any component covered is
    * left where that component put it, so appearance stays merged onto the

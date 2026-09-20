@@ -66,7 +66,8 @@ editable masks and their saved-session files remain byte-sized.
 A described label value the voxels never carry still becomes a segment, whose
 mask covers nothing. A file header and a processing result's segment list are
 read alike here: a bin declared and left empty is shown, so finding nothing
-reads differently from never looking.
+reads differently from never looking. Across the components of one labelmap, a
+result's declaration is one segment; a header's is still one per component.
 
 Export packs whole masks into separate files when they overlap. A part beyond
 65535 labels is split at that capacity. The export plan records these reasons
