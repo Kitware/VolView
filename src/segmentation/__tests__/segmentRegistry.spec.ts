@@ -237,7 +237,8 @@ describe('segment type registry', () => {
 
     expect(Object.keys(idMap)).toEqual(['constructor']);
     expect(namesOf(registry)).toEqual(['A']);
-    expect(registry.getSegment(idMap.constructor as string)?.name).toBe('A');
+    const [mintedId] = Object.values(idMap);
+    expect(registry.getSegment(mintedId)?.name).toBe('A');
     expect(idMap.toString).toBeUndefined();
   });
 });
