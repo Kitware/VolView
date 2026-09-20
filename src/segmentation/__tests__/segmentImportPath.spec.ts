@@ -31,7 +31,7 @@ const store = () => useSegmentationStore();
 
 const offset = (i: number, j: number, k: number) => i + j * 4 + k * 16;
 
-function makeImage(values?: Uint8Array) {
+function makeImage(values?: Uint8Array, components = 1) {
   const image = vtkImageData.newInstance({
     spacing: [1, 1, 1],
     origin: [0, 0, 0],
@@ -39,8 +39,8 @@ function makeImage(values?: Uint8Array) {
   image.setDimensions(DIMENSIONS);
   image.getPointData().setScalars(
     vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: values ?? new Uint8Array(VOXEL_COUNT),
+      numberOfComponents: components,
+      values: values ?? new Uint8Array(VOXEL_COUNT * components),
     })
   );
   image.computeTransforms();
@@ -51,9 +51,10 @@ async function seat(
   id: string,
   name: string,
   values?: Uint8Array,
-  headerMetadata?: Map<string, string>
+  headerMetadata?: Map<string, string>,
+  components = 1
 ) {
-  useImageCacheStore().addVTKImageData(makeImage(values), name, {
+  useImageCacheStore().addVTKImageData(makeImage(values, components), name, {
     id,
     headerMetadata,
   });
@@ -326,6 +327,54 @@ describe('the import path answers on the segmentation store', () => {
       { name: 'Tumor 1', color: categorical(0) },
       { name: 'Tumor core', color: [255, 0, 0, 255] },
     ]);
+  });
+});
+
+describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
+  const HEADER = new Map([
+    ['Segment0_LabelValue', '1'],
+    ['Segment0_Name', 'Liver'],
+    ['Segment0_Color', '1 0 0'],
+    ['Segment1_LabelValue', '2'],
+    ['Segment1_Name', 'Spleen'],
+    ['Segment1_Color', '0 0 1'],
+  ]);
+
+  const LIVER = { name: 'Liver', color: [255, 0, 0, 255] };
+  const SPLEEN = { name: 'Spleen', color: [0, 0, 255, 255] };
+
+  it('shows the declaration as an empty row', async () => {
+    const values = new Uint8Array(VOXEL_COUNT);
+    values[offset(1, 1, 1)] = 1;
+    await seat('parent-img', 'CT');
+    await seat('child-img', 'Liver.seg.nrrd', values, HEADER);
+
+    await store().convertImageToLabelmap('child-img', 'parent-img');
+
+    expect(describedBy('parent-img')).toEqual([LIVER, SPLEEN]);
+  });
+
+  // A declaration is one bin however many components the file has: a value
+  // some component carried is that component's segment, so it must not come
+  // back a second time as an empty twin of itself, and a value no component
+  // carried is one empty row, not one per component.
+  it('declares it once across the components of one file', async () => {
+    const values = new Uint8Array(VOXEL_COUNT * 2);
+    values[offset(1, 1, 1) * 2] = 1;
+    await seat('parent-img', 'CT');
+    await seat('child-img', 'Liver.seg.nrrd', values, HEADER, 2);
+
+    await store().convertImageToLabelmap('child-img', 'parent-img');
+
+    expect(describedBy('parent-img')).toEqual([LIVER, SPLEEN]);
+    // The declared value no component carried is a real mask record covering
+    // nothing, exactly as it is on the result path.
+    const spleen = segmentsOf('parent-img')[1];
+    expect(store().maskVoxels(spleen.id).scalars()).toHaveLength(0);
   });
 });
 
