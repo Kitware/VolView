@@ -13,6 +13,7 @@ import PersistentOverlay from '@/src/components//PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
+import { useSegmentationStore } from '@/src/segmentation/store';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -41,6 +42,7 @@ export default defineComponent({
     const layersStore = useLayersStore();
     const imageCacheStore = useImageCacheStore();
     const viewStore = useViewStore();
+    const segmentationStore = useSegmentationStore();
 
     const { currentImageID } = useCurrentImage();
     const volumes = computed(() => {
@@ -73,6 +75,8 @@ export default defineComponent({
           isLayer,
           layerable,
           layerLoading,
+          convertingToSegmentation:
+            segmentationStore.convertingLabelmaps.has(volumeKey),
           layerHandler: () => {
             if (!layerLoading && layerable) {
               if (isLayer)
@@ -250,7 +254,10 @@ export default defineComponent({
                         justify="center"
                       >
                         <v-progress-circular
-                          v-if="thumbnailCache[volume.cacheKey] === undefined"
+                          v-if="
+                            thumbnailCache[volume.cacheKey] === undefined &&
+                            !volume.convertingToSegmentation
+                          "
                           indeterminate
                           color="grey-lighten-5"
                         />
@@ -264,8 +271,18 @@ export default defineComponent({
                         </span>
                       </v-row>
                     </template>
-                    <persistent-overlay>
-                      <div class="d-flex flex-column fill-height">
+                    <persistent-overlay
+                      :opacity="volume.convertingToSegmentation ? 0.55 : 0.2"
+                    >
+                      <div
+                        v-if="volume.convertingToSegmentation"
+                        class="d-flex flex-column align-center justify-center fill-height text-center"
+                        data-testid="segmentation-conversion-progress"
+                      >
+                        <v-progress-circular indeterminate class="mb-2" />
+                        <span class="text-caption">Adding segmentation…</span>
+                      </div>
+                      <div v-else class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
                           <v-checkbox
                             :key="volume.info.VolumeID"

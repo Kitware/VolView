@@ -79,6 +79,8 @@ declare module '@kitware/vtk.js/Widgets/Core/WidgetManager' {
   }
 
   export interface vtkWidgetManager extends vtkObject {
+    getCursorStyles(): Record<string, string>;
+    setCursorStyles(styles: Record<string, string>): boolean;
     setCaptureOn(cap: CaptureOn): boolean;
     getCaptureOn(): CaptureOn;
     setViewType(type: ViewTypes): boolean;

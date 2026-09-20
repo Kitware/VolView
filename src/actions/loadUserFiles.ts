@@ -8,7 +8,7 @@ import {
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -90,7 +90,7 @@ function sortByDataSourceName(a: LoadableResult, b: LoadableResult) {
 // does not pick segmentation or layer images
 function findBaseImage(
   loadableDataSources: Array<LoadableResult>,
-  segmentGroupExtension: string,
+  segmentationExtension: string,
   layerExtension: string
 ) {
   const baseImages = loadableDataSources
@@ -99,7 +99,7 @@ function findBaseImage(
       const name = getDataSourceName(importResult.dataSource);
       if (!name) return false;
       return (
-        !isSegmentation(segmentGroupExtension, name) &&
+        !isSegmentation(segmentationExtension, name) &&
         !isSegmentation(layerExtension, name)
       );
     });
@@ -149,7 +149,7 @@ function getStudyUID(volumeID: string) {
 
 function findBaseDataSource(
   succeeded: Array<ImportResult>,
-  segmentGroupExtension: string,
+  segmentationExtension: string,
   layerExtension: string
 ) {
   const loadableDataSources = filterLoadableDataSources(succeeded);
@@ -158,7 +158,7 @@ function findBaseDataSource(
 
   const baseImage = findBaseImage(
     loadableDataSources,
-    segmentGroupExtension,
+    segmentationExtension,
     layerExtension
   );
   if (baseImage) return baseImage;
@@ -228,18 +228,18 @@ function autoLayerByName(
   });
 }
 
-// Loads other DataSources as Segment Groups:
+// Loads other DataSources as SegmentMask Groups:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
 function loadSegmentations(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>,
-  segmentGroupExtension: string
+  segmentationExtension: string
 ) {
   const matchingNames = filterMatchingNames(
     primaryDataSource,
     succeeded,
-    segmentGroupExtension
+    segmentationExtension
   )
     .filter(
       isVolumeResult // filter out models
@@ -256,10 +256,10 @@ function loadSegmentations(
     return modality.trim() === 'SEG';
   });
 
-  const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
   [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
     const loadable = toDataSelection(ds);
-    segmentGroupStore.convertImageToLabelmap(
+    segmentationStore.startLabelmapConversion(
       loadable,
       toDataSelection(primaryDataSource)
     );
@@ -307,7 +307,7 @@ function loadDataSourcesWithOutcome(
     if (succeeded.length && shouldShowData) {
       const primaryDataSource = findBaseDataSource(
         succeeded,
-        loadDataStore.segmentGroupExtension,
+        loadDataStore.segmentationExtension,
         loadDataStore.layerExtension
       );
 
@@ -323,7 +323,7 @@ function loadDataSourcesWithOutcome(
         loadSegmentations(
           primaryDataSource,
           succeeded,
-          loadDataStore.segmentGroupExtension
+          loadDataStore.segmentationExtension
         );
       } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
     }

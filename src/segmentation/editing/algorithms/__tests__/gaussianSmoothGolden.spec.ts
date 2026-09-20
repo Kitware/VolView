@@ -215,7 +215,7 @@ const smooth = (sigma: number, spacing: [number, number, number]) =>
     maskExtent: [0, 8, 0, 7, 0, 6],
     parentDimensions: DIMENSIONS,
     params: { sigma, label: LABEL },
-  }).scalars;
+  })!.scalars;
 
 const asRows = (output: ArrayLike<number>) => {
   const bits = Array.from(output, (value) => (value ? '1' : '0')).join('');

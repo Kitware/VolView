@@ -10,6 +10,7 @@
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(tool.id, $event)"
+        @placing="onPlacementStarted"
         @placed="onToolPlaced"
         @widgetHover="onHover(tool.id, $event)"
       />
@@ -19,49 +20,30 @@
       :tool-store="activeToolStore"
       v-slot="{ context }"
     >
-      <v-list-item v-if="!isCurrentImageCine" @click.stop>
-        <template #prepend>
-          <v-icon>mdi-grid</v-icon>
+      <v-tooltip
+        :disabled="!rasterizeDisabledReason(context.forToolID)"
+        :text="rasterizeDisabledReason(context.forToolID)"
+        location="top"
+      >
+        <template #activator="{ props: tooltipProps }">
+          <div
+            v-bind="tooltipProps"
+            :tabindex="
+              rasterizeDisabledReason(context.forToolID) ? 0 : undefined
+            "
+          >
+            <v-list-item
+              @click="rasterize(context.forToolID)"
+              :disabled="!!rasterizeDisabledReason(context.forToolID)"
+            >
+              <template #prepend>
+                <v-icon>mdi-grid</v-icon>
+              </template>
+              <v-list-item-title>Rasterize</v-list-item-title>
+            </v-list-item>
+          </div>
         </template>
-        <v-list-item-title>Rasterize as...</v-list-item-title>
-        <template #append>
-          <v-icon icon="mdi-menu-right"></v-icon>
-        </template>
-        <v-menu :open-on-focus="false" open-on-hover activator="parent" submenu>
-          <v-list>
-            <template v-if="currentSegmentGroup">
-              <v-list-item class="text-subtitle-2">
-                <div class="text-caption">Selected segment group:</div>
-                <div class="text-subtitle-2">
-                  {{ currentSegmentGroup.name }}
-                </div>
-              </v-list-item>
-              <v-list-item
-                v-for="segmentID in currentSegmentGroup.segments.order"
-                :key="segmentID"
-                @click="
-                  rasterize(
-                    context.forToolID,
-                    currentSegmentGroup.segments.byValue[segmentID]
-                  )
-                "
-              >
-                <div class="d-flex flex-row align-center ga-3">
-                  <ColorDot
-                    :color="
-                      currentSegmentGroup.segments.byValue[segmentID].color
-                    "
-                  />
-                  <span>
-                    {{ currentSegmentGroup.segments.byValue[segmentID].name }}
-                  </span>
-                </div>
-              </v-list-item>
-            </template>
-            <v-list-item v-else> No segment group selected </v-list-item>
-          </v-list>
-        </v-menu>
-      </v-list-item>
+      </v-tooltip>
       <v-tooltip
         :disabled="mergePossible"
         text="Shift select multiple polygons that overlap and have the same label."
@@ -85,8 +67,6 @@
 
 <script lang="ts">
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
-import { storeToRefs } from 'pinia';
-import { useImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { getLPSAxisFromDir } from '@/src/utils/lps';
@@ -106,53 +86,16 @@ import { Maybe } from '@/src/types';
 import { useViewLocator } from '@/src/composables/useViewLocator';
 import { locatorPatch } from '@/src/core/annotations/locator';
 import { watchImmediate } from '@vueuse/core';
-import { fillPoly } from '@thi.ng/rasterize';
-import type { IGrid2D } from '@thi.ng/api';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
-import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
-import { convertSliceIndex } from '@/src/utils/imageSpace';
-import { getLPSDirections } from '@/src/utils/lps';
 import { type ToolID } from '@/src/types/annotation-tool';
 import PolygonWidget2D from '@/src/components/tools/polygon/PolygonWidget2D.vue';
-import { usePaintToolStore } from '@/src/store/tools/paint';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import ColorDot from '@/src/components/ColorDot.vue';
-import { SegmentMask } from '@/src/types/segment';
+import {
+  rasterizePolygon,
+  rasterizeTargetDisabledReason,
+} from '@/src/segmentation/editing/rasterizePolygon';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
 const useActiveToolStore = usePolygonStore;
 const toolType = Tools.Polygon;
-
-function createGridAccessor(
-  image: vtkImageData,
-  slice: number,
-  axisIdx: 0 | 1 | 2 // i/j/k
-): IGrid2D {
-  const axisDims = image.getDimensions();
-  axisDims.splice(axisIdx, 1);
-  const extent = image.getExtent();
-  const pixelData = image.getPointData().getScalars();
-  const convertTo3D = (a: number, b: number) => {
-    const point = [a, b];
-    point.splice(axisIdx, 0, slice);
-    return point as Vector3;
-  };
-
-  return {
-    size: axisDims,
-    setAtUnsafe(d0: number, d1: number, value: number): boolean {
-      const ijk = convertTo3D(d0, d1);
-      if (containsPoint(extent, ...ijk)) {
-        const offset = image.computeOffsetIndex(ijk);
-        // XXX assumes single-component image
-        pixelData.setTuple(offset, [value]);
-        return true;
-      }
-      return false;
-    },
-  } as unknown as IGrid2D;
-}
 
 export default defineComponent({
   name: 'PolygonTool',
@@ -171,17 +114,15 @@ export default defineComponent({
     PolygonWidget2D,
     AnnotationContextMenu,
     AnnotationInfo,
-    ColorDot,
   },
   setup(props) {
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
+    const { selectedSegmentId } = activeToolStore.segments;
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
-    const { metadata: imageMetadata } = useImage(imageId);
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
@@ -194,8 +135,7 @@ export default defineComponent({
         return {
           imageID: imageId.value,
           ...locatorPatch(locator.value),
-          label: activeLabel.value,
-          ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
+          segmentId: selectedSegmentId.value ?? '',
         };
       })
     );
@@ -213,6 +153,8 @@ export default defineComponent({
 
     const mergeKey = useActionHeld('mergeNewPolygon');
 
+    // The annotation delineates a type from the first point down, so it is
+    // drawn in that type's color rather than changing color once placed.
     const onToolPlaced = () => {
       if (imageId.value) {
         const newToolId = placingTool.id.value;
@@ -267,18 +209,17 @@ export default defineComponent({
       () => activeToolStore.mergeableTools.length >= 1
     );
 
-    const segmentGroupStore = useSegmentGroupStore();
-    const paintStore = usePaintToolStore();
     const isCurrentImageCine = computed(() => isCineImage(imageId.value));
-    const currentSegmentGroup = computed(() => {
-      if (isCurrentImageCine.value) return null;
-      if (!imageId.value) return null;
-      const groups = segmentGroupStore.orderByParent[imageId.value];
-      if (!groups?.length) return null;
-      return segmentGroupStore.metadataByID[groups[0]] ?? null;
-    });
 
-    function rasterize(toolId: ToolID, segment: SegmentMask) {
+    function rasterizeDisabledReason(toolId: ToolID) {
+      if (isCurrentImageCine.value) {
+        return 'Rasterization is not supported for cine images';
+      }
+      const tool = activeToolStore.toolByID[toolId];
+      return rasterizeTargetDisabledReason(tool?.segmentId);
+    }
+
+    function rasterize(toolId: ToolID) {
       if (!imageId.value) {
         throw new Error('No image ID available for rasterization');
       }
@@ -286,59 +227,30 @@ export default defineComponent({
         throw new Error('Rasterization is not supported for cine images');
       }
 
-      const groups = segmentGroupStore.orderByParent[imageId.value];
-      if (!groups?.length) {
-        throw new Error(`No segment group exists for image ${imageId.value}`);
-      }
-
-      const segmentGroupID = groups[0];
-
-      // Switch to the correct segment group if needed
-      if (paintStore.activeSegmentGroupID !== segmentGroupID) {
-        paintStore.setActiveSegmentGroup(segmentGroupID);
-        paintStore.setActiveSegment(segment.value);
-      }
-
-      const segmentGroup = segmentGroupStore.dataIndex[segmentGroupID];
-      if (!segmentGroup) {
-        throw new Error(
-          `Failed to get segment group data for ${segmentGroupID}`
-        );
-      }
-
-      // Convert parent slice index to segment group slice index
-      const parentMeta = imageMetadata.value;
-      const segmentGroupSlice = convertSliceIndex(
-        slice.value,
-        parentMeta.lpsOrientation,
-        parentMeta.indexToWorld,
-        segmentGroup,
-        viewAxis.value
-      );
-
-      const points = activeToolStore.getPoints(toolId);
-      const segmentGroupIjkIndex = getLPSDirections(
-        segmentGroup.getDirection()
-      )[viewAxis.value];
-
-      const indexSpacePoints2D = points.map((pt) => {
-        const output = [...segmentGroup.worldToIndex(pt)];
-        output.splice(segmentGroupIjkIndex, 1);
-        return output as Vector2;
+      const tool = activeToolStore.toolByID[toolId];
+      const rasterized = rasterizePolygon({
+        imageId: imageId.value,
+        segmentId: tool?.segmentId,
+        points: activeToolStore.getPoints(toolId),
+        slice: slice.value,
+        viewAxis: viewAxis.value,
       });
-
-      const grid = createGridAccessor(
-        segmentGroup,
-        segmentGroupSlice,
-        segmentGroupIjkIndex
-      );
-      fillPoly(grid, indexSpacePoints2D, segment.value);
-      segmentGroup.modified();
+      // The polygon records the type its voxels actually landed in: an
+      // unlabeled one, and one whose type was deleted, are given the type the
+      // edit resolved. A refused rasterize hands back what it was given.
+      if (
+        tool &&
+        rasterized.segmentId &&
+        tool.segmentId !== rasterized.segmentId
+      ) {
+        activeToolStore.updateTool(toolId, { segmentId: rasterized.segmentId });
+      }
     }
 
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
+      onPlacementStarted: placingTool.beginPlacement,
       onToolPlaced,
       contextMenu,
       openContextMenu,
@@ -348,8 +260,7 @@ export default defineComponent({
       onHover,
       overlayInfo,
       rasterize,
-      currentSegmentGroup,
-      isCurrentImageCine,
+      rasterizeDisabledReason,
     };
   },
 });

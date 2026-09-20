@@ -26,7 +26,7 @@ describe('View store', () => {
     expect(store.activeView).toBe(store.visibleViews[0].id);
   });
 
-  it('preserves stored view types when cine data is attached', () => {
+  it('preserves stored view segments when cine data is attached', () => {
     const store = useViewStore();
 
     const storedTypes = store.visibleViews.map((view) => view.type);

@@ -18,9 +18,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
+import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import ProcessTypeSelector from './ProcessTypeSelector.vue';
-import ProcessWorkflow from './ProcessWorkflow.vue';
+import ProcessWorkflow from '@/src/segmentation/components/ProcessWorkflow.vue';
 import { PROCESS_DEFINITIONS } from './processes';
 
 const processStore = usePaintProcessStore();

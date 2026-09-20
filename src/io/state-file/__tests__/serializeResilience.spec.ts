@@ -10,26 +10,12 @@ const writeDatasets = (stateFile: StateFile) => {
   stateFile.manifest.dataSources = [{ id: 1, type: 'uri', uri: '/dataset-1' }];
 };
 
-const writeOneInvalidGroup = async (stateFile: StateFile) => {
-  stateFile.manifest.segmentGroups = reactive([
-    {
-      id: 'valid-group',
-      dataSourceId: 1,
-      metadata: {
-        name: 'Valid group',
-        parentImage: 'dataset-1',
-        segments: { order: [], byValue: {} },
-      },
-    },
-    {
-      id: 'invalid-group',
-      metadata: {
-        name: 'Invalid group',
-        parentImage: 'dataset-1',
-        segments: { order: [], byValue: {} },
-      },
-    } as never,
-  ]) as never;
+const writeOneInvalidMask = async (stateFile: StateFile) => {
+  stateFile.zip.file('valid.vti', 'bytes');
+  (stateFile.manifest as any).segmentations = reactive([
+    segmentationWithPath('valid.vti'),
+    { id: 'invalid', name: 'Invalid segmentation' },
+  ]);
 };
 
 const recordWarnings = () => {
@@ -56,18 +42,37 @@ const manifestWithSelection = (primarySelection: string): Manifest => ({
   primarySelection,
 });
 
+const segmentationWithPath = (path: string) => ({
+  id: 'seg-1',
+  name: 'Seg',
+  parentImage: 'dataset-1',
+  order: ['mask-1'],
+  masks: [
+    {
+      id: 'mask-1',
+      segmentId: 'segment-1',
+      representations: {
+        labelmap: { path, extent: [0, 1, 0, 1, 0, 1] },
+      },
+    },
+  ],
+});
+
 describe('state-file serialization resilience', () => {
   it('writes a restorable zip when one manifest entry is malformed', async () => {
     const sink = recordWarnings();
     const blob = await serialize({
-      writers: [writeDatasets, writeOneInvalidGroup],
+      writers: [writeDatasets, writeOneInvalidMask],
       addWarning: sink.addWarning,
     });
     const zip = await JSZip.loadAsync(blob);
     const manifest = JSON.parse(await zip.file(MANIFEST)!.async('string'));
 
-    expect(manifest.segmentGroups).toHaveLength(1);
-    expect(manifest.segmentGroups[0].id).toBe('valid-group');
+    expect(manifest.segmentationArtifacts).toBeUndefined();
+    expect(manifest.segmentations).toHaveLength(1);
+    expect(
+      manifest.segmentations[0].masks[0].representations.labelmap.path
+    ).toBe('valid.vti');
     expect(sink.warnings).toEqual([
       {
         title: 'Some session content could not be saved',
@@ -88,31 +93,38 @@ describe('state-file serialization resilience', () => {
     );
   });
 
-  it('omits invalid optional dependents and their archive members', () => {
-    const zip = new JSZip();
-    zip.file('segmentations/orphan.vti', 'bytes');
-    const manifest: Manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
-      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentGroups: [
-        {
-          id: 'orphan',
-          path: 'segmentations/orphan.vti',
-          metadata: { name: 'Orphan', parentImage: 'missing-dataset' },
-        },
+  it('omits a segmentation and layer relationship with missing parents', () => {
+    const manifest = {
+      ...manifestWithSelection('dataset-1'),
+      segmentations: [
+        { ...segmentationWithPath('mask.vti'), parentImage: 'missing' },
       ],
       parentToLayers: [
-        { selectionKey: 'dataset-1', sourceSelectionKeys: ['missing-layer'] },
+        { selectionKey: 'dataset-1', sourceSelectionKeys: ['missing'] },
       ],
-    };
-
+    } as unknown as Manifest;
+    const zip = new JSZip();
+    zip.file('mask.vti', 'voxels');
     const normalized = normalizeManifest(manifest, zip);
-    expect(normalized.manifest.segmentGroups).toEqual([]);
+    expect(normalized.manifest.segmentations).toEqual([]);
+    expect(zip.file('mask.vti')).toBeNull();
     expect(normalized.manifest.parentToLayers).toEqual([]);
-    expect(zip.file('segmentations/orphan.vti')).toBeNull();
-    expect(normalized.omitted.join('\n')).toMatch(
-      /parent dataset|layer relationship/
+    expect(normalized.omitted.join('\n')).toMatch(/parent dataset/);
+  });
+
+  it('reports a missing mask file without losing its segment identity', () => {
+    const manifest = {
+      ...manifestWithSelection('dataset-1'),
+      segmentations: [segmentationWithPath('missing.vti')],
+    } as unknown as Manifest;
+    const normalized = normalizeManifest(manifest, new JSZip());
+    expect(normalized.manifest.segmentations![0].masks[0]).toMatchObject({
+      id: 'mask-1',
+      segmentId: 'segment-1',
+      representations: {},
+    });
+    expect(normalized.omitted.join('\n')).toContain(
+      'archive member missing.vti is missing'
     );
   });
 
@@ -193,39 +205,80 @@ describe('state-file serialization resilience', () => {
     warnSpy.mockRestore();
   });
 
-  it('round-trips a locked segment mask', () => {
-    const manifest: Manifest = {
+  it('round-trips a locked record, its registry and the selection', () => {
+    const manifest = {
       version: MANIFEST_VERSION,
       datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
       dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentGroups: [
+      segmentations: [
         {
-          id: 'group-1',
-          dataSourceId: 1,
-          metadata: {
-            name: 'Group',
-            parentImage: 'dataset-1',
-            segments: {
-              order: [1],
-              byValue: {
-                '1': {
-                  value: 1,
-                  name: 'Segment 1',
-                  color: [255, 0, 0, 255],
-                  visible: true,
-                  locked: true,
+          id: 'segmentation-1',
+          name: 'CT',
+          parentImage: 'dataset-1',
+          masks: [
+            {
+              id: 'segment-1',
+              segmentId: 'segment-1',
+              representations: {
+                labelmap: {
+                  path: 'mask.vti',
+                  extent: [0, 3, 0, 3, 0, 3],
                 },
               },
             },
-          },
+          ],
+          order: ['segment-1'],
+        },
+      ],
+      segments: [
+        {
+          id: 'segment-1',
+          name: 'Segment 1',
+          color: [255, 0, 0, 255],
+          visible: true,
+          locked: true,
+        },
+      ],
+      selectedSegment: 'segment-1',
+    } as unknown as Manifest;
+
+    const zip = new JSZip();
+    zip.file('mask.vti', 'bytes');
+    const normalized = normalizeManifest(manifest, zip) as any;
+    const segmentation = normalized.manifest.segmentations[0];
+    expect(segmentation.masks[0].segmentId).toBe('segment-1');
+    expect(segmentation.masks[0].representations.labelmap).toEqual({
+      path: 'mask.vti',
+      extent: [0, 3, 0, 3, 0, 3],
+    });
+    // The registry and the selection survive normalization beside the records.
+    // Lock rides on the type, so the record is storage and nothing else.
+    expect(normalized.manifest.segments).toEqual([
+      {
+        id: 'segment-1',
+        name: 'Segment 1',
+        color: [255, 0, 0, 255],
+        visible: true,
+        locked: true,
+      },
+    ]);
+    expect(normalized.manifest.selectedSegment).toBe('segment-1');
+  });
+
+  it('saves no import instructions', () => {
+    const manifest = {
+      ...manifestWithSelection('dataset-1'),
+      segmentationArtifacts: [
+        {
+          id: 'input',
+          parentImage: 'dataset-1',
+          name: 'Input',
+          dataSourceId: 1,
         },
       ],
     };
-
-    const normalized = normalizeManifest(manifest, new JSZip());
     expect(
-      normalized.manifest.segmentGroups?.[0].metadata.segments?.byValue['1']
-        .locked
-    ).toBe(true);
+      normalizeManifest(manifest, new JSZip()).manifest
+    ).not.toHaveProperty('segmentationArtifacts');
   });
 });

@@ -5,6 +5,7 @@ import { mat4, vec3 } from 'gl-matrix';
 import { PaintWidgetState } from './state';
 
 export interface vtkPaintViewWidget extends vtkAbstractWidget {
+  setSampling(sampling: boolean): boolean;
   setManipulator(manipulator: vtkPlaneManipulator): boolean;
   getManipulator(): vtkPlaneManipulator;
   setSlicingIndex(index: number): boolean;

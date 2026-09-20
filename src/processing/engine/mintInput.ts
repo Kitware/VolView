@@ -59,14 +59,14 @@ export type SourceRefBindingState =
   | 'bound'
   | 'unbound'
   | 'no-provenance'
-  | 'no-segment-group'
+  | 'no-segmentation'
   | 'no-annotations'
   | 'no-reference-input'
   | 'ambiguous';
 
 // What a binder calls the thing it could not bind, in the user-facing
 // sentences below.
-export type SourceRefNoun = 'image' | 'segment group' | 'annotation';
+export type SourceRefNoun = 'image' | 'segmentation' | 'annotation';
 
 export type SourceRefField = Extract<FormField, { kind: 'sourceRef' }>;
 
@@ -86,17 +86,12 @@ export const imageInputFields = (model: TaskFormModel): SourceRefField[] =>
 // validation issues and FileWidget renders the same text in the form body.
 export const bindingStateMessage = (
   state: SourceRefBindingState,
-  noun: SourceRefNoun,
-  // A plural input takes every group on the active dataset, so selecting one is
-  // not a remedy.
-  multiple = false
+  noun: SourceRefNoun
 ): string | undefined => {
   if (state === 'no-provenance')
     return 'The active volume was not loaded from the server, so it cannot be used as an input.';
-  if (state === 'no-segment-group')
-    return multiple
-      ? 'Paint a segment group on the active dataset first.'
-      : 'Paint or select a segment group first.';
+  if (state === 'no-segmentation')
+    return 'Create a segmentation on the active dataset first.';
   if (state === 'no-annotations')
     return 'Place a ruler, rectangle, or polygon on the current image first.';
   if (state === 'no-reference-input')
@@ -138,7 +133,7 @@ export const unboundBinding = (
   states: Record<string, SourceRefBindingState>;
   issues: FormValidationIssue[];
 } => {
-  const message = bindingStateMessage(state, noun, field.multiple === true);
+  const message = bindingStateMessage(state, noun);
   return {
     states: { [field.id]: state },
     issues:

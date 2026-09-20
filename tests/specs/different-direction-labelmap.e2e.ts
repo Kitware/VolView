@@ -1,14 +1,18 @@
 import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
 import { writeManifestToFile } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
-import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
+import {
+  openAnnotationSegments,
+  waitForNamedSegments,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
 
 /**
  * Regression test for labelmap with different direction matrix than parent image.
  *
  * The prostate DICOM and TotalSegmenter segment group have different direction matrices:
  *   Base image:     [1, 0, 0,  0,  0.97, -0.24,  0, 0.24, 0.97]
- *   Segment group:  [1, 0, 0,  0, -0.97,  0.24,  0, 0.24, 0.97]
+ *   Labelmap:       [1, 0, 0,  0, -0.97,  0.24,  0, 0.24, 0.97]
  *
  * This caused bugs where paint tool painted at wrong location and
  * coronal slice didn't show segment overlay.
@@ -33,25 +37,9 @@ describe('Labelmap with different direction matrix', () => {
     const notifications = await volViewPage.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await browser.waitUntil(
-      async () => {
-        const segmentGroups = await $$('.segment-group-list .v-list-item');
-        return (await segmentGroups.length) >= 1;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Segment group not found in segment groups list',
-      }
-    );
+    await openAnnotationSegments();
+    await waitForNamedSegments();
+    await waitForSegmentContent('Right hip');
 
     await volViewPage.openLayoutMenu(1);
     await volViewPage.selectLayoutOption('Coronal Only');

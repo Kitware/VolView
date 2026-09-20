@@ -3,7 +3,7 @@
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { COMPOUND_EXTENSIONS } from '@/src/utils/path';
 
 const MAX_ERROR_LENGTH = 4000;
@@ -35,7 +35,7 @@ const collectDatasetInfo = (): string[] => {
   const datasetStore = useDatasetStore();
   const imageCacheStore = useImageCacheStore();
   const dicomStore = useDICOMStore();
-  const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
 
   return datasetStore.idsAsSelections.map((id, i) => {
     const metadata = imageCacheStore.getImageMetadata(id);
@@ -57,10 +57,11 @@ const collectDatasetInfo = (): string[] => {
         ? 'DICOM'
         : 'unknown';
 
-    const segCount = segmentGroupStore.orderByParent[id]?.length ?? 0;
+    const segCount =
+      segmentationStore.getSegmentationForImage(id)?.order.length ?? 0;
     const segPart =
       segCount > 0
-        ? ` (segment groups: ${segCount} as ${segmentGroupStore.saveFormat})`
+        ? ` (segments: ${segCount} as ${segmentationStore.saveFormat})`
         : '';
 
     return `  [${i}] ${dims} ${dataType} from ${sourceFormat}${segPart}`;
@@ -81,11 +82,11 @@ export const generateBugReport = (error?: Error): string => {
   ];
 
   const datasets = collectDatasetInfo();
-  const segmentGroupStore = useSegmentGroupStore();
+  const segmentationStore = useSegmentationStore();
 
   lines.push('', `Datasets: ${datasets.length}`);
   lines.push(...datasets);
-  lines.push(`Save format: ${segmentGroupStore.saveFormat}`);
+  lines.push(`Save format: ${segmentationStore.saveFormat}`);
 
   lines.push('--- End Report ---');
 

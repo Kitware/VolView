@@ -6,11 +6,11 @@ import {
   useToolSelectionStore,
 } from '@/src/store/tools/toolSelection';
 import { AnnotationToolType } from '@/src/store/tools/types';
-import { POLYGON_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -38,7 +38,8 @@ const ensureVec2 = (regions: (Vec2 | Vec6)[][]) => {
 export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   const toolAPI = useAnnotationTool({
     toolDefaults,
-    initialLabels: POLYGON_LABEL_DEFAULTS,
+    segments: () => useSegmentStore().segments,
+    manifestKey: 'polygons',
   });
 
   function getPoints(id: ToolID) {
@@ -129,14 +130,14 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     return mergedTool;
   };
 
-  const sameSliceAndLabel = (a: Tool, b: Tool) =>
-    a.label === b.label &&
+  const sameSliceAndSegment = (a: Tool, b: Tool) =>
+    a.segmentId === b.segmentId &&
     a.slice === b.slice &&
     a.frame === b.frame &&
     a.frameOfReference === b.frameOfReference;
 
   const mergable = (a: Tool, b: Tool) => {
-    if (!sameSliceAndLabel(a, b)) return false;
+    if (!sameSliceAndSegment(a, b)) return false;
     return polygonsOverlap(a, b);
   };
   // --- //
@@ -194,8 +195,12 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
     state.manifest.tools.polygons = toolAPI.serializeTools();
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap);
+  function deserialize(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
+  ) {
+    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap, segmentIdMap);
   }
 
   return {

@@ -28,13 +28,12 @@ type WireVector3 = [number, number, number];
 // view accepts any 3-number-indexable so callers need no casts.
 type PointLike = ArrayLike<number>;
 
-// A store label as `useLabels` holds it: keyed by label id, carrying the name
-// and the style props. `fillColor` is rectangles-only.
+// A segment as its registry holds it, keyed by segment id. Fill color is a
+// per-shape prop, so it is not part of what a segment states.
 export type AnnotationLabelView = {
   labelName?: string;
   color?: string;
   strokeWidth?: number;
-  fillColor?: string;
 };
 
 type AnnotationToolCoreView = {
@@ -157,7 +156,6 @@ const encodeLabelStyle = (label: AnnotationLabelView): AnnotationLabel =>
   cleanUndefined({
     color: label.color,
     strokeWidth: label.strokeWidth,
-    fillColor: label.fillColor,
   });
 
 // Namespaces are built from the names the encoded tools actually reference, so

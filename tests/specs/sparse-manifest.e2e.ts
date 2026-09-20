@@ -5,7 +5,12 @@ import {
   writeManifestToFile,
   writeManifestToZip,
 } from './utils';
-import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
+import {
+  openAnnotationSegments,
+  openSegmentShapes,
+  waitForNamedSegments,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
 
 describe('Sparse manifest.json', () => {
   it('loads manifest with only URL data source', async () => {
@@ -64,19 +69,12 @@ describe('Sparse manifest.json', () => {
     await writeManifestToZip(sparseManifest, fileName);
     await openVolViewPage(fileName);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
+    await openSegmentShapes();
 
     await browser.waitUntil(
       async () => {
         const rectangleEntries = await $$(
-          '.v-list-item i.mdi-vector-square.tool-icon'
+          '[data-testid="segment-shape-row"] i.mdi-vector-square'
         );
         const count = await rectangleEntries.length;
         return count >= 1;
@@ -110,26 +108,9 @@ describe('Sparse manifest.json', () => {
     await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
     await openVolViewPage(fileName);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
-    );
-    await annotationsTab.click();
-
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await browser.waitUntil(
-      async () => {
-        const segmentGroups = await $$('.segment-group-list .v-list-item');
-        const count = await segmentGroups.length;
-        return count >= 1;
-      },
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Segment group not found in segment groups list',
-      }
-    );
+    await openAnnotationSegments();
+    await waitForNamedSegments();
+    await waitForSegmentContent('Right hip');
 
     // Verify the segment group source image is NOT in the Anonymous section
     const dataTab = await $('button[data-testid="module-tab-Data"]');

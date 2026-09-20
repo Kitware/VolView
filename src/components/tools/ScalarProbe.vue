@@ -8,7 +8,8 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useProbeStore } from '@/src/store/probe';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { NO_NAME } from '@/src/constants';
@@ -18,10 +19,10 @@ type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
 const props = defineProps<{
   baseRep: SliceRepresentationType;
   layerReps: SliceRepresentationType[];
-  segmentGroupsReps: SliceRepresentationType[];
+  segmentReps: SliceRepresentationType[];
 }>();
 
-const { baseRep, layerReps, segmentGroupsReps } = toRefs(props);
+const { baseRep, layerReps, segmentReps } = toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
@@ -32,7 +33,8 @@ const {
   currentLayers,
 } = useCurrentImage();
 const imageCacheStore = useImageCacheStore();
-const segmentGroupStore = useSegmentGroupStore();
+const segmentationStore = useSegmentationStore();
+const { segments: segments } = useSegmentStore();
 const probeStore = useProbeStore();
 
 // Helper functions to build a unified sample set
@@ -65,22 +67,29 @@ const getLayers = () =>
     })
     .filter(Boolean);
 
+// Paired positionally with the slice view's segment actors, which come off the
+// same ordered list.
 const getSegments = () => {
   if (!currentImageID.value) return [];
-  const parentGroups = segmentGroupStore.orderByParent[currentImageID.value];
-  if (!parentGroups) return [];
-  return segmentGroupsReps.value
+  const layers = segmentationStore.maskLayersForImage(currentImageID.value);
+  return segmentReps.value
     .map((rep, index) => {
-      const groupId = parentGroups[index];
-      if (!groupId) return null;
-      const meta = segmentGroupStore.metadataByID[groupId];
+      const layer = layers[index];
+      if (!layer) return null;
+      const segment = segmentationStore.getMask(layer.maskId);
+      const voxels = segmentationStore.findMaskVoxels(layer.maskId);
+      if (!voxels.exists()) return null;
+      const descriptor =
+        segmentationStore.labelmapDescriptorByMask[layer.maskId];
       return {
-        type: 'segmentGroup',
-        id: groupId,
-        name: meta.name,
+        type: 'segment',
+        id: layer.maskId,
+        name: segments.appearanceOf(segment.segmentId).name,
         rep,
-        segments: meta.segments,
-        image: segmentGroupStore.dataIndex[groupId],
+        nameByLabelValue: descriptor
+          ? { [descriptor.value]: descriptor.name }
+          : {},
+        image: voxels.image(),
       };
     })
     .filter(Boolean);
@@ -144,11 +153,14 @@ const getImageSamples = (x: number, y: number) => {
       const scalars = scalarData.getTuple(index) as number[];
       const baseInfo = { id: item.id, name: item.name };
 
-      if (item.type === 'segmentGroup') {
+      if (item.type === 'segment') {
+        // A mask's bounding box can contain empty voxels from other segments.
+        if (scalars.every((value) => value === 0)) return null;
+
         return {
           ...baseInfo,
           displayValues: scalars.map(
-            (v) => item.segments.byValue[v]?.name || 'Background'
+            (v) => item.nameByLabelValue[v] || 'Background'
           ),
         };
       }

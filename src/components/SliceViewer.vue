@@ -105,10 +105,11 @@
             :axis="viewAxis"
           ></vtk-base-slice-representation>
           <vtk-segmentation-slice-representation
-            v-for="segId in segmentations"
-            :key="`seg-${segId}`"
+            v-for="layer in segmentLayers"
+            :key="`seg-${layer.maskId}`"
             :view-id="viewId"
-            :segmentation-id="segId"
+            :mask-id="layer.maskId"
+            :stack-index="layer.stackIndex"
             :axis="viewAxis"
             ref="segSliceReps"
           ></vtk-segmentation-slice-representation>
@@ -162,7 +163,7 @@
           <scalar-probe
             :base-rep="baseSliceRep"
             :layer-reps="layerSliceReps"
-            :segment-groups-reps="segSliceReps"
+            :segment-reps="segSliceReps"
           ></scalar-probe>
           <slot></slot>
         </vtk-slice-view>
@@ -179,8 +180,8 @@ import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
-import VtkSegmentationSliceRepresentation from '@/src/components/vtk/VtkSegmentationSliceRepresentation.vue';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import VtkSegmentationSliceRepresentation from '@/src/segmentation/rendering/VtkSegmentationSliceRepresentation.vue';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
@@ -197,7 +198,10 @@ import SliceSlider from '@/src/components/SliceSlider.vue';
 import SliceViewerOverlay from '@/src/components/SliceViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
-import { doesToolFrameMatchViewAxis } from '@/src/composables/annotationTool';
+import {
+  doesToolFrameMatchViewAxis,
+  isToolVisible,
+} from '@/src/composables/annotationTool';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
@@ -273,10 +277,10 @@ onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
 });
 
-const segmentations = computed(() => {
+// One actor per segment, stacked by its place in `segmentation.order`.
+const segmentLayers = computed(() => {
   if (!currentImageID.value) return [];
-  const store = useSegmentGroupStore();
-  return store.orderByParent[currentImageID.value];
+  return useSegmentationStore().maskLayersForImage(currentImageID.value);
 });
 
 // --- selection points --- //
@@ -289,9 +293,9 @@ const selectionPoints = computed(() => {
       return { store, tool: store.toolByID[sel.id] };
     })
     .filter(
-      ({ tool }) =>
+      ({ store, tool }) =>
         tool.slice === currentSlice.value &&
-        !tool.hidden &&
+        isToolVisible(store, tool) &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata)
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));

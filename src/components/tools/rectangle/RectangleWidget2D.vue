@@ -25,6 +25,7 @@ import {
   useRightClickContextMenu,
   useHoverEvent,
   useWidgetVisibility,
+  useToolAppearance,
 } from '@/src/composables/annotationTool';
 import { vtkRulerWidgetState } from '@/src/vtk/RulerWidget';
 import { ToolID } from '@/src/types/annotation-tool';
@@ -42,7 +43,7 @@ const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
   name: 'RectangleWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placing', 'placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
@@ -109,6 +110,12 @@ export default defineComponent({
       }
     });
 
+    // While placing, the widget only starts an interaction when the first
+    // point lands: the states that would drag a handle are not reachable yet.
+    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+      if (isPlacing.value) emit('placing');
+    });
+
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');
     });
@@ -160,6 +167,7 @@ export default defineComponent({
     return {
       tool,
       slice,
+      appearance: useToolAppearance(toolStore, () => tool.value),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? tool.value?.firstPoint : undefined;
       }),
@@ -177,8 +185,8 @@ export default defineComponent({
     :view-id="viewId"
     :point1="firstPoint"
     :point2="secondPoint"
-    :color="tool.color"
-    :stroke-width="tool.strokeWidth"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :fill-color="tool.fillColor"
   />
 </template>

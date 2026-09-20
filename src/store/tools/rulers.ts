@@ -4,9 +4,9 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { ToolID } from '@/src/types/annotation-tool';
 
-import { RULER_LABEL_DEFAULTS } from '@/src/config';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
 
+import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   declareAnnotationToolManifestRefs,
   useAnnotationTool,
@@ -24,7 +24,8 @@ const rulerDefaults = () => ({
 export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   const annotationTool = useAnnotationTool({
     toolDefaults: rulerDefaults,
-    initialLabels: RULER_LABEL_DEFAULTS,
+    segments: () => useSegmentStore().segments,
+    manifestKey: 'rulers',
   });
 
   // prefix some props with ruler
@@ -62,12 +63,16 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     state.manifest.tools.rulers = serializeTools();
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
-    deserializeTools(manifest.tools?.rulers, dataIDMap);
+  function deserialize(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
+  ) {
+    deserializeTools(manifest.tools?.rulers, dataIDMap, segmentIdMap);
   }
 
   return {
-    ...annotationTool, // support useAnnotationTool interface (for MeasurementsToolList)
+    ...annotationTool,
     rulerIDs,
     rulerByID,
     rulers,

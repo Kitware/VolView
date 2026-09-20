@@ -3,6 +3,7 @@ import vtkPaintWidget from '@/src/vtk/PaintWidget';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
 import { Maybe } from '@/src/types';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import { IPaintBrush } from './brush';
 import EllipsePaintBrush from './ellipse-brush';
 
@@ -12,6 +13,7 @@ export enum PaintMode {
   CirclePaint,
   Erase,
   Process,
+  Eyedropper,
 }
 
 export default class PaintTool {
@@ -59,6 +61,51 @@ export default class PaintTool {
   }
 
   /**
+   * The index-space box a stroke can touch, in whatever space its points are
+   * given in. Bounded storage has to be grown to cover the stroke before the
+   * brush runs, and this states the region from the same stencil the brush
+   * writes through.
+   */
+  strokeBounds(
+    sliceAxis: 0 | 1 | 2,
+    startPoint: vec3,
+    endPoint?: vec3
+  ): Extent3D {
+    const round = (point: vec3) => [...point].map((value) => Math.round(value));
+    const start = round(startPoint);
+    const end = endPoint ? round(endPoint) : [...start];
+
+    const { size } = this.brush.getStencil();
+    const center = [
+      Math.floor((size[0] - 1) / 2),
+      Math.floor((size[1] - 1) / 2),
+    ];
+
+    const bounds = [0, 0, 0, 0, 0, 0] as Extent3D;
+    bounds[sliceAxis * 2] = start[sliceAxis];
+    bounds[sliceAxis * 2 + 1] = start[sliceAxis];
+    [0, 1, 2]
+      .filter((axis) => axis !== sliceAxis)
+      .forEach((axis, planeIndex) => {
+        bounds[axis * 2] =
+          Math.min(start[axis], end[axis]) - center[planeIndex];
+        bounds[axis * 2 + 1] =
+          Math.max(start[axis], end[axis]) +
+          size[planeIndex] -
+          1 -
+          center[planeIndex];
+      });
+    return bounds;
+  }
+
+  private strokeValue() {
+    const inBrushingMode =
+      this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
+    if (this.brushValue == null || !inBrushingMode) return undefined;
+    return this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
+  }
+
+  /**
    * Adds paint to a labelmap.
    *
    * If endPoint is specified, then linearly interpolates the brush
@@ -66,24 +113,38 @@ export default class PaintTool {
    *
    * Assumption: startPoint and endPoint are on the same slice axis.
    *
+   * Points are stated in whatever index space the caller walks in, and
+   * `origin` says where the labelmap's own first voxel sits in it. The line
+   * between two samples is walked by accumulating fractional steps and
+   * rounding, so the answer depends on where the walk starts: a bounded mask
+   * whose points were shifted into its own frame would round a step the other
+   * way and paint a different voxel than the same stroke on another mask.
+   *
    * @param labelmap paint in this labelmap
    * @param sliceAxis Which index-space axis to paint on (0, 1, or 2).
    * @param startPoint start point
    * @param endPoint ending point (optional)
+   * @param origin the labelmap's first voxel, in the points' own space
    */
   paintLabelmap(
     labelmap: vtkLabelMap,
     sliceAxis: 0 | 1 | 2,
     startPoint: vec3,
-    endPoint?: vec3,
-    shouldPaint: (offset: number, point: number[]) => boolean = () => true
+    {
+      endPoint,
+      shouldPaint = () => true,
+      onPainted,
+      origin = [0, 0, 0],
+    }: {
+      endPoint?: vec3;
+      shouldPaint?: (offset: number, point: number[]) => boolean;
+      onPainted?: (point: number[]) => void;
+      origin?: readonly [number, number, number];
+    } = {}
   ) {
-    const inBrushingMode =
-      this.mode === PaintMode.CirclePaint || this.mode === PaintMode.Erase;
-    if (this.brushValue == null || !inBrushingMode) return;
+    const brushValue = this.strokeValue();
+    if (brushValue === undefined) return;
 
-    const brushValue =
-      this.mode === PaintMode.Erase ? ERASE_BRUSH_VALUE : this.brushValue;
     const stencil = this.brush.getStencil();
 
     const start = [
@@ -101,18 +162,20 @@ export default class PaintTool {
       end.splice(sliceAxis, 1);
     }
 
+    let changed = false;
     const labelmapPixels = labelmap.getPointData().getScalars().getData();
     const labelmapDims = labelmap.getDimensions();
     const jStride = labelmapDims[0];
     const kStride = labelmapDims[0] * labelmapDims[1];
+    const [originI, originJ, originK] = origin;
 
     const isInBounds = (point: number[]) =>
-      point[0] >= 0 &&
-      point[1] >= 0 &&
-      point[2] >= 0 &&
-      point[0] < labelmapDims[0] &&
-      point[1] < labelmapDims[1] &&
-      point[2] < labelmapDims[2];
+      point[0] >= originI &&
+      point[1] >= originJ &&
+      point[2] >= originK &&
+      point[0] < originI + labelmapDims[0] &&
+      point[1] < originJ + labelmapDims[1] &&
+      point[2] < originK + labelmapDims[2];
 
     const { pixels, size } = stencil;
     const centerX = Math.floor((size[0] - 1) / 2);
@@ -121,7 +184,39 @@ export default class PaintTool {
     const point1 = [...start];
     const point2 = [...end];
     const rounded = [0, 0, 0];
+    rounded[sliceAxis] = ijkSlice;
+    // The two in-plane axes, in the order the line's points state them.
+    const [axisU, axisV] = [0, 1, 2].filter((axis) => axis !== sliceAxis);
     const curPoint: number[] = [0, 0];
+
+    const paintLine = () => {
+      const dx = point2[0] - point1[0];
+      const dy = point2[1] - point1[1];
+      let steps = Math.abs(Math.abs(dx) > Math.abs(dy) ? dx : dy);
+      const incX = dx / steps;
+      const incY = dy / steps;
+      [curPoint[0], curPoint[1]] = point1;
+      while (steps-- >= 0) {
+        rounded[axisU] = Math.round(curPoint[0]);
+        rounded[axisV] = Math.round(curPoint[1]);
+
+        const offset =
+          rounded[0] -
+          originI +
+          (rounded[1] - originJ) * jStride +
+          (rounded[2] - originK) * kStride;
+        if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
+          if (labelmapPixels[offset] !== brushValue) {
+            labelmapPixels[offset] = brushValue;
+            changed = true;
+          }
+          onPainted?.(rounded);
+        }
+
+        curPoint[0] += incX;
+        curPoint[1] += incY;
+      }
+    };
     for (let y = 0; y < size[1]; y++) {
       const ydelta = y - centerY;
       const yoffset = y * size[0];
@@ -133,37 +228,11 @@ export default class PaintTool {
           point1[1] = start[1] + ydelta;
           point2[0] = end[0] + xdelta;
           point2[1] = end[1] + ydelta;
-
-          // line between the two points
-          const dx = point2[0] - point1[0];
-          const dy = point2[1] - point1[1];
-          let steps = Math.abs(Math.abs(dx) > Math.abs(dy) ? dx : dy);
-          const incX = dx / steps;
-          const incY = dy / steps;
-          [curPoint[0], curPoint[1]] = point1;
-          while (steps-- >= 0) {
-            // add slice axis to make a proper 3D index
-            curPoint.splice(sliceAxis, 0, ijkSlice);
-            rounded[0] = Math.round(curPoint[0]);
-            rounded[1] = Math.round(curPoint[1]);
-            rounded[2] = Math.round(curPoint[2]);
-
-            const offset =
-              rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
-            if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
-              labelmapPixels[offset] = brushValue;
-            }
-
-            // undo adding the slice axis value
-            curPoint.splice(sliceAxis, 1);
-
-            curPoint[0] += incX;
-            curPoint[1] += incY;
-          }
+          paintLine();
         }
       }
     }
 
-    labelmap.modified();
+    if (changed) labelmap.modified();
   }
 }

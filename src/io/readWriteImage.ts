@@ -7,7 +7,7 @@ import {
 } from '@itk-wasm/image-io';
 import { vtiReader, vtiWriter } from '@/src/io/vtk/async';
 import { getWorker } from '@/src/io/itk/worker';
-import type { SegmentGroupMetadata } from '@/src/store/segmentGroups';
+import type { LabelmapSegment } from '@/src/segmentation/model';
 import { maybeBuildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { repairUnusableSpacing } from '@/src/utils/imageSpace';
 
@@ -69,11 +69,11 @@ export const writeImage = async (
 export const writeSegmentation = (
   format: string,
   image: vtkImageData,
-  segMetadata: SegmentGroupMetadata
+  segments: LabelmapSegment[]
 ) => {
   const metadata = maybeBuildSegNrrdMetadata(
     format,
-    segMetadata,
+    segments,
     image.getDimensions() as [number, number, number]
   );
   return writeImage(format, image, metadata);

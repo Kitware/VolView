@@ -29,11 +29,12 @@ export const PROSTATE_610_LABELMAP_MANIFEST = {
         name: 'Prostate Segmentation',
         parentImage: '0',
         segments: {
-          order: [1],
+          // The fixture contains label 78 (hip_right), but no label 1.
+          order: [78],
           byValue: {
-            '1': {
-              value: 1,
-              name: 'Prostate',
+            '78': {
+              value: 78,
+              name: 'Right hip',
               color: [255, 0, 0, 255],
               visible: true,
             },
