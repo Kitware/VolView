@@ -66,15 +66,27 @@ const sameResultSource = (
   source.outputId === target.outputId;
 
 function segmentResultInScene(
-  intent: SegmentationIntent,
+  target: ResultSource | undefined,
   segmentWriter: SegmentWriter
 ): boolean {
-  const target = intent.source;
   if (!target) return false;
   return segmentWriter
     .resultSourcesInScene()
     .some((source) => sameResultSource(source, target));
 }
+
+// A producer may omit `source`; minting it from the submitted job and row
+// gives a re-Load after a reload a receipt to recognize.
+const resultSourceOf = (
+  intent: SegmentationIntent | AnnotationsIntent,
+  context: SubmittedJobContext | undefined
+): ResultSource | undefined =>
+  intent.source ??
+  (context && {
+    providerId: context.providerId,
+    jobId: context.jobId,
+    outputId: intent.id,
+  });
 
 async function loadAsImport(file: ResultFile) {
   const ds = uriToDataSource(file.url, file.name);
@@ -90,8 +102,7 @@ async function loadAsImport(file: ResultFile) {
 
 // Session-restored tools retain their result source, so that durable
 // provenance doubles as an application receipt: re-Loading a job adds nothing.
-function annotationResultInScene(intent: AnnotationsIntent): boolean {
-  const target = intent.source;
+function annotationResultInScene(target: ResultSource | undefined): boolean {
   if (!target) return false;
   return ANNOTATION_TOOL_KINDS.some((kind) =>
     Object.values(annotationToolStore(kind).toolByID).some(({ source }) =>
@@ -277,9 +288,10 @@ const toolPayload = (
 async function applyAnnotations(
   intent: AnnotationsIntent,
   parentSelection: string | undefined,
+  source: ResultSource | undefined,
   fetchResult: FetchProcessingResult
 ): Promise<ApplyIntentOutcome> {
-  if (annotationResultInScene(intent)) return { status: 'applied' };
+  if (annotationResultInScene(source)) return { status: 'applied' };
 
   // Tools are anchored to an image; without one they would be orphans the UI
   // never shows. Opening the file as a dataset is not a fallback either — it is
@@ -343,7 +355,7 @@ async function applyAnnotations(
       // uniform tool type does not carry the per-kind geometry keys.
       const payload = {
         ...geometry,
-        ...toolPayload(core, segmentIds[kind], intent.source),
+        ...toolPayload(core, segmentIds[kind], source),
       };
       store.addTool(payload);
     });
@@ -442,7 +454,8 @@ export async function applyIntent(
         // Session-restored groups retain their result source. Treat that
         // durable provenance as an application receipt so retrying Load is
         // idempotent instead of creating a duplicate group.
-        if (segmentResultInScene(intent, dependencies.segmentWriter))
+        const source = resultSourceOf(intent, context);
+        if (segmentResultInScene(source, dependencies.segmentWriter))
           return { status: 'applied' };
         if (!parentSelection) {
           return await openVolumeAsDatasetOutcome(intent);
@@ -454,7 +467,7 @@ export async function applyIntent(
           await dependencies.segmentWriter.convertImageToLabelmap(
             childSelection,
             parentSelection,
-            intent.source,
+            source,
             intent.segments
           );
           return { status: 'applied' };
@@ -467,6 +480,7 @@ export async function applyIntent(
         return await applyAnnotations(
           intent,
           parentSelection,
+          resultSourceOf(intent, context),
           dependencies.fetchResult
         );
       }
