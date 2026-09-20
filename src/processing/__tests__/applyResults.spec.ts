@@ -70,6 +70,14 @@ const context = (activeDatasetId?: string): SubmittedJobContext => ({
   activeDatasetId,
 });
 
+// The provenance the client mints for a result whose producer sent none: the
+// job it submitted plus the result row it is applying.
+const mintedSource = (outputId: string) => ({
+  providerId: 'p1',
+  jobId: 'j1',
+  outputId,
+});
+
 const result = (
   overrides: Partial<ProcessingResult> = {}
 ): ProcessingResult => ({
@@ -137,7 +145,7 @@ describe('applyIntent', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      undefined,
+      mintedSource('r1'),
       segments
     );
     expect(deps.openVolumeUrls).not.toHaveBeenCalled();
@@ -181,7 +189,7 @@ describe('applyIntent', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      undefined,
+      mintedSource('r1'),
       undefined
     );
   });
@@ -257,6 +265,25 @@ describe('applyIntent', () => {
   it('does not infer an application receipt when provenance is absent', async () => {
     deps.segmentWriter.resultSourcesInScene.mockReturnValue([undefined]);
 
+    const outcome = await apply(
+      { intent: 'import-segmentation', ...file },
+      context('parent')
+    );
+
+    expect(outcome.status).toBe('applied');
+    expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledTimes(1);
+  });
+
+  // The producer may omit the optional `source`, leaving nothing in the scene
+  // to say the result was applied. The client mints the key instead, so the
+  // second Load recognizes it.
+  it('recognizes the provenance it minted for a source-less result', async () => {
+    await apply({ intent: 'import-segmentation', ...file }, context('parent'));
+
+    // What a save and restore hand back: the receipt the first Load wrote.
+    deps.segmentWriter.resultSourcesInScene.mockReturnValue([
+      mintedSource('r1'),
+    ]);
     const outcome = await apply(
       { intent: 'import-segmentation', ...file },
       context('parent')
@@ -523,7 +550,7 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledWith(
       'child-selection',
       'parent',
-      undefined,
+      mintedSource('seg'),
       undefined
     );
   });
