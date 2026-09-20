@@ -106,10 +106,18 @@ export default class PaintTool {
    *
    * Assumption: startPoint and endPoint are on the same slice axis.
    *
+   * Points are stated in whatever index space the caller walks in, and
+   * `origin` says where the labelmap's own first voxel sits in it. The line
+   * between two samples is walked by accumulating fractional steps and
+   * rounding, so the answer depends on where the walk starts: a bounded mask
+   * whose points were shifted into its own frame would round a step the other
+   * way and paint a different voxel than the same stroke on another mask.
+   *
    * @param labelmap paint in this labelmap
    * @param sliceAxis Which index-space axis to paint on (0, 1, or 2).
    * @param startPoint start point
    * @param endPoint ending point (optional)
+   * @param origin the labelmap's first voxel, in the points' own space
    */
   /** The value a stroke writes, or undefined when this mode does not brush. */
   private strokeValue() {
@@ -127,10 +135,12 @@ export default class PaintTool {
       endPoint,
       shouldPaint = () => true,
       onPainted,
+      origin = [0, 0, 0],
     }: {
       endPoint?: vec3;
       shouldPaint?: (offset: number, point: number[]) => boolean;
       onPainted?: (point: number[]) => void;
+      origin?: readonly [number, number, number];
     } = {}
   ) {
     const brushValue = this.strokeValue();
@@ -158,14 +168,15 @@ export default class PaintTool {
     const labelmapDims = labelmap.getDimensions();
     const jStride = labelmapDims[0];
     const kStride = labelmapDims[0] * labelmapDims[1];
+    const [originI, originJ, originK] = origin;
 
     const isInBounds = (point: number[]) =>
-      point[0] >= 0 &&
-      point[1] >= 0 &&
-      point[2] >= 0 &&
-      point[0] < labelmapDims[0] &&
-      point[1] < labelmapDims[1] &&
-      point[2] < labelmapDims[2];
+      point[0] >= originI &&
+      point[1] >= originJ &&
+      point[2] >= originK &&
+      point[0] < originI + labelmapDims[0] &&
+      point[1] < originJ + labelmapDims[1] &&
+      point[2] < originK + labelmapDims[2];
 
     const { pixels, size } = stencil;
     const centerX = Math.floor((size[0] - 1) / 2);
@@ -191,7 +202,11 @@ export default class PaintTool {
         rounded[1] = Math.round(curPoint[1]);
         rounded[2] = Math.round(curPoint[2]);
 
-        const offset = rounded[0] + rounded[1] * jStride + rounded[2] * kStride;
+        const offset =
+          rounded[0] -
+          originI +
+          (rounded[1] - originJ) * jStride +
+          (rounded[2] - originK) * kStride;
         if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
           if (labelmapPixels[offset] !== brushValue) {
             labelmapPixels[offset] = brushValue;

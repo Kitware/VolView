@@ -238,18 +238,12 @@ export const usePaintToolStore = defineStore('paint', () => {
     const maskData = voxels.scalars();
     const [minThreshold, maxThreshold] = thresholdRange.value;
 
-    // The brush hands back points in the mask's own frame, and the mask's
-    // origin puts them back on the parent grid. Taken a component at a time:
-    // both callbacks below run for every voxel the brush touches, and a triple
-    // per voxel is an allocation per voxel.
-    const originI = extent[0];
-    const originJ = extent[2];
-    const originK = extent[4];
+    // The brush walks the PARENT grid and hands its points back in it, so the
+    // parent pixel under a voxel is a plain offset. Read a component at a
+    // time: both callbacks below run for every voxel the brush touches, and a
+    // triple per voxel is an allocation per voxel.
     const parentOffset = (point: number[]) =>
-      point[0] +
-      originI +
-      (point[1] + originJ) * rowStride +
-      (point[2] + originK) * sliceStride;
+      point[0] + point[1] * rowStride + point[2] * sliceStride;
 
     const shouldPaint = (offset: number, point: number[]) => {
       // Erase clears the active segment only.
@@ -259,32 +253,18 @@ export const usePaintToolStore = defineStore('paint', () => {
       return minThreshold <= pixValue && pixValue <= maxThreshold;
     };
 
-    const toMask = (point: vec3) =>
-      vec3.fromValues(
-        point[0] - extent[0],
-        point[1] - extent[2],
-        point[2] - extent[4]
-      );
-
     try {
-      this.$paint.paintLabelmap(
-        voxels.image(),
-        axisIndex,
-        toMask(lastIndexPoint),
-        {
-          endPoint: prevIndexPoint ? toMask(prevIndexPoint) : undefined,
-          shouldPaint,
-          onPainted: erasing
-            ? undefined
-            : (point: number[]) => {
-                claimVoxel?.claim(
-                  point[0] + originI,
-                  point[1] + originJ,
-                  point[2] + originK
-                );
-              },
-        }
-      );
+      this.$paint.paintLabelmap(voxels.image(), axisIndex, lastIndexPoint, {
+        endPoint: prevIndexPoint,
+        // Where this mask's buffer sits on the parent grid the points are in.
+        origin: [extent[0], extent[2], extent[4]],
+        shouldPaint,
+        onPainted: erasing
+          ? undefined
+          : (point: number[]) => {
+              claimVoxel?.claim(point[0], point[1], point[2]);
+            },
+      });
     } finally {
       claimVoxel?.finish();
     }

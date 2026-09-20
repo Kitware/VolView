@@ -11,6 +11,7 @@ import {
   bindingOf,
   extentOf,
   labelValueOf,
+  markedVoxels,
   maskValueAt,
   seatImage,
   seedVoxel,
@@ -195,6 +196,55 @@ describe('painting into bounded masks', () => {
       strokeAt('img-1', [3, 2, 0]);
 
       expect(maskValueAt(active, [3, 2, 0])).toBeFalsy();
+    });
+  });
+
+  describe('rounding the stroke on the parent grid', () => {
+    // The line between two samples is walked by accumulating fractional steps
+    // and rounding, so where the walk starts decides which side of a half a
+    // step lands on. Walked in each mask's own frame, the same world stroke
+    // painted a different voxel depending on where that mask's storage
+    // happened to start.
+    const WIDE: Index3 = [48, 24, 2];
+    const STROKE: [Index3, Index3] = [
+      [30, 2, 0],
+      [35, 8, 0],
+    ];
+
+    /** The stroke's mask and its voxels in parent indices. */
+    const paintedOn = (imageId: string, wholeParent = false) => {
+      const maskId = addMask(imageId, 'Target');
+      if (wholeParent) {
+        const voxels = store().maskVoxels(maskId);
+        voxels.materialize();
+        voxels.ensureContains(fullExtent(WIDE));
+      }
+      selectSegment(maskId);
+      const paintStore = usePaintToolStore();
+      paintStore.setBrushSize(1);
+      paintStore.startStroke(STROKE[0], 2, imageId);
+      paintStore.endStroke(STROKE[1], 2, imageId);
+      return {
+        maskId,
+        painted: markedVoxels(maskId)!.map(([i, j, k]) => `${i},${j},${k}`),
+      };
+    };
+
+    it('paints the same voxels whatever offset the mask starts at', async () => {
+      // One image each: an aimed write clears the voxel in the other masks of
+      // its own image, which would rub out the set being compared against.
+      await seatImage('img-1', { dimensions: WIDE });
+      await seatImage('img-2', { dimensions: WIDE });
+
+      const wholeParent = paintedOn('img-1', true);
+      const bounded = paintedOn('img-2');
+
+      // The two masks hold the stroke at different offsets, which is the whole
+      // point of the comparison.
+      expect(extentOf(bounded.maskId)![0]).not.toBe(
+        extentOf(wholeParent.maskId)![0]
+      );
+      expect(bounded.painted).toEqual(wholeParent.painted);
     });
   });
 
