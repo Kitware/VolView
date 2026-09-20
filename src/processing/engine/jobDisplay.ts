@@ -6,8 +6,11 @@ import type {
   SubmittedJobParameterDisplay,
 } from '@/src/processing/types';
 import { plural } from '@/src/utils';
-import { fieldLabel, type TaskFormModel } from './formModel';
-import type { BoundSourceRefType } from './sourceRefs';
+import {
+  fieldLabel,
+  type TaskFormModel,
+} from '@/src/processing/engine/formModel';
+import type { BoundSourceRefType } from '@/src/processing/engine/sourceRefs';
 
 // Everything the display strings are made of, resolved by the caller in one
 // synchronous pass so formatting stays pure.

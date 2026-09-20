@@ -4,9 +4,19 @@
 
 import type { InputValue } from '@/backend-contract';
 import { TYPE_TAG_ANNOTATIONS } from '@/backend-contract';
-import type { FormValidationIssue, TaskFormModel } from './formModel';
-import type { SourceRefBindingState, SourceRefField } from './mintInput';
-import { ambiguousBinding, sourceRefFields, unboundBinding } from './mintInput';
+import type {
+  FormValidationIssue,
+  TaskFormModel,
+} from '@/src/processing/engine/formModel';
+import type {
+  SourceRefBindingState,
+  SourceRefField,
+} from '@/src/processing/engine/mintInput';
+import {
+  ambiguousBinding,
+  sourceRefFields,
+  unboundBinding,
+} from '@/src/processing/engine/mintInput';
 
 export const annotationsInputFields = (
   model: TaskFormModel

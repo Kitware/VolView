@@ -9,8 +9,8 @@ import type {
   FormField,
   FormValidationIssue,
   TaskFormModel,
-} from './formModel';
-import { fieldLabel } from './formModel';
+} from '@/src/processing/engine/formModel';
+import { fieldLabel } from '@/src/processing/engine/formModel';
 
 // A partial uri set would be processed as an incomplete volume.
 export const collectProvenanceUris = (ds: DataSource | undefined): string[] => {

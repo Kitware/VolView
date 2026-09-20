@@ -9,6 +9,8 @@ jobs:
     name: Code check and tests
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -19,6 +21,15 @@ jobs:
         run: npx prettier --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
       - name: Lint
         run: npm run lint
+      - name: Quality ratchets
+        # A file may not get worse than it is on the pull request's target branch.
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags origin \
+            "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          node scripts/checks/check.mjs --base "origin/$BASE_REF"
       - name: Tests
         run: npm test
 

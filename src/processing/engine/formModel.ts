@@ -2,7 +2,7 @@ import { taskParameterSchema } from '@/backend-contract';
 import type { VolViewTaskParameter } from '@/backend-contract';
 import { isRecord } from '@/src/utils';
 import type { ProcessingValue } from '@/src/processing/types';
-import type { TaskSpecEnvelope } from './taskSpec';
+import type { TaskSpecEnvelope } from '@/src/processing/engine/taskSpec';
 
 export type FormField = VolViewTaskParameter;
 

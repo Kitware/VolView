@@ -8,7 +8,7 @@ import type {
   ProcessingProviderConfig,
   TaskSummary,
 } from '@/src/processing/types';
-import { parseTaskSpecEnvelope } from './taskSpec';
+import { parseTaskSpecEnvelope } from '@/src/processing/engine/taskSpec';
 import {
   parseJobHistoryPage,
   parseJobHistoryDetail,
@@ -16,7 +16,7 @@ import {
   parseJobStatus,
   parseResults,
   parseStageResponse,
-} from './wire';
+} from '@/src/processing/engine/wire';
 
 // One malformed task summary must not kill the whole picker.
 const taskSummarySchema = z.object({

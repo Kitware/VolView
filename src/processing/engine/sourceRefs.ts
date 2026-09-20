@@ -4,25 +4,25 @@ import {
   TYPE_TAG_LABELMAP,
 } from '@/backend-contract';
 import type { DataSource } from '@/src/io/import/dataSource';
-import type { TaskFormModel } from './formModel';
+import type { TaskFormModel } from '@/src/processing/engine/formModel';
 import {
   bindMintedImageInputs,
   mintInputValue,
   type ImageBindingResult,
   type SourceRefBindingState,
   type SourceRefField,
-} from './mintInput';
+} from '@/src/processing/engine/mintInput';
 import {
   bindResolvedLabelmapInputs,
   mintLabelmapReferenceImage,
   resolveLabelmapGroups,
   type LabelmapBindingResult,
   type SegmentGroupView,
-} from './mintLabelmap';
+} from '@/src/processing/engine/mintLabelmap';
 import {
   bindAnnotationsInputs,
   type AnnotationsBindingResult,
-} from './mintAnnotations';
+} from '@/src/processing/engine/mintAnnotations';
 
 export type BoundSourceRefType =
   | typeof TYPE_TAG_IMAGE
