@@ -35,9 +35,12 @@ export const useImageCacheStore = defineStore('image-cache', () => {
     const image = imageById[id];
     if (!image) return null;
     const data = image.getVtkImageData();
+    // A deleted vtkImageData keeps its closures but loses its model, so every
+    // getter returns undefined rather than throwing on access.
+    if (!data || data.isDeleted()) return null;
     // ProgressiveImage initializes with empty vtkImageData before actual data loads.
     // VTK.js volume renderer crashes on empty data (null scalar texture).
-    if (!data?.getPointData().getScalars()?.getData()?.length) return null;
+    if (!data.getPointData().getScalars()?.getData()?.length) return null;
     return data;
   }
 
