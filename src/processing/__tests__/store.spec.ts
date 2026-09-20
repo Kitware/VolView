@@ -1549,6 +1549,27 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(provider.getResults).toHaveBeenCalledTimes(1);
   });
 
+  // Every other request path routes a 401 through classifyError to
+  // markSessionExpired; the history load used to record a per-provider error
+  // string instead, leaving the panel with a Retry that could only 401 again.
+  it('marks the session expired when the job history load 401s', async () => {
+    const listJobHistory = vi.fn().mockRejectedValue(httpError(401));
+    const store = arrange(makeProvider({ listJobHistory }));
+
+    await store.adoptJobHistory();
+
+    expect(store.sessionExpired).toBe(true);
+    const expiry = useMessageStore().messages.find((m) =>
+      /session has expired/i.test(m.title)
+    );
+    expect(expiry?.options.persist).toBe(true);
+    expect(store.jobHistoryError).toBeNull();
+
+    await store.loadAllJobHistory();
+
+    expect(listJobHistory).toHaveBeenCalledTimes(1);
+  });
+
   it('a re-discovery listing failure is not fatal (logged, degrades)', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const provider = makeProvider({
