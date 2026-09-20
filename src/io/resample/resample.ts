@@ -2,6 +2,7 @@ import { Image } from 'itk-wasm';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { compareImageIndexGrids } from '@/src/utils/imageSpace';
+import { shallowCopyImageData } from '@/src/utils/vtk-helpers';
 import { runWasm } from './itkWasmUtils';
 
 export async function resample(fixed: Image, moving: Image, label = false) {
@@ -27,8 +28,10 @@ export async function ensureSameSpace(
   resampleCandidate: vtkImageData,
   label = false
 ) {
+  // Callers own what they get back and may hand it to something that disposes
+  // it, so never return the candidate itself.
   if (compareImageIndexGrids(target, resampleCandidate)) {
-    return resampleCandidate;
+    return shallowCopyImageData(resampleCandidate);
   }
   const itkImage = await resample(
     vtkITKHelper.convertVtkToItkImage(target),
