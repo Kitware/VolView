@@ -66,14 +66,20 @@ const segmentIdsOf = (imageId: string) =>
     (segment) => segment.id
   );
 
-/** A child image in the parent's space, carrying one value per named voxel. */
+/**
+ * A child image in the parent's space, carrying one value per named voxel. A
+ * label past the byte limit arrives in 16-bit scalars, as such a file does.
+ */
 function makeLabelmapImage(marks: Array<{ value: number; at: Index3 }>) {
   const image = vtkImageData.newInstance({
     spacing: [2, 3, 4],
     origin: [10, 20, 30],
   });
   image.setDimensions(DIMENSIONS);
-  const values = new Uint8Array(voxelCount(DIMENSIONS));
+  const Scalars = marks.some(({ value }) => value > 255)
+    ? Uint16Array
+    : Uint8Array;
+  const values = new Scalars(voxelCount(DIMENSIONS));
   marks.forEach(({ value, at }) => {
     values[parentOffset(...at)] = value;
   });
@@ -461,6 +467,26 @@ describe('splitting an imported labelmap into bounded masks', () => {
       Array.from(parentImage('parent-img').indexToWorld([1, 2, 3] as never))
     );
     expect(mask.getDimensions()).toEqual([1, 1, 1]);
+  });
+
+  // The interchange rule, both halves: a 16-bit label arrives as itself, so
+  // the value reaches the decoded name rather than wrapping into a byte, and
+  // the masks it splits into are binary, so editing and the session file stay
+  // byte-sized whatever the file that arrived used.
+  it('splits a label past the byte limit into byte-sized masks', async () => {
+    await importLabelmap([
+      { value: 1, at: [1, 1, 1] },
+      { value: 300, at: [3, 3, 3] },
+    ]);
+
+    const segmentation = store().getSegmentationForImage('parent-img')!;
+    expect(
+      listMasks(segmentation).map((segment) => appearanceOf(segment).name)
+    ).toEqual(['Tumor 1', 'Tumor 300']);
+    const [first, second] = segmentIdsOf('parent-img');
+    expect(store().maskVoxels(first).scalars()).toBeInstanceOf(Uint8Array);
+    expect(store().maskVoxels(second).scalars()).toBeInstanceOf(Uint8Array);
+    expect(maskValueAt(second, [3, 3, 3])).toBe(SEGMENT_VALUE);
   });
 
   it('makes no segment for an all-background labelmap', async () => {
