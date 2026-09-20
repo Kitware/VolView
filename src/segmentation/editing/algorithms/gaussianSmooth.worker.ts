@@ -44,85 +44,80 @@ function generateGaussianKernel(sigma: number, radiusFactor = 1.5) {
   return kernel;
 }
 
+// Helper for robust boundary handling (mirroring)
+function mirrorCoord(sampleCoord: number, axisDim: number) {
+  let finalCoord = sampleCoord;
+  if (sampleCoord < 0) {
+    finalCoord = -sampleCoord; // Reflect
+  } else if (sampleCoord >= axisDim) {
+    finalCoord = 2 * axisDim - sampleCoord - 2; // Reflect
+  }
+  // Clamp to ensure it's within bounds, useful if kernel is very large
+  return Math.max(0, Math.min(axisDim - 1, finalCoord));
+}
+
+/**
+ * What stays fixed for one axis pass: the two buffers, the kernel, and how a
+ * line along the convolved axis is addressed. Built once per pass, so walking
+ * a line allocates nothing.
+ */
+interface AxisPass {
+  inputData: TypedArray | number[];
+  outputData: TypedArray | number[];
+  kernel: Float32Array;
+  kernelCenter: number;
+  // Voxels along the convolved axis, and the index step between them.
+  count: number;
+  stride: number;
+}
+
+// Convolves the one line of voxels that starts at `lineStart` and runs along
+// the pass's axis. Every axis reduces to this, because a line differs only in
+// where it starts, how long it is, and how far apart its voxels sit.
+function convolveLine(pass: AxisPass, lineStart: number) {
+  const { inputData, outputData, kernel, kernelCenter, count, stride } = pass;
+  const kernelSize = kernel.length;
+
+  for (let i = 0; i < count; i++) {
+    let sum = 0;
+    for (let k = 0; k < kernelSize; k++) {
+      const sample = mirrorCoord(i + k - kernelCenter, count);
+      sum += inputData[sample * stride + lineStart] * kernel[k];
+    }
+
+    outputData[i * stride + lineStart] = sum;
+  }
+}
+
 function convolve1D(
   inputData: TypedArray | number[],
   outputData: TypedArray | number[],
-  dimensions: number[],
   kernel: Float32Array,
-  axis: 0 | 1 | 2
+  volume: { dimensions: number[]; axis: 0 | 1 | 2 }
 ) {
-  const [dimX, dimY, dimZ] = dimensions;
-  const kernelSize = kernel.length;
-  const kernelCenter = Math.floor(kernelSize / 2);
-  const strideY = dimX;
-  const strideZ = dimX * dimY;
-
-  // Helper for robust boundary handling (mirroring)
-  const getFinalCoord = (sampleCoord: number, axisDim: number) => {
-    let finalCoord = sampleCoord;
-    if (sampleCoord < 0) {
-      finalCoord = -sampleCoord; // Reflect
-    } else if (sampleCoord >= axisDim) {
-      finalCoord = 2 * axisDim - sampleCoord - 2; // Reflect
-    }
-    // Clamp to ensure it's within bounds, useful if kernel is very large
-    return Math.max(0, Math.min(axisDim - 1, finalCoord));
+  const { dimensions, axis } = volume;
+  const [dimX, dimY] = dimensions;
+  const strides = [1, dimX, dimX * dimY];
+  const pass: AxisPass = {
+    inputData,
+    outputData,
+    kernel,
+    kernelCenter: Math.floor(kernel.length / 2),
+    count: dimensions[axis],
+    stride: strides[axis],
   };
 
-  if (axis === 0) {
-    // Convolve along X: optimal loop order is z, y, x for cache efficiency
-    for (let z = 0; z < dimZ; z++) {
-      const zOffset = z * strideZ;
-      for (let y = 0; y < dimY; y++) {
-        const yOffset = y * strideY;
-        const baseOffset = yOffset + zOffset;
-        for (let x = 0; x < dimX; x++) {
-          let sum = 0;
-          for (let k = 0; k < kernelSize; k++) {
-            const sampleX = getFinalCoord(x + k - kernelCenter, dimX);
-            const sampleIdx = sampleX + baseOffset;
-            sum += inputData[sampleIdx] * kernel[k];
-          }
+  // The two axes the pass does not walk, the widest-striding one outermost:
+  // z, then y, then x. That is the loop order each axis wants for cache
+  // efficiency, so convolving along X visits z, y, x, along Y visits z, x, y,
+  // and along Z visits y, x, z.
+  const outer = axis === 2 ? 1 : 2;
+  const inner = axis === 0 ? 1 : 0;
 
-          outputData[x + baseOffset] = sum;
-        }
-      }
-    }
-  } else if (axis === 1) {
-    // Convolve along Y: optimal loop order is z, x, y
-    for (let z = 0; z < dimZ; z++) {
-      const zOffset = z * strideZ;
-      for (let x = 0; x < dimX; x++) {
-        const baseOffset = x + zOffset;
-        for (let y = 0; y < dimY; y++) {
-          let sum = 0;
-          for (let k = 0; k < kernelSize; k++) {
-            const sampleY = getFinalCoord(y + k - kernelCenter, dimY);
-            const sampleIdx = baseOffset + sampleY * strideY;
-            sum += inputData[sampleIdx] * kernel[k];
-          }
-
-          outputData[x + y * strideY + zOffset] = sum;
-        }
-      }
-    }
-  } else {
-    // axis === 2, convolve along Z: optimal loop order is y, x, z
-    for (let y = 0; y < dimY; y++) {
-      const yOffset = y * strideY;
-      for (let x = 0; x < dimX; x++) {
-        const baseOffset = x + yOffset;
-        for (let z = 0; z < dimZ; z++) {
-          let sum = 0;
-          for (let k = 0; k < kernelSize; k++) {
-            const sampleZ = getFinalCoord(z + k - kernelCenter, dimZ);
-            const sampleIdx = baseOffset + sampleZ * strideZ;
-            sum += inputData[sampleIdx] * kernel[k];
-          }
-
-          outputData[baseOffset + z * strideZ] = sum;
-        }
-      }
+  for (let o = 0; o < dimensions[outer]; o++) {
+    const outerOffset = o * strides[outer];
+    for (let i = 0; i < dimensions[inner]; i++) {
+      convolveLine(pass, outerOffset + i * strides[inner]);
     }
   }
 }
@@ -140,11 +135,39 @@ function gaussianFilter3D(
   const temp = new Float32Array(totalSize);
   const output = new Float32Array(totalSize);
 
-  convolve1D(inputData, output, dimensions, kernelX, 0);
-  convolve1D(output, temp, dimensions, kernelY, 1);
-  convolve1D(temp, output, dimensions, kernelZ, 2);
+  convolve1D(inputData, output, kernelX, { dimensions, axis: 0 });
+  convolve1D(output, temp, kernelY, { dimensions, axis: 1 });
+  convolve1D(temp, output, kernelZ, { dimensions, axis: 2 });
 
   return output;
+}
+
+// What a bounding-box scan holds still: the voxels being read, the bounds
+// being widened, and the row addressing. Built once, so scanning a row
+// allocates nothing.
+interface RowScan {
+  data: TypedArray | number[];
+  bounds: number[];
+  dimX: number;
+  sliceSize: number;
+  label: number;
+}
+
+// Widens the bounds over one x row. Its own function so that the per-voxel
+// test sits two blocks deep rather than four.
+function growBoundsOverRow(scan: RowScan, y: number, z: number) {
+  const { data, bounds, dimX, sliceSize, label } = scan;
+  const rowStart = y * dimX + z * sliceSize;
+
+  for (let x = 0; x < dimX; x++) {
+    if (data[rowStart + x] !== label) continue;
+    bounds[0] = Math.min(bounds[0], x);
+    bounds[1] = Math.max(bounds[1], x);
+    bounds[2] = Math.min(bounds[2], y);
+    bounds[3] = Math.max(bounds[3], y);
+    bounds[4] = Math.min(bounds[4], z);
+    bounds[5] = Math.max(bounds[5], z);
+  }
 }
 
 function calculateBoundingBox(
@@ -154,20 +177,17 @@ function calculateBoundingBox(
 ) {
   const [dimX, dimY, dimZ] = dimensions;
   const bounds = [dimX, -1, dimY, -1, dimZ, -1];
+  const scan: RowScan = {
+    data,
+    bounds,
+    dimX,
+    sliceSize: dimX * dimY,
+    label,
+  };
 
   for (let z = 0; z < dimZ; z++) {
     for (let y = 0; y < dimY; y++) {
-      for (let x = 0; x < dimX; x++) {
-        const index = x + y * dimX + z * dimX * dimY;
-        if (data[index] === label) {
-          bounds[0] = Math.min(bounds[0], x);
-          bounds[1] = Math.max(bounds[1], x);
-          bounds[2] = Math.min(bounds[2], y);
-          bounds[3] = Math.max(bounds[3], y);
-          bounds[4] = Math.min(bounds[4], z);
-          bounds[5] = Math.max(bounds[5], z);
-        }
-      }
+      growBoundsOverRow(scan, y, z);
     }
   }
 
@@ -262,16 +282,19 @@ function extractSubMask(
 function copySubVolumeBack(
   subData: Float32Array,
   originalData: TypedArray | number[],
-  dimensions: number[],
-  bounds: number[],
+  region: { dimensions: number[]; bounds: number[] },
   label: number
 ) {
-  forEachClippedVoxel(dimensions, bounds, (origIndex, subIndex) => {
-    const origLabel = originalData[origIndex];
-    if (origLabel === label || origLabel === 0) {
-      originalData[origIndex] = subData[subIndex] > 127.5 ? label : 0;
+  forEachClippedVoxel(
+    region.dimensions,
+    region.bounds,
+    (origIndex, subIndex) => {
+      const origLabel = originalData[origIndex];
+      if (origLabel === label || origLabel === 0) {
+        originalData[origIndex] = subData[subIndex] > 127.5 ? label : 0;
+      }
     }
-  });
+  );
 }
 
 export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
@@ -347,8 +370,7 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
   copySubVolumeBack(
     smoothedSubMask,
     outputData,
-    outputDimensions,
-    smoothedBoundsInOutput,
+    { dimensions: outputDimensions, bounds: smoothedBoundsInOutput },
     label
   );
 
