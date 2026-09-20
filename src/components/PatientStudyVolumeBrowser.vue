@@ -10,9 +10,11 @@ import { useMultiSelection } from '@/src/composables/useMultiSelection';
 import { useMessageStore } from '@/src/store/messages';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import PersistentOverlay from '@/src/components//PersistentOverlay.vue';
+import SegmentationConversionProgress from '@/src/components/SegmentationConversionProgress.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
+import { useSegmentationStore } from '@/src/segmentation/store';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -33,6 +35,7 @@ export default defineComponent({
   components: {
     GroupableItem,
     PersistentOverlay,
+    SegmentationConversionProgress,
   },
   setup(props) {
     const { volumeKeys } = toRefs(props);
@@ -41,6 +44,7 @@ export default defineComponent({
     const layersStore = useLayersStore();
     const imageCacheStore = useImageCacheStore();
     const viewStore = useViewStore();
+    const segmentationStore = useSegmentationStore();
 
     const { currentImageID } = useCurrentImage();
     const volumes = computed(() => {
@@ -73,6 +77,8 @@ export default defineComponent({
           isLayer,
           layerable,
           layerLoading,
+          convertingToSegmentation:
+            segmentationStore.convertingLabelmaps.has(volumeKey),
           layerHandler: () => {
             if (!layerLoading && layerable) {
               if (isLayer)
@@ -250,7 +256,10 @@ export default defineComponent({
                         justify="center"
                       >
                         <v-progress-circular
-                          v-if="thumbnailCache[volume.cacheKey] === undefined"
+                          v-if="
+                            thumbnailCache[volume.cacheKey] === undefined &&
+                            !volume.convertingToSegmentation
+                          "
                           indeterminate
                           color="grey-lighten-5"
                         />
@@ -264,7 +273,9 @@ export default defineComponent({
                         </span>
                       </v-row>
                     </template>
-                    <persistent-overlay>
+                    <persistent-overlay
+                      :opacity="volume.convertingToSegmentation ? 0.55 : 0.2"
+                    >
                       <div class="d-flex flex-column fill-height">
                         <v-row no-gutters justify="end" align-content="start">
                           <v-checkbox
@@ -277,7 +288,10 @@ export default defineComponent({
                             class="series-selector"
                           />
                         </v-row>
-                        <v-spacer />
+                        <segmentation-conversion-progress
+                          v-if="volume.convertingToSegmentation"
+                        />
+                        <v-spacer v-else />
                         <v-row no-gutters justify="start" align="end">
                           <div class="mb-1 ml-1 text-caption">
                             [{{ volume.info.NumberOfSlices }}]

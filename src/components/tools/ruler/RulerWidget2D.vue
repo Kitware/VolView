@@ -162,6 +162,7 @@ export default defineComponent({
     return {
       ruler,
       slice,
+      appearance: computed(() => rulerStore.appearanceOfTool(toolId.value)),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;
       }),
@@ -179,8 +180,8 @@ export default defineComponent({
     v-show="slice === ruler.slice"
     :point1="firstPoint"
     :point2="secondPoint"
-    :color="ruler.color"
-    :strokeWidth="ruler.strokeWidth"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :length="length"
   />
 </template>

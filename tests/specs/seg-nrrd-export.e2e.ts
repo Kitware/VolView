@@ -4,7 +4,7 @@ import * as zlib from 'node:zlib';
 import JSZip from 'jszip';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { waitForFileExists } from './utils';
+import { waitForDownload } from './utils';
 import { openConfigAndDataset } from './configTestUtils';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
 
@@ -65,23 +65,7 @@ describe('Slicer-compatible seg.nrrd export', function () {
     const sessionFileName = await volViewPage.saveSession();
     const downloadedPath = path.join(TEMP_DIR, sessionFileName);
 
-    await waitForFileExists(downloadedPath, 30_000);
-
-    // Wait for file to be fully written
-    await browser.waitUntil(
-      () => {
-        try {
-          return fs.statSync(downloadedPath).size > 0;
-        } catch {
-          return false;
-        }
-      },
-      {
-        timeout: 10_000,
-        interval: 500,
-        timeoutMsg: 'Downloaded session zip remained 0 bytes',
-      }
-    );
+    await waitForDownload(downloadedPath, 30_000);
 
     // Extract the seg.nrrd file from the session zip
     const zipData = fs.readFileSync(downloadedPath);

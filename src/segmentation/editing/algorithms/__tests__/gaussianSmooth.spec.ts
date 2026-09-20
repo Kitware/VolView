@@ -19,7 +19,7 @@ function smooth(
     maskExtent,
     parentDimensions,
     params: { sigma: 1, label: LABEL },
-  });
+  })!;
   const [pi, pj, pk] = parentDimensions;
   const parent = new Uint8Array(pi * pj * pk);
   let offset = 0;
@@ -114,9 +114,19 @@ describe('gaussianSmoothLabelMapWorker', () => {
     expect(awayFromFace[0 + 3 * 9 + 3 * 81]).toBe(0);
   });
 
-  it('leaves a buffer with none of the label alone', () => {
-    expect(Array.from(smooth(new Uint8Array([0, 1, 0, 1]), [4, 1, 1]))).toEqual(
-      [0, 1, 0, 1]
-    );
+  it('says a buffer with none of the label has nothing to do', () => {
+    // Not a copy of the input: an identical result would put the user in a
+    // preview whose two states are the same.
+    const dimensions: Dims = [4, 1, 1];
+    expect(
+      gaussianSmoothLabelMapWorker({
+        data: new Uint8Array([0, 1, 0, 1]),
+        dimensions,
+        spacing: [1, 1, 1],
+        maskExtent: fullExtent(dimensions),
+        parentDimensions: dimensions,
+        params: { sigma: 1, label: LABEL },
+      })
+    ).toBeUndefined();
   });
 });

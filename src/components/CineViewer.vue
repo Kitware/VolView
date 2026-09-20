@@ -152,6 +152,7 @@ import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Inter
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
+import { isToolVisible } from '@/src/composables/annotationTool';
 import type { LPSAxis } from '@/src/types/lps';
 
 type Props = {
@@ -200,10 +201,10 @@ const selectionPoints = computed(() => {
       return { store, tool: store.toolByID[sel.id] };
     })
     .filter(
-      ({ tool }) =>
+      ({ store, tool }) =>
         tool.imageID === currentImageID.value &&
         tool.frame === currentFrame.value &&
-        !tool.hidden
+        isToolVisible(store, tool)
     )
     .flatMap(({ store, tool }) => store.getPoints(tool.id));
 });

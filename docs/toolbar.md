@@ -14,19 +14,47 @@ Window / Level, Pan, Zoom, or Crosshairs: Select these options to control the fu
 
 ## 2D Annotations
 
-The "Annotations" tab lists the drawn, vector based, annotation tools. Each tool in the list has a "scroll to slice" and delete button.
+The "Annotations" tab lists segments shared by paint, rectangles, polygons and rulers.
+Select a segment in the list, use `q` and `w` to cycle through segments, or press `1`
+through `0` to select one of the first ten (each row shows its key). Use "New segment"
+to add one, and its color dot or edit button to change its name and appearance. Drag a
+row, or press Alt+Up or Alt+Down, to reorder segments and their keys. The selection
+applies across all four tools and images.
+
+Each segment row has Reveal, Edit, Lock, Hide and Delete buttons. Reveal jumps to the
+segment's mask or shapes on the current image and stays disabled when it has none
+there. A locked segment keeps its voxels when another segment paints over it, and
+cannot be edited or deleted until it is unlocked. Delete removes the segment with its
+masks and shapes from every image. The buttons beside the "Segments" heading lock or
+hide every segment at once and save the current image's segments. Saving writes one
+file, or several bundled into a zip when segments overlap or number more than 65535.
+
+The "Display" section sets Fill Opacity, Outline Opacity and Outline Thickness for the
+segments on the current image, scaling each segment's own opacities.
+
+The "Measurements" section lists the rectangles, polygons and rulers on the current
+image. Each row shows its segment's color (click it to move the shape to another
+segment), its placement and, for a ruler, its length, with Reveal, Hide and Delete
+buttons. Select rows to hide or delete several at once.
 
 ### Paint
 
-When the paint tool is selected, you can paint in any 2D window. Click on the paint tool a second time to bring up a menu of colors and adjust the brush size. Painting automatically switches to the appropriate segment group for the volume being painted.
+When the paint tool is selected, you can paint in any supported 2D slice window.
+Choose the segment in "Annotations" and use the Paint controls below the segment
+list to adjust brush size, switch to erasing, or set an intensity threshold.
+Painting adds a mask for the selected segment on the image being painted. The
+Eyedropper selects the segment under the brush when you click; hold `d` to use it
+while painting. "Sync Views" moves the other 2D views to the slice under the brush.
+The "Process" panel runs Fill Holes, Fill Between and Smooth, which never take voxels
+another segment holds.
 
 ### Rectangle
 
 When the rectangle tool is selected, the left mouse button is used to place and adjust rectangle control points.
 Right click a rectangle control point to delete the rectangle.
-The "Annotations" tab lists all rectangles and provides jump-to and delete controls.
+The Measurements section in "Annotations" lists the rectangles on the current image, with Reveal, Hide and Delete controls.
 
-Rectangle annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+New rectangles use the selected segment from "Annotations".
 
 ### Polygon
 
@@ -44,67 +72,32 @@ After closing a polygon:
 - Delete point: right click point and select Delete Point.
 - Delete polygon: right click point or line and select Delete Polygon.
 
-Polygon annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+New polygons use the selected segment from "Annotations".
 
 ### Ruler
 
-When the ruler tool selected, the left mouse button is used to place and adjust ruler end-markers. Right clicking on a end-marker displays a pop-up menu for deleting that ruler. Switch to the "Annotations" tab to see a list of annotations made to currently loaded data. Select the location icon next to a listed ruler to jump to its slice. Select the trashcan to delete that ruler.
+When the ruler tool is selected, the left mouse button places and adjusts ruler
+end-markers. Right clicking an end-marker displays a menu for deleting that ruler.
+Find it under Measurements in "Annotations" to see its length, jump to its slice or
+cine frame, or delete it.
 
-Ruler annotations can be tagged with a label. Use the palette in the upper left or the `q` or `w` keys to select the active label.
+New rulers use the selected segment from "Annotations".
 
 ![2D Annotations](./assets/11-volview-paint-notes.jpg)
 
-### Label Configuration
+### Segment configuration
 
-If VolView loads a JSON file matching the schemas below, labels are added to the 2D annotation tools.
-Example configuration JSON:
-
-```json
-{
-  "labels": {
-    "rulerLabels": {
-      "big": { "color": "#ff0000" },
-      "small": { "color": "white" }
-    },
-    "rectangleLabels": {
-      "innocuous": { "color": "white", "fillColor": "#00ff0030" },
-      "lesion": { "color": "#ff0000", "fillColor": "transparent" },
-      "tumor": { "color": "green", "fillColor": "transparent" }
-    }
-  }
-}
-```
-
-Label sections could be null to disable labels for a tool.
+If VolView loads a JSON file matching the schema below, segments are added to the
+registry. Paint, rectangles, polygons and rulers all share `segments`. Appearance
+fields are optional. See [segment configuration](./configuration_file.md#segments)
+for replacement behavior and how omitted fields use session appearance or defaults.
 
 ```json
 {
-  "labels": {
-    "rulerLabels": null,
-    "rectangleLabels": {
-      "innocuous": {
-        "color": "white",
-        "fillColor": "#00ff0030"
-      },
-      "lesion": {
-        "color": "#ff0000",
-        "fillColor": "transparent"
-      }
-    }
-  }
-}
-```
-
-Tools will fallback to `defaultLabels` section if the tool has no specific labels property,
-ie `rectangleLabels` or `rulerLabels`.
-
-```json
-{
-  "labels": {
-    "defaultLabels": {
-      "artifact": { "color": "gray" },
-      "needs-review": { "color": "#FFBF00" }
-    }
+  "segments": {
+    "innocuous": { "color": "white" },
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3 }
   }
 }
 ```

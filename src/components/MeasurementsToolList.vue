@@ -1,240 +1,247 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
-import { nonNullable } from '@/src/utils/index';
-import { AnnotationToolType } from '@/src/store/tools/types';
-import { removeSelectedTools, useAnnotationToolStore } from '@/src/store/tools';
-import {
-  useMultipleToolSelection,
-  MultipleSelectionState,
-} from '@/src/composables/useMultipleToolSelection';
+import { useSegmentShapes } from '@/src/segmentation/composables/useSegmentShapes';
+import { removeSelectedTools } from '@/src/store/tools';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import type { Maybe } from '@/src/types';
-import MeasurementToolDetails from './MeasurementToolDetails.vue';
-import { AnnotationTool } from '../types/annotation-tool';
+import SegmentAssignmentList from '@/src/segmentation/components/SegmentAssignmentList.vue';
+import ColorDot from '@/src/components/ColorDot.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
+import { NO_NAME } from '@/src/constants';
 
-type AnnotationToolConfig = {
-  type: AnnotationToolType;
-  icon: string;
-  details?: typeof MeasurementToolDetails;
-};
+const { shapes } = useSegmentShapes();
+const registry = useSegmentStore().segments;
+const selection = useToolSelectionStore();
 
-export type AnnotationTools = Array<AnnotationToolConfig>;
+const rows = computed(() =>
+  shapes.value.map((shape) => {
+    const appearance = registry.appearanceOf(shape.segmentId);
+    const name = appearance.name || NO_NAME;
+    return {
+      ...shape,
+      appearance,
+      name,
+      // A hidden segment hides its shapes whatever their own flag says.
+      drawn: !shape.hidden && appearance.visible,
+      visibilityReason: appearance.visible
+        ? ''
+        : `Show segment ${name} to show or hide this measurement`,
+    };
+  })
+);
 
-const props = defineProps<{
-  tools: AnnotationTools;
-}>();
-
-const { currentImageID, currentImageMetadata } = useCurrentImage();
-
-// Filter and add axis for specific annotation type
-const getTools = (type: AnnotationToolType) => {
-  const toolStore = useAnnotationToolStore(type);
-  return toolStore.finishedTools
-    .filter((tool) => tool.imageID === currentImageID.value)
-    .map((tool) => {
-      const { axis } = frameOfReferenceToImageSliceAndAxis(
-        tool.frameOfReference,
-        currentImageMetadata.value,
-        {
-          allowOutOfBoundsSlice: true,
-        }
-      ) ?? { axis: 'unknown' };
-      return {
-        ...tool,
-        axis,
-      };
-    });
-};
-
-// Flatten all tool types and add actions
-const tools = computed(() => {
-  return props.tools.flatMap(
-    ({ type, icon, details = MeasurementToolDetails }) => {
-      const store = useAnnotationToolStore(type);
-      const toolsWithAxis = getTools(type);
-      return toolsWithAxis.map((tool) => ({
-        id: tool.id,
-        type,
-        toolData: tool,
-        icon,
-        details,
-        remove: () => store.removeTool(tool.id),
-        jumpTo: () => store.jumpToTool(tool.id),
-        toggleHidden: () => {
-          const toggled = !store.toolByID[tool.id].hidden;
-          store.updateTool(tool.id, { hidden: toggled });
-        },
-        updateTool: (patch: Partial<AnnotationTool>) => {
-          store.updateTool(tool.id, patch);
-        },
-      }));
-    }
-  );
+const selectedRows = computed(() =>
+  rows.value.filter((shape) => selection.isSelected(shape.id))
+);
+const selectedAll = computed(
+  () => !!rows.value.length && selectedRows.value.length === rows.value.length
+);
+const selectedSome = computed(() => !!selectedRows.value.length);
+const selectedToggleable = computed(() =>
+  selectedRows.value.filter((shape) => !shape.visibilityReason)
+);
+const allSelectedHidden = computed(
+  () =>
+    !!selectedToggleable.value.length &&
+    selectedToggleable.value.every((shape) => shape.hidden)
+);
+const noMeasurementsReason = computed(() =>
+  rows.value.length ? '' : 'No measurements yet'
+);
+const selectedDeleteReason = computed(
+  () =>
+    noMeasurementsReason.value ||
+    (selectedSome.value ? '' : 'Select measurements to delete')
+);
+const selectedVisibilityReason = computed(() => {
+  if (noMeasurementsReason.value) return noMeasurementsReason.value;
+  if (!selectedSome.value) return 'Select measurements to show or hide';
+  if (!selectedToggleable.value.length)
+    return 'Show the segments of the selected measurements first';
+  return '';
 });
 
-// --- selection and batch actions  --- //
+function toggleSelected(shape: (typeof rows.value)[number]) {
+  selection.toggleSelection(shape.id, shape.type);
+}
 
-const selectionStore = useToolSelectionStore();
-
-const { selectAll, deselectAll, selected, selectionState } =
-  useMultipleToolSelection(tools);
-
-const toggleSelectAll = (shouldSelectAll: Maybe<boolean>) => {
-  if (shouldSelectAll) {
-    selectAll();
+function toggleSelectAll() {
+  if (selectedAll.value) {
+    rows.value.forEach((shape) => selection.removeSelection(shape.id));
   } else {
-    deselectAll();
+    rows.value.forEach((shape) => selection.addSelection(shape.id, shape.type));
   }
-};
+}
 
-// If all selected tools are already hidden, it should be "show".
-// If at least one selected tool is visible, it should be "hide".
-const allHidden = computed(() => {
-  return selected.value
-    .map((id) => tools.value.find((tool) => id === tool.id))
-    .filter(nonNullable)
-    .every((tool) => tool.toolData.hidden);
-});
-
-const forEachSelectedTool = (
-  callback: (tool: (typeof tools.value)[number]) => void
-) =>
-  tools.value
-    .filter((tool) => selectionStore.isSelected(tool.id))
-    .forEach(callback);
-
-function toggleGlobalHidden() {
-  const hidden = !allHidden.value;
-  forEachSelectedTool((tool) => {
-    tool.updateTool({ hidden });
-  });
+function toggleSelectedHidden() {
+  const hidden = !allSelectedHidden.value;
+  selectedToggleable.value.forEach((shape) => shape.setHidden(hidden));
 }
 </script>
 
 <template>
-  <v-row no-gutters justify="space-between" align="center" class="mb-1">
-    <v-col class="d-flex">
-      <v-checkbox
-        class="ml-3"
-        :indeterminate="selectionState === MultipleSelectionState.Some"
-        label="Select All"
-        :model-value="selectionState === MultipleSelectionState.All"
-        @update:model-value="toggleSelectAll"
-        density="compact"
-        hide-details
-      />
-    </v-col>
-
-    <!-- Count of selected tools -->
-    <v-col class="v-label">
-      {{ selected.length }} of {{ tools.length }} selected
-    </v-col>
-
-    <v-col align-self="center" class="d-flex justify-end">
-      <v-btn
-        icon
-        variant="text"
-        :disabled="selectionState === MultipleSelectionState.None"
-        @click.stop="toggleGlobalHidden"
-      >
-        <v-icon v-if="allHidden">mdi-eye-off</v-icon>
-        <v-icon v-else>mdi-eye</v-icon>
-        <v-tooltip location="top" activator="parent">{{
-          allHidden ? 'Show' : 'Hide'
-        }}</v-tooltip>
-      </v-btn>
-      <v-btn
-        icon
-        variant="text"
-        :disabled="selectionState === MultipleSelectionState.None"
-        @click.stop="removeSelectedTools"
-      >
-        <v-icon>mdi-delete</v-icon>
-        <v-tooltip
-          :disabled="selectionState === MultipleSelectionState.None"
-          location="top"
-          activator="parent"
+  <v-list density="compact" bg-color="transparent" class="py-0">
+    <div class="d-flex align-center px-2 mb-1">
+      <reasoned-action :reason="noMeasurementsReason" v-slot="{ disabled }">
+        <v-checkbox-btn
+          class="flex-0-0"
+          :model-value="selectedAll"
+          :indeterminate="selectedSome && !selectedAll"
+          :disabled="disabled"
+          aria-label="Select all measurements"
+          @click="toggleSelectAll"
+        />
+      </reasoned-action>
+      <span class="text-caption text-medium-emphasis ml-1">
+        {{ selectedRows.length }} of {{ rows.length }} selected
+      </span>
+      <span class="ml-auto flex-shrink-0 d-flex align-center ga-1">
+        <reasoned-action
+          :reason="selectedVisibilityReason"
+          :tooltip="allSelectedHidden ? 'Show selected' : 'Hide selected'"
+          v-slot="{ disabled }"
         >
-          Delete selected
-        </v-tooltip>
-      </v-btn>
-    </v-col>
-  </v-row>
-
-  <v-list-item v-for="tool in tools" :key="tool.id">
-    <v-container>
-      <v-row class="d-flex align-center main-row">
-        <v-checkbox
-          class="no-grow mr-4"
-          density="compact"
-          hide-details
-          :key="tool.id"
-          :value="tool.id"
-          v-model="selected"
-          @click.stop
+          <v-btn
+            icon
+            size="small"
+            density="compact"
+            variant="plain"
+            :disabled="disabled"
+            :aria-label="allSelectedHidden ? 'Show selected' : 'Hide selected'"
+            @click="toggleSelectedHidden"
+          >
+            <v-icon>{{ allSelectedHidden ? 'mdi-eye-off' : 'mdi-eye' }}</v-icon>
+          </v-btn>
+        </reasoned-action>
+        <reasoned-action
+          :reason="selectedDeleteReason"
+          tooltip="Delete selected"
+          v-slot="{ disabled }"
+        >
+          <v-btn
+            icon
+            size="small"
+            density="compact"
+            variant="plain"
+            :disabled="disabled"
+            aria-label="Delete selected"
+            @click="removeSelectedTools"
+          >
+            <v-icon>mdi-delete</v-icon>
+          </v-btn>
+        </reasoned-action>
+      </span>
+    </div>
+    <v-list-item v-if="!rows.length">
+      <v-list-item-title class="text-body-2 text-medium-emphasis">
+        No rectangles, polygons, or rulers yet.
+      </v-list-item-title>
+    </v-list-item>
+    <v-list-item
+      v-for="shape in rows"
+      :key="shape.id"
+      data-testid="segment-shape-row"
+      class="px-2"
+    >
+      <div class="d-flex align-center flex-nowrap">
+        <v-checkbox-btn
+          class="flex-0-0 mr-1"
+          :model-value="selection.isSelected(shape.id)"
+          :aria-label="`Select ${shape.name}: ${shape.placement}`"
+          @click.stop="toggleSelected(shape)"
         />
-
-        <v-icon class="tool-icon mr-4">{{ tool.icon }}</v-icon>
-
-        <div
-          class="color-dot flex-shrink-0 mr-2"
-          :style="{ backgroundColor: tool.toolData.color }"
-        />
-        <v-list-item-title v-bind="$attrs">
-          {{ tool.toolData.labelName }}
-        </v-list-item-title>
-
-        <span class="ml-auto flex-shrink-0">
-          <v-btn icon variant="text" @click="tool.jumpTo()">
+        <v-icon class="shape-icon mr-2">{{ shape.icon }}</v-icon>
+        <v-menu location="bottom start" :max-height="320">
+          <template #activator="{ props: activator }">
+            <v-btn
+              v-bind="activator"
+              icon
+              size="small"
+              density="compact"
+              variant="plain"
+              class="segment-picker-button mr-1"
+              :aria-label="`Change segment for ${shape.name}: ${shape.placement}`"
+            >
+              <color-dot :color="shape.appearance.cssColor" />
+              <v-tooltip location="top" activator="parent">
+                Change segment
+              </v-tooltip>
+            </v-btn>
+          </template>
+          <segment-assignment-list
+            :segment-id="shape.segmentId"
+            @select="shape.assignSegment($event)"
+          />
+        </v-menu>
+        <div class="flex-1-1 min-width-0">
+          <v-list-item-title>{{ shape.name }}</v-list-item-title>
+          <v-list-item-subtitle>
+            {{ shape.placement }}
+            <span v-if="shape.measurement" class="ml-1">{{
+              shape.measurement
+            }}</span>
+          </v-list-item-subtitle>
+        </div>
+        <span class="ml-auto flex-shrink-0 d-flex align-center ga-1">
+          <v-btn
+            icon
+            size="small"
+            density="compact"
+            variant="plain"
+            data-testid="reveal-shape-button"
+            :aria-label="`${shape.frame != null ? 'Reveal frame' : 'Reveal slice'} for ${shape.name}: ${shape.placement}`"
+            @click.stop="shape.jumpTo()"
+          >
             <v-icon>mdi-target</v-icon>
-            <v-tooltip location="top" activator="parent">
-              Reveal Slice
+            <v-tooltip location="left" activator="parent">
+              {{ shape.frame != null ? 'Reveal Frame' : 'Reveal Slice' }}
             </v-tooltip>
           </v-btn>
-          <v-btn icon variant="text" @click="tool.toggleHidden()">
-            <v-icon v-if="tool.toolData.hidden">mdi-eye-off</v-icon>
-            <v-icon v-else>mdi-eye</v-icon>
-            <v-tooltip location="top" activator="parent">{{
-              tool.toolData.hidden ? 'Show' : 'Hide'
-            }}</v-tooltip>
-          </v-btn>
-          <v-btn icon variant="text" @click="tool.remove()">
+          <reasoned-action
+            :reason="shape.visibilityReason"
+            :tooltip="shape.hidden ? 'Show' : 'Hide'"
+            v-slot="{ disabled }"
+          >
+            <v-btn
+              icon
+              size="small"
+              density="compact"
+              variant="plain"
+              :disabled="disabled"
+              :aria-label="`${shape.hidden ? 'Show' : 'Hide'} ${shape.name}: ${shape.placement}`"
+              @click.stop="shape.toggleHidden()"
+            >
+              <v-icon>{{ shape.drawn ? 'mdi-eye' : 'mdi-eye-off' }}</v-icon>
+            </v-btn>
+          </reasoned-action>
+          <v-btn
+            icon
+            size="small"
+            density="compact"
+            variant="plain"
+            data-testid="delete-shape-button"
+            :aria-label="`Delete ${shape.name}: ${shape.placement}`"
+            @click.stop="shape.remove()"
+          >
             <v-icon>mdi-delete</v-icon>
-            <v-tooltip location="top" activator="parent">Delete</v-tooltip>
+            <v-tooltip location="left" activator="parent">Delete</v-tooltip>
           </v-btn>
         </span>
-      </v-row>
-
-      <v-row class="mt-4">
-        <v-list-item-subtitle class="w-100">
-          <component :is="tool.details" :tool="tool.toolData" />
-        </v-list-item-subtitle>
-      </v-row>
-    </v-container>
-  </v-list-item>
+      </div>
+    </v-list-item>
+  </v-list>
 </template>
 
-<style src="@/src/components/styles/utils.css"></style>
-
 <style scoped>
-.main-row {
-  flex-wrap: nowrap;
-}
-
-.color-dot {
-  width: 24px;
-  height: 24px;
-  background: yellow;
-  border-radius: 16px;
-}
-
-.tool-icon {
+.shape-icon {
   opacity: var(--v-medium-emphasis-opacity);
 }
 
-.no-grow {
-  flex: 0 0 auto;
+.segment-picker-button {
+  opacity: 1;
+}
+
+.min-width-0 {
+  min-width: 0;
 }
 </style>

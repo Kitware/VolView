@@ -1,5 +1,5 @@
 import {
-  buildSegmentGroups,
+  readDicomSegmentation,
   ReadOverlappingSegmentationMeta,
   readVolumeSlice,
   splitAndSort as splitAndSortChunks,
@@ -462,7 +462,7 @@ export default class DicomChunkImage
         `Cannot handle multiple SEG files. Expected 1 chunk at index 0, got ${this.chunks.length} chunks with current index ${this.chunks.indexOf(chunk)}`
       );
 
-    const results = await buildSegmentGroups(
+    const results = await readDicomSegmentation(
       new File([chunk.dataBlob!], 'seg.dcm')
     );
     if (generation !== this.allocationGeneration) return;

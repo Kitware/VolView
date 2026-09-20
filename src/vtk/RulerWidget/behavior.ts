@@ -62,13 +62,14 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     model._interactor.cancelAnimation(publicAPI, true);
   };
 
-  // Check if mouse is over line segment between handles
-  const checkOverSegment = () => {
-    const selections = model._widgetManager.getSelections();
-    const overSegment =
-      selections[0]?.getProperties().prop ===
-      model.representations[1].getActors()[0]; // line representation is second representation
-    return overSegment;
+  // A fresh pick can be pending or empty while the old handle stays active.
+  // Only a resolved pick away from the line permits that handle to drag.
+  const canDragHandle = () => {
+    const selected = model._widgetManager.getSelections()?.[0];
+    return (
+      !!selected &&
+      selected.getProperties().prop !== model.representations[1].getActors()[0]
+    );
   };
 
   // Check if mouse is over fill representation (for hover but not interaction)
@@ -81,13 +82,22 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     );
   };
 
+  const anotherWidgetIsActive = () => {
+    const active = model._widgetManager.getActiveWidget();
+    return active && active !== publicAPI;
+  };
+
   const getWorldCoords = computeWorldCoords(model);
 
   /**
    * Places or drags a point.
    */
   publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
+    if (
+      !model.manipulator ||
+      anotherWidgetHasFocus() ||
+      shouldIgnoreEvent(eventData)
+    ) {
       return macro.VOID;
     }
 
@@ -105,12 +115,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     const intState = publicAPI.getInteractionState();
 
     // If not placing and another widget is active, don't consume event.
-    const activeWidget = model._widgetManager.getActiveWidget();
-    if (
-      intState === InteractionState.Select &&
-      activeWidget &&
-      activeWidget !== publicAPI
-    ) {
+    if (intState === InteractionState.Select && anotherWidgetIsActive()) {
       return macro.VOID;
     }
 
@@ -148,7 +153,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       model.activeState?.getActive() &&
       model.activeState?.setOrigin &&
       model.pickable &&
-      !checkOverSegment()
+      canDragHandle()
     ) {
       draggingState = model.activeState;
       publicAPI.setInteractionState(InteractionState.Dragging);

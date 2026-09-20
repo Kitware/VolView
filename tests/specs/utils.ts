@@ -87,34 +87,49 @@ export async function openVolViewPage(fileName: string) {
 
 export const SESSION_SAVE_TIMEOUT = 40_000;
 
-export const waitForFileExists = (filePath: string, timeout: number) =>
+const waitForFile = (
+  filePath: string,
+  timeout: number,
+  ready: (stats: fs.Stats) => boolean
+) =>
   new Promise<void>((resolve, reject) => {
     const dir = path.dirname(filePath);
     const basename = path.basename(filePath);
-
-    const watcher = fs.watch(dir, (eventType, filename) => {
-      if (eventType === 'rename' && filename === basename) {
+    const check = () => {
+      try {
+        if (!ready(fs.statSync(filePath))) return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
         clearTimeout(timerId);
         watcher.close();
-        resolve();
+        reject(error);
+        return;
       }
+      clearTimeout(timerId);
+      watcher.close();
+      resolve();
+    };
+    const watcher = fs.watch(dir, (_, filename) => {
+      if (filename === null || filename === basename) check();
     });
-
     const timerId = setTimeout(() => {
       watcher.close();
-      reject(
-        new Error(`File ${filePath} not created within ${timeout}ms timeout`)
-      );
+      reject(new Error(`File ${filePath} was not ready within ${timeout}ms`));
     }, timeout);
-
-    fs.access(filePath, fs.constants.R_OK, (err) => {
-      if (!err) {
-        clearTimeout(timerId);
-        watcher.close();
-        resolve();
-      }
+    watcher.on('error', (error) => {
+      clearTimeout(timerId);
+      watcher.close();
+      reject(error);
     });
+    check();
   });
+
+export const waitForFileExists = (filePath: string, timeout: number) =>
+  waitForFile(filePath, timeout, () => true);
+
+// Download creation and its first bytes share the caller's existing wait budget.
+export const waitForDownload = (filePath: string, timeout: number) =>
+  waitForFile(filePath, timeout, (stats) => stats.size > 0);
 
 export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   const manifest = {

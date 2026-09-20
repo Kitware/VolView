@@ -318,16 +318,11 @@ export function gaussianSmoothLabelMapWorker(input: GaussianSmoothInput) {
     sigma / spacing[2],
   ];
 
-  // Absent when the label is nowhere in the mask, which is also the whole
-  // answer for a mask with nothing to smooth: it comes back as it went in.
+  // Absent when the label is nowhere in the mask. There is then nothing to
+  // smooth, which is the caller's "nothing to do": handing back a copy of the
+  // input instead would open a preview between two identical states.
   const bounds = calculateBoundingBox(originalData, dimensions, label);
-  if (!bounds) {
-    const outputData = createTypedArrayLike(originalData, originalData.length);
-    for (let i = 0; i < originalData.length; i++) {
-      outputData[i] = originalData[i];
-    }
-    return { scalars: outputData, extent: maskExtent };
-  }
+  if (!bounds) return undefined;
 
   const expandedBounds = expandBoundingBox({
     bounds,

@@ -103,28 +103,29 @@ describe('Delete key on a selected annotation', () => {
     });
   });
 
-  // Checking a row in the annotations panel leaves focus on its checkbox, which
-  // must not swallow the delete key
-  it('deletes an annotation selected from the annotations panel', async () => {
+  // Working the annotations panel leaves focus on the control that was clicked,
+  // which must not swallow the delete key
+  it('deletes a selected annotation while the panel holds focus', async () => {
     const { axialView, centerX, centerY } = await setupTest();
 
     await placeRectangle(centerX, centerY, 80);
     await waitForCircleCount(axialView, 2, 'Rectangle should have two handles');
+    await clickToSelect(axialView, centerX - 80, centerY - 80);
 
     const annotationsTab = await AppPage.annotationsModuleTab;
     await annotationsTab.waitForClickable();
     await annotationsTab.click();
 
-    const rowCheckbox = await $('.v-list-item .v-selection-control__input');
-    await rowCheckbox.waitForClickable();
-    await rowCheckbox.click();
+    const measurements = await $('[data-testid="measurements-section"]');
+    await measurements.waitForClickable();
+    await measurements.click();
 
     await pressDelete();
 
     await waitForCircleCount(
       axialView,
       0,
-      'Delete should work while the panel checkbox holds focus'
+      'Delete should work while a panel control holds focus'
     );
   });
 

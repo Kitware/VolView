@@ -54,16 +54,19 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
     return {};
   }
 
-  const worker = Comlink.wrap<HistogramWorker>(
-    new Worker(new URL('@/src/utils/histogram.worker.ts', import.meta.url), {
-      type: 'module',
-    })
-  );
-
   const { min, max } = getAllComponentRange(scalars);
   const scalarData = scalars.getData() as number[];
-  const hist = await worker.histogram(scalarData, [min, max], WL_HIST_BINS);
-  worker[Comlink.releaseProxy]();
+  const worker = new Worker(
+    new URL('@/src/utils/histogram.worker.ts', import.meta.url),
+    { type: 'module' }
+  );
+  const remote = Comlink.wrap<HistogramWorker>(worker);
+  const hist = await remote
+    .histogram(scalarData, [min, max], WL_HIST_BINS)
+    .finally(() => {
+      remote[Comlink.releaseProxy]();
+      worker.terminate();
+    });
 
   const cumulativeHist: number[] = [];
   hist.reduce((acc, val) => {

@@ -2,14 +2,14 @@ import type { Component } from 'vue';
 import {
   ProcessType,
   type ProcessAlgorithm,
-} from '@/src/store/tools/paintProcess';
+} from '@/src/segmentation/editing/paintProcess';
 import {
   useFillHolesStore,
   FillHolesSegmentScope,
-} from '@/src/store/tools/fillHoles';
-import { useFillBetweenStore } from '@/src/store/tools/fillBetween';
-import { useGaussianSmoothStore } from '@/src/store/tools/gaussianSmooth';
-import FillHolesParameterControls from './FillHolesParameterControls.vue';
+} from '@/src/segmentation/editing/fillHoles';
+import { useFillBetweenStore } from '@/src/segmentation/editing/fillBetween';
+import { useGaussianSmoothStore } from '@/src/segmentation/editing/gaussianSmooth';
+import FillHolesParameterControls from '@/src/segmentation/components/FillHolesParameterControls.vue';
 import FillBetweenParameterControls from './FillBetweenParameterControls.vue';
 import GaussianSmoothParameterControls from './GaussianSmoothParameterControls.vue';
 

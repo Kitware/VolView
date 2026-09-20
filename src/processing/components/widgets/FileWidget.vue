@@ -34,22 +34,18 @@ const props = defineProps<{
   boundType?: BoundSourceRefType;
 }>();
 
-// How each bound kind names itself in the key column and the noun the binding
-// sentences use. `pluralCaption` is how a parameter taking more than one value
-// names itself; kinds without one do not bind plurally.
+// Vocabulary is shared by the caption and binding messages.
 type KindVocabulary = {
   icon: string;
   caption: string;
-  pluralCaption?: string;
   noun: SourceRefNoun;
 };
 
 const KINDS: Record<string, KindVocabulary> = {
   [TYPE_TAG_LABELMAP]: {
     icon: 'mdi-brush-outline',
-    caption: 'Active segment group',
-    pluralCaption: 'Segment groups on active dataset',
-    noun: 'segment group',
+    caption: 'Segmentation on active dataset',
+    noun: 'segmentation',
   },
   [TYPE_TAG_ANNOTATIONS]: {
     icon: 'mdi-ruler',
@@ -64,10 +60,6 @@ const IMAGE_KIND: KindVocabulary = {
   noun: 'image',
 };
 
-const multiple = computed(
-  () => props.param.kind === 'sourceRef' && props.param.multiple === true
-);
-
 // Before the binder has run, a param accepting exactly one type already names
 // its kind.
 const kind = computed(() => {
@@ -76,15 +68,12 @@ const kind = computed(() => {
       ? props.param.accepts[0]
       : undefined;
   const type = props.boundType ?? declared;
-  const resolved = (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
-  const caption =
-    (multiple.value ? resolved.pluralCaption : undefined) ?? resolved.caption;
-  return { ...resolved, caption };
+  return (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
 });
 
 const OPTIONAL_UNBOUND_STATES = new Set<SourceRefBindingState>([
   'unbound',
-  'no-segment-group',
+  'no-segmentation',
   'no-annotations',
   'no-reference-input',
 ]);
@@ -101,7 +90,7 @@ const optionalUnbound = computed(
 
 const bindingMessage = computed(() =>
   props.binding && !optionalUnbound.value
-    ? bindingStateMessage(props.binding, kind.value.noun, multiple.value)
+    ? bindingStateMessage(props.binding, kind.value.noun)
     : undefined
 );
 

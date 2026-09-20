@@ -90,7 +90,7 @@ describe('Paint Tool', () => {
         const tool = new PaintTool();
         tool.setBrushValue(brushValue);
         tool.setBrushSize(1);
-        tool.paintLabelmap(labelmap, 2, [0, 0, 0], [3, 3, 0]);
+        tool.paintLabelmap(labelmap, 2, [0, 0, 0], { endPoint: [3, 3, 0] });
         for (let i = 0; i <= 3; i++) {
           const offset = i + 4 * i;
           expect(points[offset]).to.equal(brushValue);

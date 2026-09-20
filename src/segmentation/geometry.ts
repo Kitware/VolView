@@ -78,23 +78,18 @@ export const maskOffset = (
   (k - bounds.extent[4]) * bounds.mi * bounds.mj;
 
 /**
- * The box `labelValue` actually occupies inside a mask bounded by `extent`,
- * empty when it occupies nothing. A binding's extent is the allocation, padded
- * and never shrunk by an erase, so it is not the segment's bounds.
+ * The box the claimed voxels actually occupy inside a mask bounded by
+ * `extent`, empty when it claims nothing. A binding's extent is the
+ * allocation, padded and never shrunk by an erase, so it is not the segment's
+ * bounds. Background is 0, so a claimed voxel is a truthy one.
  */
-export function markedExtent(
-  scalars: ArrayLike<number>,
-  extent: Extent3D,
-  labelValue: number
-) {
-  const ni = extent[1] - extent[0] + 1;
-  const nj = extent[3] - extent[2] + 1;
-  const nk = extent[5] - extent[4] + 1;
+export function markedExtent(scalars: ArrayLike<number>, extent: Extent3D) {
+  const [ni, nj, nk] = extentSize(extent);
   let bounds: Extent3D | undefined;
 
   const scanRow = (rowStart: number, j: number, k: number) => {
     for (let index = 0; index < ni; index += 1) {
-      if (scalars[rowStart + index] !== labelValue) continue;
+      if (!scalars[rowStart + index]) continue;
       const i = extent[0] + index;
       if (bounds) growExtent(bounds, i, j, k);
       else bounds = [i, i, j, j, k, k];
@@ -108,18 +103,13 @@ export function markedExtent(
   return bounds ?? emptyExtent();
 }
 
-/** The parent-image slice indices containing `labelValue`, for i, j and k. */
-export function markedSlices(
-  scalars: ArrayLike<number>,
-  extent: Extent3D,
-  labelValue: number
-) {
-  const ni = extent[1] - extent[0] + 1;
-  const nj = extent[3] - extent[2] + 1;
+/** The parent-image slice indices holding a claimed voxel, for i, j and k. */
+export function markedSlices(scalars: ArrayLike<number>, extent: Extent3D) {
+  const [ni, nj] = extentSize(extent);
   const occupied = [new Set<number>(), new Set<number>(), new Set<number>()];
 
   for (let offset = 0; offset < scalars.length; offset += 1) {
-    if (scalars[offset] !== labelValue) continue;
+    if (!scalars[offset]) continue;
     const i = extent[0] + (offset % ni);
     const row = Math.floor(offset / ni);
     const j = extent[2] + (row % nj);

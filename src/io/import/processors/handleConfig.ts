@@ -37,13 +37,22 @@ const handleConfig: ImportHandler = async (dataSource) => {
       if (recognition.ignoredKeys.length > 0) {
         surfaceIgnoredConfigKeys(recognition.ignoredKeys);
       }
+      if (recognition.deprecatedKeys.length > 0) {
+        surfaceWarning(
+          'Deprecated configuration',
+          'io.segmentGroupExtension was migrated to io.segmentationExtension. Update your configuration to use io.segmentationExtension.'
+        );
+      }
       return asConfigResult(dataSource, recognition.config);
     }
     return Skip;
   } catch (err) {
-    throw new Error('Failed to parse config file', {
-      cause: ensureError(err),
-    });
+    throw new Error(
+      `Failed to parse config file: ${ensureError(err).message}`,
+      {
+        cause: ensureError(err),
+      }
+    );
   }
 };
 

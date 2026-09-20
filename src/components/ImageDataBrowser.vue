@@ -3,8 +3,10 @@ import { computed, defineComponent, reactive, watch } from 'vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
+import SegmentationConversionProgress from '@/src/components/SegmentationConversionProgress.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import {
   isRegularImage,
   type DataSelection,
@@ -32,12 +34,14 @@ export default defineComponent({
     ItemGroup,
     GroupableItem,
     ImageListCard,
+    ReasonedAction,
+    SegmentationConversionProgress,
   },
   setup() {
     const imageStore = useImageStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
-    const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
     const imageCacheStore = useImageCacheStore();
@@ -68,6 +72,8 @@ export default defineComponent({
           id !== selectedImageID && currentImageID.value != null;
         const metadata =
           imageCacheStore.getImageMetadata(id) ?? defaultImageMetadata();
+        const convertingToSegmentation =
+          segmentationStore.convertingLabelmaps.has(id);
         return {
           id,
           cacheKey: imageCacheKey(id),
@@ -78,6 +84,12 @@ export default defineComponent({
           spacing: [...metadata.spacing].map((s) => s.toFixed(2)),
           layerable,
           layerLoading,
+          convertingToSegmentation,
+          convertReason: convertingToSegmentation
+            ? 'Already adding this image as a segmentation'
+            : layerable
+              ? ''
+              : 'Must load a background image before converting',
           isLayer,
           layerHandler: () => {
             if (!layerLoading && layerable) {
@@ -155,7 +167,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (currentImageID.value) {
-        segmentGroupStore.convertImageToLabelmap(key, currentImageID.value);
+        segmentationStore.startLabelmapConversion(key, currentImageID.value);
       }
     }
 
@@ -274,6 +286,9 @@ export default defineComponent({
           @click="select"
           @dragstart="onDragStart(image.id, $event)"
         >
+          <template v-if="image.convertingToSegmentation" #image-overlay>
+            <segmentation-conversion-progress />
+          </template>
           <div class="d-flex flex-row justify-space-between">
             <div class="allow-trunc-text-flex-child">
               <div
@@ -312,24 +327,22 @@ export default defineComponent({
                       <span v-else>Add as layer</span>
                     </template>
                   </v-list-item>
-                  <v-list-item
-                    @click="
-                      image.layerable ? convertToLabelMap(image.id) : null
-                    "
+                  <reasoned-action
+                    block
+                    location="end"
+                    :reason="image.convertReason"
+                    v-slot="{ disabled }"
                   >
-                    <v-icon v-if="!image.layerable" class="mr-1">
-                      mdi-alert
-                    </v-icon>
-                    Add as Segment Group
-                    <v-tooltip
-                      activator="parent"
-                      location="end"
-                      max-width="200px"
-                      :disabled="image.layerable"
+                    <v-list-item
+                      :disabled="disabled"
+                      @click="convertToLabelMap(image.id)"
                     >
-                      Must load a background image before converting
-                    </v-tooltip>
-                  </v-list-item>
+                      <v-icon v-if="!image.layerable" class="mr-1">
+                        mdi-alert
+                      </v-icon>
+                      Add as segmentation
+                    </v-list-item>
+                  </reasoned-action>
                   <v-list-item @click="showInAllViews(image.id)">
                     Show in all views
                   </v-list-item>

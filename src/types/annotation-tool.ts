@@ -23,11 +23,7 @@ export type AnnotationTool = {
    */
   placing?: boolean;
 
-  label?: string;
-  labelName?: string;
-
-  color: string;
-  strokeWidth?: number;
+  segmentId?: string;
 
   name: string;
 

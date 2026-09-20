@@ -106,7 +106,7 @@ export type ProcessingResult = {
   mimeType?: string;
   size?: number;
   segments?: SegmentDescriptor[];
-  // Durable idempotency key for segment-group result application.
+  // Durable idempotency key for segmentation result application.
   source?: ResultSource;
 };
 

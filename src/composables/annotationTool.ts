@@ -29,6 +29,7 @@ import {
 import { ImageMetadata } from '@/src/types/image';
 import { View } from '@/src/core/vtk/types';
 import { watchImmediate } from '@vueuse/core';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 const SHOW_OVERLAY_DELAY = 250; // milliseconds
 
@@ -50,6 +51,16 @@ export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
   );
   return !!toolAxis && toolAxis.axis === unref(viewAxis);
 };
+
+/** Everything that renders a shape or its selection outline shares this. */
+export const isToolVisible = (
+  store: AnnotationToolStore,
+  tool: Pick<AnnotationTool, 'hidden' | 'placing' | 'segmentId'>
+) =>
+  !tool.hidden &&
+  // Keep the active placement widget alive until it commits. Completed
+  // shapes inherit the segment's visibility without changing child flags.
+  (tool.placing || store.segments.appearanceOf(tool.segmentId).visible);
 
 export const useCurrentTools = <S extends AnnotationToolStore>(
   toolStore: S,
@@ -78,7 +89,7 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
       return (
         tool.imageID === curImageID &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata) &&
-        !tool.hidden
+        isToolVisible(toolStore, tool)
       );
     });
   });
@@ -220,18 +231,24 @@ export const usePlacingAnnotationTool = (
   metadata: Ref<Partial<AnnotationTool>>
 ) => {
   const id = ref<Maybe<ToolID>>(null);
+  const { selectedSegmentId } = useSegmentStore().segments;
+  // The stub follows the selection, so it is drawn in the segment it will join.
+  const patch = computed(() => ({
+    ...metadata.value,
+    segmentId: selectedSegmentId.value ?? '',
+  }));
 
   const commit = () => {
     const id_ = id.value as Maybe<ToolID>;
     if (!id_) return;
-    store.updateTool(id_, { placing: false });
+    store.placeTool(id_);
     id.value = null;
   };
 
   const add = () => {
     if (id.value) throw new Error('Placing tool already exists.');
     id.value = store.addTool({
-      ...metadata.value,
+      ...patch.value,
       placing: true,
     }) as UnwrapRef<ToolID>;
   };
@@ -243,13 +260,21 @@ export const usePlacingAnnotationTool = (
     id.value = null;
   };
 
-  watch(metadata, () => {
+  watch(patch, (value) => {
     if (!id.value) return;
-    store.updateTool(id.value as ToolID, metadata.value);
+    store.updateTool(id.value as ToolID, value);
   });
+
+  // The first gesture is what mints, so the shape resolves its segment as
+  // placement starts rather than when it lands.
+  const beginPlacement = () => {
+    const id_ = id.value as Maybe<ToolID>;
+    if (id_) store.resolveToolSegment(id_);
+  };
 
   return {
     id: readonly(id),
+    beginPlacement,
     commit,
     add,
     remove,
