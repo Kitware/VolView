@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
 import type { SegmentDescriptor } from '@/backend-contract';
 import {
@@ -80,11 +81,14 @@ const segmentsOn = (imageId: string) =>
     marks: markedVoxels(segment.id),
   }));
 
+const liverOffset = () =>
+  LIVER_INDEX[0] + LIVER_INDEX[1] * 4 + LIVER_INDEX[2] * 16;
+
 /** Only value 1 is written, so value 2 is declared and never filled. */
 async function seatScene() {
   await seatImage('parent', { ...GRID, name: 'CT' });
   const values = new Uint8Array(64);
-  values[LIVER_INDEX[0] + LIVER_INDEX[1] * 4 + LIVER_INDEX[2] * 16] = 1;
+  values[liverOffset()] = 1;
   await seatImage('output', { ...GRID, name: 'output.nrrd', values });
 }
 
@@ -124,6 +128,32 @@ describe('a segment a result declares but leaves empty', () => {
       })
     ).toBeNull();
   });
+
+  it.each([0, 1])(
+    'mints no empty twin for a value only component %i carries',
+    async (component) => {
+      // A value with voxels in one component and none in the other is not a
+      // declaration left empty: some component found it. Only the value no
+      // component carries becomes a row of its own.
+      const values = new Uint8Array(128);
+      values[liverOffset() * 2 + component] = 1;
+      useImageCacheStore()
+        .getVtkImageData('output')!
+        .getPointData()
+        .setScalars(
+          vtkDataArray.newInstance({ numberOfComponents: 2, values })
+        );
+
+      expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
+
+      expect(
+        segmentsOn('parent').map(({ name, marks }) => [name, marks])
+      ).toEqual([
+        ['Liver', [[...LIVER_INDEX, SEGMENT_VALUE]]],
+        ['Spleen', []],
+      ]);
+    }
+  );
 
   it('keeps both segments across a save and restore', async () => {
     await importResult(DECLARED);

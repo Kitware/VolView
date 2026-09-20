@@ -255,9 +255,16 @@ export async function decodeLabelmapSegments(
 }
 
 export type LabelmapImportHooks = {
+  /**
+   * Descriptors for one component. `componentCount` is how many components
+   * this image has in all, so a decode that adds a descriptor the voxels never
+   * carried can add it once, on the last component, instead of once per
+   * component -- a value can have voxels in one component and none in another.
+   */
   decode: (
     labelmap: vtkLabelMap,
-    component: number
+    component: number,
+    componentCount: number
   ) => Promise<LabelmapSegment[]>;
   /** Mints the segments for one decoded labelmap, in descriptor order. */
   split: (labelmap: vtkLabelMap, descriptors: LabelmapSegment[]) => string[];
@@ -323,7 +330,11 @@ export async function importLabelmapImage(
     const matchingParentSpace = await ensureSameSpace(parentImage, image, true);
     requireParentImage(parentID);
     const labelmapImage = toLabelMap(matchingParentSpace);
-    const descriptors = await hooks.decode(labelmapImage, component);
+    const descriptors = await hooks.decode(
+      labelmapImage,
+      component,
+      images.length
+    );
     requireParentImage(parentID);
     created.push(
       hooks.split(labelmapImage, descriptors).map((maskId, index) => ({

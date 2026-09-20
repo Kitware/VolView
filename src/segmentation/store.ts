@@ -378,20 +378,18 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * appends described values missing from the enumeration 'so nothing
    * described is lost'; both import paths now keep the same segments.
    *
-   * 0 is background, never a segment. A declaration the decode already covers
-   * is left where it is, so appearance stays merged onto the decoded
-   * descriptor rather than duplicated into a second segment on one value. The
-   * colour cursor turns only for a declaration that named no colour.
-   *
-   * Called once per component, so a multi-component result gives a declared
-   * empty one row per component -- the same arithmetic a value the voxels DO
-   * carry already gets, which mints 'Liver' and 'Liver (2)'.
+   * 0 is background, never a segment. A declaration any component covered is
+   * left where that component put it, so appearance stays merged onto the
+   * decoded descriptor rather than duplicated into an empty twin beside it --
+   * `covered` spans every component for exactly that reason, and this runs
+   * only on the last one. The colour cursor turns only for a declaration that
+   * named no colour.
    */
   function withDeclaredEmpties(
     decoded: LabelmapSegment[],
-    bySourceValue: Map<number, Partial<SourceDescription>>
+    bySourceValue: Map<number, Partial<SourceDescription>>,
+    covered: Set<number>
   ): LabelmapSegment[] {
-    const covered = new Set(decoded.map((descriptor) => descriptor.value));
     const empties: LabelmapSegment[] = [];
     bySourceValue.forEach((description, value) => {
       if (value === 0 || covered.has(value)) return;
@@ -425,18 +423,23 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         cleanUndefined(descriptor),
       ])
     );
+    // Every source value any component of this image carries voxels for. A
+    // declaration is empty only when none of them did.
+    const coveredValues = new Set<number>();
     convertingLabelmaps.add(imageID);
     const conversion = importLabelmapImage(imageID, parentID, {
       // The empties join the descriptor list here, not at the split: the
       // import pairs the masks the split returns with these descriptors by
-      // position, so the two lists have to be the same one.
-      decode: async (labelmap, component) =>
-        withDeclaredEmpties(
-          (await decodeSegments(imageID, labelmap, {
-            component,
-          })) as LabelmapSegment[],
-          bySourceValue
-        ),
+      // position, so the two lists have to be the same one. They wait for the
+      // last component, once every component has said which values it carries.
+      decode: async (labelmap, component, componentCount) => {
+        const decoded = (await decodeSegments(imageID, labelmap, {
+          component,
+        })) as LabelmapSegment[];
+        decoded.forEach((descriptor) => coveredValues.add(descriptor.value));
+        if (component < componentCount - 1) return decoded;
+        return withDeclaredEmpties(decoded, bySourceValue, coveredValues);
+      },
       split: (labelmap, descriptors) => {
         const created = splitLabelmapIntoMasks(
           parentID,
