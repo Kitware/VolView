@@ -14,11 +14,73 @@ JSON files that reference remote data via URIs instead of embedding it. Useful f
 - Sharing annotations without duplicating large datasets
 - Integrating with external systems (AI pipelines, access control, etc.)
 
-Legacy 6.2.0 manifest example (still supported on import):
+### Current manifest (version 7.0.0)
+
+A segmentation owns one image's segment masks; labelmaps encode those masks for
+storage or interchange. The top-level `segments` list holds the identities the
+masks paint (name, color, visibility), each mask names the segment it carries
+voxels for, and `order` lists the masks of that segmentation.
+
+A mask saved into a zip names its own archive entry with `path`. A sparse
+manifest instead points at a whole label volume: `segmentationArtifacts` names
+that volume, its `dataSourceId` says where the bytes come from, and each mask
+whose `artifactId` points at it is filled from the `sourceValue` it declares.
+Extents are placeholders until the volume is read.
+
+```json
+{
+  "version": "7.0.0",
+  "dataSources": [
+    { "id": 0, "type": "uri", "uri": "https://example.com/scan.zip" },
+    { "id": 1, "type": "uri", "uri": "https://example.com/segmentation.nii.gz" }
+  ],
+  "segments": [
+    {
+      "id": "segment-tumor",
+      "name": "Tumor",
+      "color": [255, 0, 0, 255],
+      "visible": true,
+      "locked": false
+    }
+  ],
+  "segmentations": [
+    {
+      "id": "segmentation-0",
+      "name": "Tumor Segmentation",
+      "parentImage": "0",
+      "masks": [
+        {
+          "id": "mask-tumor",
+          "segmentId": "segment-tumor",
+          "representations": {
+            "labelmap": {
+              "artifactId": "labelmap-1",
+              "sourceValue": 1,
+              "extent": [0, -1, 0, -1, 0, -1]
+            }
+          }
+        }
+      ],
+      "order": ["mask-tumor"]
+    }
+  ],
+  "segmentationArtifacts": [
+    {
+      "id": "labelmap-1",
+      "parentImage": "0",
+      "name": "Tumor Segmentation",
+      "dataSourceId": 1
+    }
+  ],
+  "selectedSegment": "segment-tumor"
+}
+```
+
+### Legacy 6.2.0 manifest (the pre-7.0.0 form, still read on import)
 
 The historical `segmentGroups` field is migrated into the current segmentation
-model. A segmentation owns an image's segment masks; labelmaps encode those
-masks for storage or interchange. New sessions use the current schema.
+model on load, and the per-tool `labels` records become segments the tools
+reference by id. Nothing writes this form any more.
 
 ```json
 {
