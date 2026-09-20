@@ -33,6 +33,7 @@ import {
 import {
   DEFAULT_SEGMENTATION_FILL_OPACITY,
   listMasks,
+  makeDefaultSegmentName,
   maskScalars,
   type LabelmapBinding,
   type LabelmapSegment,
@@ -98,6 +99,13 @@ declareManifestRefs('segmentations', (manifest) => {
     ];
   });
 });
+
+/**
+ * What a caller says about one source label value. Only `value` identifies the
+ * bin; everything else overrides what the labelmap's own metadata decoded.
+ */
+export type SourceDescription = Pick<LabelmapSegment, 'value'> &
+  Partial<Omit<LabelmapSegment, 'value'>>;
 
 export const useSegmentationStore = defineStore('segmentation', () => {
   const edits = useSegmentationEditsStore();
@@ -361,13 +369,48 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     });
   }
 
+  /**
+   * Product decision: a segment a result DECLARES but leaves EMPTY appears as
+   * an empty row, so 'looked and found nothing' is distinguishable from 'never
+   * looked at all'. The decode only ever sees values the voxels carry, so a
+   * declared value with no voxels reaches the split only by being appended
+   * here. This mirrors the seg.nrrd header path, where overlaySegmentMetadata
+   * appends described values missing from the enumeration 'so nothing
+   * described is lost'; both import paths now keep the same segments.
+   *
+   * 0 is background, never a segment. A declaration the decode already covers
+   * is left where it is, so appearance stays merged onto the decoded
+   * descriptor rather than duplicated into a second segment on one value. The
+   * colour cursor turns only for a declaration that named no colour.
+   *
+   * Called once per component, so a multi-component result gives a declared
+   * empty one row per component -- the same arithmetic a value the voxels DO
+   * carry already gets, which mints 'Liver' and 'Liver (2)'.
+   */
+  function withDeclaredEmpties(
+    decoded: LabelmapSegment[],
+    bySourceValue: Map<number, Partial<SourceDescription>>
+  ): LabelmapSegment[] {
+    const covered = new Set(decoded.map((descriptor) => descriptor.value));
+    const empties: LabelmapSegment[] = [];
+    bySourceValue.forEach((description, value) => {
+      if (value === 0 || covered.has(value)) return;
+      empties.push({
+        ...description,
+        value,
+        name: description.name ?? makeDefaultSegmentName(value),
+        color: [...(description.color ?? getNextDecodeColor())] as RGBAColor,
+        visible: description.visible ?? true,
+      });
+    });
+    return [...decoded, ...empties];
+  }
+
   async function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
     source?: ProcessingResultSource,
-    descriptions: Array<
-      Pick<LabelmapSegment, 'value'> & Partial<Omit<LabelmapSegment, 'value'>>
-    > = []
+    descriptions: SourceDescription[] = []
   ) {
     // A second conversion of an image already converting would split it again
     // and mint a suffixed duplicate of every segment, and the first call's
@@ -384,10 +427,16 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     );
     convertingLabelmaps.add(imageID);
     const conversion = importLabelmapImage(imageID, parentID, {
-      decode: (labelmap, component) =>
-        decodeSegments(imageID, labelmap, { component }) as Promise<
-          LabelmapSegment[]
-        >,
+      // The empties join the descriptor list here, not at the split: the
+      // import pairs the masks the split returns with these descriptors by
+      // position, so the two lists have to be the same one.
+      decode: async (labelmap, component) =>
+        withDeclaredEmpties(
+          (await decodeSegments(imageID, labelmap, {
+            component,
+          })) as LabelmapSegment[],
+          bySourceValue
+        ),
       split: (labelmap, descriptors) => {
         const created = splitLabelmapIntoMasks(
           parentID,
