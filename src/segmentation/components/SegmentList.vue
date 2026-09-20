@@ -26,9 +26,11 @@ import { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
   DEFAULT_SEGMENTATION_FILL_OPACITY,
+  listMasks,
+  maskHasContent,
   type SegmentationDisplayPatch,
 } from '@/src/segmentation/model';
-import { isEmptyExtent, markedSlices } from '@/src/segmentation/geometry';
+import { markedSlices } from '@/src/segmentation/geometry';
 
 const registry = useSegmentStore().segments;
 const { shapesOf } = useSegmentShapes();
@@ -44,11 +46,10 @@ const viewedSegmentation = computed(() => {
     : undefined;
 });
 
-/** The viewed image's mask for a segment, once it has storage behind it. */
+/** The viewed image's mask for a segment, once it holds something. */
 const boundMask = (segmentId: string) => {
   const mask = segmentationStore.maskFor(currentImageID.value, segmentId);
-  const binding = mask && segmentationStore.maskVoxels(mask.id).binding();
-  return binding && !isEmptyExtent(binding.extent) ? mask : undefined;
+  return mask && maskHasContent(mask) ? mask : undefined;
 };
 
 type Row = {
@@ -143,7 +144,10 @@ const saveDialog = ref(false);
 // cannot run rather than disappearing.
 const savableReason = computed(() => {
   if (viewingCine.value) return 'A clip has no segmentation to save';
-  if (!viewedSegmentation.value?.order.length)
+  const segmentation = viewedSegmentation.value;
+  // Records alone save nothing: a segment resolved here but never painted
+  // leaves an empty mask, so what is offered follows the voxels.
+  if (!segmentation || !listMasks(segmentation).some(maskHasContent))
     return 'Nothing is painted on this image yet';
   return '';
 });

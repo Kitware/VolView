@@ -1262,6 +1262,7 @@ describe('deleting a segment says what went with it', () => {
 
   it('names only what the segment had', async () => {
     const painted = makeMask('img-1', 'Painted');
+    seedVoxel(painted.maskId, [1, 1, 0]);
     const shaped = segments().addSegment({ name: 'Shaped' });
     useRulerStore().addTool({
       imageID: 'img-1',
@@ -1279,6 +1280,22 @@ describe('deleting a segment says what went with it', () => {
       'Deleted 1 mask on 1 image',
       'Deleted 1 annotation',
     ]);
+  });
+
+  // A record is minted the moment a segment is resolved as an edit target, so
+  // an image can hold one for a segment that was never painted there. Deleting
+  // drops the record, but there was nothing on that image to lose.
+  it('counts no mask on an image the segment was only resolved on', async () => {
+    const recorded = makeMask('img-1', 'Resolved');
+    const allocated = maskOn('img-2', recorded.id);
+    store().maskVoxels(allocated.id).materialize();
+    const wrapper = mountList();
+    await nextTick();
+
+    await deleteRow(wrapper, recorded.id);
+
+    expect(segments().getSegment(recorded.id)).toBeUndefined();
+    expect(titles()).toEqual([]);
   });
 
   it('stays quiet when the segment held nothing', async () => {

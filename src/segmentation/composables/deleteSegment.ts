@@ -1,3 +1,4 @@
+import { maskHasContent } from '@/src/segmentation/model';
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useMessageStore } from '@/src/store/messages';
@@ -7,13 +8,15 @@ import { plural } from '@/src/utils';
 /**
  * What deleting a segment is about to take with it, counted before the cascade
  * runs: its mask on every image, and every finished annotation naming it. A
- * tool still being placed is not counted, because the cascade leaves it alone.
+ * tool still being placed is not counted, because the cascade leaves it alone,
+ * and neither is a mask record with nothing in it: the cascade drops the
+ * record, but the user never put anything on that image to lose.
  */
 function countCascade(segmentId: string) {
   const images = Object.values(useSegmentationStore().segmentations).flatMap(
     (segmentation) =>
       Object.values(segmentation.masks)
-        .filter((mask) => mask.segmentId === segmentId)
+        .filter((mask) => mask.segmentId === segmentId && maskHasContent(mask))
         .map(() => segmentation.parentImageId)
   );
   const annotations = Object.values(AnnotationToolStoreMap).reduce(

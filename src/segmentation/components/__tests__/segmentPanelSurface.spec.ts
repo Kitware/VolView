@@ -11,6 +11,7 @@ import {
   seatSpecImage as seatImage,
   store,
   mintSegment,
+  seedVoxel,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
@@ -110,6 +111,14 @@ const saveButton = (wrapper: VueWrapper) =>
 const saveDialog = (wrapper: VueWrapper) =>
   wrapper.findComponent(SaveDialogStub);
 
+/** A segment with voxels on an image: what having something to save means. */
+const paintMask = (imageId: string, name: string) => {
+  const segmentation = store().ensureSegmentationForImage(imageId);
+  const mask = store().createMask(segmentation.id, mintSegment({ name }));
+  seedVoxel(mask.id, [1, 1, 0]);
+  return segmentation;
+};
+
 describe('saving from the flat segment panel', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
@@ -128,8 +137,7 @@ describe('saving from the flat segment panel', () => {
   });
 
   it('offers one save affordance once the viewed image has segments', async () => {
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createMask(segmentation.id, mintSegment({ name: 'Tumor' }));
+    paintMask('img-1', 'Tumor');
     const wrapper = mountList();
     await nextTick();
 
@@ -138,9 +146,25 @@ describe('saving from the flat segment panel', () => {
     ).toHaveLength(1);
   });
 
-  it('opens the save dialog on the viewed image segmentation', async () => {
+  // A segment resolved as an edit target mints a record, and allocating its
+  // storage does not put a voxel in it: neither is anything to write out.
+  it('keeps the save affordance disabled for masks that hold nothing', async () => {
     const segmentation = store().ensureSegmentationForImage('img-1');
-    store().createMask(segmentation.id, mintSegment({ name: 'Tumor' }));
+    store().createMask(segmentation.id, mintSegment({ name: 'Resolved' }));
+    const allocated = store().createMask(
+      segmentation.id,
+      mintSegment({ name: 'Allocated' })
+    );
+    store().maskVoxels(allocated.id).materialize();
+    const wrapper = mountList();
+    await nextTick();
+
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Nothing is painted on this image yet');
+  });
+
+  it('opens the save dialog on the viewed image segmentation', async () => {
+    const segmentation = paintMask('img-1', 'Tumor');
     const wrapper = mountList();
     await nextTick();
 
@@ -165,8 +189,7 @@ describe('saving from the flat segment panel', () => {
   });
 
   it('follows the viewed image rather than the selected type', async () => {
-    const first = store().ensureSegmentationForImage('img-1');
-    store().createMask(first.id, mintSegment({ name: 'Tumor' }));
+    const first = paintMask('img-1', 'Tumor');
     const second = store().ensureSegmentationForImage('img-2');
     const onSecond = store().createMask(
       second.id,
