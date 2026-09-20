@@ -8,7 +8,7 @@ import {
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
   listMasks,
-  type LabelmapSegment,
+  type ResolvedLabelmapSegment,
   type Segmentation,
 } from '@/src/segmentation/model';
 
@@ -22,7 +22,7 @@ export function createSegmentProjection({
   segmentations,
   segmentRegistry,
 }: SegmentProjectionDeps) {
-  return computed((previous: Record<string, LabelmapSegment> = {}) => {
+  return computed((previous: Record<string, ResolvedLabelmapSegment> = {}) => {
     const stable = Object.fromEntries(
       Object.values(segmentations)
         .flatMap(listMasks)

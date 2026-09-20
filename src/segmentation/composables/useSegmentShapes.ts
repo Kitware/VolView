@@ -6,7 +6,8 @@ import { useAnnotationToolStore } from '@/src/store/tools';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
-import type { AnnotationTool } from '@/src/types/annotation-tool';
+import type { LPSAxis } from '@/src/types/lps';
+import type { Maybe } from '@/src/types';
 
 const SHAPE_TOOLS = [
   { type: AnnotationToolType.Ruler, icon: 'mdi-ruler' },
@@ -14,29 +15,31 @@ const SHAPE_TOOLS = [
   { type: AnnotationToolType.Polygon, icon: 'mdi-pentagon-outline' },
 ];
 
-const placement = (tool: AnnotationTool & { axis: string }) =>
-  tool.frame != null
-    ? `Frame ${tool.frame + 1}`
-    : `${tool.axis} ${tool.slice + 1}`;
+const placement = (
+  frame: Maybe<number>,
+  axis: Maybe<LPSAxis>,
+  slice: number
+) =>
+  frame != null ? `Frame ${frame + 1}` : `${axis ?? 'unknown'} ${slice + 1}`;
 
 // One shape list for every sidebar reader, so a ruler drag rebuilds it once.
 const useSegmentShapesStore = defineStore('segmentShapes', () => {
   // Global: a shared store must not take the image of whichever view built it.
   const { currentImageID, currentImageMetadata } = useCurrentImage('global');
 
+  const rulers = useRulerStore();
+
   const shapes = computed(() =>
     SHAPE_TOOLS.flatMap(({ type, icon }) => {
       const store = useAnnotationToolStore(type);
-      const rulers = useRulerStore();
       return store.finishedTools
         .filter((tool) => tool.imageID === currentImageID.value)
         .map((tool) => {
-          const { axis } = frameOfReferenceToImageSliceAndAxis(
+          const axis = frameOfReferenceToImageSliceAndAxis(
             tool.frameOfReference,
             currentImageMetadata.value,
             { allowOutOfBoundsSlice: true }
-          ) ?? { axis: 'unknown' };
-          const located = { ...tool, axis };
+          )?.axis;
           return {
             id: tool.id,
             type,
@@ -46,7 +49,7 @@ const useSegmentShapesStore = defineStore('segmentShapes', () => {
             axis,
             slice: tool.slice,
             frame: tool.frame,
-            placement: placement(located),
+            placement: placement(tool.frame, axis, tool.slice),
             // Only a ruler carries a number a user reads off the list.
             measurement:
               type === AnnotationToolType.Ruler
@@ -93,7 +96,3 @@ const useSegmentShapesStore = defineStore('segmentShapes', () => {
  * the same annotations.
  */
 export const useSegmentShapes = () => useSegmentShapesStore().segmentShapes;
-
-export type SegmentShape = ReturnType<
-  typeof useSegmentShapes
->['shapes']['value'][number];

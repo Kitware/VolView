@@ -2,115 +2,83 @@ import { describe, expect, it } from 'vitest';
 
 import {
   SEGMENT_ACTOR_OPACITY,
+  SEGMENT_COINCIDENT_OFFSET,
   segmentFillAlpha,
-  segmentOutlineTables,
+  segmentOutline,
 } from '@/src/segmentation/rendering/display';
-import type { LabelmapSegment } from '@/src/segmentation/model';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import type { ResolvedLabelmapSegment } from '@/src/segmentation/model';
 
-const makeMask = (
-  value: number,
-  overrides: Partial<LabelmapSegment> = {}
-): LabelmapSegment => ({
-  value,
-  name: `Segment ${value}`,
+const segment = (
+  overrides: Partial<ResolvedLabelmapSegment> = {}
+): ResolvedLabelmapSegment => ({
+  value: SEGMENT_VALUE,
+  name: 'Segment',
   color: [255, 0, 0, 255],
   visible: true,
+  locked: false,
+  fillOpacity: 1,
+  outlineOpacity: 1,
   ...overrides,
 });
 
 describe('segmentFillAlpha', () => {
   it('is the segment alpha when the fill is fully opaque', () => {
-    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 1 }))).toBe(1);
+    expect(
+      segmentFillAlpha(segment({ color: [255, 0, 0, 51] }), 1)
+    ).toBeCloseTo(0.2);
   });
 
   it('scales the segment alpha by the fill opacity', () => {
-    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 0.5 }))).toBe(0.5);
+    expect(
+      segmentFillAlpha(segment({ color: [255, 0, 0, 51], fillOpacity: 0.5 }), 1)
+    ).toBeCloseTo(0.1);
+  });
+
+  it('hides a segment with zero color alpha', () => {
+    expect(segmentFillAlpha(segment({ color: [255, 0, 0, 0] }), 1)).toBe(0);
   });
 
   it('hides a fill the user set to zero', () => {
-    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 0 }))).toBe(0);
+    expect(segmentFillAlpha(segment({ fillOpacity: 0 }), 1)).toBe(0);
   });
 
   it('hides an invisible segment whatever its fill opacity', () => {
     expect(
-      segmentFillAlpha(makeMask(1, { visible: false, fillOpacity: 1 }))
+      segmentFillAlpha(segment({ visible: false, fillOpacity: 1 }), 1)
     ).toBe(0);
   });
 
-  it('treats a descriptor without a fill opacity as opaque', () => {
-    expect(segmentFillAlpha(makeMask(1))).toBe(1);
+  it("scales the segment alpha by the segmentation's fill opacity", () => {
+    expect(segmentFillAlpha(segment({ fillOpacity: 0.5 }), 0.5)).toBe(0.25);
   });
 
-  it('scales the segment alpha by the segmentation\u2019s fill opacity', () => {
-    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 0.5 }), 0.5)).toBe(0.25);
-  });
-
-  it('hides every fill when the segmentation\u2019s fill opacity is zero', () => {
-    expect(segmentFillAlpha(makeMask(1, { fillOpacity: 1 }), 0)).toBe(0);
+  it("hides every fill when the segmentation's fill opacity is zero", () => {
+    expect(segmentFillAlpha(segment({ fillOpacity: 1 }), 0)).toBe(0);
   });
 });
 
-describe('segmentOutlineTables', () => {
-  it('indexes both tables by label value minus one', () => {
-    const tables = segmentOutlineTables(
-      [
-        makeMask(1, { outlineOpacity: 0.25 }),
-        makeMask(2, { outlineOpacity: 0.5 }),
-      ],
-      2,
-      1
-    );
-
-    expect(tables.opacities).toEqual([0.25, 0.5]);
-    expect(tables.thicknesses).toEqual([2, 2]);
-  });
-
+describe('segmentOutline', () => {
   it('hides an outline the user set to zero', () => {
-    const tables = segmentOutlineTables(
-      [makeMask(1, { outlineOpacity: 0 })],
-      2,
-      1
-    );
+    const tables = segmentOutline(segment({ outlineOpacity: 0 }), 2, 1);
 
     expect(tables.opacities).toEqual([0]);
   });
 
-  it('scales every segment by the group outline opacity', () => {
-    const tables = segmentOutlineTables(
-      [makeMask(1, { outlineOpacity: 0.5 })],
-      2,
-      0.5
-    );
+  it('scales the segment by the segmentation outline opacity', () => {
+    const tables = segmentOutline(segment({ outlineOpacity: 0.5 }), 2, 0.5);
 
     expect(tables.opacities).toEqual([0.25]);
   });
 
-  it('leaves values no segment claims at the group defaults', () => {
-    const tables = segmentOutlineTables(
-      [makeMask(3, { outlineOpacity: 0.5 })],
-      2,
-      1
-    );
-
-    expect(tables.opacities).toEqual([1, 1, 0.5]);
-    expect(tables.thicknesses).toEqual([2, 2, 2]);
+  it('keeps the thickness of a visible segment', () => {
+    expect(segmentOutline(segment(), 2, 1).thicknesses).toEqual([2]);
   });
 
   it('drops the thickness of an invisible segment', () => {
-    const tables = segmentOutlineTables(
-      [makeMask(1, { visible: false }), makeMask(2)],
-      2,
-      1
-    );
+    const tables = segmentOutline(segment({ visible: false }), 2, 1);
 
-    expect(tables.thicknesses).toEqual([0, 2]);
-  });
-
-  it('has no entries for an artifact with no bound segments', () => {
-    expect(segmentOutlineTables([], 2, 1)).toEqual({
-      thicknesses: [],
-      opacities: [],
-    });
+    expect(tables.thicknesses).toEqual([0]);
   });
 });
 
@@ -125,5 +93,13 @@ describe('SEGMENT_ACTOR_OPACITY', () => {
     // vtk.js treats an image slice at opacity 1 as opaque and restacks it
     // against the base image and the sibling segment actors.
     expect(SEGMENT_ACTOR_OPACITY).toBeLessThan(1);
+  });
+});
+
+describe('SEGMENT_COINCIDENT_OFFSET', () => {
+  it('uses negative offsets to put segments in front of the base image', () => {
+    const [factor, units] = SEGMENT_COINCIDENT_OFFSET;
+    expect(factor).toBeLessThan(0);
+    expect(units).toBeLessThan(0);
   });
 });

@@ -16,7 +16,7 @@ import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransf
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import {
   SEGMENT_ACTOR_OPACITY,
-  segmentOutlineTables,
+  segmentOutline,
 } from '@/src/segmentation/rendering/display';
 
 const renderer = vtkRenderer.newInstance();
@@ -102,8 +102,16 @@ camera.setParallelScale(5);
 renderer.resetCameraClippingRange();
 // Keep the same actor while changing tables, as Reveal does.
 function renderOutline(thickness = 3, outlineOpacity = 1) {
-  const tables = segmentOutlineTables(
-    [{ value: 1, name: 'Mask', visible: true, color: [255, 0, 0, 255] }],
+  const tables = segmentOutline(
+    {
+      value: 1,
+      name: 'Mask',
+      visible: true,
+      locked: false,
+      color: [255, 0, 0, 255],
+      fillOpacity: 1,
+      outlineOpacity: 1,
+    },
     thickness,
     outlineOpacity
   );

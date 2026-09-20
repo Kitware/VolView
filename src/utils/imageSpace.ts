@@ -3,9 +3,6 @@ import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
-import type { mat4 } from 'gl-matrix';
-import { getLPSDirections } from '@/src/utils/lps';
-import type { LPSAxis, LPSDirections } from '@/src/types/lps';
 
 // give more fp tolerance due to transforms
 const RELAXED_EPSILON = EPSILON * 1e2;
@@ -95,29 +92,4 @@ export function indexPointToWorld(image: vtkImageData, indexPoint: vec3): vec3 {
   const worldPoint = vec3.create();
   vec3.transformMat4(worldPoint, indexPoint, image.getIndexToWorld());
   return worldPoint;
-}
-
-/**
- * Convert a slice index from source image space to target image space.
- * Used when source and target have different coordinate systems.
- */
-export function convertSliceIndex(
-  sourceSlice: number,
-  sourceLps: LPSDirections,
-  sourceIndexToWorld: mat4,
-  targetImage: vtkImageData,
-  axis: LPSAxis
-): number {
-  const sourceIjkIndex = sourceLps[axis];
-  const targetLps = getLPSDirections(targetImage.getDirection());
-  const targetIjkIndex = targetLps[axis];
-
-  const sourceIndexPoint = vec3.fromValues(0, 0, 0);
-  sourceIndexPoint[sourceIjkIndex] = sourceSlice;
-
-  const worldPoint = vec3.create();
-  vec3.transformMat4(worldPoint, sourceIndexPoint, sourceIndexToWorld);
-
-  const targetIndexPoint = worldPointToIndex(targetImage, worldPoint);
-  return Math.round(targetIndexPoint[targetIjkIndex]);
 }

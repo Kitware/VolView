@@ -5,6 +5,7 @@ import {
   inject,
   computed,
   ref,
+  shallowRef,
   onScopeDispose,
 } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -17,25 +18,21 @@ import { useSegmentationStore } from '@/src/segmentation/store';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/ImageProperty/Constants';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
-import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
 import { watchImmediate } from '@vueuse/core';
-import { convertSliceIndex } from '@/src/utils/imageSpace';
-import { getLPSDirections } from '@/src/utils/lps';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import {
   SEGMENT_ACTOR_OPACITY,
   SEGMENT_COINCIDENT_OFFSET,
   segmentFillAlpha,
-  segmentOutlineTables,
-  sliceWithinExtent,
+  segmentOutline,
 } from '@/src/segmentation/rendering/display';
-import { isEmptyExtent } from '@/src/segmentation/geometry';
 import {
   segmentRenderMask,
   type RenderMaskSlot,
 } from '@/src/segmentation/rendering/renderMask';
 import { DEFAULT_SEGMENTATION_DISPLAY } from '@/src/segmentation/model';
-import { revealPulseStrength } from '@/src/segmentation/composables/useSegmentRevealPulse';
+import { revealPulseStrength } from '@/src/segmentation/rendering/revealPulse';
+import type vtkLabelMap from '@/src/vtk/LabelMap';
 
 type Props = {
   viewId: string;
@@ -50,9 +47,11 @@ const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
 
 const segmentationStore = useSegmentationStore();
-const binding = computed(() => segmentationStore.findMaskBinding(maskId.value));
 const segmentation = computed(() =>
   segmentationStore.segmentationOfMask(maskId.value)
+);
+const binding = computed(
+  () => segmentation.value?.masks[maskId.value]?.representations.labelmap
 );
 const display = computed(
   () => segmentation.value ?? DEFAULT_SEGMENTATION_DISPLAY
@@ -61,58 +60,52 @@ const extent = computed(() => binding.value?.extent);
 const descriptor = computed(
   () => segmentationStore.labelmapDescriptorByMask[maskId.value]
 );
-const segments = computed(() =>
-  descriptor.value ? [descriptor.value] : undefined
-);
 const revealPulse = revealPulseStrength(maskId);
 
-const sourceImageData = computed(() => {
-  // A mask that covers nothing has no voxels, so there is no mapper input.
-  const bounds = extent.value;
-  if (!bounds || isEmptyExtent(bounds)) return null;
-  // The id can outlive its segment by a tick, so the accessor is asked rather
-  // than indexed.
-  const voxels = segmentationStore.findMaskVoxels(maskId.value);
-  return voxels.exists() ? voxels.image() : null;
-});
+const sourceImageData = computed(() => binding.value?.image ?? null);
 
 const parentImageId = computed(() => segmentation.value?.parentImageId);
 const { metadata: parentMetadata, imageData: parentImageData } =
   useImage(parentImageId);
+const ijkAxis = computed(
+  () => parentMetadata.value?.lpsOrientation[axis.value]
+);
 const { slice: storedSlice } = useSliceConfig(viewId, parentImageId);
 const maskRevision = ref(0);
 onVTKEvent(sourceImageData, 'onModified', () => {
   maskRevision.value += 1;
 });
 const renderSlot: RenderMaskSlot = {};
-const imageData = computed(() => {
-  // VTK modifications are not Vue reactive (painting can keep the same image).
-  void maskRevision.value;
-  const source = sourceImageData.value;
-  const parent = parentImageData.value;
-  const bounds = extent.value;
-  const ijkAxis = parentMetadata.value?.lpsOrientation[axis.value];
-  return source &&
-    parent &&
-    bounds &&
-    ijkAxis !== undefined &&
-    storedSlice.value != null
-    ? segmentRenderMask(source, parent, bounds, {
-        axis: ijkAxis,
-        index: storedSlice.value,
-        slot: renderSlot,
-      })
-    : null;
-});
+// Filling allocates and mutates vtk images, so it runs in a watcher.
+const imageData = shallowRef<vtkLabelMap | null>(null);
 watchImmediate(
   [
-    imageData,
-    () => {
-      void maskRevision.value;
-      return imageData.value?.getMTime();
-    },
+    () => !!descriptor.value?.visible,
+    sourceImageData,
+    parentImageData,
+    extent,
+    ijkAxis,
+    storedSlice,
+    // VTK modifications are not Vue reactive (painting can keep the same image).
+    maskRevision,
   ],
-  () => view.requestRender()
+  ([visible, source, parent, bounds, axisIndex, slice]) => {
+    // A hidden segment builds no slice and leaves the scene with its null input.
+    imageData.value =
+      visible &&
+      source &&
+      parent &&
+      bounds &&
+      axisIndex !== undefined &&
+      slice != null
+        ? segmentRenderMask(source, parent, bounds, {
+            axis: axisIndex,
+            index: slice,
+            slot: renderSlot,
+          })
+        : null;
+    view.requestRender();
+  }
 );
 
 // setup slice rep
@@ -141,57 +134,14 @@ sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
   ...SEGMENT_COINCIDENT_OFFSET
 );
 
-// Compute labelmap's LPS orientation from its direction matrix
-const maskLpsOrientation = computed(() => {
-  const mask = imageData.value;
-  if (!mask) return null;
-  return getLPSDirections(mask.getDirection());
-});
-
-// Set slicing mode based on labelmap's own orientation
 watchEffect(() => {
-  const lpsOrientation = maskLpsOrientation.value;
-  if (!lpsOrientation) return;
-  const ijkIndex = lpsOrientation[axis.value];
-  const mode = [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkIndex];
-  sliceRep.mapper.setSlicingMode(mode);
+  if (ijkAxis.value === undefined) return;
+  sliceRep.mapper.setSlicingMode(
+    [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkAxis.value]
+  );
 });
-
-// sync slicing - convert parent slice to labelmap slice via world coordinates
-const slice = vtkFieldRef(sliceRep.mapper, 'slice');
-
-// The extent is a watch source because growth moves the mask's origin, so the
-// same parent slice lands on a different mask slice afterwards.
-watchImmediate(
-  [storedSlice, maskLpsOrientation, parentMetadata, extent, imageData],
-  () => {
-    const parentImage = parentMetadata.value;
-    const mask = imageData.value;
-    if (!parentImage || !mask || storedSlice.value == null) return;
-
-    slice.value = convertSliceIndex(
-      storedSlice.value,
-      parentImage.lpsOrientation,
-      parentImage.indexToWorld,
-      mask,
-      axis.value
-    );
-  }
-);
-
-// A bounded mask covers only part of the volume, and vtkImageMapper clamps a
-// slice outside its input to the nearest one, so an actor left visible off its
-// own extent would paint a stale slice over the image.
-watchEffect(() => {
-  const bounds = extent.value;
-  const ijkIndex = parentMetadata.value?.lpsOrientation?.[axis.value];
-  const drawsHere =
-    !!bounds &&
-    ijkIndex !== undefined &&
-    storedSlice.value != null &&
-    sliceWithinExtent(bounds, ijkIndex, storedSlice.value);
-  sliceRep.actor.setVisibility(drawsHere);
-});
+// The render mask holds only the viewed plane.
+sliceRep.mapper.setSlice(0);
 
 // set coloring properties
 const applySegmentColoring = () => {
@@ -203,27 +153,18 @@ const applySegmentColoring = () => {
   cfun.removeAllPoints();
   ofun.removeAllPoints();
 
-  let maxValue = 0;
+  const segment = descriptor.value;
+  if (!segment) return; // segmentation just deleted
 
-  if (!segments.value) return; // segmentation just deleted
-
-  segments.value.forEach((segment) => {
-    const r = segment.color[0] || 0;
-    const g = segment.color[1] || 0;
-    const b = segment.color[2] || 0;
-    cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
-    const normalAlpha = segmentFillAlpha(segment, display.value.fillOpacity);
-    const pulseAlpha = segment.visible ? 0.7 * revealPulse.value : 0;
-    ofun.addPoint(segment.value, Math.max(normalAlpha, pulseAlpha));
-
-    maxValue = Math.max(maxValue, segment.value);
-  });
-
-  // add min/max values of the colormap range
+  const [r, g, b] = segment.color;
   cfun.addRGBPoint(0, 0, 0, 0);
   ofun.addPoint(0, 0);
-  cfun.addRGBPoint(maxValue + 1, 0, 0, 0);
-  ofun.addPoint(maxValue + 1, 0);
+  cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
+  const normalAlpha = segmentFillAlpha(segment, display.value.fillOpacity);
+  const pulseAlpha = segment.visible ? 0.7 * revealPulse.value : 0;
+  ofun.addPoint(segment.value, Math.max(normalAlpha, pulseAlpha));
+  cfun.addRGBPoint(segment.value + 1, 0, 0, 0);
+  ofun.addPoint(segment.value + 1, 0);
 
   sliceRep.property.modified();
 };
@@ -236,22 +177,16 @@ const outlineThickness = computed(
 sliceRep.property.setUseLabelOutline(true);
 
 watchEffect(() => {
-  if (!segments.value) return; // segmentation just deleted
+  const segment = descriptor.value;
+  if (!segment) return; // segmentation just deleted
 
-  const segmentationOpacity = Math.max(
-    display.value.outlineOpacity,
-    revealPulse.value
-  );
-  const { thicknesses, opacities } = segmentOutlineTables(
-    segments.value,
+  const { thicknesses, opacities } = segmentOutline(
+    segment,
     outlineThickness.value,
-    segmentationOpacity
+    Math.max(display.value.outlineOpacity, revealPulse.value)
   );
   sliceRep.property.setLabelOutlineThickness(thicknesses);
-  // An empty table leaves every label without an opacity; fall back to a scalar.
-  sliceRep.property.setLabelOutlineOpacity(
-    opacities.length ? opacities : segmentationOpacity
-  );
+  sliceRep.property.setLabelOutlineOpacity(opacities);
 });
 
 defineExpose(sliceRep);

@@ -10,9 +10,9 @@ import SaveSegmentationDialog from '@/src/segmentation/components/SaveSegmentati
 import SegmentEditor from '@/src/segmentation/components/SegmentEditor.vue';
 import SegmentListActions from '@/src/segmentation/components/SegmentListActions.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { deleteSegmentAndReport } from '@/src/segmentation/composables/deleteSegment';
+import { deleteSegmentAndReport } from '@/src/segmentation/deleteSegment';
 import { useSegmentEditing } from '@/src/segmentation/composables/useSegmentEditing';
-import { pulseSegmentMask } from '@/src/segmentation/composables/useSegmentRevealPulse';
+import { pulseSegmentMask } from '@/src/segmentation/rendering/revealPulse';
 import { revealSegmentContent } from '@/src/core/annotations/locator';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME, SEGMENT_SHORTCUT_ACTIONS } from '@/src/constants';
@@ -24,12 +24,13 @@ import { useSegmentShapes } from '@/src/segmentation/composables/useSegmentShape
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import useLoadDataStore from '@/src/store/load-data';
-import { Maybe } from '@/src/types';
 import type { LPSAxis } from '@/src/types/lps';
 import {
   DEFAULT_SEGMENTATION_DISPLAY,
   listMasks,
   maskHasContent,
+  maskScalars,
+  type SegmentMask,
   type SegmentationDisplayPatch,
 } from '@/src/segmentation/model';
 import { markedSlices } from '@/src/segmentation/geometry';
@@ -48,7 +49,7 @@ const viewedSegmentation = computed(() => {
     : undefined;
 });
 
-const boundMask = (segmentId: string) => {
+const paintedMask = (segmentId: string) => {
   const mask = segmentationStore.maskFor(currentImageID.value, segmentId);
   return mask && maskHasContent(mask) ? mask : undefined;
 };
@@ -74,14 +75,10 @@ const sameRow = <
 
 // Unchanged rows keep their identity: EditableItemList memoizes on it, and a
 // ruler drag recomputes every row's shape count per pointer move.
-let previousRows = new Map<string, Row>();
-
-// Row data does not depend on mask bounds: growing a painted mask must not
-// rebuild the list. Reveal controls resolve their own mask and shapes when
-// needed, so a row carries the count alone and never goes stale.
-const rows = computed(() => {
-  const kept = new Map<string, Row>();
-  const list = registry.segmentList.value.map((segment, index) => {
+// Rows omit mask bounds, so growing a painted mask does not rebuild the list.
+const rows = computed((previous?: Row[]) => {
+  const before = new Map(previous?.map((row) => [row.id, row] as const));
+  return registry.segmentList.value.map((segment, index) => {
     const appearance = registry.appearanceOf(segment.id);
     const row: Row = {
       id: segment.id,
@@ -94,13 +91,9 @@ const rows = computed(() => {
       locked: appearance.locked,
       shapeCount: shapesOf(segment.id).length,
     };
-    const previous = previousRows.get(segment.id);
-    const reused = previous && sameRow(previous, row) ? previous : row;
-    kept.set(segment.id, reused);
-    return reused;
+    const kept = before.get(segment.id);
+    return kept && sameRow(kept, row) ? kept : row;
   });
-  previousRows = kept;
-  return list;
 });
 
 // A clip is a stack of unrelated frames, so a segmentation drawn across it
@@ -152,22 +145,13 @@ function openSaveDialog() {
   saveDialog.value = true;
 }
 
-// Adding a row allocates no storage and touches no image: the segment exists
-// as identity until an edit binds a mask to it.
-function addNewSegment() {
-  registry.addSegment();
-}
-
 // --- row actions --- //
 
-const update = (id: string, patch: { visible?: boolean; locked?: boolean }) =>
-  registry.updateSegment(id, patch);
-
 const toggleVisible = (id: string) =>
-  update(id, { visible: !registry.appearanceOf(id).visible });
+  registry.updateSegment(id, { visible: !registry.appearanceOf(id).visible });
 
 const toggleLock = (id: string) =>
-  update(id, { locked: !registry.appearanceOf(id).locked });
+  registry.updateSegment(id, { locked: !registry.appearanceOf(id).locked });
 
 // A restore or labelmap conversion still under way may yet fill an empty row.
 const loadDataStore = useLoadDataStore();
@@ -177,47 +161,39 @@ const masksArriving = computed(
 );
 
 const revealReason = (row: Row) => {
-  if (boundMask(row.id) || row.shapeCount) return '';
+  if (paintedMask(row.id) || row.shapeCount) return '';
   return masksArriving.value
     ? 'Still loading'
     : 'This segment has nothing on this image';
 };
 
-// Scanned rather than read off the binding: the binding's extent is the
-// allocation, padded on growth and never shrunk by an erase, so its middle can
-// sit slices away from anything painted. One scan per click, nothing cached.
-function paintedSlices(maskId: Maybe<string>) {
-  if (!maskId) return undefined;
-  const voxels = segmentationStore.maskVoxels(maskId);
-  const binding = voxels.binding();
+// The binding extent is padded and never shrunk, so scan for painted slices.
+function paintedSlices({ representations }: SegmentMask) {
+  const binding = representations.labelmap;
   if (!binding) return undefined;
-  const slices = markedSlices(voxels.scalars(), binding.extent);
+  const slices = markedSlices(maskScalars(binding.image), binding.extent);
   return slices.some((axis) => axis.length) ? slices : undefined;
 }
 
 // Paint and shapes are one segment, so both steer the jump: a view lands on the
 // middle of everything the segment holds along that view's axis.
 function revealSlice(row: Row) {
-  const maskId = boundMask(row.id)?.id;
+  const mask = paintedMask(row.id);
   const imageId = currentImageID.value;
   if (!imageId) return;
   const shapes = shapesOf(row.id);
-  const slicesByAxis = shapes.reduce<Partial<Record<LPSAxis, number[]>>>(
-    (byAxis, shape) => {
-      if (shape.frame != null) return byAxis;
-      const axis = shape.axis as LPSAxis;
-      return { ...byAxis, [axis]: [...(byAxis[axis] ?? []), shape.slice] };
-    },
-    {}
-  );
+  const slicesByAxis: Partial<Record<LPSAxis, number[]>> = {};
+  shapes.forEach(({ frame, axis, slice }) => {
+    if (frame == null && axis) (slicesByAxis[axis] ??= []).push(slice);
+  });
   revealSegmentContent(imageId, {
-    paintedSlicesByIJK: paintedSlices(maskId),
+    paintedSlicesByIJK: mask && paintedSlices(mask),
     slicesByAxis,
     frames: shapes.flatMap((shape) =>
       shape.frame == null ? [] : [shape.frame]
     ),
   });
-  if (maskId) pulseSegmentMask(maskId);
+  if (mask) pulseSegmentMask(mask.id);
 }
 
 const noSegmentsReason = computed(() =>
@@ -233,15 +209,8 @@ const allLocked = computed(
   () => rows.value.length > 0 && rows.value.every((segment) => segment.locked)
 );
 
-function toggleGlobalVisible() {
-  const visible = !allVisible.value;
-  rows.value.forEach((segment) => update(segment.id, { visible }));
-}
-
-function toggleGlobalLocked() {
-  const locked = !allLocked.value;
-  rows.value.forEach((segment) => update(segment.id, { locked }));
-}
+const setAll = (key: 'visible' | 'locked', value: boolean) =>
+  rows.value.forEach((row) => registry.updateSegment(row.id, { [key]: value }));
 
 // --- editing state --- //
 
@@ -328,7 +297,7 @@ const {
                 variant="plain"
                 :color="allLocked ? 'error' : undefined"
                 :disabled="disabled"
-                @click.stop="toggleGlobalLocked"
+                @click.stop="setAll('locked', !allLocked)"
               >
                 <v-icon>{{ allLocked ? 'mdi-lock' : 'mdi-lock-open' }}</v-icon>
               </v-btn>
@@ -351,7 +320,7 @@ const {
                 density="compact"
                 variant="plain"
                 :disabled="disabled"
-                @click.stop="toggleGlobalVisible"
+                @click.stop="setAll('visible', !allVisible)"
               >
                 <v-icon>{{ allVisible ? 'mdi-eye' : 'mdi-eye-off' }}</v-icon>
               </v-btn>
@@ -389,7 +358,7 @@ const {
             item-key="id"
             item-title="name"
             create-text="New segment"
-            @create="addNewSegment"
+            @create="registry.addSegment()"
             class="segment-items"
           >
             <template #item-prepend="{ item }">

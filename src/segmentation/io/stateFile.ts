@@ -555,7 +555,8 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           const segment = segmentRegistry.getSegment(mask.segmentId);
           return [{ mask, descriptor: toLabelmapSegment(segment, value) }];
         });
-        const maskByDescriptor = new Map(
+        // Keyed as the minter below hands descriptors back.
+        const maskByDescriptor = new Map<LabelmapSegment, SegmentMask>(
           targets.map(({ mask, descriptor }) => [descriptor, mask])
         );
         splitLabelmap(

@@ -70,6 +70,9 @@ export type LabelmapSegment = {
   outlineOpacity?: number;
 };
 
+/** A descriptor projected off a segment, every appearance field resolved. */
+export type ResolvedLabelmapSegment = Required<LabelmapSegment>;
+
 /** vtk declares getData() as number[] | TypedArray; mask storage is typed. */
 export const maskScalars = (mask: vtkLabelMap) =>
   mask.getPointData().getScalars().getData() as Uint8Array;
