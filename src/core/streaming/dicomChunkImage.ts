@@ -99,6 +99,39 @@ export interface DicomChunkImageInit {
   warn: (title: string, details: string) => void;
 }
 
+type DecodedChunkImage = Awaited<
+  ReturnType<DicomChunkImageInit['readDicomImage']>
+>['image'];
+
+// The buffer is allocated for the range every chunk's tags declare, so a chunk
+// only fails here when its decoded values disagree with its tags.
+// TypedArray.set raises nothing for such values: integers wrap and fractions
+// truncate.
+function assertSamplesRepresentable(
+  decoded: ArrayLike<number>,
+  range: { min: number; max: number },
+  buffer: TypedArray,
+  where: string
+) {
+  if (!valuesFitBuffer(range, buffer)) {
+    const bufferRange = getBufferValueRange(buffer)!;
+    throw new Error(
+      `${where} has pixel values the volume it belongs to cannot represent. ` +
+        `Its pixel values run from ${range.min} to ${range.max}, but the volume's buffer is ` +
+        `${buffer.constructor.name}, holding values from ${bufferRange.min} to ${bufferRange.max}. ` +
+        `Every file in a volume must decode to values its buffer can hold without conversion.`
+    );
+  }
+  if (!samplesAreIntegral(decoded, buffer)) {
+    throw new Error(
+      `${where} has fractional pixel values the volume it belongs to cannot represent. ` +
+        `Its pixel values run from ${range.min} to ${range.max}, but the volume's buffer is ` +
+        `${buffer.constructor.name}, which holds only whole numbers. ` +
+        `Every file in a volume must decode to values its buffer can hold without conversion.`
+    );
+  }
+}
+
 export default class DicomChunkImage
   extends BaseProgressiveImage
   implements ChunkImage
@@ -444,6 +477,52 @@ export default class DicomChunkImage
     this.onChunksUpdated();
   }
 
+  // The slot layout gives one frame per file, so several files that each carry
+  // several frames have nowhere to go.
+  private assertSingleFramePerFile(frames: number, where: string) {
+    if (frames > 1 && this.chunks.length > 1) {
+      // we're trying to load multiple chunks where individual chunks have multiple frames
+      throw new Error(
+        `Loading a single volume from multiple DICOM files where individual files contain multiple frames is not supported. ` +
+          `${where} contains ${frames} frames.`
+      );
+    }
+  }
+
+  // Each chunk gets a fixed slot: one frame per chunk in a multi-file volume,
+  // or the whole volume when a single multi-frame chunk fills it. A decoded
+  // chunk has to fill its slot exactly.
+  private assertChunkFitsSlot(
+    image: DecodedChunkImage,
+    volume: { dims: number[]; componentCount: number },
+    where: string
+  ) {
+    const { dims, componentCount } = volume;
+    const multiFile = this.chunks.length > 1;
+    const framesPerChunk = multiFile ? 1 : dims[2];
+    const [chunkWidth, chunkHeight] = image.size;
+    const chunkFrames = image.size[2] ?? 1;
+    const chunkComponents = image.imageType.components;
+    if (
+      chunkWidth !== dims[0] ||
+      chunkHeight !== dims[1] ||
+      chunkFrames !== framesPerChunk ||
+      chunkComponents !== componentCount
+    ) {
+      // A lone chunk defines the volume it fails to fit, so advice about
+      // agreeing with the other files only makes sense for a multi-file volume.
+      const advice = multiFile
+        ? ' Every file in a volume must have the same Rows, Columns, and SamplesPerPixel.'
+        : '';
+      throw new Error(
+        `${where} does not fit the volume it belongs to. ` +
+          `It decoded to ${chunkWidth}x${chunkHeight}x${chunkFrames} with ${chunkComponents} component(s), ` +
+          `but the volume has room for ${dims[0]}x${dims[1]}x${framesPerChunk} with ${componentCount} component(s).` +
+          advice
+      );
+    }
+  }
+
   private async onRegularChunkHasData(chunk: Chunk, generation: number) {
     const chunkIndex = this.chunks.indexOf(chunk);
     if (!chunk.dataBlob)
@@ -464,13 +543,8 @@ export default class DicomChunkImage
     const sliceIndex = this.chunks.indexOf(chunk);
     if (sliceIndex === -1) return;
 
-    if (result.image.size[2] > 1 && this.chunks.length > 1) {
-      // we're trying to load multiple chunks where individual chunks have multiple frames
-      throw new Error(
-        `Loading a single volume from multiple DICOM files where individual files contain multiple frames is not supported. ` +
-          `File ${chunkId} (chunk ${sliceIndex}) contains ${result.image.size[2]} frames.`
-      );
-    }
+    const where = `File ${chunkId} (chunk ${sliceIndex})`;
+    this.assertSingleFramePerFile(result.image.size[2], where);
 
     const scalars = this.vtkImageData.value.getPointData().getScalars();
     const pixelData = scalars.getData() as TypedArray;
@@ -478,31 +552,7 @@ export default class DicomChunkImage
 
     const dims = this.vtkImageData.value.getDimensions();
 
-    // Each chunk gets a fixed slot: one frame per chunk in a multi-file
-    // volume, or the whole volume when a single multi-frame chunk fills it.
-    const framesPerChunk = this.chunks.length > 1 ? 1 : dims[2];
-    const [chunkWidth, chunkHeight] = result.image.size;
-    const chunkFrames = result.image.size[2] ?? 1;
-    const chunkComponents = result.image.imageType.components;
-    if (
-      chunkWidth !== dims[0] ||
-      chunkHeight !== dims[1] ||
-      chunkFrames !== framesPerChunk ||
-      chunkComponents !== componentCount
-    ) {
-      // A lone chunk defines the volume it fails to fit, so advice about
-      // agreeing with the other files only makes sense for a multi-file volume.
-      const advice =
-        this.chunks.length > 1
-          ? ' Every file in a volume must have the same Rows, Columns, and SamplesPerPixel.'
-          : '';
-      throw new Error(
-        `File ${chunkId} (chunk ${sliceIndex}) does not fit the volume it belongs to. ` +
-          `It decoded to ${chunkWidth}x${chunkHeight}x${chunkFrames} with ${chunkComponents} component(s), ` +
-          `but the volume has room for ${dims[0]}x${dims[1]}x${framesPerChunk} with ${componentCount} component(s).` +
-          advice
-      );
-    }
+    this.assertChunkFitsSlot(result.image, { dims, componentCount }, where);
 
     const chunkDataRange: Array<[number, number]> = [];
     for (let comp = 0; comp < componentCount; comp++) {
@@ -514,30 +564,14 @@ export default class DicomChunkImage
       chunkDataRange.push([min, max]);
     }
 
-    // The buffer is allocated for the range every chunk's tags declare, so a
-    // chunk only fails here when its decoded values disagree with its tags.
-    // TypedArray.set raises nothing for such values: integers wrap and
-    // fractions truncate.
     const chunkMin = Math.min(...chunkDataRange.map(([min]) => min));
     const chunkMax = Math.max(...chunkDataRange.map(([, max]) => max));
-    const decoded = result.image.data as unknown as ArrayLike<number>;
-    if (!valuesFitBuffer({ min: chunkMin, max: chunkMax }, pixelData)) {
-      const bufferRange = getBufferValueRange(pixelData)!;
-      throw new Error(
-        `File ${chunkId} (chunk ${sliceIndex}) has pixel values the volume it belongs to cannot represent. ` +
-          `Its pixel values run from ${chunkMin} to ${chunkMax}, but the volume's buffer is ` +
-          `${pixelData.constructor.name}, holding values from ${bufferRange.min} to ${bufferRange.max}. ` +
-          `Every file in a volume must decode to values its buffer can hold without conversion.`
-      );
-    }
-    if (!samplesAreIntegral(decoded, pixelData)) {
-      throw new Error(
-        `File ${chunkId} (chunk ${sliceIndex}) has fractional pixel values the volume it belongs to cannot represent. ` +
-          `Its pixel values run from ${chunkMin} to ${chunkMax}, but the volume's buffer is ` +
-          `${pixelData.constructor.name}, which holds only whole numbers. ` +
-          `Every file in a volume must decode to values its buffer can hold without conversion.`
-      );
-    }
+    assertSamplesRepresentable(
+      result.image.data as unknown as ArrayLike<number>,
+      { min: chunkMin, max: chunkMax },
+      pixelData,
+      where
+    );
 
     const offset = dims[0] * dims[1] * componentCount * sliceIndex;
     pixelData.set(result.image.data as TypedArray, offset);

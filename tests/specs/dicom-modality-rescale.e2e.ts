@@ -1,12 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
 
-import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
 import { waitForFirstCompleteCachedImageScalars } from './imageCacheUtils';
-import { writeManifestToFile } from './utils';
+import { makeTempDir, writeManifestToFile } from './utils';
 
 const PUBLIC_DSC_SERIES_UID =
   '1.3.6.1.4.1.9590.100.1.2.284777661700890778225181143863199482857';
@@ -17,11 +15,7 @@ const COLUMNS = 4;
 
 async function writeRescaledSeries() {
   const dirName = `modality-rescale-${Date.now()}`;
-  const dir = path.join(TEMP_DIR, dirName);
-  fs.mkdirSync(dir, { recursive: true });
-  cleanuptotal.addCleanup(async () => {
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
+  const dir = makeTempDir(dirName);
 
   const studyUid = newUid();
   const resources = STORED_VALUES.map((pixelValue, index) => {
