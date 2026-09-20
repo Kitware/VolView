@@ -288,6 +288,21 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       return source !== undefined ? dataIDMap[source.stateId] : undefined;
     };
 
+    // The archive's members, keyed once for the whole restore: every item and
+    // every mask names one, and looking each up by scanning the archive
+    // normalized every path it passed again. First entry wins on a key two
+    // members share, as the scan it replaces did.
+    const archiveMembers = new Map<
+      string,
+      (typeof stateFiles)[number]['file']
+    >();
+    stateFiles.forEach((entry) => {
+      const key = archivePathKey(entry.archivePath);
+      if (!archiveMembers.has(key)) archiveMembers.set(key, entry.file);
+    });
+    const archiveMember = (path: string) =>
+      archiveMembers.get(archivePathKey(path));
+
     const sourceReads = new Map<string, ReturnType<LabelmapIO['read']>>();
     function readImport(item: LabelmapImport, storeId: string | undefined) {
       const input = item.input;
@@ -299,10 +314,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       if (!read) {
         read = (async () => {
           if ('path' in input) {
-            const file = stateFiles.find(
-              (entry) =>
-                archivePathKey(entry.archivePath) === archivePathKey(input.path)
-            )?.file;
+            const file = archiveMember(input.path);
             if (!file) throw new Error('Archive member is missing');
             return io.read(file);
           }
@@ -404,10 +416,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       const binding = wireMask.representations.labelmap;
       if (binding?.path === undefined) return;
       const name = binding.name ?? '';
-      const file = stateFiles.find(
-        (entry) =>
-          archivePathKey(entry.archivePath) === archivePathKey(binding.path!)
-      )?.file;
+      const file = archiveMember(binding.path);
       if (!file) {
         skipped.push({ name, reason: 'archive member is missing' });
         return;
