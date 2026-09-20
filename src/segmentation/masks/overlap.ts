@@ -45,17 +45,26 @@ const masksReaching = (masks: BoundedScalars[], within: Extent3D) =>
 /**
  * Whether any of these masks holds the voxel at PARENT indices i, j, k, over
  * the box the caller is about to walk. Absent when no mask reaches that box.
+ *
+ * The answer is asked once per voxel the caller walks, so the sweep over the
+ * reaching masks is a plain indexed loop: a callback taking i, j, k would be a
+ * fresh closure per voxel.
  */
 export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
   const reaching = masksReaching(masks, within);
   if (reaching.length === 0) return undefined;
-  return (i: number, j: number, k: number) =>
-    reaching.some(
-      (bounded) =>
+  return (i: number, j: number, k: number) => {
+    for (let index = 0; index < reaching.length; index += 1) {
+      const bounded = reaching[index];
+      if (
         extentContainsIndex(bounded.extent, i, j, k) &&
         bounded.scalars[maskOffset(bounded, i, j, k)] !==
           LABELMAP_BACKGROUND_VALUE
-    );
+      )
+        return true;
+    }
+    return false;
+  };
 }
 
 /**
@@ -70,14 +79,19 @@ export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
   const reaching = masksReaching(masks, within);
   if (reaching.length === 0) return undefined;
   const changed = new Set<vtkLabelMap>();
+  // Indexed loop, as in masksHolding: claim runs once per voxel the caller
+  // walks, and a callback over the reaching masks would allocate per voxel.
   const claim = (i: number, j: number, k: number) => {
-    reaching.forEach((bounded) => {
-      if (!extentContainsIndex(bounded.extent, i, j, k)) return;
-      const offset = maskOffset(bounded, i, j, k);
-      if (bounded.scalars[offset] === LABELMAP_BACKGROUND_VALUE) return;
-      bounded.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
-      changed.add(bounded.mask);
-    });
+    for (let index = 0; index < reaching.length; index += 1) {
+      const bounded = reaching[index];
+      if (extentContainsIndex(bounded.extent, i, j, k)) {
+        const offset = maskOffset(bounded, i, j, k);
+        if (bounded.scalars[offset] !== LABELMAP_BACKGROUND_VALUE) {
+          bounded.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
+          changed.add(bounded.mask);
+        }
+      }
+    }
     return true;
   };
   return {
