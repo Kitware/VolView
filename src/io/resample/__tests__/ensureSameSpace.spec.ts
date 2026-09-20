@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPinia, setActivePinia } from 'pinia';
 import { resolve } from 'node:path';
 import { InterfaceTypes, runPipelineNode, type Image } from 'itk-wasm';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import * as wasm from '@/src/io/resample/itkWasmUtils';
 
@@ -53,26 +50,16 @@ describe('labelmap import index alignment', () => {
     expect(runWasm).not.toHaveBeenCalled();
   });
 
-  it('resamples a reflected child onto the parent grid with label interpolation', async () => {
-    setActivePinia(createPinia());
+  it('reorients a reflected label child onto the parent grid without resampling', async () => {
     const runWasm = useNodeResampling();
     const parent = makeImage();
     const child = makeImage();
     child.setOrigin([0, 2, 0]);
     child.setDirection(1, 0, 0, 0, -1, 0, 0, 0, 1);
     child.getPointData().getScalars().setComponent(0, 0, 7);
-    const cache = useImageCacheStore();
-    cache.addVTKImageData(parent, 'CTA', { id: 'parent' });
-    cache.addVTKImageData(child, 'cta-head-neck-total.seg.nii.gz', {
-      id: 'child',
-    });
+    const imported = await ensureSameSpace(parent, child, true);
 
-    const store = useSegmentGroupStore();
-    const [id] = await store.convertImageToLabelmap('child', 'parent');
-    const imported = store.dataIndex[id];
-
-    expect(runWasm).toHaveBeenCalledOnce();
-    expect(runWasm.mock.calls[0][1]).toContain('--label');
+    expect(runWasm).not.toHaveBeenCalled();
     expect(imported.getDirection()).toEqual(parent.getDirection());
     expect(imported.getOrigin()).toEqual(parent.getOrigin());
     expect(Array.from(imported.getPointData().getScalars().getData())).toEqual([

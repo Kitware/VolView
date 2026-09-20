@@ -4,6 +4,7 @@ import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { compareImageIndexGrids } from '@/src/utils/imageSpace';
 import { shallowCopyImageData } from '@/src/utils/vtk-helpers';
 import { runWasm } from './itkWasmUtils';
+import { reorientLabelImage } from './reorientLabelImage';
 
 export async function resample(fixed: Image, moving: Image, label = false) {
   const labelFlag = label ? ['--label'] : [];
@@ -30,7 +31,12 @@ export async function ensureSameSpace(
 ) {
   // Callers own what they get back and may hand it to something that disposes
   // it, so never return the candidate itself.
-  if (compareImageIndexGrids(target, resampleCandidate)) {
+  if (label) {
+    const reoriented = reorientLabelImage(target, resampleCandidate);
+    if (reoriented === resampleCandidate)
+      return shallowCopyImageData(resampleCandidate);
+    if (reoriented) return reoriented;
+  } else if (compareImageIndexGrids(target, resampleCandidate)) {
     return shallowCopyImageData(resampleCandidate);
   }
   const itkImage = await resample(
