@@ -114,12 +114,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   const segmentations = reactive<Record<string, Segmentation>>({});
   const convertingLabelmaps = reactive(new Set<DataSelection>());
-  // The conversion running for an image, so a second caller joins it instead
-  // of splitting the same labelmap twice.
-  const conversions = new Map<
-    DataSelection,
-    ReturnType<typeof importLabelmapImage>
-  >();
+  // The conversion running for a child image ONTO ONE PARENT, so a second
+  // caller for that same pair joins it instead of splitting the same labelmap
+  // twice. The parent belongs in the key: the same child going onto another
+  // parent is other work, and joining it would hand that caller masks made on
+  // an image it never named.
+  const conversions = new Map<string, ReturnType<typeof importLabelmapImage>>();
   /**
    * How many bound masks hold each name, so picking a default name probes this
    * rather than walking every mask in the scene. A restore attaches the names
@@ -412,11 +412,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     source?: ProcessingResultSource,
     descriptions: SourceDescription[] = []
   ) {
-    // A second conversion of an image already converting would split it again
-    // and mint a suffixed duplicate of every segment, and the first call's
-    // cleanup would clear the pending flag while the second still ran. Both
-    // callers share the one conversion and see it end when it really ends.
-    const running = conversions.get(imageID);
+    // A second conversion of an image already converting onto the same parent
+    // would split it again and mint a suffixed duplicate of every segment, and
+    // the first call's cleanup would clear the pending flag while the second
+    // still ran. Both callers share the one conversion and see it end when it
+    // really ends.
+    const pair = `${imageID}|${parentID}`;
+    const running = conversions.get(pair);
     if (running) return running;
 
     const bySourceValue = new Map(
@@ -460,11 +462,11 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         return created.map((segment) => segment.id);
       },
     });
-    conversions.set(imageID, conversion);
+    conversions.set(pair, conversion);
     try {
       return await conversion;
     } finally {
-      conversions.delete(imageID);
+      conversions.delete(pair);
       convertingLabelmaps.delete(imageID);
     }
   }

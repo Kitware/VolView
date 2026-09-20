@@ -176,6 +176,31 @@ describe('the import path answers on the segmentation store', () => {
     );
   });
 
+  // A conversion is joined by the child image AND the parent it is going onto.
+  // Two parents are two conversions: the second caller must be handed its own
+  // parent's masks, not the first parent's.
+  it('converts one child onto two parents at once', async () => {
+    await seat('parent-a', 'CT A');
+    await seat('parent-b', 'CT B');
+    await seat('child-img', 'Tumor.seg.nrrd', labelValues());
+
+    const [ontoA, ontoB] = await Promise.all([
+      store().convertImageToLabelmap('child-img', 'parent-a'),
+      store().convertImageToLabelmap('child-img', 'parent-b'),
+    ]);
+
+    expect(ontoB).not.toBe(ontoA);
+    expect(segmentsOf('parent-a').map((segment) => segment.id)).toEqual(
+      ontoA[0].map((entry) => entry.maskId)
+    );
+    expect(segmentsOf('parent-b').map((segment) => segment.id)).toEqual(
+      ontoB[0].map((entry) => entry.maskId)
+    );
+    expect(
+      segmentsOf('parent-b').map((segment) => appearanceOf(segment).name)
+    ).toEqual(['Tumor 1', 'Tumor 2']);
+  });
+
   it('refuses to convert an image into a labelmap of itself', async () => {
     await seatConvertible();
 
