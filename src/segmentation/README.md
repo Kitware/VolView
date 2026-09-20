@@ -31,9 +31,11 @@ stores or upper feature modules.
 ## Editing and persistence
 
 Process previews temporarily occupy live mask storage. Starting a competing
-edit cancels the preview before writing. Save, export, and job input staging
-also cancel an unconfirmed preview and read committed content. Applying a
-process commits its result, even when the original is selected in the preview.
+edit cancels the preview before writing. Save and export also cancel an
+unconfirmed preview and read committed content, as does job input staging when
+the task has a labelmap to stage; a task with no labelmap input leaves the
+preview standing. Applying a process commits its result, even when the original
+is selected in the preview.
 
 An algorithm may modify its detached input buffer and return it. Cancellation
 uses a separate original snapshot. Resolved storage stays with the process
