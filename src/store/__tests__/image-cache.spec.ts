@@ -33,4 +33,13 @@ describe('image cache lifecycle', () => {
 
     expect(store.getVtkImageData('img-1')).toBeNull();
   });
+
+  it('treats a disposed image still in the cache as absent', () => {
+    const store = seatImage();
+    // vtk.js delete() strips the model but keeps the closures, so the getters
+    // return undefined instead of throwing.
+    store.imageById['img-1'].dispose();
+
+    expect(store.getVtkImageData('img-1')).toBeNull();
+  });
 });
