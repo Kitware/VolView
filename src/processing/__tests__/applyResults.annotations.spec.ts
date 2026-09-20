@@ -729,13 +729,17 @@ describe('applyIntent — add-annotations', () => {
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 
-  it('applies without a source when the producer omitted one', async () => {
-    const outcome = await apply(
-      intent({ source: undefined }),
-      context(IMAGE_ID)
-    );
-    expect(outcome.status).toBe('applied');
-    expect(onlyTool(useRulerStore()).source).toBeUndefined();
+  it('mints the receipt from the submitted job when the producer omitted a source', async () => {
+    const unsourced = intent({ source: undefined });
+    expect((await apply(unsourced, context(IMAGE_ID))).status).toBe('applied');
+    expect(onlyTool(useRulerStore()).source).toEqual({
+      providerId: 'provider-1',
+      jobId: 'job-1',
+      outputId: 'r1',
+    });
+
+    await apply(unsourced, context(IMAGE_ID));
+    expect(toolCounts()).toEqual({ rulers: 1, rectangles: 1, polygons: 1 });
   });
 
   // A stored `frame` flips a tool into cine semantics (render slice,
