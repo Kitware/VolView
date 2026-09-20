@@ -930,10 +930,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     try {
       provider = await getProvider(providerId);
     } catch (err) {
-      jobHistoryErrors.set(
-        providerId,
-        getErrorDetail(err, 'Failed to load job history')
-      );
+      const detail = getErrorDetail(err, 'Failed to load job history');
+      jobHistoryErrors.set(providerId, detail);
       return;
     }
     const cursor = jobHistoryCursors.get(providerId) ?? undefined;
@@ -956,16 +954,16 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         );
       }
     } catch (err) {
+      // A 401 is the session, not this page, so it is reported as one.
+      if (expireSessionIf(err)) return;
       console.error('Job re-discovery failed', err);
-      jobHistoryErrors.set(
-        providerId,
-        getErrorDetail(err, 'Failed to load job history')
-      );
+      const detail = getErrorDetail(err, 'Failed to load job history');
+      jobHistoryErrors.set(providerId, detail);
     }
   }
 
   async function loadMoreJobHistory() {
-    if (jobHistoryComplete.value) return;
+    if (sessionExpired.value || jobHistoryComplete.value) return;
     if (jobHistoryRequest) return jobHistoryRequest;
     jobHistoryRequest = (async () => {
       jobHistoryLoading.value = true;
@@ -994,7 +992,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } while (
       pageCount < MAX_JOB_HISTORY_PAGES &&
       !jobHistoryComplete.value &&
-      jobHistoryError.value == null
+      jobHistoryError.value == null &&
+      !sessionExpired.value
     );
 
     if (
