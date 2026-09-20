@@ -63,9 +63,11 @@ describe('SEGMENT_COINCIDENT_OFFSET', () => {
   });
 
   it('is one offset, not a per-segment one', () => {
-    expect(SEGMENT_COINCIDENT_OFFSET).toHaveLength(2);
-    expect(
-      SEGMENT_COINCIDENT_OFFSET.every((value) => Number.isFinite(value))
-    ).toBe(true);
+    expect(SEGMENT_COINCIDENT_OFFSET).toEqual([-4, -4]);
+    // The same number twice, and nothing in either entry that a segment's
+    // place in the list could reach: the offset this replaced derived one of
+    // them from that index.
+    const [factor, units] = SEGMENT_COINCIDENT_OFFSET;
+    expect(factor).toBe(units);
   });
 });
