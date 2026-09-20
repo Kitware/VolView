@@ -67,7 +67,7 @@ const runGaussianSmooth: SegmentAlgorithm = (target) =>
     maskExtent: target.maskExtent,
     parentDimensions: target.parentDimensions,
     params: { sigma: 1, label: target.labelValue },
-  });
+  })!;
 
 /** What contour interpolation leaves: a gap closed by the slices around it. */
 const runFillBetween: SegmentAlgorithm = (target) => {

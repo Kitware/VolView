@@ -25,6 +25,17 @@ import {
   type Index3,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
+/** The real smoothing filter, as a process algorithm. */
+const smoothAlgorithm = () => async (target: ProcessTarget) =>
+  gaussianSmoothLabelMapWorker({
+    data: target.scalars,
+    dimensions: target.dimensions,
+    spacing: [1, 1, 1],
+    maskExtent: target.maskExtent,
+    parentDimensions: target.parentDimensions,
+    params: { sigma: 1, label: target.labelValue },
+  });
+
 // Both real algorithms run in process previews. Interpolation uses the
 // installed Node WASM entry point in place of its browser worker transport.
 const cases = [
@@ -36,15 +47,7 @@ const cases = [
     growth: [0, 2, 2] as Index3,
     mark: (i: number, j: number, k: number) =>
       i >= 1 && i <= 4 && j >= 1 && j <= 4 && k >= 1 && k <= 4,
-    algorithm: () => async (target: ProcessTarget) =>
-      gaussianSmoothLabelMapWorker({
-        data: target.scalars,
-        dimensions: target.dimensions,
-        spacing: [1, 1, 1],
-        maskExtent: target.maskExtent,
-        parentDimensions: target.parentDimensions,
-        params: { sigma: 1, label: target.labelValue },
-      }),
+    algorithm: smoothAlgorithm,
   },
   {
     name: 'Fill Between',
@@ -244,6 +247,23 @@ describe('process result placement', () => {
     expect(store().maskVoxels(id).scalars()).toBe(original);
     expect(markedVoxels(id)).toEqual([[2, 0, 0, 1]]);
     expect(markedVoxels(other)).toEqual([[4, 0, 0, 1]]);
+  });
+
+  it('says an emptied mask has nothing to smooth rather than previewing it', async () => {
+    const id = await oneVoxel();
+    // Erasing the last voxel keeps the allocation, so the run has a target
+    // whose buffer holds none of the label.
+    store().maskVoxels(id).scalars().fill(0);
+    const process = usePaintProcessStore();
+
+    await process.startProcess(smoothAlgorithm());
+
+    expect(process.processStep).toBe('start');
+    expect(
+      useMessageStore().messages.some(({ title }) =>
+        title.includes('had nothing to do')
+      )
+    ).toBe(true);
   });
 
   it('leaves a mask the failed run never wrote untouched', async () => {
