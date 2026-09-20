@@ -2,7 +2,7 @@
 // Two checks that need no judgement: no committed binaries outside the
 // directories that hold them, and no drift between a feature's modules on disk
 // and the hand-maintained upper-module list its pure layer is guarded against.
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { git, stagedContext } from './git.mjs';
 
@@ -89,6 +89,8 @@ const globToRegExp = (pattern) =>
   );
 
 features.forEach((dir) => {
+  // A feature the lint config lists ahead of its directory has nothing to check.
+  if (!existsSync(path.join(worktree, 'src', dir))) return;
   const listed = listAfter(dir).map(stripExtension);
   const pure = pureFilesFor(dir).map(globToRegExp);
   const covered = (module, file) =>
