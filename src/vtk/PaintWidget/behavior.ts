@@ -11,15 +11,26 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   const getWorldCoords = computeWorldCoords(model);
 
   // support setting per-view widget manipulators
-  macro.setGet(publicAPI, model, ['manipulator']);
+  macro.setGet(publicAPI, model, ['manipulator', 'sampling']);
 
   let isPainting = false;
+  let samplingStroke = false;
+
+  const setSampling = publicAPI.setSampling;
+  publicAPI.setSampling = (sampling: boolean) => {
+    // Once a gesture samples, it cannot resume writing before a fresh press.
+    if (sampling && isPainting) samplingStroke = true;
+    return setSampling(sampling);
+  };
 
   /**
    * Starts painting
    */
   publicAPI.handleLeftButtonPress = (eventData: any) => {
-    if (!model.manipulator || shouldIgnoreEvent(eventData)) {
+    if (
+      !model.manipulator ||
+      (!model.sampling && shouldIgnoreEvent(eventData))
+    ) {
       return macro.VOID;
     }
 
@@ -32,7 +43,8 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     brush.setOrigin(...worldCoords);
 
     isPainting = true;
-    publicAPI.invokeStartInteractionEvent();
+    samplingStroke = !!model.sampling;
+    publicAPI.invokeStartInteractionEvent({ sampling: samplingStroke });
     return macro.EVENT_ABORT;
   };
 
@@ -40,7 +52,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
    * Paints
    */
   publicAPI.handleMouseMove = (eventData: any) => {
-    if (shouldIgnoreEvent(eventData)) {
+    if (isPainting && !model.sampling && shouldIgnoreEvent(eventData)) {
       return macro.VOID;
     }
 
@@ -54,7 +66,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
     brush.setOrigin(...worldCoords);
 
     if (isPainting) {
-      publicAPI.invokeInteractionEvent();
+      if (!samplingStroke) publicAPI.invokeInteractionEvent();
       return macro.EVENT_ABORT;
     }
 
@@ -65,13 +77,13 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   /**
    * Finishes paint
    */
-  publicAPI.handleLeftButtonRelease = (eventData: any) => {
-    if (!isPainting || shouldIgnoreEvent(eventData)) {
+  publicAPI.handleLeftButtonRelease = () => {
+    if (!isPainting) {
       return macro.VOID;
     }
 
     isPainting = false;
-    publicAPI.invokeEndInteractionEvent();
+    if (!samplingStroke) publicAPI.invokeEndInteractionEvent();
     return macro.EVENT_ABORT;
   };
 
@@ -80,21 +92,5 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
     return macro.VOID;
-  };
-
-  publicAPI.grabFocus = () => {
-    if (!model.hasFocus) {
-      model.hasFocus = true;
-      model._interactor.requestAnimation(publicAPI);
-    }
-  };
-
-  publicAPI.loseFocus = () => {
-    if (model.hasFocus) {
-      model._interactor.cancelAnimation(publicAPI);
-    }
-    model.hasFocus = false;
-    // model._widgetManager.enablePicking();
-    // model._interactor.render();
   };
 }

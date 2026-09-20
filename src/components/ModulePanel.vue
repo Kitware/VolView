@@ -184,6 +184,7 @@ export default defineComponent({
   position: relative;
   flex: 2;
   min-height: 0;
+  container-type: size;
   overflow-x: hidden;
   overflow-y: auto;
 }

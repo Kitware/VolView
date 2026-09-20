@@ -1,5 +1,6 @@
 import type { RGBAColor } from '@kitware/vtk.js/types';
 import colorNames from 'color-name';
+import { plural } from '@/src/utils';
 import { hexaToRGBA, rgbaToHexa } from '@/src/utils/color';
 
 // A Map, not the package's plain object: prototype keys such as 'constructor'
@@ -27,6 +28,32 @@ export function tryCssColorToRGBA(css: string): RGBAColor | undefined {
   const hex = HEX_COLOR.exec(value)?.[1];
   return hex ? hexaToRGBA(expandShorthandHex(hex)) : undefined;
 }
+
+/**
+ * A label's stated color, parsed. An unrecognized one is noted in `rejected`
+ * as `name (color)`, so a file's boundary reports every miss at once.
+ */
+export function parseStatedColor(
+  name: string,
+  css: string | undefined,
+  rejected: Set<string>
+) {
+  if (!css) return undefined;
+  const color = tryCssColorToRGBA(css);
+  if (!color) rejected.add(`${name} (${css})`);
+  return color;
+}
+
+/** What a file's boundary reports about the colors it rejected, if any. */
+export const rejectedColorsMessage = (
+  where: string,
+  rejected: ReadonlySet<string>
+) =>
+  rejected.size === 0
+    ? undefined
+    : `Unrecognized ${plural(rejected.size, 'color')} in ${where}: ` +
+      `${[...rejected].join(', ')}. ` +
+      'Use a hex value such as #d60000, or a CSS color keyword.';
 
 /** Falls back to opaque black for unparseable label colors. */
 export function cssColorToRGBA(css: string): RGBAColor {

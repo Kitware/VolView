@@ -13,7 +13,9 @@ import { plural } from '@/src/utils';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 import { useToolSelectionStore } from './toolSelection';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   EffectiveView,
   getEffectiveView,
@@ -30,6 +32,16 @@ export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
     return false;
   return true;
 }
+
+// These tools draw into the selected segment, so picking one up seats a
+// segment: the palette shows the color the next stroke will be before it is
+// made. Seating allocates no voxels.
+const SEGMENT_TOOLS = new Set([
+  Tools.Paint,
+  Tools.Rectangle,
+  Tools.Ruler,
+  Tools.Polygon,
+]);
 
 const activeEffectiveView = () => getEffectiveView(useViewStore().activeView);
 
@@ -120,6 +132,7 @@ function teardownTool(tool: Tools) {
 export const useToolStore = defineStore('tool', () => {
   const currentTool = ref(Tools.WindowLevel);
   const toolBeforeTemporaryCrosshairs = ref<Tools>(currentTool.value);
+  const { currentImageID } = useCurrentImage('global');
 
   function setCurrentTool(tool: Tools) {
     const coerced = coerceForEffective(tool, activeEffectiveView());
@@ -131,6 +144,10 @@ export const useToolStore = defineStore('tool', () => {
     }
     teardownTool(currentTool.value);
     currentTool.value = coerced;
+    // A shortcut can pick a tool up with no image, where a seat would linger.
+    if (SEGMENT_TOOLS.has(coerced) && currentImageID.value) {
+      useSegmentStore().segments.ensureSelectedSegment();
+    }
   }
 
   function activateTemporaryCrosshairs() {
@@ -173,18 +190,14 @@ export const useToolStore = defineStore('tool', () => {
 
   function deserialize(
     manifest: Manifest,
-    segmentGroupIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string>,
     dataIDMap: Record<string, string>
   ) {
-    usePaintToolStore().deserialize(manifest, segmentGroupIDMap);
-
     Object.values(ToolStoreMap)
-      // paint store uses segmentGroupIDMap
-      .filter((useStore) => useStore !== usePaintToolStore)
       .map((useStore) => useStore?.())
       .filter((store): store is IToolStore => !!store)
       .forEach((store) => {
-        store.deserialize?.(manifest, dataIDMap);
+        store.deserialize?.(manifest, dataIDMap, segmentIdMap);
       });
 
     if (manifest.tools?.current) {

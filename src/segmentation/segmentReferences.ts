@@ -33,8 +33,13 @@ export function declareSegmentReferences(
   holdersOf()?.set(name, holder);
 }
 
-export const segmentIsReferenced = (segmentId: string) =>
-  [...(holdersOf()?.values() ?? [])].some((holder) => holder.has(segmentId));
-
-export const removeSegmentReferences = (segmentId: string) =>
-  holdersOf()?.forEach((holder) => holder.remove(segmentId));
+// Resolved once, so a registry answers for its own app whichever is active.
+export const activeSegmentReferences = () => {
+  const holders = holdersOf();
+  return {
+    isReferenced: (segmentId: string) =>
+      [...(holders?.values() ?? [])].some((holder) => holder.has(segmentId)),
+    remove: (segmentId: string) =>
+      holders?.forEach((holder) => holder.remove(segmentId)),
+  };
+};

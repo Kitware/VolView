@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { useElementSize } from '@vueuse/core';
 import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { OverlayInfo } from '@/src/composables/annotationTool';
+import { NO_NAME } from '@/src/constants';
 
 const TOOLTIP_PADDING_X = 30;
 const TOOLTIP_PADDING_Y = 16;
@@ -30,7 +31,8 @@ const metadata = computed(() => {
 
 const label = computed(() => {
   if (!props.info.visible) return '';
-  return props.toolStore.toolByID[props.info.toolID].labelName;
+  const { segmentId } = props.toolStore.toolByID[props.info.toolID];
+  return props.toolStore.segments.appearanceOf(segmentId).name || NO_NAME;
 });
 
 const tooltip = ref();

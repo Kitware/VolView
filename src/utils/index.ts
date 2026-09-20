@@ -96,6 +96,16 @@ export function partition<T>(
   return partitioned;
 }
 
+/** A cursor over `items`: each call hands out the next one, wrapping around. */
+export function cycle<T>(items: readonly T[]) {
+  let index = 0;
+  return () => {
+    const item = items[index];
+    index = (index + 1) % items.length;
+    return item;
+  };
+}
+
 export function partitionByType<T, U extends T>(
   guard: (x: T) => x is U,
   arr: T[]

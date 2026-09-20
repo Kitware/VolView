@@ -170,8 +170,14 @@ export default function widgetBehavior(publicAPI: any, model: any) {
   // Left press: Select handle to drag / Add new handle
   // --------------------------------------------------------------------------
 
+  const canDragHandle = () =>
+    model.activeState?.getActive() &&
+    model.activeState?.setOrigin &&
+    model.pickable &&
+    model.dragable;
+
   publicAPI.handleLeftButtonPress = (event: vtkMouseEvent) => {
-    if (!model.manipulator) {
+    if (!model.manipulator || anotherWidgetHasFocus()) {
       return macro.VOID;
     }
 
@@ -213,12 +219,7 @@ export default function widgetBehavior(publicAPI: any, model: any) {
       return macro.EVENT_ABORT;
     }
 
-    if (
-      model.activeState?.getActive() &&
-      model.activeState?.setOrigin &&
-      model.pickable &&
-      model.dragable
-    ) {
+    if (canDragHandle()) {
       setDragging(true);
       model._apiSpecificRenderWindow.setCursor('grabbing');
       model._interactor.requestAnimation(publicAPI);

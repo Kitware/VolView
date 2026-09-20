@@ -717,7 +717,7 @@
                       }
                     },
                     "multiple": {
-                      "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. Only labelmap source refs bind plurally today — every group whose parent is the active dataset, in store order; on other type tags the flag has no effect yet.",
+                      "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. The client currently stages the whole segmentation of the active image as one flattened labelmap file for either setting; the flag does not select additional segmentations.",
                       "type": "boolean"
                     }
                   },

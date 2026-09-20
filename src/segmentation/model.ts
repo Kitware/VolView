@@ -1,4 +1,4 @@
-import type { Extent3D } from '@/src/segmentation/geometry';
+import { isEmptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 import type { ProcessingResultSource } from '@/src/types';
 import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
@@ -6,6 +6,12 @@ import type vtkLabelMap from '@/src/vtk/LabelMap';
 
 /** A fresh segmentation tints the anatomy under it rather than hiding it. */
 export const DEFAULT_SEGMENTATION_FILL_OPACITY = 0.3;
+
+export const DEFAULT_SEGMENTATION_DISPLAY = {
+  fillOpacity: DEFAULT_SEGMENTATION_FILL_OPACITY,
+  outlineOpacity: 1,
+  outlineThickness: 2,
+};
 
 export type LabelmapBinding = {
   /**
@@ -20,9 +26,9 @@ export type LabelmapBinding = {
 };
 
 /**
- * One image's mask for one segment type. Its id is its own, distinct from the
- * type id: everything the user sees or sets, visibility and lock included,
- * lives on the type, so this record is storage and nothing else.
+ * One image's mask for one segment. Its id is its own, distinct from the
+ * segment id: everything the user sees or sets, visibility and lock included,
+ * lives on the segment, so this record is storage and nothing else.
  */
 export type SegmentMask = {
   id: string;
@@ -31,6 +37,17 @@ export type SegmentMask = {
     // absent until voxels are allocated
     labelmap?: LabelmapBinding;
   };
+};
+
+/**
+ * Whether a mask holds anything. A record alone is not content, and neither is
+ * storage bound over an empty extent: both mean the segment was resolved on
+ * this image but never painted. Readers that count or gate on what an image
+ * actually has ask this instead of whether the record exists.
+ */
+export const maskHasContent = (mask: SegmentMask) => {
+  const binding = mask.representations.labelmap;
+  return !!binding && !isEmptyExtent(binding.extent);
 };
 
 export const LABELMAP_BACKGROUND_VALUE = 0;

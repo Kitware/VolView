@@ -48,15 +48,22 @@
     </v-alert>
 
     <!-- Low-emphasis on purpose: accent blue is reserved for the active tab and links. -->
-    <v-btn
+    <reasoned-action
+      :reason="submitDisabledReason"
+      location="end"
       block
-      variant="tonal"
-      :disabled="issues.length > 0 || hasWidgetErrors || submitting"
-      :loading="submitting"
-      @click="onSubmit"
+      v-slot="{ disabled }"
     >
-      Submit
-    </v-btn>
+      <v-btn
+        block
+        variant="tonal"
+        :disabled="disabled"
+        :loading="submitting"
+        @click="onSubmit"
+      >
+        Submit
+      </v-btn>
+    </reasoned-action>
 
     <div
       v-if="model.hidden.length > 0"
@@ -77,6 +84,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
 import type { ProcessingValue } from '@/src/processing/types';
 import {
@@ -132,8 +140,13 @@ watch(
     widgetErrors.value = {};
   }
 );
-const hasWidgetErrors = computed(
-  () => Object.keys(widgetErrors.value).length > 0
+const submitDisabledReason = computed(() =>
+  props.submitting
+    ? 'Submitting the task'
+    : (props.issues[0]?.message ??
+      (Object.keys(widgetErrors.value).length
+        ? 'Correct the invalid parameter values first'
+        : ''))
 );
 
 function onSubmit() {

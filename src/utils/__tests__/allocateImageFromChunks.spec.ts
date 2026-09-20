@@ -236,7 +236,7 @@ describe('getTypedArrayValueRange', () => {
     });
   });
 
-  it('has no range to report for element types the allocator never makes', () => {
+  it('has no range to report for element segments the allocator never makes', () => {
     expect(getTypedArrayValueRange(Float32Array)).toBeUndefined();
   });
 });

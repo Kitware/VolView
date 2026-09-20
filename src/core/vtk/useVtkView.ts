@@ -68,10 +68,14 @@ export function useWidgetManager(renderer: vtkRenderer) {
 
   const updatePickingState = () => {
     const enabled = manager.getPickingEnabled();
-    const widgetCount = manager.getWidgets().length;
-    if (!enabled && widgetCount) {
+    const widgets = manager.getWidgets();
+    const focused = widgets.find((widget) => widget.hasFocus());
+    const needsPicking = focused
+      ? focused.getNestedPickable()
+      : widgets.some((widget) => widget.getNestedPickable());
+    if (!enabled && needsPicking) {
       manager.enablePicking();
-    } else if (enabled && !widgetCount) {
+    } else if (enabled && !needsPicking) {
       manager.disablePicking();
     }
   };

@@ -96,7 +96,6 @@ const context = (
 ): SourceRefBindingContext =>
   createSourceRefBindingContext({
     activeDataSource,
-    getDataSource: () => undefined,
   });
 
 describe('mintInputValue matches the input-value golden fixtures', () => {

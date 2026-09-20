@@ -13,8 +13,8 @@ import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
  * Identity and shared appearance for everything drawn as one thing: a paint
  * mask on any image, a rectangle, a polygon. Appearance fields are absent
  * until set and mean "app default" while they are, so a configured or imported
- * type that states nothing follows the default and a ruler type carries no
- * meaningless opacity.
+ * segment that states nothing follows the default and a ruler's segment carries
+ * no meaningless opacity.
  */
 export type Segment = {
   id: string;
@@ -43,12 +43,12 @@ const APPEARANCE_DEFAULTS = {
 };
 
 /**
- * The one resolver. Every renderer, editor and encoder reads a type through
- * it; nothing reads the optional fields directly, so an absent field means the
- * app default in exactly one place.
+ * The one resolver. Every renderer, editor and encoder reads a segment
+ * through it; nothing reads the optional fields directly, so an absent field
+ * means the app default in exactly one place.
  */
-export const resolveSegmentAppearance = (type: Maybe<Segment>) => {
-  const stated: Partial<Segment> = type ?? {};
+export const resolveSegmentAppearance = (segment: Maybe<Segment>) => {
+  const stated: Partial<Segment> = segment ?? {};
   const resolved = {
     ...APPEARANCE_DEFAULTS,
     ...cleanUndefined({
@@ -70,10 +70,10 @@ export const resolveSegmentAppearance = (type: Maybe<Segment>) => {
  * consume it.
  */
 export const toLabelmapSegment = (
-  type: Maybe<Segment>,
+  segment: Maybe<Segment>,
   labelValue: number
 ): LabelmapSegment => {
-  const resolved = resolveSegmentAppearance(type);
+  const resolved = resolveSegmentAppearance(segment);
   return {
     value: labelValue,
     name: resolved.name,

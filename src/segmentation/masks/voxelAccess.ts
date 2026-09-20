@@ -54,7 +54,7 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
 
   function requireParentImage(maskId: string) {
     const segmentation = segmentationOfMask(maskId);
-    if (!segmentation) throw new Error('No such segment');
+    if (!segmentation) throw new Error('No such mask');
     const parent = imageCacheStore.getVtkImageData(segmentation.parentImageId);
     if (!parent) throw new Error('No such parent image');
     return parent;
@@ -158,7 +158,7 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       maskId,
       () => findMask(maskId)?.representations.labelmap,
       () => {
-        throw new Error('No such segment');
+        throw new Error('No such mask');
       }
     );
 

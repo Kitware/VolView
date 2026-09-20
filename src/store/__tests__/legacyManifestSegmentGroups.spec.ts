@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { makeSpecImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
-import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restoreStateFile';
+import { migrateManifest } from '@/src/io/state-file/migrations';
+import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
+import { listMasks } from '@/src/segmentation/model';
 
 // ---------------------------------------------------------------------------
 // Backward compatibility: manifests saved before `datasets` existed (and
@@ -17,17 +19,6 @@ import { resolveArtifactRestoreSources } from '@/src/io/import/processors/restor
 // covering dataset, exactly as it did on main, and the consumed artifact
 // dataset is removed after conversion.
 // ---------------------------------------------------------------------------
-
-const ioMocks = vi.hoisted(() => ({
-  readImage: vi.fn(),
-  writeSegmentation: vi.fn(async () => new Uint8Array([1, 2, 3])),
-}));
-
-// eslint-disable-next-line no-restricted-syntax -- ITK-wasm image IO has no counterpart in the node test environment
-vi.mock('@/src/io/readWriteImage', () => ({
-  readImage: ioMocks.readImage,
-  writeSegmentation: ioMocks.writeSegmentation,
-}));
 
 const segments = {
   order: [1],
@@ -41,42 +32,35 @@ const segments = {
   },
 };
 
-// No `datasets` root: the legacy composed shape.
-const legacyManifest = ManifestSchema.parse({
-  version: '6.4.0',
-  dataSources: [
-    { id: 1, type: 'uri', uri: 'https://ex/ct.nrrd', name: 'CT Chest' },
-    { id: 3, type: 'uri', uri: 'https://ex/tumor.seg.nrrd', name: 'Tumor' },
-  ],
-  segmentGroups: [
-    {
-      id: 'sg-tumor',
-      dataSourceId: 3,
-      metadata: { name: 'sg-tumor', parentImage: '1', segments },
-    },
-  ],
-});
-
-function makeImage() {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(4 * 4 * 4),
+// No `datasets` root: the legacy composed shape, read through the migration
+// the import path runs before anything touches a store.
+const legacyManifest = ManifestSchema.parse(
+  migrateManifest(
+    JSON.stringify({
+      version: '6.4.0',
+      dataSources: [
+        { id: 1, type: 'uri', uri: 'https://ex/ct.nrrd', name: 'CT Chest' },
+        { id: 3, type: 'uri', uri: 'https://ex/tumor.seg.nrrd', name: 'Tumor' },
+      ],
+      segmentGroups: [
+        {
+          id: 'sg-tumor',
+          dataSourceId: 3,
+          metadata: { name: 'sg-tumor', parentImage: '1', segments },
+        },
+      ],
     })
-  );
-  image.computeTransforms();
-  return image;
-}
+  )
+);
+
+const makeImage = () => makeSpecImage();
 
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(makeImage(), name, { id });
 
-describe('segmentGroups.deserialize — legacy manifests without `datasets`', () => {
+describe('migrated legacy manifests without `datasets`', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    ioMocks.readImage.mockReset();
   });
 
   it('attaches a path-less group via the dataset covering its dataSourceId', async () => {
@@ -84,22 +68,54 @@ describe('segmentGroups.deserialize — legacy manifests without `datasets`', ()
     seatImage('store-seg', 'Tumor');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
-    const store = useSegmentGroupStore();
-    const { segmentGroupIDMap: idMap, skipped } = await store.deserialize(
-      legacyManifest,
-      [],
+    const store = useSegmentationStore();
+    const { restoredImportIds: restored, skipped } = await store.deserialize({
+      manifest: legacyManifest,
+      stateFiles: [],
       // Restore keys every fallback dataset by its stringified source id.
-      { '1': 'store-ct', '3': 'store-seg' },
-      resolveArtifactRestoreSources(legacyManifest)
-    );
+      dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
+      segmentIdMap: useSegmentStore().deserialize(legacyManifest),
+      labelmapSources: resolveLabelmapSources(legacyManifest),
+    });
 
     expect(skipped).toEqual([]);
-    expect(idMap['sg-tumor']).toBeDefined();
-    expect(
-      Object.values(store.metadataByID).some((m) => m.name === 'sg-tumor')
-    ).toBe(true);
+    expect(restored.has('sg-tumor')).toBe(true);
     // The consumed artifact dataset is removed after conversion.
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledWith('store-seg');
+
+    // The migrated descriptor restored as a segment with its own bounded mask.
+    const segmentation = store.getSegmentationForImage('store-ct')!;
+    expect(
+      listMasks(segmentation).map((segment) => ({
+        name: useSegmentStore().segments.appearanceOf(segment.segmentId).name,
+        bound: !!segment.representations.labelmap,
+      }))
+    ).toEqual([{ name: 'Tumor', bound: true }]);
+  });
+
+  // The split reuses the segment the manifest named only while that segment
+  // holds no mask on this image, so the migrated masks must be detached first.
+  // Splitting before the detach mints a suffixed duplicate instead.
+  it('reuses the migrated segment rather than minting a second one', async () => {
+    seatImage('store-ct', 'CT Chest');
+    seatImage('store-seg', 'Tumor');
+
+    const store = useSegmentationStore();
+    await store.deserialize({
+      manifest: legacyManifest,
+      stateFiles: [],
+      dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
+      segmentIdMap: useSegmentStore().deserialize(legacyManifest),
+      labelmapSources: resolveLabelmapSources(legacyManifest),
+    });
+
+    const names = useSegmentStore().segments.segmentList.value.map(
+      (segment) => segment.name
+    );
+    expect(names).toEqual(['Tumor']);
+    expect(listMasks(store.getSegmentationForImage('store-ct')!)).toHaveLength(
+      1
+    );
   });
 });
