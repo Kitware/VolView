@@ -1,5 +1,6 @@
 import {
   ANNOTATION_TOOL_KINDS,
+  RESULT_INTENTS,
   type AnnotationLabel,
   type AnnotationToolKind,
   type KnownResultIntent,
@@ -492,11 +493,20 @@ export async function applyIntent(
 // The applier routes on the declared intent, so a result carrying one it
 // cannot read is skipped. Say so: the completion toast has already promised
 // the results, and the skip otherwise leaves a plain download and no reason.
+// A result is skipped for two different reasons, and they point at different
+// culprits: an intent name outside the vocabulary is this client being too old,
+// while a name inside it means the payload failed the intent's shape, which is
+// the producer's row to fix.
 function reportUnroutableIntent(result: ProcessingResult) {
   if (!result.intent) return;
+  const nameIsKnown = (RESULT_INTENTS as readonly string[]).includes(
+    result.intent
+  );
   surfaceWarning(
     `Did not load ${result.name}`,
-    `This version cannot apply the result intent "${result.intent}". The result is still available for download in the Jobs panel.`
+    nameIsKnown
+      ? `The result intent "${result.intent}" is supported, but this result does not carry the payload that intent requires, so it was rejected. The result is still available for download in the Jobs panel.`
+      : `This version cannot apply the result intent "${result.intent}". The result is still available for download in the Jobs panel.`
   );
 }
 

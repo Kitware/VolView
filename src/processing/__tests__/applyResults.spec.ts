@@ -376,6 +376,36 @@ describe('autoLoadProcessingResults', () => {
     ]);
   });
 
+  it('blames the payload, not the client, for a known intent it rejects', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // import-segmentation is routed, but a three-component color fails the
+    // segment descriptor, so the result carries no directive.
+    await autoLoad(
+      [
+        result({
+          name: 'otsu.nii.gz',
+          intent: 'import-segmentation',
+          segments: [
+            { value: 1, name: 'Bin 1', color: [255, 0, 0] },
+          ] as unknown as ProcessingResult['segments'],
+        }),
+      ],
+      context('parent')
+    );
+    expect(deps.segmentWriter.convertImageToLabelmap).not.toHaveBeenCalled();
+    expect(errorMessages()).toEqual([
+      expect.objectContaining({
+        title: 'Did not load otsu.nii.gz',
+        options: expect.objectContaining({
+          details: expect.stringContaining('import-segmentation'),
+        }),
+      }),
+    ]);
+    expect(errorMessages()[0].options.details).not.toContain(
+      'This version cannot apply'
+    );
+  });
+
   it('stays quiet about a result that declares no intent', async () => {
     await autoLoad([result()], context('parent'));
     expect(errorMessages()).toEqual([]);
