@@ -70,7 +70,7 @@ const defaultLabelmapIO: LabelmapIO = {
  * scene with many masks would start one worker per mask and hold every parsed
  * mask at once. Save and restore run this many at a time instead.
  */
-const MASK_IO_CONCURRENCY = 4;
+export const MASK_IO_CONCURRENCY = 4;
 
 /** Promise.all with a bound on how many run at once; results stay in order. */
 async function mapWithLimit<T, R>(

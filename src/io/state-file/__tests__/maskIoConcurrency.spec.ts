@@ -10,6 +10,7 @@ import {
   serializeToStateFiles,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { MASK_IO_CONCURRENCY } from '@/src/segmentation/io/stateFile';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 
@@ -21,7 +22,9 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 // ---------------------------------------------------------------------------
 
 const MASK_COUNT = 12;
-const LIMIT = 4;
+// The cap itself, not a copy of it: a spec that restated the number would keep
+// passing for a save and restore that stopped bounding anything.
+const LIMIT = MASK_IO_CONCURRENCY;
 
 /** Resolves after enough microtasks for every already-started call to start. */
 const settleLate = async () => {
