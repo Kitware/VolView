@@ -60,7 +60,7 @@ const featureBoundaries = (features) => {
           {
             paths: ['pinia', 'vue'].map((name) => ({
               name,
-              message: `The ${feature.dir} pure layer must stay framework-free — no ${name}.`,
+              message: `The ${feature.dir} pure layer must stay framework-free: no ${name}.`,
             })),
             patterns: [
               {
