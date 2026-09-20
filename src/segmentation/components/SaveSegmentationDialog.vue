@@ -1,5 +1,5 @@
 <template>
-  <v-card>
+  <v-card ref="card">
     <v-card-title class="d-flex flex-row align-center">
       Save Segments
     </v-card-title>
@@ -55,7 +55,13 @@ import {
 } from '@/src/segmentation/io/composition';
 
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
-import { computed, onMounted, ref } from 'vue';
+import {
+  computed,
+  onMounted,
+  ref,
+  useTemplateRef,
+  type ComponentPublicInstance,
+} from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { saveAs } from 'file-saver';
 import { useSegmentationStore } from '@/src/segmentation/store';
@@ -146,6 +152,10 @@ async function writeParts(stem: string) {
 }
 
 async function saveSegmentation() {
+  // One keystroke can arrive twice -- the form submits and the key handler
+  // below fires -- and a write in flight must not be joined by a second one
+  // composing the same masks into a second download.
+  if (saving.value) return;
   if (fileName.value.trim().length === 0) {
     return;
   }
@@ -167,8 +177,12 @@ onMounted(() => {
   fileNameValue.value = sanitizeSegmentationFileStem(segmentation.value.name);
 });
 
-onKeyDown('Enter', () => {
-  saveSegmentation();
+// Enter saves, but only when it belongs to this dialog: the listener sits on
+// the card rather than on the window, so a keystroke aimed at an overlay above
+// it, such as the format menu, chooses an option instead of starting a save.
+const card = useTemplateRef<ComponentPublicInstance>('card');
+onKeyDown('Enter', () => saveSegmentation(), {
+  target: () => card.value?.$el,
 });
 
 function validFileName(name: string) {
