@@ -1,4 +1,5 @@
 import { computed } from 'vue';
+import { writeSegmentation } from '@/src/io/readWriteImage';
 
 import {
   segmentationFileStem,
@@ -60,7 +61,7 @@ export type AnnotationsPayload = {
 // Reads the active image's inputs off the stores and stages them with a
 // provider at Run. Values earn URIs only here: neither the labelmap nor the
 // annotations file has server provenance of its own before staging.
-export function useInputStaging() {
+export function useInputStaging(write = writeSegmentation) {
   const { currentImageID } = useCurrentImage('global');
   const imageCache = useImageCacheStore();
   const datasetStore = useDatasetStore();
@@ -160,16 +161,19 @@ export function useInputStaging() {
       plan,
       segmentationFileStem(plan.parentId, plan.name),
       'seg.nrrd',
-      async ({ name, data }) => {
-        const staged = await p.stageInput({
-          file: new Blob([data]),
-          descriptor: {
-            type: TYPE_TAG_LABELMAP,
-            name,
-            referenceImage: { ...referenceImage, type: 'image' },
-          },
-        });
-        uris.push(...staged);
+      {
+        write,
+        deliver: async ({ name, data }) => {
+          const staged = await p.stageInput({
+            file: new Blob([data]),
+            descriptor: {
+              type: TYPE_TAG_LABELMAP,
+              name,
+              referenceImage: { ...referenceImage, type: 'image' },
+            },
+          });
+          uris.push(...staged);
+        },
       }
     );
     return uris;

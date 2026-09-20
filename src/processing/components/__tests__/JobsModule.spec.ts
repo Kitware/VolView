@@ -8,7 +8,11 @@ import {
   onTestFinished,
   vi,
 } from 'vitest';
-import { shallowMount, flushPromises } from '@vue/test-utils';
+import {
+  enableAutoUnmount,
+  shallowMount,
+  flushPromises,
+} from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createApp } from 'vue';
 
@@ -51,9 +55,9 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useMessageStore } from '@/src/store/messages';
 import { useViewStore } from '@/src/store/views';
-import { useImageCacheStore } from '@/src/store/image-cache';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import { seatStagingScene } from '@/src/processing/engine/__tests__/stagingScene';
+
+enableAutoUnmount(afterEach);
 
 const cfg = (id: string): ProcessingProviderConfig => ({
   id,
@@ -437,17 +441,12 @@ describe('JobsModule — race-free provider/task selection', () => {
 describe('JobsModule segmentation staging', () => {
   let pinia: ReturnType<typeof createPinia>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.useFakeTimers();
     ioMocks.writeSegmentation.mockClear();
-    pinia = createPinia().use(CorePiniaProviderPlugin());
-    createApp({}).use(pinia);
-    setActivePinia(pinia);
+    pinia = await seatStagingScene();
   });
 
-  // A spy left on the composition module outlives its case and is handed back
-  // to the next spyOn with its tally, so the cases below would only agree on a
-  // call count in the order they happen to sit in the file.
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -476,32 +475,6 @@ describe('JobsModule segmentation staging', () => {
     ],
     outputs: [],
   });
-
-  const seedActiveImage = () => {
-    useDatasetStore().addDataSources([
-      {
-        dataID: 'image-1',
-        dataSource: {
-          type: 'uri',
-          uri: 'girder://file/image-1',
-          name: 'image.nrrd',
-        },
-      },
-    ]);
-    const image = vtkImageData.newInstance({ spacing: [1, 1, 1] });
-    image.setDimensions([2, 2, 2]);
-    image.getPointData().setScalars(
-      vtkDataArray.newInstance({
-        numberOfComponents: 1,
-        values: new Uint8Array(8),
-      })
-    );
-    image.computeTransforms();
-    useImageCacheStore().addVTKImageData(image, 'image.nrrd', {
-      id: 'image-1',
-    });
-    useViewStore().setDataForAllViews('image-1');
-  };
 
   const seedSegmentation = (name: string) => {
     const store = useSegmentationStore();
@@ -558,7 +531,6 @@ describe('JobsModule segmentation staging', () => {
   };
 
   it('stages the image’s segmentation for a multiple param', async () => {
-    seedActiveImage();
     seedSegmentation('Tumor');
 
     const { provider, submitSpy } = await submit(labelmapSpec(true));
@@ -575,7 +547,6 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('stages the active image’s segmentation for a singular param', async () => {
-    seedActiveImage();
     seedSegmentation('Liver');
 
     const { provider, submitSpy } = await submit(labelmapSpec(false));
@@ -588,7 +559,6 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('stages the labelmap under the image name without its extension', async () => {
-    seedActiveImage();
     seedSegmentation('scan.nii.gz');
 
     const { provider } = await submit(labelmapSpec(false));
@@ -611,7 +581,6 @@ describe('JobsModule segmentation staging', () => {
   it.each([false, true])(
     'packs overlaps according to input multiplicity (multiple=%s)',
     async (multiple) => {
-      seedActiveImage();
       seedOverlappingSegments();
       const { provider, submitSpy } = await submit(labelmapSpec(multiple));
       const [, labelmap, segments] = ioMocks.writeSegmentation.mock.calls[0];
@@ -638,7 +607,6 @@ describe('JobsModule segmentation staging', () => {
   );
 
   it('names omitted whole segments beside a single-file input', async () => {
-    seedActiveImage();
     seedOverlappingSegments();
 
     const notice = overlapNotice(await mountWithSpec(labelmapSpec(false)));
@@ -652,7 +620,6 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('says nothing about overlap when the segments hold no voxel in common', async () => {
-    seedActiveImage();
     seedSegmentation('Tumor');
 
     expect(
@@ -663,7 +630,6 @@ describe('JobsModule segmentation staging', () => {
   const seedDisjointPair = async (
     reach?: [number, number, number, number, number, number]
   ) => {
-    seedActiveImage();
     const segmentStore = useSegmentationStore();
     const segmentation = segmentStore.ensureSegmentationForImage('image-1');
     const first = segmentStore.createMask(
@@ -739,7 +705,6 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('drops the omission notice when a union input moves to annotations', async () => {
-    seedActiveImage();
     seedOverlappingSegments();
     const unionSpec = labelmapSpec(false);
     unionSpec.parameters[1] = {
@@ -758,7 +723,6 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('says nothing about overlap when no segmentation is staged', async () => {
-    seedActiveImage();
     seedOverlappingSegments();
 
     const wrapper = await mountWithSpec(envelope('plain', 'No inputs'));
@@ -767,7 +731,6 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('reports a staging failure and submits nothing', async () => {
-    seedActiveImage();
     seedSegmentation('Tumor');
 
     const p = stagingProvider(labelmapSpec(true));

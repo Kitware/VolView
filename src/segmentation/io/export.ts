@@ -37,7 +37,13 @@ export async function writeLabelmapParts(
   { parentId, parts }: { parentId: string; parts: SegmentMask[][] },
   stem: string,
   format: string,
-  deliver: (file: ExportFile) => Promise<void> | void
+  {
+    deliver,
+    write = writeSegmentation,
+  }: {
+    deliver: (file: ExportFile) => Promise<void> | void;
+    write?: typeof writeSegmentation;
+  }
 ) {
   // Captured before the first await, so an edit made meanwhile misses the files.
   const snapshot = captureLabelmapParts(parentId, parts);
@@ -45,7 +51,7 @@ export async function writeLabelmapParts(
   // the writes on one shared worker whatever the caller does.
   for (const [index, part] of snapshot.parts.entries()) {
     const { labelmap, segments } = composeLabelmapPart(snapshot.parent, part);
-    const data = await writeSegmentation(format, labelmap, segments);
+    const data = await write(format, labelmap, segments);
     await deliver({ name: layerFileName(stem, format, index), data });
   }
 }
