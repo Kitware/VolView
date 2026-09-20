@@ -233,26 +233,29 @@ export const usePaintToolStore = defineStore('paint', () => {
       strokeExtent
     );
     const parentDimensions = parentImage.getDimensions();
+    const rowStride = parentDimensions[0];
+    const sliceStride = parentDimensions[0] * parentDimensions[1];
     const maskData = voxels.scalars();
     const [minThreshold, maxThreshold] = thresholdRange.value;
 
-    const toParent = (point: number[]) => [
-      point[0] + extent[0],
-      point[1] + extent[2],
-      point[2] + extent[4],
-    ];
+    // The brush hands back points in the mask's own frame, and the mask's
+    // origin puts them back on the parent grid. Taken a component at a time:
+    // both callbacks below run for every voxel the brush touches, and a triple
+    // per voxel is an allocation per voxel.
+    const originI = extent[0];
+    const originJ = extent[2];
+    const originK = extent[4];
+    const parentOffset = (point: number[]) =>
+      point[0] +
+      originI +
+      (point[1] + originJ) * rowStride +
+      (point[2] + originK) * sliceStride;
 
     const shouldPaint = (offset: number, point: number[]) => {
-      const [i, j, k] = toParent(point);
       // Erase clears the active segment only.
       if (erasing && maskData[offset] !== labelValue) return false;
 
-      const pixValue =
-        underlyingImagePixels[
-          i +
-            j * parentDimensions[0] +
-            k * parentDimensions[0] * parentDimensions[1]
-        ];
+      const pixValue = underlyingImagePixels[parentOffset(point)];
       return minThreshold <= pixValue && pixValue <= maxThreshold;
     };
 
@@ -274,8 +277,11 @@ export const usePaintToolStore = defineStore('paint', () => {
           onPainted: erasing
             ? undefined
             : (point: number[]) => {
-                const [i, j, k] = toParent(point);
-                claimVoxel?.claim(i, j, k);
+                claimVoxel?.claim(
+                  point[0] + originI,
+                  point[1] + originJ,
+                  point[2] + originK
+                );
               },
         }
       );
