@@ -129,8 +129,11 @@ export function prepareRestoreBindings(input: RestoreBindingInput) {
 
   (manifest.segmentations ?? []).forEach((wire) => {
     const parentImageId = dataIDMap[wire.parentImage];
-    if (parentImageId === undefined) return;
-    const parentImage = getParentImage(parentImageId);
+    // A parent the restore never mapped is as unavailable as one whose data
+    // did not load, and reports the same way rather than dropping its masks in
+    // silence: losing masks must read differently from having none.
+    const parentImage =
+      parentImageId === undefined ? undefined : getParentImage(parentImageId);
     orderedWireMasks(wire).forEach((wireMask) => place(wireMask, parentImage));
   });
 

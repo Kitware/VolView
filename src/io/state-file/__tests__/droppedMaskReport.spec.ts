@@ -31,7 +31,8 @@ const buildScene = async () => {
 const restoreTampered = async (
   tamper: (parsed: any) => void,
   segmentIdMapFor: (parsed: any) => Record<string, string> = (parsed) =>
-    useSegmentStore().deserialize(parsed)
+    useSegmentStore().deserialize(parsed),
+  dataIDMap: Record<string, string> = { 'img-1': 'new-1' }
 ) => {
   await buildScene();
   const io = inMemoryArtifactIO();
@@ -46,7 +47,7 @@ const restoreTampered = async (
   const result = await useSegmentationStore().deserialize({
     manifest: parsed,
     stateFiles,
-    dataIDMap: { 'img-1': 'new-1' },
+    dataIDMap,
     segmentIdMap: segmentIdMapFor(parsed),
     io,
   });
@@ -91,6 +92,20 @@ describe('masks dropped during restore', () => {
       'its segment did not restore',
       'its segment did not restore',
     ]);
+  });
+
+  // A parent image the restore never mapped is as lost as one whose data
+  // failed to load, and its masks go the same way: 'we dropped two masks' has
+  // to read differently from 'that image had none'.
+  it('reports the masks of a parent image the restore never mapped', async () => {
+    const { skipped, masks } = await restoreTampered(() => {}, undefined, {});
+
+    expect(masks).toHaveLength(0);
+    expect(skipped.map(({ reason }) => reason)).toEqual([
+      'parent image data is unavailable',
+      'parent image data is unavailable',
+    ]);
+    expect(skipped.every(({ name }) => name.length > 0)).toBe(true);
   });
 
   it('reports a second mask for a segment the image already has', async () => {
