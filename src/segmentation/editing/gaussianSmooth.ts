@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import * as Comlink from 'comlink';
 import { gaussianSmoothLabelMapWorker } from '@/src/segmentation/editing/algorithms/gaussianSmooth.worker';
 import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
 import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
@@ -37,8 +38,13 @@ async function gaussianSmoothLabelMap(
     params,
   };
 
+  // The input is the process manager's own detached copy, and nothing reads it
+  // once the worker has it, so the buffer moves to the worker rather than being
+  // cloned into it: one mask's worth of bytes less per run.
   return workerHost.call((worker) =>
-    worker.gaussianSmoothLabelMapWorker(workerInput)
+    worker.gaussianSmoothLabelMapWorker(
+      Comlink.transfer(workerInput, [target.scalars.buffer as ArrayBuffer])
+    )
   );
 }
 

@@ -26,12 +26,20 @@ import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 const fillHolesWorkerMock = vi.hoisted(() => vi.fn(async (input) => input));
+/** The buffers each worker call moved instead of cloning, in call order. */
+const transferred = vi.hoisted(() => [] as unknown[][]);
 
 // eslint-disable-next-line no-restricted-syntax -- the fill-holes worker has no counterpart in the node test environment
 vi.mock('comlink', () => {
   const releaseProxy = Symbol('releaseProxy');
   return {
     releaseProxy,
+    // The real transfer hands back the value it was given, after noting which
+    // buffers move with it; there is no worker here for one to move to.
+    transfer: <T>(value: T, buffers: unknown[]) => {
+      transferred.push(buffers);
+      return value;
+    },
     wrap: () => ({
       fillHolesWorker: fillHolesWorkerMock,
       histogram: async () => new Array(256).fill(0),
@@ -82,6 +90,7 @@ describe('Fill Holes store', () => {
     createApp({}).use(pinia);
     setActivePinia(pinia);
     fillHolesWorkerMock.mockClear();
+    transferred.length = 0;
     vi.stubGlobal(
       'Worker',
       class {
@@ -299,6 +308,8 @@ describe('Fill Holes store', () => {
       dimensions: [10, 10, 10],
     });
     expect(fillHolesWorkerMock.mock.calls[0][0].data).toBe(target.scalars);
+    // And moves it there rather than leaving the boundary to clone it.
+    expect(transferred).toEqual([[target.scalars.buffer]]);
   });
 
   it('fills only the selected segment when scoped to one', async () => {

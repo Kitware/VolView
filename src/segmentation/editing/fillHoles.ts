@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import * as Comlink from 'comlink';
 import { useViewStore } from '@/src/store/views';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
@@ -99,14 +100,22 @@ export const useFillHolesStore = defineStore('fillHoles', () => {
       return undefined;
     }
 
+    // The input is the process manager's own detached copy, and nothing reads
+    // it once the worker has it, so the buffer moves to the worker rather than
+    // being cloned into it: one mask's worth of bytes less per run.
     const scalars = await workerHost.call((worker) =>
-      worker.fillHolesWorker({
-        data,
-        dimensions,
-        axis,
-        sliceIndex,
-        label: target.labelValue,
-      })
+      worker.fillHolesWorker(
+        Comlink.transfer(
+          {
+            data,
+            dimensions,
+            axis,
+            sliceIndex,
+            label: target.labelValue,
+          },
+          [data.buffer as ArrayBuffer]
+        )
+      )
     );
     return { scalars, extent: target.maskExtent };
   }
