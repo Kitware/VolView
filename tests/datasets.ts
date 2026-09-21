@@ -6,7 +6,7 @@
 // it is published, so each download is checked against its hash. To change or
 // add a file, publish a new release and point DATASET_RELEASE at it.
 export const DATASET_RELEASE =
-  'https://github.com/PaulHax/VolView/releases/download/test-data-1';
+  'https://github.com/Kitware/VolView/releases/download/test-data-1';
 
 // `origin` is where the file was first published.
 const DATASETS = {
