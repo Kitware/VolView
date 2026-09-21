@@ -58,7 +58,8 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     const updatedConfig: Record<string, ViewConfig> = {};
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       const newDataID = dataIDMap[dataID];
-      updatedConfig[newDataID] = viewConfig;
+      // A dataset that failed to restore has no new id to carry its config.
+      if (newDataID) updatedConfig[newDataID] = viewConfig;
     });
 
     viewSliceStore.deserialize(viewID, updatedConfig);
