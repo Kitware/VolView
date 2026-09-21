@@ -70,9 +70,11 @@ export const useLayersStore = defineStore('layer', () => {
         return await _addLayer(parent, source);
       } catch (error) {
         // remove failed layer from parent's layer list
-        parentToLayers[parent] = parentToLayers[parent]?.filter(
-          ({ selection }) => selection !== source
-        );
+        const layers = parentToLayers[parent];
+        if (layers)
+          parentToLayers[parent] = layers.filter(
+            ({ selection }) => selection !== source
+          );
         throw error;
       }
     });
