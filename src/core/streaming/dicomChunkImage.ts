@@ -329,8 +329,11 @@ export default class DicomChunkImage
   }
 
   private reallocateImage() {
-    this.vtkImageData.value.delete();
+    // Allocation can throw, and the cache keeps this image either way, so the
+    // old buffer is only safe to release once its replacement exists.
+    const previous = this.vtkImageData.value;
     this.vtkImageData.value = allocateImageFromChunks(this.chunks);
+    previous.delete();
     this.applyUltrasoundSpacing();
   }
 
