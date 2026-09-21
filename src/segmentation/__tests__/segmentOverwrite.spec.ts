@@ -5,7 +5,6 @@ import {
   addMask,
   bindingOf,
   extentOf,
-  labelValueOf,
   maskValueAt,
   seatImage,
   seedVoxel,
@@ -14,6 +13,7 @@ import {
   lockSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import type { Extent3D } from '@/src/segmentation/geometry';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // ---------------------------------------------------------------------------
 // Overwrite-all across N masks. A mask per segment erases nothing on its own,
@@ -68,8 +68,8 @@ function siblingsOfPainting(lockedAt: Index3, unlockedAt: Index3) {
 }
 
 const expectBothHold = (tumor: string, node: string) => {
-  expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
-  expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
+  expect(maskValueAt(tumor, [1, 1, 1])).toBe(SEGMENT_VALUE);
+  expect(maskValueAt(node, [1, 1, 1])).toBe(SEGMENT_VALUE);
 };
 
 describe('clearing the other segments of an image', () => {
@@ -84,7 +84,7 @@ describe('clearing the other segments of an image', () => {
     clearFor(node)?.(1, 1, 1);
 
     expect(maskValueAt(tumor, [1, 1, 1])).toBe(0);
-    expect(maskValueAt(node, [1, 1, 1])).toBe(labelValueOf(node));
+    expect(maskValueAt(node, [1, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('clears the voxel in every other segment, not just the first', () => {
@@ -111,7 +111,7 @@ describe('clearing the other segments of an image', () => {
 
     clearFor(node)?.(1, 1, 1);
 
-    expect(maskValueAt(tumor, [2, 1, 1])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(tumor, [2, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('does not grow a mask that does not reach the voxel', () => {
@@ -124,7 +124,7 @@ describe('clearing the other segments of an image', () => {
     clearFor(node)?.(3, 3, 3);
 
     expect(extentOf(tumor)).toEqual(extent);
-    expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(tumor, [1, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('does not clear an aliased offset outside a neighbour’s extent', () => {
@@ -136,7 +136,7 @@ describe('clearing the other segments of an image', () => {
 
     clearFor(node)?.(3, 1, 1);
 
-    expect(maskValueAt(tumor, [1, 2, 1])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(tumor, [1, 2, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('allocates nothing for a segment that has no storage', () => {
@@ -158,7 +158,7 @@ describe('clearing the other segments of an image', () => {
 
     clearFor(here)?.(1, 1, 1);
 
-    expect(maskValueAt(there, [1, 1, 1])).toBe(labelValueOf(there));
+    expect(maskValueAt(there, [1, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('does nothing for a segment that has no neighbours', () => {
@@ -166,7 +166,7 @@ describe('clearing the other segments of an image', () => {
     seedVoxel(only, [1, 1, 1]);
 
     expect(() => clearFor(only)?.(1, 1, 1)).not.toThrow();
-    expect(maskValueAt(only, [1, 1, 1])).toBe(labelValueOf(only));
+    expect(maskValueAt(only, [1, 1, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('refuses a voxel a locked segment holds and leaves it there', () => {
@@ -195,7 +195,7 @@ describe('clearing the other segments of an image', () => {
 
     expect(clearFor(painting)?.(1, 1, 1)).toBe(true);
     expect(maskValueAt(unlocked, [1, 1, 1])).toBe(0);
-    expect(maskValueAt(locked, [1, 1, 2])).toBe(labelValueOf(locked));
+    expect(maskValueAt(locked, [1, 1, 2])).toBe(SEGMENT_VALUE);
   });
 
   it('reads the locks once, when the clearer is made', () => {
@@ -233,6 +233,6 @@ describe('clearing the other segments of an image', () => {
     clearFor(node)?.(3, 3, 3);
 
     expect(maskValueAt(tumor, [3, 3, 3])).toBe(0);
-    expect(maskValueAt(tumor, [2, 2, 2])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(tumor, [2, 2, 2])).toBe(SEGMENT_VALUE);
   });
 });

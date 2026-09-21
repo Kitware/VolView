@@ -145,7 +145,7 @@ export function snappedCenter(slices: number[]) {
   });
 }
 
-type SegmentContent = {
+export type SegmentContent = {
   paintedSlicesByIJK?: [number[], number[], number[]];
   /** The slice each shape of the segment was drawn on, by the axis it faces. */
   slicesByAxis: Partial<Record<LPSAxis, number[]>>;

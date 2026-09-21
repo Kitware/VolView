@@ -10,7 +10,10 @@ image; the mask's bounded labelmap is allocated only when needed.
   calculations. They do not depend on stores or components.
 - `segments.ts` and `segmentRegistry.ts` own shared identity, selection, and
   appearance. Stores holding masks or annotation tools declare their segment
-  references on the registry, which hands them the removal.
+  references on the registry, which hands them the removal. Removing the last
+  image deletes every segment no config entry holds.
+- `deleteSegment.ts` deletes a segment with its masks and shapes and reports
+  what went with it.
 - `store.ts` owns mask identity, attachment, lookup, and lifecycle. Import and
   restore use its operations to create records and attach prepared storage.
 - `masks/` contains allocation, growth, overlap operations, and voxel access.
@@ -51,18 +54,24 @@ a polygon fill, or an applied process. The segment stays.
 
 ## Ordering and overlap
 
-Registry order controls the sidebar, shortcuts, selection and picking, and
-flattened export precedence. It does not control what is drawn on top:
-overlapping segments blend in the slice view, and moving one above another
-leaves the overlap looking the same. Per-image mask order preserves insertion
-and restored file order. Interchange packing uses registry order.
+Registry order controls the sidebar, shortcuts, selection and picking, and on
+export each mask's label value and the file it lands in. It does not control
+what is drawn on top: overlapping segments blend in the slice view, and moving
+one above another leaves the overlap looking the same. Per-image mask order
+preserves insertion and restored file order.
 
 Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
 preserve locked neighbors. With the Paint panel's Allow Overlap switch on, which
 is never saved, aimed writes leave every neighbor alone and may overlap them.
 Processes preserve voxels already held by other segments. Import matches
 existing segment identities by exact name, sharing appearance and locks across
-images.
+images, unless that segment already has a mask on the importing image, in which
+case the import takes a new segment with a numbered name. Restore matches the
+segments a file lists by exact name too, but joins an existing segment only
+while it holds no mask or shape on any image, and gives it the session's
+appearance; otherwise the restored segment takes a numbered name. Label values
+no listed mask reads bind as import does, except that a migrated group carrying
+display of its own always takes new segments.
 
 ## Labelmap interchange
 
@@ -83,8 +92,10 @@ Export packs whole masks into separate files when they overlap. A part beyond
 separately, so capacity splitting is not reported as overlap.
 
 Processing inputs declaring multiple files receive every mask in overlap-free
-parts. A single-file input starts with the selected segment, then greedily adds
-whole non-overlapping masks in registry order up to the label capacity.
+parts. A single-file input starts with the selected segment when this image
+has a mask for it, otherwise with the first mask in registry order, then
+greedily adds whole non-overlapping masks in registry order up to the label
+capacity.
 Conflicting masks are omitted entirely and named in a warning beside the input.
 No mask is clipped to fit. Export and processing capture pixels, geometry, and
 appearance before asynchronous serialization so all parts describe the same

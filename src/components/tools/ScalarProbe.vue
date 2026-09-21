@@ -67,29 +67,10 @@ const getLayers = () =>
     })
     .filter(Boolean);
 
-const getSegments = () => {
-  if (!currentImageID.value) return [];
-  return segmentationStore
-    .boundMaskIds(currentImageID.value)
-    .flatMap((maskId) => {
-      const { segmentId, representations } = segmentationStore.getMask(maskId);
-      // A bound mask always has a labelmap; this only narrows the type.
-      if (!representations.labelmap) return [];
-      return [
-        {
-          type: 'segment',
-          id: maskId,
-          name: segments.appearanceOf(segmentId).displayName,
-          image: representations.labelmap.image,
-        },
-      ];
-    });
-};
-
 const sampleSet = computed(() => {
   const base = getBaseSlice();
   if (!base) return [];
-  return [...getSegments(), ...getLayers(), base];
+  return [...getLayers(), base];
 });
 
 const pointPicker = vtkPointPicker.newInstance();
@@ -145,14 +126,12 @@ const getImageSamples = (x: number, y: number) => {
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
 
-  // Every mask holds one value, so a voxel reads as the segments covering it.
-  // Zero is background: a mask whose components are all zero has no voxel here.
-  const covering = sampled
-    .filter(
-      ({ item, scalars }) =>
-        item.type === 'segment' && scalars.some((value) => value !== 0)
-    )
-    .map(({ item }) => item.name);
+  // Masks sit on the base image's grid, so its picked index addresses them.
+  const imageId = currentImageID.value;
+  const [pi, pj, pk] = [...pickedIjk].map(Math.round);
+  const covering = (
+    imageId ? segmentationStore.segmentsAt(imageId, pi, pj, pk) : []
+  ).map((segmentId) => segments.appearanceOf(segmentId).displayName);
   const segmentSamples = covering.length
     ? [
         {
@@ -164,13 +143,11 @@ const getImageSamples = (x: number, y: number) => {
     : [];
   const samples = [
     ...segmentSamples,
-    ...sampled
-      .filter(({ item }) => item.type !== 'segment')
-      .map(({ item, scalars }) => ({
-        id: item.id,
-        name: item.name,
-        displayValues: scalars,
-      })),
+    ...sampled.map(({ item, scalars }) => ({
+      id: item.id,
+      name: item.name,
+      displayValues: scalars,
+    })),
   ];
 
   return {

@@ -354,8 +354,6 @@ export const Segment = z.object({
   strokeWidth: z.number().optional(),
 }) satisfies z.ZodType<SegmentModel>;
 
-export type SegmentWire = z.infer<typeof Segment>;
-
 export const Segmentation = z.object({
   id: z.string(),
   name: z.string(),

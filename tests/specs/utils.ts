@@ -141,3 +141,16 @@ export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   await writeManifestToFile(manifest, fileName);
   await openVolViewPage(fileName);
 }
+
+/** Loads a file into the page already open, through the Open files dialog. */
+export async function openThroughDialog(filePath: string) {
+  await browser.sessionSubscribe({ events: ['input.fileDialogOpened'] });
+  const opened = new Promise<{
+    context: string;
+    element?: { sharedId: string };
+  }>((resolve) => browser.once('input.fileDialogOpened', resolve));
+  await $('[data-testid="control-button-Open files"]').click();
+  const { context, element } = await opened;
+  if (!element) throw new Error('The file dialog opened for no input');
+  await browser.inputSetFiles({ context, element, files: [filePath] });
+}

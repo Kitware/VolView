@@ -197,8 +197,11 @@ describe('Session state lifecycle', () => {
     await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
     await openProstateLabelmap(fileName);
 
-    // The 6.1.0 labelMaps entry names this segment and colors it red.
-    expect(await segmentNames()).toEqual(['Right hip']);
+    // The 6.1.0 labelMaps entry names this segment and colors it red. The
+    // labelmap's other values restore under default names.
+    const namesBefore = await segmentNames();
+    expect(namesBefore[0]).toEqual('Right hip');
+    expect(namesBefore.length).toBeGreaterThan(1);
     const segmentColorBefore = await segmentColor('Right hip');
 
     const { session, manifest } = await saveAndParseManifest();
@@ -210,8 +213,8 @@ describe('Session state lifecycle', () => {
 
     await openAnnotationSegments();
     await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Right hip']);
     await waitForSegmentContent('Right hip');
+    expect(await segmentNames()).toEqual(namesBefore);
     expect(await segmentColor('Right hip')).toEqual(segmentColorBefore);
   });
 });

@@ -181,7 +181,7 @@ describe('a segment a result declares but leaves empty', () => {
       manifest: parsed,
       stateFiles,
       dataIDMap: { parent: 'new-parent' },
-      segmentIdMap: useSegmentStore().deserialize(parsed),
+      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
       io,
     });
     await nextTick();

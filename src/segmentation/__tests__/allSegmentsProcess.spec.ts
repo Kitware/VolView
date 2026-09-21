@@ -14,7 +14,6 @@ import {
   activateAppPinia,
   addMask,
   deleteSegmentOf,
-  labelValueOf,
   markedVoxels,
   maskValueAt,
   seatImage,
@@ -46,11 +45,10 @@ function segmentAt(name: string, cells: Array<[number, number]>) {
   const maskId = addMask('img-1', name);
   const voxels = store().maskVoxels(maskId);
   voxels.materialize();
-  const labelValue = SEGMENT_VALUE;
   voxels.ensureContains([0, SIZE - 1, 0, SIZE - 1, 0, 0]);
   const scalars = voxels.scalars();
   cells.forEach(([i, j]) => {
-    scalars[i + j * SIZE] = labelValue;
+    scalars[i + j * SIZE] = SEGMENT_VALUE;
   });
   voxels.image().modified();
   return maskId;
@@ -117,8 +115,8 @@ describe('a process running over every segment', () => {
     await runOverEverySegment();
     usePaintProcessStore().confirmProcess();
 
-    expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
-    expect(maskValueAt(right, [5, 5, 0])).toBe(labelValueOf(right));
+    expect(maskValueAt(left, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(right, [5, 5, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('stops filling a cavity two segments only close together', async () => {
@@ -165,20 +163,17 @@ describe('a process running over every segment', () => {
   it.each([
     ['an unlocked', false],
     ['a locked', true],
-  ])(
-    'leaves %s enclosed neighbour holding the voxel',
-    async (_name, locked) => {
-      const ring = segmentAt('Ring', ringAround(1, 1));
-      const inside = segmentAt('Inside', [[1, 1]]);
-      lockSegment(inside, locked);
+  ])('leaves %s enclosed neighbor holding the voxel', async (_name, locked) => {
+    const ring = segmentAt('Ring', ringAround(1, 1));
+    const inside = segmentAt('Inside', [[1, 1]]);
+    lockSegment(inside, locked);
 
-      await runOverEverySegment();
-      usePaintProcessStore().confirmProcess();
+    await runOverEverySegment();
+    usePaintProcessStore().confirmProcess();
 
-      expect(maskValueAt(inside, [1, 1, 0])).toBe(labelValueOf(inside));
-      expect(maskValueAt(ring, [1, 1, 0])).toBe(0);
-    }
-  );
+    expect(maskValueAt(inside, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(ring, [1, 1, 0])).toBe(0);
+  });
 
   it('gives a voxel nobody held to the first segment that fills it', async () => {
     // Both enclose (3, 3) by themselves. The earlier run writes it, and the
@@ -189,9 +184,9 @@ describe('a process running over every segment', () => {
     await runOverEverySegment();
     usePaintProcessStore().confirmProcess();
 
-    expect(maskValueAt(inner, [3, 3, 0])).toBe(labelValueOf(inner));
+    expect(maskValueAt(inner, [3, 3, 0])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(outer, [3, 3, 0])).toBe(0);
-    expect(maskValueAt(inner, [2, 2, 0])).toBe(labelValueOf(inner));
+    expect(maskValueAt(inner, [2, 2, 0])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(outer, [2, 2, 0])).toBe(0);
   });
 
@@ -204,7 +199,7 @@ describe('a process running over every segment', () => {
     usePaintProcessStore().confirmProcess();
 
     expect(maskValueAt(locked, [1, 1, 0])).toBe(0);
-    expect(maskValueAt(open, [5, 5, 0])).toBe(labelValueOf(open));
+    expect(maskValueAt(open, [5, 5, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('runs once per editable segment on its own mask, in registry order', async () => {
@@ -235,8 +230,8 @@ describe('a process running over every segment', () => {
     const right = segmentAt('Right', ringAround(5, 5));
 
     await runOverEverySegment();
-    expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
-    expect(maskValueAt(right, [5, 5, 0])).toBe(labelValueOf(right));
+    expect(maskValueAt(left, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(right, [5, 5, 0])).toBe(SEGMENT_VALUE);
 
     usePaintProcessStore().cancelProcess();
 
@@ -257,8 +252,8 @@ describe('a process running over every segment', () => {
 
     processStore.setShowingOriginal(false);
 
-    expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
-    expect(maskValueAt(right, [5, 5, 0])).toBe(labelValueOf(right));
+    expect(maskValueAt(left, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(right, [5, 5, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('drops the run of a segment its algorithm had nothing to do to', async () => {
@@ -275,7 +270,7 @@ describe('a process running over every segment', () => {
       target.maskId === spared ? undefined : fillHolesOn(target)
     );
 
-    expect(maskValueAt(filled, [1, 1, 0])).toBe(labelValueOf(filled));
+    expect(maskValueAt(filled, [1, 1, 0])).toBe(SEGMENT_VALUE);
     expect(sparedMask.getMTime()).toBe(sparedTime);
 
     usePaintProcessStore().cancelProcess();
@@ -310,8 +305,8 @@ describe('a process running over every segment', () => {
     await nextTick();
 
     expect(usePaintProcessStore().processState.step).toBe('previewing');
-    expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
-    expect(maskValueAt(right, [5, 5, 0])).toBe(labelValueOf(right));
+    expect(maskValueAt(left, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(right, [5, 5, 0])).toBe(SEGMENT_VALUE);
   });
 
   it.each([
@@ -332,7 +327,7 @@ describe('a process running over every segment', () => {
     const left = segmentAt('Left', ringAround(1, 1));
     const right = segmentAt('Right', ringAround(5, 5));
     await runOverEverySegment();
-    expect(maskValueAt(left, [1, 1, 0])).toBe(labelValueOf(left));
+    expect(maskValueAt(left, [1, 1, 0])).toBe(SEGMENT_VALUE);
 
     await leave();
 

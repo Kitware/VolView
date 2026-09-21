@@ -4,7 +4,6 @@ import { setActivePinia, createPinia } from 'pinia';
 import { extentSize, isEmptyExtent } from '@/src/segmentation/geometry';
 import {
   addMask,
-  deleteSegmentOf,
   extentOf,
   maskValueAt,
   parentImage,
@@ -228,7 +227,7 @@ describe('bounded segment masks', () => {
   });
 
   describe('isolation', () => {
-    it('writes through one segment’s mask without touching another’s', () => {
+    it("writes through one segment's mask without touching another's", () => {
       const tumor = addMask('img-1', 'Tumor');
       const node = addMask('img-1', 'Node');
       seedVoxel(tumor, [1, 1, 1]);
@@ -237,20 +236,6 @@ describe('bounded segment masks', () => {
       expect(maskValueAt(tumor, [2, 2, 2])).toBeUndefined();
       expect(maskValueAt(node, [1, 1, 1])).toBeUndefined();
       expect(maskValueAt(tumor, [1, 1, 1])).toBe(SEGMENT_VALUE);
-      expect(maskValueAt(node, [2, 2, 2])).toBe(SEGMENT_VALUE);
-    });
-
-    it('releases a deleted segment’s mask and leaves its neighbour alone', () => {
-      const tumor = addMask('img-1', 'Tumor');
-      const node = addMask('img-1', 'Node');
-      seedVoxel(tumor, [1, 1, 1]);
-      seedVoxel(node, [2, 2, 2]);
-      const nodeImage = store().maskVoxels(node).image();
-
-      deleteSegmentOf(tumor);
-
-      expect(store().maskExists(tumor)).toBe(false);
-      expect(store().maskVoxels(node).image()).toBe(nodeImage);
       expect(maskValueAt(node, [2, 2, 2])).toBe(SEGMENT_VALUE);
     });
   });

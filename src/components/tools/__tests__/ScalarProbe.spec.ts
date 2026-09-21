@@ -18,18 +18,18 @@ import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 
 const state = {
   current: {} as ReturnType<typeof currentImage.useCurrentImage>,
-  masks: [] as { id: string; image: vtkImageData }[],
+  covering: [] as string[],
   names: {} as Record<string, string>,
   events: {} as Record<string, (event: unknown) => void>,
 };
 
-function image(values: number[], components = 1) {
+function image(values: number[]) {
   const result = vtkImageData.newInstance();
   result.setDimensions(3, 1, 1);
   result.getPointData().setScalars(
     vtkDataArray.newInstance({
       values: new Float32Array(values),
-      numberOfComponents: components,
+      numberOfComponents: 1,
     })
   );
   return result;
@@ -64,7 +64,7 @@ describe('ScalarProbe segment samples', () => {
       currentImageMetadata: ref({ name: 'CT' }),
       currentLayers: ref([{ id: 'overlay', selection: 'overlay' }]),
     } as ReturnType<typeof currentImage.useCurrentImage>;
-    state.masks = [];
+    state.covering = [];
     state.names = {};
     state.events = {};
     vi.spyOn(currentImage, 'useCurrentImage').mockImplementation(
@@ -99,29 +99,15 @@ describe('ScalarProbe segment samples', () => {
       })
     );
     const store = segmentations.useSegmentationStore();
-    vi.spyOn(store, 'boundMaskIds').mockImplementation(() =>
-      state.masks.map(({ id }) => id)
-    );
-    vi.spyOn(store, 'getMask').mockImplementation(
-      (id) =>
-        ({
-          segmentId: id,
-          representations: {
-            labelmap: {
-              image: state.masks.find((mask) => mask.id === id)!.image,
-            },
-          },
-        }) as ReturnType<typeof store.getMask>
-    );
+    vi.spyOn(store, 'segmentsAt').mockImplementation(() => state.covering);
   });
 
-  it('omits empty mask voxels while retaining the occupied segment, CT, position, and zero image layer', () => {
-    state.masks = [
-      { id: 'Liver', image: image([0, 1, 0]) },
-      { id: 'Kidney', image: image([1, 0, 0]) },
-      { id: 'Spleen', image: image([0, 0, 1]) },
-    ];
+  it('lists the covering segment beside the CT, the position, and a zero image layer', () => {
+    state.covering = ['Liver'];
     const result = probe();
+    expect(
+      segmentations.useSegmentationStore().segmentsAt
+    ).toHaveBeenCalledWith('ct', 1, 0, 0);
     expect(Array.from(result!.pos)).toEqual([1, 0, 0]);
     expect(result!.samples).toEqual([
       { id: 'segments', name: 'Segment', displayValues: ['Liver'] },
@@ -130,12 +116,8 @@ describe('ScalarProbe segment samples', () => {
     ]);
   });
 
-  it('retains genuinely overlapping segments and masks with any occupied component', () => {
-    state.masks = [
-      { id: 'First', image: image([0, 1, 0]) },
-      { id: 'Second', image: image([0, 0, 0, 1, 0, 0], 2) },
-      { id: 'Empty', image: image([1, 0, 0, 0, 0, 1], 2) },
-    ];
+  it('names every overlapping segment under one heading', () => {
+    state.covering = ['First', 'Second'];
     expect(
       probe()!.samples.map(({ name, displayValues }) => [name, displayValues])
     ).toEqual([
@@ -146,7 +128,7 @@ describe('ScalarProbe segment samples', () => {
   });
 
   it('names a covering segment that has no name', () => {
-    state.masks = [{ id: 'unnamed', image: image([0, 1, 0]) }];
+    state.covering = ['unnamed'];
     state.names = { unnamed: '' };
 
     expect(probe()!.samples[0]).toEqual({

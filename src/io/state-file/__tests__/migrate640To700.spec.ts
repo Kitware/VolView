@@ -28,10 +28,10 @@ import {
 // ---------------------------------------------------------------------------
 // The 6.4.0 -> 7.0.0 structural migration. JSON only: every old segment group
 // becomes one `SegmentationArtifact`, every `{group, value}` becomes one
-// segment type plus one per-image mask, and every old tool label becomes one
-// type in the one registry that now backs paint and the vector tools. A tool
-// label lands on the type of the same name; groups never merge with each
-// other, whatever they are called.
+// segment plus one per-image mask, and every old tool label becomes one
+// segment in the one registry that now backs paint and the vector tools. A
+// tool label lands on the segment of the same name; groups never merge with
+// each other, whatever they are called.
 // ---------------------------------------------------------------------------
 
 const SOURCE = {
@@ -103,7 +103,7 @@ const EDEMA: LegacyMask = {
 const BARE = { value: 3, name: '', color: [1, 2, 3, 4] } as LegacyMask;
 
 // What the slice renderer multiplies out for a visible, opaque-coloured
-// segment: the type's fill opacity times the image's multiplier. A legacy
+// segment: the segment's fill opacity times the image's multiplier. A legacy
 // group's opacity has to survive as this product, not as either factor alone.
 const effectiveFill = (migrated: any, record: any, segmentation: any) =>
   segmentFillAlpha(
@@ -302,7 +302,7 @@ describe('migrate640To700: structural stage', () => {
       'Segment 1',
     ]);
     expect(new Set(segments.map((segment: any) => segment.id)).size).toBe(2);
-    // One type per legacy segment: an equal name is not the same identity.
+    // One segment per legacy segment: an equal name is not the same identity.
     expect(
       new Set(segments.map((segment: any) => segment.segmentId)).size
     ).toBe(2);
@@ -313,7 +313,7 @@ describe('migrate640To700: structural stage', () => {
     ).toEqual(['sg-a', 'sg-b']);
   });
 
-  it('lands a tool label on the type a group of that name already is', () => {
+  it('lands a tool label on the segment a group of that name already is', () => {
     const migrated = migrate({
       segmentGroups: [legacyGroup('sg-a', 'ds-ct', [TUMOR])],
       tools: {
@@ -403,9 +403,9 @@ describe('migrate640To700: structural stage', () => {
     ]);
   });
 
-  // Two masks of one type on one image is a state the app cannot hold, and two
+  // Two masks of one segment on one image is a state the app cannot hold, and two
   // images that painted "Tumor" separately each described their own thing.
-  it('keeps a name two groups carry on separate types', () => {
+  it('keeps a name two groups carry on separate segments', () => {
     const migrated = migrate({
       segmentGroups: [
         legacyGroup('sg-a', 'ds-ct', [TUMOR]),
@@ -484,19 +484,19 @@ describe('migrate640To700: structural stage', () => {
 
     const segmentation = segmentationFor(migrated, 'ds-ct');
     const [record] = orderedMasks(segmentation);
-    // A legacy group described what it showed, so both land on its type.
+    // A legacy group described what it showed, so both land on its segment.
     expect(segmentOfMask(migrated, record)).toMatchObject({
       visible: false,
       outlineOpacity: 0.25,
     });
     expect(effectiveFill(migrated, record, segmentation)).toBeCloseTo(0.4);
     expect(segmentation.outlineThickness).toBe(5);
-    // The types carry it, so the artifact carries no second copy for the
-    // split to reapply.
-    const artifact = migrated.segmentationArtifacts[0];
-    expect(artifact).not.toHaveProperty('pendingFillOpacity');
-    expect(artifact).not.toHaveProperty('pendingOutlineOpacity');
-    expect(artifact).not.toHaveProperty('pendingVisibility');
+    // The artifact carries it too, for any value the descriptors missed.
+    expect(migrated.segmentationArtifacts[0]).toMatchObject({
+      pendingFillOpacity: 1,
+      pendingOutlineOpacity: 0.25,
+      pendingVisibility: false,
+    });
     expect(migrated.viewByID.Axial.config['sg-1']).toBeUndefined();
   });
 
@@ -560,7 +560,7 @@ describe('migrate640To700: structural stage', () => {
     const [tumor, edema] = orderedMasks(segmentation);
     expect(effectiveFill(migrated, tumor, segmentation)).toBeCloseTo(0.2);
     expect(effectiveFill(migrated, edema, segmentation)).toBeCloseTo(0.8);
-    // The per-type share only holds a fraction, so the larger of the two is
+    // The per-segment share only holds a fraction, so the larger of the two is
     // what the segmentation carries.
     expect(
       orderedMasks(segmentation).map(
@@ -643,7 +643,7 @@ describe('migrate640To700: structural stage', () => {
     });
 
     const ct = segmentationFor(migrated, 'ds-ct');
-    // The selection is a type now, and it is the one that legacy pair became.
+    // The selection is a segment now, and it is the one that legacy pair became.
     expect(migrated.selectedSegment).toBe(boundTo(ct, 'sg-b', 2).segmentId);
 
     // Identity left the paint block entirely; its own settings survive.
@@ -656,7 +656,7 @@ describe('migrate640To700: structural stage', () => {
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
 
-  it('converts a vector-tool label into one type the shapes share', () => {
+  it('converts a vector-tool label into one segment the shapes share', () => {
     const polygon = (imageID: string, slice: number) => ({
       imageID,
       frameOfReference: { planeOrigin: [0, 0, slice], planeNormal: [0, 0, 1] },
@@ -680,7 +680,7 @@ describe('migrate640To700: structural stage', () => {
       },
     });
 
-    // One type, referenced by both shapes: identity is no longer per image.
+    // One segment, referenced by both shapes: identity is no longer per image.
     const [segmentId] = migrated.segments.map((segment: any) => segment.id);
     expect(migrated.segments).toEqual([
       { id: segmentId, name: 'Tumor', color: [255, 0, 0, 255], strokeWidth: 3 },
@@ -694,7 +694,7 @@ describe('migrate640To700: structural stage', () => {
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
   });
 
-  it('keeps a label no tool used as a type of its own', () => {
+  it('keeps a label no tool used as a segment of its own', () => {
     const polygon = (imageID: string, slice: number) => ({
       imageID,
       label: 'lbl-tumor',
@@ -1081,7 +1081,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     const bindings = segmentation.order.map(
       (id) => segmentation.masks[id].representations.labelmap
     );
-    // A polygon's type brings no record with it, so this image holds only the
+    // A polygon's segment brings no record with it, so this image holds only the
     // two masks the group split into.
     expect(bindings.map((binding) => binding && [...binding.extent])).toEqual([
       [0, 3, 1, 2, 0, 0],
@@ -1089,7 +1089,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     ]);
   });
 
-  it('restores the migrated selection and the polygon type', async () => {
+  it('restores the migrated selection and the polygon segment', async () => {
     await restoreLegacyScene();
 
     const store = useSegmentationStore();
@@ -1116,7 +1116,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     const segmentation =
       useSegmentationStore().getSegmentationForImage('store-ct')!;
     const records = segmentation.order.map((id) => segmentation.masks[id]);
-    // A legacy group described the thing, so its visibility is the type's.
+    // A legacy group described the thing, so its visibility is the segment's.
     expect(
       records.map((record) => segments.appearanceOf(record.segmentId).visible)
     ).toEqual([false, false]);
@@ -1137,7 +1137,26 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     expect(segmentation.outlineThickness).toBe(5);
   });
 
-  it('offers a legacy label no tool used as a type with no content', async () => {
+  it('shows a value the group did not describe as the group showed', async () => {
+    const scene = JSON.parse(legacyScene());
+    scene.segmentGroups[0].metadata.segments = segmentsBlock([TUMOR]);
+    await restoreLegacyScene(JSON.stringify(scene));
+
+    const segments = useSegmentStore().segments;
+    const segmentation =
+      useSegmentationStore().getSegmentationForImage('store-ct')!;
+    const [described, undescribed] = segmentation.order.map((id) =>
+      segments.appearanceOf(segmentation.masks[id].segmentId)
+    );
+    expect(undescribed.name).not.toBe(described.name);
+    expect(undescribed).toMatchObject({
+      visible: false,
+      fillOpacity: described.fillOpacity,
+      outlineOpacity: described.outlineOpacity,
+    });
+  });
+
+  it('offers a legacy label no tool used as a segment with no content', async () => {
     await restoreLegacyScene();
 
     const segments = useSegmentStore().segments;
@@ -1175,7 +1194,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
       manifest: saved,
       stateFiles,
       dataIDMap: { 'store-ct': 'new-ct' },
-      segmentIdMap: useSegmentStore().deserialize(saved),
+      segmentIdMap: useSegmentStore().deserialize(saved).segmentIdMap,
       io,
     });
     await nextTick();

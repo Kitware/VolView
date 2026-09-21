@@ -102,7 +102,7 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
       dimensions: DIMENSIONS,
       values: labelValues(),
     });
-    const labelmap = toLabelMap(orphaned);
+    const { labelmap } = toLabelMap(orphaned);
     useImageCacheStore().removeImage('gone');
 
     expect(() =>

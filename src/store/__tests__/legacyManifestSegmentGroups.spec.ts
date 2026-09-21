@@ -7,7 +7,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
-import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
+import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { listMasks } from '@/src/segmentation/model';
 
 // ---------------------------------------------------------------------------
@@ -74,8 +74,8 @@ describe('migrated legacy manifests without `datasets`', () => {
       stateFiles: [],
       // Restore keys every fallback dataset by its stringified source id.
       dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
-      segmentIdMap: useSegmentStore().deserialize(legacyManifest),
-      labelmapSources: resolveLabelmapSources(legacyManifest),
+      segmentIdMap: useSegmentStore().deserialize(legacyManifest).segmentIdMap,
+      labelmapSources: planLabelmapSources(legacyManifest).sources,
     });
 
     expect(skipped).toEqual([]);
@@ -106,8 +106,8 @@ describe('migrated legacy manifests without `datasets`', () => {
       manifest: legacyManifest,
       stateFiles: [],
       dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
-      segmentIdMap: useSegmentStore().deserialize(legacyManifest),
-      labelmapSources: resolveLabelmapSources(legacyManifest),
+      segmentIdMap: useSegmentStore().deserialize(legacyManifest).segmentIdMap,
+      labelmapSources: planLabelmapSources(legacyManifest).sources,
     });
 
     const names = useSegmentStore().segments.segmentList.value.map(

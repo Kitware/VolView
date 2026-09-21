@@ -9,21 +9,19 @@ import {
 } from '@/src/segmentation/io/export';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 
-// A labelmap file carries one label per voxel, so a segmentation with overlap
-// leaves as several files. One file is the common case and stays the download
-// it has always been: same name, same bytes, no archive around it.
+// Overlapping segments need separate export parts, bundled in one archive.
 
 const bytes = (...values: number[]) => new Uint8Array(values);
 
 const readBlob = async (blob: Blob) =>
   Array.from(new Uint8Array(await blob.arrayBuffer()));
 
-describe('naming the file each group of segments writes', () => {
-  it('gives the first group the plain name', () => {
+describe("naming each export part's file", () => {
+  it('gives the first part the plain stem', () => {
     expect(layerFileName('Prostate', 'seg.nrrd', 0)).toBe('Prostate.seg.nrrd');
   });
 
-  it('numbers every later group after it', () => {
+  it('numbers every later part', () => {
     expect(layerFileName('Prostate', 'seg.nrrd', 1)).toBe(
       'Prostate_layer1.seg.nrrd'
     );
@@ -36,7 +34,7 @@ describe('naming the file each group of segments writes', () => {
 describe('the stem a segmentation is saved and staged under', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it('drops a file-backed image name’s extension, compound ones included', () => {
+  it("drops a file-backed image name's extension, compound ones included", () => {
     expect(segmentationFileStem('file-image', 'scan.nii.gz')).toBe('scan');
   });
 

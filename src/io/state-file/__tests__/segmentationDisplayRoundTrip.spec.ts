@@ -117,7 +117,7 @@ describe('segmentation display state on the wire', () => {
       manifest: parsed,
       stateFiles: stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed),
+      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
       io: io,
     });
     await nextTick();
@@ -152,7 +152,7 @@ describe('segmentation display state on the wire', () => {
       manifest: parsed,
       stateFiles: [],
       dataIDMap: { 'img-1': 'img-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed),
+      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
       io: inMemoryArtifactIO(),
     });
     await nextTick();

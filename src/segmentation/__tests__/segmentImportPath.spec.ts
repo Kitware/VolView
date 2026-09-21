@@ -29,7 +29,7 @@ const VOXEL_COUNT = 4 * 4 * 4;
 
 const offset = (i: number, j: number, k: number) => i + j * 4 + k * 16;
 
-function makeImage(values?: Uint8Array, components = 1) {
+function makeImage(values?: Uint8Array | Uint32Array, components = 1) {
   const image = vtkImageData.newInstance({
     spacing: [1, 1, 1],
     origin: [0, 0, 0],
@@ -48,7 +48,7 @@ function makeImage(values?: Uint8Array, components = 1) {
 async function seat(
   id: string,
   name: string,
-  values?: Uint8Array,
+  values?: Uint8Array | Uint32Array,
   headerMetadata?: Map<string, string>,
   components = 1
 ) {
@@ -267,6 +267,24 @@ describe('the import path answers on the segmentation store', () => {
       expect(boundMasks()).toEqual([]);
     }
   );
+
+  it('tells the caller how many voxels lost a label past 16 bits', async () => {
+    await seat('parent-img', 'CT');
+    const values = new Uint32Array(VOXEL_COUNT);
+    values[offset(1, 1, 1)] = 1;
+    values[offset(2, 1, 1)] = 70000;
+    values[offset(3, 3, 3)] = 70000;
+    await seat('child-img', 'Atlas.nrrd', values);
+    const excluded: number[] = [];
+
+    await importLabelmapImage('child-img', 'parent-img', {
+      decode: async () => [],
+      split: () => [],
+      excluded: (voxels) => excluded.push(voxels),
+    });
+
+    expect(excluded).toEqual([2]);
+  });
 
   // 'Segment 1' says nothing about what was imported. The file stem is the only
   // name a descriptor-less labelmap carries, and it reaches the panel and the

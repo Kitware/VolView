@@ -8,7 +8,6 @@ import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
 import {
   addMask,
   extentOf,
-  labelValueOf,
   maskValueAt,
   seatImage,
   seedVoxel,
@@ -20,6 +19,7 @@ import {
 import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import type { Extent3D } from '@/src/segmentation/geometry';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 const DIMENSIONS: Index3 = [6, 6, 1];
 const SQUARE: Vector3[] = [
@@ -62,37 +62,33 @@ function setUpOverlappingSegments(extent: Extent3D) {
   seedVoxel(neighbor, [2, 3, 0]);
   // Outside the polygon, so the neighbor keeps a voxel and its mask.
   seedVoxel(neighbor, [5, 5, 0]);
-  return { target, neighbor, labelValue: labelValueOf(target)! };
+  return { target, neighbor };
 }
 
 describe('polygon rasterize action', () => {
   beforeEach(setUpRasterizeView);
 
   it('restores the original before rasterization grows the mask', async () => {
-    const { target, neighbor, labelValue } = setUpOverlappingSegments([
-      0, 1, 0, 1, 0, 0,
-    ]);
+    const { target, neighbor } = setUpOverlappingSegments([0, 1, 0, 1, 0, 0]);
     const processStore = usePaintProcessStore();
 
     await processStore.startProcess(async ({ scalars, maskExtent }) => ({
-      scalars: new Uint8Array(scalars.length).fill(labelValue),
+      scalars: new Uint8Array(scalars.length).fill(SEGMENT_VALUE),
       extent: maskExtent,
     }));
-    expect(maskValueAt(target, [0, 0, 0])).toBe(labelValue);
+    expect(maskValueAt(target, [0, 0, 0])).toBe(SEGMENT_VALUE);
 
     rasterize(target);
 
     expect(processStore.processState.step).toBe('start');
     expect(extentOf(target)).toEqual([0, 4, 0, 4, 0, 0]);
     expect(maskValueAt(target, [0, 0, 0])).toBe(0);
-    expect(maskValueAt(target, [2, 3, 0])).toBe(labelValue);
+    expect(maskValueAt(target, [2, 3, 0])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(neighbor, [2, 3, 0])).toBe(0);
   });
 
   it('leaves same-sized rasterization intact after the preview is reset', async () => {
-    const { target, neighbor, labelValue } = setUpOverlappingSegments([
-      0, 5, 0, 5, 0, 0,
-    ]);
+    const { target, neighbor } = setUpOverlappingSegments([0, 5, 0, 5, 0, 0]);
     seedVoxel(target, [0, 0, 0]);
     const processStore = usePaintProcessStore();
 
@@ -108,8 +104,8 @@ describe('polygon rasterize action', () => {
 
     expect(processStore.processState.step).toBe('start');
     expect(extentOf(target)).toEqual([0, 5, 0, 5, 0, 0]);
-    expect(maskValueAt(target, [0, 0, 0])).toBe(labelValue);
-    expect(maskValueAt(target, [2, 3, 0])).toBe(labelValue);
+    expect(maskValueAt(target, [0, 0, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(target, [2, 3, 0])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(neighbor, [2, 3, 0])).toBe(0);
   });
 });

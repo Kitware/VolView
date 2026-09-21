@@ -6,6 +6,7 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
   activateAppPinia,
+  bindingOf,
   seatSpecImage as seatImage,
   markedVoxels,
   maskValueAt,
@@ -16,8 +17,6 @@ import {
   store,
   strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-
-const bindingOf = (maskId: string) => store().findMaskBinding(maskId);
 
 function boundSegment(segmentationId: string, name: string) {
   const segment = store().createMask(segmentationId, mintSegment({ name }));
@@ -84,7 +83,7 @@ describe('paint edit target', () => {
     expect(maskValueAt(maskId, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
-  it('erases only the active segment’s voxels', async () => {
+  it("erases only the active segment's voxels", async () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const neighbor = boundSegment(segmentation.id, 'Neighbor');
@@ -136,7 +135,7 @@ describe('paint edit target', () => {
     expect(markedVoxels(active.id)).toEqual([]);
   });
 
-  it('paints around a locked neighbour without overwriting it', async () => {
+  it('paints around a locked neighbor without overwriting it', async () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const neighbor = boundSegment(segmentation.id, 'Neighbor');

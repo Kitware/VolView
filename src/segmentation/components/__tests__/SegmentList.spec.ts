@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
   type Index3,
@@ -17,11 +17,8 @@ import { useMessageStore } from '@/src/store/messages';
 import useLoadDataStore from '@/src/store/load-data';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
-import { extentSize, maskOffset } from '@/src/segmentation/geometry';
 import { useViewStore } from '@/src/store/views';
-import useViewSliceStore from '@/src/store/view-configs/slicing';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
   useCurrentTools,
   usePlacingAnnotationTool,
@@ -30,8 +27,6 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { AXIAL_FRAME_OF_REFERENCE } from '@/src/utils/frameOfReference';
-import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
-import useViewCameraStore from '@/src/store/view-configs/camera';
 
 enableAutoUnmount(afterEach);
 
@@ -155,7 +150,8 @@ const globalOptions = {
   },
 };
 
-const mountList = () => mount(SegmentList, { global: globalOptions });
+const mountList = (props: { reveal?: () => void } = {}) =>
+  mount(SegmentList, { props, global: globalOptions });
 
 const mountListWithTooltips = () =>
   mount(SegmentList, {
@@ -701,12 +697,11 @@ describe('flat segment list on a cine image', () => {
   });
 
   it.each([[1], [0, 1]])(
-    'reveals an occupied cine frame for annotations on frames %j',
+    'hands the reveal the cine frames annotated on %j',
     async (...frames) => {
       const segmentId = segments().addSegment({ name: 'Measurement' });
-      const rulers = useRulerStore();
-      const ids = frames.map((frame) =>
-        rulers.addTool({
+      frames.forEach((frame) =>
+        useRulerStore().addTool({
           imageID: 'cine-1',
           segmentId,
           frame,
@@ -714,32 +709,17 @@ describe('flat segment list on a cine image', () => {
           frameOfReference: AXIAL_FRAME_OF_REFERENCE,
         })
       );
-      const playback = useCinePlaybackStore();
-      const viewId = useViewStore().activeView!;
-      playback.updateConfig(viewId, 'cine-1', {
-        frame: frames[0] === 0 ? 1 : 0,
-      });
-      const camera = useViewCameraStore();
-      const pose = {
-        position: [4, 6, 10] as [number, number, number],
-        focalPoint: [4, 6, 0] as [number, number, number],
-        parallelScale: 25,
-      };
-      camera.updateConfig(viewId, 'cine-1', pose);
-      const wrapper = mountList();
+      const reveal = vi.fn();
+      const wrapper = mountList({ reveal });
 
       expect(
         revealButton(wrapper, segmentId).attributes('disabled')
       ).toBeUndefined();
       await revealButton(wrapper, segmentId).trigger('click');
 
-      expect(playback.getConfig(viewId, 'cine-1').frame).toBe(frames[0]);
-      expect(camera.getConfig(viewId, 'cine-1')).toMatchObject(pose);
-      // The shape action retains the same temporal navigation semantics.
-      rulers.jumpToTool(ids[ids.length - 1]);
-      expect(playback.getConfig(viewId, 'cine-1').frame).toBe(
-        frames[frames.length - 1]
-      );
+      expect(reveal.mock.calls).toEqual([
+        ['cine-1', { paintedSlicesByIJK: undefined, slicesByAxis: {}, frames }],
+      ]);
     }
   );
 
@@ -908,41 +888,14 @@ describe('Reveal Slice on a segment row', () => {
     await viewImage('img-1');
   });
 
-  const viewFor = (orientation: string) => {
-    const view = useViewStore()
-      .getAllViews()
-      .find(
-        (candidate) =>
-          candidate.type === '2D' &&
-          candidate.options.orientation === orientation
-      );
-    if (!view) throw new Error(`No ${orientation} view`);
-    return view;
-  };
-
-  const sliceOn = (orientation: string) =>
-    useViewSliceStore().getConfig(viewFor(orientation).id, 'img-1')!.slice;
-
-  const setSliceOn = (orientation: string, slice: number) =>
-    useViewSliceStore().updateConfig(viewFor(orientation).id, 'img-1', {
-      slice,
-    });
-
-  // Paint grows the allocation with padding and clips it to the volume, so the
-  // binding's extent is wider than what is marked and its middle is not the
-  // segment's. Marking through that same path is what keeps the reveal honest.
+  // Padded like a stroke, so the allocation is wider than what is marked.
   const STROKE_PADDING = 16;
 
-  const paintVoxel = (maskId: string, index: Index3) => {
+  const paintVoxel = (maskId: string, [i, j, k]: Index3) => {
     const voxels = store().maskVoxels(maskId);
     voxels.materialize();
-    const labelValue = SEGMENT_VALUE;
-    const [i, j, k] = index;
     voxels.ensureContains([i, i, j, j, k, k], STROKE_PADDING);
-    const { extent } = voxels.binding()!;
-    const [mi, mj] = extentSize(extent);
-    voxels.scalars()[maskOffset({ extent, mi, mj }, i, j, k)] = labelValue;
-    voxels.image().modified();
+    seedVoxel(maskId, [i, j, k]);
   };
 
   it('is offered disabled, saying why, on a row this image stores nothing for', async () => {
@@ -957,14 +910,7 @@ describe('Reveal Slice on a segment row', () => {
 
   it('does not call a row empty while a load is still running', async () => {
     const segment = makeMask('img-1', 'Tumor');
-    const wrapper = mount(SegmentList, {
-      global: {
-        stubs: {
-          ...globalOptions.stubs,
-          VTooltip: { template: '<span class="tooltip"><slot /></span>' },
-        },
-      },
-    });
+    const wrapper = mountListWithTooltips();
     const list = () => wrapper.find('[data-testid="segment-list"]');
     const reason = () =>
       revealButton(wrapper, segment.id).element.parentElement?.textContent;
@@ -982,14 +928,7 @@ describe('Reveal Slice on a segment row', () => {
 
   it('says on the disabled control that this image holds nothing for the row', async () => {
     const segment = makeMask('img-1', 'Tumor');
-    const wrapper = mount(SegmentList, {
-      global: {
-        stubs: {
-          ...globalOptions.stubs,
-          VTooltip: { template: '<span class="tooltip"><slot /></span>' },
-        },
-      },
-    });
+    const wrapper = mountListWithTooltips();
     await nextTick();
 
     expect(
@@ -997,34 +936,26 @@ describe('Reveal Slice on a segment row', () => {
     ).toMatch(/nothing on this image/i);
   });
 
-  it('puts each 2D view on the middle of what the segment marks here', async () => {
-    const segment = makeMask('img-1', 'Tumor');
-    paintVoxel(segment.maskId, [1, 1, 6]);
-    const wrapper = mountList();
-    await nextTick();
-
-    // The padded allocation spans the whole volume, so its own middle is the
-    // slice each view already shows.
-    expect(sliceOn('Axial')).toBe(4);
-    expect(sliceOn('Sagittal')).toBe(2);
-
-    await revealButton(wrapper, segment.id).trigger('click');
-
-    expect(sliceOn('Axial')).toBe(6);
-    expect(sliceOn('Sagittal')).toBe(1);
-    expect(sliceOn('Coronal')).toBe(1);
-  });
-
-  it('moves outward from the center to the nearest occupied slice', async () => {
+  it('hands the reveal the slices the segment marks, not its padded allocation', async () => {
     const segment = makeMask('img-1', 'Tumor');
     paintVoxel(segment.maskId, [1, 1, 1]);
-    paintVoxel(segment.maskId, [1, 1, 5]);
-    const wrapper = mountList();
+    paintVoxel(segment.maskId, [2, 1, 6]);
+    const reveal = vi.fn();
+    const wrapper = mountList({ reveal });
     await nextTick();
 
     await revealButton(wrapper, segment.id).trigger('click');
 
-    expect(sliceOn('Axial')).toBe(1);
+    expect(reveal.mock.calls).toEqual([
+      [
+        'img-1',
+        {
+          paintedSlicesByIJK: [[1, 2], [1], [1, 6]],
+          slicesByAxis: {},
+          frames: [],
+        },
+      ],
+    ]);
   });
 
   it('enables reveal when painting creates storage after the list mounts', async () => {
@@ -1042,19 +973,24 @@ describe('Reveal Slice on a segment row', () => {
     ).toBeUndefined();
   });
 
-  it('leaves the views where they are when the mask marks nothing', async () => {
+  it('hands the reveal no painted slices when the mask marks nothing', async () => {
     const segment = makeMask('img-1', 'Tumor');
     paintVoxel(segment.maskId, [1, 1, 6]);
     const voxels = store().maskVoxels(segment.maskId);
     voxels.scalars().fill(0);
     voxels.image().modified();
-    const wrapper = mountList();
+    const reveal = vi.fn();
+    const wrapper = mountList({ reveal });
     await nextTick();
-    setSliceOn('Axial', 7);
 
     await revealButton(wrapper, segment.id).trigger('click');
 
-    expect(sliceOn('Axial')).toBe(7);
+    expect(reveal.mock.calls).toEqual([
+      [
+        'img-1',
+        { paintedSlicesByIJK: undefined, slicesByAxis: {}, frames: [] },
+      ],
+    ]);
   });
 });
 

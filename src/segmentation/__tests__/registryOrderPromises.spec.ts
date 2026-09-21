@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { hits, isTest, read, sourceFiles } from '@/src/__tests__/sourceAudit';
 
 // ---------------------------------------------------------------------------
-// Registry order decides the sidebar, shortcuts, picking and flattened export
-// precedence. It does not decide what is drawn on top: every segment actor is
+// Registry order decides the sidebar, shortcuts, picking and export label
+// values. It does not decide what is drawn on top: every segment actor is
 // translucent, so vtk.js draws them through an order-independent pass and an
 // overlap blends the same whichever segment is first. Nothing user-visible may
 // promise otherwise.
@@ -44,7 +44,7 @@ describe('what registry order is documented to control', () => {
 
     expect(ordering).toMatch(/sidebar/i);
     expect(ordering).toMatch(/picking/i);
-    expect(ordering).toMatch(/export precedence/i);
+    expect(ordering).toMatch(/label value/i);
   });
 
   it('promises no drawing order anywhere the user can read it', () => {

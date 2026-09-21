@@ -14,12 +14,9 @@ import { plural } from '@/src/utils';
  */
 function countCascade(segmentId: string) {
   // A segment has at most one mask per image, so this counts both.
-  const images = Object.values(useSegmentationStore().segmentations).filter(
-    (segmentation) =>
-      Object.values(segmentation.masks).some(
-        (mask) => mask.segmentId === segmentId && maskHasContent(mask)
-      )
-  ).length;
+  const images = useSegmentationStore()
+    .masksOfSegment(segmentId)
+    .filter(maskHasContent).length;
   const annotations = Object.values(AnnotationToolStoreMap).reduce(
     (total, useStore) =>
       total +

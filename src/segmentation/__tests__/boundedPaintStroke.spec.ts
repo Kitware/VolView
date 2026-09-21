@@ -8,7 +8,6 @@ import {
   addMask,
   bindingOf,
   extentOf,
-  labelValueOf,
   markedVoxels,
   maskValueAt,
   seatImage,
@@ -22,6 +21,7 @@ import {
   segmentOfMask,
   strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // ---------------------------------------------------------------------------
 // A paint stroke against bounded masks:
@@ -33,7 +33,7 @@ import {
 //    not the mask's, so it converts through the mask's extent;
 //  - writing a voxel clears it in every other UNLOCKED mask of the image; a
 //    locked one keeps it and the stroke goes around it. While overlap is
-//    allowed no neighbour loses a voxel and the stroke goes around nothing.
+//    allowed no neighbor loses a voxel and the stroke goes around nothing.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [4, 4, 4];
@@ -51,8 +51,8 @@ const activeSegment = (imageId: string, name: string) => {
   return maskId;
 };
 
-/** A locked and an unlocked neighbour of the segment about to be painted. */
-function neighboursOfActive(lockedAt: Index3, unlockedAt: Index3) {
+/** A locked and an unlocked neighbor of the segment about to be painted. */
+function neighborsOfActive(lockedAt: Index3, unlockedAt: Index3) {
   const locked = addMask('img-1', 'Locked');
   const unlocked = addMask('img-1', 'Unlocked');
   seedVoxel(locked, lockedAt);
@@ -65,7 +65,7 @@ function neighboursOfActive(lockedAt: Index3, unlockedAt: Index3) {
 
 /** Whether each of these masks holds the voxel at `index`. */
 const holding = (index: Index3, ...maskIds: string[]) =>
-  maskIds.map((maskId) => maskValueAt(maskId, index) === labelValueOf(maskId));
+  maskIds.map((maskId) => maskValueAt(maskId, index) === SEGMENT_VALUE);
 
 describe('painting into bounded masks', () => {
   beforeEach(() => {
@@ -79,7 +79,7 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+      expect(maskValueAt(active, [1, 1, 0])).toBe(SEGMENT_VALUE);
       expect(extentContains(extentOf(active)!, [1, 1, 1, 1, 0, 0])).toBe(true);
       expect(extentContains(fullExtent(DIMENSIONS), extentOf(active)!)).toBe(
         true
@@ -105,11 +105,9 @@ describe('painting into bounded masks', () => {
       const active = activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0], [3, 1, 0]);
-
-      const labelValue = labelValueOf(active);
-      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValue);
-      expect(maskValueAt(active, [2, 1, 0])).toBe(labelValue);
-      expect(maskValueAt(active, [3, 1, 0])).toBe(labelValue);
+      expect(maskValueAt(active, [1, 1, 0])).toBe(SEGMENT_VALUE);
+      expect(maskValueAt(active, [2, 1, 0])).toBe(SEGMENT_VALUE);
+      expect(maskValueAt(active, [3, 1, 0])).toBe(SEGMENT_VALUE);
     });
 
     it('keeps the earlier stroke when a later one grows the mask', async () => {
@@ -118,10 +116,8 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [1, 1, 0]);
       strokeAt('img-1', [3, 3, 2]);
-
-      const labelValue = labelValueOf(active);
-      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValue);
-      expect(maskValueAt(active, [3, 3, 2])).toBe(labelValue);
+      expect(maskValueAt(active, [1, 1, 0])).toBe(SEGMENT_VALUE);
+      expect(maskValueAt(active, [3, 3, 2])).toBe(SEGMENT_VALUE);
       expect(extentContains(extentOf(active)!, [1, 3, 1, 3, 0, 2])).toBe(true);
     });
 
@@ -132,7 +128,7 @@ describe('painting into bounded masks', () => {
       expect(() => strokeAt('img-1', [0, 0, 0], [0, 0, 0], 3)).not.toThrow();
 
       const extent = extentOf(active)!;
-      expect(maskValueAt(active, [0, 0, 0])).toBe(labelValueOf(active));
+      expect(maskValueAt(active, [0, 0, 0])).toBe(SEGMENT_VALUE);
       expect(extent[0]).toBe(0);
       expect(extent[2]).toBe(0);
       expect(extentContains(fullExtent(DIMENSIONS), extent)).toBe(true);
@@ -189,7 +185,7 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [2, 2, 0]);
 
-      expect(maskValueAt(active, [2, 2, 0])).toBe(labelValueOf(active));
+      expect(maskValueAt(active, [2, 2, 0])).toBe(SEGMENT_VALUE);
     });
 
     it('refuses where the parent voxel under the mask voxel is out of range', async () => {
@@ -250,9 +246,9 @@ describe('painting into bounded masks', () => {
   });
 
   describe('overwriting the other segments', () => {
-    it('clears the painted voxel in a neighbour’s mask and marks it modified', async () => {
+    it("clears the painted voxel in a neighbor's mask and marks it modified", async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbour');
+      const neighbor = addMask('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       seedVoxel(neighbor, ELSEWHERE);
       const active = activeSegment('img-1', 'Tumor');
@@ -261,22 +257,22 @@ describe('painting into bounded masks', () => {
       strokeAt('img-1', [1, 1, 0]);
 
       expect(maskValueAt(neighbor, [1, 1, 0])).toBe(0);
-      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+      expect(maskValueAt(active, [1, 1, 0])).toBe(SEGMENT_VALUE);
       expect(store().maskVoxels(neighbor).image().getMTime()).toBeGreaterThan(
         modified
       );
     });
 
-    it('leaves the neighbour’s other voxels alone', async () => {
+    it("leaves the neighbor's other voxels alone", async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbour');
+      const neighbor = addMask('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       seedVoxel(neighbor, [2, 1, 0]);
       activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(maskValueAt(neighbor, [2, 1, 0])).toBe(labelValueOf(neighbor));
+      expect(maskValueAt(neighbor, [2, 1, 0])).toBe(SEGMENT_VALUE);
     });
 
     it('leaves the segments of another image alone', async () => {
@@ -288,12 +284,12 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(maskValueAt(elsewhere, [1, 1, 0])).toBe(labelValueOf(elsewhere));
+      expect(maskValueAt(elsewhere, [1, 1, 0])).toBe(SEGMENT_VALUE);
     });
 
-    it('erases its own voxels without clearing the neighbour’s', async () => {
+    it("erases its own voxels without clearing the neighbor's", async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbour');
+      const neighbor = addMask('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       const active = activeSegment('img-1', 'Tumor');
       strokeAt('img-1', [2, 1, 0]);
@@ -303,14 +299,14 @@ describe('painting into bounded masks', () => {
       strokeAt('img-1', [1, 1, 0]);
       strokeAt('img-1', [2, 1, 0]);
 
-      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(labelValueOf(neighbor));
+      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(SEGMENT_VALUE);
       expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
       expect(maskValueAt(active, [2, 1, 0])).toBeFalsy();
     });
 
-    it('goes around a locked neighbour instead of taking the voxel', async () => {
+    it('goes around a locked neighbor instead of taking the voxel', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbour');
+      const neighbor = addMask('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       lockSegment(neighbor, true);
       const active = activeSegment('img-1', 'Tumor');
@@ -318,13 +314,13 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(labelValueOf(neighbor));
+      expect(maskValueAt(neighbor, [1, 1, 0])).toBe(SEGMENT_VALUE);
       expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
     });
 
-    it('takes a voxel a locked neighbour holds from nobody', async () => {
+    it('takes a voxel a locked neighbor holds from nobody', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const { locked, unlocked, active } = neighboursOfActive(
+      const { locked, unlocked, active } = neighborsOfActive(
         [1, 1, 0],
         [1, 1, 0]
       );
@@ -338,9 +334,9 @@ describe('painting into bounded masks', () => {
       ]);
     });
 
-    it('takes from an unlocked neighbour and goes around a locked one in one stroke', async () => {
+    it('takes from an unlocked neighbor and goes around a locked one in one stroke', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const { locked, unlocked, active } = neighboursOfActive(
+      const { locked, unlocked, active } = neighborsOfActive(
         [1, 1, 0],
         [2, 1, 0]
       );
@@ -351,9 +347,9 @@ describe('painting into bounded masks', () => {
       expect(holding([2, 1, 0], unlocked, active)).toEqual([false, true]);
     });
 
-    it('shares the voxel with every neighbour while overlap is allowed', async () => {
+    it('shares the voxel with every neighbor while overlap is allowed', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const { locked, unlocked, active } = neighboursOfActive(
+      const { locked, unlocked, active } = neighborsOfActive(
         [1, 1, 0],
         [1, 1, 0]
       );
@@ -419,9 +415,9 @@ describe('painting into bounded masks', () => {
       expect(store().maskExists(active)).toBe(false);
     });
 
-    it('deletes a neighbour whose every voxel the stroke takes', async () => {
+    it('deletes a neighbor whose every voxel the stroke takes', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbour');
+      const neighbor = addMask('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       const active = activeSegment('img-1', 'Tumor');
 

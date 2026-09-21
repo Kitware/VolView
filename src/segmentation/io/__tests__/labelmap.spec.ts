@@ -5,8 +5,8 @@ import {
   allocateLabelmap,
   labelmapScalars,
   normalizeLabelmapScalars,
-} from '../labelmap';
-import { toLabelMap } from '../import';
+} from '@/src/segmentation/io/labelmap';
+import { toBinaryMask, toLabelMap } from '@/src/segmentation/io/import';
 
 describe('labelmap interchange storage', () => {
   it.each([255, 256, 65535])('stores label %i without truncation', (count) => {
@@ -43,35 +43,22 @@ describe('labelmap interchange storage', () => {
       NaN,
       Infinity,
     ]);
-    const values = normalizeLabelmapScalars(input);
+    const { values, excluded } = normalizeLabelmapScalars(input);
     expect(values).toBeInstanceOf(Uint16Array);
     expect(Array.from(values)).toEqual([0, 1, 255, 256, 65535, 0, 0, 0, 0]);
+    expect(excluded).toBe(4);
     expect(input[6]).toBe(65536);
   });
 
-  it('excludes fractional labels instead of merging their voxels', () => {
-    const input = vtkImageData.newInstance();
-    input.setDimensions(4, 1, 1);
-    input.getPointData().setScalars(
-      vtkDataArray.newInstance({
-        numberOfComponents: 1,
-        values: new Float32Array([1, 1.9, 2, 2.9]),
-      })
-    );
-
-    expect(Array.from(labelmapScalars(toLabelMap(input)))).toEqual([
-      1, 0, 2, 0,
-    ]);
-  });
-
   it('normalizes a wide binary input to byte mask storage', () => {
-    expect(normalizeLabelmapScalars(new Uint16Array([0, 1]))).toEqual(
-      new Uint8Array([0, 1])
-    );
+    expect(normalizeLabelmapScalars(new Uint16Array([0, 1]))).toEqual({
+      values: new Uint8Array([0, 1]),
+      excluded: 0,
+    });
   });
 
   it('excludes invalid values from a plain number array', () => {
-    const values = normalizeLabelmapScalars([
+    const { values, excluded } = normalizeLabelmapScalars([
       0,
       3,
       -2,
@@ -82,5 +69,51 @@ describe('labelmap interchange storage', () => {
     ]);
     expect(values).toBeInstanceOf(Uint8Array);
     expect(Array.from(values)).toEqual([0, 3, 0, 0, 0, 0, 7]);
+    expect(excluded).toBe(4);
+  });
+});
+
+describe('reading an imported labelmap', () => {
+  it('excludes fractional labels instead of merging their voxels', () => {
+    const input = vtkImageData.newInstance();
+    input.setDimensions(4, 1, 1);
+    input.getPointData().setScalars(
+      vtkDataArray.newInstance({
+        numberOfComponents: 1,
+        values: new Float32Array([1, 1.9, 2, 2.9]),
+      })
+    );
+
+    const { labelmap, excluded } = toLabelMap(input);
+    expect(Array.from(labelmapScalars(labelmap))).toEqual([1, 0, 2, 0]);
+    expect(excluded).toBe(2);
+  });
+
+  it('reads a saved mask entry as binary storage, any nonzero voxel claimed', () => {
+    const input = vtkImageData.newInstance();
+    input.setDimensions(4, 1, 1);
+    input.getPointData().setScalars(
+      vtkDataArray.newInstance({
+        numberOfComponents: 1,
+        values: new Uint16Array([256, 1, 2, 0]),
+      })
+    );
+
+    const mask = toBinaryMask(input)!;
+    expect(labelmapScalars(mask)).toEqual(new Uint8Array([1, 1, 1, 0]));
+    expect(mask.getDimensions()).toEqual([4, 1, 1]);
+  });
+
+  it('refuses a multi-component saved mask entry', () => {
+    const input = vtkImageData.newInstance();
+    input.setDimensions(2, 2, 1);
+    input.getPointData().setScalars(
+      vtkDataArray.newInstance({
+        numberOfComponents: 2,
+        values: new Uint8Array(8),
+      })
+    );
+
+    expect(toBinaryMask(input)).toBeUndefined();
   });
 });

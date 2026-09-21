@@ -144,7 +144,7 @@ async function roundTrip(io: LabelmapIO, tamper?: (manifest: any) => void) {
     manifest: parsed,
     stateFiles: stateFiles,
     dataIDMap: { 'img-1': 'new-1', 'img-2': 'new-2' },
-    segmentIdMap: useSegmentStore().deserialize(parsed),
+    segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
     io: io,
   });
   await nextTick();
@@ -200,7 +200,10 @@ describe('bounded masks through the state file', () => {
     await roundTrip(inMemoryArtifactIO());
 
     expect(snapshot('new-1')).toEqual(before.first);
-    expect(snapshot('new-2')).toEqual(before.second);
+    // The session repeats the name, so the later segment restores numbered.
+    expect(snapshot('new-2')).toEqual([
+      { ...before.second[0], name: 'Tumor (2)' },
+    ]);
     // Spelled out once, so the equality above cannot pass on two full-extent
     // masks that happen to match each other.
     expect(snapshot('new-1')[0]).toMatchObject({
@@ -255,7 +258,7 @@ describe('bounded masks through the state file', () => {
         manifest: parsed,
         stateFiles: stateFiles,
         dataIDMap: dataIDMap,
-        segmentIdMap: useSegmentStore().deserialize(parsed),
+        segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
         io: io,
       });
     await restore();
@@ -299,7 +302,7 @@ describe('bounded masks through the state file', () => {
       manifest: parsed,
       stateFiles: stateFiles,
       dataIDMap: { 'img-1': 'img-1', 'img-2': 'img-2' },
-      segmentIdMap: useSegmentStore().deserialize(parsed),
+      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
       io: io,
     });
     await nextTick();
@@ -349,7 +352,7 @@ describe('bounded masks through the state file', () => {
     ).find((segment) => nameOf(segment) === 'Tumor')!;
     const secondTumor = listMasks(
       store().getSegmentationForImage('new-2')!
-    ).find((segment) => nameOf(segment) === 'Tumor')!;
+    ).find((segment) => nameOf(segment) === 'Tumor (2)')!;
     expect(firstTumor.representations.labelmap).toBeDefined();
     expect(secondTumor.representations.labelmap).toBeDefined();
     expect(markedVoxels(firstTumor.id)).toEqual([

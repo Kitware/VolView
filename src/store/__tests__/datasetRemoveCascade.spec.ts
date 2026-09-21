@@ -182,8 +182,9 @@ describe('dataset remove — synchronous reference cascade', () => {
     expect('img-1' in cropStore.croppingByImageID).toBe(false);
   });
 
-  it('removes the records of a deleted image and keeps their type', () => {
+  it('removes the records of a deleted image and keeps their segment', () => {
     seatImage('img-1', 'CT');
+    seatImage('img-2', 'PET');
     const segmentationStore = useSegmentationStore();
     const { maskId } = seatMask('img-1');
     const { segmentId } = segmentationStore.getMask(maskId);
@@ -192,7 +193,7 @@ describe('dataset remove — synchronous reference cascade', () => {
     useDatasetStore().remove('img-1');
 
     expect(segmentationStore.maskExists(maskId)).toBe(false);
-    // A type outlives the images it was painted on, so it stays selected.
+    // A segment outlives an image it was painted on while another remains.
     expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
   });
 

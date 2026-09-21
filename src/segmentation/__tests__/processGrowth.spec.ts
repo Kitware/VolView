@@ -132,15 +132,15 @@ describe.each(cases)('$name with bounded storage', (fixture) => {
   });
 
   it.each([false, true])(
-    'does not claim newly reached voxels from a neighbour (locked: %s)',
+    'does not claim newly reached voxels from a neighbor (locked: %s)',
     async (locked) => {
       const id = await mask();
-      const neighbour = addMask('img', 'Neighbour');
-      seedVoxel(neighbour, fixture.growth);
-      lockSegment(neighbour, locked);
+      const neighbor = addMask('img', 'Neighbor');
+      seedVoxel(neighbor, fixture.growth);
+      lockSegment(neighbor, locked);
       await usePaintProcessStore().startProcess(fixture.algorithm());
       expect(markedVoxels(id)).toHaveLength(fixture.count - 1);
-      expect(maskValueAt(neighbour, fixture.growth)).toBe(1);
+      expect(maskValueAt(neighbor, fixture.growth)).toBe(1);
       expect(maskValueAt(id, fixture.growth)).toBe(0);
     }
   );

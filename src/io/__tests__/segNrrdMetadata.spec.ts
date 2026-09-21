@@ -6,7 +6,6 @@ import {
   parseSegNrrdMetadata,
   overlaySegmentMetadata,
   type ParsedSegment,
-  type DecodedSegment,
 } from '@/src/io/segNrrdMetadata';
 import type { LabelmapSegment } from '@/src/segmentation/model';
 
@@ -188,7 +187,7 @@ describe('parseSegNrrdMetadata recovers segment descriptors from header metadata
 // embedded names/colors overlaid on top.
 
 describe('overlaySegmentMetadata merges embedded metadata over the enumeration', () => {
-  const mkDefault = (value: number): DecodedSegment => ({
+  const mkDefault = (value: number): ParsedSegment => ({
     value,
     name: `default ${value}`,
     color: [10, 20, 30, 255],

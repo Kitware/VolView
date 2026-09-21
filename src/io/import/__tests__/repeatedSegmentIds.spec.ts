@@ -1,8 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
-import { useMessageStore } from '@/src/store/messages';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
 import {
   manifestForImages,
   seatImage,
@@ -25,13 +24,12 @@ describe('restoring a manifest whose segments repeat an id', () => {
       segments: [segment('s1', 'Liver'), segment('s1', 'Spleen')],
     });
 
-    await completeStateFileRestore(manifest, [], { parent: 'parent' });
-
-    const notice = useMessageStore().messages.find(
-      ({ title }) => title === 'Some scene content could not be restored'
-    );
-    expect(notice?.options.details).toBe(
-      '- segment: Spleen (repeats the id of an earlier segment)'
+    const addWarning = vi.fn();
+    const restore = createStateFileRestorer({ addWarning });
+    await restore(manifest, [], { parent: 'parent' });
+    expect(addWarning).toHaveBeenCalledExactlyOnceWith(
+      'Some scene content could not be restored',
+      { details: '- segment: Spleen (repeats the id of an earlier segment)' }
     );
   });
 });

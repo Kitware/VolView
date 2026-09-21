@@ -7,7 +7,7 @@ import { placeMask } from '@/src/segmentation/masks/storage';
 
 export const LABELMAP_MAX_VALUE = 65535;
 const LABELMAP_BYTE_MAX_VALUE = 255;
-export type LabelmapScalars = Uint8Array | Uint16Array;
+type LabelmapScalars = Uint8Array | Uint16Array;
 
 export const labelmapScalars = (image: vtkImageData) =>
   image.getPointData().getScalars().getData() as LabelmapScalars;
@@ -39,11 +39,12 @@ export function allocateLabelmap(parent: vtkImageData, count: number) {
 const isLabelValue = (value: number) =>
   value >= 0 && value <= LABELMAP_MAX_VALUE && Number.isInteger(value);
 
-/** Unsupported values become background instead of wrapping into another segment. */
-export function normalizeLabelmapScalars(
-  input: number[] | TypedArray
-): LabelmapScalars {
-  if (input instanceof Uint8Array) return input;
+/**
+ * Unsupported values become background instead of wrapping into another
+ * segment; `excluded` counts the voxels that lost theirs.
+ */
+export function normalizeLabelmapScalars(input: number[] | TypedArray) {
+  if (input instanceof Uint8Array) return { values: input, excluded: 0 };
   // Both passes are hot over whole volumes, so they index the input directly.
   // A fresh typed array is already zeroed, so an excluded voxel needs no write.
   const { length } = input;
@@ -53,11 +54,17 @@ export function normalizeLabelmapScalars(
     if (value > maximum && isLabelValue(value)) maximum = value;
   }
   const ArrayType = labelmapArrayType(maximum);
-  if (input instanceof ArrayType) return input;
+  // Every value a Uint8Array or Uint16Array can hold is a label value.
+  if (input instanceof ArrayType) return { values: input, excluded: 0 };
   const values = new ArrayType(length);
+  let excluded = 0;
   for (let index = 0; index < length; index += 1) {
     const value = input[index];
     if (isLabelValue(value)) values[index] = value;
+    else excluded += 1;
   }
-  return values;
+  return { values, excluded };
 }
+
+export const unsupportedLabelsReason = (voxels: number) =>
+  `${voxels} voxels hold labels other than whole numbers 0 to ${LABELMAP_MAX_VALUE}`;

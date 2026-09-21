@@ -677,5 +677,27 @@ describe('segmentation store', () => {
       expect(store().findEditTarget('img-1')).toBeUndefined();
       expect(store().getSegmentationForImage('img-1')).toBeFalsy();
     });
+
+    it('targets the first segment while none has been chosen', async () => {
+      const { one } = await seatTwoImages();
+      const first = store().createMask(one, mintSegment('Tumor'));
+      store().createMask(one, mintSegment('Node'));
+
+      expect(store().findEditTarget('img-1')).toBe(first.id);
+    });
+
+    it('asks the lock of the segment it targets', async () => {
+      const { one } = await seatTwoImages();
+      const first = store().createMask(one, mintSegment('Tumor'));
+      const second = store().createMask(one, mintSegment('Node'));
+      segments().updateSegment(first.segmentId, { locked: true });
+
+      expect(store().editTargetLocked()).toBe(true);
+
+      segments().selectSegment(second.segmentId);
+
+      expect(store().editTargetLocked()).toBe(false);
+      expect(store().findEditTarget('img-1')).toBe(second.id);
+    });
   });
 });

@@ -12,10 +12,7 @@ import {
 import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
 import { partition, getURLBasename } from '@/src/utils';
 import { basename } from '@/src/utils/path';
-import {
-  planLabelmapSources,
-  resolveLabelmapSources,
-} from '@/src/io/import/labelmapImports';
+import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useToolStore } from '@/src/store/tools';
@@ -148,12 +145,11 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
 
   const datasets = manifestDatasets(manifest);
 
-  const importLeaves = [...planLabelmapSources(manifest).leaves.entries()].map(
-    ([dataSourceId, stateId]) => ({ id: stateId, dataSourceId })
-  );
-
   const missingFiles: Array<{ stateID: string; path: string }> = [];
-  const dataSources = [...datasets, ...importLeaves].flatMap((ds) => {
+  const dataSources = [
+    ...datasets,
+    ...planLabelmapSources(manifest).leaves,
+  ].flatMap((ds) => {
     const sources = resolveToLeafSources(
       ds.dataSourceId,
       byId,
@@ -179,129 +175,138 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
   return { dataSources, missingFiles };
 }
 
-// The registry adopts the first segment to claim an id and drops the rest.
-const segmentsRepeatingAnId = (manifest: Manifest) => {
-  const seen = new Set<string>();
-  return (manifest.segments ?? []).filter(({ id }) => {
-    const repeated = seen.has(id);
-    seen.add(id);
-    return repeated;
-  });
+type RestoreServices = {
+  addWarning?: ReturnType<typeof useMessageStore>['addWarning'];
+  views?: Pick<
+    ReturnType<typeof useViewStore>,
+    'bindViewsToData' | 'setDataForAllViews' | 'setDataForView'
+  >;
 };
 
-export async function completeStateFileRestore(
-  manifest: Manifest,
-  stateFiles: FileEntry[],
-  stateIDToStoreID: Record<string, string>,
-  missingFiles: Array<{ stateID: string; path: string }> = [],
-  failedLeaves: Array<{ stateID: string; name: string }> = []
-) {
-  const viewStore = useViewStore();
-  const byId = dataSourcesById(manifest);
-  const datasets = manifestDatasets(manifest);
-  const resolvedDatasets = datasets.filter((ds) => ds.id in stateIDToStoreID);
-  const unresolvedDatasets = datasets.filter(
-    (ds) => !(ds.id in stateIDToStoreID)
-  );
+export const createStateFileRestorer = ({
+  addWarning = (title, options) => useMessageStore().addWarning(title, options),
+  views,
+}: RestoreServices = {}) =>
+  async function restoreState(
+    manifest: Manifest,
+    stateFiles: FileEntry[],
+    stateIDToStoreID: Record<string, string>,
+    missingFiles: Array<{ stateID: string; path: string }> = [],
+    failedLeaves: Array<{ stateID: string; name: string }> = []
+  ) {
+    const viewStore = views ?? useViewStore();
+    const byId = dataSourcesById(manifest);
+    const datasets = manifestDatasets(manifest);
+    const resolvedDatasets = datasets.filter((ds) => ds.id in stateIDToStoreID);
+    const unresolvedDatasets = datasets.filter(
+      (ds) => !(ds.id in stateIDToStoreID)
+    );
 
-  Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
-    viewStore.bindViewsToData(stateID, storeID, manifest);
-  });
+    Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
+      viewStore.bindViewsToData(stateID, storeID, manifest);
+    });
 
-  const defaultStoreID =
-    (manifest.primarySelection
-      ? stateIDToStoreID[manifest.primarySelection]
-      : undefined) ??
-    (resolvedDatasets.length > 0
-      ? stateIDToStoreID[resolvedDatasets[0].id]
-      : undefined);
+    const defaultStoreID =
+      (manifest.primarySelection
+        ? stateIDToStoreID[manifest.primarySelection]
+        : undefined) ??
+      (resolvedDatasets.length > 0
+        ? stateIDToStoreID[resolvedDatasets[0].id]
+        : undefined);
 
-  if (defaultStoreID !== undefined) {
-    if (!manifest.viewByID) {
-      viewStore.setDataForAllViews(defaultStoreID);
-    } else {
-      // Resolve-first-then-apply: a view whose saved dataset never resolved
-      // resets to the default assignment (views are reconstructible UI)
-      // rather than staying empty.
-      const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
-      Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
-        if (typeof view.dataID === 'string' && unresolvedIDs.has(view.dataID)) {
-          viewStore.setDataForView(viewID, defaultStoreID);
-        }
+    if (defaultStoreID !== undefined) {
+      if (!manifest.viewByID) {
+        viewStore.setDataForAllViews(defaultStoreID);
+      } else {
+        // Resolve-first-then-apply: a view whose saved dataset never resolved
+        // resets to the default assignment (views are reconstructible UI)
+        // rather than staying empty.
+        const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
+        Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
+          if (
+            typeof view.dataID === 'string' &&
+            unresolvedIDs.has(view.dataID)
+          ) {
+            viewStore.setDataForView(viewID, defaultStoreID);
+          }
+        });
+      }
+    }
+
+    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
+
+    // Registries first: masks and shapes both name a segment, and the
+    // ids they name are minted here.
+    const { segmentIdMap, repeated: repeatedSegments } =
+      useSegmentStore().deserialize(manifest);
+
+    const { skipped: skippedLabelmaps } =
+      await useSegmentationStore().deserialize({
+        manifest,
+        stateFiles,
+        dataIDMap: stateIDToStoreID,
+        segmentIdMap,
+        labelmapSources: planLabelmapSources(manifest).sources,
+      });
+
+    useLayersStore().deserialize(manifest, stateIDToStoreID);
+
+    useToolStore().deserialize(manifest, segmentIdMap, stateIDToStoreID);
+
+    const missingBases = unresolvedDatasets.map((ds) =>
+      summarizeDataSource(
+        ds.dataSourceId,
+        byId,
+        manifest.datasetFilePath,
+        String(ds.id)
+      )
+    );
+    // Members missing from a dataset that STILL resolved (from its surviving
+    // files) — an unresolved dataset is already named whole above, but a partial
+    // one restores truncated and must say which files it is missing.
+    const missingMembers = missingFiles
+      .filter(({ stateID }) => stateID in stateIDToStoreID)
+      .map(
+        ({ path }) => `- file: ${basename(path)} (dataset restored without it)`
+      );
+    // Leaves that errored during load (e.g. a 404'd uri) while their dataset
+    // still resolved from surviving leaves — an unresolved dataset is already
+    // named whole in missingBases. Scoped to THIS manifest's datasets so one
+    // state file's failures never appear in another's notice.
+    const manifestStateIDs = new Set(datasets.map((ds) => ds.id));
+    const failedMembers = [
+      ...new Set(
+        failedLeaves
+          .filter(
+            ({ stateID }) =>
+              stateID in stateIDToStoreID && manifestStateIDs.has(stateID)
+          )
+          .map(
+            ({ name }) =>
+              `- file: ${name} (failed to load; dataset restored without it)`
+          )
+      ),
+    ];
+    const missing = [
+      ...missingBases.map((name) => `- image: ${name}`),
+      ...missingMembers,
+      ...failedMembers,
+      ...skippedLabelmaps.map(
+        ({ name, reason }) => `- labelmap: ${name} (${reason})`
+      ),
+      ...repeatedSegments.map(
+        ({ name }) =>
+          `- segment: ${name} (repeats the id of an earlier segment)`
+      ),
+    ];
+    if (missing.length > 0) {
+      addWarning('Some scene content could not be restored', {
+        details: missing.join('\n'),
       });
     }
-  }
+  };
 
-  useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
-
-  // Registries first: masks and shapes both name a segment, and the
-  // ids they name are minted here.
-  const segmentIdMap = useSegmentStore().deserialize(manifest);
-
-  const { skipped: skippedLabelmaps } =
-    await useSegmentationStore().deserialize({
-      manifest,
-      stateFiles,
-      dataIDMap: stateIDToStoreID,
-      segmentIdMap,
-      labelmapSources: resolveLabelmapSources(manifest),
-    });
-
-  useLayersStore().deserialize(manifest, stateIDToStoreID);
-
-  useToolStore().deserialize(manifest, segmentIdMap, stateIDToStoreID);
-
-  const missingBases = unresolvedDatasets.map((ds) =>
-    summarizeDataSource(
-      ds.dataSourceId,
-      byId,
-      manifest.datasetFilePath,
-      String(ds.id)
-    )
-  );
-  // Members missing from a dataset that STILL resolved (from its surviving
-  // files) — an unresolved dataset is already named whole above, but a partial
-  // one restores truncated and must say which files it is missing.
-  const missingMembers = missingFiles
-    .filter(({ stateID }) => stateID in stateIDToStoreID)
-    .map(
-      ({ path }) => `- file: ${basename(path)} (dataset restored without it)`
-    );
-  // Leaves that errored during load (e.g. a 404'd uri) while their dataset
-  // still resolved from surviving leaves — an unresolved dataset is already
-  // named whole in missingBases. Scoped to THIS manifest's datasets so one
-  // state file's failures never appear in another's notice.
-  const manifestStateIDs = new Set(datasets.map((ds) => ds.id));
-  const failedMembers = [
-    ...new Set(
-      failedLeaves
-        .filter(
-          ({ stateID }) =>
-            stateID in stateIDToStoreID && manifestStateIDs.has(stateID)
-        )
-        .map(
-          ({ name }) =>
-            `- file: ${name} (failed to load; dataset restored without it)`
-        )
-    ),
-  ];
-  const missing = [
-    ...missingBases.map((name) => `- image: ${name}`),
-    ...missingMembers,
-    ...failedMembers,
-    ...skippedLabelmaps.map(
-      ({ name, reason }) => `- labelmap: ${name} (${reason})`
-    ),
-    ...segmentsRepeatingAnId(manifest).map(
-      ({ name }) => `- segment: ${name} (repeats the id of an earlier segment)`
-    ),
-  ];
-  if (missing.length > 0) {
-    useMessageStore().addWarning('Some scene content could not be restored', {
-      details: missing.join('\n'),
-    });
-  }
-}
+export const completeStateFileRestore = createStateFileRestorer();
 
 async function parseManifestFromZip(file: File) {
   const stateFileContents = await extractFilesFromZip(file);

@@ -20,7 +20,6 @@ import {
   addMask,
   extentOf,
   flatIndex,
-  labelValueOf,
   maskValueAt,
   parentImage,
   seatImage,
@@ -250,9 +249,10 @@ describe('composing the segments of an image into one labelmap', () => {
     scalars[parentOffset(1, 1, 1)] = 0;
     scalars[parentOffset(2, 2, 2)] = 9;
 
-    expect(maskValueAt(tumor, [1, 1, 1])).toBe(labelValueOf(tumor));
-    expect(compositeScalars('img-1')[parentOffset(1, 1, 1)]).toBe(
-      labelValueOf(tumor)
+    const { labelmap, segments } = compositeLabelmap('img-1');
+    expect(maskValueAt(tumor, [1, 1, 1])).toBe(SEGMENT_VALUE);
+    expect(maskScalars(labelmap)[parentOffset(1, 1, 1)]).toBe(
+      segments[0].value
     );
   });
 });
@@ -300,12 +300,12 @@ describe('grouping the segments that cannot share one labelmap', () => {
     expect(
       groups.map((group) => group.map((segment) => appearanceOf(segment).name))
     ).toEqual([['Under'], ['Over']]);
-    expect(compositeScalars('img-1', groups[0])[parentOffset(1, 1, 1)]).toBe(
-      labelValueOf(under)
-    );
-    expect(compositeScalars('img-1', groups[1])[parentOffset(1, 1, 1)]).toBe(
-      labelValueOf(over)
-    );
+    groups.forEach((group) => {
+      const { labelmap, segments } = compositeLabelmap('img-1', group);
+      expect(maskScalars(labelmap)[parentOffset(1, 1, 1)]).toBe(
+        segments[0].value
+      );
+    });
     expect(compositeScalars('img-1', groups[0])[parentOffset(2, 2, 2)]).toBe(0);
   });
 
@@ -381,8 +381,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
       ['Segment0_Layer', '0'],
     ]);
     expect(entries.map((file) => file.get('Segment0_LabelValue'))).toEqual([
-      String(labelValueOf(under)),
-      String(labelValueOf(over)),
+      '1',
+      '1',
     ]);
   });
 
@@ -449,10 +449,9 @@ describe('splitting an imported labelmap into bounded masks', () => {
     expect(
       listMasks(segmentation).map((segment) => appearanceOf(segment).name)
     ).toEqual(['Tumor 1', 'Tumor 3']);
-    expect(segmentIdsOf('parent-img').map(labelValueOf)).toEqual([
-      SEGMENT_VALUE,
-      SEGMENT_VALUE,
-    ]);
+    const [first, second] = segmentIdsOf('parent-img');
+    expect(maskValueAt(first, [1, 1, 1])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(second, [3, 3, 3])).toBe(SEGMENT_VALUE);
   });
 
   it('lines the split masks up with the parent grid', async () => {
