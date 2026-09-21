@@ -3,6 +3,7 @@ import { writeManifestToFile } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   openAnnotationSegments,
+  segmentNames,
   waitForNamedSegments,
   waitForSegmentContent,
 } from './segmentationTestUtils';
@@ -40,6 +41,8 @@ describe('Labelmap with different direction matrix', () => {
     await openAnnotationSegments();
     await waitForNamedSegments();
     await waitForSegmentContent('Right hip');
+    // The manifest describes one of the labelmap's values; the rest keep a row.
+    expect((await segmentNames()).length).toBeGreaterThan(1);
 
     await volViewPage.openLayoutMenu(1);
     await volViewPage.selectLayoutOption('Coronal Only');

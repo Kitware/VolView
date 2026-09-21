@@ -25,7 +25,11 @@ import type { Maybe, ProcessingResultSource } from '@/src/types';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
 import { cleanUndefined } from '@/src/utils';
 import { normalize, stripExtension } from '@/src/utils/path';
-import { splitLabelmap, toLabelMap } from '@/src/segmentation/io/import';
+import {
+  distinctLabelValues,
+  splitLabelmap,
+  toLabelMap,
+} from '@/src/segmentation/io/import';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
@@ -406,20 +410,29 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             // A group that carried no descriptors is enumerated here, through
             // the same decode live import uses, while its source image is
             // still loaded: the temp item dataset is dropped below.
-            const decoded = item.decode
-              ? ((await decodeSegments(storeId, labelmap, {
-                  headerMetadata,
-                  // Read straight from the archive there is no loaded dataset
-                  // to name the segments after, and 'Segment 1' says nothing
-                  // about what arrived: the saved labelmap's own name is what
-                  // the live conversion would have read off the file.
-                  baseName:
-                    storeId === undefined
-                      ? stripExtension(item.name) || undefined
-                      : undefined,
-                })) as LabelmapSegment[])
-              : undefined;
-            return { item, labelmap, decoded };
+            const decode = async () =>
+              (await decodeSegments(storeId, labelmap, {
+                headerMetadata,
+                // Read straight from the archive there is no loaded dataset
+                // to name the segments after, and 'Segment 1' says nothing
+                // about what arrived: the saved labelmap's own name is what
+                // the live conversion would have read off the file.
+                baseName:
+                  storeId === undefined
+                    ? stripExtension(item.name) || undefined
+                    : undefined,
+              })) as LabelmapSegment[];
+            if (item.decode)
+              return { item, labelmap, decoded: await decode(), unclaimed: [] };
+            // Values no saved mask claims keep a default segment, as a live
+            // import of the same labelmap would give them. Decoding draws
+            // from the shared color cycle, so it runs only when one exists.
+            const claimed = new Set(item.masks.map(({ value }) => value));
+            const isUnclaimed = (value: number) => !claimed.has(value);
+            const unclaimed = distinctLabelValues(labelmap).some(isUnclaimed)
+              ? (await decode()).filter(({ value }) => isUnclaimed(value))
+              : [];
+            return { item, labelmap, decoded: undefined, unclaimed };
           } catch {
             // A parse/read failure skips just this item and never rejects the
             // whole restore; the survivors still attach.
@@ -536,7 +549,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     // wire order; their identities, selection and tool references stay intact.
     loaded.forEach((result) => {
       if (!result) return;
-      const { item, labelmap, decoded } = result;
+      const { item, labelmap, decoded, unclaimed } = result;
       const parentImageId = dataIDMap[item.parentImage];
       let restored: SegmentMask[];
       if (decoded) {
@@ -608,7 +621,15 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             };
           }
         );
-        restored = targets.map(({ mask }) => mask);
+        restored = [
+          ...targets.map(({ mask }) => mask),
+          ...(unclaimed.length
+            ? splitLabelmapIntoMasks(parentImageId, labelmap, unclaimed, {
+                source: item.source,
+                name: item.name,
+              })
+            : []),
+        ];
       }
       if (restored.length) restoredImportIds.add(item.id);
       else
