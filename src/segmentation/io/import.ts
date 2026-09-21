@@ -88,6 +88,7 @@ export function toBinaryMask(imageData: vtkImageData) {
 }
 
 function extractEachComponent(input: vtkImageData) {
+  if (componentCount(input) === 1) return [input];
   const extractComponentsFilter = vtkImageExtractComponents.newInstance();
   extractComponentsFilter.setInputData(input);
   return Array.from({ length: componentCount(input) }, (_, i) => {
@@ -282,7 +283,8 @@ export async function decodeLabelmapSegments(
   return declaredOncePerFile(merged, values, options.declared);
 }
 
-type LabelmapImportHooks = {
+export type LabelmapImportHooks = {
+  resample?: typeof ensureSameSpace;
   /**
    * Descriptors for one component. On the `last` one, a decode can add the
    * descriptors no component's voxels carried, once rather than per component.
@@ -340,17 +342,18 @@ export async function importLabelmapImage(
     );
   }
 
-  const images =
-    componentCount(childImage) === 1
-      ? [childImage]
-      : extractEachComponent(childImage);
+  const images = extractEachComponent(childImage);
 
   // Sequential, not fanned out: the splits share one segmentation, and each
   // binds its segments against the ones already in it.
   const created: ImportedSegment[][] = [];
   const cache = useImageCacheStore();
   for (const [component, image] of images.entries()) {
-    const matchingParentSpace = await ensureSameSpace(parentImage, image, true);
+    const matchingParentSpace = await (hooks.resample ?? ensureSameSpace)(
+      parentImage,
+      image,
+      true
+    );
     assertParentLoaded(parentID);
     const { labelmap: labelmapImage, excluded } =
       toLabelMap(matchingParentSpace);

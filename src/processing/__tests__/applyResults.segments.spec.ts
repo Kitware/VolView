@@ -9,8 +9,7 @@ import {
   type ApplyDependencies,
 } from '@/src/processing/applyResults';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
-import * as resampling from '@/src/io/resample/resample';
-import { isEmptyExtent } from '@/src/segmentation/geometry';
+import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
@@ -19,6 +18,8 @@ import {
   seedVoxel,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+
+import { savedMasks, serializeScene } from './serializedScene';
 
 const registry = () => useSegmentStore().segments;
 const source = { providerId: 'provider', jobId: 'job', outputId: 'mask' };
@@ -60,10 +61,7 @@ const importResult = (
     }
   );
 
-const appearanceOnB = () =>
-  store()
-    .imageMasks('parent-B')
-    .map(({ segmentId }) => registry().appearanceOf(segmentId));
+const save = () => serializeScene(['parent-A', 'parent-B']);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -79,25 +77,37 @@ beforeEach(async () => {
 });
 
 describe('processing segment identity', () => {
-  it("does not change another image's type named after the output file", async () => {
+  it("does not change another image's segment named after the output file", async () => {
     const { segmentId, maskId } = existingMask('parent-A', 'output');
     const toolId = usePolygonStore().addTool({
       imageID: 'parent-A',
       segmentId,
     });
-    const before = registry().appearanceOf(segmentId);
+    const before = await save();
 
     expect(
       await importResult([{ value: 1, name: 'Liver', color: blue }])
     ).toEqual({ status: 'applied' });
 
-    expect(registry().appearanceOf(segmentId)).toEqual(before);
-    expect(store().getMask(maskId).segmentId).toBe(segmentId);
-    expect(usePolygonStore().toolByID[toolId].segmentId).toBe(segmentId);
-    expect(appearanceOnB()).toMatchObject([{ name: 'Liver', color: blue }]);
-    const mask = store().imageMasks('parent-B')[0];
-    expect(mask.representations.labelmap?.extent).toEqual([1, 1, 1, 1, 1, 1]);
-    expect(mask.representations.labelmap?.source).toEqual(source);
+    const after = await save();
+    expect(savedMasks(after, 'parent-A')).toEqual(
+      savedMasks(before, 'parent-A')
+    );
+    expect(after.manifest.tools?.polygons?.tools).toMatchObject([
+      { id: toolId, segmentId },
+    ]);
+    expect(savedMasks(after, 'parent-A')[0]).toMatchObject({
+      id: maskId,
+      segmentId,
+    });
+    expect(savedMasks(after, 'parent-B')).toMatchObject([
+      {
+        segment: { name: 'Liver', color: blue },
+        extent: [1, 1, 1, 1, 1, 1],
+        source,
+        artifact: { dimensions: [1, 1, 1], values: [1] },
+      },
+    ]);
   });
 
   it('reuses the declared segment across images and keeps its existing appearance', async () => {
@@ -108,11 +118,14 @@ describe('processing segment identity', () => {
       { value: 1, name: 'Tumor', color: blue, visible: true },
     ]);
 
-    expect(store().imageMasks('parent-B')[0].segmentId).toBe(segmentId);
-    expect(appearanceOnB()).toMatchObject([
-      { name: 'Tumor', color: red, visible: false, locked: true },
+    const saved = await save();
+    expect(savedMasks(saved, 'parent-B')).toMatchObject([
+      {
+        segmentId,
+        segment: { name: 'Tumor', color: red, visible: false, locked: true },
+      },
     ]);
-    expect(registry().segmentList.value).toHaveLength(1);
+    expect(saved.manifest.segments).toHaveLength(1);
   });
 
   it('uses a distinct segment when the declared segment already has a mask on the target', async () => {
@@ -120,10 +133,10 @@ describe('processing segment identity', () => {
 
     await importResult([{ value: 1, name: 'Tumor', color: blue }]);
 
-    expect(store().getMask(maskId).segmentId).toBe(segmentId);
-    expect(appearanceOnB()).toMatchObject([
-      { name: 'Tumor', color: red },
-      { name: 'Tumor (2)', color: blue },
+    const saved = await save();
+    expect(savedMasks(saved, 'parent-B')).toMatchObject([
+      { id: maskId, segmentId, segment: { name: 'Tumor', color: red } },
+      { segment: { name: 'Tumor (2)', color: blue } },
     ]);
   });
 
@@ -138,9 +151,6 @@ describe('processing segment identity', () => {
     scalars.getData()[42] = 7;
     scalars.modified();
 
-    // Asserted, not discarded: the import pairs the masks it minted with the
-    // descriptors it decoded by position, so a descriptor list that grows
-    // after the decode fails the whole apply rather than the row below.
     expect(
       await importResult([
         { value: 1, name: 'Explicit', color: blue, visible: false },
@@ -148,23 +158,26 @@ describe('processing segment identity', () => {
       ])
     ).toEqual({ status: 'applied' });
 
-    // Value 99 has no voxels and no header block. A segment a result DECLARES
-    // but leaves EMPTY appears as an empty row, so it is minted after the
-    // decoded ones.
-    expect(appearanceOnB()).toMatchObject([
-      { name: 'Explicit', color: blue, visible: false },
-      { name: 'output 7' },
-      { name: 'Absent', color: blue, visible: true },
+    const saved = await save();
+    expect(savedMasks(saved, 'parent-B')).toMatchObject([
+      {
+        segment: { name: 'Explicit', color: blue, visible: false },
+        artifact: { values: [1] },
+      },
+      {
+        segment: { name: 'output 7' },
+        extent: [2, 2, 2, 2, 2, 2],
+        artifact: { values: [1] },
+      },
+      {
+        segment: { name: 'Absent', color: blue, visible: true },
+        extent: [0, -1, 0, -1, 0, -1],
+        artifact: { values: [0] },
+      },
     ]);
-    expect(registry().findSegmentByName('Embedded')?.color).toEqual(red);
     expect(
-      store().imageMasks('parent-B')[1].representations.labelmap?.extent
-    ).toEqual([2, 2, 2, 2, 2, 2]);
-    expect(
-      isEmptyExtent(
-        store().imageMasks('parent-B')[2].representations.labelmap!.extent
-      )
-    ).toBe(true);
+      saved.manifest.segments?.find(({ name }) => name === 'Embedded')?.color
+    ).toEqual(red);
   });
 
   it('applies source-value descriptions independently to every component', async () => {
@@ -178,25 +191,35 @@ describe('processing segment identity', () => {
 
     await importResult([{ value: 1, name: 'Liver', color: blue }]);
 
-    expect(appearanceOnB()).toMatchObject([
-      { name: 'Liver', color: blue },
-      { name: 'Liver (2)', color: blue },
-    ]);
-    expect(
-      store()
-        .imageMasks('parent-B')
-        .map((mask) => mask.representations.labelmap?.extent)
-    ).toEqual([
-      [1, 1, 1, 1, 1, 1],
-      [2, 2, 2, 2, 2, 2],
+    expect(savedMasks(await save(), 'parent-B')).toMatchObject([
+      {
+        segment: { name: 'Liver', color: blue },
+        extent: [1, 1, 1, 1, 1, 1],
+        artifact: { values: [1] },
+      },
+      {
+        segment: { name: 'Liver (2)', color: blue },
+        extent: [2, 2, 2, 2, 2, 2],
+        artifact: { values: [1] },
+      },
     ]);
   });
 
   it('imports every component again when a retry follows a partial import', async () => {
-    const resample = resampling.ensureSameSpace;
-    vi.spyOn(resampling, 'ensureSameSpace')
-      .mockImplementationOnce(resample)
+    const resample = vi
+      .fn(ensureSameSpace)
+      .mockImplementationOnce(ensureSameSpace)
       .mockRejectedValueOnce(new Error('Resample failed'));
+    const segmentWriter = {
+      ...appApplyDependencies().segmentWriter,
+      convertImageToLabelmap: (
+        ...args: Parameters<ReturnType<typeof store>['convertImageToLabelmap']>
+      ) =>
+        store().convertImageToLabelmap(args[0], args[1], {
+          ...args[2],
+          resample,
+        }),
+    };
     let imports = 0;
     const importTwoComponents = async () => {
       imports += 1;
@@ -214,11 +237,33 @@ describe('processing segment identity', () => {
     };
 
     expect(
-      await importResult(undefined, { importVolume: importTwoComponents })
+      await importResult(undefined, {
+        importVolume: importTwoComponents,
+        segmentWriter,
+      })
     ).toMatchObject({ status: 'failed' });
+    expect(savedMasks(await save(), 'parent-B')).toMatchObject([
+      {
+        extent: [1, 1, 1, 1, 1, 1],
+        source: undefined,
+        artifact: { values: [1] },
+      },
+    ]);
     expect(
-      await importResult(undefined, { importVolume: importTwoComponents })
+      await importResult(undefined, {
+        importVolume: importTwoComponents,
+        segmentWriter,
+      })
     ).toEqual({ status: 'applied' });
     expect(imports).toBe(2);
+    expect(savedMasks(await save(), 'parent-B')).toMatchObject([
+      {
+        extent: [1, 1, 1, 1, 1, 1],
+        source: undefined,
+        artifact: { values: [1] },
+      },
+      { extent: [1, 1, 1, 1, 1, 1], source, artifact: { values: [1] } },
+      { extent: [2, 2, 2, 2, 2, 2], source, artifact: { values: [1] } },
+    ]);
   });
 });

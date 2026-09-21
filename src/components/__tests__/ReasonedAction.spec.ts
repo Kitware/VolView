@@ -1,7 +1,9 @@
 import { defineComponent, h, nextTick } from 'vue';
-import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
+import { afterEach, describe, expect, it } from 'vitest';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
+
+enableAutoUnmount(afterEach);
 
 const TooltipStub = defineComponent({
   name: 'VTooltip',

@@ -13,7 +13,6 @@ import { toLabelMap } from '@/src/segmentation/io/import';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
-import * as resampling from '@/src/io/resample/resample';
 
 // ---------------------------------------------------------------------------
 // A parent removed mid-conversion must mint nothing, and the failure must
@@ -42,15 +41,13 @@ function gatedResample(calls = 1) {
     enter = resolve;
   });
   const releases: Array<(resampled: vtkImageData) => void> = [];
-  vi.spyOn(resampling, 'ensureSameSpace').mockImplementation(
-    () =>
-      new Promise<vtkImageData>((resolve) => {
-        if (releases.push(resolve) === calls) enter();
-      })
-  );
+  const resample = () =>
+    new Promise<vtkImageData>((resolve) => {
+      if (releases.push(resolve) === calls) enter();
+    });
   const release = (resampled: vtkImageData, call = 0) =>
     releases[call](resampled);
-  return { entered, release };
+  return { entered, release, resample };
 }
 
 async function seatConvertible() {
@@ -84,7 +81,9 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
     const child = await seatConvertible();
     const resample = gatedResample();
 
-    const conversion = store().convertImageToLabelmap('child', 'parent');
+    const conversion = store().convertImageToLabelmap('child', 'parent', {
+      resample: resample.resample,
+    });
     const outcome = conversion.catch((error: Error) => error);
     await resample.entered;
     expect(store().convertingLabelmaps.has('child')).toBe(true);
@@ -119,7 +118,9 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
     const resample = gatedResample();
 
     // What both live call sites start: nobody awaits the conversion itself.
-    const conversion = store().startLabelmapConversion('child', 'parent');
+    const conversion = store().startLabelmapConversion('child', 'parent', {
+      resample: resample.resample,
+    });
     await resample.entered;
     useImageCacheStore().removeImage('parent');
     resample.release(child);
@@ -147,8 +148,12 @@ describe('a labelmap converting onto two parents', () => {
     await seatImage('other-parent', { dimensions: DIMENSIONS });
     const resample = gatedResample(2);
 
-    const first = store().convertImageToLabelmap('child', 'parent');
-    const second = store().convertImageToLabelmap('child', 'other-parent');
+    const first = store().convertImageToLabelmap('child', 'parent', {
+      resample: resample.resample,
+    });
+    const second = store().convertImageToLabelmap('child', 'other-parent', {
+      resample: resample.resample,
+    });
     await resample.entered;
     resample.release(child, 0);
     await first;

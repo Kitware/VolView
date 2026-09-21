@@ -1,14 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, nextTick } from 'vue';
-import { mount } from '@vue/test-utils';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
+import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import PatientStudyVolumeBrowser from '@/src/components/PatientStudyVolumeBrowser.vue';
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
-import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import * as labelmapImport from '@/src/segmentation/io/import';
-import type { ProgressiveImage } from '@/src/core/progressiveImage';
+import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { defer } from '@/src/utils';
+
+enableAutoUnmount(afterEach);
 
 const SlotStub = defineComponent({
   template: '<div><slot /></div>',
@@ -48,32 +50,31 @@ const mountBrowser = () =>
   });
 
 describe('DICOM segmentation conversion progress', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
     seatVolume('seg-volume', {
       Modality: 'SEG',
       SeriesDescription: 'TotalSegmentator segmentation',
     });
-    useImageCacheStore().imageById['seg-volume'] = {
-      getThumbnail: () => Promise.resolve(null),
-    } as ProgressiveImage;
+    await seatImage('seg-volume');
+    await seatImage('parent');
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('covers the source thumbnail while it is becoming a segmentation', async () => {
-    let finish!: () => void;
-    vi.spyOn(labelmapImport, 'importLabelmapImage').mockReturnValue(
-      new Promise((resolve) => {
-        finish = () => resolve([]);
-      })
-    );
+  it('covers the source thumbnail until a pending conversion fails', async () => {
+    const pending = defer<vtkImageData>();
+    const entered = defer<void>();
     const conversion = useSegmentationStore().convertImageToLabelmap(
       'seg-volume',
-      'parent'
+      'parent',
+      {
+        resample: () => {
+          entered.resolve();
+          return pending.promise;
+        },
+      }
     );
+    const outcome = conversion.catch((error: Error) => error);
+    await entered.promise;
     const wrapper = mountBrowser();
     await nextTick();
 
@@ -85,8 +86,8 @@ describe('DICOM segmentation conversion progress', () => {
     expect(wrapper.findAll('.progress')).toHaveLength(1);
     expect(wrapper.find('.series-selector').exists()).toBe(true);
 
-    finish();
-    await conversion;
+    pending.reject(new Error('Resampling failed'));
+    expect(await outcome).toMatchObject({ message: 'Resampling failed' });
     await nextTick();
     expect(
       wrapper.find('[data-testid="segmentation-conversion-progress"]').exists()
