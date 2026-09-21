@@ -20,7 +20,14 @@ const { base } = stagedContext();
 const failures = [];
 
 // git reports "-" for added and deleted lines when a blob is binary.
-const numstat = git('diff', '--cached', '--numstat', base, '--');
+const numstat = git(
+  'diff',
+  '--cached',
+  '--numstat',
+  '--diff-filter=AMRT',
+  base,
+  '--'
+);
 numstat
   .split('\n')
   .filter(Boolean)
