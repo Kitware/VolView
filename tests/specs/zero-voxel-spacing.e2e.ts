@@ -1,35 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-
-import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
-import { writeManifestToFile } from './utils';
-
-const SIZE = 16;
-
-// itk-wasm passes a MetaImage's zero ElementSpacing through unchanged.
-function writeZeroSpacingMetaImage() {
-  const fileName = `zero-voxel-spacing-${Date.now()}.mha`;
-  const filePath = path.join(TEMP_DIR, fileName);
-  const header = [
-    'ObjectType = Image',
-    'NDims = 3',
-    `DimSize = ${SIZE} ${SIZE} ${SIZE}`,
-    'ElementSpacing = 0 1 1',
-    'ElementType = MET_UCHAR',
-    'ElementDataFile = LOCAL',
-    '',
-  ].join('\n');
-  const voxels = Uint8Array.from({ length: SIZE ** 3 }, (_, i) => i % 256);
-  fs.writeFileSync(filePath, Buffer.concat([Buffer.from(header), voxels]));
-
-  cleanuptotal.addCleanup(async () => {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  });
-
-  return fileName;
-}
+import { writeManifestToFile, writeMetaImage } from './utils';
 
 const notificationTitles = async () => {
   await volViewPage.notifications.click();
@@ -40,7 +10,10 @@ const notificationTitles = async () => {
 
 describe('An image with zero voxel spacing', () => {
   it('can be painted and reports the invalid spacing', async () => {
-    const fileName = writeZeroSpacingMetaImage();
+    // itk-wasm passes a MetaImage's zero ElementSpacing through unchanged.
+    const fileName = writeMetaImage(`zero-voxel-spacing-${Date.now()}.mha`, {
+      spacing: '0 1 1',
+    });
     const manifestName = `zero-voxel-spacing-${Date.now()}.json`;
     await writeManifestToFile(
       { resources: [{ url: `/tmp/${fileName}`, name: fileName }] },

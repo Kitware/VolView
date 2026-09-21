@@ -288,11 +288,18 @@ export default defineComponent({
                 Spacing: ({{ image.spacing.join(', ') }})
               </div>
             </div>
-            <v-btn icon variant="plain" size="x-small" class="dataset-menu">
+            <v-btn
+              icon
+              variant="plain"
+              size="x-small"
+              class="dataset-menu"
+              data-testid="dataset-menu-button"
+            >
               <v-menu activator="parent">
                 <v-list>
                   <v-list-item
                     v-if="image.layerable"
+                    data-testid="dataset-menu-layer-item"
                     @click.stop="image.layerHandler()"
                   >
                     <template v-if="image.layerLoading">
