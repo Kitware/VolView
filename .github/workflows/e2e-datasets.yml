@@ -1,0 +1,28 @@
+# A cache saved by a pull request run is only visible to that pull request.
+# One saved on main is visible to all of them, so this keeps it there.
+name: E2E dataset cache
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    name: Warm the dataset cache
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Keep in step with the cache step in e2e.yml.
+      - name: Cache test datasets
+        uses: actions/cache@v4
+        with:
+          path: .tmp/datasets
+          key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
+          restore-keys: e2e-datasets-
+      - name: Download missing datasets
+        run: node tests/downloadDatasets.ts
