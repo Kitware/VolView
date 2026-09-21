@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import type {
+  ProcessingJobStatus,
   ProcessingProvider,
   ProcessingProviderConfig,
 } from '@/src/processing/types';
@@ -33,3 +34,38 @@ export const makeFakeProvider = (
     getJobHistoryDetail: vi.fn(),
     ...overrides,
   }) as FakeProvider;
+
+export const resultStateFor = (state: ProcessingJobStatus['state']) =>
+  state === 'success'
+    ? ('ready' as const)
+    : state === 'error' || state === 'cancelled'
+      ? ('unavailable' as const)
+      : ('waiting' as const);
+
+export const jobStatus = (
+  jobId: string,
+  state: ProcessingJobStatus['state'],
+  extra: Partial<ProcessingJobStatus> = {}
+): ProcessingJobStatus => ({
+  jobId,
+  state,
+  resultState: resultStateFor(state),
+  ...extra,
+});
+
+type ProviderRegistry = {
+  registerProviderConfig(config: ProcessingProviderConfig): void;
+  instances: Map<string, ProcessingProvider>;
+};
+
+// Seating the instance is what a transport load would have produced.
+export const registerFake = (
+  store: ProviderRegistry,
+  provider: FakeProvider
+) => {
+  store.registerProviderConfig(provider.config);
+  store.instances.set(
+    provider.config.id,
+    provider as unknown as ProcessingProvider
+  );
+};

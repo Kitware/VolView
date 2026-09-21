@@ -6,13 +6,13 @@ import { createApp } from 'vue';
 import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { defer, type Deferred } from '@/src/utils';
 import type {
-  ProcessingProvider,
   ProcessingProviderConfig,
   TaskSummary,
 } from '@/src/processing/types';
 import type { TaskSpecEnvelope } from '@/src/processing/engine/taskSpec';
 import {
   makeFakeProvider,
+  registerFake,
   type FakeProvider,
 } from '@/src/processing/__tests__/fakeProvider';
 
@@ -64,18 +64,6 @@ const envelope = (id: string, title: string): TaskSpecEnvelope => ({
   parameters: [],
   outputs: [],
 });
-
-const registerFake = (
-  store: ReturnType<typeof useProcessingJobsStore>,
-  provider: FakeProvider
-) => {
-  store.registerProviderConfig(provider.config);
-  // Seating the instance is what a transport load would have produced.
-  store.instances.set(
-    provider.config.id,
-    provider as unknown as ProcessingProvider
-  );
-};
 
 // Auto-stubs drop slot content, hiding the panel children.
 const slotStub = { template: '<div><slot /></div>' };
