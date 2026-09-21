@@ -118,10 +118,12 @@ Two versions on separate clocks:
 ### Result instruction rollout
 
 Contract artifact 0.3.0 uses intent vocabulary 3 and names segmentation import
-`import-segmentation`. Deploy the updated producer and VolView client together.
-An older client treats the unfamiliar instruction as an ordinary result and
-will not apply its segmentation automatically. Update Girder's pinned VolView
-package when releasing the paired change.
+`import-segmentation`. A current client still reads the earlier name,
+`add-segment-group`, as the same instruction (`LEGACY_RESULT_INTENT_NAMES` in
+`processing/wire.ts`), so a producer may move to the new name after the client.
+The reverse order does not hold: an older client treats `import-segmentation`
+as an ordinary result and will not apply its segmentation automatically.
+Update Girder's pinned VolView package before the producer emits the new name.
 
 This vocabulary change does not change task-spec versions or saved-session
 schemas. Girder projects stored job outputs into current instructions when
