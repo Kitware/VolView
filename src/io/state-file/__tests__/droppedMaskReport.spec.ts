@@ -32,7 +32,7 @@ const buildScene = async () => {
 const restoreTampered = async (
   tamper: (parsed: any) => void,
   segmentIdMapFor: (parsed: any) => Record<string, string> = (parsed) =>
-    useSegmentStore().deserialize(parsed),
+    useSegmentStore().deserialize(parsed).segmentIdMap,
   dataIDMap: Record<string, string> = { 'img-1': 'new-1' }
 ) => {
   await buildScene();
@@ -109,7 +109,7 @@ const restoreArtifactMasks = async (order: string[]) => {
       { archivePath: 'labels.vti', file: new File([], 'labels.vti') },
     ],
     dataIDMap: { parent: 'parent' },
-    segmentIdMap: useSegmentStore().deserialize(manifest),
+    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
     io: { read: async () => ({ image: labels }), write: async () => '' },
   });
   return {

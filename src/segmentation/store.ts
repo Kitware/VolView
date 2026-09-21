@@ -21,6 +21,7 @@ import {
   splitLabelmap,
   type DecodeOptions,
 } from '@/src/segmentation/io/import';
+import { unsupportedLabelsReason } from '@/src/segmentation/io/labelmap';
 import { useIdStore } from '@/src/store/id';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
@@ -42,9 +43,13 @@ import {
 } from '@/src/segmentation/model';
 import {
   emptyExtent,
+  extentContainsIndex,
   hasMarkedVoxel,
+  maskOffset,
   type Extent3D,
 } from '@/src/segmentation/geometry';
+import { boundScalars } from '@/src/segmentation/masks/overlap';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useMessageStore } from '@/src/store/messages';
 import {
@@ -412,14 +417,13 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       // import pairs the masks the split returns with these descriptors by
       // position, so the two lists have to be the same one. They wait for the
       // last component, once every component has said which values it carries.
-      decode: async (labelmap, component, componentCount) => {
-        const last = component === componentCount - 1;
-        const decoded = (await decodeSegments(imageID, labelmap, {
+      decode: async (labelmap, component, last) => {
+        const decoded = await decodeSegments(imageID, labelmap, {
           component,
           // The file header's own declarations wait for the last component the
           // same way, through the same covered values.
           declared: { covered: coveredValues, last },
-        })) as LabelmapSegment[];
+        });
         decoded.forEach((descriptor) => coveredValues.add(descriptor.value));
         if (!last) return decoded;
         return withDeclaredEmpties(decoded, bySourceValue, coveredValues);
@@ -433,11 +437,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           descriptors.map((descriptor) => ({
             ...descriptor,
             ...bySourceValue.get(descriptor.value),
-          })),
-          { source }
+          }))
         );
         return created.map((mask) => mask.id);
       },
+      excluded: (voxels) =>
+        useMessageStore().addWarning(
+          'Some labels could not be imported',
+          `${unsupportedLabelsReason(voxels)}; they were left empty.`
+        ),
+    }).then((created) => {
+      // A receipt only on a finished import, so a failed one is retried whole.
+      created.flat().forEach(({ maskId }) => {
+        const binding = findMask(maskId)?.representations.labelmap;
+        if (binding && source) binding.source = source;
+      });
+      return created;
     });
     const ontoParents =
       conversions.get(imageID) ?? new Map<DataSelection, typeof conversion>();
@@ -515,6 +530,25 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     imageMasks(parentImageId)
       .filter((mask) => mask.representations.labelmap)
       .map((mask) => mask.id);
+
+  /**
+   * The segments whose masks hold the voxel at PARENT indices i, j, k of an
+   * image, in registry order: what the eyedropper picks from and the probe
+   * lists. Masks share the parent grid, so one index addresses every mask.
+   */
+  const segmentsAt = (parentImageId: string, i: number, j: number, k: number) =>
+    segmentRegistry.segmentList.value
+      .filter((segment) => {
+        const bounded = boundScalars(
+          maskFor(parentImageId, segment.id)?.representations.labelmap
+        );
+        return (
+          !!bounded &&
+          extentContainsIndex(bounded.extent, i, j, k) &&
+          bounded.scalars[maskOffset(bounded, i, j, k)] === SEGMENT_VALUE
+        );
+      })
+      .map(({ id }) => id);
 
   const updateSegmentationDisplay = (
     segmentationId: string,
@@ -621,16 +655,17 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return ensureMask(imageId, segmentId).id;
   }
 
-  const maskIdsOfSegment = (segmentId: string) =>
+  /** A segment's mask on every image that has one, by the per-image index. */
+  const masksOfSegment = (segmentId: string) =>
     Object.values(segmentations).flatMap((segmentation) => {
       const maskId = maskIdsBySegment.get(segmentation.id)?.get(segmentId);
-      return maskId ? [maskId] : [];
+      return maskId ? [segmentation.masks[maskId]] : [];
     });
 
   segmentRegistry.declareReferences('labelmaps', {
-    has: (segmentId) => maskIdsOfSegment(segmentId).length > 0,
+    has: (segmentId) => masksOfSegment(segmentId).length > 0,
     remove: (segmentId) =>
-      maskIdsOfSegment(segmentId).forEach((maskId) => deleteMask(maskId)),
+      masksOfSegment(segmentId).forEach((mask) => deleteMask(mask.id)),
   });
 
   // --- render sync --- //
@@ -673,6 +708,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     convertingLabelmaps: readonly(conversions),
     labelmapDescriptorByMask,
     maskFor,
+    masksOfSegment,
     findEditTarget,
     resolveEditTarget,
     editTargetLocked,
@@ -699,6 +735,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     imageMasks,
     editableMasks,
     boundMaskIds,
+    segmentsAt,
     serialize,
     deserialize,
   };

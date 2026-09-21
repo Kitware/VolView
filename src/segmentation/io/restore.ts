@@ -5,7 +5,6 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import type { Segmentation } from '@/src/io/state-file/schema';
 import { placeMask, setMaskScalars } from '@/src/segmentation/masks/storage';
-import type { ProcessingResultSource } from '@/src/types';
 import {
   LABELMAP_BACKGROUND_VALUE,
   maskScalars,
@@ -40,12 +39,6 @@ export function createLoadedImageReader(
   };
 }
 
-export type LoadedLabelmap = {
-  labelmap: vtkLabelMap;
-  name: string;
-  source?: ProcessingResultSource;
-};
-
 export type SkippedRestoreItem = { name: string; reason: string };
 
 type RestoreBindingInput = {
@@ -55,7 +48,7 @@ type RestoreBindingInput = {
    * What each mask's own archive entry held. A mask awaiting an input's
    * split is absent: its voxels are still inside that input.
    */
-  loaded: Map<WireMask, LoadedLabelmap>;
+  loaded: Map<WireMask, vtkLabelMap>;
   getParentImage: (id: string) => vtkImageData | undefined;
 };
 
@@ -101,10 +94,11 @@ export function prepareRestoreBindings(input: RestoreBindingInput) {
 
   const place = (wireMask: WireMask, parentImage: vtkImageData | undefined) => {
     const wireBinding = wireMask.representations.labelmap;
-    const available = loaded.get(wireMask);
-    if (!wireBinding || !available) return;
+    const labelmap = loaded.get(wireMask);
+    if (!wireBinding || !labelmap) return;
 
-    const { name, labelmap, source } = available;
+    const name = wireBinding.name ?? '';
+    const { source } = wireBinding;
     const reject = (reason: string) =>
       skipped.push({ name: name || wireBinding.path, reason });
 

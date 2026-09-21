@@ -28,7 +28,7 @@ const seatAndView = (id: string) => {
 const segmentationOf = (imageId: string) =>
   useSegmentationStore().getSegmentationForImage(imageId);
 
-const colouredSegment = () => ({
+const coloredSegment = () => ({
   store: usePolygonStore(),
   segmentId: segments().addSegment({ name: 'Tumor', color: [214, 0, 0, 255] }),
 });
@@ -50,7 +50,7 @@ describe('shape references to segments', () => {
     seatAndView(IMAGE_ID);
   });
 
-  it('lists every type in the shared registry, content or not', () => {
+  it('lists every segment in the shared registry, content or not', () => {
     const segmentId = segments().addSegment({ name: 'Tumor' });
 
     expect(segments().segmentList.value.map((type) => type.id)).toEqual([
@@ -60,7 +60,7 @@ describe('shape references to segments', () => {
     expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 
-  it('keeps the selected type when the viewed image changes', async () => {
+  it('keeps the selected segment when the viewed image changes', async () => {
     const store = usePolygonStore();
     const segmentId = segments().addSegment({ name: 'Tumor' });
 
@@ -72,7 +72,7 @@ describe('shape references to segments', () => {
     expect(store.toolByID[id].segmentId).toBe(segmentId);
   });
 
-  it('captures the selected type when a tool is added', () => {
+  it('captures the selected segment when a tool is added', () => {
     const store = usePolygonStore();
     const segmentId = segments().addSegment({ name: 'Tumor' });
 
@@ -81,8 +81,8 @@ describe('shape references to segments', () => {
     expect(store.toolByID[id].segmentId).toBe(segmentId);
   });
 
-  it('resolves the type name and color for the tool', () => {
-    const { store, segmentId } = colouredSegment();
+  it('resolves the segment name and color for the tool', () => {
+    const { store, segmentId } = coloredSegment();
 
     const id = store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
 
@@ -109,7 +109,7 @@ describe('shape references to segments', () => {
   });
 
   it('shows a recolor through the resolver', () => {
-    const { store, segmentId } = colouredSegment();
+    const { store, segmentId } = coloredSegment();
     const id = store.addTool({ imageID: IMAGE_ID, placing: false, segmentId });
 
     segments().updateSegment(segmentId, { color: [0, 0, 255, 255] });
@@ -119,7 +119,7 @@ describe('shape references to segments', () => {
     );
   });
 
-  it('lets several shapes reference one type', () => {
+  it('lets several shapes reference one segment', () => {
     const polygons = usePolygonStore();
     const rectangles = useRectangleStore();
     const segmentId = segments().addSegment({ name: 'Tumor' });
@@ -144,7 +144,7 @@ describe('shape references to segments', () => {
     expect(segments().getSegment(segmentId)).not.toHaveProperty('fillColor');
   });
 
-  it('allocates no voxels and no geometry for a type', () => {
+  it('allocates no voxels and no geometry for a segment', () => {
     const store = usePolygonStore();
 
     segments().addSegment({ name: 'Tumor' });
@@ -154,7 +154,7 @@ describe('shape references to segments', () => {
     expect(store.toolIDs).toEqual([]);
   });
 
-  it('restores a shape whose type did not come back as unlabeled', () => {
+  it('restores a shape whose segment did not come back as unlabeled', () => {
     const { segmentId, serialized } = serializedToolForSegment();
     expect(serialized.tools[0].segmentId).toBe(segmentId);
 
@@ -167,13 +167,13 @@ describe('shape references to segments', () => {
     expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 
-  it('remaps a restored shape onto the type the registry adopted', () => {
+  it('remaps a restored shape onto the segment the registry adopted', () => {
     const { segmentId, serialized } = serializedToolForSegment();
 
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);
     const restored = usePolygonStore();
-    const adopted = segments().adopt([
+    const { idMap: adopted } = segments().adopt([
       {
         id: segmentId,
         name: 'Tumor',
@@ -219,7 +219,7 @@ describe('shape references to segments', () => {
   });
 });
 
-describe('placing an annotation names its type', () => {
+describe('placing an annotation names its segment', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     seatAndView(IMAGE_ID);
@@ -231,7 +231,7 @@ describe('placing an annotation names its type', () => {
     return id;
   };
 
-  it('mints a type for an annotation placed against nothing', () => {
+  it('mints a segment for an annotation placed against nothing', () => {
     const store = useRectangleStore();
     expect(segments().selectedSegmentId.value).toBeUndefined();
 
@@ -244,7 +244,7 @@ describe('placing an annotation names its type', () => {
     expect(segmentationOf(IMAGE_ID)).toBeUndefined();
   });
 
-  it('mints the type while the annotation is still being placed', () => {
+  it('mints the segment while the annotation is still being placed', () => {
     const store = useRectangleStore();
     const id = store.addTool({ imageID: IMAGE_ID, placing: true });
 
@@ -265,7 +265,7 @@ describe('placing an annotation names its type', () => {
     expect(segments().segmentList.value).toHaveLength(1);
   });
 
-  it('leaves the placed type selected so the next one reuses it', () => {
+  it('leaves the placed segment selected so the next one reuses it', () => {
     const store = useRectangleStore();
 
     const first = place(store);
@@ -277,7 +277,7 @@ describe('placing an annotation names its type', () => {
     expect(segments().segmentList.value).toHaveLength(1);
   });
 
-  it('hands the minted type to the other delineation tools', () => {
+  it('hands the minted segment to the other delineation tools', () => {
     const rectangles = useRectangleStore();
     const polygons = usePolygonStore();
 
@@ -286,7 +286,7 @@ describe('placing an annotation names its type', () => {
 
     const polygon = polygons.addTool({ imageID: IMAGE_ID, placing: false });
     expect(polygons.toolByID[polygon].segmentId).toBe(segmentId);
-    // Paint resolves the same type into this image's mask.
+    // Paint resolves the same segment into this image's mask.
     expect(
       useSegmentationStore().getMask(
         useSegmentationStore().resolveEditTarget(IMAGE_ID)
@@ -294,7 +294,7 @@ describe('placing an annotation names its type', () => {
     ).toBe(segmentId);
   });
 
-  it('places against the selected type rather than minting beside it', () => {
+  it('places against the selected segment rather than minting beside it', () => {
     const store = useRectangleStore();
     const segmentId = segments().addSegment({ name: 'Tumor' });
 

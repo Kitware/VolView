@@ -20,7 +20,8 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 // `segmentationArtifacts` and restores into fresh stores with the same
 // segments, order, active segment and artifact provenance. SegmentMask identity is
 // never re-derived from label values, so duplicate names across images survive
-// as distinct segments and a segment with no storage survives as one.
+// as distinct segments, the later one numbered, and a segment with no storage
+// survives as one.
 // ---------------------------------------------------------------------------
 
 const SOURCE = {
@@ -102,7 +103,7 @@ describe('segmentation state-file round trip', () => {
     setActivePinia(createPinia());
     await seatImage('new-1', 'CT A');
     await seatImage('new-2', 'CT B');
-    const segmentIdMap = useSegmentStore().deserialize(parsed);
+    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
     await useSegmentationStore().deserialize({
       manifest: parsed,
       stateFiles: stateFiles,
@@ -113,7 +114,10 @@ describe('segmentation state-file round trip', () => {
     await nextTick();
 
     expect(segmentationSnapshot('new-1')).toEqual(before.first);
-    expect(segmentationSnapshot('new-2')).toEqual(before.second);
+    expect(segmentationSnapshot('new-2')).toEqual({
+      ...before.second,
+      segments: [{ ...before.second.segments[0], name: 'Tumor (2)' }],
+    });
     expect(selectedTypeSummary()).toEqual({
       parentImages: ['new-1'],
       name: before.selected!.name,

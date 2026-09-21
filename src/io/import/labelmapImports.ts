@@ -99,13 +99,11 @@ export function planLabelmapSources(manifest: Manifest) {
   const datasetBySource = new Map(
     manifestDatasets(manifest).map((ds) => [ds.dataSourceId, ds.id])
   );
-  const sourceIds = new Set(manifest.dataSources.map((source) => source.id));
   const leaves = new Map<number, string>();
   const sources: Record<string, LabelmapRestoreSource> = {};
   (manifest.segmentationArtifacts ?? []).forEach((entry) => {
     const { path, dataSourceId } = entry;
     if (path !== undefined || dataSourceId === undefined) return;
-    if (!sourceIds.has(dataSourceId)) return;
     const datasetId = datasetBySource.get(dataSourceId);
     const stateId = datasetId ?? leafStateId(dataSourceId);
     if (datasetId === undefined) leaves.set(dataSourceId, stateId);
@@ -114,8 +112,8 @@ export function planLabelmapSources(manifest: Manifest) {
       temporary: datasetId === undefined || manifest.datasets === undefined,
     };
   });
-  return { leaves, sources };
+  return {
+    leaves: [...leaves].map(([dataSourceId, id]) => ({ id, dataSourceId })),
+    sources,
+  };
 }
-
-export const resolveLabelmapSources = (manifest: Manifest) =>
-  planLabelmapSources(manifest).sources;

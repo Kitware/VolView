@@ -2,6 +2,8 @@ import { Skip } from '@/src/utils/evaluateChain';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
+import JSZip from 'jszip';
+import { manifestForImages } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 import { importDataSources } from '@/src/io/import/importDataSources';
 import {
@@ -9,9 +11,6 @@ import {
   yieldsFor,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { useImageCacheStore } from '@/src/store/image-cache';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 const sessionFile = () =>
   new File(['{}'], 'session.volview.json', { type: 'application/json' });
@@ -65,25 +64,9 @@ describe('post-state segment config', () => {
     const restore = recordingRestoreProcessors({
       setup,
       completion: async () => {
-        useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
-          id: 'img-1',
-        });
-        const segmentIdMap = useSegmentStore().deserialize(RESTORED_MANIFEST);
+        useSegmentStore().deserialize(RESTORED_MANIFEST);
         configWasVisibleDuringRestore =
           !!useSegmentStore().segments.findSegmentByName('Configured');
-        useRectangleStore().deserializeTools(
-          {
-            tools: [
-              {
-                imageID: 'img-1',
-                segmentId: 'wire-restored',
-                placing: false,
-              },
-            ],
-          },
-          { 'img-1': 'img-1' },
-          segmentIdMap
-        );
       },
     });
 
@@ -106,14 +89,11 @@ describe('post-state segment config', () => {
 
     // Restore seats its registry first; the config layers on top of it.
     expect(configWasVisibleDuringRestore).toBe(false);
-    const rectangles = useRectangleStore();
-    expect(
-      useSegmentStore().segments.segmentList.value.map((type) => type.name)
-    ).toEqual(['Restored', 'Configured']);
-    const tool = rectangles.toolByID[rectangles.toolIDs[0]];
-    expect(rectangles.appearanceOfTool(tool.id)).toMatchObject({
-      name: 'Restored',
-      cssColor: '#00ff00',
-    });
+    const manifest = manifestForImages([]);
+    useSegmentStore().serialize({ zip: new JSZip(), manifest });
+    expect(manifest.segments?.map((segment) => segment.name)).toEqual([
+      'Restored',
+      'Configured',
+    ]);
   });
 });

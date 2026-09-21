@@ -10,6 +10,7 @@ import {
   type SegmentInit,
 } from '@/src/segmentation/segment';
 import { cleanUndefined, cycle } from '@/src/utils';
+import { makeDefaultSegmentName } from '@/src/segmentation/model';
 import type { ConfiguredSegments } from '@/src/io/import/configSegments';
 
 type SegmentReferenceHolder = {
@@ -131,21 +132,30 @@ export const createSegmentRegistry = () => {
     return getSegment(first);
   };
 
-  const lowestFreeName = (prefix: string, tail: string, first: number) => {
-    let index = suffixFloors.get(prefix) ?? first;
-    while (nameTaken(`${prefix}${index}${tail}`)) index += 1;
-    suffixFloors.set(prefix, index);
-    return `${prefix}${index}${tail}`;
+  // `family` keys the floor: every name `nameFor` gives belongs to it.
+  const lowestFreeName = (
+    family: string,
+    nameFor: (index: number) => string,
+    first: number
+  ) => {
+    let index = suffixFloors.get(family) ?? first;
+    while (nameTaken(nameFor(index))) index += 1;
+    suffixFloors.set(family, index);
+    return nameFor(index);
   };
 
   // The name index and every lookup ignore surrounding space, so the stem has
   // to be trimmed as well.
   const uniqueName = (stem: string) => {
     const base = stem.trim();
-    return nameTaken(base) ? lowestFreeName(`${base} (`, ')', 2) : base;
+    return nameTaken(base)
+      ? lowestFreeName(`${base} (`, (index) => `${base} (${index})`, 2)
+      : base;
   };
 
-  const defaultName = () => lowestFreeName('Segment ', '', 1);
+  // A stem family ends in ' (', so this key never collides with one.
+  const defaultName = () =>
+    lowestFreeName('default', makeDefaultSegmentName, 1);
 
   const nextToolColor = cycle(TOOL_COLORS);
   const nextColor = () => cssColorToRGBA(nextToolColor());
@@ -213,7 +223,9 @@ export const createSegmentRegistry = () => {
     segmentOrder.value = order;
   };
 
-  const ensureSelectedSegment = () => selectedSegmentId.value ?? addSegment();
+  // Mints without choosing: an automatic seat must not outrank a session's
+  // restored selection, and the first-row fallback already selects it.
+  const ensureSelectedSegment = () => selectedSegmentId.value ?? mintSegment();
 
   /**
    * Exact-name lookup, minting on a miss. Import binds descriptors this way,
@@ -231,34 +243,41 @@ export const createSegmentRegistry = () => {
   // Keep each key's identity and appearance beneath its config contribution.
   // New segments begin with automatic color and default optional appearance;
   // a restored segment begins with its session appearance.
-  const configEntries = new Map<
-    string,
-    {
-      id: string;
-      appearance: ReturnType<typeof configuredAppearance>;
-      minted: boolean;
-    }
-  >();
+  type ConfigEntry = {
+    id: string;
+    appearance: ReturnType<typeof configuredAppearance>;
+    contribution: ReturnType<typeof fromConfigured>;
+    minted: boolean;
+  };
+  const configEntries = new Map<string, ConfigEntry>();
+
+  const heldByConfig = (id: string) =>
+    [...configEntries.values()].some((entry) => entry.id === id);
+
+  const overlayConfig = (name: string, entry: ConfigEntry) => {
+    configEntries.set(name, entry);
+    updateSegment(entry.id, { ...entry.appearance, ...entry.contribution });
+  };
+
+  const seatConfigured = (name: string) => {
+    const matched = findSegmentByName(name)?.id;
+    const id = matched ?? mintSegment({ name });
+    return {
+      id,
+      appearance: configuredAppearance(getSegment(id)!),
+      minted: !matched,
+    };
+  };
 
   const replaceConfigSegments = (configured: Maybe<ConfiguredSegments>) => {
     const next = configured ?? {};
 
     Object.entries(next).forEach(([name, props]) => {
-      let entry = configEntries.get(name);
-      if (!entry || !getSegment(entry.id)) {
-        const matched = findSegmentByName(name)?.id;
-        const id = matched ?? mintSegment({ name });
-        entry = {
-          id,
-          appearance: configuredAppearance(getSegment(id)!),
-          minted: !matched,
-        };
-      }
-      updateSegment(entry.id, {
-        ...entry.appearance,
-        ...fromConfigured(name, props),
+      const held = configEntries.get(name);
+      overlayConfig(name, {
+        ...(held && getSegment(held.id) ? held : seatConfigured(name)),
+        contribution: fromConfigured(name, props),
       });
-      configEntries.set(name, entry);
     });
 
     [...configEntries.entries()]
@@ -276,10 +295,34 @@ export const createSegmentRegistry = () => {
 
   const serialize = () => segmentList.value.map((segment) => ({ ...segment }));
 
+  // The session's appearance replaces the reused segment's own and a config
+  // holding the segment layers over it, as if the session had been restored
+  // first.
+  const restoreOnto = (id: string, init: SegmentInit) => {
+    updateSegment(id, {
+      fillOpacity: undefined,
+      outlineOpacity: undefined,
+      strokeWidth: undefined,
+      ...init,
+    });
+    const held = [...configEntries].find(([, entry]) => entry.id === id);
+    // Now the session's segment as well, so dropping the key must not take it.
+    if (held)
+      overlayConfig(held[0], {
+        ...held[1],
+        appearance: configuredAppearance(getSegment(id)!),
+        minted: false,
+      });
+    return id;
+  };
+
   /**
-   * Seats restored segments beside the ones already here. Ids are minted fresh
-   * and every incoming reference is remapped through the returned map, so an
-   * import into a populated scene overwrites nothing.
+   * Seats restored segments and returns the idMap every incoming reference is
+   * remapped through. An incoming segment joins the first existing segment of
+   * its name when that one holds no mask or shape on any image, restoring its
+   * own appearance onto it; otherwise it is minted under a unique name, so
+   * content already here keeps its segment. `repeated` lists the entries left
+   * unseated because an earlier one claimed their id.
    */
   const adopt = (incoming: Maybe<Segment[]>) => {
     // Prototype-free: a file's ids are its own, so an id spelling an
@@ -287,14 +330,32 @@ export const createSegmentRegistry = () => {
     // already seen here, nor hand a caller an inherited member in place of a
     // miss when it looks the id up in the returned map.
     const idMap: Record<string, string> = Object.create(null);
-    (incoming ?? []).forEach(({ id, ...init }) => {
+    const repeated: Segment[] = [];
+    // Seated by this call, so no later entry of the same name can join it.
+    const seated = new Set<string>();
+    const reusable = (name: string) => {
+      const existing = findSegmentByName(name)?.id;
+      return existing && !seated.has(existing) && !hasReferences(existing)
+        ? existing
+        : undefined;
+    };
+    (incoming ?? []).forEach((segment) => {
+      const { id, ...init } = segment;
       // Nothing makes a file's ids unique, and only one segment can answer for
       // an id. The first entry wins; minting the rest as well would leave
       // segments in the sidebar that no mask or shape can ever reference.
-      if (Object.hasOwn(idMap, id)) return;
-      idMap[id] = mintSegment(init as SegmentInit);
+      if (Object.hasOwn(idMap, id)) {
+        repeated.push(segment);
+        return;
+      }
+      const reused = reusable(init.name);
+      const target = reused
+        ? restoreOnto(reused, init)
+        : mintSegment({ ...init, name: uniqueName(init.name) });
+      seated.add(target);
+      idMap[id] = target;
     });
-    return idMap;
+    return { idMap, repeated };
   };
 
   /** Selects a restored segment unless the user already chose one. */
@@ -321,6 +382,7 @@ export const createSegmentRegistry = () => {
     ensureSelectedSegment,
     segmentNamed,
     replaceConfigSegments,
+    heldByConfig,
     serialize,
     adopt,
     declareReferences,

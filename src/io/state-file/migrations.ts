@@ -201,19 +201,18 @@ const legacyViewGroupDisplay = (view: any, groupId: string) => {
   };
 };
 
+type LegacyDisplay = ReturnType<typeof legacyViewGroupDisplay>;
+
 // A 6.4.0 group rendered at the layer opacity default unless a view saved one.
 const LEGACY_GROUP_FILL_OPACITY_DEFAULT = 0.3;
 
-const legacyFillOpacity = (
-  display: ReturnType<typeof legacyViewGroupDisplay>
-) => display.fillOpacity ?? LEGACY_GROUP_FILL_OPACITY_DEFAULT;
+const legacyFillOpacity = (display: LegacyDisplay) =>
+  display.fillOpacity ?? LEGACY_GROUP_FILL_OPACITY_DEFAULT;
 
 // A zero on the segmentation leaves nothing for a segment to be a share of, and
 // every group under it was hidden anyway.
-const fillShareOf = (
-  display: ReturnType<typeof legacyViewGroupDisplay>,
-  parentFill: number
-) => (parentFill === 0 ? 1 : legacyFillOpacity(display) / parentFill);
+const fillShareOf = (display: LegacyDisplay, parentFill: number) =>
+  parentFill === 0 ? 1 : legacyFillOpacity(display) / parentFill;
 
 const legacyGroupDisplay = (manifest: any, groupId: string) => {
   // These controls were synchronized across 2D views. Read the first value
@@ -227,121 +226,73 @@ const legacyGroupDisplay = (manifest: any, groupId: string) => {
         outlineOpacity: display.outlineOpacity ?? next.outlineOpacity,
         outlineThickness: display.outlineThickness ?? next.outlineThickness,
       }),
-      {} as ReturnType<typeof legacyViewGroupDisplay>
+      {} as LegacyDisplay
     );
 };
 
-const migrateLegacyDisplay = (manifest: any) => {
-  const displayByArtifact = new Map<
-    string,
-    ReturnType<typeof legacyGroupDisplay>
-  >();
+const legacyDisplays = (manifest: any, groups: any[]) => {
+  const byGroup = new Map<string, LegacyDisplay>(
+    groups.map((group) => [group.id, legacyGroupDisplay(manifest, group.id)])
+  );
   const outlineThicknessByParent = new Map<string, number>();
   const fillByParent = new Map<string, number>();
-  const artifacts: any[] = Array.isArray(manifest.segmentationArtifacts)
-    ? manifest.segmentationArtifacts
-    : [];
-
-  artifacts.forEach((artifact) => {
-    const display = legacyGroupDisplay(manifest, artifact.id);
-    displayByArtifact.set(artifact.id, display);
+  groups.forEach((group) => {
+    const parentImage = group.metadata?.parentImage;
+    const display = byGroup.get(group.id)!;
     if (
-      !outlineThicknessByParent.has(artifact.parentImage) &&
+      !outlineThicknessByParent.has(parentImage) &&
       display.outlineThickness !== undefined
     ) {
-      // Several legacy groups can collapse into one segmentation. The new
-      // model has one thickness for it, so the first configured group in
-      // artifact order deterministically supplies that shared value.
-      outlineThicknessByParent.set(
-        artifact.parentImage,
-        display.outlineThickness
-      );
+      // Groups sharing a segmentation share its thickness; the first to set one wins.
+      outlineThicknessByParent.set(parentImage, display.outlineThickness);
     }
-    // Fill is a product of the segmentation's opacity and the segment's, and a
-    // legacy group's opacity has to survive as that product. The largest of the
-    // parent's groups goes on the segmentation, so every group's share of it
-    // stays a fraction the per-segment slider can hold.
+    // Fill is segmentation times segment opacity; the largest group's goes on
+    // the segmentation so every group's share fits the per-segment slider.
     fillByParent.set(
-      artifact.parentImage,
-      Math.max(
-        fillByParent.get(artifact.parentImage) ?? 0,
-        legacyFillOpacity(display)
-      )
+      parentImage,
+      Math.max(fillByParent.get(parentImage) ?? 0, legacyFillOpacity(display))
     );
   });
+  return { byGroup, outlineThicknessByParent, fillByParent };
+};
 
-  const parentFillOf = (parentImage: string) =>
-    fillByParent.get(parentImage) ?? LEGACY_GROUP_FILL_OPACITY_DEFAULT;
+// A legacy group described what it showed, so its opacity and its visibility
+// both land on the segment the group became.
+const segmentDisplay = (
+  display: LegacyDisplay,
+  fillShare: number,
+  maskVisible: boolean | undefined
+) => ({
+  visible: (maskVisible ?? true) && (display.visible ?? true),
+  fillOpacity: fillShare,
+  ...(display.outlineOpacity === undefined
+    ? {}
+    : { outlineOpacity: display.outlineOpacity }),
+});
 
-  const segmentById = new Map<string, any>(
-    (Array.isArray(manifest.segments) ? manifest.segments : []).map(
-      (segment: any) => [segment.id, segment]
-    )
-  );
+// Segments restore decodes from a group do not exist yet to put its display
+// on: all of a group that named none, or the values its descriptors missed.
+const pendingDisplay = (display: LegacyDisplay, fillShare: number) => ({
+  pendingFillOpacity: fillShare,
+  ...(display.outlineOpacity === undefined
+    ? {}
+    : { pendingOutlineOpacity: display.outlineOpacity }),
+  ...(display.visible === undefined
+    ? {}
+    : { pendingVisibility: display.visible }),
+});
 
-  const segmentations: any[] = Array.isArray(manifest.segmentations)
-    ? manifest.segmentations
-    : [];
-  segmentations.forEach((segmentation) => {
-    if (
-      segmentation.outlineThickness === undefined &&
-      outlineThicknessByParent.has(segmentation.parentImage)
-    ) {
-      segmentation.outlineThickness = outlineThicknessByParent.get(
-        segmentation.parentImage
-      );
-    }
-
-    const parentFill = parentFillOf(segmentation.parentImage);
-    segmentation.fillOpacity = parentFill;
-
-    // A legacy group described what it showed, so its opacity and its
-    // visibility both land on the segment the group became.
-    (Array.isArray(segmentation.masks) ? segmentation.masks : []).forEach(
-      (mask: any) => {
-        const artifactId = mask.representations?.labelmap?.artifactId;
-        const display = displayByArtifact.get(artifactId);
-        const segment = segmentById.get(mask.segmentId);
-        if (!display || !segment) return;
-        segment.fillOpacity = fillShareOf(display, parentFill);
-        if (display.outlineOpacity !== undefined) {
-          segment.outlineOpacity = display.outlineOpacity;
-        }
-        if (display.visible !== undefined) {
-          segment.visible = (segment.visible ?? true) && display.visible;
-        }
-      }
-    );
-  });
-
-  // Only a group awaiting its decode needs these: it names no segments, so
-  // there is no type for the loop above to have put its display on.
-  artifacts.forEach((artifact) => {
-    if (!artifact.pendingDecode) return;
-    const display = displayByArtifact.get(artifact.id)!;
-    artifact.pendingFillOpacity = fillShareOf(
-      display,
-      parentFillOf(artifact.parentImage)
-    );
-    if (display.outlineOpacity !== undefined) {
-      artifact.pendingOutlineOpacity = display.outlineOpacity;
-    }
-    if (display.visible !== undefined) {
-      artifact.pendingVisibility = display.visible;
-    }
-  });
-
-  // These consumed view configs would otherwise restore under an unmapped
-  // data id after the group is split.
-  const artifactIds = new Set(artifacts.map((artifact) => artifact.id));
+// These consumed view configs would otherwise restore under an unmapped data
+// id after the group is split.
+const dropLegacyViewDisplay = (manifest: any, groupIds: string[]) => {
   Object.values(manifest.viewByID ?? {}).forEach((view: any) => {
     if (!view?.config) return;
-    artifactIds.forEach((artifactId) => {
-      const config = view.config[artifactId];
+    groupIds.forEach((groupId) => {
+      const config = view.config[groupId];
       if (!config) return;
       delete config.layers;
       delete config.segmentGroup;
-      if (Object.keys(config).length === 0) delete view.config[artifactId];
+      if (Object.keys(config).length === 0) delete view.config[groupId];
     });
   });
 };
@@ -379,6 +330,7 @@ const migrate640To700 = (inputManifest: any) => {
   const groups: any[] = Array.isArray(manifest.segmentGroups)
     ? manifest.segmentGroups
     : [];
+  const displays = legacyDisplays(manifest, groups);
 
   const paint = manifest.tools?.paint;
   const activeGroupId = paint?.activeSegmentGroupID;
@@ -395,6 +347,11 @@ const migrate640To700 = (inputManifest: any) => {
     const metadata = group.metadata ?? {};
     const descriptors = metadata.segments;
     const parentImage = metadata.parentImage;
+    const display = displays.byGroup.get(group.id)!;
+    const fillShare = fillShareOf(
+      display,
+      displays.fillByParent.get(parentImage)!
+    );
 
     const records = recordsByParent.get(parentImage) ?? [];
     recordsByParent.set(parentImage, records);
@@ -405,8 +362,8 @@ const migrate640To700 = (inputManifest: any) => {
       addSegment(segmentId, {
         name: mask.name,
         color: mask.color,
-        visible: mask.visible ?? true,
         locked: mask.locked ?? false,
+        ...segmentDisplay(display, fillShare, mask.visible),
       });
       if (!segmentIdByName.has(mask.name)) {
         segmentIdByName.set(mask.name, segmentId);
@@ -437,7 +394,6 @@ const migrate640To700 = (inputManifest: any) => {
         ? {}
         : { dataSourceId: group.dataSourceId }),
       ...(metadata.source ? { source: metadata.source } : {}),
-      ...(descriptors ? {} : { pendingDecode: true }),
       // Its segments are decoded during restore, after the selection would have
       // been applied, so the value to reselect travels with the artifact.
       ...(!descriptors &&
@@ -445,6 +401,7 @@ const migrate640To700 = (inputManifest: any) => {
       typeof activeValue === 'number'
         ? { pendingActiveValue: activeValue }
         : {}),
+      ...pendingDisplay(display, fillShare),
     };
   });
 
@@ -539,14 +496,20 @@ const migrate640To700 = (inputManifest: any) => {
   toolKeys.forEach(migrateToolLabels);
 
   const segmentations = [...recordsByParent.entries()].map(
-    ([parentImage, records]) => ({
-      id: `segmentation-${parentImage}`,
-      // Unnamed: restore names it after the loaded image, as a live one is.
-      name: '',
-      parentImage,
-      masks: records,
-      order: records.map((record) => record.id),
-    })
+    ([parentImage, records]) => {
+      const outlineThickness =
+        displays.outlineThicknessByParent.get(parentImage);
+      return {
+        id: `segmentation-${parentImage}`,
+        // Unnamed: restore names it after the loaded image, as a live one is.
+        name: '',
+        parentImage,
+        masks: records,
+        order: records.map((record) => record.id),
+        fillOpacity: displays.fillByParent.get(parentImage),
+        ...(outlineThickness === undefined ? {} : { outlineThickness }),
+      };
+    }
   );
 
   if (artifacts.length > 0) manifest.segmentationArtifacts = artifacts;
@@ -555,7 +518,10 @@ const migrate640To700 = (inputManifest: any) => {
   if (selectedSegmentId) manifest.selectedSegment = selectedSegmentId;
   delete manifest.segmentGroups;
 
-  migrateLegacyDisplay(manifest);
+  dropLegacyViewDisplay(
+    manifest,
+    groups.map((group) => group.id)
+  );
   manifest.version = '7.0.0';
   return manifest;
 };

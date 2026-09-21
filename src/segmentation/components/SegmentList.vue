@@ -13,7 +13,10 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { deleteSegmentAndReport } from '@/src/segmentation/deleteSegment';
 import { useSegmentEditing } from '@/src/segmentation/composables/useSegmentEditing';
 import { pulseSegmentMask } from '@/src/segmentation/rendering/revealPulse';
-import { revealSegmentContent } from '@/src/core/annotations/locator';
+import {
+  revealSegmentContent,
+  type SegmentContent,
+} from '@/src/core/annotations/locator';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { SEGMENT_SHORTCUT_ACTIONS } from '@/src/constants';
 import {
@@ -35,6 +38,15 @@ import {
 } from '@/src/segmentation/model';
 import { markedSlices } from '@/src/segmentation/geometry';
 import { sameFields } from '@/src/utils';
+
+const props = withDefaults(
+  defineProps<{
+    // Spelled out: `typeof` an import compiles to an untyped prop, whose
+    // function default Vue would call as a factory.
+    reveal?: (imageId: string, content: SegmentContent) => void;
+  }>(),
+  { reveal: revealSegmentContent }
+);
 
 const registry = useSegmentStore().segments;
 const { shapesOf } = useSegmentShapes();
@@ -178,7 +190,7 @@ function revealSlice(row: Row) {
   shapes.forEach(({ frame, axis, slice }) => {
     if (frame == null && axis) (slicesByAxis[axis] ??= []).push(slice);
   });
-  revealSegmentContent(imageId, {
+  props.reveal(imageId, {
     paintedSlicesByIJK: mask && paintedSlices(mask),
     slicesByAxis,
     frames: shapes.flatMap((shape) =>
@@ -347,7 +359,7 @@ const {
             :items="rows"
             @move="registry.moveSegment"
             create-text="New segment"
-            reorder-hint="Drag to reorder segments and shortcuts. Earlier segments win picking and flattened export; overlaps blend in the view. Alt+Up or Alt+Down also moves this segment."
+            reorder-hint="Drag to reorder segments and shortcuts. Earlier segments win picking and come first on export; overlaps blend in the view. Alt+Up or Alt+Down also moves this segment."
             @create="registry.addSegment()"
             class="segment-items"
           >

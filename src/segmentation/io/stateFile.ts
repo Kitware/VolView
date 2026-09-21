@@ -9,7 +9,7 @@ import {
   orderedWireMasks,
   prepareRestoreBindings,
   unlistedWireMasks,
-  type LoadedLabelmap,
+  type SkippedRestoreItem,
   type WireMask,
 } from '@/src/segmentation/io/restore';
 import { readImage, writeSegmentation } from '@/src/io/readWriteImage';
@@ -24,8 +24,17 @@ import type { FileEntry } from '@/src/io/types';
 import type { Maybe, ProcessingResultSource } from '@/src/types';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
 import { cleanUndefined } from '@/src/utils';
-import { normalize, stripExtension } from '@/src/utils/path';
-import { splitLabelmap, toLabelMap } from '@/src/segmentation/io/import';
+import { COMPOUND_EXTENSIONS, normalize } from '@/src/utils/path';
+import { FILE_EXTENSIONS } from '@/src/io/mimeTypes';
+import {
+  componentCount,
+  distinctLabelValues,
+  splitLabelmap,
+  toBinaryMask,
+  toLabelMap,
+  type DecodeOptions,
+} from '@/src/segmentation/io/import';
+import { unsupportedLabelsReason } from '@/src/segmentation/io/labelmap';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
@@ -60,6 +69,18 @@ export type LabelmapIO = {
 // ZIP entries are relative; extraction may prefix a root member with a slash.
 const archivePathKey = (path: string) => normalize(path).replace(/^\/+/, '');
 
+// Longest first, so 'seg.nrrd' ends a name before 'nrrd' does.
+const IMAGE_EXTENSIONS = [...COMPOUND_EXTENSIONS, ...FILE_EXTENSIONS].sort(
+  (a, b) => b.length - a.length
+);
+
+/** An artifact name is display text, not a path: only a known extension ends it. */
+const stripImageExtension = (name: string) => {
+  const lower = name.toLowerCase();
+  const extension = IMAGE_EXTENSIONS.find((ext) => lower.endsWith(`.${ext}`));
+  return extension ? name.slice(0, -(extension.length + 1)) : name;
+};
+
 const defaultLabelmapIO: LabelmapIO = {
   write: writeSegmentation,
   read: readImage,
@@ -93,7 +114,7 @@ async function mapWithLimit<T, R>(
   return results;
 }
 
-export type SegmentationWireDeps = {
+type SegmentationWireDeps = {
   segmentations: Record<string, Segmentation>;
   saveFormat: Ref<string>;
   imageCacheStore: ReturnType<typeof useImageCacheStore>;
@@ -113,12 +134,8 @@ export type SegmentationWireDeps = {
   decodeSegments: (
     imageId: DataSelection | undefined,
     image: vtkLabelMap,
-    options?: {
-      component?: number;
-      headerMetadata?: Map<string, string>;
-      baseName?: string;
-    }
-  ) => Promise<Array<Omit<LabelmapSegment, 'color'> & { color: number[] }>>;
+    options?: Pick<DecodeOptions, 'headerMetadata' | 'baseName'>
+  ) => Promise<LabelmapSegment[]>;
   ensureSegmentationForImage: (parentImageId: string) => Segmentation;
   getSegmentationForImage: (parentImageId: string) => Segmentation | undefined;
   maskFor: (
@@ -137,7 +154,7 @@ export type SegmentationWireDeps = {
   ) => SegmentMask[];
 };
 
-export type DeserializeOptions = {
+type DeserializeOptions = {
   manifest: Manifest;
   stateFiles: FileEntry[];
   dataIDMap: Record<string, string>;
@@ -145,7 +162,7 @@ export type DeserializeOptions = {
   segmentIdMap?: Record<string, string>;
   /**
    * Per-import restore source, resolved by the restore setup (see
-   * resolveLabelmapSources in labelmapImports.ts, the single owner of
+   * planLabelmapSources in labelmapImports.ts, the single owner of
    * the synthesized-leaf and ownership policy). Mapped through dataIDMap here.
    */
   labelmapSources?: Record<string, LabelmapRestoreSource>;
@@ -278,7 +295,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     const restoredImportIds = new Set<string>();
     // Non-silent drops: every labelmap left out of the restore is recorded
     // with a concrete reason so the caller can surface it.
-    const skipped: Array<{ name: string; reason: string }> = [];
+    const skipped: SkippedRestoreItem[] = [];
 
     // A path-less item's store id: the restore setup already resolved which
     // STATE id carries its bytes; this only maps that id through dataIDMap.
@@ -373,7 +390,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             const { image, headerMetadata } = await readImport(item, storeId);
             // Bounded conversion indexes a labelmap as single-component, so a
             // multi-component one would split into shifted, truncated masks.
-            if (image.getPointData().getScalars().getNumberOfComponents() > 1) {
+            if (componentCount(image) > 1) {
               skipped.push({
                 name: item.name,
                 reason: 'multi-component labelmap artifacts are not supported',
@@ -391,26 +408,45 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
               });
               return undefined;
             }
-            const labelmap = toLabelMap(
+            const { labelmap, excluded } = toLabelMap(
               await ensureSameSpace(parent, image, true)
             );
-            // A group that carried no descriptors is enumerated here, through
+            if (excluded)
+              skipped.push({
+                name: item.name,
+                reason: unsupportedLabelsReason(excluded),
+              });
+            // An import that carried no descriptors is enumerated here, through
             // the same decode live import uses, while its source image is
             // still loaded: the temp item dataset is dropped below.
-            const decoded = item.decode
-              ? ((await decodeSegments(storeId, labelmap, {
-                  headerMetadata,
-                  // Read straight from the archive there is no loaded dataset
-                  // to name the segments after, and 'Segment 1' says nothing
-                  // about what arrived: the saved labelmap's own name is what
-                  // the live conversion would have read off the file.
-                  baseName:
-                    storeId === undefined
-                      ? stripExtension(item.name) || undefined
-                      : undefined,
-                })) as LabelmapSegment[])
-              : undefined;
-            return { item, labelmap, decoded };
+            const decode = () =>
+              decodeSegments(storeId, labelmap, {
+                headerMetadata,
+                // Named after the labelmap, as a live import of its file is.
+                baseName:
+                  storeId === undefined
+                    ? stripImageExtension(item.name) || undefined
+                    : undefined,
+              });
+            if (item.decode)
+              return { item, labelmap, decoded: await decode(), unclaimed: [] };
+            // Values no saved mask claims keep a default segment, as a live
+            // import of the same labelmap would give them. Decoding draws
+            // from the shared color cycle, so it runs only when one exists.
+            // Only carried values count, so a header's declared-but-empty
+            // value never depends on whether some other value was unclaimed.
+            const claimed = new Set(item.masks.map(({ value }) => value));
+            const unclaimedValues = new Set(
+              distinctLabelValues(labelmap).filter(
+                (value) => !claimed.has(value)
+              )
+            );
+            const unclaimed = unclaimedValues.size
+              ? (await decode()).filter(({ value }) =>
+                  unclaimedValues.has(value)
+                )
+              : [];
+            return { item, labelmap, decoded: undefined, unclaimed };
           } catch {
             // A parse/read failure skips just this item and never rejects the
             // whole restore; the survivors still attach.
@@ -429,12 +465,11 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
     // A saved mask names an archive entry of its own, read into a buffer of
     // its own: masks share no storage, whatever a hand-edited manifest says.
-    const maskLabelmaps = new Map<WireMask, LoadedLabelmap>();
+    const maskLabelmaps = new Map<WireMask, vtkLabelMap>();
     const wireMasks = wireSegmentations.flatMap(orderedWireMasks);
     await mapWithLimit(wireMasks, MASK_IO_CONCURRENCY, async (wireMask) => {
       const binding = wireMask.representations.labelmap;
       if (binding?.path === undefined) return;
-      const name = binding.name ?? '';
       const file = archiveMember(binding.path);
       if (!file) {
         skipped.push({
@@ -444,12 +479,13 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         return;
       }
       try {
-        const { image } = await io.read(file);
-        maskLabelmaps.set(wireMask, {
-          labelmap: toLabelMap(image),
-          name,
-          ...(binding.source ? { source: binding.source } : {}),
-        });
+        const mask = toBinaryMask((await io.read(file)).image);
+        if (mask) maskLabelmaps.set(wireMask, mask);
+        else
+          skipped.push({
+            name: maskLabel(wireMask),
+            reason: 'multi-component masks are not supported',
+          });
       } catch {
         // One unreadable mask never rejects the restore; the rest attach.
         skipped.push({
@@ -461,15 +497,15 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
     // Reads, resampling and decoding yield to image deletion. Recheck before
     // creating any masks, after every asynchronous placement step has settled.
-    loaded = loaded.filter((result) => {
-      if (!result) return false;
+    const placed = loaded.flatMap((result) => {
+      if (!result) return [];
       if (imageCacheStore.getVtkImageData(dataIDMap[result.item.parentImage]))
-        return true;
+        return [result];
       skipped.push({
         name: result.item.name,
         reason: 'parent image is unavailable',
       });
-      return false;
+      return [];
     });
     const prepared = prepareRestoreBindings({
       segmentations: wireSegmentations,
@@ -533,27 +569,24 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
     // All asynchronous reads have settled. Fill the masks already placed in
     // wire order; their identities, selection and tool references stay intact.
-    loaded.forEach((result) => {
-      if (!result) return;
-      const { item, labelmap, decoded } = result;
+    placed.forEach(({ item, labelmap, decoded, unclaimed }) => {
       const parentImageId = dataIDMap[item.parentImage];
-      let restored: SegmentMask[];
-      if (decoded) {
-        const descriptors = decoded.map((descriptor) => ({
-          ...descriptor,
-          ...cleanUndefined({
-            fillOpacity: item.display.fillOpacity,
-            outlineOpacity: item.display.outlineOpacity,
-            visible:
-              item.display.visible === undefined
-                ? undefined
-                : descriptor.visible && item.display.visible,
-          }),
-        }));
-        restored = splitLabelmapIntoMasks(
+      // Segments decoded from the labelmap take a migrated group's display.
+      const splitDecoded = (descriptors: LabelmapSegment[]) =>
+        splitLabelmapIntoMasks(
           parentImageId,
           labelmap,
-          descriptors,
+          descriptors.map((descriptor) => ({
+            ...descriptor,
+            ...cleanUndefined({
+              fillOpacity: item.display.fillOpacity,
+              outlineOpacity: item.display.outlineOpacity,
+              visible:
+                item.display.visible === undefined
+                  ? undefined
+                  : descriptor.visible && item.display.visible,
+            }),
+          })),
           {
             source: item.source,
             name: item.name,
@@ -564,7 +597,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             ),
           }
         );
-        const activeIndex = descriptors.findIndex(
+      let restored: SegmentMask[];
+      if (decoded) {
+        restored = splitDecoded(decoded);
+        const activeIndex = decoded.findIndex(
           (descriptor) => descriptor.value === item.activeValue
         );
         segmentRegistry.restoreSelection(restored[activeIndex]?.segmentId);
@@ -595,7 +631,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
             return maskScalars(binding.image);
           }
         );
-        restored = targets.map(({ mask }) => mask);
+        restored = [
+          ...targets.map(({ mask }) => mask),
+          ...(unclaimed.length ? splitDecoded(unclaimed) : []),
+        ];
       }
       if (restored.length) restoredImportIds.add(item.id);
       else

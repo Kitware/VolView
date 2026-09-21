@@ -1,7 +1,7 @@
 import vtkBoundingBox from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { RGBAColor } from '@kitware/vtk.js/types';
+import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
@@ -9,7 +9,7 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import {
   overlaySegmentMetadata,
   parseSegNrrdMetadata,
-  type DecodedSegment,
+  type ParsedSegment,
 } from '@/src/io/segNrrdMetadata';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -42,34 +42,55 @@ import {
 } from '@/src/segmentation/io/labelmap';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
-export type ImportedSegment = { sourceValue: number; maskId: string };
+type ImportedSegment = { sourceValue: number; maskId: string };
 
-export function toLabelMap(imageData: vtkImageData) {
+export const componentCount = (image: vtkImageData) =>
+  image.getPointData().getScalars().getNumberOfComponents();
+
+function labelMapOnGrid(
+  imageData: vtkImageData,
+  values: TypedArray,
+  numberOfComponents: number
+) {
   const labelmap = vtkLabelMap.newInstance(
     imageData.get('spacing', 'origin', 'direction', 'extent', 'dataDescription')
   );
 
   labelmap.setDimensions(imageData.getDimensions());
   labelmap.computeTransforms();
-
-  const source = imageData.getPointData().getScalars();
-  const scalars = vtkDataArray.newInstance({
-    numberOfComponents: source.getNumberOfComponents(),
-    values: normalizeLabelmapScalars(source.getData()),
-  });
-  labelmap.getPointData().setScalars(scalars);
-
+  labelmap
+    .getPointData()
+    .setScalars(vtkDataArray.newInstance({ numberOfComponents, values }));
   return labelmap;
 }
 
+export function toLabelMap(imageData: vtkImageData) {
+  const { values, excluded } = normalizeLabelmapScalars(
+    imageData.getPointData().getScalars().getData()
+  );
+  const labelmap = labelMapOnGrid(imageData, values, componentCount(imageData));
+  return { labelmap, excluded };
+}
+
+/**
+ * A saved mask's own archive entry as mask storage, where any nonzero voxel is
+ * claimed: every reader tests for SEGMENT_VALUE. Undefined for a
+ * multi-component entry, which bounded storage cannot index.
+ */
+export function toBinaryMask(imageData: vtkImageData) {
+  if (componentCount(imageData) > 1) return undefined;
+  const source = imageData.getPointData().getScalars().getData();
+  const values = new Uint8Array(source.length);
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index]) values[index] = SEGMENT_VALUE;
+  }
+  return labelMapOnGrid(imageData, values, 1);
+}
+
 function extractEachComponent(input: vtkImageData) {
-  const numComponents = input
-    .getPointData()
-    .getScalars()
-    .getNumberOfComponents();
   const extractComponentsFilter = vtkImageExtractComponents.newInstance();
   extractComponentsFilter.setInputData(input);
-  return Array.from({ length: numComponents }, (_, i) => {
+  return Array.from({ length: componentCount(input) }, (_, i) => {
     extractComponentsFilter.setComponents([i]);
     extractComponentsFilter.update();
     return extractComponentsFilter.getOutputData() as vtkImageData;
@@ -110,10 +131,7 @@ function labelValueBounds(labelmap: vtkLabelMap) {
 
 type CropTarget = MaskBounds & { mask: Uint8Array };
 
-export type MaskMinter = (
-  descriptor: LabelmapSegment,
-  extent: Extent3D
-) => Uint8Array;
+type MaskMinter = (descriptor: LabelmapSegment, extent: Extent3D) => Uint8Array;
 
 /**
  * Each descriptor gets a mask cropped to the box its value's voxels span,
@@ -181,7 +199,7 @@ async function segBuildDescriptors(
   );
 }
 
-const distinctLabelValues = (image: vtkLabelMap) =>
+export const distinctLabelValues = (image: vtkLabelMap) =>
   [...labelValueBounds(image).keys()].sort((first, second) => first - second);
 
 export type DecodeOptions = {
@@ -198,12 +216,12 @@ export type DecodeOptions = {
    * declared once for the file rather than once per component.
    */
   declared?: { covered: Set<number>; last: boolean };
-  nextColor: () => readonly number[];
+  nextColor: () => RGBAColor;
 };
 
 /** A declared value is one bin per file, empty if no component carries it. */
 const declaredOncePerFile = (
-  merged: DecodedSegment[],
+  merged: ParsedSegment[],
   carried: number[],
   declared: DecodeOptions['declared']
 ) => {
@@ -258,26 +276,26 @@ export async function decodeLabelmapSegments(
   const merged = overlaySegmentMetadata(values, described, (value) => ({
     value,
     name: nameFor(value),
-    color: [...options.nextColor()] as RGBAColor,
+    color: options.nextColor(),
     visible: true,
   }));
   return declaredOncePerFile(merged, values, options.declared);
 }
 
-export type LabelmapImportHooks = {
+type LabelmapImportHooks = {
   /**
-   * Descriptors for one component. `componentCount` is how many components
-   * this image has in all, so a decode that adds a descriptor the voxels never
-   * carried can add it once, on the last component, instead of once per
-   * component. A value can have voxels in one component and none in another.
+   * Descriptors for one component. On the `last` one, a decode can add the
+   * descriptors no component's voxels carried, once rather than per component.
    */
   decode: (
     labelmap: vtkLabelMap,
     component: number,
-    componentCount: number
+    last: boolean
   ) => Promise<LabelmapSegment[]>;
   /** Mints the masks for one decoded labelmap, in descriptor order. */
   split: (labelmap: vtkLabelMap, descriptors: LabelmapSegment[]) => string[];
+  /** Told how many voxels of one component lost an unsupported label. */
+  excluded?: (voxels: number) => void;
 };
 
 /**
@@ -285,10 +303,8 @@ export type LabelmapImportHooks = {
  * run, so the parent is resolved through the cache again after every await:
  * nothing may be decoded or minted against an image that left the scene.
  */
-function requireParentImage(parentID: DataSelection) {
-  const parentImage = getImage(parentID);
-  if (!parentImage) throw new Error('Parent image is no longer loaded');
-  return parentImage;
+function assertParentLoaded(parentID: DataSelection) {
+  if (!getImage(parentID)) throw new Error('Parent image is no longer loaded');
 }
 
 /**
@@ -324,12 +340,10 @@ export async function importLabelmapImage(
     );
   }
 
-  const componentCount = childImage
-    .getPointData()
-    .getScalars()
-    .getNumberOfComponents();
   const images =
-    componentCount === 1 ? [childImage] : extractEachComponent(childImage);
+    componentCount(childImage) === 1
+      ? [childImage]
+      : extractEachComponent(childImage);
 
   // Sequential, not fanned out: the splits share one segmentation, and each
   // binds its segments against the ones already in it.
@@ -337,14 +351,16 @@ export async function importLabelmapImage(
   const cache = useImageCacheStore();
   for (const [component, image] of images.entries()) {
     const matchingParentSpace = await ensureSameSpace(parentImage, image, true);
-    requireParentImage(parentID);
-    const labelmapImage = toLabelMap(matchingParentSpace);
+    assertParentLoaded(parentID);
+    const { labelmap: labelmapImage, excluded } =
+      toLabelMap(matchingParentSpace);
+    if (excluded) hooks.excluded?.(excluded);
     const descriptors = await hooks.decode(
       labelmapImage,
       component,
-      images.length
+      component === images.length - 1
     );
-    requireParentImage(parentID);
+    assertParentLoaded(parentID);
     if (!cache.imageById[imageID]) {
       throw new Error('Labelmap image is no longer loaded');
     }

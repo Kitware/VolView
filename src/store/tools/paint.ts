@@ -13,13 +13,10 @@ import { defineStore } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { worldPointToIndex } from '@/src/utils/imageSpace';
-import { boundScalars } from '@/src/segmentation/masks/overlap';
 import {
   clipExtent,
-  extentContainsIndex,
   fullExtent,
   isEmptyExtent,
-  maskOffset,
 } from '@/src/segmentation/geometry';
 import { Tools } from './types';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -165,22 +162,12 @@ export const usePaintToolStore = defineStore('paint', () => {
       Math.round
     );
     const registry = useSegmentStore().segments;
-    // The eyedropper takes the first registry entry covering the point,
+    // The eyedropper takes the first visible segment covering the point,
     // including locked segments.
-    const hit = registry.segmentList.value.find((segment) => {
-      const bounds =
-        segment.visible &&
-        boundScalars(
-          segmentationStore.maskFor(imageID, segment.id)?.representations
-            .labelmap
-        );
-      return (
-        !!bounds &&
-        extentContainsIndex(bounds.extent, i, j, k) &&
-        bounds.scalars[maskOffset(bounds, i, j, k)] === SEGMENT_VALUE
-      );
-    });
-    if (hit) registry.selectSegment(hit.id);
+    const hit = segmentationStore
+      .segmentsAt(imageID, i, j, k)
+      .find((segmentId) => registry.appearanceOf(segmentId).visible);
+    if (hit) registry.selectSegment(hit);
   }
 
   /**

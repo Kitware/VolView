@@ -8,7 +8,6 @@ import { listMasks } from '@/src/segmentation/model';
 import {
   addMask,
   extentOf,
-  labelValueOf,
   maskValueAt,
   markedVoxels,
   seatImage,
@@ -18,6 +17,7 @@ import {
   type Index3,
   lockSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // ---------------------------------------------------------------------------
 // The mask grows to hold the polygon before `fillPoly` runs (a mask that does
@@ -88,10 +88,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const maskId = addMask('img-1', 'Tumor');
 
     rasterizeInto(maskId);
-
-    const labelValue = labelValueOf(maskId);
-    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValue);
-    expect(maskValueAt(maskId, [3, 3, 0])).toBe(labelValue);
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(maskId, [3, 3, 0])).toBe(SEGMENT_VALUE);
     const extent = extentOf(maskId)!;
     expect(extent[0]).toBeLessThanOrEqual(1);
     expect(extent[1]).toBeGreaterThanOrEqual(4);
@@ -120,7 +118,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     rasterizeInto(maskId);
 
     expect(maskValueAt(neighbor, [2, 3, 0])).toBe(0);
-    expect(maskValueAt(neighbor, [0, 0, 0])).toBe(labelValueOf(neighbor));
+    expect(maskValueAt(neighbor, [0, 0, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('fills around the voxels a locked neighbour holds', () => {
@@ -134,11 +132,11 @@ describe('rasterizing a polygon into a bounded mask', () => {
 
     rasterizeInto(maskId);
 
-    expect(maskValueAt(locked, [2, 3, 0])).toBe(labelValueOf(locked));
-    expect(maskValueAt(unlocked, [2, 3, 0])).toBe(labelValueOf(unlocked));
+    expect(maskValueAt(locked, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(unlocked, [2, 3, 0])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(maskId, [2, 3, 0])).toBeFalsy();
     expect(maskValueAt(unlocked, [3, 3, 0])).toBe(0);
-    expect(maskValueAt(maskId, [3, 3, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(maskId, [3, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('deletes a neighbour the fill takes every voxel from', () => {
@@ -149,7 +147,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     rasterizeInto(maskId);
 
     expect(store().maskExists(neighbor)).toBe(false);
-    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('deletes the mask of a fill that lands nowhere and names none', () => {
@@ -179,10 +177,10 @@ describe('rasterizing a polygon into a bounded mask', () => {
 
     rasterizeInto(maskId);
 
-    expect(maskValueAt(locked, [2, 3, 0])).toBe(labelValueOf(locked));
-    expect(maskValueAt(unlocked, [3, 3, 0])).toBe(labelValueOf(unlocked));
-    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
-    expect(maskValueAt(maskId, [3, 3, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(locked, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(unlocked, [3, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(maskId, [3, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('publishes each changed neighbor once before returning from a fill', () => {
@@ -254,7 +252,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(result.segmentId).toBe(segmentOfMask(maskId));
     expect(maskValueAt(maskId, [2, 3, 0])).toBeFalsy();
     // The clearer never ran, so the neighbour keeps what a fill would take.
-    expect(maskValueAt(neighbour, [2, 3, 0])).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(neighbour, [2, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('keeps an earlier polygon when a later one grows the mask', () => {
@@ -271,10 +269,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
       ],
       1
     );
-
-    const labelValue = labelValueOf(maskId);
-    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValue);
-    expect(maskValueAt(maskId, [2, 3, 1])).toBe(labelValue);
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(maskId, [2, 3, 1])).toBe(SEGMENT_VALUE);
   });
 
   it('stays inside the parent image for a polygon that overhangs it', () => {
@@ -292,7 +288,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const extent = extentOf(maskId)!;
     expect(extent[0]).toBe(0);
     expect(extent[2]).toBe(0);
-    expect(maskValueAt(maskId, [1, 1, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(maskId, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('rasterizes into a segment it resolves when the polygon carries none', () => {
@@ -300,7 +296,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
 
     const segmentation = store().getSegmentationForImage('img-1')!;
     expect(segmentation.order).toEqual([maskId]);
-    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('rasterizes into the segment the polygon names, not the selected one', () => {
@@ -314,7 +310,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
 
     expect(segmentOfMask(maskId)).toBe(tumor);
     expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
-    expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(maskId, [2, 3, 0])).toBe(SEGMENT_VALUE);
 
     const nextEdit = store().resolveEditTarget('img-1');
     expect(segmentOfMask(nextEdit)).toBe(node);
@@ -350,7 +346,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const result = rasterizeInto(named);
 
     expect(result.maskId).toBe(named);
-    expect(maskValueAt(named, [2, 3, 0])).toBe(labelValueOf(named));
+    expect(maskValueAt(named, [2, 3, 0])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(active, [2, 3, 0])).toBeFalsy();
   });
 });

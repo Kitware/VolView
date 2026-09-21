@@ -213,22 +213,26 @@ export const recognizeConfigFile = async (
 
 // The registry silently drops an unparseable color, so report it here.
 const reportUnparseableColors = (
-  configured: NonNullable<Config['segments']>
+  configured: NonNullable<Config['segments']>,
+  addError: (message: string) => void
 ) => {
   const rejected = new Set<string>();
   Object.entries(configured).forEach(([name, { color }]) => {
     parseStatedColor(name, color, rejected);
   });
   const message = rejectedColorsMessage('config', rejected);
-  if (message) useMessageStore().addError(message);
+  if (message) addError(message);
 };
 
 // An omitted section leaves the registry alone; an empty record or null
 // clears what an earlier config contributed to it.
-const applySegments = (manifest: Config) => {
+const applySegments = (
+  manifest: Config,
+  addError: (message: string) => void
+) => {
   const configured = manifest.segments;
   if (configured === undefined) return;
-  if (configured) reportUnparseableColors(configured);
+  if (configured) reportUnparseableColors(configured, addError);
   useSegmentStore().segments.replaceConfigSegments(configured);
 };
 
@@ -324,6 +328,10 @@ export const applyPreStateConfig = async (manifest: Config) => {
   await applyRegisteredSections(manifest);
 };
 
-export const applyPostStateConfig = (manifest: Config) => {
-  applySegments(manifest);
+export const applyPostStateConfig = (
+  manifest: Config,
+  addError: (message: string) => void = (message) =>
+    useMessageStore().addError(message)
+) => {
+  applySegments(manifest, addError);
 };

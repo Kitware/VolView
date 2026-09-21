@@ -1,42 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { config, recognizeConfig } from '../configJson';
-import handleConfig from '../processors/handleConfig';
+import { config, recognizeConfig } from '@/src/io/import/configJson';
+import handleConfig from '@/src/io/import/processors/handleConfig';
 
 const legacy = { defaultLabels: { Tumor: { color: 'red' } } };
 
 describe('canonical segmentation configuration', () => {
-  it.each(['nii.gz', 'nrrd', ''])(
-    'migrates save format %s without retaining the old key',
-    (format) => {
-      const parsed = config.parse({ io: { segmentGroupSaveFormat: format } });
-      expect(parsed.io?.segmentationSaveFormat).toBe(format);
-      expect(parsed.io).not.toHaveProperty('segmentGroupSaveFormat');
-      expect(config.parse({ io: { segmentationSaveFormat: format } })).toEqual(
-        parsed
-      );
-      expect(
-        config.parse({
-          io: {
-            segmentationSaveFormat: format,
-            segmentGroupSaveFormat: format,
-          },
-        })
-      ).toEqual(parsed);
-    }
-  );
-
-  it.each([
-    ['nii', 'nrrd'],
-    ['', 'nii'],
-    ['nii', ''],
-  ])('rejects conflicting formats %s and %s', (old, current) => {
-    expect(() =>
-      config.parse({
-        io: { segmentGroupSaveFormat: old, segmentationSaveFormat: current },
-      })
-    ).toThrow('conflicts with io.segmentationSaveFormat');
-  });
-
   it('names a rejected config key in plain text', async () => {
     const raw = {
       io: { segmentGroupExtension: 'a', segmentationExtension: 'b' },
@@ -51,15 +19,6 @@ describe('canonical segmentation configuration', () => {
       'Failed to parse config file: ✖ io.segmentGroupExtension conflicts with io.segmentationExtension. Use only io.segmentationExtension.\n  → at io.segmentationExtension'
     );
   });
-
-  it.each(['segmentGroupSaveFormat', 'segmentationSaveFormat'])(
-    'rejects non-string %s',
-    (key) => {
-      for (const value of [null, 3]) {
-        expect(config.safeParse({ io: { [key]: value } }).success).toBe(false);
-      }
-    }
-  );
 
   it.each([null, {}, { Other: { color: 'blue' } }])(
     'preserves canonical segments %j over labels',

@@ -88,7 +88,7 @@ const descriptorlessComposedManifest = (visibility = true) =>
     ],
   });
 
-const descriptorlessArchiveManifest = () =>
+const descriptorlessArchiveManifest = (name: string) =>
   migrated({
     version: '6.4.0',
     dataSources: [{ id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' }],
@@ -97,7 +97,7 @@ const descriptorlessArchiveManifest = () =>
       {
         id: 'sg-tumor',
         path: 'segmentations/Tumor.seg.nrrd',
-        metadata: { name: 'Tumor', parentImage: 'ds-ct' },
+        metadata: { name, parentImage: 'ds-ct' },
       },
     ],
   });
@@ -130,6 +130,40 @@ const catalogFor = (parentImageId: string) => {
       };
     });
 };
+
+// A descriptor-less group saved in the archive, restored with no loaded
+// dataset to take a name from.
+async function archiveCatalog(
+  groupName: string,
+  decoded: { image: vtkImageData; headerMetadata?: Map<string, string> }
+) {
+  setActivePinia(createPinia());
+  seat('parent-store', 'CT Chest', makeParentImage());
+  const store = useSegmentationStore();
+  const deserialize = store.deserialize;
+  const read = vi.spyOn(store, 'deserialize').mockImplementation((options) =>
+    deserialize({
+      ...options,
+      io: { read: async () => decoded, write: vi.fn() },
+    })
+  );
+
+  try {
+    await completeStateFileRestore(
+      descriptorlessArchiveManifest(groupName),
+      [
+        {
+          archivePath: 'segmentations/Tumor.seg.nrrd',
+          file: new File([''], 'Tumor.seg.nrrd'),
+        },
+      ],
+      { 'ds-ct': 'parent-store' }
+    );
+  } finally {
+    read.mockRestore();
+  }
+  return catalogFor('parent-store');
+}
 
 // The LIVE path: what convertImageToLabelmap builds for this labelmap.
 async function liveCatalog(segmentMetadata?: Map<string, string>) {
@@ -228,8 +262,6 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
   });
 
   it('preserves embedded metadata from an archive-backed .seg.nrrd', async () => {
-    setActivePinia(createPinia());
-    seat('parent-store', 'CT Chest', makeParentImage());
     const decoded = {
       image: makeLabelmapImage(),
       headerMetadata: new Map<string, string>([
@@ -239,31 +271,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       ]),
     };
 
-    const store = useSegmentationStore();
-    const deserialize = store.deserialize;
-    const read = vi.spyOn(store, 'deserialize').mockImplementation((options) =>
-      deserialize({
-        ...options,
-        io: { read: async () => decoded, write: vi.fn() },
-      })
-    );
-
-    try {
-      await completeStateFileRestore(
-        descriptorlessArchiveManifest(),
-        [
-          {
-            archivePath: 'segmentations/Tumor.seg.nrrd',
-            file: new File([''], 'Tumor.seg.nrrd'),
-          },
-        ],
-        { 'ds-ct': 'parent-store' }
-      );
-    } finally {
-      read.mockRestore();
-    }
-
-    const catalog = catalogFor('parent-store');
+    const catalog = await archiveCatalog('Tumor', decoded);
     expect(catalog).toHaveLength(2);
     expect(catalog[1]).toMatchObject({
       name: 'Tumor core',
@@ -274,6 +282,16 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     // undescribed value is named after the labelmap, as the live conversion
     // names it after the file it arrived in.
     expect(catalog).toEqual(await liveCatalog(decoded.headerMetadata));
+  });
+
+  it('names archive segments after the whole group name, not a path tail', async () => {
+    const name = 'Tumor W/O CONTRAST 2.5mm';
+    const catalog = await archiveCatalog(name, { image: makeLabelmapImage() });
+
+    expect(catalog.map((segment) => segment.name)).toEqual([
+      `${name} 1`,
+      `${name} 2`,
+    ]);
   });
 
   it('enumerates only distinct sparse voxel labels', async () => {

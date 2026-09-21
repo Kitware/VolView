@@ -1,4 +1,3 @@
-import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -6,6 +5,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { leafStateId } from '@/src/io/import/dataSource';
+import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
@@ -107,7 +107,7 @@ function makeEmptyScalarsImage() {
 }
 
 // Mirrors production: the restore setup resolves each group's artifact state
-// source from the manifest (resolveLabelmapSources, the single-owner
+// source from the manifest (planLabelmapSources, the single-owner
 // policy) and hands it to deserialize alongside the dataIDMap. A restored
 // legacy group is split into one bounded mask per segment, so what a survivor
 // leaves behind is its segments, not a group record.
@@ -135,8 +135,8 @@ const restoreGroups = (
     manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(manifest),
-    labelmapSources: resolveLabelmapSources(manifest),
+    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+    labelmapSources: planLabelmapSources(manifest).sources,
     io: artifactIO,
   });
 
@@ -182,7 +182,8 @@ describe('migrated segment groups: resilient restore', () => {
       { name: 'sg-tumor', reason: 'labelmap source unavailable' },
     ]);
     const restored = catalogFor('store-ct');
-    expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor']);
+    // Both groups name a Tumor; the skipped one came first.
+    expect(restored.map((segment) => nameOf(segment))).toEqual(['Tumor (2)']);
     expect([
       ...useSegmentStore().segments.appearanceOf(restored[0].segmentId).color,
     ]).toEqual([255, 0, 0, 255]);
@@ -276,9 +277,10 @@ describe('migrated segment groups: resilient restore', () => {
       { 'ds-ct': 'store-ct', [leafStateId(4)]: 'store-liver' }
     );
 
-    // Only the survivor's segments attached.
+    // Only the survivor's segments attached, numbered after the skipped
+    // group's Tumor.
     expect(catalogFor('store-ct').map((segment) => nameOf(segment))).toEqual([
-      'Tumor',
+      'Tumor (2)',
     ]);
     expect(maskCount()).toBe(1);
 

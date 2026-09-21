@@ -14,19 +14,39 @@ JSON files that reference remote data via URIs instead of embedding it. Useful f
 - Sharing annotations without duplicating large datasets
 - Integrating with external systems (AI pipelines, access control, etc.)
 
-### Current manifest (version 7.0.0)
+## Manifest (version 7.0.0)
 
-A segmentation owns one image's segment masks; labelmaps encode those masks for
-storage or interchange. The top-level `segments` list holds the identities the
-masks paint (name, color, visibility), each mask names the segment it carries
-voxels for, and `order` lists the masks of that segmentation.
+Both formats carry this manifest. A segmentation owns one image's segment masks;
+labelmaps encode those masks for storage or interchange. The top-level `segments`
+list holds the identities the masks paint and the tools draw with, each mask names
+the segment it carries voxels for, and `order` lists the masks of that
+segmentation. A mask `order` leaves out is skipped on restore. `selectedSegment`
+names the segment that was selected.
+
+A segment has a `name` and an RGBA `color`. It may also state `visible` and
+`locked`, which default to `true` and `false`, and `fillOpacity`, `outlineOpacity`
+and `strokeWidth`, which fall back to the app defaults. A segmentation may state
+the `fillOpacity`, `outlineOpacity` and `outlineThickness` of the image's Display
+settings. Rulers, rectangles and polygons under `tools` name their segment with
+`segmentId`.
+
+A segment the file lists takes over an existing segment of the same name that
+holds no masks or shapes yet, such as one a configuration defined. If that
+segment already holds content, the restored one gets a numbered name like
+`Tumor (2)`.
 
 A mask saved into a zip names its own archive entry with `path`. A sparse
 manifest instead points at a whole label volume: `segmentationArtifacts` names
 that volume, its `dataSourceId` says where the bytes come from, and each mask
-whose `artifactId` points at it is filled from the `sourceValue` it declares.
+whose `artifactId` points at it is filled from the `sourceValue` it declares, 1
+when omitted.
 An artifact is a single-component label volume; one with several components is
-skipped on restore. Extents are placeholders until the volume is read.
+skipped on restore. Extents are placeholders until the volume is read. A value
+no mask reads, including every value of a volume no mask points at, gets its
+segment the way loading that volume on its own would: it joins an existing
+segment of its name, even one holding content on another image, unless that
+segment already has a mask on this image, in which case the value gets a new
+segment with a numbered name.
 
 ```json
 {
@@ -73,15 +93,33 @@ skipped on restore. Extents are placeholders until the volume is read.
       "dataSourceId": 1
     }
   ],
-  "selectedSegment": "segment-tumor"
+  "selectedSegment": "segment-tumor",
+  "tools": {
+    "rectangles": {
+      "tools": [
+        {
+          "imageID": "0",
+          "frameOfReference": {
+            "planeNormal": [0, 0, 1],
+            "planeOrigin": [0, 0, 50]
+          },
+          "slice": 50,
+          "firstPoint": [-20, -20, 50],
+          "secondPoint": [20, 20, 50],
+          "segmentId": "segment-tumor"
+        }
+      ]
+    }
+  }
 }
 ```
 
-### Legacy 6.2.0 manifest (the pre-7.0.0 form, still read on import)
+## Legacy 6.x manifest (still read on import)
 
-The historical `segmentGroups` field is migrated into the current segmentation
-model on load, and the per-tool `labels` records become segments the tools
-reference by id. Nothing writes this form any more.
+Manifests up to version 6.4.0, such as this 6.2.0 one, are migrated on load: the
+historical `segmentGroups` field becomes the current segmentation model, and the
+per-tool `labels` records become segments the tools reference by id. Nothing
+writes this form any more.
 
 ```json
 {

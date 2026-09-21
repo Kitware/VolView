@@ -14,7 +14,6 @@ import { useViewStore } from '@/src/store/views';
 import {
   activateAppPinia,
   addMask,
-  labelValueOf,
   markedVoxels,
   maskValueAt,
   seatImage,
@@ -28,7 +27,7 @@ import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 // ---------------------------------------------------------------------------
 // A process writes into empty space only. A brush stroke is aimed at a place
-// and claims the voxel from an unlocked neighbour; a process is a sweep the
+// and claims the voxel from an unlocked neighbor; a process is a sweep the
 // user did not aim, so it stops at every voxel another segment holds, locked or
 // not, and takes nothing from anyone. Nothing outside the active segment
 // changes, so the preview is what confirm leaves behind.
@@ -103,7 +102,7 @@ function tumorHolding(imageId: string, holds: (index: Index3) => boolean) {
   return maskId;
 }
 
-function neighbourOwningTheHole(imageId: string, locked: boolean) {
+function neighborOwningTheHole(imageId: string, locked: boolean) {
   const maskId = addMask(imageId, locked ? 'Locked' : 'Unlocked');
   seedVoxel(maskId, HOLE);
   lockSegment(maskId, locked);
@@ -131,56 +130,56 @@ describe.each([
   };
 
   it.each([
-    ['an unlocked neighbour', false, false],
-    ['a locked neighbour', true, false],
-    ['a neighbour while overlap is allowed', false, true],
+    ['an unlocked neighbor', false, false],
+    ['a locked neighbor', true, false],
+    ['a neighbor while overlap is allowed', false, true],
   ])('leaves the voxel with %s', async (_case, locked, overlap) => {
-    const neighbour = neighbourOwningTheHole('img-1', locked);
+    const neighbor = neighborOwningTheHole('img-1', locked);
     store().allowOverlap = overlap;
 
     (await process()).confirmProcess();
 
-    expect(maskValueAt(neighbour, HOLE)).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(neighbor, HOLE)).toBe(SEGMENT_VALUE);
     expect(maskValueAt(tumor, HOLE)).toBe(0);
   });
 
   it('confirms exactly what the preview showed', async () => {
-    const neighbour = neighbourOwningTheHole('img-1', false);
+    const neighbor = neighborOwningTheHole('img-1', false);
     const processStore = await process();
-    const previewed = [markedVoxels(tumor), markedVoxels(neighbour)];
+    const previewed = [markedVoxels(tumor), markedVoxels(neighbor)];
 
     processStore.confirmProcess();
 
-    expect([markedVoxels(tumor), markedVoxels(neighbour)]).toEqual(previewed);
+    expect([markedVoxels(tumor), markedVoxels(neighbor)]).toEqual(previewed);
   });
 
-  it('takes nothing from a neighbour when the preview is cancelled', async () => {
-    const neighbour = neighbourOwningTheHole('img-1', false);
+  it('takes nothing from a neighbor when the preview is cancelled', async () => {
+    const neighbor = neighborOwningTheHole('img-1', false);
 
     (await process()).cancelProcess();
 
     expect(maskValueAt(tumor, HOLE)).toBe(0);
-    expect(maskValueAt(neighbour, HOLE)).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(neighbor, HOLE)).toBe(SEGMENT_VALUE);
   });
 
   it('leaves the voxels it did not turn on with their owners', async () => {
     // An overlap the user already has, inside the cube so no algorithm here
     // rounds it away: a process that turned it on for neither keeps both.
-    const neighbour = addMask('img-1', 'Elsewhere');
-    seedVoxel(neighbour, INSIDE);
-    seedVoxel(neighbour, [0, 0, 0]);
+    const neighbor = addMask('img-1', 'Elsewhere');
+    seedVoxel(neighbor, INSIDE);
+    seedVoxel(neighbor, [0, 0, 0]);
 
     (await process()).confirmProcess();
 
-    expect(maskValueAt(neighbour, [0, 0, 0])).toBe(labelValueOf(neighbour));
-    expect(maskValueAt(tumor, INSIDE)).toBe(labelValueOf(tumor));
-    expect(maskValueAt(neighbour, INSIDE)).toBe(labelValueOf(neighbour));
+    expect(maskValueAt(neighbor, [0, 0, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(tumor, INSIDE)).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(neighbor, INSIDE)).toBe(SEGMENT_VALUE);
   });
 });
 
 // The result is swept a row at a time, so a mask whose i, j and k counts all
 // differ is what pins the row start against the parent index the sweep asks
-// the neighbouring masks about.
+// the neighboring masks about.
 describe('a process over a mask with no two dimensions alike', () => {
   const SHAPE: Index3 = [3, 4, 5];
   const OWNED: Index3 = [1, 2, 3];
@@ -191,7 +190,7 @@ describe('a process over a mask with no two dimensions alike', () => {
     useViewStore().setDataForAllViews('img-1');
   });
 
-  it('stops at the one voxel a neighbour holds', async () => {
+  it('stops at the one voxel a neighbor holds', async () => {
     const tumor = addMask('img-1', 'Tumor');
     selectSegment(tumor);
     const voxels = store().maskVoxels(tumor);
@@ -199,8 +198,8 @@ describe('a process over a mask with no two dimensions alike', () => {
     voxels.ensureContains([0, 2, 0, 3, 0, 4]);
     seedVoxel(tumor, [0, 0, 0]);
 
-    const neighbour = addMask('img-1', 'Neighbour');
-    seedVoxel(neighbour, OWNED);
+    const neighbor = addMask('img-1', 'Neighbor');
+    seedVoxel(neighbor, OWNED);
 
     const processStore = usePaintProcessStore();
     await processStore.startProcess(async (target) => {
@@ -211,8 +210,8 @@ describe('a process over a mask with no two dimensions alike', () => {
     processStore.confirmProcess();
 
     expect(maskValueAt(tumor, OWNED)).toBe(0);
-    expect(maskValueAt(neighbour, OWNED)).toBe(labelValueOf(neighbour));
-    expect(maskValueAt(tumor, [2, 3, 4])).toBe(labelValueOf(tumor));
-    expect(maskValueAt(tumor, [1, 2, 2])).toBe(labelValueOf(tumor));
+    expect(maskValueAt(neighbor, OWNED)).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(tumor, [2, 3, 4])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(tumor, [1, 2, 2])).toBe(SEGMENT_VALUE);
   });
 });

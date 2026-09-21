@@ -122,7 +122,10 @@ describe('a configured segment creates nothing', () => {
     const rulers = useRulerStore();
     const ruler = rulers.addTool({ imageID: 'img-1' });
 
-    expect(rulers.appearanceOfTool(ruler).name).toBe('Tumor');
+    expect(rulers.appearanceOfTool(ruler)).toMatchObject({
+      name: 'Tumor',
+      cssColor: '#00ff00',
+    });
   });
 });
 

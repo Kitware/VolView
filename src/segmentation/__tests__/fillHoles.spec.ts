@@ -280,7 +280,7 @@ describe('Fill Holes store', () => {
     expect(Array.from(voxels.scalars())).toEqual(held);
   });
 
-  it('sends the target’s own buffer rather than a copy of it', async () => {
+  it("sends the target's own buffer rather than a copy of it", async () => {
     const { fillHolesStore, parentImageID, maskId } = await setupFillHolesRun(
       { dimensions: [10, 10, 10], spacing: UNIT, direction: IDENTITY },
       [0, 9, 0, 9, 0, 9],
@@ -317,19 +317,18 @@ describe('Fill Holes store', () => {
     );
     const second = segmentationStore.maskVoxels(other.id);
     second.materialize();
-    const otherValue = SEGMENT_VALUE;
     second.ensureContains([4, 6, 0, 2, 0, 0]);
     second.apply(
       new Uint8Array([
-        otherValue,
-        otherValue,
-        otherValue,
-        otherValue,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
         0,
-        otherValue,
-        otherValue,
-        otherValue,
-        otherValue,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
+        SEGMENT_VALUE,
       ])
     );
     fillHolesStore.setSliceScope(FillHolesSliceScope.WholeVolume);
@@ -357,6 +356,6 @@ describe('Fill Holes store', () => {
     await run();
 
     expect(first.scalars()[4]).toBe(1);
-    expect(second.scalars()[4]).toBe(otherValue);
+    expect(second.scalars()[4]).toBe(SEGMENT_VALUE);
   });
 });

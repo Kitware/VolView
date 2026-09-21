@@ -565,6 +565,89 @@ describe('a multi-component artifact', () => {
   });
 });
 
+describe('an archive artifact', () => {
+  const restoreArtifact = async (
+    values: Uint8Array | Uint32Array,
+    extra: Record<string, unknown> = {},
+    headerMetadata?: Map<string, string>
+  ) => {
+    await seatImage('parent', { dimensions: [4, 1, 1] });
+    const image = await seatImage('source', { dimensions: [4, 1, 1], values });
+    const manifest = ManifestSchema.parse(
+      manifestForImages(['parent'], {
+        segmentationArtifacts: [
+          { id: 'atlas', parentImage: 'parent', name: 'atlas', path: 'a.vti' },
+        ],
+        ...extra,
+      })
+    );
+    return store().deserialize({
+      manifest,
+      stateFiles: [{ archivePath: 'a.vti', file: new File([''], 'a.vti') }],
+      dataIDMap: { parent: 'parent' },
+      segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+      io: {
+        write: async () => '',
+        read: async () => ({ image, headerMetadata }),
+      },
+    });
+  };
+
+  it('reports the voxels whose labels past 16 bits it could not keep', async () => {
+    const result = await restoreArtifact(new Uint32Array([0, 1, 70000, 70000]));
+
+    expect(result.skipped).toEqual([
+      {
+        name: 'atlas',
+        reason: '2 voxels hold labels other than whole numbers 0 to 65535',
+      },
+    ]);
+    expect(result.restoredImportIds).toEqual(new Set(['atlas']));
+  });
+
+  it('leaves out a declared value no voxel carries beside an unclaimed one', async () => {
+    const result = await restoreArtifact(
+      new Uint8Array([0, 1, 2, 0]),
+      {
+        segments: [{ id: 's1', name: 'Liver', color: [255, 0, 0, 255] }],
+        segmentations: [
+          {
+            id: 'wire',
+            name: 'CT',
+            parentImage: 'parent',
+            order: ['m1'],
+            masks: [
+              {
+                id: 'm1',
+                segmentId: 's1',
+                representations: {
+                  labelmap: {
+                    artifactId: 'atlas',
+                    sourceValue: 1,
+                    extent: [0, -1, 0, -1, 0, -1],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      new Map([
+        ['Segment0_LabelValue', '9'],
+        ['Segment0_Name', 'Declared'],
+      ])
+    );
+
+    expect(result.skipped).toEqual([]);
+    expect(
+      store()
+        .imageMasks('parent')
+        .map((mask) => useSegmentStore().segments.appearanceOf(mask.segmentId))
+        .map(({ name }) => name)
+    ).toEqual(['Liver', 'atlas 2']);
+  });
+});
+
 // A manifest's mask ids are its own, and a hand-authored or server-produced
 // one may spell an Object.prototype key.
 describe('an artifact-backed mask whose id spells a prototype member', () => {
@@ -614,7 +697,7 @@ describe('an artifact-backed mask whose id spells a prototype member', () => {
         { archivePath: 'mask.vti', file: new File([''], 'mask.vti') },
       ],
       dataIDMap: { parent: 'parent' },
-      segmentIdMap: useSegmentStore().deserialize(manifest),
+      segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
       io: { write: async () => '', read: async () => ({ image }) },
     });
     return { result, mask: store().imageMasks('parent')[0] };

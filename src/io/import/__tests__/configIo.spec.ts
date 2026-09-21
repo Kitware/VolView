@@ -1,37 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { configIo } from '../configIo';
+import { configIo, RENAMED_IO_KEYS } from '@/src/io/import/configIo';
 
-describe('segmentation filename configuration migration', () => {
-  it.each([
-    [{}, ''],
-    [{ segmentationExtension: 'seg' }, 'seg'],
-    [{ segmentGroupExtension: 'seg' }, 'seg'],
-    [{ segmentationExtension: 'seg', segmentGroupExtension: 'seg' }, 'seg'],
-    [{ segmentationExtension: '' }, ''],
-    [{ segmentGroupExtension: '' }, ''],
-    [{ segmentationExtension: '', segmentGroupExtension: '' }, ''],
-  ])('normalizes %j to one runtime field', (input, extension) => {
-    expect(configIo.parse(input)).toEqual({
-      layerExtension: '',
-      segmentationExtension: extension,
-    });
-  });
-
-  it.each([
-    { segmentationExtension: 'seg', segmentGroupExtension: 'mask' },
-    { segmentationExtension: '', segmentGroupExtension: 'seg' },
-    { segmentationExtension: 'seg', segmentGroupExtension: '' },
-  ])('rejects conflicting aliases: %j', (input) => {
-    expect(() => configIo.parse(input)).toThrow(
-      'io.segmentGroupExtension conflicts with io.segmentationExtension'
+describe.each(RENAMED_IO_KEYS)(
+  'configuration alias %s -> %s',
+  (legacy, key) => {
+    it.each(['seg', ''])(
+      'normalizes either spelling of %j to one runtime field',
+      (value) => {
+        const expected = {
+          layerExtension: '',
+          segmentationExtension: '',
+          [key]: value,
+        };
+        for (const input of [
+          { [legacy]: value },
+          { [key]: value },
+          { [legacy]: value, [key]: value },
+        ]) {
+          const parsed = configIo.parse(input);
+          expect(parsed).toEqual(expected);
+          expect(parsed).not.toHaveProperty(legacy);
+        }
+      }
     );
-  });
 
-  it.each(['segmentGroupExtension', 'segmentationExtension'])(
-    'rejects a non-string %s',
-    (key) => {
-      expect(configIo.safeParse({ [key]: null }).success).toBe(false);
-      expect(configIo.safeParse({ [key]: 1 }).success).toBe(false);
-    }
-  );
+    it.each([
+      ['seg', 'mask'],
+      ['', 'seg'],
+      ['seg', ''],
+    ])('rejects conflicting aliases %j and %j', (oldValue, newValue) => {
+      expect(() =>
+        configIo.parse({ [legacy]: oldValue, [key]: newValue })
+      ).toThrow(`io.${legacy} conflicts with io.${key}`);
+    });
+
+    it.each([null, 1])(
+      'rejects non-string values %j in either spelling',
+      (value) => {
+        expect(configIo.safeParse({ [legacy]: value }).success).toBe(false);
+        expect(configIo.safeParse({ [key]: value }).success).toBe(false);
+      }
+    );
+  }
+);
+
+it('defaults only the extension when both aliases are omitted', () => {
+  expect(configIo.parse({})).toEqual({
+    layerExtension: '',
+    segmentationExtension: '',
+  });
 });

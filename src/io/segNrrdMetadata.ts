@@ -130,11 +130,6 @@ export const parseSegNrrdMetadata = (
   return segments.length ? segments : undefined;
 };
 
-// A decoded segment as `decodeSegments` hands it to the store: a `ParsedSegment`
-// with the looser `number[]` color the default-numbering path already produces,
-// not the parser's stricter 4-tuple.
-export type DecodedSegment = Omit<ParsedSegment, 'color'> & { color: number[] };
-
 /**
  * Overlay embedded `.seg.nrrd` segment metadata onto the full voxel-value
  * enumeration. The enumeration (`values`) is the SPINE: every labelled voxel
@@ -154,14 +149,14 @@ export type DecodedSegment = Omit<ParsedSegment, 'color'> & { color: number[] };
 export const overlaySegmentMetadata = (
   values: number[],
   described: ParsedSegment[] | undefined,
-  makeDefault: (value: number) => DecodedSegment
-): DecodedSegment[] => {
+  makeDefault: (value: number) => ParsedSegment
+) => {
   const describedByValue = new Map(
     (described ?? []).map((seg) => [seg.value, seg] as const)
   );
   // `described` is freshly parsed per decode and discarded, so passing it
   // through by reference aliases nothing the caller keeps.
-  const merged: DecodedSegment[] = values.map(
+  const merged = values.map(
     (value) => describedByValue.get(value) ?? makeDefault(value)
   );
   // Append described values not in the enumeration. Iterate the DEDUPED map, NOT

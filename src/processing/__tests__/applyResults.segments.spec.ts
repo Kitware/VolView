@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
@@ -6,8 +6,10 @@ import type { SegmentDescriptor } from '@/backend-contract';
 import {
   applyIntent,
   appApplyDependencies,
+  type ApplyDependencies,
 } from '@/src/processing/applyResults';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import * as resampling from '@/src/io/resample/resample';
 import { isEmptyExtent } from '@/src/segmentation/geometry';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -30,7 +32,10 @@ const existingMask = (imageId: string, name: string) => {
   return { segmentId, maskId };
 };
 
-const importResult = (segments?: SegmentDescriptor[]) =>
+const importResult = (
+  segments?: SegmentDescriptor[],
+  overrides: Partial<ApplyDependencies> = {}
+) =>
   applyIntent(
     {
       intent: 'import-segmentation',
@@ -51,6 +56,7 @@ const importResult = (segments?: SegmentDescriptor[]) =>
       ...appApplyDependencies(),
       importVolume: async () => 'output',
       removeDataset: (id) => useImageCacheStore().removeImage(id),
+      ...overrides,
     }
   );
 
@@ -58,6 +64,10 @@ const appearanceOnB = () =>
   store()
     .imageMasks('parent-B')
     .map(({ segmentId }) => registry().appearanceOf(segmentId));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 beforeEach(async () => {
   setActivePinia(createPinia());
@@ -180,5 +190,35 @@ describe('processing segment identity', () => {
       [1, 1, 1, 1, 1, 1],
       [2, 2, 2, 2, 2, 2],
     ]);
+  });
+
+  it('imports every component again when a retry follows a partial import', async () => {
+    const resample = resampling.ensureSameSpace;
+    vi.spyOn(resampling, 'ensureSameSpace')
+      .mockImplementationOnce(resample)
+      .mockRejectedValueOnce(new Error('Resample failed'));
+    let imports = 0;
+    const importTwoComponents = async () => {
+      imports += 1;
+      const id = `layered-${imports}`;
+      const values = new Uint8Array(128);
+      values[21 * 2] = 1;
+      values[42 * 2 + 1] = 1;
+      const image = await seatImage(id, { name: 'output.nrrd' });
+      image
+        .getPointData()
+        .setScalars(
+          vtkDataArray.newInstance({ numberOfComponents: 2, values })
+        );
+      return id;
+    };
+
+    expect(
+      await importResult(undefined, { importVolume: importTwoComponents })
+    ).toMatchObject({ status: 'failed' });
+    expect(
+      await importResult(undefined, { importVolume: importTwoComponents })
+    ).toEqual({ status: 'applied' });
+    expect(imports).toBe(2);
   });
 });

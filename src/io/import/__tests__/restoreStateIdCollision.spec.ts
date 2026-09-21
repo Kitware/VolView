@@ -1,18 +1,17 @@
-import { resolveLabelmapSources } from '@/src/io/import/labelmapImports';
+import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
-  completeStateFileRestore,
+  createStateFileRestorer,
   restoreStateFile,
 } from '@/src/io/import/processors/restoreStateFile';
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useViewStore } from '@/src/store/views';
 
 // ---------------------------------------------------------------------------
 // Disjoint restore stateID namespaces: a composed
@@ -133,15 +132,15 @@ const restoreOnto = async (
     manifest: setup.manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(setup.manifest),
-    labelmapSources: resolveLabelmapSources(setup.manifest),
+    segmentIdMap: useSegmentStore().deserialize(setup.manifest).segmentIdMap,
+    labelmapSources: planLabelmapSources(setup.manifest).sources,
     io: artifactIO,
   });
   const [maskId] = store.getSegmentationForImage(BASE_STORE_ID)!.order;
   return { restored, maskId };
 };
 
-/** The group attached, parented on the BASE dataset's store id. */
+// Artifact masks must remain attached to the resolved base dataset.
 const expectTumorOnBase = (restored: Set<string>, maskId: string) => {
   const store = useSegmentationStore();
   expect(restored.has('sg-tumor')).toBe(true);
@@ -182,14 +181,18 @@ describe('restore stateID namespaces (collision)', () => {
     seatImage(BASE_STORE_ID, 'CT Chest');
     seatImage(ARTIFACT_STORE_ID, 'Tumor.seg.nrrd');
 
-    await completeStateFileRestore(manifest, [], {
+    const views = {
+      bindViewsToData: vi.fn(),
+      setDataForAllViews: vi.fn(),
+      setDataForView: vi.fn(),
+    };
+    await createStateFileRestorer({ views })(manifest, [], {
       temporaryArtifact: ARTIFACT_STORE_ID,
       parent: BASE_STORE_ID,
     });
-
-    const displayed = useViewStore().visibleViews.map(({ dataID }) => dataID);
-    expect(displayed.length).toBeGreaterThan(0);
-    expect(new Set(displayed)).toEqual(new Set([BASE_STORE_ID]));
+    expect(views.setDataForAllViews).toHaveBeenCalledExactlyOnceWith(
+      BASE_STORE_ID
+    );
   });
 
   it.each([
@@ -216,7 +219,7 @@ describe('restore stateID namespaces (collision)', () => {
         stateIDToStoreID
       );
 
-      // The group attached, parented on the BASE dataset's store id.
+      // Artifact masks must remain attached to the resolved base dataset.
       expectTumorOnBase(restored, maskId);
 
       // Its mask was built from the ARTIFACT's voxels, not the base's.

@@ -167,16 +167,31 @@ visibility and lock state.
 }
 ```
 
-Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
+Fields:
 
-Omitting the key leaves the registry alone. An empty record (`{}`) or `null` clears what
-an earlier config contributed, keeping any segment your content still references with its
-last configured appearance. A configured segment keeps its id across config changes, so
-renaming or recoloring one never detaches the masks and shapes that reference it.
+- `color` takes a hex value of 3, 4, 6 or 8 digits such as `#ff0000` (the 4 and 8 digit
+  forms carry alpha) or a CSS color keyword such as `green`. Any other value is reported
+  as an error and ignored.
+- `fillOpacity` and `outlineOpacity`, from 0 to 1, set how strongly the segment's masks
+  are filled and outlined. The Display sliders in "Annotations" scale them per image.
+- `strokeWidth` sets the line width of the segment's rectangles, polygons and rulers.
 
-### Pre-7.0 `labels`
+Omitting the key leaves the registry alone. An empty record (`{}`) or `null` drops the
+config's entries: a segment the config created is deleted unless a mask or shape
+references it, and any other segment stays with its last configured appearance.
 
-A pre-7.0 `labels` section is converted into `segments` at configuration ingestion, with
+Entries are keyed by name. A configured segment keeps its id while its key stays the
+same, so recoloring it never detaches its masks and shapes. Changing a key moves the
+entry to the segment of the new name, adding one if none exists, and drops the old entry
+as above. Applying a config again restores each key's name and configured appearance,
+undoing a rename made in the app.
+
+Configured segments outlive the images. Removing the last image deletes every other
+segment and keeps these.
+
+### Legacy `labels`
+
+A legacy `labels` section is converted into `segments` at configuration ingestion, with
 a deprecation warning. Runtime configuration contains only `segments`. Its
 `defaultLabels`, `rulerLabels`, `rectangleLabels` and `polygonLabels` all describe the one
 registry now, so they read as `segments` entries. A name that appears in more than one
@@ -200,13 +215,13 @@ Converting a config by hand:
 }
 ```
 
-becomes
+becomes, with the segments in the order VolView reads them:
 
 ```json
 {
   "segments": {
-    "lesion": { "color": "#ff0000" },
-    "big": { "color": "#ff0000" }
+    "big": { "color": "#ff0000" },
+    "lesion": { "color": "#ff0000" }
   }
 }
 ```
@@ -224,10 +239,8 @@ VolView will include in the volview.zip file.
 }
 ```
 
-The legacy `io.segmentGroupSaveFormat` key is migrated at ingestion. Matching
-old and new values are accepted; conflicting values are rejected. This setting
-controls mask files inside saved sessions, independently of the explicit
-segmentation export dialog. Existing saved-session encodings remain readable.
+This setting controls mask files inside saved sessions, independently of the
+explicit segmentation export dialog.
 
 Working mask file formats:
 
@@ -240,7 +253,7 @@ Example: `base.[extension].nrrd` will match `base.nii`.
 
 The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot). Files matching `base.[extension]...` will be associated with a base image named `base.*`.
 
-**Ordering:** When multiple layers/segmentations match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
+**Ordering:** When multiple layers match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames. Matching segmentation files each add their labels as segments to the base image's one segmentation.
 
 For example, with a base image `patient001.nrrd`:
 
@@ -249,23 +262,10 @@ For example, with a base image `patient001.nrrd`:
 
 Both features default to `''` which disables them.
 
-### Configuration migration
-
-Use `io.segmentationExtension` in new configuration. The old
-`io.segmentGroupExtension` key is accepted at ingestion and converted to the
-new key. If both keys are present, their values must match; conflicting values
-are rejected. An explicit empty string disables automatic matching.
-
-The value `seg` is the filename marker in `patient.seg.nii.gz`; `nii.gz` is
-its encoding extension. This setting preserves the existing filename matching
-rule and does not add support for additional segmentation formats.
-
-Directly loading an old key in VolView also reports a deprecation warning.
-
 ### Segmentations
 
-Use `segmentationExtension` to automatically convert matching non-DICOM images to segmentations.
-For example, `myFile.seg.nrrd` becomes a segmentation for `myFile.nii`.
+Use `segmentationExtension` to automatically import the labels of matching non-DICOM images as segments.
+For example, `myFile.seg.nrrd` adds its labels as segments on `myFile.nii`.
 Defaults to `''` which disables matching.
 
 ```json
@@ -288,6 +288,13 @@ Defaults to `''` which disables matching.
   }
 }
 ```
+
+## Renamed `io` Keys
+
+The keys `io.segmentGroupExtension` and `io.segmentGroupSaveFormat` are still read,
+converted to `io.segmentationExtension` and `io.segmentationSaveFormat`, and reported
+with a deprecation warning. If both spellings of a key are present, their values must
+match or the configuration is rejected.
 
 ## Keyboard Shortcuts
 

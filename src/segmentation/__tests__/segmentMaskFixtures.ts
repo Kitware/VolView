@@ -340,9 +340,6 @@ export const bindingOf = (maskId: string) =>
 
 export const extentOf = (maskId: string) => bindingOf(maskId)?.extent;
 
-export const labelValueOf = (maskId: string) =>
-  bindingOf(maskId) && SEGMENT_VALUE;
-
 const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   i >= extent[0] &&
   i <= extent[1] &&
