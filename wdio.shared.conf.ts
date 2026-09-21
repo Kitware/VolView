@@ -155,6 +155,7 @@ export const config: Options.Testrunner = {
   mochaOpts: {
     ui: 'bdd',
     timeout: 90_000,
+    require: ['./tests/rootHooks.ts'],
   },
 
   //
@@ -216,14 +217,6 @@ export const config: Options.Testrunner = {
     browser: any
   ) {
     await applyTestViewport(browser);
-
-    // Subscribe to browser console logs and output them directly
-    await browser.sessionSubscribe({ events: ['log.entryAdded'] });
-
-    browser.on('log.entryAdded', (logEntry: any) => {
-      const message = logEntry.text || '';
-      console.log(`[Browser Console] [${logEntry.level}] ${message}`);
-    });
   },
 
   async afterCommand(commandName: string) {

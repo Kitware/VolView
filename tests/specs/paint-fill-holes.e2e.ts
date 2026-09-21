@@ -1,10 +1,10 @@
 import AppPage from '../pageobjects/volview.page';
+import { PROSTATEX_DATASET } from '../datasets';
+import { openUrls } from './utils';
 
 describe('Fill Holes paint process', () => {
   beforeEach(async () => {
-    await AppPage.open();
-    await AppPage.downloadProstateSample();
-    await AppPage.waitForViews();
+    await openUrls([PROSTATEX_DATASET]);
 
     const views2D = await AppPage.getViews2D();
     const axialView = views2D[0];
