@@ -84,6 +84,38 @@ const featureBoundaries = (features) => {
   ];
 };
 
+// Files that still pass their own time limits. Remove a file once it is
+// clean; never add one.
+const E2E_TIMEOUT_DEBT = [
+  'tests/pageobjects/volview.page.ts',
+  'tests/specs/annotationTestUtils.ts',
+  'tests/specs/automatic-layering.e2e.ts',
+  'tests/specs/bug-report.e2e.ts',
+  'tests/specs/cine-drag-onto-slot.e2e.ts',
+  'tests/specs/cine-rendering.e2e.ts',
+  'tests/specs/cine-ruler-session.e2e.ts',
+  'tests/specs/crosshairs-multi-image.e2e.ts',
+  'tests/specs/delete-selected-annotation.e2e.ts',
+  'tests/specs/dicom-dimension-mismatch.e2e.ts',
+  'tests/specs/different-direction-labelmap.e2e.ts',
+  'tests/specs/imageCacheUtils.ts',
+  'tests/specs/layer-source-lifetime.e2e.ts',
+  'tests/specs/layers-and-rendering.e2e.ts',
+  'tests/specs/multi-series-load.e2e.ts',
+  'tests/specs/paint-tool-rendering.e2e.ts',
+  'tests/specs/polygon-nested-interaction.e2e.ts',
+  'tests/specs/sample-rendering.e2e.ts',
+  'tests/specs/save-large-labelmap.e2e.ts',
+  'tests/specs/seg-nrrd-export.e2e.ts',
+  'tests/specs/select-annotation-at-press.e2e.ts',
+  'tests/specs/select-tool-annotation-press.e2e.ts',
+  'tests/specs/session-large-uri-base.e2e.ts',
+  'tests/specs/sparse-manifest-prostate-rectangle.e2e.ts',
+  'tests/specs/sparse-manifest.e2e.ts',
+  'tests/specs/ultrasound-spacing.e2e.ts',
+  'tests/specs/vtk-interactor-lifecycle.e2e.ts',
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -140,6 +172,27 @@ export default tseslint.config(
     files: ['**/tests/pageobjects/**/*.ts'],
     rules: {
       'class-methods-use-this': 'off',
+    },
+  },
+  // A wait with its own time limit stands in for a state the app should
+  // publish, and fails on a slow machine. Wait on the state instead.
+  {
+    files: ['**/tests/specs/**/*.ts', '**/tests/pageobjects/**/*.ts'],
+    ignores: E2E_TIMEOUT_DEBT,
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "Property[key.name='timeout']",
+          message:
+            'Wait for a state the page publishes rather than passing a timeout.',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='browser'][callee.property.name='pause']",
+          message: 'Wait for a state the page publishes rather than pausing.',
+        },
+      ],
     },
   },
   {
