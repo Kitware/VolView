@@ -93,6 +93,22 @@ describe('useLayersStore.addLayer return contract', () => {
       'Image did not load'
     );
   });
+  it('caches no layer image when the layer is deleted while it resamples', async () => {
+    seatOverlappingPair();
+    const store = useLayersStore();
+    ensureSameSpace.mockImplementation(
+      async (_parent: unknown, source: unknown) => {
+        store.deleteLayer('parent', 'source');
+        return source;
+      }
+    );
+
+    const id = await store.addLayer('parent', 'source');
+
+    expect(id).toBeUndefined();
+    expect(cached('parent::source')).toBe(false);
+    expect(useMessageStore().messages).toHaveLength(0);
+  });
 });
 
 describe('useLayersStore.remove', () => {
