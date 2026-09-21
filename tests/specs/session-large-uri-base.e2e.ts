@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { volViewPage } from '../pageobjects/volview.page';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
+import { writeManifestToFile } from './utils';
 
 const writeBufferToFile = async (data: Buffer, fileName: string) => {
   const filePath = path.join(TEMP_DIR, fileName);
@@ -141,6 +142,15 @@ describe('Session with large URI base and nii.gz labelmap', function () {
     const sessionZip = await createSessionZip(baseFileName, labelmapNiftiGz);
     await writeBufferToFile(sessionZip, sessionFileName);
 
+    // A 1 GB float volume texture is more than software GL can allocate, and
+    // the heap is what this spec is about. Disabling the 3D view type is not
+    // enough: the view that replaces it allocates the same texture.
+    const configFileName = `${prefix}-config.json`;
+    await writeManifestToFile(
+      { layouts: { 'Axial Only': [['axial']] } },
+      configFileName
+    );
+
     const rangeErrors: string[] = [];
     const onLogEntry = (logEntry: { text: string | null }) => {
       const text = logEntry.text ?? '';
@@ -151,7 +161,9 @@ describe('Session with large URI base and nii.gz labelmap', function () {
     browser.on('log.entryAdded', onLogEntry);
 
     try {
-      await volViewPage.open(`?urls=[tmp/${sessionFileName}]`);
+      await volViewPage.open(
+        `?urls=[tmp/${sessionFileName},tmp/${configFileName}]`
+      );
       await volViewPage.waitForViews(DOWNLOAD_TIMEOUT * 6);
 
       // Open the segment groups panel so the list renders in the DOM
