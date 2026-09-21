@@ -1,11 +1,16 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import { createHash } from 'crypto';
 import { createServer } from 'net';
 import type { Options, Capabilities } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { projectRoot } from './tests/e2eTestUtils';
 import { AUX_PORT, BASE_URL, TEST_PORT } from './tests/e2ePorts';
-import { TEST_DATASETS } from './tests/datasets';
+import {
+  DATASET_RELEASE,
+  TEST_DATASETS,
+  type TestDataset,
+} from './tests/datasets';
 
 // Fixed capture viewport (Playwright's default).
 export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
@@ -15,8 +20,7 @@ export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
 export const applyTestViewport = (browser: any) =>
   browser.setViewport({ ...CONTENT_VIEWPORT, devicePixelRatio: 1 });
 
-// for slow connections try:
-// DOWNLOAD_TIMEOUT=60000 && npm run test:e2e:dev
+// How long data may take to load and render. Nothing here crosses the network.
 export const DOWNLOAD_TIMEOUT = Number(process.env.DOWNLOAD_TIMEOUT ?? 30000);
 
 const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
@@ -59,6 +63,31 @@ function linkCachedDataset(name: string) {
     fs.copyFileSync(path.join(DATASET_CACHE, name), runPath);
   }
   return runPath;
+}
+
+const sha256 = (data: Buffer) =>
+  createHash('sha256').update(data).digest('hex');
+
+// The only place the suite reaches the internet. Severe, so a slow or missing
+// host stops the run and never shows up as a failing spec.
+async function fetchDataset(dataset: TestDataset) {
+  const url = `${DATASET_RELEASE}/${dataset.name}`;
+  const fail = (reason: string) =>
+    new SevereServiceError(
+      `Could not download test dataset ${dataset.name} from ${url}: ${reason}`
+    );
+
+  const response = await fetch(url).catch((err: Error) => {
+    throw fail(err.message);
+  });
+  if (!response.ok) throw fail(`HTTP ${response.status}`);
+
+  const data = Buffer.from(await response.arrayBuffer());
+  const actual = sha256(data);
+  if (actual !== dataset.sha256) {
+    throw fail(`sha256 is ${actual}, expected ${dataset.sha256}`);
+  }
+  return data;
 }
 
 const inUse = (port: number) =>
@@ -172,28 +201,19 @@ export const config: Options.Testrunner = {
     removeDir(TEMP_DIR);
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-    // The only place the suite reaches the internet, so a slow or missing
-    // host stops the run here and never shows up as a failing spec.
-    const download = async (url: string, savePath: string) => {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      // A partial file must never look cached to the existsSync check.
-      const partPath = `${savePath}.part`;
-      fs.writeFileSync(partPath, Buffer.from(await response.arrayBuffer()));
-      fs.renameSync(partPath, savePath);
-    };
-
     await Promise.all(
-      TEST_DATASETS.map(async ({ url, name }) => {
-        const savePath = path.join(DATASET_CACHE, name);
-        if (!fs.existsSync(savePath)) {
-          await download(url, savePath).catch((err: Error) => {
-            throw new SevereServiceError(
-              `Could not download test dataset ${name} from ${url}: ${err.message}`
-            );
-          });
+      TEST_DATASETS.map(async (dataset) => {
+        const savePath = path.join(DATASET_CACHE, dataset.name);
+        // A cached file is only good while it is the file this checkout names.
+        const cached =
+          fs.existsSync(savePath) &&
+          sha256(fs.readFileSync(savePath)) === dataset.sha256;
+        if (!cached) {
+          // Rename into place so an interrupted write never looks cached.
+          fs.writeFileSync(`${savePath}.part`, await fetchDataset(dataset));
+          fs.renameSync(`${savePath}.part`, savePath);
         }
-        linkCachedDataset(name);
+        linkCachedDataset(dataset.name);
       })
     );
   },
