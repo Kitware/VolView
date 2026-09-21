@@ -143,7 +143,10 @@ export const config: Options.Testrunner = {
         // Pinned geometry, so no {platformName}/{width}x{height}; one shared baseline.
         formatImageName: '{tag}-{browserName}-{dpr}',
         screenshotPath: TEMP_DIR,
-        autoSaveBaseline: true,
+        // A missing baseline is written and passes, which suits a local run
+        // adding a screenshot. On CI it would turn a renamed tag into a test
+        // that compares nothing.
+        autoSaveBaseline: !IS_CI,
       },
     ],
     'cleanuptotal',
