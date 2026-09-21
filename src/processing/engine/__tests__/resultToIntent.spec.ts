@@ -27,6 +27,12 @@ describe('resultToIntent', () => {
     expect(resultToIntent(value)).toBeUndefined();
   });
 
+  it('reads the earlier name of the segmentation import as the current one', () => {
+    expect(
+      resultToIntent(result({ intent: 'add-segment-group' }))?.intent
+    ).toBe('import-segmentation');
+  });
+
   it('returns a declared, shape-valid state directive (carrying the row id)', () => {
     expect(resultToIntent(result({ intent: 'add-base-image' }))).toEqual({
       id: 'result-1',

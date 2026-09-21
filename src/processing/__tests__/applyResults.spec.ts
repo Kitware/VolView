@@ -360,19 +360,27 @@ describe('autoLoadProcessingResults', () => {
 
   it('says which result was skipped and why, naming the intent', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    // The name a 0.2.0 backend still emits for what is now import-segmentation.
     await autoLoad(
-      [result({ name: 'seg.nrrd', intent: 'add-segment-group' })],
+      [result({ name: 'seg.nrrd', intent: 'add-polygon' })],
       context('parent')
     );
     expect(errorMessages()).toEqual([
       expect.objectContaining({
         title: 'Did not load seg.nrrd',
         options: expect.objectContaining({
-          details: expect.stringContaining('add-segment-group'),
+          details: expect.stringContaining('add-polygon'),
         }),
       }),
     ]);
+  });
+
+  it('imports a segmentation a 0.2.0 backend still names add-segment-group', async () => {
+    await autoLoad(
+      [result({ name: 'seg.nrrd', intent: 'add-segment-group' })],
+      context('parent')
+    );
+    expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledTimes(1);
+    expect(errorMessages()).toEqual([]);
   });
 
   it('blames the payload, not the client, for a known intent it rejects', async () => {
