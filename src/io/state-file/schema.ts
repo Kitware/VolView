@@ -414,7 +414,6 @@ const Paint = z.object({
   activeSegment: z.number().nullish(),
   brushSize: z.number().optional(),
   crossPlaneSync: z.boolean().optional(),
-  labelmapOpacity: z.number().optional(),
 });
 
 const LPSCroppingPlanes = z.object({
