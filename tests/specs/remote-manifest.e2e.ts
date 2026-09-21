@@ -1,6 +1,6 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { MINIMAL_DICOM } from './configTestUtils';
-import { downloadFile, writeManifestToFile, openVolViewPage } from './utils';
+import { MINIMAL_DICOM } from '../datasets';
+import { writeManifestToFile, openVolViewPage } from './utils';
 
 describe('VolView loading of remoteManifest.json', () => {
   it('should show error when there is no name and URL is malformed', async () => {
@@ -17,8 +17,6 @@ describe('VolView loading of remoteManifest.json', () => {
   });
 
   it('should load relative URI with no name property', async () => {
-    await downloadFile(MINIMAL_DICOM.url, MINIMAL_DICOM.name);
-
     const manifest = {
       resources: [{ url: `/tmp/${MINIMAL_DICOM.name}` }],
     };

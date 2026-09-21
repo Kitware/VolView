@@ -5,33 +5,7 @@ import type { Options, Capabilities } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { projectRoot } from './tests/e2eTestUtils';
 import { AUX_PORT, BASE_URL, TEST_PORT } from './tests/e2ePorts';
-
-const TEST_DATASETS = [
-  {
-    url: 'https://data.kitware.com/api/v1/file/6566aa81c5a2b36857ad1783/download',
-    name: 'CT000085.dcm',
-  },
-  {
-    url: 'https://data.kitware.com/api/v1/file/68e9807dbf0f869935e36481/download',
-    name: 'minimal.dcm',
-  },
-  {
-    url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
-    name: 'prostate.zip',
-  },
-  {
-    url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
-    name: 'MRA-Head_and_Neck.zip',
-  },
-  {
-    url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
-    name: 'fetus.zip',
-  },
-  {
-    url: 'https://sourceforge.net/p/gdcm/gdcmdata/ci/master/tree/US-MONO2-8-8x-execho.dcm?format=raw',
-    name: 'US-MONO2-8-8x-echo.dcm',
-  },
-];
+import { TEST_DATASETS } from './tests/datasets';
 
 // Fixed capture viewport (Playwright's default).
 export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
@@ -50,7 +24,7 @@ const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
 const ROOT = projectRoot();
 const TMP = '.tmp/';
 // Fixtures are downloaded once and shared by every run.
-export const DATASET_CACHE = path.resolve(ROOT, TMP, 'datasets');
+const DATASET_CACHE = path.resolve(ROOT, TMP, 'datasets');
 // Everything a run generates or downloads through the browser, including the
 // fixture links it serves. Also the browser downloads directory. Keyed by port
 // so a checkout, or an overridden port, gets scratch space of its own.
@@ -73,7 +47,7 @@ const removeDir = (dir: string) =>
  * Exposes a cached fixture under this run's directory, so specs can reach it at
  * `/tmp/<name>` without every run holding its own copy.
  */
-export function linkCachedDataset(name: string) {
+function linkCachedDataset(name: string) {
   const runPath = path.join(TEMP_DIR, name);
   if (fs.existsSync(runPath)) return runPath;
 
@@ -197,47 +171,30 @@ export const config: Options.Testrunner = {
     removeDir(TEMP_DIR);
     fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-    const RETRIES = 3;
-    const RETRY_DELAY_MS = 500;
-    const delay = (ms: number) =>
-      new Promise((resolve) => {
-        setTimeout(resolve, ms);
-      });
-    const downloadOnce = async (url: string, savePath: string) => {
+    // The only place the suite reaches the internet, so a slow or missing
+    // host stops the run here and never shows up as a failing spec.
+    const download = async (url: string, savePath: string) => {
       const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status} for ${url}`);
-      }
-      const data = await response.arrayBuffer();
-      // Write to a temp path first so a failed/partial download never leaves a
-      // corrupt file that the existsSync check would treat as already cached.
-      const tmpPath = `${savePath}.part`;
-      fs.writeFileSync(tmpPath, Buffer.from(data));
-      fs.renameSync(tmpPath, savePath);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      // A partial file must never look cached to the existsSync check.
+      const partPath = `${savePath}.part`;
+      fs.writeFileSync(partPath, Buffer.from(await response.arrayBuffer()));
+      fs.renameSync(partPath, savePath);
     };
 
-    const downloads = TEST_DATASETS.map(async ({ url, name }) => {
-      const savePath = path.join(DATASET_CACHE, name);
-      if (!fs.existsSync(savePath)) {
-        for (let attempt = 1; attempt <= RETRIES; attempt += 1) {
-          try {
-            await downloadOnce(url, savePath);
-            break;
-          } catch (err) {
-            if (attempt === RETRIES) {
-              throw new Error(
-                `Failed to download ${name} after ${RETRIES} attempts: ${
-                  (err as Error).message
-                }`
-              );
-            }
-            await delay(RETRY_DELAY_MS);
-          }
+    await Promise.all(
+      TEST_DATASETS.map(async ({ url, name }) => {
+        const savePath = path.join(DATASET_CACHE, name);
+        if (!fs.existsSync(savePath)) {
+          await download(url, savePath).catch((err: Error) => {
+            throw new SevereServiceError(
+              `Could not download test dataset ${name} from ${url}: ${err.message}`
+            );
+          });
         }
-      }
-      linkCachedDataset(name);
-    });
-    await Promise.all(downloads);
+        linkCachedDataset(name);
+      })
+    );
   },
 
   async onComplete(exitCode, completedConfig) {

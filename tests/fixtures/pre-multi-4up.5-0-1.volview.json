@@ -11,7 +11,7 @@
             "id": 2,
             "type": "uri",
             "name": "MRI-PROSTATEx-0004.zip",
-            "uri": "https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download"
+            "uri": "/tmp/prostate.zip"
         },
         {
             "id": 3,

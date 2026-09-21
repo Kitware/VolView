@@ -1,10 +1,8 @@
-import { PROSTATEX_DATASET } from './configTestUtils';
-import { downloadFile, openVolViewPage, writeManifestToZip } from './utils';
+import { PROSTATEX_DATASET } from '../datasets';
+import { openVolViewPage, writeManifestToZip } from './utils';
 
 describe('Sparse manifest with prostate rectangle', () => {
   it('loads prostate dataset with lesion rectangle annotation', async () => {
-    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
-
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [

@@ -1,4 +1,4 @@
-import { COLOR3D_JPEG_BASELINE_DICOM } from './configTestUtils';
+import { COLOR3D_JPEG_BASELINE_DICOM } from '../datasets';
 import { openUrls } from './utils';
 
 const VIEW_SELECTOR = 'div[data-testid="vtk-view vtk-cine-view"]';

@@ -1,4 +1,4 @@
-import { US_MULTIFRAME_DICOM } from './configTestUtils';
+import { US_MULTIFRAME_DICOM } from '../datasets';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 

@@ -1,6 +1,6 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
-import { PROSTATEX_DATASET } from './configTestUtils';
+import { PROSTATEX_DATASET } from '../datasets';
 
 // Six 48px rows overflow the list's 240px cap.
 const GROUP_COUNT = 6;

@@ -4,7 +4,7 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { DOWNLOAD_TIMEOUT, FIXTURES, TEMP_DIR } from '@/wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls, openVolViewPage, writeManifestToFile } from './utils';
-import { PROSTATEX_DATASET } from './configTestUtils';
+import { PROSTATEX_DATASET } from '../datasets';
 
 const openLayeringFixtures = async () => {
   const fixtureNames = ['prostate-3-slices.zip', 'mra-head-neck-3-slices.zip'];

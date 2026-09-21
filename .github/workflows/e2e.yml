@@ -29,6 +29,11 @@ jobs:
         run: npm ci
         env:
           DETECT_CHROMEDRIVER_VERSION: true
+      - name: Cache test datasets
+        uses: actions/cache@v4
+        with:
+          path: .tmp/datasets
+          key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
       - name: Install xvfb (linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install xvfb

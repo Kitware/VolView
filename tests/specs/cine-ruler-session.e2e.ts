@@ -3,7 +3,7 @@
 // frame N. A regression in either the zod schema or addTool defaults would
 // silently lose the per-frame association.
 import * as path from 'path';
-import { CINE_US_DATASET } from './configTestUtils';
+import { CINE_US_DATASET } from '../datasets';
 import { openUrls, SESSION_SAVE_TIMEOUT, waitForFileExists } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';

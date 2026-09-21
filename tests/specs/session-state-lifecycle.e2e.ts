@@ -1,13 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
-import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from './configTestUtils';
-import {
-  downloadFile,
-  openUrls,
-  SESSION_SAVE_TIMEOUT,
-  waitForFileExists,
-} from './utils';
+import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from '../datasets';
+import { openUrls, SESSION_SAVE_TIMEOUT, waitForFileExists } from './utils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 
@@ -56,7 +51,6 @@ const saveAndParseManifest = async () => {
 };
 
 const loadSession = async () => {
-  await downloadFile(MINIMAL_501_SESSION.url, MINIMAL_501_SESSION.name);
   const urlParams = `?urls=[tmp/${MINIMAL_501_SESSION.name}]`;
   await volViewPage.open(urlParams);
   await volViewPage.waitForViews();

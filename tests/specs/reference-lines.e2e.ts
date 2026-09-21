@@ -1,4 +1,4 @@
-import { PROSTATEX_DATASET } from './configTestUtils';
+import { PROSTATEX_DATASET } from '../datasets';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 
