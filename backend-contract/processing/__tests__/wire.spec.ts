@@ -15,6 +15,7 @@ import {
   jobHistoryDetailSchema,
   jobResultsSchema,
   jobResultsErrorSchema,
+  currentResultIntentName,
 } from '../wire';
 import { loadFixture, loadFixtureDir } from './loadFixtures';
 
@@ -192,6 +193,21 @@ describe('neutral job status fixtures', () => {
 // ---------------------------------------------------------------------------
 // Result intents
 // ---------------------------------------------------------------------------
+
+describe('currentResultIntentName', () => {
+  it('reads the earlier segmentation import name as the current one', () => {
+    expect(currentResultIntentName('add-segment-group')).toBe(
+      'import-segmentation'
+    );
+  });
+
+  it.each(['toString', 'constructor', '__proto__', 'add-mesh'])(
+    'passes %s through unchanged',
+    (intent) => {
+      expect(currentResultIntentName(intent)).toBe(intent);
+    }
+  );
+});
 
 describe('result intent fixtures', () => {
   it('exports vocabulary version 3 and the exactly-four state intents', () => {

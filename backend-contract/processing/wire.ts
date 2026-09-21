@@ -162,6 +162,17 @@ export const RESULT_INTENTS = [
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
 
+// Names an earlier vocabulary gave an intent whose shape has not changed since.
+// A client reads one as its current name, so a producer still on the old
+// vocabulary keeps applying and the two sides need not deploy in lockstep.
+// A Map, so a wire string naming an Object.prototype key resolves to nothing.
+export const LEGACY_RESULT_INTENT_NAMES: ReadonlyMap<string, ResultIntentName> =
+  new Map([['add-segment-group', 'import-segmentation']]);
+
+export const currentResultIntentName = (intent: unknown) =>
+  (typeof intent === 'string' && LEGACY_RESULT_INTENT_NAMES.get(intent)) ||
+  intent;
+
 // Provenance tag on a result: the durable idempotency identity the client
 // preserves on generated scene state so restored results can be recognized.
 export const resultSourceSchema = z.object({
