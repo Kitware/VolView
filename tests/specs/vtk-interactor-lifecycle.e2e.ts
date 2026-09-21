@@ -12,7 +12,6 @@ async function captureBrowserConsoleLogsDuring(action: () => Promise<void>) {
     logs.push(entry);
   };
 
-  await (browser as any).sessionSubscribe({ events: ['log.entryAdded'] });
   browser.on('log.entryAdded', handler);
 
   try {
