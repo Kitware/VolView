@@ -18,7 +18,7 @@ import type {
 } from '@/src/processing/types';
 import { jobKey } from '@/src/processing/types';
 import { defer } from '@/src/utils';
-import { makeFakeProvider } from './fakeProvider';
+import { jobStatus, makeFakeProvider, resultStateFor } from './fakeProvider';
 import {
   seatDataSource,
   seatVolume,
@@ -66,24 +66,6 @@ const makeProvider = (
 const sampleResults: ProcessingResult[] = [
   { id: 'r1', name: 'out.nrrd', url: 'http://localhost/out.nrrd' },
 ];
-
-const resultStateFor = (state: ProcessingJobStatus['state']) =>
-  state === 'success'
-    ? ('ready' as const)
-    : state === 'error' || state === 'cancelled'
-      ? ('unavailable' as const)
-      : ('waiting' as const);
-
-const jobStatus = (
-  jobId: string,
-  state: ProcessingJobStatus['state'],
-  extra: Partial<ProcessingJobStatus> = {}
-): ProcessingJobStatus => ({
-  jobId,
-  state,
-  resultState: resultStateFor(state),
-  ...extra,
-});
 
 const resultsBundle = (results: ProcessingResult[] = [], missing = 0) => ({
   results,
