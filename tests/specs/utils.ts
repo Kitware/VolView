@@ -41,6 +41,33 @@ export const downloadFile = async (url: string, fileName: string) => {
   return linkCachedDataset(fileName);
 };
 
+export function writeMetaImage(
+  fileName: string,
+  { spacing = '1 1 1', size = 16, step = 1 } = {}
+) {
+  const filePath = path.join(TEMP_DIR, fileName);
+  const header = [
+    'ObjectType = Image',
+    'NDims = 3',
+    `DimSize = ${size} ${size} ${size}`,
+    `ElementSpacing = ${spacing}`,
+    'ElementType = MET_UCHAR',
+    'ElementDataFile = LOCAL',
+    '',
+  ].join('\n');
+  const voxels = Uint8Array.from(
+    { length: size ** 3 },
+    (_, i) => (i * step) % 256
+  );
+  fs.writeFileSync(filePath, Buffer.concat([Buffer.from(header), voxels]));
+
+  cleanuptotal.addCleanup(async () => {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  });
+
+  return fileName;
+}
+
 export async function writeManifestToFile(manifest: unknown, fileName: string) {
   const filePath = path.join(TEMP_DIR, fileName);
   await fs.promises.writeFile(filePath, JSON.stringify(manifest));
