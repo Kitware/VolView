@@ -154,7 +154,7 @@ describe('parseResults', () => {
     );
   });
 
-  it('preserves a segment-group result with descriptors and unknown keys', () => {
+  it('preserves a segmentation result with descriptors and unknown keys', () => {
     const intents = [
       {
         id: 'r1',

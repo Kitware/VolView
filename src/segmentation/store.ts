@@ -20,6 +20,7 @@ import {
   importLabelmapImage,
   splitLabelmap,
   type DecodeOptions,
+  type LabelmapImportHooks,
 } from '@/src/segmentation/io/import';
 import { unsupportedLabelsReason } from '@/src/segmentation/io/labelmap';
 import { useIdStore } from '@/src/store/id';
@@ -104,6 +105,12 @@ declareManifestRefs('segmentations', (manifest) => {
  */
 type SourceDescription = Pick<LabelmapSegment, 'value'> &
   Partial<Omit<LabelmapSegment, 'value'>>;
+
+type LabelmapConversionOptions = {
+  source?: ProcessingResultSource;
+  descriptions?: SourceDescription[];
+  resample?: LabelmapImportHooks['resample'];
+};
 
 export const useSegmentationStore = defineStore('segmentation', () => {
   const edits = useSegmentationEditsStore();
@@ -392,8 +399,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   async function convertImageToLabelmap(
     imageID: DataSelection,
     parentID: DataSelection,
-    source?: ProcessingResultSource,
-    descriptions: SourceDescription[] = []
+    { source, descriptions = [], resample }: LabelmapConversionOptions = {}
   ) {
     // A second conversion of an image already converting onto the same parent
     // would split it again and mint a suffixed duplicate of every segment, and
@@ -413,6 +419,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     // declaration is empty only when none of them did.
     const coveredValues = new Set<number>();
     const conversion = importLabelmapImage(imageID, parentID, {
+      resample,
       // The empties join the descriptor list here, not at the split: the
       // import pairs the masks the split returns with these descriptors by
       // position, so the two lists have to be the same one. They wait for the
@@ -474,9 +481,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    */
   function startLabelmapConversion(
     imageID: DataSelection,
-    parentID: DataSelection
+    parentID: DataSelection,
+    options: LabelmapConversionOptions = {}
   ) {
-    return convertImageToLabelmap(imageID, parentID).catch((error) => {
+    return convertImageToLabelmap(imageID, parentID, options).catch((error) => {
       useMessageStore().addError('Failed to convert image to a labelmap', {
         error: ensureError(error),
       });
