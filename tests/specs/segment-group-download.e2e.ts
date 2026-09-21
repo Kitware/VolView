@@ -4,7 +4,7 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { openUrls, waitForFileExists } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { PROSTATEX_DATASET } from './configTestUtils';
+import { PROSTATEX_DATASET } from '../datasets';
 
 const SAVE_TIMEOUT = 40000;
 

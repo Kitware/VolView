@@ -1,4 +1,4 @@
-import { MRA_HEAD_NECK_DATASET, PROSTATEX_DATASET } from './configTestUtils';
+import { MRA_HEAD_NECK_DATASET, PROSTATEX_DATASET } from '../datasets';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 

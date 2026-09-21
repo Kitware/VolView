@@ -1,5 +1,5 @@
-import { CINE_US_DATASET, PROSTATEX_DATASET } from './configTestUtils';
-import { downloadFile, openUrls } from './utils';
+import { CINE_US_DATASET, PROSTATEX_DATASET } from '../datasets';
+import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   advanceCineFrame,
@@ -88,7 +88,6 @@ const waitForSlice = async (expectedSlice1Indexed: number) => {
 
 describe('Reveal Slice on a volume image', () => {
   it('ruler Reveal Slice jumps the view back to the placed slice', async () => {
-    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
     await openUrls([PROSTATEX_DATASET]);
 
     await volViewPage.focusFirst2DView();

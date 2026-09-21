@@ -5,7 +5,8 @@ import JSZip from 'jszip';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { waitForFileExists } from './utils';
-import { ONE_CT_SLICE_DICOM, openConfigAndDataset } from './configTestUtils';
+import { openConfigAndDataset } from './configTestUtils';
+import { ONE_CT_SLICE_DICOM } from '../datasets';
 
 /**
  * Parse NRRD header key-value pairs from a buffer (handles gzip).

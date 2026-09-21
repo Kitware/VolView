@@ -1,9 +1,5 @@
-import {
-  PROSTATEX_DATASET,
-  PROSTATE_SEGMENT_GROUP,
-  PROSTATE_610_LABELMAP_MANIFEST,
-} from './configTestUtils';
-import { downloadFile, writeManifestToFile } from './utils';
+import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
+import { writeManifestToFile } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 import * as path from 'path';
@@ -22,9 +18,6 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
  */
 describe('Labelmap with different direction matrix', () => {
   it('paint tool works on coronal view', async () => {
-    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
-    await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
-
     const config = {
       layouts: {
         'Coronal Only': [['coronal']],

@@ -2,8 +2,8 @@
 // stores a 3D viewInfo. When cine binds to it, the slot renders as
 // CineViewer (data wins over slot type). Dragging a volume onto that same
 // slot reverts it to VolumeViewer because viewInfo was never mutated.
-import { CINE_US_DATASET, PROSTATEX_DATASET } from './configTestUtils';
-import { downloadFile, openUrls } from './utils';
+import { CINE_US_DATASET, PROSTATEX_DATASET } from '../datasets';
+import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 
 const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
@@ -60,7 +60,6 @@ async function gridItemKind(index: number) {
 
 describe('Drag cine onto a non-2D slot', () => {
   it('cine renders in the 3D slot; dropping a volume reverts the slot to 3D', async () => {
-    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
     await openUrls([PROSTATEX_DATASET, CINE_US_DATASET]);
     await volViewPage.waitForViews();
     await browser.waitUntil(

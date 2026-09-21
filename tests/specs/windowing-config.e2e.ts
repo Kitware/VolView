@@ -1,10 +1,7 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openUrls } from './utils';
-import {
-  openConfigAndDataset,
-  ONE_CT_SLICE_DICOM,
-  MINIMAL_DICOM,
-} from './configTestUtils';
+import { openConfigAndDataset } from './configTestUtils';
+import { ONE_CT_SLICE_DICOM, MINIMAL_DICOM } from '../datasets';
 
 describe('VolView windowing configuration', () => {
   it('should use runtime config window level over DICOM window level', async () => {

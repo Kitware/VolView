@@ -1,6 +1,6 @@
 import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
-import { MINIMAL_DICOM } from './configTestUtils';
+import { MINIMAL_DICOM } from '../datasets';
 import { openUrls } from './utils';
 
 const pointerAt = (x: number, y: number) =>

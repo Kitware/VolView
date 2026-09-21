@@ -7,7 +7,7 @@
 // click time is fragile (both render an svg <line>), so we scrub off the
 // click frame and back. A committed (buggy) ruler persists; an unfinished
 // placing tool is wiped by the reset on the second scroll.
-import { CINE_US_DATASET } from './configTestUtils';
+import { CINE_US_DATASET } from '../datasets';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
 import {

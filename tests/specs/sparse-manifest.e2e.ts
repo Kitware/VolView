@@ -1,11 +1,6 @@
+import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
+import { MINIMAL_DICOM } from '../datasets';
 import {
-  MINIMAL_DICOM,
-  PROSTATEX_DATASET,
-  PROSTATE_SEGMENT_GROUP,
-  PROSTATE_610_LABELMAP_MANIFEST,
-} from './configTestUtils';
-import {
-  downloadFile,
   openVolViewPage,
   writeManifestToFile,
   writeManifestToZip,
@@ -14,8 +9,6 @@ import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 
 describe('Sparse manifest.json', () => {
   it('loads manifest with only URL data source', async () => {
-    await downloadFile(MINIMAL_DICOM.url, MINIMAL_DICOM.name);
-
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -33,8 +26,6 @@ describe('Sparse manifest.json', () => {
   });
 
   it('loads sparse manifest with tools section (rectangle)', async () => {
-    await downloadFile(MINIMAL_DICOM.url, MINIMAL_DICOM.name);
-
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -98,8 +89,6 @@ describe('Sparse manifest.json', () => {
   });
 
   it('loads standalone JSON state file (not zipped)', async () => {
-    await downloadFile(MINIMAL_DICOM.url, MINIMAL_DICOM.name);
-
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -117,9 +106,6 @@ describe('Sparse manifest.json', () => {
   });
 
   it('loads remote segment group from URI', async () => {
-    await downloadFile(PROSTATEX_DATASET.url, PROSTATEX_DATASET.name);
-    await downloadFile(PROSTATE_SEGMENT_GROUP.url, PROSTATE_SEGMENT_GROUP.name);
-
     const fileName = 'remote-segment-group.volview.json';
     await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
     await openVolViewPage(fileName);

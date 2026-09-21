@@ -1,5 +1,6 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { PROSTATEX_DATASET, openConfigAndDataset } from './configTestUtils';
+import { openConfigAndDataset } from './configTestUtils';
+import { PROSTATEX_DATASET } from '../datasets';
 
 describe('VolView Layout Configuration', () => {
   it('should create a 2x2 grid layout from simple string array', async () => {
