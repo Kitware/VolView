@@ -44,30 +44,29 @@ def import_api_script(api_script_file: str):
     return instance
 
 
-def run_server(
-    api: VolViewApi,
-    *,
-    host: str,
-    port: int,
-    debug: bool = False,
-    **kwargs,
-):
-    rpc_server = RpcServer(api, async_mode="aiohttp", **kwargs)
+def create_app(api: VolViewApi, *, verbose: bool = False):
+    rpc_server = RpcServer(
+        api,
+        async_mode="aiohttp",
+        # socketio.AsyncServer kwargs
+        async_handlers=True,
+        cors_allowed_origins="*",
+        logger=verbose,
+        engineio_logger=verbose,
+        max_http_buffer_size=CHUNK_SIZE,
+    )
 
-    if debug:
-        logging.basicConfig(level=logging.DEBUG)
+    async def start(app):
+        rpc_server.setup()
 
     async def stop(app):
         await rpc_server.teardown()
 
-    async def start():
-        app = web.Application(client_max_size=CHUNK_SIZE)
-        rpc_server.sio.attach(app)
-        rpc_server.setup()
-        app.on_shutdown.append(stop)
-        return app
-
-    web.run_app(start(), host=host, port=port)
+    app = web.Application(client_max_size=CHUNK_SIZE)
+    rpc_server.sio.attach(app)
+    app.on_startup.append(start)
+    app.on_shutdown.append(stop)
+    return app
 
 
 def main(args):
@@ -76,17 +75,11 @@ def main(args):
     if not isinstance(volview_api, VolViewApi):
         raise TypeError("Imported instance is not a VolViewApi")
 
-    run_server(
-        volview_api,
-        host=args.host,
-        port=args.port,
-        debug=args.verbose,
-        # socketio.AsyncServer kwargs
-        async_handlers=True,
-        cors_allowed_origins="*",
-        logger=args.verbose,
-        engineio_logger=args.verbose,
-        max_http_buffer_size=CHUNK_SIZE,
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+
+    web.run_app(
+        create_app(volview_api, verbose=args.verbose), host=args.host, port=args.port
     )
 
 
