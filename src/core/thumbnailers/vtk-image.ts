@@ -2,32 +2,64 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import { ThumbnailSlice } from '.';
 
-function scalarImageToImageData(
-  values: TypedArray,
-  width: number,
-  height: number,
-  scaleMin: number,
-  scaleMax: number
-) {
-  const im = new ImageData(width, height);
-  const arr32 = new Uint32Array(im.data.buffer);
-  // scale to 1 unsigned byte
-  const factor = 255 / (scaleMax - scaleMin);
-  for (let i = 0; i < values.length; i += 1) {
-    const byte = Math.floor((values[i] - scaleMin) * factor);
-    // ABGR order
+type ThumbnailPixels = {
+  values: TypedArray;
+  width: number;
+  height: number;
+  components: number;
+  pixelIndex: (x: number, y: number) => number;
+  scaleMin: number;
+  scaleMax: number;
+};
 
-    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
+function colorChannelScale(values: TypedArray) {
+  if (values instanceof Uint8Array || values instanceof Uint8ClampedArray) {
+    return 1;
+  }
+  if (values instanceof Uint16Array) return 255 / 65535;
+  return 255;
+}
+
+function imageSliceToImageData({
+  values,
+  width,
+  height,
+  components,
+  pixelIndex,
+  scaleMin,
+  scaleMax,
+}: ThumbnailPixels) {
+  const im = new ImageData(width, height);
+  const factor = 255 / (scaleMax - scaleMin);
+  const byteFactor = colorChannelScale(values);
+  const toByte = (value: number) => {
+    if (components >= 3) return value * byteFactor;
+    if (scaleMax === scaleMin) return 0;
+    return (value - scaleMin) * factor;
+  };
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const source = pixelIndex(x, y) * components;
+      const target = (y * width + x) * 4;
+      const grayscale = components < 3;
+      im.data[target] = toByte(values[source]);
+      im.data[target + 1] = grayscale
+        ? im.data[target]
+        : toByte(values[source + 1]);
+      im.data[target + 2] = grayscale
+        ? im.data[target]
+        : toByte(values[source + 2]);
+      im.data[target + 3] =
+        components === 2 || components === 4
+          ? values[source + components - 1] * byteFactor
+          : 255;
+    }
   }
 
   return im;
 }
 
-/**
- * Generates a thumbnail given an image data.
- *
- * Assumption: image is comprised of single-component scalars
- */
+/** Generates a thumbnail from one image plane. */
 function generateThumbnail(
   imageData: vtkImageData,
   axis: 0 | 1 | 2 = 2,
@@ -35,7 +67,8 @@ function generateThumbnail(
 ) {
   const scalars = imageData.getPointData().getScalars();
   const data = scalars.getData() as TypedArray;
-  const dataRange = scalars.getRange();
+  const components = scalars.getNumberOfComponents();
+  const [scaleMin, scaleMax] = scalars.getRange(0);
   const dims = imageData.getDimensions();
 
   // ThumbnailSlice.First
@@ -46,52 +79,30 @@ function generateThumbnail(
     slice = dims[axis] - 1;
   }
 
-  let sliceData: TypedArray;
   let width: number;
   let height: number;
+  let pixelIndex: (x: number, y: number) => number;
 
   if (axis === 0) {
-    // work-around for typing data.constructor.
-    // data is not necessarily of type Uint8Array.
-    sliceData = new (<Uint8ArrayConstructor>data.constructor)(
-      dims[1] * dims[2]
-    );
     [, width, height] = dims;
-    for (let k = 0; k < dims[2]; k++) {
-      for (let j = 0; j < dims[1]; j++) {
-        const index = slice + j * dims[0] + k * dims[0] * dims[1];
-        const offset = k * dims[1] + j;
-        sliceData[offset] = data[index];
-      }
-    }
+    pixelIndex = (x, y) => slice + x * dims[0] + y * dims[0] * dims[1];
   } else if (axis === 1) {
-    sliceData = new (<Uint8ArrayConstructor>data.constructor)(
-      dims[0] * dims[2]
-    );
     [width, , height] = dims;
-    for (let k = 0; k < dims[2]; k++) {
-      for (let i = 0; i < dims[0]; i++) {
-        const index = i + slice * dims[0] + k * dims[0] * dims[1];
-        const offset = k * dims[0] + i;
-        sliceData[offset] = data[index];
-      }
-    }
-  } else if (axis === 2) {
+    pixelIndex = (x, y) => x + slice * dims[0] + y * dims[0] * dims[1];
+  } else {
     [width, height] = dims;
-    const skip = dims[0] * dims[1];
-    const sliceOffset = slice * skip;
-    sliceData = Array.isArray(data)
-      ? data.slice(sliceOffset, sliceOffset + skip)
-      : data.subarray(sliceOffset, sliceOffset + skip);
+    pixelIndex = (x, y) => x + y * dims[0] + slice * dims[0] * dims[1];
   }
 
-  return scalarImageToImageData(
-    sliceData!,
-    width!,
-    height!,
-    dataRange[0],
-    dataRange[1]
-  );
+  return imageSliceToImageData({
+    values: data,
+    width,
+    height,
+    components,
+    pixelIndex,
+    scaleMin,
+    scaleMax,
+  });
 }
 
 export function createVTKImageThumbnailer() {
