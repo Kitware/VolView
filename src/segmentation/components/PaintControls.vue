@@ -82,7 +82,9 @@
           </v-row>
 
           <div class="paint-parameters">
-            <span class="text-body-2 text-no-wrap">Size</span>
+            <span class="control-label text-body-2 text-no-wrap">
+              <v-icon size="small">mdi-diameter-outline</v-icon>Size
+            </span>
             <v-slider
               name="Brush size"
               :model-value="brushSize"
@@ -93,7 +95,9 @@
               max="50"
               step="1"
             />
-            <span class="text-body-2 text-no-wrap">Threshold</span>
+            <span class="control-label text-body-2 text-no-wrap">
+              <v-icon size="small">mdi-chart-histogram</v-icon>Threshold
+            </span>
             <v-range-slider
               v-if="currentImageStats"
               v-threshold-thumb-labels
@@ -141,7 +145,9 @@
           </div>
           <div class="paint-switches mb-2">
             <div class="d-flex align-center">
-              <span class="text-body-2 text-no-wrap">Allow Overlap</span>
+              <span class="control-label text-body-2 text-no-wrap">
+                <v-icon size="small">mdi-set-center</v-icon>Allow Overlap
+              </span>
               <v-switch
                 aria-label="Allow Overlap"
                 v-model="allowOverlap"
@@ -157,7 +163,9 @@
               </v-tooltip>
             </div>
             <div class="d-flex align-center">
-              <span class="text-body-2 text-no-wrap">Sync Views</span>
+              <span class="control-label text-body-2 text-no-wrap">
+                <v-icon size="small">mdi-link-variant</v-icon>Sync Views
+              </span>
               <v-switch
                 aria-label="Sync Views"
                 v-model="crossPlaneSync"
@@ -311,6 +319,16 @@ const controlPanels = computed({
 
 .threshold-control {
   margin-top: 8px;
+}
+
+.control-label {
+  display: inline-flex;
+  align-items: center;
+  column-gap: 6px;
+}
+
+.control-label .v-icon {
+  opacity: 0.7;
 }
 
 .paint-switches {
