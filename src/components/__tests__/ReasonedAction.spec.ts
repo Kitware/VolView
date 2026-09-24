@@ -1,7 +1,13 @@
-import { h } from 'vue';
+import { defineComponent, h, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
+
+const TooltipStub = defineComponent({
+  name: 'VTooltip',
+  props: ['activator'],
+  template: '<span role="tooltip"><slot /></span>',
+});
 
 const mountAction = (props: { reason?: string; tooltip?: string }) =>
   mount(ReasonedAction, {
@@ -11,9 +17,12 @@ const mountAction = (props: { reason?: string; tooltip?: string }) =>
         h('button', { disabled }, 'Save'),
     },
     global: {
-      stubs: { VTooltip: { template: '<span role="tooltip"><slot /></span>' } },
+      stubs: { VTooltip: TooltipStub },
     },
   });
+
+const activatorOf = (wrapper: ReturnType<typeof mountAction>) =>
+  wrapper.getComponent(TooltipStub).props('activator');
 
 describe('ReasonedAction', () => {
   it('disables the control and says why while a reason stands', () => {
@@ -34,5 +43,21 @@ describe('ReasonedAction', () => {
 
   it('shows no tooltip when there is neither a reason nor a label', () => {
     expect(mountAction({}).find('[role="tooltip"]').exists()).toBe(false);
+  });
+
+  it('hangs an enabled control’s label on the control, so focusing it shows the label', async () => {
+    const wrapper = mountAction({ reason: '', tooltip: 'Save' });
+    await nextTick();
+
+    expect(activatorOf(wrapper)).toBe(wrapper.get('button').element);
+  });
+
+  it('hangs the reason on the focusable wrapper once the control is disabled', async () => {
+    const wrapper = mountAction({ reason: '', tooltip: 'Save' });
+    await nextTick();
+
+    await wrapper.setProps({ reason: 'Nothing to save' });
+
+    expect(activatorOf(wrapper)).toBe('parent');
   });
 });

@@ -2,7 +2,7 @@ import { Manifest, StateFile } from '@/src/io/state-file/schema';
 import { Maybe } from '@/src/types';
 import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useCropStore } from './crop';
 import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
@@ -150,6 +150,16 @@ export const useToolStore = defineStore('tool', () => {
     }
   }
 
+  // Shared by the toolbar and the Paint hints, so no hint asks for a disabled tool.
+  const paintUnavailableReason = computed(() => {
+    if (!currentImageID.value) return 'Load an image to paint';
+    const kind = activeEffectiveView()?.kind;
+    if (kind === 'cine') return 'A clip cannot be painted';
+    if (kind === 'oblique')
+      return 'Painting is not available in an oblique view';
+    return '';
+  });
+
   function activateTemporaryCrosshairs() {
     if (!isToolAllowedFor(Tools.Crosshairs, activeEffectiveView())) return;
     toolBeforeTemporaryCrosshairs.value = currentTool.value;
@@ -210,6 +220,7 @@ export const useToolStore = defineStore('tool', () => {
 
   return {
     currentTool,
+    paintUnavailableReason,
     setCurrentTool,
     serialize,
     deserialize,

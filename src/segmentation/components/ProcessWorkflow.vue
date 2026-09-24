@@ -94,6 +94,7 @@ const toolStore = useToolStore();
 // A preview belongs to the paint tool, which cancels it when put down.
 const startDisabledReason = computed(() => {
   if (processStep.value !== 'start') return '';
+  if (toolStore.paintUnavailableReason) return toolStore.paintUnavailableReason;
   if (toolStore.currentTool !== Tools.Paint)
     return 'Select the Paint tool to run a process';
   return processStore.startRefusal(

@@ -8,6 +8,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
   drawSquare,
   nudgeTo,
+  pressAtPointer,
   rightPressAtPointer,
   setupTest,
 } from './annotationTestUtils';
@@ -18,6 +19,8 @@ import {
   renameSegment,
   segmentColor,
   segmentNames,
+  selectSegment,
+  tooltipOf,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 import { CINE_US_DATASET } from '../datasets';
@@ -36,34 +39,33 @@ const rasterizeMenuParts = async () => {
   return { item, activator: await item.$('..') };
 };
 
-const tooltipFor = async (element: ChainablePromiseElement) => {
-  const id = await element.getAttribute('aria-describedby');
-  expect(id).toBeTruthy();
-  return $(`[id="${id}"]`);
-};
-
-// The menu comes off the widget's own pick, so hover the handle first and press
-// without moving.
-const openPolygonMenuAt = (x: number, y: number) =>
-  browser.waitUntil(
-    async () => {
-      await nudgeTo(x, y);
-      await rightPressAtPointer();
-      return $(RASTERIZE_ITEM).isDisplayed();
-    },
-    {
-      interval: 500,
-      timeoutMsg: 'Right-clicking a polygon handle should open its menu',
-    }
+const openPolygonMenuAt = async (
+  canvas: ChainablePromiseElement,
+  x: number,
+  y: number
+) => {
+  // Every target is the square's top-right handle. Start outside its pickable
+  // fill so the cursor transition confirms the handle's pick has completed.
+  await nudgeTo(x + 20, y - 20);
+  await browser.waitUntil(
+    async () => (await canvas.getCSSProperty('cursor')).value === 'default'
   );
+  await nudgeTo(x, y);
+  await browser.waitUntil(
+    async () => (await canvas.getCSSProperty('cursor')).value === 'pointer'
+  );
+  await rightPressAtPointer();
+  await $(RASTERIZE_ITEM).waitForDisplayed();
+};
 
 describe('Polygon rasterize target', () => {
   it('rasterizes into the segment the polygon was drawn with', async () => {
-    const { centerX, centerY } = await setupTest();
+    const { axialView, centerX, centerY } = await setupTest();
+    const canvas = axialView.$('canvas');
     const half = 60;
 
     // Paint a stroke first, so the image already holds a segment the polygon
-    // must not borrow. Activating the tool alone creates nothing.
+    // must not borrow. Selecting a tool creates no painted content.
     await AppPage.activatePaint();
     const views2D = await AppPage.getViews2D();
     await AppPage.paintStrokeOnView(views2D[0]);
@@ -84,38 +86,55 @@ describe('Polygon rasterize target', () => {
     // The context menu belongs to a placed polygon, and the polygon tool keeps
     // a placing one that would swallow the right click.
     await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(centerX + half, centerY - half);
+    await selectSegment('Segment 1');
+    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
+    await expect(
+      $('.v-overlay--active .v-list-item-title.v-list-item--disabled')
+    ).toHaveText('Lesion');
     await $(RASTERIZE_ITEM).click();
 
     // Rasterizing lands in the polygon's own segment: it neither mints a
     // second one nor borrows the segment the paint stroke made.
     expect(await segmentNames()).toEqual(['Segment 1', 'Lesion']);
     expect(await segmentColor('Lesion')).toEqual(lesionColor);
+    await AppPage.activatePaint();
+    await $('[data-testid="paint-eyedropper-button"]').click();
+    await browser.waitUntil(async () =>
+      String((await canvas.getCSSProperty('cursor')).value).startsWith('url(')
+    );
+    await nudgeTo(centerX, centerY);
+    await pressAtPointer();
+    await expect(
+      $('[data-testid="segment-list"] .item-row[aria-current="true"]')
+    ).toHaveAttribute('aria-label', 'Lesion');
   });
 
   it('rasterizes a polygon drawn against an empty registry', async () => {
-    const { centerX, centerY } = await setupTest();
+    const { axialView, centerX, centerY } = await setupTest();
+    const canvas = axialView.$('canvas');
     const half = 60;
 
-    // No paint stroke and no added entry, so the registry is empty and the
-    // polygon mints the segment it needs. Rasterize still has to work.
     await AppPage.selectTool('mdi-pentagon-outline');
     await drawSquare(centerX, centerY, half);
 
+    await openAnnotationSegments();
+    await expect(AppPage.saveSegmentsButtons[0]).toBeDisabled();
     await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(centerX + half, centerY - half);
+    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
     await $(RASTERIZE_ITEM).click();
+    await expect(AppPage.saveSegmentsButtons[0]).toBeEnabled();
 
     await openAnnotationSegments();
     await waitForNamedSegments();
     await browser.waitUntil(async () => (await segmentNames()).length === 1, {
       timeoutMsg:
-        'Rasterizing against an empty registry should create one segment',
+        'The polygon and its rasterized mask should share one segment',
     });
   });
 
   it('explains a locked rasterize target on hover and keyboard focus', async () => {
-    const { centerX, centerY } = await setupTest();
+    const { axialView, centerX, centerY } = await setupTest();
+    const canvas = axialView.$('canvas');
     const half = 60;
     await openAnnotationSegments();
     await addSegment();
@@ -124,25 +143,25 @@ describe('Polygon rasterize target', () => {
     await lockSegment('Segment 1');
 
     await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(centerX + half, centerY - half);
+    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
     let { item, activator } = await rasterizeMenuParts();
     expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
 
     await activator.moveTo();
-    let tooltip = await tooltipFor(activator);
+    let tooltip = await tooltipOf(activator);
     await expect(tooltip).toBeDisplayed();
     await expect(tooltip).toHaveText(
       'Unlock this segment to rasterize into it'
     );
 
     await activator.execute((element) => element.focus());
-    tooltip = await tooltipFor(activator);
+    tooltip = await tooltipOf(activator);
     await expect(tooltip).toBeDisplayed();
 
     await browser.keys('Escape');
     const row = await $('[data-testid="segment-list"] .item-row');
     await row.$('button i[class~="mdi-lock"]').click();
-    await openPolygonMenuAt(centerX + half, centerY - half);
+    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
     ({ item, activator } = await rasterizeMenuParts());
     expect(await item.getAttribute('class')).not.toContain(
       'v-list-item--disabled'
@@ -182,21 +201,22 @@ describe('Polygon rasterize target', () => {
     });
 
     await openVolViewPage(restoredName);
-    const [axialView] = await AppPage.getViews2D();
+    const [restoredView] = await AppPage.getViews2D();
     await browser.waitUntil(
       async () => {
-        const circles = await axialView.$$('svg circle');
+        const circles = await restoredView.$$('svg circle');
         return (await circles.length) === 4;
       },
       { timeoutMsg: 'The restored polygon should render all four handles' }
     );
-    const canvas = await axialView.$('canvas');
+    const restoredCanvas = restoredView.$('canvas');
     const [location, size] = await Promise.all([
-      canvas.getLocation(),
-      canvas.getSize(),
+      restoredCanvas.getLocation(),
+      restoredCanvas.getSize(),
     ]);
     await AppPage.selectTool('mdi-cursor-default');
     await openPolygonMenuAt(
+      restoredCanvas,
       location.x + size.width / 2 + half,
       location.y + size.height / 2 - half
     );
@@ -204,7 +224,7 @@ describe('Polygon rasterize target', () => {
     const { item, activator } = await rasterizeMenuParts();
     expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
     await activator.moveTo();
-    const tooltip = await tooltipFor(activator);
+    const tooltip = await tooltipOf(activator);
     await expect(tooltip).toBeDisplayed();
     await expect(tooltip).toHaveText(
       'Unlock this segment to rasterize into it'
@@ -214,7 +234,7 @@ describe('Polygon rasterize target', () => {
   it('keeps Rasterize visible on cine and explains why it is disabled', async () => {
     await openUrls([CINE_US_DATASET]);
     const [view] = await AppPage.getViews2D();
-    const canvas = await view.$('canvas');
+    const canvas = view.$('canvas');
     const [location, size] = await Promise.all([
       canvas.getLocation(),
       canvas.getSize(),
@@ -226,7 +246,7 @@ describe('Polygon rasterize target', () => {
     await AppPage.selectTool('mdi-pentagon-outline');
     await drawSquare(centerX, centerY, half);
     await AppPage.selectTool('mdi-cursor-default');
-    await openPolygonMenuAt(centerX + half, centerY - half);
+    await openPolygonMenuAt(canvas, centerX + half, centerY - half);
 
     const { item, activator } = await rasterizeMenuParts();
     expect(await item.getAttribute('class')).toContain('v-list-item--disabled');

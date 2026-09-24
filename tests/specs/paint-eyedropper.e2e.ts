@@ -1,7 +1,13 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
 import { openUrls } from './utils';
-import { allowOverlap, openAnnotationSegments } from './segmentationTestUtils';
+import {
+  addSegment,
+  allowOverlap,
+  deleteSegment,
+  openAnnotationSegments,
+} from './segmentationTestUtils';
+import { nudgeTo, pressAtPointer } from './annotationTestUtils';
 
 const row = (name: string) =>
   $(`[data-testid="segment-list"] .item-row[aria-label="${name}"]`);
@@ -20,24 +26,75 @@ const expectBackgroundUnpainted = async (x: number, y: number) => {
   await expect(selected()).toHaveAttribute('aria-label', 'Segment 3');
 };
 
+const openPaintedScene = async () => {
+  await openUrls([ONE_CT_SLICE_DICOM]);
+  await volViewPage.activatePaint();
+  await openAnnotationSegments();
+  const view = (await volViewPage.getViews2D())[0];
+  const canvas = view.$('canvas');
+  const location = await canvas.getLocation();
+  const size = await canvas.getSize();
+  const x = Math.round(location.x + size.width / 2);
+  const y = Math.round(location.y + size.height / 2);
+  await click(x, y);
+  await expect(
+    row('Segment 1').$('[data-testid="reveal-segment-button"]')
+  ).toBeEnabled();
+  return { view, canvas, x, y };
+};
+
 describe('Paint eyedropper', () => {
   afterEach(async () => {
     await browser.releaseActions();
   });
 
-  it('picks visible label maps without painting and restores the held mode', async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await volViewPage.activatePaint();
-    await openAnnotationSegments();
-    await $('button.v-expansion-panel-title*=Paint').click();
-    const canvas = (await volViewPage.getViews2D())[0].$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
-    const x = Math.round(location.x + size.width / 2);
-    const y = Math.round(location.y + size.height / 2);
+  for (const [tool, icon] of [
+    ['ruler', 'mdi-ruler'],
+    ['rectangle', 'mdi-vector-square'],
+  ]) {
+    it(`samples painted content after switching from a picked ${tool} handle`, async () => {
+      const { view, canvas, x, y } = await openPaintedScene();
+      await addSegment();
+      await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
+      await expect(
+        row('Segment 2').$('[data-testid="reveal-segment-button"]')
+      ).toBeDisabled();
 
-    await click(x, y);
-    await expect(row('Segment 1')).toExist();
+      await volViewPage.selectTool(icon);
+      await nudgeTo(x + 60, y - 60);
+      await pressAtPointer();
+      await nudgeTo(x + 90, y - 30);
+      await pressAtPointer();
+      await volViewPage.selectTool('mdi-cursor-default');
+      await expect(view.$$('svg circle')).toBeElementsArrayOfSize(2);
+      await nudgeTo(x - 50, y + 50);
+      await browser.waitUntil(
+        async () => (await canvas.getCSSProperty('cursor')).value === 'default'
+      );
+      await nudgeTo(x + 60, y - 60);
+      await browser.waitUntil(
+        async () => (await canvas.getCSSProperty('cursor')).value === 'pointer'
+      );
+
+      await volViewPage.activatePaint();
+      await eyedropper().click();
+      await expect(eyedropper()).toHaveAttribute('aria-pressed', 'true');
+      await browser.waitUntil(async () =>
+        String((await canvas.getCSSProperty('cursor')).value).startsWith('url(')
+      );
+      await nudgeTo(x, y);
+      await pressAtPointer();
+      await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
+
+      // Removing the painted segment leaves only the annotation, with no mask to save.
+      await deleteSegment('Segment 1');
+      await expect(row('Segment 2')).toExist();
+      await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
+    });
+  }
+
+  it('picks visible label maps without painting and restores the held mode', async () => {
+    const { canvas, x, y } = await openPaintedScene();
     await allowOverlap();
     await $('[data-testid="segment-list"] .create-row').click();
     await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');

@@ -13,6 +13,7 @@ import type { ProcessTarget } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
+import { markCine } from '@/src/core/cine/__tests__/cineFixtures';
 
 // ---------------------------------------------------------------------------
 // The Original/Processed pair is a segmented choice, not a switch: the toggle
@@ -153,6 +154,23 @@ describe('the process Preview button', () => {
       'Select the Paint tool to run a process'
     );
   });
+
+  it.each([
+    ['no image is viewed', undefined, 'Load an image to paint'],
+    ['a clip is viewed', 'cine-1', 'A clip cannot be painted'],
+  ])(
+    'says why Paint is unavailable when %s',
+    async (_case, imageId, reason) => {
+      addActiveSegment(new Uint8Array([1, 0]));
+      markCine('cine-1');
+      useViewStore().setDataForAllViews(imageId);
+      const wrapper = mountWorkflow();
+      await nextTick();
+
+      expect(button(wrapper, 'Preview').attributes('disabled')).toBeDefined();
+      expect(wrapper.get('[role="tooltip"]').text()).toBe(reason);
+    }
+  );
 
   it('is enabled with no reason once a segment has content', async () => {
     addActiveSegment(new Uint8Array([1, 0]));
