@@ -1,5 +1,15 @@
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
+/** A cursor over a palette: each call hands out the next opaque colour. */
+export function cycleColors(palette: readonly (readonly number[])[]) {
+  let index = 0;
+  return () => {
+    const color = palette[index];
+    index = (index + 1) % palette.length;
+    return [...color, 255] as RGBAColor;
+  };
+}
+
 /**
  * Converts an RGBA tuple to a hex string with alpha.
  *
