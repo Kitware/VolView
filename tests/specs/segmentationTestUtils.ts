@@ -157,14 +157,23 @@ export const waitForNamedSegments = async () => {
   );
 };
 
-/**
- * Locks a segment, which is the whole opt-in for overlap: a locked segment
- * keeps the voxels a later stroke paints over it.
- */
+/** Locks a segment: a later stroke of another segment goes around it. */
 export const lockSegment = async (name: string) => {
   const row = await rowNamed(SEGMENT_LIST, name);
   await row.$('button i[class~="mdi-lock-open"]').click();
   await row.$('button i[class~="mdi-lock"]').waitForExist({
     timeoutMsg: `Expected "${name}" to show as locked`,
   });
+};
+
+/** Turns on Allow Overlap, opening the Paint panel it lives in if needed. */
+export const allowOverlap = async () => {
+  const panel = $('button.v-expansion-panel-title*=Paint');
+  if ((await panel.getAttribute('aria-expanded')) !== 'true')
+    await panel.click();
+  const toggle = $('input[aria-label="Allow Overlap"]');
+  await toggle.waitForExist();
+  await toggle.execute((element) => element.focus());
+  await browser.keys(' ');
+  await expect(toggle).toBeSelected();
 };

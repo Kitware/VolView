@@ -134,5 +134,9 @@ export function listMasks(segmentation: Segmentation) {
   return segmentation.order.map((id) => segmentation.masks[id]);
 }
 
-/** Aimed writes clear unlocked neighbors; sweeps only grow into unclaimed voxels. */
+/**
+ * Aimed writes take voxels from unlocked neighbors and go around locked ones,
+ * or leave every neighbor alone while overlap is allowed. Sweeps only grow into
+ * unclaimed voxels.
+ */
 export type VoxelGesture = 'aimed' | 'sweep';

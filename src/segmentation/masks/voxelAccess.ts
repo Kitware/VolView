@@ -35,6 +35,7 @@ export type VoxelAccessDeps = {
   segmentationOfMask: (maskId: string) => Segmentation | undefined;
   ensureLabelmapBinding: (maskId: string) => LabelmapBinding;
   maskLocked: (mask: SegmentMask) => boolean;
+  overlapAllowed: () => boolean;
 };
 
 /**
@@ -50,6 +51,7 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
     segmentationOfMask,
     ensureLabelmapBinding,
     maskLocked,
+    overlapAllowed,
   } = deps;
 
   function requireParentImage(maskId: string) {
@@ -167,41 +169,52 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
     binding && boundScalars(binding.image, binding.extent);
 
   /**
-   * The masks of an image's other segments that `gesture` may take a voxel
-   * from, resolved once per run because the caller below runs per voxel. A
-   * locked segment is not editable, so an aimed gesture is not offered its mask
-   * at all.
+   * The masks of an image's other segments, split by what `gesture` does where
+   * one of them holds a voxel: take the voxel from it, or yield to it and leave
+   * the voxel unwritten. Resolved once per run because the caller below runs
+   * per voxel. A locked segment is not editable, so an aimed gesture yields to
+   * it rather than taking from it.
    */
   function siblingMasks(maskId: string, gesture: VoxelGesture) {
     const segmentation = segmentationOfMask(maskId);
-    if (!segmentation) return [];
-    return listMasks(segmentation).flatMap((segment) => {
-      if (segment.id === maskId) return [];
-      if (gesture === 'aimed' && maskLocked(segment)) return [];
-      const bounded = boundedMask(segment.representations.labelmap);
-      return bounded ? [bounded] : [];
-    });
+    const others =
+      segmentation && !(gesture === 'aimed' && overlapAllowed())
+        ? listMasks(segmentation).filter((segment) => segment.id !== maskId)
+        : [];
+    const takes = (segment: SegmentMask) =>
+      gesture === 'aimed' && !maskLocked(segment);
+    const bounded = (segments: SegmentMask[]) =>
+      segments.flatMap((segment) => {
+        const mask = boundedMask(segment.representations.labelmap);
+        return mask ? [mask] : [];
+      });
+    return {
+      takeFrom: bounded(others.filter(takes)),
+      yieldTo: bounded(others.filter((segment) => !takes(segment))),
+    };
   }
 
   /**
    * Whether the voxel at PARENT indices i, j, k is this segment's to write,
-   * taking it from the neighbours that have to yield it. Absent when no other
-   * segment reaches `within`, the box the caller is about to walk: every voxel
-   * in it is then uncontested and the question need not be asked per voxel.
+   * clearing it from the neighbours that have to give it up. Asked before the
+   * write: a voxel a neighbour it yields to holds is refused and taken from
+   * nobody.
+   * Absent when no other segment reaches `within`, the box the caller is about
+   * to walk: every voxel in it is then uncontested.
    *
    * `gesture` is the whole of the policy, so see {@link VoxelGesture}. An aimed
    * operation must call finish in a finally block after its last voxel write.
    */
   function voxelClaim(maskId: string, gesture: VoxelGesture, within: Extent3D) {
-    const masks = siblingMasks(maskId, gesture);
-    if (gesture === 'aimed') return masksClearing(masks, within);
-    const held = masksHolding(masks, within);
-    return (
-      held && {
-        claim: (i: number, j: number, k: number) => !held(i, j, k),
-        finish: () => undefined,
-      }
-    );
+    const { takeFrom, yieldTo } = siblingMasks(maskId, gesture);
+    const held = masksHolding(yieldTo, within);
+    const clearing = masksClearing(takeFrom, within);
+    if (!held && !clearing) return undefined;
+    return {
+      claim: (i: number, j: number, k: number) =>
+        !held?.(i, j, k) && (clearing?.claim(i, j, k) ?? true),
+      finish: () => clearing?.finish(),
+    };
   }
 
   return {

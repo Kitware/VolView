@@ -104,10 +104,12 @@ describe('paint edit target', () => {
     const active = boundSegment(segmentation.id, 'Tumor');
     const paintStore = usePaintToolStore();
 
-    paintAndLock(neighbor.id);
+    selectSegment(neighbor.id);
+    strokeAt('img-1', [1, 1, 0]);
+    store().allowOverlap = true;
     selectSegment(active.id);
     strokeAt('img-1', [1, 1, 0]);
-    lockSegment(neighbor.id, false);
+    expect(maskValueAt(active.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
 
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
@@ -146,7 +148,7 @@ describe('paint edit target', () => {
     expect(markedVoxels(active.id)).toEqual([]);
   });
 
-  it('paints past a locked neighbour without overwriting it', async () => {
+  it('paints around a locked neighbour without overwriting it', async () => {
     await seatImage('img-1');
     const segmentation = store().ensureSegmentationForImage('img-1');
     const neighbor = boundSegment(segmentation.id, 'Neighbor');
@@ -159,6 +161,7 @@ describe('paint edit target', () => {
     strokeAt('img-1', [3, 1, 0]);
 
     expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(active.id, [1, 1, 0])).toBeFalsy();
     expect(maskValueAt(active.id, [3, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
@@ -193,10 +196,11 @@ describe('paint edit target', () => {
         let written = 0;
         return paintLabelmap(image, axis, point, {
           ...options,
-          onPainted: (ijk) => {
-            options?.onPainted?.(ijk);
-            written += 1;
+          shouldPaint: (offset, ijk) => {
+            const paints = options?.shouldPaint?.(offset, ijk) ?? true;
+            if (paints) written += 1;
             if (throws && written === 2) throw new Error('Interrupted stroke');
+            return paints;
           },
         });
       });

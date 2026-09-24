@@ -41,7 +41,7 @@ describe('Segment tooltips', () => {
     const lockTooltip = await descriptionOf(lock);
     await expect(lockTooltip).toBeDisplayed();
     await expect(lockTooltip).toHaveText(
-      'Lock. Painting over this segment shares its voxels instead of taking them.'
+      'Lock. Painting other segments goes around it, or overlaps it with Allow Overlap on.'
     );
     await lock.click();
     await moveTo(10, 10);

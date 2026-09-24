@@ -133,12 +133,10 @@ export default class PaintTool {
     {
       endPoint,
       shouldPaint = () => true,
-      onPainted,
       origin = [0, 0, 0],
     }: {
       endPoint?: vec3;
       shouldPaint?: (offset: number, point: number[]) => boolean;
-      onPainted?: (point: number[]) => void;
       origin?: readonly [number, number, number];
     } = {}
   ) {
@@ -210,7 +208,6 @@ export default class PaintTool {
             labelmapPixels[offset] = brushValue;
             changed = true;
           }
-          onPainted?.(rounded);
         }
 
         curPoint[0] += incX;

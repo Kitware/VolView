@@ -17,7 +17,6 @@ import {
   clipExtent,
   fullExtent,
   isEmptyExtent,
-  type Extent3D,
 } from '@/src/segmentation/geometry';
 import { Tools } from './types';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -220,18 +219,15 @@ export const usePaintToolStore = defineStore('paint', () => {
       voxels.ensureContains(strokeExtent, STROKE_GROWTH_PADDING);
     }
 
-    // Copied out of the reactive tree: the two closures below read it for
-    // every voxel the brush touches.
-    const extent = [...voxels.binding()!.extent] as Extent3D;
+    const { extent } = voxels.binding()!;
     if (isEmptyExtent(extent)) return;
 
     // Resolved once per stroke: the claim below is made for every voxel the
-    // brush touches. A stroke is aimed at a place, so it takes the voxel.
-    const claimVoxel = segmentationStore.voxelClaim(
-      maskId,
-      'aimed',
-      strokeExtent
-    );
+    // brush touches. A stroke is aimed at a place, so it takes the voxel from
+    // an unlocked neighbour.
+    const claimVoxel = erasing
+      ? undefined
+      : segmentationStore.voxelClaim(maskId, 'aimed', strokeExtent);
     const parentDimensions = parentImage.getDimensions();
     const rowStride = parentDimensions[0];
     const sliceStride = parentDimensions[0] * parentDimensions[1];
@@ -240,7 +236,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
     // The brush walks the PARENT grid and hands its points back in it, so the
     // parent pixel under a voxel is a plain offset. Read a component at a
-    // time: both callbacks below run for every voxel the brush touches, and a
+    // time: the callback below runs for every voxel the brush touches, and a
     // triple per voxel is an allocation per voxel.
     const parentOffset = (point: number[]) =>
       point[0] + point[1] * rowStride + point[2] * sliceStride;
@@ -250,7 +246,11 @@ export const usePaintToolStore = defineStore('paint', () => {
       if (erasing && maskData[offset] !== labelValue) return false;
 
       const pixValue = underlyingImagePixels[parentOffset(point)];
-      return minThreshold <= pixValue && pixValue <= maxThreshold;
+      if (!(minThreshold <= pixValue && pixValue <= maxThreshold)) return false;
+
+      // Asked last: the claim clears the voxel from neighbours, so it runs
+      // only for a voxel that is about to be written.
+      return claimVoxel?.claim(point[0], point[1], point[2]) ?? true;
     };
 
     try {
@@ -259,11 +259,6 @@ export const usePaintToolStore = defineStore('paint', () => {
         // Where this mask's buffer sits on the parent grid the points are in.
         origin: [extent[0], extent[2], extent[4]],
         shouldPaint,
-        onPainted: erasing
-          ? undefined
-          : (point: number[]) => {
-              claimVoxel?.claim(point[0], point[1], point[2]);
-            },
       });
     } finally {
       claimVoxel?.finish();

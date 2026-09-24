@@ -127,10 +127,12 @@ describe.each([
   };
 
   it.each([
-    ['an unlocked', false],
-    ['a locked', true],
-  ])('leaves the voxel with %s neighbour', async (_lock, locked) => {
+    ['an unlocked neighbour', false, false],
+    ['a locked neighbour', true, false],
+    ['a neighbour while overlap is allowed', false, true],
+  ])('leaves the voxel with %s', async (_case, locked, overlap) => {
     const neighbour = neighbourOwningTheHole('img-1', locked);
+    store().allowOverlap = overlap;
 
     (await process()).confirmProcess();
 

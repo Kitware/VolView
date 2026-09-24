@@ -26,9 +26,9 @@ import type { Extent3D } from '@/src/segmentation/geometry';
 // absent when no neighbour reaches the box the caller is about to walk.
 //
 // A locked segment is exempt. `locked` means not editable, and losing a voxel
-// to a neighbour is an edit, so a locked sibling keeps it while the writing
-// segment gains it too: the two overlap. Locking is the whole opt-in for
-// overlap, and no write path refuses a voxel a locked segment already owns.
+// to a neighbour is an edit, so the claim is refused where a locked sibling
+// holds the voxel and the writing segment goes around it. While overlap is
+// allowed the claim takes from nobody and refuses nothing.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [4, 4, 4];
@@ -56,6 +56,17 @@ function pairAt(index: Index3) {
   seedVoxel(tumor, index);
   seedVoxel(node, index);
   return { tumor, node };
+}
+
+/** A locked and an unlocked sibling of the segment about to claim. */
+function siblingsOfPainting(lockedAt: Index3, unlockedAt: Index3) {
+  const locked = addMask('img-1', 'Locked');
+  const unlocked = addMask('img-1', 'Unlocked');
+  const painting = addMask('img-1', 'Painting');
+  seedVoxel(locked, lockedAt);
+  seedVoxel(unlocked, unlockedAt);
+  lockSegment(locked, true);
+  return { locked, unlocked, painting };
 }
 
 const expectBothHold = (tumor: string, node: string) => {
@@ -160,28 +171,33 @@ describe('clearing the other segments of an image', () => {
     expect(maskValueAt(only, [1, 1, 1])).toBe(labelValueOf(only));
   });
 
-  it('leaves a locked segment holding the voxel', () => {
+  it('refuses a voxel a locked segment holds and leaves it there', () => {
     const { tumor, node } = pairAt([1, 1, 1]);
     lockSegment(tumor, true);
 
-    clearFor(node)?.(1, 1, 1);
-
+    expect(clearFor(node)?.(1, 1, 1)).toBe(false);
     expectBothHold(tumor, node);
   });
 
-  it('clears the unlocked siblings and skips the locked ones', () => {
-    const locked = addMask('img-1', 'Locked');
-    const unlocked = addMask('img-1', 'Unlocked');
-    const painting = addMask('img-1', 'Painting');
-    seedVoxel(locked, [1, 1, 1]);
-    seedVoxel(unlocked, [1, 1, 1]);
-    seedVoxel(painting, [1, 1, 1]);
-    lockSegment(locked, true);
+  it('takes a voxel a locked sibling refuses from no other sibling', () => {
+    const { locked, unlocked, painting } = siblingsOfPainting(
+      [1, 1, 1],
+      [1, 1, 1]
+    );
 
-    clearFor(painting)?.(1, 1, 1);
+    expect(clearFor(painting)?.(1, 1, 1)).toBe(false);
+    expectBothHold(locked, unlocked);
+  });
 
-    expect(maskValueAt(locked, [1, 1, 1])).toBe(labelValueOf(locked));
+  it('clears an unlocked sibling beside a locked one that does not hold the voxel', () => {
+    const { locked, unlocked, painting } = siblingsOfPainting(
+      [1, 1, 2],
+      [1, 1, 1]
+    );
+
+    expect(clearFor(painting)?.(1, 1, 1)).toBe(true);
     expect(maskValueAt(unlocked, [1, 1, 1])).toBe(0);
+    expect(maskValueAt(locked, [1, 1, 2])).toBe(labelValueOf(locked));
   });
 
   it('reads the locks once, when the clearer is made', () => {
@@ -190,10 +206,20 @@ describe('clearing the other segments of an image', () => {
     const clear = clearFor(node);
     lockSegment(tumor, false);
 
-    clear?.(1, 1, 1);
-
     // A lock lifted mid-stroke takes effect on the next stroke.
+    expect(clear?.(1, 1, 1)).toBe(false);
     expectBothHold(tumor, node);
+  });
+
+  it('takes from no sibling, locked or not, while overlap is allowed', () => {
+    const { locked, unlocked, painting } = siblingsOfPainting(
+      [1, 1, 1],
+      [1, 1, 1]
+    );
+    store().allowOverlap = true;
+
+    expect(clearFor(painting)?.(1, 1, 1) ?? true).toBe(true);
+    expectBothHold(locked, unlocked);
   });
 
   it('addresses voxels in parent index space, not in mask offsets', () => {

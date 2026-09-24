@@ -32,7 +32,8 @@ import {
 //  - the threshold predicate reads the PARENT image, whose voxel offsets are
 //    not the mask's, so it converts through the mask's extent;
 //  - writing a voxel clears it in every other UNLOCKED mask of the image; a
-//    locked one keeps it, so the two segments overlap there.
+//    locked one keeps it and the stroke goes around it. While overlap is
+//    allowed no neighbour loses a voxel and the stroke goes around nothing.
 // ---------------------------------------------------------------------------
 
 const DIMENSIONS: Index3 = [4, 4, 4];
@@ -60,6 +61,20 @@ const activeSegment = (imageId: string, name: string) => {
   selectSegment(maskId);
   return maskId;
 };
+
+/** A locked and an unlocked neighbour of the segment about to be painted. */
+function neighboursOfActive(lockedAt: Index3, unlockedAt: Index3) {
+  const locked = addMask('img-1', 'Locked');
+  const unlocked = addMask('img-1', 'Unlocked');
+  seedVoxel(locked, lockedAt);
+  seedVoxel(unlocked, unlockedAt);
+  lockSegment(locked, true);
+  return { locked, unlocked, active: activeSegment('img-1', 'Tumor') };
+}
+
+/** Whether each of these masks holds the voxel at `index`. */
+const holding = (index: Index3, ...maskIds: string[]) =>
+  maskIds.map((maskId) => maskValueAt(maskId, index) === labelValueOf(maskId));
 
 describe('painting into bounded masks', () => {
   beforeEach(() => {
@@ -300,7 +315,7 @@ describe('painting into bounded masks', () => {
       expect(maskValueAt(active, [2, 1, 0])).toBeFalsy();
     });
 
-    it('shares the voxel with a locked neighbour instead of taking it', async () => {
+    it('goes around a locked neighbour instead of taking the voxel', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
       const neighbor = addMask('img-1', 'Neighbour');
       seedVoxel(neighbor, [1, 1, 0]);
@@ -310,23 +325,53 @@ describe('painting into bounded masks', () => {
       strokeAt('img-1', [1, 1, 0]);
 
       expect(maskValueAt(neighbor, [1, 1, 0])).toBe(labelValueOf(neighbor));
-      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+      expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
     });
 
-    it('clears an unlocked neighbour while a locked one keeps the voxel', async () => {
+    it('takes a voxel a locked neighbour holds from nobody', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const locked = addMask('img-1', 'Locked');
-      const unlocked = addMask('img-1', 'Unlocked');
-      seedVoxel(locked, [1, 1, 0]);
-      seedVoxel(unlocked, [1, 1, 0]);
-      lockSegment(locked, true);
-      const active = activeSegment('img-1', 'Tumor');
+      const { locked, unlocked, active } = neighboursOfActive(
+        [1, 1, 0],
+        [1, 1, 0]
+      );
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(maskValueAt(locked, [1, 1, 0])).toBe(labelValueOf(locked));
-      expect(maskValueAt(unlocked, [1, 1, 0])).toBe(0);
-      expect(maskValueAt(active, [1, 1, 0])).toBe(labelValueOf(active));
+      expect(holding([1, 1, 0], locked, unlocked, active)).toEqual([
+        true,
+        true,
+        false,
+      ]);
+    });
+
+    it('takes from an unlocked neighbour and goes around a locked one in one stroke', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const { locked, unlocked, active } = neighboursOfActive(
+        [1, 1, 0],
+        [2, 1, 0]
+      );
+
+      strokeFromTo('img-1', [1, 1, 0], [2, 1, 0]);
+
+      expect(holding([1, 1, 0], locked, active)).toEqual([true, false]);
+      expect(holding([2, 1, 0], unlocked, active)).toEqual([false, true]);
+    });
+
+    it('shares the voxel with every neighbour while overlap is allowed', async () => {
+      await seatImage('img-1', { dimensions: DIMENSIONS });
+      const { locked, unlocked, active } = neighboursOfActive(
+        [1, 1, 0],
+        [1, 1, 0]
+      );
+      store().allowOverlap = true;
+
+      strokeAt('img-1', [1, 1, 0]);
+
+      expect(holding([1, 1, 0], locked, unlocked, active)).toEqual([
+        true,
+        true,
+        true,
+      ]);
     });
   });
 });

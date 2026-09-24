@@ -30,6 +30,11 @@ Choose the segment in "Annotations" and use the Paint controls below the segment
 list to adjust brush size, switch to erasing, or set an intensity threshold.
 Painting adds a mask for the selected segment on the image being painted.
 
+Painting over another segment takes those voxels from it. A locked segment keeps
+its voxels: painting goes around it. Turn on "Allow Overlap" to paint over other
+segments without taking anything from them, so the segments overlap. The same
+rules apply when a polygon is rasterized.
+
 ### Rectangle
 
 When the rectangle tool is selected, the left mouse button is used to place and adjust rectangle control points.

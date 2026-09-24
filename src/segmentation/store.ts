@@ -455,6 +455,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const findMaskBinding = (maskId: string) =>
     findMask(maskId)?.representations.labelmap;
 
+  // Editor state, not document state: it is never serialized.
+  const allowOverlap = ref(false);
+
   const { maskVoxels, findMaskVoxels, voxelClaim } = createVoxelAccess({
     imageCacheStore,
     findMask,
@@ -462,6 +465,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     segmentationOfMask,
     ensureLabelmapBinding,
     maskLocked,
+    overlapAllowed: () => allowOverlap.value,
   });
 
   /** The image's segments in `order`, or none when it has no segmentation. */
@@ -657,6 +661,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     convertImageToLabelmap,
     startLabelmapConversion,
     saveFormat,
+    allowOverlap,
     voxelClaim,
     imageMasks,
     editableMasks,

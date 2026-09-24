@@ -45,8 +45,8 @@ export function resolveRasterizeTarget(
   // A locked segment is not editable, the same refusal paint and the processes
   // make. Asked of the segment before the target is resolved, since resolving
   // mints the mask record and its segmentation: a refused polygon leaves
-  // neither behind. A locked neighbour is a different rule and keeps the voxels
-  // a fill claims, which an aimed `voxelClaim` already honours.
+  // neither behind. A locked neighbour is a different rule: the fill goes
+  // around it, which an aimed `voxelClaim` already honours.
   if (segmentationStore.editTargetLocked(segmentId)) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
@@ -65,12 +65,16 @@ export function resolveRasterizeTarget(
   };
 }
 
-/** A grid over the parent's index space, writing into the mask's own buffer. */
+/**
+ * A grid over the parent's index space, writing into the mask's own buffer
+ * wherever `mayFill` agrees. Asked before the write, since a claim clears the
+ * voxel from the neighbours it takes it from.
+ */
 function createGridAccessor(
   parent: vtkImageData,
   mask: { image: vtkImageData; pixelData: TypedArray; extent: Extent3D },
   plane: { slice: number; axisIdx: 0 | 1 | 2 }, // i/j/k
-  onFilled: (ijk: Vector3) => void
+  mayFill: (ijk: Vector3) => boolean
 ): IGrid2D {
   const { slice, axisIdx } = plane;
   const { extent } = mask;
@@ -86,7 +90,7 @@ function createGridAccessor(
     size: axisDims,
     setAtUnsafe(d0: number, d1: number, value: number): boolean {
       const ijk = convertTo3D(d0, d1);
-      if (containsPoint(extent, ...ijk)) {
+      if (containsPoint(extent, ...ijk) && mayFill(ijk)) {
         const offset = mask.image.computeOffsetIndex([
           ijk[0] - extent[0],
           ijk[1] - extent[2],
@@ -94,7 +98,6 @@ function createGridAccessor(
         ]);
         // XXX assumes single-component image
         mask.pixelData[offset] = value;
-        onFilled(ijk);
         return true;
       }
       return false;
@@ -192,7 +195,7 @@ export function rasterizePolygon({
     parent,
     { image: mask, pixelData: target.voxels.scalars(), extent },
     { slice, axisIdx: axisIndex },
-    (ijk) => claimVoxel?.claim(ijk[0], ijk[1], ijk[2])
+    (ijk) => claimVoxel?.claim(ijk[0], ijk[1], ijk[2]) ?? true
   );
 
   try {

@@ -9,11 +9,11 @@ defineProps<{
 
 defineEmits(['toggle-lock', 'reveal', 'edit', 'toggle-visible', 'delete']);
 
-// Locking is the whole opt-in for overlap, and nothing else on screen says so.
+// Nothing else on screen says what a lock does to other segments' painting.
 const lockTooltip = (locked: boolean) =>
   locked
-    ? 'Unlock. Painting over this segment takes its voxels.'
-    : 'Lock. Painting over this segment shares its voxels instead of taking them.';
+    ? 'Unlock. Painting over this segment takes its voxels, unless Allow Overlap is on.'
+    : 'Lock. Painting other segments goes around it, or overlaps it with Allow Overlap on.';
 </script>
 
 <template>

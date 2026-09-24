@@ -1,7 +1,7 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
 import { openUrls } from './utils';
-import { openAnnotationSegments } from './segmentationTestUtils';
+import { allowOverlap, openAnnotationSegments } from './segmentationTestUtils';
 
 const row = (name: string) =>
   $(`[data-testid="segment-list"] .item-row[aria-label="${name}"]`);
@@ -38,7 +38,7 @@ describe('Paint eyedropper', () => {
 
     await click(x, y);
     await expect(row('Segment 1')).toExist();
-    await row('Segment 1').$('button[aria-label="Lock Segment 1"]').click();
+    await allowOverlap();
     await $('[data-testid="segment-list"] .create-row').click();
     await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
     await click(x, y);

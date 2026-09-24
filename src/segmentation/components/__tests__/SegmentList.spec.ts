@@ -483,13 +483,13 @@ describe('flat segment list row actions', () => {
     return button.find('.tooltip').text();
   };
 
-  it('says on the lock that it is what lets two segments share voxels', async () => {
+  it('says on the lock that other segments paint around it', async () => {
     const segment = makeMask('img-1', 'Tumor');
     const wrapper = mountWithTooltips();
     await nextTick();
 
     expect(lockTooltip(wrapper, segment.id)).toMatch(/^Lock\b/);
-    expect(lockTooltip(wrapper, segment.id)).toMatch(/shares its voxels/i);
+    expect(lockTooltip(wrapper, segment.id)).toMatch(/goes around it/i);
 
     lockSegment(segment.maskId, true);
     await nextTick();

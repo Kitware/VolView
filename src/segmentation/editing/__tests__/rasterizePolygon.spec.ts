@@ -23,7 +23,7 @@ import {
 // The mask grows to hold the polygon before `fillPoly` runs (a mask that does
 // not reach the polygon silently swallows every pixel), and the filled voxels
 // are cleared in the other UNLOCKED segments of the image. A locked one keeps
-// its voxels, so the two segments overlap there.
+// its voxels and the fill goes around them.
 //
 // Unit spacing and a zero origin make world points index points, and an
 // identity direction maps the Axial view axis to K.
@@ -105,19 +105,39 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(maskValueAt(neighbor, [0, 0, 0])).toBe(labelValueOf(neighbor));
   });
 
-  it('shares the filled voxels with a locked neighbour', () => {
+  it('fills around the voxels a locked neighbour holds', () => {
     const locked = addMask('img-1', 'Locked');
     const unlocked = addMask('img-1', 'Unlocked');
     seedVoxel(locked, [2, 3, 0]);
     seedVoxel(unlocked, [2, 3, 0]);
+    seedVoxel(unlocked, [3, 3, 0]);
     lockSegment(locked, true);
     const maskId = addMask('img-1', 'Tumor');
 
     rasterizeInto(maskId);
 
     expect(maskValueAt(locked, [2, 3, 0])).toBe(labelValueOf(locked));
-    expect(maskValueAt(unlocked, [2, 3, 0])).toBe(0);
+    expect(maskValueAt(unlocked, [2, 3, 0])).toBe(labelValueOf(unlocked));
+    expect(maskValueAt(maskId, [2, 3, 0])).toBeFalsy();
+    expect(maskValueAt(unlocked, [3, 3, 0])).toBe(0);
+    expect(maskValueAt(maskId, [3, 3, 0])).toBe(labelValueOf(maskId));
+  });
+
+  it('shares the filled voxels with every neighbour while overlap is allowed', () => {
+    const locked = addMask('img-1', 'Locked');
+    const unlocked = addMask('img-1', 'Unlocked');
+    seedVoxel(locked, [2, 3, 0]);
+    seedVoxel(unlocked, [3, 3, 0]);
+    lockSegment(locked, true);
+    const maskId = addMask('img-1', 'Tumor');
+    store().allowOverlap = true;
+
+    rasterizeInto(maskId);
+
+    expect(maskValueAt(locked, [2, 3, 0])).toBe(labelValueOf(locked));
+    expect(maskValueAt(unlocked, [3, 3, 0])).toBe(labelValueOf(unlocked));
     expect(maskValueAt(maskId, [2, 3, 0])).toBe(labelValueOf(maskId));
+    expect(maskValueAt(maskId, [3, 3, 0])).toBe(labelValueOf(maskId));
   });
 
   it('publishes each changed neighbor once before returning from a fill', () => {
@@ -127,8 +147,12 @@ describe('rasterizing a polygon into a bounded mask', () => {
         const voxels = store().maskVoxels(id);
         voxels.materialize();
         voxels.ensureContains([0, 5, 0, 5, 0, 1]);
-        if (name !== 'Background') voxels.scalars().fill(1);
-        if (name === 'Locked') lockSegment(id, true);
+        if (name === 'First' || name === 'Second') voxels.scalars().fill(1);
+        // Held inside the polygon, so the fill goes around it.
+        if (name === 'Locked') {
+          seedVoxel(id, [1, 2, 0]);
+          lockSegment(id, true);
+        }
         const modified = vi.fn();
         voxels.image().onModified(modified);
         return { id, modified };
@@ -142,7 +166,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
       [1, 1, 0, 0]
     );
     expect(neighbors.map(({ id }) => maskValueAt(id, [2, 3, 0]))).toEqual([
-      0, 0, 1, 0,
+      0, 0, 0, 0,
     ]);
     // Repeating unchanged writes must not publish another sibling event.
     rasterizeInto(target);
