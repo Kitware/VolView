@@ -12,7 +12,21 @@
           Paint
         </v-expansion-panel-title>
         <v-expansion-panel-text class="control-panel-body">
-          <v-row no-gutters align="center" justify="start" class="mb-4">
+          <v-row
+            no-gutters
+            align="center"
+            justify="start"
+            class="mb-4"
+            :tabindex="modeDisabledReason ? 0 : undefined"
+          >
+            <v-tooltip
+              :eager="false"
+              :disabled="!modeDisabledReason"
+              activator="parent"
+              location="top"
+            >
+              {{ modeDisabledReason }}
+            </v-tooltip>
             <v-item-group
               v-model="interactionMode"
               mandatory
@@ -28,7 +42,7 @@
                   rounded="8"
                   stacked
                   :class="['mode-button', selectedClass]"
-                  :disabled="!isPaintingModeActive"
+                  :disabled="!!modeDisabledReason"
                   @click.stop="toggle"
                 >
                   <v-icon>mdi-brush</v-icon>
@@ -44,7 +58,7 @@
                   rounded="8"
                   stacked
                   :class="['mode-button', selectedClass]"
-                  :disabled="!isPaintingModeActive"
+                  :disabled="!!modeDisabledReason"
                   @click.stop="toggle"
                 >
                   <v-icon>mdi-eraser</v-icon>
@@ -61,7 +75,7 @@
                     rounded="8"
                     stacked
                     :class="['mode-button', selectedClass]"
-                    :disabled="!isPaintingModeActive"
+                    :disabled="!!modeDisabledReason"
                     :aria-pressed="interactionMode === PaintMode.Eyedropper"
                     data-testid="paint-eyedropper-button"
                     @click.stop="toggle"
@@ -69,24 +83,38 @@
                     <v-icon>mdi-eyedropper</v-icon>
                     <span class="text-caption">Eyedropper</span>
                   </v-btn>
-                  <v-tooltip :eager="false" activator="parent" location="top">
-                    {{
-                      isPaintingModeActive
-                        ? `Pick a label map segment. Hold ${eyedropperShortcut} for temporary use.`
-                        : 'Finish processing to pick a segment'
-                    }}
+                  <v-tooltip
+                    :eager="false"
+                    :disabled="!!modeDisabledReason"
+                    activator="parent"
+                    location="top"
+                  >
+                    Pick a label map segment. Hold {{ eyedropperShortcut }} for
+                    temporary use.
                   </v-tooltip>
                 </span>
               </v-item>
             </v-item-group>
           </v-row>
 
-          <div class="paint-parameters">
+          <div
+            class="paint-parameters"
+            :tabindex="brushDisabledReason ? 0 : undefined"
+          >
+            <v-tooltip
+              :eager="false"
+              :disabled="!brushDisabledReason"
+              activator="parent"
+              location="top"
+            >
+              {{ brushDisabledReason }}
+            </v-tooltip>
             <span class="control-label text-body-2 text-no-wrap">
               <v-icon size="small">mdi-diameter-outline</v-icon>Size
             </span>
             <v-slider
               name="Brush size"
+              :disabled="!!brushDisabledReason"
               :model-value="brushSize"
               @update:model-value="setBrushSize"
               density="compact"
@@ -102,6 +130,7 @@
               v-if="currentImageStats"
               v-threshold-thumb-labels
               class="threshold-control"
+              :disabled="!!brushDisabledReason"
               v-model="threshold"
               :min="currentImageStats.scalarMin"
               :max="currentImageStats.scalarMax"
@@ -110,6 +139,7 @@
               <template #prepend>
                 <v-text-field
                   aria-label="Minimum threshold"
+                  :disabled="!!brushDisabledReason"
                   :model-value="thresholdRange[0].toFixed(2)"
                   @input="setMinThreshold($event.target.value)"
                   variant="underlined"
@@ -127,6 +157,7 @@
               <template #append>
                 <v-text-field
                   aria-label="Maximum threshold"
+                  :disabled="!!brushDisabledReason"
                   :model-value="thresholdRange[1].toFixed(2)"
                   @input="setMaxThreshold($event.target.value)"
                   variant="underlined"
@@ -162,12 +193,24 @@
                 and go around locked ones.
               </v-tooltip>
             </div>
-            <div class="d-flex align-center">
+            <div
+              class="d-flex align-center"
+              :tabindex="brushDisabledReason ? 0 : undefined"
+            >
               <span class="control-label text-body-2 text-no-wrap">
                 <v-icon size="small">mdi-link-variant</v-icon>Sync Views
               </span>
+              <v-tooltip
+                :eager="false"
+                :disabled="!brushDisabledReason"
+                activator="parent"
+                location="top"
+              >
+                {{ brushDisabledReason }}
+              </v-tooltip>
               <v-switch
                 aria-label="Sync Views"
+                :disabled="!!brushDisabledReason"
                 v-model="crossPlaneSync"
                 color="primary"
                 density="compact"
@@ -193,7 +236,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { usePaintInteractionMode } from '@/src/segmentation/composables/usePaintInteractionMode';
@@ -202,6 +245,8 @@ import {
   readableBinding,
 } from '@/src/composables/useKeyboardShortcuts';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
 import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import ProcessControls from '@/src/components/ProcessControls.vue';
@@ -225,7 +270,13 @@ const processStore = usePaintProcessStore();
 const imageStatsStore = useImageStatsStore();
 const PAINT_PANEL = 'paint';
 const PROCESS_PANEL = 'process';
-const paintControlsOpen = ref(false);
+const toolStore = useToolStore();
+const paintToolActive = computed(() => toolStore.currentTool === Tools.Paint);
+// Picking up the brush shows its controls; closing them again is the user's call.
+const paintControlsOpen = ref(paintToolActive.value);
+watch(paintToolActive, (active) => {
+  if (active) paintControlsOpen.value = true;
+});
 const { setProcessControlsOpen } = paintStore;
 const {
   brushSize,
@@ -235,6 +286,17 @@ const {
   crossPlaneSync,
 } = storeToRefs(paintStore);
 const { allowOverlap } = storeToRefs(useSegmentationStore());
+// Allow Overlap stays live: it also governs a polygon's Rasterize.
+const brushDisabledReason = computed(() =>
+  paintToolActive.value ? '' : 'Select the Paint tool to adjust the brush'
+);
+const modeDisabledReason = computed(() => {
+  if (!paintToolActive.value)
+    return 'Select the Paint tool to paint, erase or pick a segment';
+  return isPaintingModeActive.value
+    ? ''
+    : 'Finish processing to paint, erase or pick a segment';
+});
 const { currentImageID } = useCurrentImage();
 
 const currentImageStats = computed(() => {

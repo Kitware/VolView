@@ -29,7 +29,6 @@ describe('Paint eyedropper', () => {
     await openUrls([ONE_CT_SLICE_DICOM]);
     await volViewPage.activatePaint();
     await openAnnotationSegments();
-    await $('button.v-expansion-panel-title*=Paint').click();
     const canvas = (await volViewPage.getViews2D())[0].$('canvas');
     const location = await canvas.getLocation();
     const size = await canvas.getSize();

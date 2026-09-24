@@ -1,3 +1,4 @@
+import type { ChainablePromiseElement } from 'webdriverio';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
@@ -166,7 +167,7 @@ export const lockSegment = async (name: string) => {
   });
 };
 
-/** Turns on Allow Overlap, opening the Paint panel it lives in if needed. */
+/** Turns on Allow Overlap, opening the Paint panel it lives in if it was closed. */
 export const allowOverlap = async () => {
   const panel = $('button.v-expansion-panel-title*=Paint');
   if ((await panel.getAttribute('aria-expanded')) !== 'true')
@@ -176,4 +177,11 @@ export const allowOverlap = async () => {
   await toggle.execute((element) => element.focus());
   await browser.keys(' ');
   await expect(toggle).toBeSelected();
+};
+
+/** The tooltip an element's hover or focus is showing. */
+export const tooltipOf = async (element: ChainablePromiseElement) => {
+  const id = await element.getAttribute('aria-describedby');
+  expect(id).toBeTruthy();
+  return $(`[id="${id}"]`);
 };

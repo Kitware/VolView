@@ -7,6 +7,7 @@ import {
   segmentColor,
   segmentNames,
   segmentRow,
+  tooltipOf,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 import { openUrls } from './utils';
@@ -21,9 +22,8 @@ describe('Segment control accessibility', () => {
   });
 
   it('names each interactive paint parameter', async () => {
+    // Picking up the brush opens its controls without a click on the panel.
     await AppPage.activatePaint();
-    const paintPanel = $('.paint-process-panels .v-expansion-panel-title');
-    await paintPanel.click();
 
     const brush = $('[role="slider"][aria-label="Brush size"]');
     await brush.waitForDisplayed();
@@ -49,6 +49,39 @@ describe('Segment control accessibility', () => {
     await sync.execute((element) => element.focus());
     await browser.keys(' ');
     expect(await sync.isSelected()).toBe(!initiallySelected);
+  });
+
+  it('disables the brush controls, saying why, until the Paint tool is picked', async () => {
+    await openAnnotationSegments();
+    await $('button.v-expansion-panel-title*=Paint').click();
+    const erase = $('button.mode-button*=Erase');
+    const sync = $('input[aria-label="Sync Views"]');
+    await expect(erase).toBeDisabled();
+    await expect(sync).toBeDisabled();
+    // It also decides how a polygon rasterizes, which needs no brush.
+    await expect($('input[aria-label="Allow Overlap"]')).toBeEnabled();
+
+    // Reached by keyboard from the panel title, so no pointer position is
+    // involved: the disabled modes first, then the brush parameters.
+    await browser.keys('Tab');
+    const modes = await $(() => document.activeElement as HTMLElement);
+    const modesReason = await tooltipOf(modes);
+    await expect(modesReason).toBeDisplayed();
+    await expect(modesReason).toHaveText(
+      'Select the Paint tool to paint, erase or pick a segment'
+    );
+    await browser.keys('Tab');
+    const parameters = $('.paint-parameters');
+    await expect(parameters).toBeFocused();
+    const reason = await tooltipOf(parameters);
+    await expect(reason).toBeDisplayed();
+    await expect(reason).toHaveText(
+      'Select the Paint tool to adjust the brush'
+    );
+
+    await AppPage.activatePaint();
+    await expect(erase).toBeEnabled();
+    await expect(sync).toBeEnabled();
   });
 
   it('keeps the segment editor usable at 375px and side by side on desktop', async () => {
