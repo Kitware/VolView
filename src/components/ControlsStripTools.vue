@@ -68,9 +68,7 @@
         icon="mdi-brush"
         :name="`Paint [${nameToShortcut['Paint']}]`"
         :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="
-          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Paint)
-        "
+        :disabled="!!paintUnavailableReason"
         @click="toggle"
       ></control-button>
     </groupable-item>
@@ -177,6 +175,9 @@ export default defineComponent({
     const isCineActive = computed(() => activeEffective.value?.kind === 'cine');
     const isDisallowedOnCine = (tool: Tools) =>
       isCineActive.value && !isToolAllowedFor(tool, activeEffective.value);
+    const paintUnavailableReason = computed(
+      () => toolStore.paintUnavailableReason
+    );
 
     const paintMenu = ref(false);
     const cropMenu = ref(false);
@@ -217,6 +218,7 @@ export default defineComponent({
       noCurrentImage,
       isObliqueLayout,
       isDisallowedOnCine,
+      paintUnavailableReason,
       Tools,
       paintMenu,
       cropMenu,

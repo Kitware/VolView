@@ -1,4 +1,3 @@
-import type { ChainablePromiseElement } from 'webdriverio';
 import { volViewPage } from '../pageobjects/volview.page';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
 import { moveTo } from './annotationTestUtils';
@@ -6,15 +5,10 @@ import {
   openAnnotationSegments,
   renameSegment,
   segmentRow,
+  tooltipOf,
   waitForSegmentContent,
 } from './segmentationTestUtils';
 import { openUrls } from './utils';
-
-const descriptionOf = async (element: ChainablePromiseElement) => {
-  const id = await element.getAttribute('aria-describedby');
-  expect(id).toBeTruthy();
-  return $(`[id="${id}"]`);
-};
 
 describe('Segment tooltips', () => {
   it('shows row descriptions on hover and explains locked controls on keyboard focus', async () => {
@@ -30,7 +24,7 @@ describe('Segment tooltips', () => {
     const row = await segmentRow(name);
     const title = await row.$('.v-list-item-title');
     await title.moveTo();
-    const titleTooltip = await descriptionOf(title);
+    const titleTooltip = await tooltipOf(title);
     await expect(titleTooltip).toBeDisplayed();
     await expect(titleTooltip).toHaveText(name);
     await moveTo(10, 10);
@@ -38,7 +32,7 @@ describe('Segment tooltips', () => {
 
     const lock = await row.$('button[aria-label^="Lock "]');
     await lock.moveTo();
-    const lockTooltip = await descriptionOf(lock);
+    const lockTooltip = await tooltipOf(lock);
     await expect(lockTooltip).toBeDisplayed();
     await expect(lockTooltip).toHaveText(
       'Lock. Painting other segments goes around it, or overlaps it with Allow Overlap on.'
@@ -56,7 +50,7 @@ describe('Segment tooltips', () => {
         await editActivator
       )
     ).toBe(true);
-    const editTooltip = await descriptionOf(editActivator);
+    const editTooltip = await tooltipOf(editActivator);
     await expect(editTooltip).toBeDisplayed();
     await expect(editTooltip).toHaveText('Unlock this segment to edit it');
 
@@ -71,7 +65,7 @@ describe('Segment tooltips', () => {
         await colorActivator
       )
     ).toBe(true);
-    const colorTooltip = await descriptionOf(colorActivator);
+    const colorTooltip = await tooltipOf(colorActivator);
     await expect(colorTooltip).toBeDisplayed();
     await expect(colorTooltip).toHaveText(
       'Unlock this segment to change its color'
