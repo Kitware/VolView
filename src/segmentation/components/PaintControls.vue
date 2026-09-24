@@ -176,10 +176,14 @@
           </div>
           <div class="paint-switches mb-2">
             <div class="d-flex align-center">
-              <span class="control-label text-body-2 text-no-wrap">
+              <label
+                :for="overlapSwitchId"
+                class="control-label text-body-2 text-no-wrap cursor-pointer"
+              >
                 <v-icon size="small">mdi-set-center</v-icon>Allow Overlap
-              </span>
+              </label>
               <v-switch
+                :id="overlapSwitchId"
                 aria-label="Allow Overlap"
                 v-model="allowOverlap"
                 color="primary"
@@ -197,9 +201,15 @@
               class="d-flex align-center"
               :tabindex="brushDisabledReason ? 0 : undefined"
             >
-              <span class="control-label text-body-2 text-no-wrap">
+              <label
+                :for="syncSwitchId"
+                :class="[
+                  'control-label text-body-2 text-no-wrap',
+                  { 'cursor-pointer': !brushDisabledReason },
+                ]"
+              >
                 <v-icon size="small">mdi-link-variant</v-icon>Sync Views
-              </span>
+              </label>
               <v-tooltip
                 :eager="false"
                 :disabled="!brushDisabledReason"
@@ -209,6 +219,7 @@
                 {{ brushDisabledReason }}
               </v-tooltip>
               <v-switch
+                :id="syncSwitchId"
                 aria-label="Sync Views"
                 :disabled="!!brushDisabledReason"
                 v-model="crossPlaneSync"
@@ -236,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { PaintMode } from '@/src/core/tools/paint';
 import { usePaintInteractionMode } from '@/src/segmentation/composables/usePaintInteractionMode';
@@ -286,6 +297,8 @@ const {
   crossPlaneSync,
 } = storeToRefs(paintStore);
 const { allowOverlap } = storeToRefs(useSegmentationStore());
+const overlapSwitchId = useId();
+const syncSwitchId = useId();
 // Allow Overlap stays live: it also governs a polygon's Rasterize.
 const brushDisabledReason = computed(() =>
   paintToolActive.value ? '' : 'Select the Paint tool to adjust the brush'
