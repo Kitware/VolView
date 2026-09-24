@@ -242,7 +242,7 @@ const {
           <v-icon class="annotation-panel-icon">mdi-tune-variant</v-icon>
           Display
         </v-expansion-panel-title>
-        <v-expansion-panel-text class="display-section-body">
+        <v-expansion-panel-text>
           <div class="display-controls" :tabindex="viewingCine ? 0 : undefined">
             <div
               v-for="control in DISPLAY_CONTROLS"

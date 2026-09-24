@@ -49,6 +49,13 @@ describe('Segment control accessibility', () => {
     await sync.execute((element) => element.focus());
     await browser.keys(' ');
     expect(await sync.isSelected()).toBe(!initiallySelected);
+
+    // Each switch toggles from its label too.
+    await $('label*=Sync Views').click();
+    expect(await sync.isSelected()).toBe(initiallySelected);
+    const overlap = $('input[aria-label="Allow Overlap"]');
+    await $('label*=Allow Overlap').click();
+    await expect(overlap).toBeSelected();
   });
 
   it('disables the brush controls, saying why, until the Paint tool is picked', async () => {
