@@ -1,6 +1,6 @@
 import type { TypedArray } from '@kitware/vtk.js/types';
 
-import type { Maybe } from '@/src/types';
+import { partition } from '@/src/utils';
 import type { VoxelGesture } from '@/src/segmentation/model';
 import type { useImageCacheStore } from '@/src/store/image-cache';
 import { regrowMask } from '@/src/segmentation/masks/storage';
@@ -30,11 +30,12 @@ import {
 
 type VoxelAccessDeps = {
   imageCacheStore: ReturnType<typeof useImageCacheStore>;
-  findMask: (maskId: string) => SegmentMask | undefined;
+  findMaskBinding: (maskId: string) => LabelmapBinding | undefined;
   getMask: (maskId: string) => SegmentMask;
   segmentationOfMask: (maskId: string) => Segmentation | undefined;
   ensureLabelmapBinding: (maskId: string) => LabelmapBinding;
   maskLocked: (mask: SegmentMask) => boolean;
+  overlapAllowed: () => boolean;
 };
 
 /**
@@ -45,11 +46,12 @@ type VoxelAccessDeps = {
 export function createVoxelAccess(deps: VoxelAccessDeps) {
   const {
     imageCacheStore,
-    findMask,
+    findMaskBinding,
     getMask,
     segmentationOfMask,
     ensureLabelmapBinding,
     maskLocked,
+    overlapAllowed,
   } = deps;
 
   function requireParentImage(maskId: string) {
@@ -90,18 +92,19 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
   }
 
   /**
-   * The voxel half of the accessor seam, over whichever mask `findBinding`
-   * resolves. Resolution is deferred to every call so a stale accessor sees
-   * deletion or growth done through another one. `onMissing` names why storage
-   * is unreachable, so `exists()` can answer without throwing.
+   * The voxel half of the accessor seam. Resolution is deferred to every call
+   * so a stale accessor sees deletion or growth done through another one, and
+   * a mask deleted out from under it reads as absent storage, not a lookup
+   * error. `missing` names why storage is unreachable, so `exists()` can answer
+   * without throwing.
    */
-  function voxelStorage(
-    maskId: string,
-    findBinding: () => Maybe<LabelmapBinding>,
-    onMissing: () => never
-  ): VoxelStorage {
-    const findImage = () => findBinding()?.image;
-    const requireImage = () => findImage() ?? onMissing();
+  function voxelStorage(maskId: string, missing: string): VoxelStorage {
+    const findImage = () => findMaskBinding(maskId)?.image;
+    const requireImage = () => {
+      const image = findImage();
+      if (!image) throw new Error(missing);
+      return image;
+    };
     const requireScalars = () => maskScalars(requireImage());
 
     return {
@@ -130,21 +133,10 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
     // front, not just on first use.
     getMask(maskId);
 
-    const binding = () => getMask(maskId).representations.labelmap;
-
-    // Deliberately tolerant where binding() is not: the segment itself can be
-    // deleted out from under an accessor, and that is an absent storage, not a
-    // lookup error.
-    const findBinding = () => findMask(maskId)?.representations.labelmap;
-
-    const onMissing = (): never => {
-      throw new Error('No storage: call materialize() first');
-    };
-
     return {
-      binding,
+      binding: () => getMask(maskId).representations.labelmap,
       materialize: () => ensureLabelmapBinding(maskId),
-      ...voxelStorage(maskId, findBinding, onMissing),
+      ...voxelStorage(maskId, 'No storage: call materialize() first'),
     };
   }
 
@@ -154,54 +146,59 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    * vanish a tick before they do, so this stays constructible either way.
    */
   const findMaskVoxels = (maskId: string) =>
-    voxelStorage(
-      maskId,
-      () => findMask(maskId)?.representations.labelmap,
-      () => {
-        throw new Error('No such mask');
-      }
-    );
+    voxelStorage(maskId, 'No such mask');
 
   /** A bound segment's buffer, absent when it has none or holds nothing. */
   const boundedMask = (binding?: LabelmapBinding) =>
     binding && boundScalars(binding.image, binding.extent);
 
   /**
-   * The masks of an image's other segments that `gesture` may take a voxel
-   * from, resolved once per run because the caller below runs per voxel. A
-   * locked segment is not editable, so an aimed gesture is not offered its mask
-   * at all.
+   * The masks of an image's other segments, split by what `gesture` does where
+   * one of them holds a voxel: take the voxel from it, or yield to it and leave
+   * the voxel unwritten. Resolved once per run because the caller below runs
+   * per voxel. A locked segment is not editable, so an aimed gesture yields to
+   * it rather than taking from it.
    */
   function siblingMasks(maskId: string, gesture: VoxelGesture) {
     const segmentation = segmentationOfMask(maskId);
-    if (!segmentation) return [];
-    return listMasks(segmentation).flatMap((segment) => {
-      if (segment.id === maskId) return [];
-      if (gesture === 'aimed' && maskLocked(segment)) return [];
-      const bounded = boundedMask(segment.representations.labelmap);
-      return bounded ? [bounded] : [];
-    });
+    const others =
+      segmentation && !(gesture === 'aimed' && overlapAllowed())
+        ? listMasks(segmentation).filter((mask) => mask.id !== maskId)
+        : [];
+    const [takeFrom, yieldTo] = partition(
+      (mask) => gesture === 'aimed' && !maskLocked(mask),
+      others
+    );
+    const bounded = (masks: SegmentMask[]) =>
+      masks.flatMap((mask) => boundedMask(mask.representations.labelmap) ?? []);
+    return { takeFrom: bounded(takeFrom), yieldTo: bounded(yieldTo) };
   }
 
   /**
    * Whether the voxel at PARENT indices i, j, k is this segment's to write,
-   * taking it from the neighbours that have to yield it. Absent when no other
-   * segment reaches `within`, the box the caller is about to walk: every voxel
-   * in it is then uncontested and the question need not be asked per voxel.
+   * clearing it from the neighbors that have to give it up. Asked before the
+   * write: a voxel a neighbor it yields to holds is refused and taken from
+   * nobody.
+   *
+   * Absent when no other segment reaches `within`, the box the caller is about
+   * to walk: every voxel in it is then uncontested.
    *
    * `gesture` is the whole of the policy, so see {@link VoxelGesture}. An aimed
    * operation must call finish in a finally block after its last voxel write.
    */
   function voxelClaim(maskId: string, gesture: VoxelGesture, within: Extent3D) {
-    const masks = siblingMasks(maskId, gesture);
-    if (gesture === 'aimed') return masksClearing(masks, within);
-    const held = masksHolding(masks, within);
-    return (
-      held && {
-        claim: (i: number, j: number, k: number) => !held(i, j, k),
-        finish: () => undefined,
-      }
-    );
+    const { takeFrom, yieldTo } = siblingMasks(maskId, gesture);
+    const held = masksHolding(yieldTo, within);
+    const clearing = masksClearing(takeFrom, within);
+    if (!held && !clearing) return undefined;
+    return {
+      claim: (i: number, j: number, k: number) => {
+        if (held?.(i, j, k)) return false;
+        clearing?.clear(i, j, k);
+        return true;
+      },
+      finish: () => clearing?.finish(),
+    };
   }
 
   return {

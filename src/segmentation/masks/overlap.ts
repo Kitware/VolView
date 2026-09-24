@@ -70,37 +70,38 @@ export function masksHolding(masks: BoundedScalars[], within: Extent3D) {
 }
 
 /**
- * Clears the voxel at PARENT indices i, j, k from every one of these masks and
- * answers true: nothing left here can refuse the write, which is the same
- * per-voxel answer the occupancy test gives. Absent when no mask reaches
- * `within`, the box the caller is about to walk. A mask that does not reach the
- * voxel has nothing there to clear, so nothing grows. Finish the operation in
- * a finally block to publish each changed mask once, including partial writes.
+ * Clears the voxel at PARENT indices i, j, k from every one of these masks.
+ * Absent when no mask reaches `within`, the box the caller is about to walk. A
+ * mask that does not reach the voxel has nothing there to clear, so nothing
+ * grows. Finish the operation in a finally block to publish each changed mask
+ * once, including partial writes.
  */
 export function masksClearing(masks: BoundedScalars[], within: Extent3D) {
   const reaching = masksReaching(masks, within);
   if (reaching.length === 0) return undefined;
-  const changed = new Set<vtkLabelMap>();
-  // Indexed loop, as in masksHolding: claim runs once per voxel the caller
+  // Flagged by position: a Set would hash a mask per cleared voxel.
+  const changed = new Uint8Array(reaching.length);
+  // Indexed loop, as in masksHolding: clear runs once per voxel the caller
   // walks, and a callback over the reaching masks would allocate per voxel.
-  const claim = (i: number, j: number, k: number) => {
+  const clear = (i: number, j: number, k: number) => {
     for (let index = 0; index < reaching.length; index += 1) {
       const bounded = reaching[index];
       if (extentContainsIndex(bounded.extent, i, j, k)) {
         const offset = maskOffset(bounded, i, j, k);
         if (bounded.scalars[offset] !== LABELMAP_BACKGROUND_VALUE) {
           bounded.scalars[offset] = LABELMAP_BACKGROUND_VALUE;
-          changed.add(bounded.mask);
+          changed[index] = 1;
         }
       }
     }
-    return true;
   };
   return {
-    claim,
+    clear,
     finish: () => {
-      changed.forEach((mask) => mask.modified());
-      changed.clear();
+      reaching.forEach((bounded, index) => {
+        if (changed[index]) bounded.mask.modified();
+      });
+      changed.fill(0);
     },
   };
 }

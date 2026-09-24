@@ -256,11 +256,14 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (boundName !== undefined) releaseMaskName(boundName);
   }
 
-  const maskLocked = (mask: SegmentMask) =>
-    segmentRegistry.appearanceOf(mask.segmentId).locked;
+  // `locked` is required, so a per-stroke read skips resolving the appearance.
+  const segmentLocked = (segmentId: Maybe<string>) =>
+    segmentRegistry.getSegment(segmentId)?.locked ?? false;
+
+  const maskLocked = (mask: SegmentMask) => segmentLocked(mask.segmentId);
 
   const isLocked = (maskId: string) =>
-    segmentRegistry.appearanceOf(findMask(maskId)?.segmentId).locked;
+    segmentLocked(findMask(maskId)?.segmentId);
 
   /**
    * The segment a file's descriptor binds to: the one already carrying that
@@ -451,13 +454,17 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   const findMaskBinding = (maskId: string) =>
     findMask(maskId)?.representations.labelmap;
 
+  // Editor state, not document state: it is never serialized.
+  const allowOverlap = ref(false);
+
   const { maskVoxels, findMaskVoxels, voxelClaim } = createVoxelAccess({
     imageCacheStore,
-    findMask,
+    findMaskBinding,
     getMask,
     segmentationOfMask,
     ensureLabelmapBinding,
     maskLocked,
+    overlapAllowed: () => allowOverlap.value,
   });
 
   /** The image's masks in `order`, or none when it has no segmentation. */
@@ -535,8 +542,9 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // A segment the caller named that no longer exists is a stale reference, not
   // a target: the edit falls through to the selected one.
-  const liveSegmentId = (segmentId: Maybe<string>) =>
-    segmentId && segmentRegistry.getSegment(segmentId) ? segmentId : undefined;
+  const targetSegmentId = (preferredSegmentId: Maybe<string>) =>
+    segmentRegistry.getSegment(preferredSegmentId)?.id ??
+    segmentRegistry.selectedSegmentId.value;
 
   /**
    * The mask an edit would land in, if it already exists. Creates nothing, so
@@ -544,10 +552,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * before a mask is created.
    */
   function findEditTarget(imageId: string, preferredSegmentId?: Maybe<string>) {
-    const segmentId =
-      liveSegmentId(preferredSegmentId) ??
-      segmentRegistry.selectedSegmentId.value;
-    return maskFor(imageId, segmentId)?.id;
+    return maskFor(imageId, targetSegmentId(preferredSegmentId))?.id;
   }
 
   /**
@@ -558,9 +563,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * segment alone, creating nothing, so every edit path can refuse first.
    */
   const editTargetLocked = (preferredSegmentId?: Maybe<string>) =>
-    segmentRegistry.appearanceOf(
-      liveSegmentId(preferredSegmentId) ?? segmentRegistry.presumedSegmentId()
-    ).locked;
+    segmentLocked(targetSegmentId(preferredSegmentId));
 
   /**
    * Resolves or creates the mask an edit targets. With no segments the first
@@ -573,7 +576,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   ) {
     edits.beforeEdit();
     const segmentId =
-      liveSegmentId(preferredSegmentId) ??
+      targetSegmentId(preferredSegmentId) ??
       segmentRegistry.ensureSelectedSegment();
     return ensureMask(imageId, segmentId).id;
   }
@@ -650,6 +653,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     convertImageToLabelmap,
     startLabelmapConversion,
     saveFormat,
+    allowOverlap,
     voxelClaim,
     imageMasks,
     editableMasks,

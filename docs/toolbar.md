@@ -48,6 +48,11 @@ while painting. "Sync Views" moves the other 2D views to the slice under the bru
 The "Process" panel runs Fill Holes, Fill Between and Smooth, which never take voxels
 another segment holds.
 
+Painting over another segment takes those voxels from it. A locked segment keeps
+its voxels: painting goes around it. Turn on "Allow Overlap" to paint over other
+segments without taking anything from them, so the segments overlap. The same
+rules apply when a polygon is rasterized.
+
 ### Rectangle
 
 When the rectangle tool is selected, the left mouse button is used to place and adjust rectangle control points.
