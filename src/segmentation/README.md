@@ -52,6 +52,8 @@ export precedence. Per-image mask order preserves insertion and restored file
 order, including the order used for all-segment processing.
 
 Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
-preserve locked neighbors. Processes preserve voxels already held by other
+preserve locked neighbors. With the Paint panel's Allow Overlap switch on,
+which is never saved, aimed writes leave every neighbor alone and may overlap
+them. Processes preserve voxels already held by other
 segments. Import matches existing segment identities by exact name, sharing
 appearance and locks across images.

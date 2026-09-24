@@ -9,8 +9,10 @@ import { openUrls, waitForDownload } from './utils';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
 import {
   addSegment,
+  allowOverlap,
   lockSegment,
   openAnnotationSegments,
+  waitForSegmentContent,
   waitForNamedSegments,
 } from './segmentationTestUtils';
 
@@ -49,11 +51,26 @@ const readSegNrrd = (file: Buffer) => {
 
   const data = raw.subarray(split + 2);
   const voxels = isGzip(data) ? zlib.gunzipSync(data) : data;
+  const offsetsWhere = (keep: (voxel: number) => boolean) =>
+    Array.from(voxels.entries())
+      .filter(([, voxel]) => keep(voxel))
+      .map(([offset]) => offset);
+  const labelValueOf = (name: string) => {
+    const [nameKey] =
+      [...header].find(
+        ([key, value]) => /^Segment\d+_Name$/.test(key) && value === name
+      ) ?? [];
+    return Number(
+      nameKey && header.get(nameKey.replace('_Name', '_LabelValue'))
+    );
+  };
   return {
     header,
-    foreground: Array.from(voxels.entries())
-      .filter(([, voxel]) => voxel !== 0)
-      .map(([offset]) => offset),
+    foreground: offsetsWhere((voxel) => voxel !== 0),
+    segmentVoxels: (name: string) => {
+      const value = labelValueOf(name);
+      return offsetsWhere((voxel) => voxel === value);
+    },
   };
 };
 
@@ -66,10 +83,10 @@ const geometryFields = [
   'space origin',
 ] as const;
 
-const paintNewSegmentOverTheSameSpot = async () => {
+const paintNewSegment = async (offsetX = 0) => {
   await addSegment();
   const views2D = await volViewPage.getViews2D();
-  await volViewPage.paintStrokeOnView(views2D[0]);
+  await volViewPage.paintStrokeOnView(views2D[0], offsetX);
 };
 
 const openSaveDialog = async () => {
@@ -118,18 +135,33 @@ describe('Painting one segment over another', function () {
   // exactly when two segments hold a voxel in common. That notice is what makes
   // overlap observable from the panel.
   it('takes the voxels of an unlocked segment', async () => {
-    await paintNewSegmentOverTheSameSpot();
+    await openSaveDialog();
+    const baseline = await saveSingleLayer(`replace-baseline-${Date.now()}`);
+    expect(baseline.foreground.length).toBeGreaterThan(0);
+    await paintNewSegment();
+    await waitForSegmentContent('Segment 2');
     await openSaveDialog();
 
     await expect(overlapNotice()).not.toBeDisplayed();
+    const saved = await saveSingleLayer(`replace-${Date.now()}`);
+    expect(saved.segmentVoxels('Segment 2')).toEqual(baseline.foreground);
+    expect(saved.foreground).toEqual(baseline.foreground);
+    expect(saved.segmentVoxels('Segment 1')).toEqual([]);
   });
 
-  it('leaves a locked segment holding them, so the two overlap', async () => {
+  it('paints around a locked segment without taking or sharing its voxels', async () => {
+    await openSaveDialog();
+    const baseline = await saveSingleLayer(`around-baseline-${Date.now()}`);
+    expect(baseline.foreground.length).toBeGreaterThan(0);
     await lockSegment('Segment 1');
-    await paintNewSegmentOverTheSameSpot();
+    // Half a loop over: the stroke crosses Segment 1 and runs past it.
+    await paintNewSegment(20);
     await openSaveDialog();
 
-    await expect(overlapNotice()).toBeDisplayed();
+    await expect(overlapNotice()).not.toBeDisplayed();
+    const saved = await saveSingleLayer(`around-${Date.now()}`);
+    expect(saved.segmentVoxels('Segment 1')).toEqual(baseline.foreground);
+    expect(saved.segmentVoxels('Segment 2').length).toBeGreaterThan(0);
   });
 
   it('saves overlapping segments losslessly, one file per layer', async () => {
@@ -140,9 +172,11 @@ describe('Painting one segment over another', function () {
       expect(baseline.header.get(field)).toBeDefined();
     });
     expect(baseline.header.get('type')).toBe('unsigned char');
-    await lockSegment('Segment 1');
-    await paintNewSegmentOverTheSameSpot();
+    await allowOverlap();
+    await paintNewSegment();
     await openSaveDialog();
+
+    await expect(overlapNotice()).toBeDisplayed();
 
     const stem = `overlap-${Date.now()}`;
     const zip = await saveAndUnzip(stem);

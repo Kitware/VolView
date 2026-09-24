@@ -139,17 +139,35 @@
               </template>
             </v-range-slider>
           </div>
-          <v-row no-gutters align="center" class="mb-2">
-            <span class="mr-2">Sync Views</span>
-            <v-switch
-              aria-label="Sync Views"
-              v-model="crossPlaneSync"
-              color="primary"
-              density="compact"
-              hide-details
-              class="ml-3"
-            ></v-switch>
-          </v-row>
+          <div class="paint-switches mb-2">
+            <div class="d-flex align-center">
+              <span class="text-body-2 text-no-wrap">Allow Overlap</span>
+              <v-switch
+                aria-label="Allow Overlap"
+                v-model="allowOverlap"
+                color="primary"
+                density="compact"
+                hide-details
+                class="ml-3 flex-grow-0"
+              ></v-switch>
+              <v-tooltip :eager="false" activator="parent" location="top">
+                On: painting and rasterizing keep other segments' voxels, so
+                segments overlap. Off: they take voxels from unlocked segments
+                and go around locked ones.
+              </v-tooltip>
+            </div>
+            <div class="d-flex align-center">
+              <span class="text-body-2 text-no-wrap">Sync Views</span>
+              <v-switch
+                aria-label="Sync Views"
+                v-model="crossPlaneSync"
+                color="primary"
+                density="compact"
+                hide-details
+                class="ml-3 flex-grow-0"
+              ></v-switch>
+            </div>
+          </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
@@ -177,6 +195,7 @@ import {
 } from '@/src/composables/useKeyboardShortcuts';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import ProcessControls from '@/src/components/ProcessControls.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageStatsStore } from '@/src/store/image-stats';
@@ -207,6 +226,7 @@ const {
   thresholdRange,
   crossPlaneSync,
 } = storeToRefs(paintStore);
+const { allowOverlap } = storeToRefs(useSegmentationStore());
 const { currentImageID } = useCurrentImage();
 
 const currentImageStats = computed(() => {
@@ -291,5 +311,12 @@ const controlPanels = computed({
 
 .threshold-control {
   margin-top: 8px;
+}
+
+.paint-switches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 24px;
 }
 </style>

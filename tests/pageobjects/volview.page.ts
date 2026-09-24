@@ -153,11 +153,12 @@ class VolViewPage extends Page {
     return (classes ?? '').includes('v-btn--active');
   }
 
-  async paintStrokeOnView(view: ChainablePromiseElement) {
+  /** A square loop starting `offsetX` pixels right of the view's center. */
+  async paintStrokeOnView(view: ChainablePromiseElement, offsetX = 0) {
     const canvas = await view.$('canvas');
     const location = await canvas.getLocation();
     const size = await canvas.getSize();
-    const centerX = Math.round(location.x + size.width / 2);
+    const centerX = Math.round(location.x + size.width / 2) + offsetX;
     const centerY = Math.round(location.y + size.height / 2);
 
     await browser

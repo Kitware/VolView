@@ -2,7 +2,6 @@ import { fillPoly } from '@thi.ng/rasterize';
 import type { IGrid2D } from '@thi.ng/api';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray, Vector2, Vector3 } from '@kitware/vtk.js/types';
-import { containsPoint } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
@@ -13,8 +12,11 @@ import type { LPSAxis } from '@/src/types/lps';
 import {
   clipExtent,
   emptyExtent,
+  extentContainsIndex,
+  extentSize,
   fullExtent,
   isEmptyExtent,
+  maskOffset,
   type Extent3D,
 } from '@/src/segmentation/geometry';
 import { getLPSDirections } from '@/src/utils/lps';
@@ -39,8 +41,8 @@ export function resolveRasterizeTarget(
   // A locked segment is not editable, the same refusal paint and the processes
   // make. Asked of the segment before the target is resolved, since resolving
   // mints the mask record and its segmentation: a refused polygon leaves
-  // neither behind. A locked neighbour is a different rule and keeps the voxels
-  // a fill claims, which an aimed `voxelClaim` already honours.
+  // neither behind. A locked neighbor is a different rule: the fill goes
+  // around it, which an aimed `voxelClaim` already honors.
   if (segmentationStore.editTargetLocked(segmentId)) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
@@ -58,39 +60,42 @@ export function resolveRasterizeTarget(
   };
 }
 
-/** A grid over the parent's index space, writing into the mask's own buffer. */
+/**
+ * A grid over the parent's index space, writing into the mask's own buffer
+ * wherever `mayFill` agrees. Asked before the write, since a claim clears the
+ * voxel from the neighbors it takes it from.
+ */
 function createGridAccessor(
   parent: vtkImageData,
-  mask: { image: vtkImageData; pixelData: TypedArray; extent: Extent3D },
+  mask: { pixelData: TypedArray; extent: Extent3D },
   plane: { slice: number; axisIdx: 0 | 1 | 2 }, // i/j/k
-  onFilled: (ijk: Vector3) => void
+  mayFill: (i: number, j: number, k: number) => boolean
 ): IGrid2D {
   const { slice, axisIdx } = plane;
-  const { extent } = mask;
+  const { extent, pixelData } = mask;
   const axisDims = parent.getDimensions();
   axisDims.splice(axisIdx, 1);
-  const convertTo3D = (a: number, b: number) => {
-    const point = [a, b];
-    point.splice(axisIdx, 0, slice);
-    return point as Vector3;
-  };
+  const [mi, mj] = extentSize(extent);
+  const bounds = { extent, mi, mj };
+  // One scratch voxel with the slice already in place: the setter runs per
+  // filled pixel, so it allocates nothing.
+  const [axisU, axisV] = [0, 1, 2].filter((axis) => axis !== axisIdx);
+  const ijk = [0, 0, 0];
+  ijk[axisIdx] = slice;
 
   return {
     size: axisDims,
     setAtUnsafe(d0: number, d1: number, value: number): boolean {
-      const ijk = convertTo3D(d0, d1);
-      if (containsPoint(extent, ...ijk)) {
-        const offset = mask.image.computeOffsetIndex([
-          ijk[0] - extent[0],
-          ijk[1] - extent[2],
-          ijk[2] - extent[4],
-        ]);
-        // XXX assumes single-component image
-        mask.pixelData[offset] = value;
-        onFilled(ijk);
-        return true;
-      }
-      return false;
+      ijk[axisU] = d0;
+      ijk[axisV] = d1;
+      const i = ijk[0];
+      const j = ijk[1];
+      const k = ijk[2];
+      if (!extentContainsIndex(extent, i, j, k) || !mayFill(i, j, k))
+        return false;
+      // XXX assumes single-component image
+      pixelData[maskOffset(bounds, i, j, k)] = value;
+      return true;
     },
   } as unknown as IGrid2D;
 }
@@ -183,9 +188,9 @@ export function rasterizePolygon({
   const mask = target.voxels.image();
   const grid = createGridAccessor(
     parent,
-    { image: mask, pixelData: target.voxels.scalars(), extent },
+    { pixelData: target.voxels.scalars(), extent },
     { slice, axisIdx: axisIndex },
-    (ijk) => claimVoxel?.claim(ijk[0], ijk[1], ijk[2])
+    (i, j, k) => claimVoxel?.claim(i, j, k) ?? true
   );
 
   try {
