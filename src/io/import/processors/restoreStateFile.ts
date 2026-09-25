@@ -261,18 +261,13 @@ export const createStateFileRestorer = ({
         String(ds.id)
       )
     );
-    // Members missing from a dataset that STILL resolved (from its surviving
-    // files) — an unresolved dataset is already named whole above, but a partial
-    // one restores truncated and must say which files it is missing.
+    // Partially restored datasets need member notices; unresolved datasets are named above.
     const missingMembers = missingFiles
       .filter(({ stateID }) => stateID in stateIDToStoreID)
       .map(
         ({ path }) => `- file: ${basename(path)} (dataset restored without it)`
       );
-    // Leaves that errored during load (e.g. a 404'd uri) while their dataset
-    // still resolved from surviving leaves — an unresolved dataset is already
-    // named whole in missingBases. Scoped to THIS manifest's datasets so one
-    // state file's failures never appear in another's notice.
+    // Report failed members only for surviving datasets in this manifest.
     const manifestStateIDs = new Set(datasets.map((ds) => ds.id));
     const failedMembers = [
       ...new Set(

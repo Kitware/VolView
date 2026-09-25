@@ -11,19 +11,7 @@ import { useRectangleStore } from '@/src/store/tools/rectangles';
 import type { Ruler } from '@/src/types/ruler';
 import type { RequiredWithPartial } from '@/src/types';
 
-// ---------------------------------------------------------------------------
-// Delete-base-then-save, tool half: removing an
-// annotated dataset must remove its annotation tools too — an orphaned
-// imageID serialized into the save manifest is exactly the backend's
-// intentionally fail-closed 400 ('tool has unresolvable imageID'), turning a
-// routine delete gesture into a permanently unsavable session.
-//
-// The mechanism is the same onImageDeleted subscription segmentGroups already
-// uses for its labelmap cascade — so this spec also pins the composable
-// itself: it must actually FIRE on image-cache deletion (a watch on the ref
-// of the reactive index never triggers on a key delete; the composable
-// watches the key SET).
-// ---------------------------------------------------------------------------
+// Serialized tools must never retain references to removed images.
 
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), name, {

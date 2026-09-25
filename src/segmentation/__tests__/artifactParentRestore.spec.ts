@@ -14,7 +14,10 @@ import { type LabelmapIO } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
-import { useMessageStore } from '@/src/store/messages';
+import {
+  messageDetails,
+  messageTitles,
+} from '@/src/components/__tests__/messageDisplay';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -239,10 +242,7 @@ describe('artifact restore parent lifetime', () => {
     expect(store().imageMasks('healthy')).toHaveLength(1);
     expect(tools).toHaveBeenCalledOnce();
     expect(
-      useMessageStore().messages.find(
-        (message) =>
-          message.title === 'Some scene content could not be restored'
-      )?.options.details
+      messageDetails('Some scene content could not be restored')
     ).toContain('Mask parent (parent image did not load)');
     injectIO.mockRestore();
     tools.mockRestore();
@@ -486,10 +486,9 @@ describe.each([true, false])(
         expect(!!cache().imageById.source).toBe(
           !temporary && action === 'failure'
         );
-        const details = useMessageStore().messages.find(
-          (message) =>
-            message.title === 'Some scene content could not be restored'
-        )?.options.details;
+        const details = messageDetails(
+          'Some scene content could not be restored'
+        );
         expect(details).toContain('first');
         expect(details).toContain('second');
         pending.injectedIO.mockRestore();
@@ -511,10 +510,7 @@ describe.each([true, false])(
       expect(pending.remove.mock.calls).toEqual(temporary ? [['source']] : []);
       expect(!!cache().imageById.source).toBe(!temporary);
       expect(
-        useMessageStore().messages.some(
-          (message) =>
-            message.title === 'Some scene content could not be restored'
-        )
+        messageTitles().includes('Some scene content could not be restored')
       ).toBe(false);
       pending.injectedIO.mockRestore();
       pending.tools.mockRestore();

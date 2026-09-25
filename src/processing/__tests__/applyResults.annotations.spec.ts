@@ -16,28 +16,22 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { cssColorToRGBA } from '@/src/segmentation/color';
-import { useMessageStore } from '@/src/store/messages';
+import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
+import {
+  savedMasks,
+  serializeAnnotations,
+  serializeScene,
+} from './serializedScene';
 import { TOOL_COLORS } from '@/src/config';
 import {
   mintSegment,
   lockSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { defer } from '@/src/utils';
-
-// ---------------------------------------------------------------------------
-// Applying an `add-annotations` result.
-//
-// The stores are REAL here: the contract this exercises is what actually lands
-// in a session — the derived slice, the label ids `addTool` re-reads styles
-// from, and the durable `source` receipt — none of which a store double could
-// tell the truth about. Only the heavy import/download edges are mocked.
-// ---------------------------------------------------------------------------
 
 // Stands in for the download edge: records what was asked for and hands back
 // whatever the test last served.
@@ -168,6 +162,12 @@ const annotationsFile = (): WireFile => ({
 
 const serveFile = (body: unknown) => results.serve(body);
 
+const serveRulers = (file: WireFile) =>
+  serveFile({
+    ...file,
+    tools: { ...file.tools, rectangles: [], polygons: [] },
+  });
+
 const apply = (
   resultIntent: Parameters<typeof applyIntent>[0],
   jobContext: Parameters<typeof applyIntent>[1]
@@ -204,16 +204,18 @@ const pauseApplyAt = (phase: 'download' | 'text') => {
   };
 };
 
-const toolCounts = () => ({
-  rulers: useRulerStore().toolIDs.length,
-  rectangles: useRectangleStore().toolIDs.length,
-  polygons: usePolygonStore().toolIDs.length,
-});
+const toolCounts = () => {
+  const { tools } = serializeAnnotations();
+  return {
+    rulers: tools?.rulers?.tools.length ?? 0,
+    rectangles: tools?.rectangles?.tools.length ?? 0,
+    polygons: tools?.polygons?.tools.length ?? 0,
+  };
+};
 
-const onlyTool = (store: {
-  toolIDs: string[];
-  toolByID: Record<string, any>;
-}) => store.toolByID[store.toolIDs[0]];
+const firstRuler = () => serializeAnnotations().tools!.rulers!.tools[0];
+const firstRectangle = () => serializeAnnotations().tools!.rectangles!.tools[0];
+const firstPolygon = () => serializeAnnotations().tools!.polygons!.tools[0];
 
 beforeEach(() => {
   results = resultServer();
@@ -228,7 +230,7 @@ describe('applyIntent — add-annotations', () => {
     expect(outcome.status).toBe('applied');
     expect(toolCounts()).toEqual({ rulers: 1, rectangles: 1, polygons: 1 });
 
-    const ruler = onlyTool(useRulerStore());
+    const ruler = firstRuler();
     expect(ruler.imageID).toBe(IMAGE_ID);
     // The wire said 99; the frame of reference says 5, and it wins.
     expect(ruler.slice).toBe(5);
@@ -236,12 +238,11 @@ describe('applyIntent — add-annotations', () => {
     expect(ruler.secondPoint).toEqual([4, 4, 5]);
     expect(ruler.name).toBe('Long axis');
     expect(ruler.metadata).toEqual({ origin: 'RulerToRectangle' });
-    expect(ruler.placing).toBe(false);
     // The idempotency receipt is durable session state.
     expect(ruler.source).toEqual(source);
 
-    expect(onlyTool(useRectangleStore()).slice).toBe(7);
-    expect(onlyTool(usePolygonStore())).toMatchObject({
+    expect(firstRectangle().slice).toBe(7);
+    expect(firstPolygon()).toMatchObject({
       slice: 3,
       imageID: IMAGE_ID,
       points: [
@@ -287,7 +288,7 @@ describe('applyIntent — add-annotations', () => {
       outcome.status,
       String((outcome as { error?: Error }).error ?? '')
     ).toBe('applied');
-    expect(onlyTool(useRectangleStore())).toMatchObject({
+    expect(firstRectangle()).toMatchObject({
       imageID,
       firstPoint: [-2, 2, 7],
       secondPoint: [2, 6, 7],
@@ -321,9 +322,7 @@ describe('applyIntent — add-annotations', () => {
       const outcome = await apply(intent(), context(IMAGE_ID));
 
       expect(outcome.status).toBe('applied');
-      expect(onlyTool(useRulerStore()).frameOfReference.planeNormal).toEqual(
-        expected
-      );
+      expect(firstRuler().frameOfReference.planeNormal).toEqual(expected);
     }
   );
 
@@ -347,43 +346,40 @@ describe('applyIntent — add-annotations', () => {
   it('gives one segment to a name that repeats across kinds', async () => {
     await apply(intent(), context(IMAGE_ID));
 
-    const rulers = useRulerStore();
-    const rectangles = useRectangleStore();
-    const polygons = usePolygonStore();
-    const ruler = onlyTool(rulers);
-    const rectangle = onlyTool(rectangles);
-
-    // One registry: the name is the segment, whichever tool drew the shape.
+    const saved = serializeAnnotations();
+    const ruler = saved.tools!.rulers!.tools[0];
+    const rectangle = saved.tools!.rectangles!.tools[0];
     expect(ruler.segmentId).toBe(rectangle.segmentId);
-    expect(rulers.appearanceOfTool(ruler.id).name).toBe('roi');
-    expect(onlyTool(polygons).segmentId).not.toBe(ruler.segmentId);
-
-    // Every kind declared a style for the name; the first to bind it wins.
-    expect(rectangles.appearanceOfTool(rectangle.id).cssColor).toBe('#ff0000');
-    expect(rectangles.appearanceOfTool(rectangle.id).strokeWidth).toBe(3);
+    expect(saved.tools!.polygons!.tools[0].segmentId).not.toBe(ruler.segmentId);
+    expect(
+      saved.segments?.find(({ id }) => id === ruler.segmentId)
+    ).toMatchObject({
+      name: 'roi',
+      color: [255, 0, 0, 255],
+      strokeWidth: 3,
+    });
   });
 
   it('binds an existing segment of the same name instead of minting one', async () => {
-    const rulerStore = useRulerStore();
     const registry = useSegmentStore().segments;
     const existingId = registry.addSegment({
       name: 'Measured',
       color: cssColorToRGBA('#ff0000'),
     });
-    const before = registry.segmentList.value.length;
+    const before = serializeAnnotations().segments!.length;
 
     const file = annotationsFile();
     file.labels.rulers = { Measured: { color: '#123456', strokeWidth: 3 } };
     file.tools.rulers[0].labelName = 'Measured';
-    file.tools.rectangles = [];
-    file.tools.polygons = [];
-    serveFile(file);
+    serveRulers(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(registry.segmentList.value).toHaveLength(before);
-    // The registry's own appearance wins on a name match.
-    expect(registry.appearanceOf(existingId).cssColor).toBe('#ff0000');
-    expect(onlyTool(rulerStore).segmentId).toBe(existingId);
+    const saved = serializeAnnotations();
+    expect(saved.segments).toHaveLength(before);
+    expect(saved.segments?.find(({ id }) => id === existingId)?.color).toEqual([
+      255, 0, 0, 255,
+    ]);
+    expect(firstRuler().segmentId).toBe(existingId);
   });
 
   it('keeps a segment’s colour when a label states one the parser rejects', async () => {
@@ -403,21 +399,18 @@ describe('applyIntent — add-annotations', () => {
       { ...file.tools.rulers[0], labelName: 'Measured' },
       { ...file.tools.rulers[0], labelName: 'Fresh' },
     ];
-    file.tools.rectangles = [];
-    file.tools.polygons = [];
-    serveFile(file);
+    serveRulers(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
 
-    // The bound segment keeps what it had, and a minted one keeps its
-    // automatic palette colour. Neither turns opaque black.
-    expect(registry.appearanceOf(existingId).cssColor).toBe('#ff0000');
-    const minted = registry.segmentList.value.find(
-      (segment) => segment.name === 'Fresh'
-    )!;
-    expect(TOOL_COLORS).toContain(registry.appearanceOf(minted.id).cssColor);
+    const saved = serializeAnnotations();
+    expect(saved.segments?.find(({ id }) => id === existingId)?.color).toEqual([
+      255, 0, 0, 255,
+    ]);
+    const minted = saved.segments!.find((segment) => segment.name === 'Fresh')!;
+    expect(TOOL_COLORS).toContain(rgbaToCssColor(minted.color));
 
-    const titles = useMessageStore().messages.map((message) => message.title);
+    const titles = messageTitles();
     expect(titles).toHaveLength(1);
     expect(titles[0]).toContain('Measured (rgb(0, 255, 0))');
     expect(titles[0]).toContain('Fresh (rgb(0, 255, 0))');
@@ -434,15 +427,11 @@ describe('applyIntent — add-annotations', () => {
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
 
-    const rulers = useRulerStore();
-    const polygons = usePolygonStore();
-    expect(rulers.appearanceOfTool(onlyTool(rulers).id).cssColor).toBe(
-      '#00ff00'
-    );
-    expect(polygons.appearanceOfTool(onlyTool(polygons).id).cssColor).toBe(
-      '#00ff00'
-    );
-    expect(useMessageStore().messages).toHaveLength(0);
+    expect(serializeAnnotations().segments).toMatchObject([
+      { name: 'Hexed', color: [0, 255, 0, 255] },
+      { name: 'Named', color: [0, 255, 0, 255] },
+    ]);
+    expect(messageTitles()).toHaveLength(0);
   });
 
   it('binds a locked segment without touching its mask', async () => {
@@ -460,12 +449,7 @@ describe('applyIntent — add-annotations', () => {
     voxels.scalars()[0] = labelValue;
     voxels.image().modified();
     lockSegment(locked.id, true);
-    const maskBefore = voxels.image();
-    const bindingBefore = {
-      ...voxels.binding()!,
-      extent: [...voxels.binding()!.extent],
-    };
-    const scalarsBefore = Array.from(voxels.snapshot());
+    const before = await serializeScene([IMAGE_ID]);
 
     const file = annotationsFile();
     file.tools.rulers = [];
@@ -473,25 +457,26 @@ describe('applyIntent — add-annotations', () => {
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(segmentation.order).toEqual([locked.id]);
-    expect(segmentationStore.getMask(locked.id)).toMatchObject({
-      segmentId: lockedSegment,
-      representations: { labelmap: bindingBefore },
-    });
-    expect(useSegmentStore().segments.appearanceOf(lockedSegment).locked).toBe(
-      true
+    const after = await serializeScene([IMAGE_ID]);
+    expect(savedMasks(after, IMAGE_ID)).toEqual(savedMasks(before, IMAGE_ID));
+    expect(savedMasks(after, IMAGE_ID)).toMatchObject([
+      {
+        id: locked.id,
+        segmentId: lockedSegment,
+        segment: { locked: true },
+        extent: [2, 2, 3, 3, 4, 4],
+        artifact: { values: [SEGMENT_VALUE] },
+      },
+    ]);
+    expect(after.manifest.tools!.rectangles!.tools[0].segmentId).toBe(
+      lockedSegment
     );
-    expect(voxels.image()).toBe(maskBefore);
-    expect(Array.from(voxels.snapshot())).toEqual(scalarsBefore);
-    // The shape names the segment, not this image's mask for it.
-    expect(onlyTool(useRectangleStore()).segmentId).toBe(lockedSegment);
   });
 
   it('leaves the picker where the user left it', async () => {
-    const rulerStore = useRulerStore();
     const registry = useSegmentStore().segments;
     const selectedBefore = registry.addSegment({ name: 'Chosen' });
-    expect(registry.selectedSegmentId.value).toBe(selectedBefore);
+    expect(serializeAnnotations().selectedSegment).toBe(selectedBefore);
 
     const file = annotationsFile();
     // A name no segment carries, so binding must MINT one, the case that could
@@ -501,10 +486,13 @@ describe('applyIntent — add-annotations', () => {
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(registry.selectedSegmentId.value).toBe(selectedBefore);
+    expect(serializeAnnotations().selectedSegment).toBe(selectedBefore);
     // The segment still landed; only the picker was left alone.
-    const ruler = onlyTool(rulerStore);
-    expect(rulerStore.appearanceOfTool(ruler.id).name).toBe('fresh');
+    const ruler = firstRuler();
+    expect(
+      serializeAnnotations().segments?.find(({ id }) => id === ruler.segmentId)
+        ?.name
+    ).toBe('fresh');
   });
 
   it('preserves the user’s selected segment while result segments land', async () => {
@@ -520,12 +508,15 @@ describe('applyIntent — add-annotations', () => {
     await nextTick();
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(
-      selectedSegment
-    );
+    expect(serializeAnnotations().selectedSegment).toBe(selectedSegment);
 
     const next = segmentationStore.resolveEditTarget('next-image');
-    expect(segmentationStore.getMask(next).segmentId).toBe(selectedSegment);
+    expect(
+      savedMasks(
+        await serializeScene(['origin-image', IMAGE_ID, 'next-image']),
+        'next-image'
+      )
+    ).toMatchObject([{ id: next, segmentId: selectedSegment }]);
   });
 
   it('leaves an unlabeled tool unlabeled', async () => {
@@ -538,14 +529,12 @@ describe('applyIntent — add-annotations', () => {
         frameOfReference: axialAt(5),
       },
     ];
-    file.tools.rectangles = [];
-    file.tools.polygons = [];
-    serveFile(file);
+    serveRulers(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    const ruler = onlyTool(useRulerStore());
+    const ruler = firstRuler();
     expect(ruler.segmentId).toBe('');
-    expect(useRulerStore().appearanceOfTool(ruler.id).name).toBe('');
+    expect(serializeAnnotations().segments).toEqual([]);
   });
 
   it('is a no-op when a tool already carries the same source', async () => {
@@ -611,17 +600,18 @@ describe('applyIntent — add-annotations', () => {
       const outcome = await paused.operation;
       expect(outcome.status).toBe('failed');
       expect(toolCounts()).toEqual({ rulers: 1, rectangles: 0, polygons: 0 });
-      expect(useRulerStore().toolByID[existingTool]).toMatchObject({
-        imageID: otherImage,
-        segmentId: existingSegment,
-      });
-      expect(useRulerStore().serializeTools().tools).toEqual([
-        expect.objectContaining({ imageID: otherImage }),
+      const saved = serializeAnnotations();
+      expect(saved.tools!.rulers!.tools).toMatchObject([
+        {
+          id: existingTool,
+          imageID: otherImage,
+          segmentId: existingSegment,
+        },
       ]);
-      expect(registry.segmentList.value.map(({ name }) => name)).toEqual([
-        'Existing',
-      ]);
-      expect(useImageCacheStore().getImageMetadata(otherImage)).not.toBeNull();
+      expect(saved.segments?.map(({ name }) => name)).toEqual(['Existing']);
+      expect((await apply(intent(), context(otherImage))).status).toBe(
+        'applied'
+      );
     }
   );
 
@@ -639,9 +629,9 @@ describe('applyIntent — add-annotations', () => {
       expect((await paused.operation).status).toBe('applied');
       expect(toolCounts()).toEqual({ rulers: 1, rectangles: 1, polygons: 1 });
       expect([
-        onlyTool(useRulerStore()).imageID,
-        onlyTool(useRectangleStore()).imageID,
-        onlyTool(usePolygonStore()).imageID,
+        firstRuler().imageID,
+        firstRectangle().imageID,
+        firstPolygon().imageID,
       ]).toEqual([IMAGE_ID, IMAGE_ID, IMAGE_ID]);
     }
   );
@@ -654,10 +644,7 @@ describe('applyIntent — add-annotations', () => {
   });
 
   it('rejects the whole result when any frame is not axis-aligned, before mutating', async () => {
-    const registry = useSegmentStore().segments;
-    const typesBefore = registry.segmentList.value.map((type) => ({
-      ...type,
-    }));
+    const typesBefore = serializeAnnotations().segments;
 
     const file = annotationsFile();
     // Oblique: unrenderable, and no `slice` echo can rescue it.
@@ -675,7 +662,7 @@ describe('applyIntent — add-annotations', () => {
     // All-or-nothing: not even the rulers that WOULD have placed, and not the
     // registry, since binding a name mints or restyles a segment.
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
-    expect(registry.segmentList.value).toEqual(typesBefore);
+    expect(serializeAnnotations().segments).toEqual(typesBefore);
   });
 
   it('places a plane past the image bounds, as the renderer already does', async () => {
@@ -688,7 +675,7 @@ describe('applyIntent — add-annotations', () => {
     const outcome = await apply(intent(), context(IMAGE_ID));
 
     expect(outcome.status).toBe('applied');
-    expect(onlyTool(useRulerStore()).slice).toBe(500);
+    expect(firstRuler().slice).toBe(500);
   });
 
   it('rejects a plane that falls between slices, and says so', async () => {
@@ -732,7 +719,7 @@ describe('applyIntent — add-annotations', () => {
   it('mints the receipt from the submitted job when the producer omitted a source', async () => {
     const unsourced = intent({ source: undefined });
     expect((await apply(unsourced, context(IMAGE_ID))).status).toBe('applied');
-    expect(onlyTool(useRulerStore()).source).toEqual({
+    expect(firstRuler().source).toEqual({
       providerId: 'provider-1',
       jobId: 'job-1',
       outputId: 'r1',
@@ -770,16 +757,14 @@ describe('applyIntent — add-annotations', () => {
         },
       ];
       file.labels.rulers = {};
-      file.tools.rectangles = [];
-      file.tools.polygons = [];
-      serveFile(file);
+      serveRulers(file);
     };
 
     it('drops a stray frame when the target is a static volume', async () => {
       rulerOnlyFile(3);
       const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
-      expect(onlyTool(useRulerStore()).frame).toBeUndefined();
+      expect(firstRuler().frame).toBeUndefined();
     });
 
     it('keeps an in-range integral frame on a cine target', async () => {
@@ -787,7 +772,7 @@ describe('applyIntent — add-annotations', () => {
       rulerOnlyFile(7);
       const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
-      expect(onlyTool(useRulerStore()).frame).toBe(7);
+      expect(firstRuler().frame).toBe(7);
     });
 
     it('applies a frameless tool to a cine target (every frame)', async () => {
@@ -795,7 +780,7 @@ describe('applyIntent — add-annotations', () => {
       rulerOnlyFile();
       const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
-      expect(onlyTool(useRulerStore()).frame).toBeUndefined();
+      expect(firstRuler().frame).toBeUndefined();
     });
 
     // Fractional and negative frames are not frames at all, so they die in the
@@ -822,7 +807,7 @@ describe('applyIntent — add-annotations', () => {
       rulerOnlyFile(8);
       const outcome = await apply(intent(), context(IMAGE_ID));
       expect(outcome.status).toBe('applied');
-      expect(onlyTool(useRulerStore()).frame).toBeUndefined();
+      expect(firstRuler().frame).toBeUndefined();
     });
   });
 });

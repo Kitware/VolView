@@ -2,11 +2,13 @@ import { MessageChannel } from 'node:worker_threads';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, disposePinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
+import { flushPromises } from '@vue/test-utils';
+import { defer } from '@/src/utils';
 import * as Comlink from 'comlink';
 import { histogram } from '@/src/utils/histogram';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // Real Comlink messages and histogram results, with completion controlled at
@@ -26,11 +28,14 @@ class HistogramEndpoint {
 
   finish!: (error?: Error) => void;
 
-  started = false;
+  started = defer<void>();
+
+  terminated = defer<void>();
 
   terminate = vi.fn(() => {
     this.channel.port1.close();
     this.channel.port2.close();
+    this.terminated.resolve();
   });
 
   constructor() {
@@ -40,7 +45,7 @@ class HistogramEndpoint {
     Comlink.expose(
       {
         histogram: async (...args: Parameters<typeof histogram>) => {
-          this.started = true;
+          this.started.resolve();
           await completion;
           return histogram(...args);
         },
@@ -90,18 +95,22 @@ describe('image statistics worker ownership', () => {
       ),
     });
     const worker = workers[workers.length - 1];
-    await vi.waitFor(() => expect(worker.started).toBe(true));
+    await worker.started.promise;
     return worker;
   }
 
-  async function expectRanges(id: string, offset = 0) {
-    await vi.waitFor(() => {
-      expect(useImageStatsStore().getAutoRangeValues(id)).toEqual({
-        FullRange: [offset, offset + 511],
-        LowContrast: [offset + 5, offset + 507],
-        MediumContrast: [offset + 10, offset + 502],
-        HighContrast: [offset + 25, offset + 487],
-      });
+  const finish = async (worker: HistogramEndpoint, error?: Error) => {
+    worker.finish(error);
+    await worker.terminated.promise;
+    await flushPromises();
+  };
+
+  function expectRanges(id: string, offset = 0) {
+    expect(useImageStatsStore().getAutoRangeValues(id)).toEqual({
+      FullRange: [offset, offset + 511],
+      LowContrast: [offset + 5, offset + 507],
+      MediumContrast: [offset + 10, offset + 502],
+      HighContrast: [offset + 25, offset + 487],
     });
   }
 
@@ -110,14 +119,14 @@ describe('image statistics worker ownership', () => {
       const id = `image-${cycle}`;
       const worker = await startImage(id, cycle * 100 - 300);
       expect(worker.terminate).not.toHaveBeenCalled();
-      worker.finish();
-      await expectRanges(id, cycle * 100 - 300);
+      await finish(worker);
+      expectRanges(id, cycle * 100 - 300);
       expect(worker.terminate).toHaveBeenCalledExactlyOnceWith();
       useImageCacheStore().removeImage(id);
       await nextTick();
       expect(useImageStatsStore().stats[id]).toBeUndefined();
     }
-    expect(useMessageStore().messages).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 
   it('reclaims a rejected worker while other calculations and later loads succeed', async () => {
@@ -125,24 +134,21 @@ describe('image statistics worker ownership', () => {
     const healthy = await startImage('healthy', -1000);
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    failed.finish(new Error('Histogram failed'));
-    await vi.waitFor(() => {
-      expect(useMessageStore().messages).toHaveLength(1);
-    });
-    expect(useMessageStore().messages[0].title).toBe(
-      'Auto range computation failed for image failed'
-    );
+    await finish(failed, new Error('Histogram failed'));
+    expect(messageTitles()).toEqual([
+      'Auto range computation failed for image failed',
+    ]);
     expect(errors).toHaveBeenCalled();
     expect(failed.terminate).toHaveBeenCalledExactlyOnceWith();
     expect(healthy.terminate).not.toHaveBeenCalled();
     expect(useImageStatsStore().getAutoRangeValues('failed')).toEqual({});
 
-    healthy.finish();
-    await expectRanges('healthy', -1000);
+    await finish(healthy);
+    expectRanges('healthy', -1000);
     expect(healthy.terminate).toHaveBeenCalledExactlyOnceWith();
     const later = await startImage('later', 1000);
-    later.finish();
-    await expectRanges('later', 1000);
+    await finish(later);
+    expectRanges('later', 1000);
     expect(later.terminate).toHaveBeenCalledExactlyOnceWith();
   });
 
@@ -151,15 +157,13 @@ describe('image statistics worker ownership', () => {
     const healthy = await startImage('healthy');
     useImageCacheStore().removeImage('removed');
     await nextTick();
-    removed.finish();
-    await vi.waitFor(() => {
-      expect(removed.terminate).toHaveBeenCalledExactlyOnceWith();
-    });
+    await finish(removed);
+    expect(removed.terminate).toHaveBeenCalledExactlyOnceWith();
     expect(useImageStatsStore().stats.removed).toBeUndefined();
     expect(healthy.terminate).not.toHaveBeenCalled();
-    healthy.finish();
-    await expectRanges('healthy');
+    await finish(healthy);
+    expectRanges('healthy');
     expect(healthy.terminate).toHaveBeenCalledExactlyOnceWith();
-    expect(useMessageStore().messages).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 });

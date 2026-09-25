@@ -20,6 +20,15 @@ type SliceRepresentationType = ReturnType<typeof useSliceRepresentation>;
 const props = defineProps<{
   baseRep: SliceRepresentationType;
   layerReps: SliceRepresentationType[];
+  createPicker?: () => Pick<
+    ReturnType<typeof vtkPointPicker.newInstance>,
+    | 'setPickFromList'
+    | 'setPickList'
+    | 'pick'
+    | 'getActors'
+    | 'getPointIJK'
+    | 'delete'
+  >;
 }>();
 
 const { baseRep, layerReps } = toRefs(props);
@@ -73,7 +82,7 @@ const sampleSet = computed(() => {
   return [...getLayers(), base];
 });
 
-const pointPicker = vtkPointPicker.newInstance();
+const pointPicker = (props.createPicker ?? vtkPointPicker.newInstance)();
 pointPicker.setPickFromList(true);
 onScopeDispose(() => pointPicker.delete());
 

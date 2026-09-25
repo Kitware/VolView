@@ -12,7 +12,7 @@ import {
 import { toLabelMap } from '@/src/segmentation/io/import';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 
 // ---------------------------------------------------------------------------
 // A parent removed mid-conversion must mint nothing, and the failure must
@@ -126,9 +126,7 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
     resample.release(child);
     await conversion;
 
-    expect(useMessageStore().messages.map((message) => message.title)).toEqual([
-      'Failed to convert image to a labelmap',
-    ]);
+    expect(messageTitles()).toEqual(['Failed to convert image to a labelmap']);
     expectNothingMinted();
     expect(store().convertingLabelmaps.has('child')).toBe(false);
   });

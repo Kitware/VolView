@@ -11,7 +11,10 @@ import type {
   SubmittedJobContext,
 } from '@/src/processing/types';
 import type { ResultSource } from '@/backend-contract';
-import { useMessageStore } from '@/src/store/messages';
+import {
+  messageTitles,
+  mountMessageCenter,
+} from '@/src/components/__tests__/messageDisplay';
 
 // ---------------------------------------------------------------------------
 // Intent routing: which scene edge each result intent reaches for, and what it
@@ -45,8 +48,6 @@ const autoLoad = (
   results: ProcessingResult[],
   jobContext: SubmittedJobContext | undefined
 ) => autoLoadProcessingResults(results, jobContext, deps);
-
-const errorMessages = () => useMessageStore().messages;
 
 const file = { id: 'r1', url: 'https://example/out.nrrd', name: 'out.nrrd' };
 const rgba = (r: number, g: number, b: number, a: number) =>
@@ -296,7 +297,7 @@ describe('applyIntent', () => {
     );
     expect(deps.segmentWriter.convertImageToLabelmap).not.toHaveBeenCalled();
     expect(applied.status).toBe('failed');
-    expect(errorMessages()).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 
   it('add-layer reports an explicit failure when the result fails to load (#7)', async () => {
@@ -307,7 +308,7 @@ describe('applyIntent', () => {
     );
     expect(deps.addLayer).not.toHaveBeenCalled();
     expect(applied.status).toBe('failed');
-    expect(errorMessages()).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 
   it('resolves to failed (never rejects) when the fallback open throws', async () => {
@@ -328,7 +329,7 @@ describe('applyIntent', () => {
     expect(deps.addLayer).toHaveBeenCalledWith('parent', 'child-selection');
     expect(applied.status).toBe('failed');
     expect(deps.removeDataset).toHaveBeenCalledWith('child-selection');
-    expect(errorMessages()).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 });
 
@@ -376,14 +377,10 @@ describe('autoLoadProcessingResults', () => {
       [result({ name: 'seg.nrrd', intent: 'add-polygon' })],
       context('parent')
     );
-    expect(errorMessages()).toEqual([
-      expect.objectContaining({
-        title: 'Did not load seg.nrrd',
-        options: expect.objectContaining({
-          details: expect.stringContaining('add-polygon'),
-        }),
-      }),
-    ]);
+    expect(messageTitles()).toEqual(['Did not load seg.nrrd']);
+    expect(mountMessageCenter().get('.details').text()).toContain(
+      'add-polygon'
+    );
   });
 
   it('imports a segmentation a 0.2.0 backend still names add-segment-group', async () => {
@@ -392,7 +389,7 @@ describe('autoLoadProcessingResults', () => {
       context('parent')
     );
     expect(deps.segmentWriter.convertImageToLabelmap).toHaveBeenCalledTimes(1);
-    expect(errorMessages()).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 
   it('blames the payload, not the client, for a known intent it rejects', async () => {
@@ -412,22 +409,18 @@ describe('autoLoadProcessingResults', () => {
       context('parent')
     );
     expect(deps.segmentWriter.convertImageToLabelmap).not.toHaveBeenCalled();
-    expect(errorMessages()).toEqual([
-      expect.objectContaining({
-        title: 'Did not load otsu.nii.gz',
-        options: expect.objectContaining({
-          details: expect.stringContaining('import-segmentation'),
-        }),
-      }),
-    ]);
-    expect(errorMessages()[0].options.details).not.toContain(
+    expect(messageTitles()).toEqual(['Did not load otsu.nii.gz']);
+    expect(mountMessageCenter().get('.details').text()).toContain(
+      'import-segmentation'
+    );
+    expect(mountMessageCenter().get('.details').text()).not.toContain(
       'This version cannot apply'
     );
   });
 
   it('stays quiet about a result that declares no intent', async () => {
     await autoLoad([result()], context('parent'));
-    expect(errorMessages()).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 
   it('opens base images even when there is no originating dataset', async () => {
@@ -539,7 +532,7 @@ describe('autoLoadProcessingResults — labelmap auto-apply', () => {
     deps.importVolume.mockResolvedValue(null);
     await autoLoad([segResult()], context('parent'));
     expect(deps.segmentWriter.convertImageToLabelmap).not.toHaveBeenCalled();
-    expect(errorMessages()).toHaveLength(1);
+    expect(messageTitles()).toHaveLength(1);
   });
 });
 

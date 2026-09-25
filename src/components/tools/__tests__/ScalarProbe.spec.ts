@@ -1,140 +1,123 @@
-import { mount } from '@vue/test-utils';
-import { createPinia, setActivePinia } from 'pinia';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ref } from 'vue';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import { h, nextTick, ref } from 'vue';
+import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import ScalarProbe from '@/src/components/tools/ScalarProbe.vue';
+import ProbeView from '@/src/components/ProbeView.vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import { useProbeStore } from '@/src/store/probe';
+import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
+import { useLayersStore } from '@/src/store/datasets-layers';
+import {
+  activateAppPinia,
+  addMask,
+  seatImage,
+  seedVoxel,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
-import * as currentImage from '@/src/composables/useCurrentImage';
-import * as vtkEvent from '@/src/composables/onVTKEvent';
-import vtkPointPicker from '@kitware/vtk.js/Rendering/Core/PointPicker';
-import * as imageCache from '@/src/store/image-cache';
-import * as segments from '@/src/segmentation/segments';
-import * as segmentations from '@/src/segmentation/store';
-import { resolveSegmentAppearance } from '@/src/segmentation/segment';
+enableAutoUnmount(afterEach);
 
-const state = {
-  current: {} as ReturnType<typeof currentImage.useCurrentImage>,
-  covering: [] as string[],
-  names: {} as Record<string, string>,
-  events: {} as Record<string, (event: unknown) => void>,
+const mountProbe = () => {
+  const actor = vtkActor.newInstance();
+  const rep = { actor } as unknown as InstanceType<
+    typeof ScalarProbe
+  >['$props']['baseRep'];
+  const picker = {
+    setPickFromList: vi.fn(),
+    setPickList: vi.fn(),
+    pick: vi.fn(),
+    getActors: () => [actor],
+    getPointIJK: () => [1, 0, 0],
+    delete: () => actor.delete(),
+  };
+  const events = new Map<string, (event?: unknown) => void>();
+  const subscribe = (name: string) => (callback: (event?: unknown) => void) => {
+    events.set(name, callback);
+    return { unsubscribe: () => events.delete(name) };
+  };
+  const wrapper = mount(ScalarProbe, {
+    props: { baseRep: rep, layerReps: [rep], createPicker: () => picker },
+    slots: { default: () => h(ProbeView) },
+    global: {
+      provide: {
+        [CurrentImageInjectionKey as symbol]: { imageID: ref('ct') },
+        [VtkViewContext as symbol]: {
+          renderer: {},
+          interactor: {
+            onMouseMove: subscribe('move'),
+            onPointerLeave: subscribe('leave'),
+          },
+        },
+      },
+      stubs: {
+        VCard: { template: '<div><slot /></div>' },
+        VCardText: { template: '<div><slot /></div>' },
+      },
+    },
+  });
+  return {
+    wrapper,
+    move: async () => {
+      events.get('move')!({ position: { x: 10, y: 20 } });
+      await nextTick();
+    },
+    leave: async () => {
+      events.get('leave')!();
+      await nextTick();
+    },
+    displayedSamples: () =>
+      wrapper
+        .findAll('.probe-value-display .d-flex')
+        .map((row) => row.findAll('span').map((span) => span.text())),
+  };
 };
 
-function image(values: number[]) {
-  const result = vtkImageData.newInstance();
-  result.setDimensions(3, 1, 1);
-  result.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      values: new Float32Array(values),
-      numberOfComponents: 1,
-    })
-  );
-  return result;
-}
-
-function probe() {
-  const rep = {} as InstanceType<typeof ScalarProbe>['$props']['baseRep'];
-  const wrapper = mount(ScalarProbe, {
-    props: {
-      baseRep: rep,
-      layerReps: [rep],
-    },
-    global: {
-      provide: { [VtkViewContext as symbol]: { renderer: {}, interactor: {} } },
-    },
-  });
-  state.events.onMouseMove({ position: { x: 10, y: 20 } });
-  const result = useProbeStore().probeData;
-  wrapper.unmount();
-  return result;
-}
-
 describe('ScalarProbe segment samples', () => {
-  afterEach(() => vi.restoreAllMocks());
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    setActivePinia(createPinia());
-    state.current = {
-      currentImageID: ref('ct'),
-      currentImageData: ref(image([-100, 42, 100])),
-      currentImageMetadata: ref({ name: 'CT' }),
-      currentLayers: ref([{ id: 'overlay', selection: 'overlay' }]),
-    } as ReturnType<typeof currentImage.useCurrentImage>;
-    state.covering = [];
-    state.names = {};
-    state.events = {};
-    vi.spyOn(currentImage, 'useCurrentImage').mockImplementation(
-      () => state.current
-    );
-    vi.spyOn(vtkEvent, 'onVTKEvent').mockImplementation(
-      (_target, name, callback) => {
-        state.events[name] = callback;
-        return { stop: () => {} };
-      }
-    );
-    const picker = { ...vtkPointPicker.newInstance() };
-    vi.spyOn(picker, 'pick').mockImplementation(() => {});
-    vi.spyOn(picker, 'getActors').mockReturnValue([
-      {} as ReturnType<typeof picker.getActors>[number],
-    ]);
-    vi.spyOn(picker, 'getPointIJK').mockReturnValue([1, 0, 0]);
-    vi.spyOn(vtkPointPicker, 'newInstance').mockReturnValue(picker);
-    const cache = imageCache.useImageCacheStore();
-    vi.spyOn(cache, 'getImageMetadata').mockReturnValue({
-      name: 'Overlay',
-    } as ReturnType<typeof cache.getImageMetadata>);
-    vi.spyOn(cache, 'getVtkImageData').mockReturnValue(image([0, 0, 0]));
-    const registry = segments.useSegmentStore();
-    vi.spyOn(registry.segments, 'appearanceOf').mockImplementation((id) =>
-      resolveSegmentAppearance({
-        id: id!,
-        name: state.names[id!] ?? id!,
-        color: [0, 0, 0, 255],
-        visible: true,
-        locked: false,
-      })
-    );
-    const store = segmentations.useSegmentationStore();
-    vi.spyOn(store, 'segmentsAt').mockImplementation(() => state.covering);
-  });
-
-  it('lists the covering segment beside the CT, the position, and a zero image layer', () => {
-    state.covering = ['Liver'];
-    const result = probe();
-    expect(
-      segmentations.useSegmentationStore().segmentsAt
-    ).toHaveBeenCalledWith('ct', 1, 0, 0);
-    expect(Array.from(result!.pos)).toEqual([1, 0, 0]);
-    expect(result!.samples).toEqual([
-      { id: 'segments', name: 'Segment', displayValues: ['Liver'] },
-      { id: 'overlay', name: 'Overlay', displayValues: [0] },
-      { id: 'ct', name: 'CT', displayValues: [42] },
-    ]);
-  });
-
-  it('names every overlapping segment under one heading', () => {
-    state.covering = ['First', 'Second'];
-    expect(
-      probe()!.samples.map(({ name, displayValues }) => [name, displayValues])
-    ).toEqual([
-      ['Segments', ['First', 'Second']],
-      ['Overlay', [0]],
-      ['CT', [42]],
-    ]);
-  });
-
-  it('names a covering segment that has no name', () => {
-    state.covering = ['unnamed'];
-    state.names = { unnamed: '' };
-
-    expect(probe()!.samples[0]).toEqual({
-      id: 'segments',
-      name: 'Segment',
-      displayValues: ['(no name)'],
+  beforeEach(async () => {
+    activateAppPinia();
+    await seatImage('ct', {
+      name: 'CT',
+      dimensions: [3, 1, 1],
+      values: new Float32Array([-100, 42, 100]),
     });
+    await seatImage('overlay', {
+      name: 'Overlay',
+      dimensions: [3, 1, 1],
+    });
+    await useLayersStore().addLayer('ct', 'overlay');
+  });
+
+  it('displays the covering segment beside the CT, the position, and a zero image layer', async () => {
+    seedVoxel(addMask('ct', 'Liver'), [1, 0, 0]);
+    const probe = mountProbe();
+    await probe.move();
+    expect(probe.displayedSamples()).toEqual([
+      ['Segment', 'Liver'],
+      ['Overlay', '0'],
+      ['CT', '42'],
+      ['Position', '1, 0, 0'],
+    ]);
+    await probe.leave();
+    expect(probe.wrapper.find('.probe-value-display').exists()).toBe(false);
+  });
+
+  it('names every overlapping segment under one heading', async () => {
+    ['First', 'Second'].forEach((name) =>
+      seedVoxel(addMask('ct', name), [1, 0, 0])
+    );
+    const probe = mountProbe();
+    await probe.move();
+    expect(probe.displayedSamples()).toEqual([
+      ['Segments', 'First, Second'],
+      ['Overlay', '0'],
+      ['CT', '42'],
+      ['Position', '1, 0, 0'],
+    ]);
+  });
+
+  it('names a covering segment that has no name', async () => {
+    seedVoxel(addMask('ct', ''), [1, 0, 0]);
+    const probe = mountProbe();
+    await probe.move();
+    expect(probe.displayedSamples()[0]).toEqual(['Segment', '(no name)']);
   });
 });

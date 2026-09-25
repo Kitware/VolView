@@ -117,11 +117,15 @@ export async function seatImage(id: string, options: SeatOptions = {}) {
   return image;
 }
 
+export async function showImage(id: string) {
+  useViewStore().setDataForAllViews(id);
+  await nextTick();
+}
+
 /** Seats an image and shows it in every view, which makes it the current one. */
 export async function viewImage(id: string, options: SeatOptions = {}) {
   const image = await seatImage(id, options);
-  useViewStore().setDataForAllViews(id);
-  await nextTick();
+  await showImage(id);
   return image;
 }
 
