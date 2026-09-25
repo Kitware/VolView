@@ -110,8 +110,25 @@ Two versions on separate clocks:
   `info.version`, kept in lockstep by `processing/__tests__/openapi.spec.ts`.
   Versions this package as a published thing.
 - **Shape versions**: `INTENT_VOCABULARY_VERSION` (`processing/wire.ts`) and
-  the task-spec `specVersion`. These version the wire vocabulary for additive
-  compatibility negotiation.
+  the task-spec `specVersion`. These name the shape of the wire vocabulary in
+  the generated OpenAPI description and in release notes. Neither travels on
+  the wire, so neither is negotiated: additive compatibility rests on both
+  sides failing open on a value they do not know.
+
+### Result instruction rollout
+
+Contract artifact 0.3.0 uses intent vocabulary 3 and names segmentation import
+`import-segmentation`. A current client still reads the earlier name,
+`add-segment-group`, as the same instruction (`LEGACY_RESULT_INTENT_NAMES` in
+`processing/wire.ts`), so a producer may move to the new name after the client.
+The reverse order does not hold: an older client treats `import-segmentation`
+as an ordinary result and will not apply its segmentation automatically.
+Update Girder's pinned VolView package before the producer emits the new name.
+
+This vocabulary change does not change task-spec versions or saved-session
+schemas. Girder projects stored job outputs into current instructions when
+results are requested; stored output references and mask provenance keep their
+identities.
 
 ## Regenerating
 

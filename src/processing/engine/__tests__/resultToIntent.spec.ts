@@ -19,12 +19,18 @@ describe('resultToIntent', () => {
     [
       'malformed',
       result({
-        intent: 'add-segment-group',
+        intent: 'import-segmentation',
         segments: [{ value: 0, name: 'bad', color: [0, 0, 0, 255] }],
       }),
     ],
   ])('returns no state directive for a %s intent', (_name, value) => {
     expect(resultToIntent(value)).toBeUndefined();
+  });
+
+  it('reads the earlier name of the segmentation import as the current one', () => {
+    expect(
+      resultToIntent(result({ intent: 'add-segment-group' }))?.intent
+    ).toBe('import-segmentation');
   });
 
   it('returns a declared, shape-valid state directive (carrying the row id)', () => {

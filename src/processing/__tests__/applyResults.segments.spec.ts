@@ -8,6 +8,7 @@ import {
   appApplyDependencies,
 } from '@/src/processing/applyResults';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import { isEmptyExtent } from '@/src/segmentation/geometry';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -33,7 +34,7 @@ const existingMask = (imageId: string, name: string) => {
 const importResult = (segments?: SegmentDescriptor[]) =>
   applyIntent(
     {
-      intent: 'add-segment-group',
+      intent: 'import-segmentation',
       id: 'result',
       name: 'output.nrrd',
       url: 'https://example/output.nrrd',
@@ -117,7 +118,7 @@ describe('processing segment identity', () => {
     ]);
   });
 
-  it('overrides embedded names before binding and preserves undescribed source values', async () => {
+  it('overrides embedded names, keeps undescribed source values, and keeps a declared empty', async () => {
     existingMask('parent-A', 'Embedded');
     const output = useImageCacheStore().imageById.output;
     output.headerMetadata = buildSegNrrdMetadata(
@@ -128,20 +129,33 @@ describe('processing segment identity', () => {
     scalars.getData()[42] = 7;
     scalars.modified();
 
-    await importResult([
-      { value: 1, name: 'Explicit', color: blue, visible: false },
-      { value: 99, name: 'Absent', color: blue },
-    ]);
+    // Asserted, not discarded: the import pairs the masks it minted with the
+    // descriptors it decoded by position, so a descriptor list that grows
+    // after the decode fails the whole apply rather than the row below.
+    expect(
+      await importResult([
+        { value: 1, name: 'Explicit', color: blue, visible: false },
+        { value: 99, name: 'Absent', color: blue },
+      ])
+    ).toEqual({ status: 'applied' });
 
+    // Value 99 has no voxels and no header block. A segment a result DECLARES
+    // but leaves EMPTY appears as an empty row, so it is minted after the
+    // decoded ones.
     expect(appearanceOnB()).toMatchObject([
       { name: 'Explicit', color: blue, visible: false },
       { name: 'output 7' },
+      { name: 'Absent', color: blue, visible: true },
     ]);
     expect(registry().findSegmentByName('Embedded')?.color).toEqual(red);
-    expect(registry().findSegmentByName('Absent')).toBeUndefined();
     expect(
       store().imageMasks('parent-B')[1].representations.labelmap?.extent
     ).toEqual([2, 2, 2, 2, 2, 2]);
+    expect(
+      isEmptyExtent(
+        store().imageMasks('parent-B')[2].representations.labelmap!.extent
+      )
+    ).toBe(true);
   });
 
   it('applies source-value descriptions independently to every component', async () => {

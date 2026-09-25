@@ -18,10 +18,14 @@ import {
 } from './task-spec';
 import { pathSegmentIdSchema } from './ids';
 
-// Bump when the intent vocabulary's shape changes so producers and the applier
-// can negotiate compatibility. Adding an intent is a compatible bump: an older
-// client demotes the unknown intent through the fail-open branch above.
-export const INTENT_VOCABULARY_VERSION = 2;
+// A client-side marker for the shape of the intent vocabulary below, bumped
+// when that shape changes. It never travels on the wire: no request header,
+// response field, or schema property carries it, so the two sides never see
+// each other's value and cannot negotiate on it. It names the vocabulary in
+// the generated OpenAPI description and in this package's release notes.
+// Adding an intent stays compatible without it: an older client demotes the
+// unknown intent through the fail-open branch above.
+export const INTENT_VOCABULARY_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Input value: what the client sends at submit
@@ -158,10 +162,22 @@ export type NeutralJobStatus = z.infer<typeof neutralJobStatusSchema>;
 export const RESULT_INTENTS = [
   'add-base-image',
   'add-layer',
-  'add-segment-group',
+  'import-segmentation',
   'add-annotations',
 ] as const;
 export type ResultIntentName = (typeof RESULT_INTENTS)[number];
+
+// Names an earlier vocabulary gave an intent whose shape has not changed since.
+// A client reads one as its current name, so a producer still on the old
+// vocabulary keeps applying and the two sides need not deploy in lockstep.
+export const LEGACY_RESULT_INTENT_NAMES: Readonly<
+  Record<string, ResultIntentName>
+> = {
+  'add-segment-group': 'import-segmentation',
+};
+
+export const currentResultIntentName = (intent: unknown) =>
+  (typeof intent === 'string' && LEGACY_RESULT_INTENT_NAMES[intent]) || intent;
 
 // Provenance tag on a result: the durable idempotency identity the client
 // preserves on generated scene state so restored results can be recognized.
@@ -212,13 +228,13 @@ const addLayer = z
   .object({ intent: z.literal('add-layer'), ...resultListItemSchema.shape })
   .passthrough();
 
-// `add-segment-group` carries OPTIONAL `segments` (the bare-labelmap +
+// `import-segmentation` carries OPTIONAL `segments` (the bare-labelmap +
 // labels-sidecar case; a `seg.nrrd` with embedded metadata carries none — the
 // client uses `segments` when present, else the file's own metadata) and an
 // optional `source` provenance tag (the idempotency key).
 const addSegmentGroup = z
   .object({
-    intent: z.literal('add-segment-group'),
+    intent: z.literal('import-segmentation'),
     ...resultListItemSchema.shape,
     segments: z.array(segmentDescriptorSchema).optional(),
     source: resultSourceSchema.optional(),

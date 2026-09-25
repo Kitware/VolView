@@ -495,7 +495,7 @@ describe('flat segment list row actions', () => {
     await nextTick();
 
     expect(lockTooltip(wrapper, segment.id)).toMatch(/^Unlock\b/);
-    expect(lockTooltip(wrapper, segment.id)).toMatch(/takes its voxels/i);
+    expect(lockTooltip(wrapper, segment.id)).toMatch(/replaces its voxels/i);
   });
 
   it('deletes one type, with the masks it had, by id', async () => {

@@ -1,6 +1,6 @@
 import {
   compositeLabelmap,
-  layeredSegments,
+  planLabelmapExport,
 } from '@/src/segmentation/io/composition';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
@@ -30,10 +30,7 @@ import {
   type Index3,
   segmentOfMask,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import {
-  LABELMAP_MAX_VALUE,
-  SEGMENT_VALUE,
-} from '@/src/segmentation/masks/labelValue';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
 const appearanceOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId);
@@ -67,14 +64,20 @@ const segmentIdsOf = (imageId: string) =>
     (segment) => segment.id
   );
 
-/** A child image in the parent's space, carrying one value per named voxel. */
+/**
+ * A child image in the parent's space, carrying one value per named voxel. A
+ * label past the byte limit arrives in 16-bit scalars, as such a file does.
+ */
 function makeLabelmapImage(marks: Array<{ value: number; at: Index3 }>) {
   const image = vtkImageData.newInstance({
     spacing: [2, 3, 4],
     origin: [10, 20, 30],
   });
   image.setDimensions(DIMENSIONS);
-  const values = new Uint8Array(voxelCount(DIMENSIONS));
+  const Scalars = marks.some(({ value }) => value > 255)
+    ? Uint16Array
+    : Uint8Array;
+  const values = new Scalars(voxelCount(DIMENSIONS));
   marks.forEach(({ value, at }) => {
     values[parentOffset(...at)] = value;
   });
@@ -176,18 +179,17 @@ describe('composing the segments of an image into one labelmap', () => {
     expect(Array.from(scalars).filter((value) => value !== 0)).toHaveLength(1);
   });
 
-  it('refuses more segment descriptors than a byte labelmap can encode', () => {
+  it('uses 16-bit storage beyond the byte label limit', () => {
     Array.from({ length: 256 }, (_, index) =>
       addMask('img-1', `Segment ${index + 1}`)
     );
 
-    expect(() => compositeLabelmap('img-1')).toThrow(/at most 255 segments/);
+    expect(
+      compositeLabelmap('img-1').labelmap.getPointData().getScalars().getData()
+    ).toBeInstanceOf(Uint16Array);
   });
 
-  // The store holds as many segments as an image needs; the one-byte cap is
-  // the export file's, so layeredSegments hands back groups that fit even
-  // when none of them overlap and one group would do.
-  it('splits a group past the byte cap into files that fit', async () => {
+  it('keeps non-overlapping labels above 255 in one 16-bit file', async () => {
     const wide: Index3 = [300, 1, 1];
     await seatImage('img-wide', { ...GRID, dimensions: wide });
     const masks = Array.from({ length: 300 }, (_, index) =>
@@ -196,11 +198,17 @@ describe('composing the segments of an image into one labelmap', () => {
     // One voxel each, none shared, so overlap alone would leave one group.
     masks.forEach((maskId, index) => seedVoxel(maskId, [index, 0, 0]));
 
-    const groups = layeredSegments('img-wide');
+    const groups = planLabelmapExport('img-wide').parts;
 
     expect(groups.flat()).toHaveLength(300);
-    expect(groups.every((group) => group.length <= LABELMAP_MAX_VALUE)).toBe(
-      true
+    expect(groups).toHaveLength(1);
+    const values = compositeLabelmap('img-wide', groups[0])
+      .labelmap.getPointData()
+      .getScalars()
+      .getData();
+    expect(values).toBeInstanceOf(Uint16Array);
+    expect(Array.from(values)).toEqual(
+      Array.from({ length: 300 }, (_, i) => i + 1)
     );
     groups.forEach((group) =>
       expect(() => compositeLabelmap('img-wide', group)).not.toThrow()
@@ -256,7 +264,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   const layerEntries = () =>
-    layeredSegments('img-1').map((group) =>
+    planLabelmapExport('img-1').parts.map((group) =>
       buildSegNrrdMetadata(
         compositeLabelmap('img-1', group).segments,
         DIMENSIONS
@@ -269,7 +277,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
-    const groups = layeredSegments('img-1');
+    const groups = planLabelmapExport('img-1').parts;
 
     expect(groups).toHaveLength(1);
     expect(compositeScalars('img-1', groups[0])).toEqual(
@@ -287,7 +295,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(over, [2, 2, 2]);
 
-    const groups = layeredSegments('img-1');
+    const groups = planLabelmapExport('img-1').parts;
 
     expect(
       groups.map((group) => group.map((segment) => appearanceOf(segment).name))
@@ -310,10 +318,49 @@ describe('grouping the segments that cannot share one labelmap', () => {
     seedVoxel(apart, [3, 3, 3]);
 
     expect(
-      layeredSegments('img-1').map((group) =>
+      planLabelmapExport('img-1').parts.map((group) =>
         group.map((segment) => appearanceOf(segment).name)
       )
     ).toEqual([['Under', 'Apart'], ['Over']]);
+  });
+
+  const splitPlan = () => {
+    const plan = planLabelmapExport('img-1');
+    return {
+      parts: plan.parts.length,
+      hasOverlap: plan.hasOverlap,
+      exceedsCapacity: plan.exceedsCapacity,
+    };
+  };
+
+  // Why a save became several files is two answers, not one: the notice names
+  // overlap or the label-value limit, so a plan that merged them into a single
+  // 'it split' would tell the user the wrong reason. (Reaching the capacity
+  // half takes 65535 masks, so only its answer of 'no' is pinned here.)
+  it('names overlap, and not the label limit, as what split the files', () => {
+    const under = addMask('img-1', 'Under');
+    const over = addMask('img-1', 'Over');
+    seedVoxel(under, [1, 1, 1]);
+    seedVoxel(over, [1, 1, 1]);
+
+    expect(splitPlan()).toEqual({
+      parts: 2,
+      hasOverlap: true,
+      exceedsCapacity: false,
+    });
+  });
+
+  it('names no reason at all for segments that do not overlap', () => {
+    const tumor = addMask('img-1', 'Tumor');
+    const node = addMask('img-1', 'Node');
+    seedVoxel(tumor, [1, 1, 1]);
+    seedVoxel(node, [3, 3, 3]);
+
+    expect(splitPlan()).toEqual({
+      parts: 1,
+      hasOverlap: false,
+      exceedsCapacity: false,
+    });
   });
 
   it('describes each of them as a self-contained layer', () => {
@@ -340,7 +387,7 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('composes one labelmap for an image with no segments', () => {
-    expect(layeredSegments('img-1')).toEqual([[]]);
+    expect(planLabelmapExport('img-1').parts).toEqual([[]]);
   });
 });
 
@@ -417,6 +464,26 @@ describe('splitting an imported labelmap into bounded masks', () => {
       Array.from(parentImage('parent-img').indexToWorld([1, 2, 3] as never))
     );
     expect(mask.getDimensions()).toEqual([1, 1, 1]);
+  });
+
+  // The interchange rule, both halves: a 16-bit label arrives as itself, so
+  // the value reaches the decoded name rather than wrapping into a byte, and
+  // the masks it splits into are binary, so editing and the session file stay
+  // byte-sized whatever the file that arrived used.
+  it('splits a label past the byte limit into byte-sized masks', async () => {
+    await importLabelmap([
+      { value: 1, at: [1, 1, 1] },
+      { value: 300, at: [3, 3, 3] },
+    ]);
+
+    const segmentation = store().getSegmentationForImage('parent-img')!;
+    expect(
+      listMasks(segmentation).map((segment) => appearanceOf(segment).name)
+    ).toEqual(['Tumor 1', 'Tumor 300']);
+    const [first, second] = segmentIdsOf('parent-img');
+    expect(store().maskVoxels(first).scalars()).toBeInstanceOf(Uint8Array);
+    expect(store().maskVoxels(second).scalars()).toBeInstanceOf(Uint8Array);
+    expect(maskValueAt(second, [3, 3, 3])).toBe(SEGMENT_VALUE);
   });
 
   it('makes no segment for an all-background labelmap', async () => {

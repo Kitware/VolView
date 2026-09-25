@@ -1,5 +1,7 @@
 import {
   ANNOTATION_TOOL_KINDS,
+  RESULT_INTENTS,
+  currentResultIntentName,
   type AnnotationLabel,
   type AnnotationToolKind,
   type KnownResultIntent,
@@ -34,14 +36,14 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useMessageStore } from '@/src/store/messages';
+import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { loadVolumeUrls } from '@/src/actions/loadUserFiles';
 
 type ResultFile = { url: string; name: string };
 
 type SegmentationIntent = Extract<
   KnownResultIntent,
-  { intent: 'add-segment-group' }
+  { intent: 'import-segmentation' }
 >;
 type AnnotationsIntent = Extract<
   KnownResultIntent,
@@ -60,15 +62,31 @@ const sameResultSource = (
   source.outputId === target.outputId;
 
 function segmentResultInScene(
-  intent: SegmentationIntent,
+  target: ResultSource | undefined,
   segmentWriter: SegmentWriter
 ): boolean {
-  const target = intent.source;
   if (!target) return false;
   return segmentWriter
     .resultSourcesInScene()
     .some((source) => sameResultSource(source, target));
 }
+
+// `source` is optional on the wire, and without one a re-applied result has no
+// receipt to recognize: after a reload the re-adopted job's Load button imports
+// every mask, or places every annotation, again. The client already knows the same three facts (the
+// provider and job it submitted, and the result row it is applying), so it
+// mints the key itself. Nothing new travels on the wire; the minted key is
+// scene provenance, stored and restored exactly like a producer's own.
+const resultSourceOf = (
+  intent: SegmentationIntent | AnnotationsIntent,
+  context: SubmittedJobContext | undefined
+): ResultSource | undefined =>
+  intent.source ??
+  (context && {
+    providerId: context.providerId,
+    jobId: context.jobId,
+    outputId: intent.id,
+  });
 
 async function loadAsImport(file: ResultFile) {
   const ds = uriToDataSource(file.url, file.name);
@@ -84,8 +102,7 @@ async function loadAsImport(file: ResultFile) {
 
 // Session-restored tools retain their result source, so that durable
 // provenance doubles as an application receipt: re-Loading a job adds nothing.
-function annotationResultInScene(intent: AnnotationsIntent): boolean {
-  const target = intent.source;
+function annotationResultInScene(target: ResultSource | undefined): boolean {
   if (!target) return false;
   return ANNOTATION_TOOL_KINDS.some((kind) =>
     Object.values(annotationToolStore(kind).toolByID).some(({ source }) =>
@@ -286,9 +303,10 @@ const toolPayload = (
 async function applyAnnotations(
   intent: AnnotationsIntent,
   parentSelection: string | undefined,
+  source: ResultSource | undefined,
   fetchResult: FetchProcessingResult
 ): Promise<ApplyIntentOutcome> {
-  if (annotationResultInScene(intent)) return { status: 'applied' };
+  if (annotationResultInScene(source)) return { status: 'applied' };
 
   // Tools are anchored to an image; without one they would be orphans the UI
   // never shows. Opening the file as a dataset is not a fallback either — it is
@@ -353,7 +371,7 @@ async function applyAnnotations(
       // uniform tool type does not carry the per-kind geometry keys.
       const payload = {
         ...geometry,
-        ...toolPayload(core, segmentIds[kind], intent.source),
+        ...toolPayload(core, segmentIds[kind], source),
       };
       store.addTool(payload);
     });
@@ -404,94 +422,129 @@ export const appApplyDependencies = (): ApplyDependencies => ({
   },
 });
 
+const failed = (message: string): ApplyIntentOutcome => ({
+  status: 'failed',
+  error: new Error(message),
+});
+
+async function openVolumeAsDataset(
+  file: ResultFile,
+  dependencies: ApplyDependencies
+): Promise<ApplyIntentOutcome> {
+  const datasetIds = await dependencies.openVolumeUrls({
+    urls: [file.url],
+    names: [file.name],
+  });
+  return datasetIds.length === 0
+    ? failed('Result did not load')
+    : { status: 'applied' };
+}
+
+async function applyLayer(
+  file: ResultFile,
+  parentSelection: string,
+  dependencies: ApplyDependencies
+): Promise<ApplyIntentOutcome> {
+  const childSelection = await dependencies.importVolume(file);
+  if (!childSelection) return failed('Result did not load');
+  // addLayer swallows build failures and resolves undefined, so the id is the only failure signal.
+  const layerId = await dependencies.addLayer(parentSelection, childSelection);
+  if (layerId) return { status: 'applied' };
+  dependencies.removeDataset(childSelection);
+  return failed('Failed to attach layer');
+}
+
+async function applySegmentation(
+  intent: SegmentationIntent,
+  parentSelection: string,
+  source: ResultSource | undefined,
+  dependencies: ApplyDependencies
+): Promise<ApplyIntentOutcome> {
+  const childSelection = await dependencies.importVolume(intent);
+  if (!childSelection) return failed('Result did not load');
+  try {
+    await dependencies.segmentWriter.convertImageToLabelmap(
+      childSelection,
+      parentSelection,
+      source,
+      intent.segments
+    );
+    return { status: 'applied' };
+  } finally {
+    // The group owns its own labelmap image; the import was only a vehicle.
+    dependencies.removeDataset(childSelection);
+  }
+}
+
+async function routeIntent(
+  intent: KnownResultIntent,
+  context: SubmittedJobContext | undefined,
+  dependencies: ApplyDependencies
+): Promise<ApplyIntentOutcome> {
+  const parentSelection = context?.activeDatasetId;
+  switch (intent.intent) {
+    case 'add-base-image':
+      return openVolumeAsDataset(intent, dependencies);
+    case 'add-layer':
+      return parentSelection
+        ? applyLayer(intent, parentSelection, dependencies)
+        : openVolumeAsDataset(intent, dependencies);
+    case 'import-segmentation': {
+      // Session-restored groups retain their result source. Treat that
+      // durable provenance as an application receipt so retrying Load is
+      // idempotent instead of creating a duplicate group.
+      const source = resultSourceOf(intent, context);
+      if (segmentResultInScene(source, dependencies.segmentWriter))
+        return { status: 'applied' };
+      return parentSelection
+        ? applySegmentation(intent, parentSelection, source, dependencies)
+        : openVolumeAsDataset(intent, dependencies);
+    }
+    case 'add-annotations':
+      return applyAnnotations(
+        intent,
+        parentSelection,
+        resultSourceOf(intent, context),
+        dependencies.fetchResult
+      );
+    default: {
+      const exhaustive: never = intent;
+      void exhaustive;
+      return failed('Unsupported result intent');
+    }
+  }
+}
+
 export async function applyIntent(
   intent: KnownResultIntent,
   context: SubmittedJobContext | undefined,
   dependencies: ApplyDependencies = appApplyDependencies()
 ): Promise<ApplyIntentOutcome> {
-  const parentSelection = context?.activeDatasetId;
-  const openVolumeAsDatasetOutcome = async (
-    file: ResultFile
-  ): Promise<ApplyIntentOutcome> => {
-    const datasetIds = await dependencies.openVolumeUrls({
-      urls: [file.url],
-      names: [file.name],
-    });
-    if (datasetIds.length === 0)
-      return { status: 'failed', error: new Error('Result did not load') };
-    return { status: 'applied' };
-  };
-
   try {
-    switch (intent.intent) {
-      case 'add-base-image': {
-        return await openVolumeAsDatasetOutcome(intent);
-      }
-      case 'add-layer': {
-        if (!parentSelection) {
-          return await openVolumeAsDatasetOutcome(intent);
-        }
-        const childSelection = await dependencies.importVolume(intent);
-        if (!childSelection)
-          return { status: 'failed', error: new Error('Result did not load') };
-        // addLayer swallows build failures and resolves undefined, so the id is the only failure signal.
-        const layerId = await dependencies.addLayer(
-          parentSelection,
-          childSelection
-        );
-        if (!layerId) {
-          dependencies.removeDataset(childSelection);
-          return {
-            status: 'failed',
-            error: new Error('Failed to attach layer'),
-          };
-        }
-        return { status: 'applied' };
-      }
-      case 'add-segment-group': {
-        // Session-restored groups retain their result source. Treat that
-        // durable provenance as an application receipt so retrying Load is
-        // idempotent instead of creating a duplicate group.
-        if (segmentResultInScene(intent, dependencies.segmentWriter))
-          return { status: 'applied' };
-        if (!parentSelection) {
-          return await openVolumeAsDatasetOutcome(intent);
-        }
-        const childSelection = await dependencies.importVolume(intent);
-        if (!childSelection)
-          return { status: 'failed', error: new Error('Result did not load') };
-        try {
-          await dependencies.segmentWriter.convertImageToLabelmap(
-            childSelection,
-            parentSelection,
-            intent.source,
-            intent.segments
-          );
-          return { status: 'applied' };
-        } finally {
-          // The group owns its own labelmap image; the import was only a vehicle.
-          dependencies.removeDataset(childSelection);
-        }
-      }
-      case 'add-annotations': {
-        return await applyAnnotations(
-          intent,
-          parentSelection,
-          dependencies.fetchResult
-        );
-      }
-      default: {
-        const exhaustive: never = intent;
-        void exhaustive;
-        return {
-          status: 'failed',
-          error: new Error('Unsupported result intent'),
-        };
-      }
-    }
+    return await routeIntent(intent, context, dependencies);
   } catch (error) {
     return { status: 'failed', error };
   }
+}
+
+// The applier routes on the declared intent, so a result carrying one it
+// cannot read is skipped. Say so: the completion toast has already promised
+// the results, and the skip otherwise leaves a plain download and no reason.
+// A result is skipped for two different reasons, and they point at different
+// culprits: an intent name outside the vocabulary is this client being too old,
+// while a name inside it means the payload failed the intent's shape, which is
+// the producer's row to fix.
+function reportUnroutableIntent(result: ProcessingResult) {
+  if (!result.intent) return;
+  const nameIsKnown = (RESULT_INTENTS as readonly unknown[]).includes(
+    currentResultIntentName(result.intent)
+  );
+  surfaceWarning(
+    `Did not load ${result.name}`,
+    nameIsKnown
+      ? `The result intent "${result.intent}" is supported, but this result does not carry the payload that intent requires, so it was rejected. The result is still available for download in the Jobs panel.`
+      : `This version cannot apply the result intent "${result.intent}". The result is still available for download in the Jobs panel.`
+  );
 }
 
 export async function autoLoadProcessingResults(
@@ -502,7 +555,10 @@ export async function autoLoadProcessingResults(
   const failedResultIds: string[] = [];
   for (const result of results) {
     const intent = resultToIntent(result);
-    if (!intent) continue;
+    if (!intent) {
+      reportUnroutableIntent(result);
+      continue;
+    }
     const outcome = await applyIntent(intent, context, dependencies);
     if (outcome.status === 'failed') {
       failedResultIds.push(result.id);

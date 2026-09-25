@@ -154,7 +154,8 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function selectSegmentAt(worldPoint: vec3, imageID: string) {
     const registry = useSegmentStore().segments;
-    // Earlier registry entries render in front, including locked segments.
+    // The eyedropper takes the first registry entry covering the point,
+    // including locked segments.
     const segments = registry.segmentList.value;
     const hit = segments.find((segment) => {
       if (!registry.appearanceOf(segment.id).visible) return false;

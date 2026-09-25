@@ -83,7 +83,7 @@ describe('segment type registry', () => {
     );
   });
 
-  it('lists segments in creation order, which is the render order', () => {
+  it('lists segments in creation order, which is the picking order', () => {
     const registry = createSegmentRegistry();
     const first = registry.addSegment({ name: 'Tumor' });
     const second = registry.addSegment({ name: 'Node' });

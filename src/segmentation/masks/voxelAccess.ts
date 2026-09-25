@@ -38,6 +38,9 @@ export type VoxelAccessDeps = {
   overlapAllowed: () => boolean;
 };
 
+export const boundedMask = (binding?: LabelmapBinding) =>
+  binding && boundScalars(binding.image, binding.extent);
+
 /**
  * Reading and growing the voxels behind a mask. Split out so the store holds
  * the records; every accessor re-resolves its binding rather than capturing a
@@ -164,10 +167,6 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       }
     );
 
-  /** A bound segment's buffer, absent when it has none or holds nothing. */
-  const boundedMask = (binding?: LabelmapBinding) =>
-    binding && boundScalars(binding.image, binding.extent);
-
   /**
    * The masks of an image's other segments, split by what `gesture` does where
    * one of them holds a voxel: take the voxel from it, or yield to it and leave
@@ -218,12 +217,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
   }
 
   return {
-    requireParentImage,
-    ensureMaskContains,
     maskVoxels,
     findMaskVoxels,
-    boundedMask,
-    siblingMasks,
     voxelClaim,
   };
 }

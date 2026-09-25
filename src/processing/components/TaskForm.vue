@@ -31,6 +31,7 @@
           :binding="sourceRefStates?.[field.id]"
           :bound-name="sourceRefNames?.[field.id]"
           :bound-type="sourceRefTypes?.[field.id]"
+          :warning="sourceRefWarnings?.[field.id]"
           @update:model-value="(v: ProcessingValue) => update(field.id, v)"
         />
       </div>
@@ -109,6 +110,7 @@ const props = defineProps<{
   sourceRefStates?: Record<string, SourceRefBindingState>;
   sourceRefNames?: Record<string, string>;
   sourceRefTypes?: Record<string, BoundSourceRefType>;
+  sourceRefWarnings?: Record<string, string>;
   submitting?: boolean;
 }>();
 const emit = defineEmits<{

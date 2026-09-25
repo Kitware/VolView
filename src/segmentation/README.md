@@ -47,11 +47,38 @@ must distinguish an existing mask record from allocated voxel storage.
 
 ## Ordering and overlap
 
-Registry order controls the sidebar, shortcuts, rendering depth, and flattened
-export precedence. Per-image mask order preserves insertion and restored file
-order, including the order used for all-segment processing.
+Registry order controls the sidebar, shortcuts, selection and picking, and
+flattened export precedence. It does not control what is drawn on top:
+overlapping segments blend in the slice view, and moving one above another
+leaves the overlap looking the same. Per-image mask order preserves insertion
+and restored file order. Interchange packing uses registry order.
 
 Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
 preserve locked neighbors. Processes preserve voxels already held by other
 segments. Import matches existing segment identities by exact name, sharing
 appearance and locks across images.
+
+## Labelmap interchange
+
+Composed labelmaps use unsigned 8-bit voxels for up to 255 labels and unsigned
+16-bit voxels for 256 through 65535 labels. Zero is background. Imported
+16-bit labels are preserved until they are split into independent binary masks;
+editable masks and their saved-session files remain byte-sized.
+
+A described label value the voxels never carry still becomes a segment, whose
+mask covers nothing. A file header and a processing result's segment list are
+read alike here: a bin declared and left empty is shown, so finding nothing
+reads differently from never looking. Across the components of one labelmap a
+declaration is one segment on either path: a value some component carried is
+that component's segment, never an empty twin beside it.
+
+Export packs whole masks into separate files when they overlap. A part beyond
+65535 labels is split at that capacity. The export plan records these reasons
+separately, so capacity splitting is not reported as overlap.
+
+Processing inputs declaring multiple files receive every mask in overlap-free
+parts. A single-file input starts with the selected segment, then greedily adds
+whole non-overlapping masks in registry order up to the label capacity. Conflicting
+masks are omitted entirely and named in a warning beside the input. No mask is
+clipped to fit. Export and processing capture pixels, geometry, and appearance
+before asynchronous serialization so all parts describe the same state.
