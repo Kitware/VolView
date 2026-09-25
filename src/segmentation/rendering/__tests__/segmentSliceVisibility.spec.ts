@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  segmentCoincidentOffset,
+  SEGMENT_COINCIDENT_OFFSET,
+  segmentDrawsOnSlice,
   sliceWithinExtent,
 } from '@/src/segmentation/rendering/display';
 import { emptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 
 // ---------------------------------------------------------------------------
-// The two view-layer rules a mask per segment needs.
+// The view-layer rules a mask per segment needs.
 //
 // `sliceWithinExtent` answers whether a segment's actor has anything to draw on
 // the slice being viewed. A bounded mask covers only part of the volume, and
@@ -16,10 +17,13 @@ import { emptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 // The slice and the extent are both in the PARENT image's index space, on the
 // index axis the view's LPS axis maps to.
 //
-// `segmentCoincidentOffset` gives each segment its own coincident-topology
-// polygon offset, by its back-to-front stack index. Overlap is
-// representable, so segments sharing one offset would z-fight.
-// Greater stack indices draw in front. Registry order is mapped in reverse.
+// `segmentDrawsOnSlice` adds the segment's own visibility: a hidden segment's
+// actor is taken out of the scene rather than drawn at zero alpha.
+//
+// `SEGMENT_COINCIDENT_OFFSET` is the coincident-topology polygon offset every
+// segment draws at, which lifts it off the coplanar base image. It carries no
+// per-segment term: the actors are translucent, so the renderer blends the
+// overlap rather than stacking it, and a per-segment offset would do nothing.
 // ---------------------------------------------------------------------------
 
 const EXTENT: Extent3D = [1, 2, 0, 3, 2, 5];
@@ -54,34 +58,38 @@ describe('sliceWithinExtent', () => {
   });
 });
 
-describe('segmentCoincidentOffset', () => {
-  it('puts the first segment in front of the base image', () => {
-    const [factor, units] = segmentCoincidentOffset(0);
+describe('segmentDrawsOnSlice', () => {
+  it('draws a visible segment on a slice inside its extent', () => {
+    expect(segmentDrawsOnSlice({ visible: true }, EXTENT, 2, 3)).toBe(true);
+  });
+
+  it('does not draw a hidden segment, even inside its extent', () => {
+    expect(segmentDrawsOnSlice({ visible: false }, EXTENT, 2, 3)).toBe(false);
+  });
+
+  it('does not draw a visible segment off its extent', () => {
+    expect(segmentDrawsOnSlice({ visible: true }, EXTENT, 2, 6)).toBe(false);
+  });
+
+  it('does not draw a segment that is gone or has no extent', () => {
+    expect(segmentDrawsOnSlice(undefined, EXTENT, 2, 3)).toBe(false);
+    expect(segmentDrawsOnSlice({ visible: true }, undefined, 2, 3)).toBe(false);
+  });
+});
+
+describe('SEGMENT_COINCIDENT_OFFSET', () => {
+  it('puts a segment in front of the base image', () => {
+    const [factor, units] = SEGMENT_COINCIDENT_OFFSET;
 
     expect(factor).toBeLessThan(0);
     expect(units).toBeLessThan(0);
   });
 
-  it('puts a greater stack index in front of a smaller one', () => {
-    const [earlierFactor, earlierUnits] = segmentCoincidentOffset(0);
-    const [laterFactor, laterUnits] = segmentCoincidentOffset(1);
-
-    expect(laterUnits).toBeLessThan(earlierUnits);
-    expect(laterFactor).toBeLessThanOrEqual(earlierFactor);
-  });
-
-  it('keeps that order all the way down a long list', () => {
-    const offsets = Array.from({ length: 64 }, (_, index) =>
-      segmentCoincidentOffset(index)
-    );
-
-    expect(
-      offsets.every(
-        ([factor, units]) => Number.isFinite(factor) && Number.isFinite(units)
-      )
-    ).toBe(true);
-    offsets.slice(1).forEach(([, units], index) => {
-      expect(units).toBeLessThan(offsets[index][1]);
-    });
+  it('is one offset, not a per-segment one', () => {
+    expect(SEGMENT_COINCIDENT_OFFSET).toEqual([-4, -4]);
+    // The same number twice, and nothing in either entry that a segment's
+    // place in the list could reach.
+    const [factor, units] = SEGMENT_COINCIDENT_OFFSET;
+    expect(factor).toBe(units);
   });
 });

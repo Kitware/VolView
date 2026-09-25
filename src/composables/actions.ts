@@ -1,8 +1,5 @@
 import { removeSelectedTools, useToolStore } from '../store/tools';
 import { Tools } from '../store/tools/types';
-import { useRectangleStore } from '../store/tools/rectangles';
-import { useRulerStore } from '../store/tools/rulers';
-import { usePolygonStore } from '../store/tools/polygons';
 import { useViewStore } from '../store/views';
 import { Action, NOOP } from '../constants';
 import { useKeyboardShortcutsStore } from '../store/keyboard-shortcuts';
@@ -10,29 +7,30 @@ import { useCurrentImage } from './useCurrentImage';
 import { useSliceConfig } from './useSliceConfig';
 import { useCineFrame } from './useCineFrame';
 import { useDatasetStore } from '../store/datasets';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
+import type { Segment } from '@/src/segmentation/segment';
 
-const applyLabelOffset = (offset: number) => () => {
-  const toolToStore = {
-    [Tools.Rectangle]: useRectangleStore(),
-    [Tools.Ruler]: useRulerStore(),
-    [Tools.Polygon]: usePolygonStore(),
-  };
-  const toolStore = useToolStore();
+// One registry holds the segments every tool draws into, so cycling it is not
+// scoped to a tool: paint takes the selection the same way a polygon does.
+const applySegmentOffset = (offset: number) => () => {
+  const { segments } = useSegmentStore();
+  const ids = segments.segmentList.value.map((segment: Segment) => segment.id);
+  if (ids.length === 0) return;
 
-  // @ts-ignore - toolToStore may not have keys of all tools
-  const activeToolStore = toolToStore[toolStore.currentTool];
-  if (!activeToolStore) return;
+  const selected = segments.selectedSegmentId.value;
+  const selectedIndex = selected ? ids.indexOf(selected) : -1;
+  // A negative index wraps, so cycling back from the first lands on the last.
+  const next = ids.at((selectedIndex + offset) % ids.length);
+  if (next) segments.selectSegment(next);
+};
 
-  const labels = Object.entries(activeToolStore.labels);
-  const activeLabelIndex = labels.findIndex(
-    ([name]) => name === activeToolStore.activeLabel
-  );
-
-  const [nextLabel] = labels.at((activeLabelIndex + offset) % labels.length)!;
-  activeToolStore.setActiveLabel(nextLabel);
+const selectSegmentAt = (index: number) => () => {
+  const { segments } = useSegmentStore();
+  const segment = segments.segmentList.value[index];
+  if (segment) segments.selectSegment(segment.id);
 };
 
 const setTool = (tool: Tools) => () => {
@@ -95,6 +93,7 @@ export const ACTION_TO_FUNC = {
   ruler: setTool(Tools.Ruler),
   paint: startPaintInMode(PaintMode.CirclePaint),
   paintEraser: startPaintInMode(PaintMode.Erase),
+  paintEyedropper: NOOP,
   brushSizeModifier: NOOP, // act as modifier key rather than immediate effect, so no-op
   decreaseBrushSize: changeBrushSize(-1),
   increaseBrushSize: changeBrushSize(1),
@@ -109,8 +108,18 @@ export const ACTION_TO_FUNC = {
   previousSlice: changeSlice(1),
   grabSlice: NOOP, // acts as a modifier key rather than immediate effect, so no-op
 
-  decrementLabel: applyLabelOffset(-1),
-  incrementLabel: applyLabelOffset(1),
+  decrementLabel: applySegmentOffset(-1),
+  incrementLabel: applySegmentOffset(1),
+  selectSegment1: selectSegmentAt(0),
+  selectSegment2: selectSegmentAt(1),
+  selectSegment3: selectSegmentAt(2),
+  selectSegment4: selectSegmentAt(3),
+  selectSegment5: selectSegmentAt(4),
+  selectSegment6: selectSegmentAt(5),
+  selectSegment7: selectSegmentAt(6),
+  selectSegment8: selectSegmentAt(7),
+  selectSegment9: selectSegmentAt(8),
+  selectSegment10: selectSegmentAt(9),
 
   deleteSelectedAnnotations: removeSelectedTools,
 

@@ -58,6 +58,9 @@ export const useLayersStore = defineStore('layer', () => {
     }
 
     const image = await ensureSameSpace(parentImage, sourceImage);
+    // Deleted while resampling: caching the image now would leave it unowned.
+    if (!parentToLayers[parent]?.some((layer) => layer.id === id))
+      return undefined;
 
     const name = imageCacheStore.getImageMetadata(source)?.name ?? NO_NAME;
     imageCacheStore.addVTKImageData(image, name, { id });

@@ -18,6 +18,19 @@ export function sliceWithinExtent(
   return slice >= extent[axisIndex * 2] && slice <= extent[axisIndex * 2 + 1];
 }
 
+/**
+ * Whether a segment's actor is drawn at all. A hidden segment has zero fill and
+ * outline, but a visible actor is still traversed and drawn on every render,
+ * which adds up across a scene of many segments.
+ */
+export const segmentDrawsOnSlice = (
+  segment: Pick<LabelmapSegment, 'visible'> | undefined,
+  extent: Extent3D | undefined,
+  axisIndex: number,
+  slice: number
+) =>
+  !!segment?.visible && !!extent && sliceWithinExtent(extent, axisIndex, slice);
+
 const SEGMENT_OFFSET_FACTOR = -4;
 
 /**
@@ -30,17 +43,16 @@ const SEGMENT_OFFSET_FACTOR = -4;
 export const SEGMENT_ACTOR_OPACITY = 0.9999;
 
 /**
- * A mask's coincident-topology polygon offset, by back-to-front stack index.
- * Overlapping segments need distinct offsets to avoid z-fighting. Greater
- * stack indices sit closer to the viewer; the registry maps its first entry
- * to the greatest index.
+ * The coincident-topology polygon offset every mask draws at, which lifts it
+ * off the coplanar base image. It is the same for all of them: a segment actor
+ * is translucent, so vtk.js draws it in the order-independent translucent pass
+ * with depth writes off, and a per-segment offset would change nothing about
+ * how two segments blend where they overlap.
  */
-export function segmentCoincidentOffset(stackIndex: number) {
-  return [SEGMENT_OFFSET_FACTOR, SEGMENT_OFFSET_FACTOR - stackIndex] as [
-    number,
-    number,
-  ];
-}
+export const SEGMENT_COINCIDENT_OFFSET: [number, number] = [
+  SEGMENT_OFFSET_FACTOR,
+  SEGMENT_OFFSET_FACTOR,
+];
 
 /**
  * Fill alpha in 0..1 for the slice representation's piecewise function: the

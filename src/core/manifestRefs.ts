@@ -1,6 +1,6 @@
 // Manifest-reference declarations for the remove-cascade save backstop.
 //
-// Every store that keeps dataset/view/segment-group-keyed manifest state clean
+// Every store that keeps dataset/view/segmentation-keyed manifest state clean
 // via a remove cascade (an `onImageDeleted` registration or an equivalent sync
 // watch) also declares, at module scope next to that cascade, how to find its
 // references in a save manifest. The dev-only backstop in
@@ -12,7 +12,7 @@
 // evaluation from store modules, and any import here could turn that into a
 // cycle.
 
-export type ManifestRefKind = 'dataset' | 'segmentGroup' | 'view';
+export type ManifestRefKind = 'dataset' | 'segment' | 'view';
 
 export type ManifestRef = {
   kind: ManifestRefKind;

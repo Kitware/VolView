@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -9,7 +10,7 @@ import {
   Manifest,
   ManifestSchema,
   ParentToLayers,
-  SegmentGroup,
+  Segmentation,
   StateFile,
 } from '@/src/io/state-file/schema';
 
@@ -42,7 +43,7 @@ declareManifestRefs('primarySelection', (manifest) =>
 );
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '6.4.0';
+export const MANIFEST_VERSION = '7.0.0';
 
 type ManifestCandidate = Record<string, unknown>;
 
@@ -120,59 +121,49 @@ function validateCoreGraph(core: Manifest, zip: JSZip) {
   return { sourceIds, datasetIds };
 }
 
-// Last gate before a session archive is written. Three responsibilities:
-//
-//   1. Abort on an incoherent core graph (`validateCoreGraph`) — a bad version,
-//      duplicate/dangling/cyclic data-source refs, missing local files, or a
-//      dataset pointing at no source. Corruption here yields an UNrestorable
-//      archive, so it throws rather than omits.
-//   2. Prune segment groups (and their orphaned archive members from the zip)
-//      and layer relationships that reference a missing dataset/source.
-//   3. Drop any optional root whose SHAPE fails the schema, gracefully.
-//
-// Referential integrity of the OTHER optional state (view `dataID`s, annotation
-// `imageID`s, crop keys, the active paint group, primary/active selections) is
-// owned by the synchronous remove cascade — see `datasetStore.remove` and
-// `datasetRemoveCascade.spec.ts`. Those ids are kept live-clean at the source,
-// and a stale one is harmless on restore anyway (deserialize remaps every id
-// through its id-map and ignores misses), so this function does not re-walk
-// them. Segment groups stay here because an orphaned one leaves dead `.seg.nrrd`
-// bytes in the archive, which is a real cost the cascade does not address.
+// Validate the source graph and saved mask files before writing an archive.
+// Optional invalid content is reported and omitted; an invalid source graph
+// aborts the save. Dataset and tool references are kept clean by their stores'
+// removal cascades and checked below in development builds.
 export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   const candidate = manifest as unknown as ManifestCandidate;
   const core = coreManifestSchema.parse(candidate) as Manifest;
-  const { sourceIds, datasetIds } = validateCoreGraph(core, zip);
+  const { datasetIds } = validateCoreGraph(core, zip);
   const omitted: string[] = [];
 
-  const rawGroups = Array.isArray(candidate.segmentGroups)
-    ? candidate.segmentGroups
+  const rawName = (raw: unknown, fallback: string) =>
+    isRecord(raw) && typeof raw.name === 'string' ? raw.name : fallback;
+
+  const rawSegmentations = Array.isArray(candidate.segmentations)
+    ? candidate.segmentations
     : [];
-  const validGroups = rawGroups.flatMap((raw, index) => {
-    const parsed = SegmentGroup.safeParse(raw);
-    const name =
-      isRecord(raw) &&
-      isRecord(raw.metadata) &&
-      typeof raw.metadata.name === 'string'
-        ? raw.metadata.name
-        : `segmentGroups[${index}]`;
+  const validSegmentations = rawSegmentations.flatMap((raw, index) => {
+    const parsed = Segmentation.safeParse(raw);
+    const name = rawName(raw, `segmentations[${index}]`);
     let reason: string | null = null;
-    if (!parsed.success) reason = 'invalid segment-group record';
-    else if (!datasetIds.has(parsed.data.metadata.parentImage)) {
-      reason = `parent dataset ${parsed.data.metadata.parentImage} is missing`;
-    } else if (
-      parsed.data.dataSourceId !== undefined &&
-      !sourceIds.has(parsed.data.dataSourceId)
-    ) {
-      reason = `artifact data source ${parsed.data.dataSourceId} is missing`;
-    } else if (parsed.data.path && zip.file(parsed.data.path) === null) {
-      reason = `archive member ${parsed.data.path} is missing`;
+    if (!parsed.success) reason = 'invalid segmentation record';
+    else if (!datasetIds.has(parsed.data.parentImage)) {
+      reason = `parent dataset ${parsed.data.parentImage} is missing`;
     }
     if (!parsed.success || reason) {
       omitted.push(`${name}: ${reason}`);
-      if (isRecord(raw) && typeof raw.path === 'string') zip.remove(raw.path);
+      // Voxels of a record reported as omitted do not ship in the archive.
+      if (parsed.success)
+        parsed.data.masks.forEach((mask) => {
+          const path = mask.representations.labelmap?.path;
+          if (path) zip.remove(path);
+        });
       return [];
     }
-    return [parsed.data];
+
+    const masks = parsed.data.masks.map((mask) => {
+      const binding = mask.representations.labelmap;
+      if (!binding || zip.file(binding.path) !== null) return mask;
+      const unreachableReason = `archive member ${binding.path} is missing`;
+      omitted.push(`${name}.masks[${mask.id}]: ${unreachableReason}`);
+      return { ...mask, representations: {} };
+    });
+    return [{ ...parsed.data, masks }];
   });
 
   let validLayers: ParentToLayers | undefined;
@@ -203,14 +194,20 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   if (process.env.NODE_ENV !== 'production') {
     const resolvable: Record<ManifestRefKind, Set<string>> = {
       dataset: datasetIds,
-      segmentGroup: new Set(validGroups.map((group) => group.id)),
+      segment: new Set(
+        Array.isArray(candidate.segments)
+          ? candidate.segments.flatMap((raw) =>
+              isRecord(raw) && typeof raw.id === 'string' ? [raw.id] : []
+            )
+          : []
+      ),
       view: new Set(
         isRecord(candidate.viewByID) ? Object.keys(candidate.viewByID) : []
       ),
     };
     const kindLabel: Record<ManifestRefKind, string> = {
       dataset: 'dataset',
-      segmentGroup: 'segment group',
+      segment: 'segment type',
       view: 'view',
     };
     const dangling = collectManifestRefs(candidate)
@@ -249,6 +246,8 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   // deep-copied) twice.
   const optionalRoots = [
     'tools',
+    'segments',
+    'selectedSegment',
     'activeView',
     'isActiveViewMaximized',
     'viewByID',
@@ -269,7 +268,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
 
   const normalized = {
     ...core,
-    segmentGroups: validGroups,
+    segmentations: validSegmentations,
     ...(validLayers ? { parentToLayers: validLayers } : {}),
     ...Object.fromEntries(optionalEntries),
   } as Manifest;
@@ -290,7 +289,8 @@ const serializingStoreHooks = [
   useDatasetStore,
   useViewStore,
   useViewConfigStore,
-  useSegmentGroupStore,
+  useSegmentStore,
+  useSegmentationStore,
   useToolStore,
   useLayersStore,
 ];
@@ -314,11 +314,9 @@ export async function serialize(
     datasets: [],
     dataSources: [],
     datasetFilePath: {},
-    segmentGroups: [],
+    segmentations: [],
     tools: {
       paint: {
-        activeSegmentGroupID: null,
-        activeSegment: null,
         brushSize: 8,
         crossPlaneSync: false,
       },

@@ -13,7 +13,9 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
 import {
   computeEffectiveView,
+  getEffectiveView,
   EffectiveView,
+  volume2DViewsOfImage,
 } from '@/src/core/views/effectiveView';
 
 type Locator =
@@ -91,15 +93,23 @@ export function toolRenderSlice(
   return tool.slice ?? viewSlice ?? 0;
 }
 
+function revealCineFrame(imageID: string, frame: number) {
+  const activeView = useViewStore().activeView;
+  const effective = getEffectiveView(activeView);
+  if (
+    !activeView ||
+    effective?.kind !== 'cine' ||
+    effective.renderDataID !== imageID
+  )
+    return;
+  useCinePlaybackStore().updateConfig(activeView, imageID, { frame });
+}
+
 export function applyLocator(imageID: string, tool: AnnotationTool) {
   const viewStore = useViewStore();
 
   if (tool.frame != null) {
-    const activeView = viewStore.activeView;
-    if (!activeView) return;
-    useCinePlaybackStore().updateConfig(activeView, imageID, {
-      frame: tool.frame,
-    });
+    revealCineFrame(imageID, tool.frame);
     return;
   }
 
@@ -118,4 +128,62 @@ export function applyLocator(imageID: string, tool: AnnotationTool) {
     if (effective.axis !== toolImageFrame.axis) return;
     viewSliceStore.updateConfig(view.id, imageID, { slice: tool.slice });
   });
+}
+
+/**
+ * The slice nearest the middle of everything `intervals` cover, snapped into an
+ * interval. Content split across distant slices has an empty middle, and a view
+ * put there shows nothing of what the user asked to see.
+ */
+export function snappedCenter(intervals: Array<[number, number]>) {
+  if (intervals.length === 0) return undefined;
+  const middle =
+    (Math.min(...intervals.map(([low]) => low)) +
+      Math.max(...intervals.map(([, high]) => high))) /
+    2;
+  const nearest = intervals
+    .map(([low, high]) => Math.min(Math.max(middle, low), high))
+    .reduce((best, slice) =>
+      Math.abs(slice - middle) < Math.abs(best - middle) ? slice : best
+    );
+  return Math.round(nearest);
+}
+
+export type SegmentContent = {
+  paintedSlicesByIJK?: [number[], number[], number[]];
+  /** The slice each shape of the segment was drawn on, by the axis it faces. */
+  slicesByAxis: Partial<Record<LPSAxis, number[]>>;
+  /** Cine frames containing shapes of this segment. */
+  frames?: number[];
+};
+
+/**
+ * Reveals an occupied frame in the active cine view, or centers every volume
+ * 2D view on the segment's content along its axis. Pan and zoom stay where the
+ * user left them. A view whose axis holds nothing does not move.
+ */
+export function revealSegmentContent(imageID: string, content: SegmentContent) {
+  const frame = snappedCenter(
+    (content.frames ?? []).map((value) => [value, value])
+  );
+  if (frame != null) revealCineFrame(imageID, frame);
+
+  const { metadata } = useImage(imageID);
+  const { lpsOrientation } = metadata.value;
+  const viewSliceStore = useViewSliceStore();
+
+  volume2DViewsOfImage(imageID, useViewStore().getAllViews()).forEach(
+    ({ viewId, axis }) => {
+      const ijk = lpsOrientation[axis];
+      const painted = (content.paintedSlicesByIJK?.[ijk] ?? []).map(
+        (slice) => [slice, slice] as [number, number]
+      );
+      const drawn = (content.slicesByAxis[axis] ?? []).map(
+        (slice) => [slice, slice] as [number, number]
+      );
+      const slice = snappedCenter([...painted, ...drawn]);
+      if (slice == null) return;
+      viewSliceStore.updateConfig(viewId, imageID, { slice });
+    }
+  );
 }

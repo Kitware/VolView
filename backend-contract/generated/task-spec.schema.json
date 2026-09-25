@@ -310,7 +310,7 @@
                 }
               },
               "multiple": {
-                "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. Only labelmap source refs bind plurally today — every group whose parent is the active dataset, in store order; on other type tags the flag has no effect yet.",
+                "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. For a labelmap input the client stages the active image's segmentation as overlap-free parts: when true, every mask, spread across as many files as it takes for no two masks to share a voxel; when absent or false, only the non-conflicting subset that fits one file, with the remaining masks omitted whole and reported to the user. No mask is ever clipped to fit.",
                 "type": "boolean"
               }
             },

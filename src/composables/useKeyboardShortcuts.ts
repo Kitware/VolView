@@ -3,6 +3,7 @@ import {
   DefaultMagicKeysAliasMap,
   onKeyStroke,
   useMagicKeys,
+  useActiveElement,
 } from '@vueuse/core';
 
 import { getEntries, wrapInArray } from '../utils';
@@ -44,8 +45,13 @@ export const isDispatchable = (binding: string) =>
  */
 export const useActionHeld = (action: Action) => {
   const keys = useMagicKeys();
+  const activeElement = useActiveElement();
   return computed(() =>
-    bindingsOf(actionToKey.value[action]).some((binding) => keys[binding].value)
+    bindingsOf(actionToKey.value[action]).some(
+      (binding) =>
+        keys[binding].value &&
+        !shouldIgnoreKeyboardShortcuts(binding, activeElement.value)
+    )
   );
 };
 
@@ -130,7 +136,7 @@ const matchesBinding = (
 const NON_TEXT_INPUT_TYPES = new Set(
   'button checkbox color file image radio range reset submit'.split(' ')
 );
-const TEXT_ENTRY_SELECTOR = 'input, textarea, [role="textbox"]';
+const TEXT_ENTRY_SELECTOR = 'input, textarea, select, [role="textbox"]';
 
 const ARROW_KEYS = ['up', 'down', 'left', 'right'].map(
   (direction) => `arrow${direction}`

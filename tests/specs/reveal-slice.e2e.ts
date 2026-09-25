@@ -7,22 +7,14 @@ import {
   getCineFrame,
   waitForFrame,
 } from './cineTestUtils';
-
-const openMeasurementsTab = async () => {
-  const annotationsTab = await $(
-    'button[data-testid="module-tab-Annotations"]'
-  );
-  await annotationsTab.click();
-
-  const measurementsTab = await $('button.v-tab*=Measurements');
-  await measurementsTab.waitForClickable();
-  await measurementsTab.click();
-};
+import { openSegmentShapes, revealSegment } from './segmentationTestUtils';
 
 const waitForToolEntry = async (iconClass: string) => {
   await browser.waitUntil(
     async () => {
-      const entries = await $$(`.v-list-item i.${iconClass}.tool-icon`);
+      const entries = await $$(
+        `[data-testid="segment-shape-row"] i.${iconClass}`
+      );
       return (await entries.length) >= 1;
     },
     { timeoutMsg: `Tool entry with icon ${iconClass} not found` }
@@ -30,9 +22,10 @@ const waitForToolEntry = async (iconClass: string) => {
 };
 
 const clickRevealSliceButton = async () => {
-  // The reveal-slice button is the v-btn wrapping the mdi-target icon
-  // inside the measurement tool list entry.
-  const button = await $('.v-list-item button .mdi-target');
+  // The shape's own reveal, under its segment: the segment row carries one too.
+  const button = await $(
+    '[data-testid="segment-shape-row"] button[data-testid="reveal-shape-button"]'
+  );
   await button.waitForClickable();
   await button.click();
 };
@@ -103,7 +96,7 @@ describe('Reveal Slice on a volume image', () => {
     const movedSlice = await volViewPage.getFirst2DSlice();
     expect(movedSlice).not.toBe(placementSlice);
 
-    await openMeasurementsTab();
+    await openSegmentShapes();
     await waitForToolEntry('mdi-ruler');
 
     await clickRevealSliceButton();
@@ -149,10 +142,18 @@ describe('Reveal Slice on cine ultrasound', () => {
         'Expected the placed ruler to be hidden on frames other than the placement frame',
     });
 
-    await openMeasurementsTab();
+    await openSegmentShapes();
     await waitForToolEntry('mdi-ruler');
 
     await clickRevealSliceButton();
     await waitForFrame(placementFrame!);
+
+    await volViewPage.focusFirst2DView();
+    await advanceCineFrame();
+    await revealSegment('Segment 1');
+    await waitForFrame(placementFrame!);
+    await browser.waitUntil(async () => (await countCineRulerLines()) >= 1, {
+      timeoutMsg: 'Segment reveal should restore its cine annotation frame',
+    });
   });
 });

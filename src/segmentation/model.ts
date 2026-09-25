@@ -1,4 +1,4 @@
-import type { Extent3D } from '@/src/segmentation/geometry';
+import { isEmptyExtent, type Extent3D } from '@/src/segmentation/geometry';
 import type { ProcessingResultSource } from '@/src/types';
 import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
@@ -31,6 +31,17 @@ export type SegmentMask = {
     // absent until voxels are allocated
     labelmap?: LabelmapBinding;
   };
+};
+
+/**
+ * Whether a mask holds anything. A record alone is not content, and neither is
+ * storage bound over an empty extent: both mean the segment was resolved on
+ * this image but never painted. Readers that count or gate on what an image
+ * actually has ask this instead of whether the record exists.
+ */
+export const maskHasContent = (mask: SegmentMask) => {
+  const binding = mask.representations.labelmap;
+  return !!binding && !isEmptyExtent(binding.extent);
 };
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
@@ -123,5 +134,9 @@ export function listMasks(segmentation: Segmentation) {
   return segmentation.order.map((id) => segmentation.masks[id]);
 }
 
-/** Aimed writes clear unlocked neighbors; sweeps only grow into unclaimed voxels. */
+/**
+ * Aimed writes take voxels from unlocked neighbors and go around locked ones,
+ * or leave every neighbor alone while overlap is allowed. Sweeps only grow into
+ * unclaimed voxels.
+ */
 export type VoxelGesture = 'aimed' | 'sweep';

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DataSource } from '@/src/io/import/dataSource';
 import type { TaskFormModel } from '../formModel';
+import type { SourceRefField } from '../mintInput';
 import { bindSourceRefs, type SourceRefBindingContext } from '../sourceRefs';
 import { createSourceRefBindingContext } from './sourceRefBindingContext';
 
@@ -9,6 +10,18 @@ const remoteImage: DataSource = {
   uri: '/data/image.nrrd',
   name: 'image.nrrd',
 };
+
+const inputField = (
+  id: string,
+  accepts: string[],
+  overrides: Partial<SourceRefField> = {}
+): SourceRefField => ({
+  kind: 'sourceRef',
+  id,
+  accepts,
+  required: true,
+  ...overrides,
+});
 
 const model = (fields: TaskFormModel['fields']): TaskFormModel => ({
   id: 'task',
@@ -22,29 +35,17 @@ const context = (
 ): SourceRefBindingContext =>
   createSourceRefBindingContext({
     activeDataSource: remoteImage,
-    getDataSource: () => remoteImage,
     ...overrides,
   });
 
-// The single-group arrangement the labelmap resolver binds without a picker.
-const oneSegmentGroup = {
-  segmentGroups: {
-    orderByParent: { 'image-1': ['group-1'] },
-    metadataByID: { 'group-1': { parentImage: 'image-1' } },
-  },
+const oneSegmentation = {
+  segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
 };
 
 describe('bindSourceRefs', () => {
   it('uses an image alternative when no labelmap is available', () => {
     const bindings = bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'input',
-          accepts: ['labelmap', 'image'],
-          required: true,
-        },
-      ]),
+      model([inputField('input', ['labelmap', 'image'])]),
       context()
     );
 
@@ -53,116 +54,56 @@ describe('bindSourceRefs', () => {
     expect(bindings.issues).toEqual([]);
   });
 
-  it('binds every group when a multiple labelmap is accepted', () => {
+  it('binds the segmentation when a multiple labelmap is accepted', () => {
     const bindings = bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'input',
-          accepts: ['labelmap', 'image'],
-          required: true,
-          multiple: true,
-        },
-      ]),
+      model([inputField('input', ['labelmap', 'image'], { multiple: true })]),
       context({
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1', 'group-2'] },
-          metadataByID: {
-            'group-1': { parentImage: 'image-1' },
-            'group-2': { parentImage: 'image-1' },
-          },
-        },
+        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
       })
     );
 
     expect(bindings.types.input).toBe('labelmap');
-    expect(bindings.labelmap.groups.input).toEqual(['group-1', 'group-2']);
+    expect(bindings.labelmap.segmentations.input).toEqual('segmentation-1');
     expect(bindings.issues).toEqual([]);
   });
 
-  it('keeps a multiple labelmap plural when a union sibling takes the image', () => {
+  it('keeps the segmentation binding when a union sibling takes the image', () => {
     const bindings = bindSourceRefs(
       model([
-        {
-          kind: 'sourceRef',
-          id: 'segs',
-          accepts: ['labelmap'],
-          required: true,
-          multiple: true,
-        },
-        {
-          kind: 'sourceRef',
-          id: 'either',
-          accepts: ['image', 'labelmap'],
-          required: true,
-        },
+        inputField('segs', ['labelmap'], { multiple: true }),
+        inputField('either', ['image', 'labelmap']),
       ]),
       context({
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1', 'group-2'] },
-          metadataByID: {
-            'group-1': { parentImage: 'image-1' },
-            'group-2': { parentImage: 'image-1' },
-          },
-        },
+        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
       })
     );
 
-    // The union has no active group to fall back on, so it takes the image and
-    // leaves the plural field to bind every group.
     expect(bindings.types).toEqual({ segs: 'labelmap', either: 'image' });
-    expect(bindings.labelmap.groups.segs).toEqual(['group-1', 'group-2']);
+    expect(bindings.labelmap.segmentations.segs).toEqual('segmentation-1');
     expect(bindings.states.segs).toBe('bound');
     expect(bindings.issues).toEqual([]);
   });
 
-  it('binds only the selected group for a singular labelmap', () => {
+  it('binds the segmentation for a singular labelmap', () => {
     const bindings = bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'input',
-          accepts: ['labelmap'],
-          required: true,
-        },
-      ]),
+      model([inputField('input', ['labelmap'])]),
       context({
-        activeSegmentGroupId: 'group-2',
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1', 'group-2'] },
-          metadataByID: {
-            'group-1': { parentImage: 'image-1' },
-            'group-2': { parentImage: 'image-1' },
-          },
-        },
+        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
       })
     );
 
-    expect(bindings.labelmap.groups.input).toEqual(['group-2']);
+    expect(bindings.labelmap.segmentations.input).toEqual('segmentation-1');
     expect(bindings.issues).toEqual([]);
   });
 
   it('uses the other type for a union alongside a dedicated input', () => {
     const bindings = bindSourceRefs(
       model([
-        {
-          kind: 'sourceRef',
-          id: 'image',
-          accepts: ['image'],
-          required: true,
-        },
-        {
-          kind: 'sourceRef',
-          id: 'either',
-          accepts: ['image', 'labelmap'],
-          required: true,
-        },
+        inputField('image', ['image']),
+        inputField('either', ['image', 'labelmap']),
       ]),
       context({
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1'] },
-          metadataByID: { 'group-1': { parentImage: 'image-1' } },
-        },
+        segmentation: { id: 'segmentation-1', parentImageId: 'image-1' },
       })
     );
 
@@ -170,54 +111,11 @@ describe('bindSourceRefs', () => {
     expect(bindings.issues).toEqual([]);
   });
 
-  it('falls back to image when a labelmap parent lacks provenance', () => {
+  it('refuses a labelmap whose parent image lacks provenance', () => {
     const bindings = bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'input',
-          accepts: ['labelmap', 'image'],
-          required: true,
-        },
-      ]),
-      context({
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1'] },
-          metadataByID: { 'group-1': { parentImage: 'image-1' } },
-        },
-        getDataSource: () => undefined,
-      })
+      model([inputField('segs', ['labelmap'], { multiple: true })]),
+      context({ ...oneSegmentation, activeDataSource: undefined })
     );
-
-    expect(bindings.types.input).toBe('image');
-    expect(bindings.issues).toEqual([]);
-  });
-
-  // Staging mints a reference per group, so no group set may reach it without
-  // one; the parent is the background image, which is the same for every group.
-  it('refuses a plural labelmap whose parent image lacks provenance', () => {
-    const bindings = bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'segs',
-          accepts: ['labelmap'],
-          required: true,
-          multiple: true,
-        },
-      ]),
-      context({
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1', 'group-2'] },
-          metadataByID: {
-            'group-1': { parentImage: 'image-1' },
-            'group-2': { parentImage: 'image-1' },
-          },
-        },
-        getDataSource: () => undefined,
-      })
-    );
-
     expect(bindings.states.segs).toBe('no-provenance');
     expect(bindings.issues).toHaveLength(1);
     expect(bindings.issues[0].message).toMatch(/not loaded from the server/i);
@@ -234,46 +132,12 @@ describe('bindSourceRefs', () => {
     } as DataSource;
 
     bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'input',
-          accepts: ['image'],
-          required: true,
-        },
-      ]),
+      model([inputField('input', ['image'])]),
       context({ activeDataSource: source })
     );
 
     // One mint reads the collection once for provenance and once for format.
     expect(sourceReads).toBe(2);
-  });
-
-  it('mints the selected labelmap reference image only once', () => {
-    let dataSourceReads = 0;
-
-    bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'input',
-          accepts: ['labelmap'],
-          required: true,
-        },
-      ]),
-      context({
-        segmentGroups: {
-          orderByParent: { 'image-1': ['group-1'] },
-          metadataByID: { 'group-1': { parentImage: 'image-1' } },
-        },
-        getDataSource: () => {
-          dataSourceReads += 1;
-          return remoteImage;
-        },
-      })
-    );
-
-    expect(dataSourceReads).toBe(1);
   });
 });
 
@@ -283,23 +147,11 @@ describe('bindSourceRefs — annotations', () => {
   const annotationsModel = () =>
     model([
       { kind: 'sourceRef', id: 'image', accepts: ['image'], required: true },
-      {
-        kind: 'sourceRef',
-        id: 'annotations',
-        accepts: ['annotations'],
-        required: true,
-      },
+      inputField('annotations', ['annotations']),
     ]);
 
   const annotationsOnlyModel = () =>
-    model([
-      {
-        kind: 'sourceRef',
-        id: 'annotations',
-        accepts: ['annotations'],
-        required: true,
-      },
-    ]);
+    model([inputField('annotations', ['annotations'])]);
 
   it('binds a dedicated annotations input when tools exist on a remote image', () => {
     const bindings = bindSourceRefs(
@@ -365,14 +217,9 @@ describe('bindSourceRefs — annotations', () => {
     const bindings = bindSourceRefs(
       model([
         { kind: 'sourceRef', id: 'seg', accepts: ['labelmap'], required: true },
-        {
-          kind: 'sourceRef',
-          id: 'annotations',
-          accepts: ['annotations'],
-          required: true,
-        },
+        inputField('annotations', ['annotations']),
       ]),
-      context({ hasFinishedAnnotations: true, ...oneSegmentGroup })
+      context({ hasFinishedAnnotations: true, ...oneSegmentation })
     );
 
     expect(bindings.annotations.parameters).toEqual([]);
@@ -383,12 +230,7 @@ describe('bindSourceRefs — annotations', () => {
     const bindings = bindSourceRefs(
       model([
         { kind: 'sourceRef', id: 'image', accepts: ['image'], required: true },
-        {
-          kind: 'sourceRef',
-          id: 'annotations',
-          accepts: ['annotations'],
-          required: true,
-        },
+        inputField('annotations', ['annotations']),
       ]),
       context({ hasFinishedAnnotations: true })
     );
@@ -406,12 +248,7 @@ describe('bindSourceRefs — annotations', () => {
     const bindings = bindSourceRefs(
       model([
         { kind: 'sourceRef', id: 'image', accepts: ['image'], required: true },
-        {
-          kind: 'sourceRef',
-          id: 'either',
-          accepts: ['image', 'annotations'],
-          required: true,
-        },
+        inputField('either', ['image', 'annotations']),
       ]),
       context({ hasFinishedAnnotations: true })
     );
@@ -426,14 +263,7 @@ describe('bindSourceRefs — annotations', () => {
 
   it('falls back to the image alternative when nothing is placed', () => {
     const bindings = bindSourceRefs(
-      model([
-        {
-          kind: 'sourceRef',
-          id: 'either',
-          accepts: ['annotations', 'image'],
-          required: true,
-        },
-      ]),
+      model([inputField('either', ['annotations', 'image'])]),
       context()
     );
 
@@ -447,14 +277,9 @@ describe('bindSourceRefs — annotations', () => {
       model([
         { kind: 'sourceRef', id: 'image', accepts: ['image'], required: true },
         { kind: 'sourceRef', id: 'seg', accepts: ['labelmap'], required: true },
-        {
-          kind: 'sourceRef',
-          id: 'annotations',
-          accepts: ['annotations'],
-          required: true,
-        },
+        inputField('annotations', ['annotations']),
       ]),
-      context({ hasFinishedAnnotations: true, ...oneSegmentGroup })
+      context({ hasFinishedAnnotations: true, ...oneSegmentation })
     );
 
     expect(bindings.types).toEqual({
@@ -462,7 +287,7 @@ describe('bindSourceRefs — annotations', () => {
       seg: 'labelmap',
       annotations: 'annotations',
     });
-    expect(bindings.labelmap.groups.seg).toEqual(['group-1']);
+    expect(bindings.labelmap.segmentations.seg).toEqual('segmentation-1');
     expect(bindings.annotations.parameters).toEqual(['annotations']);
     expect(bindings.issues).toEqual([]);
   });
@@ -480,12 +305,7 @@ describe('bindSourceRefs — annotations', () => {
     bindSourceRefs(
       model([
         { kind: 'sourceRef', id: 'image', accepts: ['image'], required: true },
-        {
-          kind: 'sourceRef',
-          id: 'annotations',
-          accepts: ['annotations'],
-          required: true,
-        },
+        inputField('annotations', ['annotations']),
       ]),
       context({ activeDataSource: source, hasFinishedAnnotations: true })
     );

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { segments, labels, normalizeSegmentConfig } from './configSegments';
+import { configIo } from '@/src/io/import/configIo';
 import {
   getEntries,
   isRecord,
@@ -9,9 +11,9 @@ import {
 import { ACTIONS } from '@/src/constants';
 import type { Action, Binding } from '@/src/constants';
 
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { useRulerStore } from '@/src/store/tools/rulers';
-import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useMessageStore } from '@/src/store/messages';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { tryCssColorToRGBA } from '@/src/segmentation/color';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
@@ -20,8 +22,7 @@ import {
   isDispatchable,
 } from '@/src/composables/useKeyboardShortcuts';
 import { surfaceWarning } from '@/src/store/messages';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
-import { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import useLoadDataStore from '@/src/store/load-data';
 import { layoutConfig } from '@/src/utils/layoutParsing';
 
@@ -40,47 +41,12 @@ const shortcuts = z
   .optional();
 
 // --------------------------------------------------------------------------
-// Labels
-
-const color = z.string();
-
-const label = z.object({
-  color,
-  strokeWidth: z.number().optional(),
-});
-
-const rulerLabel = label;
-const polygonLabel = label;
-
-const rectangleLabel = z.intersection(
-  label,
-  z.object({
-    fillColor: color,
-  })
-);
-
-const labels = z
-  .object({
-    defaultLabels: z.record(z.string(), label).or(z.null()).optional(),
-    rulerLabels: z.record(z.string(), rulerLabel).or(z.null()).optional(),
-    rectangleLabels: z
-      .record(z.string(), rectangleLabel)
-      .or(z.null())
-      .optional(),
-    polygonLabels: z.record(z.string(), polygonLabel).or(z.null()).optional(),
-  })
-  .optional();
+// SegmentMask types
 
 // --------------------------------------------------------------------------
 // IO
 
-const io = z
-  .object({
-    segmentGroupSaveFormat: z.string().optional(),
-    segmentGroupExtension: z.string().default(''),
-    layerExtension: z.string().default(''),
-  })
-  .optional();
+const io = configIo.optional();
 
 // --------------------------------------------------------------------------
 // Window Level
@@ -94,14 +60,17 @@ const windowing = z
 
 const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
 
-export const config = z.object({
+const configInput = z.object({
   layouts,
+  segments,
   labels,
   shortcuts,
   io,
   windowing,
   disabledViewTypes,
 });
+
+export const config = configInput.transform(normalizeSegmentConfig);
 
 export type Config = z.infer<typeof config>;
 
@@ -124,7 +93,13 @@ export type Config = z.infer<typeof config>;
 export type ConfigRecognition =
   // `ignoredKeys` lists the unknown top-level keys that were stripped (empty
   // when every top-level key was a known section).
-  { kind: 'config'; config: Config; ignoredKeys: string[] } | { kind: 'data' };
+  | {
+      kind: 'config';
+      config: Config;
+      ignoredKeys: string[];
+      deprecatedKeys: string[];
+    }
+  | { kind: 'data' };
 
 // ---------------------------------------------------------------------------
 // Config-section registry
@@ -153,7 +128,7 @@ export const registerConfigSection = <S extends z.ZodType>(
 
 // Base sections + every registered section define the known top-level keys.
 const fullConfigSchema = () =>
-  config.extend(
+  configInput.extend(
     Object.fromEntries(
       [...configSections.values()].map((section) => [
         section.key,
@@ -161,6 +136,12 @@ const fullConfigSchema = () =>
       ])
     )
   );
+
+export const CONFIG_KEY_REPLACEMENTS: Record<string, string> = {
+  'io.segmentGroupExtension': 'io.segmentationExtension',
+  'io.segmentGroupSaveFormat': 'io.segmentationSaveFormat',
+  labels: 'segments',
+};
 
 export const recognizeConfig = async (
   raw: unknown
@@ -179,7 +160,16 @@ export const recognizeConfig = async (
   // `fullConfig.parse` relies on zod's default (non-strict) object behavior to
   // drop unknown keys; adding `.strict()` would silently break forward-compat.
   const ignoredKeys = presentKeys.filter((key) => !knownKeys.has(key));
-  return { kind: 'config', config: fullConfig.parse(raw), ignoredKeys };
+  const deprecatedKeys = Object.keys(CONFIG_KEY_REPLACEMENTS).filter((key) => {
+    if (key === 'labels') return raw.labels !== undefined;
+    return isRecord(raw.io) && raw.io[key.slice(3)] !== undefined;
+  });
+  return {
+    kind: 'config',
+    config: fullConfig.transform(normalizeSegmentConfig).parse(raw),
+    ignoredKeys,
+    deprecatedKeys,
+  };
 };
 
 export const recognizeConfigFile = async (
@@ -188,29 +178,31 @@ export const recognizeConfigFile = async (
   return recognizeConfig(JSON.parse(await file.text()));
 };
 
-const applyLabels = (manifest: Config) => {
-  if (!manifest.labels) return;
+// A colour the parser does not know would otherwise resolve to opaque black,
+// which reads as a deliberate choice. Reported here, at the boundary that owns
+// the file, naming the segment and what it said.
+const reportUnparseableColors = (
+  configured: NonNullable<Config['segments']>
+) => {
+  const bad = Object.entries(configured).flatMap(([name, props]) =>
+    props.color && tryCssColorToRGBA(props.color) === undefined
+      ? [`${name} (${props.color})`]
+      : []
+  );
+  if (bad.length === 0) return;
+  useMessageStore().addError(
+    `Unrecognized ${plural(bad.length, 'color')} in config: ${bad.join(', ')}. ` +
+      'Use a hex value such as #d60000, or a CSS color keyword.'
+  );
+};
 
-  // pass through null labels, use fallback labels if undefined
-  const defaultLabelsIfUndefined = <T>(toolLabels: T) => {
-    if (toolLabels === undefined) return manifest.labels?.defaultLabels;
-    return toolLabels;
-  };
-
-  const applyLabelsToStore = (
-    store: AnnotationToolStore,
-    maybeLabels: (typeof manifest.labels)[keyof typeof manifest.labels]
-  ) => {
-    const labelsOrFallback = defaultLabelsIfUndefined(maybeLabels);
-    if (!labelsOrFallback) return;
-    store.clearDefaultLabels();
-    store.mergeLabels(labelsOrFallback);
-  };
-
-  const { rulerLabels, rectangleLabels, polygonLabels } = manifest.labels;
-  applyLabelsToStore(useRulerStore(), rulerLabels);
-  applyLabelsToStore(useRectangleStore(), rectangleLabels);
-  applyLabelsToStore(usePolygonStore(), polygonLabels);
+// An omitted section leaves the registry alone; an empty record or null
+// clears what an earlier config contributed to it.
+const applySegments = (manifest: Config) => {
+  const configured = manifest.segments;
+  if (configured === undefined) return;
+  if (configured) reportUnparseableColors(configured);
+  useSegmentStore().segments.replaceConfigSegments(configured);
 };
 
 const applyLayout = (manifest: Config) => {
@@ -269,10 +261,10 @@ const applyShortcuts = (manifest: Config) => {
 const applyIo = (manifest: Config) => {
   if (!manifest.io) return;
 
-  if (manifest.io.segmentGroupSaveFormat)
-    useSegmentGroupStore().saveFormat = manifest.io.segmentGroupSaveFormat;
+  if (manifest.io.segmentationSaveFormat)
+    useSegmentationStore().saveFormat = manifest.io.segmentationSaveFormat;
   const loadDataStore = useLoadDataStore();
-  loadDataStore.segmentGroupExtension = manifest.io.segmentGroupExtension;
+  loadDataStore.segmentationExtension = manifest.io.segmentationExtension;
   loadDataStore.layerExtension = manifest.io.layerExtension;
 };
 
@@ -306,5 +298,5 @@ export const applyPreStateConfig = async (manifest: Config) => {
 };
 
 export const applyPostStateConfig = (manifest: Config) => {
-  applyLabels(manifest);
+  applySegments(manifest);
 };

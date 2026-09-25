@@ -48,15 +48,21 @@
     </v-alert>
 
     <!-- Low-emphasis on purpose: accent blue is reserved for the active tab and links. -->
-    <v-btn
-      block
-      variant="tonal"
-      :disabled="issues.length > 0 || hasWidgetErrors || submitting"
-      :loading="submitting"
-      @click="onSubmit"
-    >
-      Submit
-    </v-btn>
+    <v-tooltip :disabled="!submitDisabledReason" :text="submitDisabledReason">
+      <template #activator="{ props: tooltipProps }">
+        <div v-bind="tooltipProps">
+          <v-btn
+            block
+            variant="tonal"
+            :disabled="Boolean(submitDisabledReason)"
+            :loading="submitting"
+            @click="onSubmit"
+          >
+            Submit
+          </v-btn>
+        </div>
+      </template>
+    </v-tooltip>
 
     <div
       v-if="model.hidden.length > 0"
@@ -134,6 +140,15 @@ watch(
 );
 const hasWidgetErrors = computed(
   () => Object.keys(widgetErrors.value).length > 0
+);
+
+const submitDisabledReason = computed(() =>
+  props.submitting
+    ? 'Submitting the task.'
+    : (props.issues[0]?.message ??
+      (hasWidgetErrors.value
+        ? 'Correct the invalid parameter values first.'
+        : ''))
 );
 
 function onSubmit() {

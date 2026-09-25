@@ -2,6 +2,15 @@ import AppPage from '../pageobjects/volview.page';
 import { PROSTATEX_DATASET } from '../datasets';
 import { openUrls } from './utils';
 
+async function startFillHolesPreview() {
+  await AppPage.processModeButton.waitForClickable();
+  await AppPage.processModeButton.click();
+  await AppPage.selectFillHolesProcess();
+  await AppPage.processPreviewButton.waitForClickable();
+  await AppPage.processPreviewButton.click();
+  await AppPage.processApplyButton.waitForDisplayed();
+}
+
 describe('Fill Holes paint process', () => {
   beforeEach(async () => {
     await openUrls([PROSTATEX_DATASET]);
@@ -44,13 +53,8 @@ describe('Fill Holes paint process', () => {
     await expect(AppPage.processPreviewButton).toBeDisplayed();
   });
 
-  it('toggles the preview in place between processed and original', async () => {
-    await AppPage.processModeButton.waitForClickable();
-    await AppPage.processModeButton.click();
-    await AppPage.selectFillHolesProcess();
-
-    await AppPage.processPreviewButton.waitForClickable();
-    await AppPage.processPreviewButton.click();
+  it('selects the named processed and original previews', async () => {
+    await startFillHolesPreview();
 
     // Previewing starts on the processed result.
     await AppPage.processProcessedButton.waitForDisplayed();
@@ -61,14 +65,38 @@ describe('Fill Holes paint process', () => {
       await AppPage.isPreviewToggleActive(AppPage.processOriginalButton)
     ).toBe(false);
 
-    // Clicking the already-active button flips the preview in place, without
-    // moving the pointer to the other button.
+    // Re-selecting the active choice leaves that named preview selected.
     await AppPage.processProcessedButton.click();
+    await browser.waitUntil(() =>
+      AppPage.isPreviewToggleActive(AppPage.processProcessedButton)
+    );
+    expect(
+      await AppPage.isPreviewToggleActive(AppPage.processOriginalButton)
+    ).toBe(false);
+
+    await AppPage.processOriginalButton.click();
     await browser.waitUntil(() =>
       AppPage.isPreviewToggleActive(AppPage.processOriginalButton)
     );
-    expect(
-      await AppPage.isPreviewToggleActive(AppPage.processProcessedButton)
-    ).toBe(false);
   });
+
+  for (const preview of ['Original', 'Processed']) {
+    it(`cancels the ${preview} preview when its segment locks and allows a retry`, async () => {
+      await startFillHolesPreview();
+      if (preview === 'Original') await AppPage.processOriginalButton.click();
+      const lock = $('[data-testid="toggle-segments-locked-button"]');
+      await lock.waitForClickable();
+      await lock.click();
+      await expect(AppPage.processPreviewButton).toBeDisplayed();
+      await expect(AppPage.processApplyButton).not.toBeDisplayed();
+
+      await lock.click();
+      await AppPage.processPreviewButton.waitForClickable();
+      await AppPage.processPreviewButton.click();
+      await AppPage.processApplyButton.waitForClickable();
+      await AppPage.processApplyButton.click();
+      await expect(AppPage.processPreviewButton).toBeDisplayed();
+      await expect($('div*=Operation Failed')).not.toBeDisplayed();
+    });
+  }
 });

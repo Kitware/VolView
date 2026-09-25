@@ -97,7 +97,7 @@ class VolViewPage extends Page {
   }
 
   async selectTool(icon: string) {
-    const button = $(`button span i[class~=${icon}]`);
+    const button = $(`button.tool-btn i[class~=${icon}]`);
     await button.waitForClickable();
     await button.click();
   }
@@ -153,11 +153,12 @@ class VolViewPage extends Page {
     return (classes ?? '').includes('v-btn--active');
   }
 
-  async paintStrokeOnView(view: ChainablePromiseElement) {
+  /** A square loop starting `offsetX` pixels right of the view's center. */
+  async paintStrokeOnView(view: ChainablePromiseElement, offsetX = 0) {
     const canvas = await view.$('canvas');
     const location = await canvas.getLocation();
     const size = await canvas.getSize();
-    const centerX = Math.round(location.x + size.width / 2);
+    const centerX = Math.round(location.x + size.width / 2) + offsetX;
     const centerY = Math.round(location.y + size.height / 2);
 
     await browser
@@ -214,16 +215,8 @@ class VolViewPage extends Page {
     return $('button[data-testid="module-tab-Annotations"]');
   }
 
-  get newSegmentGroupButton() {
-    return $('button*=New Group');
-  }
-
   get activeDialog() {
     return $('div[role="dialog"]');
-  }
-
-  get activeDialogInput() {
-    return this.activeDialog.$('input[placeholder="Unnamed Segment Group"]');
   }
 
   get saveSessionFilenameInput() {
@@ -234,32 +227,28 @@ class VolViewPage extends Page {
     return $('span[data-testid="save-session-confirm-button"]');
   }
 
-  get segmentGroupsTab() {
-    return $('button.v-tab*=Segment Groups');
+  get saveSegmentsButtons() {
+    return $$('button[data-testid="save-segments-button"]');
   }
 
-  get segmentGroupSaveButtons() {
-    return $$('button[data-testid="segment-group-save-button"]');
+  get segmentList() {
+    return $('[data-testid="segment-list"]');
   }
 
-  get segmentGroupList() {
-    return $('.segment-group-list');
-  }
-
-  get saveSegmentGroupFilenameInput() {
+  get saveSegmentsFilenameInput() {
     return this.activeDialog.$('#filename');
   }
 
-  get saveSegmentGroupConfirmButton() {
+  get saveSegmentsConfirmButton() {
     return this.activeDialog.$('button=Save');
   }
 
-  async clickFirstSegmentGroupSaveButton() {
+  async clickSaveSegmentsButton() {
     await browser.waitUntil(async () => {
-      const buttons = await this.segmentGroupSaveButtons;
+      const buttons = await this.saveSegmentsButtons;
       return (await buttons.length) >= 1;
     });
-    const buttons = await this.segmentGroupSaveButtons;
+    const buttons = await this.saveSegmentsButtons;
     await buttons[0].scrollIntoView();
     await buttons[0].waitForClickable();
     await buttons[0].click();
@@ -288,27 +277,10 @@ class VolViewPage extends Page {
     return fileName;
   }
 
-  async createSegmentGroup(name: string) {
-    const annotationsTab = await this.annotationsModuleTab;
-    await annotationsTab.click();
-
-    const newGroup = await this.newSegmentGroupButton;
-    await newGroup.waitForClickable();
-    await newGroup.click();
-
-    const input = await this.activeDialogInput;
-    await input.waitForDisplayed();
-    await setValueVueInput(input, name);
-    await browser.keys([Key.Enter]);
-  }
-
-  get editLabelButtons() {
-    return $$('button[data-testid="edit-label-button"]');
-  }
-
-  get labelStrokeWidthInput() {
-    // there should only be one on the screen at any given time
-    return $('.label-stroke-width-input').$('input');
+  get segmentStrokeWidthSlider() {
+    return $(
+      '//label[normalize-space()="Stroke Width"]/ancestor::div[contains(@class, "v-slider")][1]//*[@role="slider"]'
+    );
   }
 
   get editLabelModalDoneButton() {

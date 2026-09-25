@@ -5,6 +5,8 @@ import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useRulerStore } from '@/src/store/tools/rulers';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 // ---------------------------------------------------------------------------
 // The optional structured `source` on an annotation tool is the durable
@@ -91,8 +93,6 @@ describe('annotation tool source', () => {
     expect(ManifestSchema.safeParse(bad).success).toBe(false);
   });
 
-  // The annotation `source` field is additive-optional, so 6.4.0 remains the
-  // current manifest version and passes through untouched.
   it('passes a 6.4.0 manifest without touching its tools', () => {
     const old = JSON.stringify({
       version: '6.4.0',
@@ -102,7 +102,11 @@ describe('annotation tool source', () => {
     const migrated = migrateManifest(old);
     expect(migrated.version).toBe(MANIFEST_VERSION);
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
-    expect(migrated.tools.rulers.tools[0]).toEqual(ruler());
+    // An unlabelled tool gains the segment its appearance mints, nothing else.
+    expect(migrated.tools.rulers.tools[0]).toEqual({
+      ...ruler(),
+      segmentId: migrated.segments[0].id,
+    });
   });
 });
 
@@ -121,6 +125,9 @@ describe('annotation tool source — store serialize/restore', () => {
     expect(parsed.tools[0].source).toEqual(source);
 
     setActivePinia(createPinia());
+    useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
+      id: 'img-2',
+    });
     const restored = useRulerStore();
     restored.deserializeTools(parsed as never, { 'img-1': 'img-2' });
 

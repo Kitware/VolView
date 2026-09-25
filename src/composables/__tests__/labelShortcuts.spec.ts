@@ -1,0 +1,104 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
+import { createApp } from 'vue';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+
+import { ACTION_TO_FUNC } from '@/src/composables/actions';
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { useToolStore } from '@/src/store/tools';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { Tools } from '@/src/store/tools/types';
+import { useViewStore } from '@/src/store/views';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+
+const seatAndView = (id: string) => {
+  useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
+    id,
+  });
+  useViewStore().setDataForAllViews(id);
+};
+
+describe('next/previous type shortcuts', () => {
+  beforeEach(() => {
+    const pinia = createPinia().use(CorePiniaProviderPlugin());
+    createApp({}).use(pinia);
+    setActivePinia(pinia);
+  });
+
+  it('is a no-op when the registry is empty', () => {
+    seatAndView('img-1');
+
+    expect(usePolygonStore().segments.segmentList.value).toEqual([]);
+    expect(() => ACTION_TO_FUNC.incrementLabel()).not.toThrow();
+    expect(() => ACTION_TO_FUNC.decrementLabel()).not.toThrow();
+    expect(usePolygonStore().segments.selectedSegmentId.value).toBeFalsy();
+  });
+
+  it('is a no-op when no image is viewed', () => {
+    expect(() => ACTION_TO_FUNC.incrementLabel()).not.toThrow();
+    expect(() => ACTION_TO_FUNC.decrementLabel()).not.toThrow();
+  });
+
+  it('cycles through the registry the active tool reads', () => {
+    seatAndView('img-1');
+    const { segments } = usePolygonStore();
+    const first = segments.addSegment({ name: 'Tumor' });
+    const second = segments.addSegment({ name: 'Node' });
+
+    useToolStore().setCurrentTool(Tools.Polygon);
+    segments.selectSegment(first);
+    ACTION_TO_FUNC.incrementLabel();
+    expect(segments.selectedSegmentId.value).toBe(second);
+
+    ACTION_TO_FUNC.incrementLabel();
+    expect(segments.selectedSegmentId.value).toBe(first);
+
+    ACTION_TO_FUNC.decrementLabel();
+    expect(segments.selectedSegmentId.value).toBe(second);
+  });
+
+  // One registry serves every tool, so the shortcut is not scoped to the
+  // annotation tools.
+  it('cycles while paint is the active tool', () => {
+    seatAndView('img-1');
+    useToolStore().setCurrentTool(Tools.Paint);
+    const { segments } = useSegmentStore();
+    const first = segments.addSegment({ name: 'Tumor' });
+    const second = segments.addSegment({ name: 'Node' });
+
+    segments.selectSegment(first);
+    ACTION_TO_FUNC.incrementLabel();
+
+    expect(segments.selectedSegmentId.value).toBe(second);
+  });
+
+  it.each([Tools.Paint, Tools.Polygon, Tools.Rectangle, Tools.Ruler])(
+    'selects one segment for %s without allocating masks, including reactivation',
+    (tool) => {
+      seatAndView('img-1');
+      const tools = useToolStore();
+      const { segments } = useSegmentStore();
+      tools.setCurrentTool(tool);
+      const first = segments.selectedSegmentId.value;
+      expect(first).toBeTruthy();
+      expect(segments.segmentList.value).toHaveLength(1);
+      expect(useSegmentationStore().segmentations).toEqual({});
+      expect(boundMasks()).toEqual([]);
+
+      tools.setCurrentTool(Tools.Select);
+      tools.setCurrentTool(tool);
+      expect(segments.selectedSegmentId.value).toBe(first);
+      expect(segments.segmentList.value).toHaveLength(1);
+      const selected = segments.addSegment({ name: 'Another' });
+      tools.setCurrentTool(Tools.Select);
+      tools.setCurrentTool(tool);
+      expect(segments.selectedSegmentId.value).toBe(selected);
+      expect(segments.segmentList.value).toHaveLength(2);
+      expect(useSegmentationStore().segmentations).toEqual({});
+      expect(boundMasks()).toEqual([]);
+    }
+  );
+});

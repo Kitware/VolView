@@ -37,8 +37,8 @@ import {
   useGaussianSmoothStore,
   MIN_SIGMA,
   MAX_SIGMA,
-} from '@/src/store/tools/gaussianSmooth';
-import { usePaintProcessStore } from '@/src/store/tools/paintProcess';
+} from '@/src/segmentation/editing/gaussianSmooth';
+import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import MiniExpansionPanel from './MiniExpansionPanel.vue';
 
 const gaussianSmoothStore = useGaussianSmoothStore();

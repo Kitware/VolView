@@ -4,7 +4,7 @@ import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
-import { useSegmentGroupStore } from '@/src/store/segmentGroups';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import {
   isRegularImage,
   type DataSelection,
@@ -37,7 +37,7 @@ export default defineComponent({
     const imageStore = useImageStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
-    const segmentGroupStore = useSegmentGroupStore();
+    const segmentationStore = useSegmentationStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
     const imageCacheStore = useImageCacheStore();
@@ -78,6 +78,8 @@ export default defineComponent({
           spacing: [...metadata.spacing].map((s) => s.toFixed(2)),
           layerable,
           layerLoading,
+          convertingToSegmentation:
+            segmentationStore.convertingLabelmaps.has(id),
           isLayer,
           layerHandler: () => {
             if (!layerLoading && layerable) {
@@ -155,7 +157,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (currentImageID.value) {
-        segmentGroupStore.convertImageToLabelmap(key, currentImageID.value);
+        segmentationStore.startLabelmapConversion(key, currentImageID.value);
       }
     }
 
@@ -274,6 +276,15 @@ export default defineComponent({
           @click="select"
           @dragstart="onDragStart(image.id, $event)"
         >
+          <template v-if="image.convertingToSegmentation" #image-overlay>
+            <div
+              class="d-flex flex-column align-center justify-center fill-height text-center"
+              data-testid="segmentation-conversion-progress"
+            >
+              <v-progress-circular indeterminate class="mb-1" size="small" />
+              <span class="text-caption">Adding segmentation…</span>
+            </div>
+          </template>
           <div class="d-flex flex-row justify-space-between">
             <div class="allow-trunc-text-flex-child">
               <div
@@ -313,6 +324,7 @@ export default defineComponent({
                     </template>
                   </v-list-item>
                   <v-list-item
+                    :disabled="image.convertingToSegmentation"
                     @click="
                       image.layerable ? convertToLabelMap(image.id) : null
                     "
@@ -320,7 +332,7 @@ export default defineComponent({
                     <v-icon v-if="!image.layerable" class="mr-1">
                       mdi-alert
                     </v-icon>
-                    Add as Segment Group
+                    Add as segmentation
                     <v-tooltip
                       activator="parent"
                       location="end"

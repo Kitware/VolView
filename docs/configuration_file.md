@@ -4,7 +4,7 @@ By loading a JSON file, you can set VolView's configuration:
 
 - View layouts (grid size, view types, or hierarchical layouts)
 - Disabled view types
-- Labels for tools
+- Segments
 - Visibility of Sample Data section
 - Keyboard shortcuts
 
@@ -149,66 +149,127 @@ Use `disabledViewTypes` to prevent certain view types from being available in th
 
 This removes the specified view types from the dropdown menu and replaces them in the default layout with allowed types. Valid values: `"2D"`, `"3D"`, `"Oblique"`
 
-## Labels for tools
+## Segments
 
-Each tool type (Rectangle, Polygon, etc.) can have tool specific labels. To share labels
-across tools, define the `defaultLabels` key and don't provide labels for a tool that
-should use the default labels.
+Paint, rectangles, polygons and rulers share one registry of segments, configured under
+`segments`. Each entry is keyed by name, and every appearance field is optional: an
+omitted one means the app default for a new segment. For an existing session segment,
+omitted fields keep the appearance it had before configuration. Replacing a config entry
+removes its previous appearance overrides, including color, while keeping the segment id,
+visibility and lock state.
 
 ```json
 {
-  "labels": {
-    "defaultLabels": {
-      "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green", "strokeWidth": 3 }
-    }
+  "segments": {
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 }
   }
 }
 ```
 
-## Segment Group File Format
+Fields: `color`, `fillOpacity`, `outlineOpacity`, `strokeWidth`.
 
-The `segmentGroupSaveFormat` key specifies the file extension of the segment group images
+Omitting the key leaves the registry alone. An empty record (`{}`) or `null` clears what an
+earlier config contributed, keeping any segment your content still references with its
+last configured appearance. A configured
+segment keeps its id across config changes, so renaming or recoloring one never detaches
+the masks and shapes that reference it.
+
+### Pre-7.0 `labels`
+
+A pre-7.0 `labels` section is converted into `segments` at configuration ingestion, with a deprecation warning. Runtime configuration contains only `segments`. Its `defaultLabels`, `rulerLabels`,
+`rectangleLabels` and `polygonLabels` all describe the one registry now, so they read as
+`segments` entries. A name that appears in more than one becomes a single segment: the
+first record to declare it sets its appearance, reading `rulerLabels`, `rectangleLabels`
+and `polygonLabels` in that order and `defaultLabels` last, since it stood in only for the
+tools that declared no record of their own. A rectangle label's `fillColor` is dropped,
+since fill color is a property of the rectangle rather than of the segment. A config
+carrying both `segments` and `labels` has been converted already, so `segments` is read
+and `labels` is ignored.
+
+Converting a config by hand:
+
+```json
+{
+  "labels": {
+    "defaultLabels": { "lesion": { "color": "#ff0000" } },
+    "rulerLabels": { "big": { "color": "#ff0000" } }
+  }
+}
+```
+
+becomes
+
+```json
+{
+  "segments": {
+    "lesion": { "color": "#ff0000" },
+    "big": { "color": "#ff0000" }
+  }
+}
+```
+
+## Session Mask File Format
+
+The `segmentationSaveFormat` key specifies the file extension of the mask images
 VolView will include in the volview.zip file.
 
 ```json
 {
   "io": {
-    "segmentGroupSaveFormat": "nii"
+    "segmentationSaveFormat": "nii"
   }
 }
 ```
 
-Working segment group file formats:
+The legacy `io.segmentGroupSaveFormat` key is migrated at ingestion. Matching
+old and new values are accepted; conflicting values are rejected. This setting
+controls mask files inside saved sessions, independently of the explicit
+segmentation export dialog. Existing saved-session encodings remain readable.
+
+Working mask file formats:
 
 hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 
-## Automatic Layers and Segment Groups by File Name
+## Automatic Layers and Segmentations by File Name
 
 When loading multiple files, VolView can automatically associate related images based on file naming patterns.
 Example: `base.[extension].nrrd` will match `base.nii`.
 
 The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot). Files matching `base.[extension]...` will be associated with a base image named `base.*`.
 
-**Ordering:** When multiple layers/segment groups match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
+**Ordering:** When multiple layers/segmentations match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames.
 
 For example, with a base image `patient001.nrrd`:
 
 - Layers (sorted alphabetically): `patient001.layer.1.pet.nii`, `patient001.layer.2.ct.mha`, `patient001.layer.3.overlay.vtk`
-- Segment groups: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
+- Segmentations: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
 
 Both features default to `''` which disables them.
 
-### Segment Groups
+### Configuration migration
 
-Use `segmentGroupExtension` to automatically convert matching non-DICOM images to segment groups.
-For example, `myFile.seg.nrrd` becomes a segment group for `myFile.nii`.
+Use `io.segmentationExtension` in new configuration. The old
+`io.segmentGroupExtension` key is accepted at ingestion and converted to the
+new key. If both keys are present, their values must match; conflicting values
+are rejected. An explicit empty string disables automatic matching.
+
+The value `seg` is the filename marker in `patient.seg.nii.gz`; `nii.gz` is
+its encoding extension. This setting preserves the existing filename matching
+rule and does not add support for additional segmentation formats.
+
+Directly loading an old key in VolView also reports a deprecation warning.
+
+### Segmentations
+
+Use `segmentationExtension` to automatically convert matching non-DICOM images to segmentations.
+For example, `myFile.seg.nrrd` becomes a segmentation for `myFile.nii`.
 Defaults to `''` which disables matching.
 
 ```json
 {
   "io": {
-    "segmentGroupExtension": "seg"
+    "segmentationExtension": "seg"
   }
 }
 ```
@@ -246,11 +307,9 @@ To configure a key for an action, add its action name and the key(s) under the `
 
 ```json
 {
-  "labels": {
-    "defaultLabels": {
-      "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green", "strokeWidth": 3 }
-    }
+  "segments": {
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3 }
   },
   "layouts": {
     "single-view": {
@@ -264,28 +323,10 @@ To configure a key for an action, add its action name and the key(s) under the `
 
 ```json
 {
-  "labels": {
-    "defaultLabels": {
-      "lesion": { "color": "#ff0000" },
-      "tumor": { "color": "green", "strokeWidth": 3 },
-      "innocuous": { "color": "white" }
-    },
-    "rulerLabels": {
-      "big": { "color": "#ff0000" },
-      "small": { "color": "white" }
-    },
-    "rectangleLabels": {
-      "red": { "color": "#ff0000", "fillColor": "transparent" },
-      "green": { "color": "green", "fillColor": "transparent" },
-      "white-yellow-fill": {
-        "color": "white",
-        "fillColor": "#00ff0030"
-      }
-    },
-    "polygonLabels": {
-      "poly1": { "color": "#ff0000" },
-      "poly2Label": { "color": "green" }
-    }
+  "segments": {
+    "lesion": { "color": "#ff0000" },
+    "tumor": { "color": "green", "strokeWidth": 3, "fillOpacity": 0.5 },
+    "innocuous": { "color": "white", "outlineOpacity": 0.8 }
   },
   "layouts": {
     "Volume primary": {
@@ -312,8 +353,8 @@ To configure a key for an action, add its action name and the key(s) under the `
     "showKeyboardShortcuts": "t"
   },
   "io": {
-    "segmentGroupSaveFormat": "nrrd",
-    "segmentGroupExtension": "seg",
+    "segmentationSaveFormat": "nrrd",
+    "segmentationExtension": "seg",
     "layerExtension": "layer"
   }
 }

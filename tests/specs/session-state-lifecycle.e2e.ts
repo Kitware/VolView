@@ -1,10 +1,28 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import JSZip from 'jszip';
-import { MINIMAL_501_SESSION, PROSTATEX_DATASET } from '../datasets';
-import { openUrls, SESSION_SAVE_TIMEOUT, waitForFileExists } from './utils';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { MINIMAL_501_SESSION } from '../datasets';
+import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
+import {
+  openVolViewPage,
+  SESSION_SAVE_TIMEOUT,
+  waitForFileExists,
+  writeManifestToFile,
+} from './utils';
+import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
+import {
+  openAnnotationSegments,
+  openSegmentShapes,
+  segmentColor,
+  segmentNames,
+  segmentRow,
+  waitForNamedSegments,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
+
+// The 5.0.1 fixture's rectangle carries this name.
+const RECTANGLE_SEGMENT_NAME = 'Label 1';
 
 const waitForElementCount = async (selector: string, minCount = 1) => {
   await browser.waitUntil(async () => {
@@ -56,6 +74,13 @@ const loadSession = async () => {
   await volViewPage.waitForViews();
 };
 
+const openProstateLabelmap = async (fileName: string) => {
+  await openVolViewPage(fileName);
+  await openAnnotationSegments();
+  await waitForNamedSegments();
+  await waitForSegmentContent('Right hip');
+};
+
 describe('Session state lifecycle', () => {
   it('migrates 5.0.1 session with rectangle, polygons, and labelmap', async () => {
     await loadSession();
@@ -63,45 +88,45 @@ describe('Session state lifecycle', () => {
     const notifications = await volViewPage.getNotificationsCount();
     expect(notifications).toEqual(0);
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
+    await openSegmentShapes();
+
+    await waitForElementCount(
+      '[data-testid="segment-shape-row"] i.mdi-vector-square'
     );
-    await annotationsTab.click();
+    await waitForElementCount(
+      '[data-testid="segment-shape-row"] i.mdi-pentagon-outline'
+    );
 
-    const measurementsTab = await $('button.v-tab*=Measurements');
-    await measurementsTab.waitForClickable();
-    await measurementsTab.click();
-
-    await waitForElementCount('.v-list-item i.mdi-vector-square.tool-icon');
-    await waitForElementCount('.v-list-item i.mdi-pentagon-outline.tool-icon');
-
-    const segmentGroupsTab = await $('button.v-tab*=Segment Groups');
-    await segmentGroupsTab.waitForClickable();
-    await segmentGroupsTab.click();
-
-    await waitForElementCount('.segment-group-list .v-list-item');
+    await openAnnotationSegments();
+    await waitForNamedSegments();
   });
 
-  it('edited label strokeWidth persists through save/load cycle', async () => {
+  it('edited type strokeWidth persists through save/load cycle', async () => {
     await loadSession();
 
-    const editedStrokeWidth = 9;
+    const editedStrokeWidth = 5;
 
-    // Activate rectangle tool to show RectangleControls with LabelControls
+    // Rectangle draws with the entry selected in the Segments list, which is
+    // where the session's rectangle segment shows up.
     await volViewPage.activateRectangle();
+    await openAnnotationSegments();
+    await waitForNamedSegments();
 
-    const annotationsTab = await $(
-      'button[data-testid="module-tab-Annotations"]'
+    // The list shows every segment in the registry, so pick the one the
+    // session's rectangle actually carries rather than the first row.
+    const row = await segmentRow(RECTANGLE_SEGMENT_NAME);
+    await row.waitForDisplayed();
+    const editButton = await row.$('button[data-testid="edit-segment-button"]');
+    await editButton.click();
+
+    const slider = await volViewPage.segmentStrokeWidthSlider;
+    await slider.waitForClickable();
+    await slider.click();
+    await browser.keys('End');
+    await expect(slider).toHaveAttribute(
+      'aria-valuenow',
+      editedStrokeWidth.toString()
     );
-    await annotationsTab.click();
-
-    await waitForElementCount('button[data-testid="edit-label-button"]');
-
-    const buttons = await volViewPage.editLabelButtons;
-    await buttons[0].click();
-
-    const input = await volViewPage.labelStrokeWidthInput;
-    await setValueVueInput(input, editedStrokeWidth.toString());
 
     const done = await volViewPage.editLabelModalDoneButton;
     await done.click();
@@ -113,32 +138,80 @@ describe('Session state lifecycle', () => {
     await volViewPage.waitForViews();
 
     const { manifest: reloadedManifest } = await saveAndParseManifest();
+    // Stroke width belongs to the type the rectangle names, not to the shape.
     const tools = reloadedManifest.tools as {
-      rectangles: { tools: Array<{ strokeWidth: number }> };
+      rectangles: { tools: Array<{ segmentId: string }> };
     };
-    expect(tools.rectangles.tools[0].strokeWidth).toEqual(editedStrokeWidth);
+    const segments = reloadedManifest.segments as Array<{
+      id: string;
+      strokeWidth?: number;
+    }>;
+    const carried = segments.find(
+      (segment) => segment.id === tools.rectangles.tools[0].segmentId
+    );
+    expect(carried?.strokeWidth).toEqual(editedStrokeWidth);
   });
 
-  it('sanitizes segment group names when saving labelmaps into the session zip', async () => {
-    await openUrls([PROSTATEX_DATASET]);
-
-    const segmentGroupName = 'Liver: left/right*?';
+  it('sanitizes stored labelmap names when saving them into the session zip', async () => {
+    // The panel is one flat list per image with no group left to name, so a
+    // filesystem-hostile name now reaches the app through the manifest.
+    const storedName = 'Liver: left/right*?';
     const sanitizedFilePath = 'segmentations/Liver left right.vti';
-
-    await volViewPage.createSegmentGroup(segmentGroupName);
+    const source = PROSTATE_610_LABELMAP_MANIFEST.labelMaps[0];
+    const fileName = `hostile-labelmap-name-${Date.now()}.volview.json`;
+    await writeManifestToFile(
+      {
+        ...PROSTATE_610_LABELMAP_MANIFEST,
+        labelMaps: [
+          { ...source, metadata: { ...source.metadata, name: storedName } },
+        ],
+      },
+      fileName
+    );
+    await openProstateLabelmap(fileName);
 
     const { manifest, zip } = await saveAndParseManifest();
     if (!zip) {
       throw new Error('Expected saved session zip to be available');
     }
-    const segmentGroups = manifest.segmentGroups as Array<{
-      path: string;
-      metadata: { name: string };
+    // A save writes one archive entry per mask, named on the mask's own
+    // labelmap binding.
+    const segmentations = manifest.segmentations as Array<{
+      masks: Array<{
+        representations: { labelmap?: { path: string; name: string } };
+      }>;
     }>;
+    const bindings = segmentations.flatMap((segmentation) =>
+      segmentation.masks.flatMap((mask) => mask.representations.labelmap ?? [])
+    );
 
-    expect(segmentGroups.length).toEqual(1);
-    expect(segmentGroups[0].metadata.name).toEqual(segmentGroupName);
-    expect(segmentGroups[0].path).toEqual(sanitizedFilePath);
+    expect(bindings.length).toBeGreaterThan(0);
+    // The stored name survives; only the path it becomes is sanitized.
+    expect(bindings.every((binding) => binding.name === storedName)).toBe(true);
+    expect(bindings[0].path).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
+  });
+
+  it('re-saves a migrated legacy labelmap with its segments intact', async () => {
+    const fileName = `legacy-labelmap-${Date.now()}.volview.json`;
+    await writeManifestToFile(PROSTATE_610_LABELMAP_MANIFEST, fileName);
+    await openProstateLabelmap(fileName);
+
+    // The 6.1.0 labelMaps entry names this segment and colors it red.
+    expect(await segmentNames()).toEqual(['Right hip']);
+    const segmentColorBefore = await segmentColor('Right hip');
+
+    const { session, manifest } = await saveAndParseManifest();
+    expect(manifest.version).toEqual('7.0.0');
+
+    await volViewPage.open(`?urls=[tmp/${session}]`);
+    await volViewPage.waitForViews();
+    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+
+    await openAnnotationSegments();
+    await waitForNamedSegments();
+    expect(await segmentNames()).toEqual(['Right hip']);
+    await waitForSegmentContent('Right hip');
+    expect(await segmentColor('Right hip')).toEqual(segmentColorBefore);
   });
 });

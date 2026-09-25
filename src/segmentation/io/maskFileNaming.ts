@@ -6,7 +6,9 @@ const defaultName = (baseName: string, index: number) =>
  * count keeps rising so a deleted mask's name is not immediately handed to
  * the next one, and `taken` skips a name something already holds.
  */
-export function createMaskFileNamer(taken: () => Set<string>) {
+export function createMaskFileNamer(
+  taken: () => { has: (name: string) => boolean }
+) {
   const nextIndex: Record<string, number> = Object.create(null);
   return {
     pick(parentImageId: string, baseName: string) {

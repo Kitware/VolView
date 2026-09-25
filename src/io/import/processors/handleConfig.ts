@@ -1,6 +1,9 @@
 import { ImportHandler, asConfigResult } from '@/src/io/import/common';
 import { ensureError, plural } from '@/src/utils';
-import { recognizeConfigFile } from '@/src/io/import/configJson';
+import {
+  CONFIG_KEY_REPLACEMENTS,
+  recognizeConfigFile,
+} from '@/src/io/import/configJson';
 import { Skip } from '@/src/utils/evaluateChain';
 import { surfaceWarning } from '@/src/store/messages';
 
@@ -37,13 +40,27 @@ const handleConfig: ImportHandler = async (dataSource) => {
       if (recognition.ignoredKeys.length > 0) {
         surfaceIgnoredConfigKeys(recognition.ignoredKeys);
       }
+      if (recognition.deprecatedKeys.length > 0) {
+        surfaceWarning(
+          'Deprecated configuration',
+          recognition.deprecatedKeys
+            .map(
+              (key) =>
+                `${key} was migrated to ${CONFIG_KEY_REPLACEMENTS[key]}. Update your configuration to use ${CONFIG_KEY_REPLACEMENTS[key]}.`
+            )
+            .join(' ')
+        );
+      }
       return asConfigResult(dataSource, recognition.config);
     }
     return Skip;
   } catch (err) {
-    throw new Error('Failed to parse config file', {
-      cause: ensureError(err),
-    });
+    throw new Error(
+      `Failed to parse config file: ${ensureError(err).message}`,
+      {
+        cause: ensureError(err),
+      }
+    );
   }
 };
 

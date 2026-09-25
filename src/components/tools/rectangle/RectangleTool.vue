@@ -10,6 +10,7 @@
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(tool.id, $event)"
+        @placing="onPlacementStarted"
         @placed="onToolPlaced"
         @widgetHover="onHover(tool.id, $event)"
       />
@@ -21,7 +22,6 @@
 
 <script lang="ts">
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -69,7 +69,7 @@ export default defineComponent({
     const { viewDirection, imageId, viewId } = toRefs(props);
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
-    const { activeLabel } = storeToRefs(activeToolStore);
+    const { selectedSegmentId } = activeToolStore.segments;
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
@@ -86,8 +86,7 @@ export default defineComponent({
         return {
           imageID: currentImageID.value,
           ...locatorPatch(locator.value),
-          label: activeLabel.value,
-          ...(activeLabel.value && activeToolStore.labels[activeLabel.value]),
+          segmentId: selectedSegmentId.value ?? '',
         };
       })
     );
@@ -106,6 +105,8 @@ export default defineComponent({
       placingTool.remove();
     });
 
+    // The annotation delineates a segment from the first point down, so it is
+    // drawn in that segment's color rather than changing color once placed.
     const onToolPlaced = () => {
       if (currentImageID.value) {
         placingTool.commit();
@@ -158,6 +159,7 @@ export default defineComponent({
     return {
       tools: currentTools,
       placingToolID: placingTool.id,
+      onPlacementStarted: placingTool.beginPlacement,
       onToolPlaced,
       contextMenu,
       openContextMenu,

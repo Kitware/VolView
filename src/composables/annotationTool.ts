@@ -51,6 +51,16 @@ export const doesToolFrameMatchViewAxis = <Tool extends AnnotationTool>(
   return !!toolAxis && toolAxis.axis === unref(viewAxis);
 };
 
+/** Everything that renders a shape or its selection outline shares this. */
+export const isToolVisible = (
+  store: AnnotationToolStore,
+  tool: Pick<AnnotationTool, 'hidden' | 'placing' | 'segmentId'>
+) =>
+  !tool.hidden &&
+  // Keep the active placement widget alive until it commits. Completed
+  // shapes inherit the segment's visibility without changing child flags.
+  (tool.placing || store.segments.appearanceOf(tool.segmentId).visible);
+
 export const useCurrentTools = <S extends AnnotationToolStore>(
   toolStore: S,
   viewAxis: Ref<LPSAxis>,
@@ -78,13 +88,18 @@ export const useCurrentTools = <S extends AnnotationToolStore>(
       return (
         tool.imageID === curImageID &&
         doesToolFrameMatchViewAxis(viewAxis, tool, currentImageMetadata) &&
-        !tool.hidden
+        isToolVisible(toolStore, tool)
       );
     });
   });
 };
 
 // --- Context Menu --- //
+
+export const useToolAppearance = (
+  store: AnnotationToolStore,
+  tool: () => Maybe<{ segmentId?: string }>
+) => computed(() => store.segments.appearanceOf(tool()?.segmentId));
 
 export const useContextMenu = () => {
   const contextMenu = ref<{
@@ -224,7 +239,7 @@ export const usePlacingAnnotationTool = (
   const commit = () => {
     const id_ = id.value as Maybe<ToolID>;
     if (!id_) return;
-    store.updateTool(id_, { placing: false });
+    store.placeTool(id_);
     id.value = null;
   };
 
@@ -248,8 +263,16 @@ export const usePlacingAnnotationTool = (
     store.updateTool(id.value as ToolID, metadata.value);
   });
 
+  // The first gesture is what mints, so the shape resolves its segment as
+  // placement starts rather than when it lands.
+  const beginPlacement = () => {
+    const id_ = id.value as Maybe<ToolID>;
+    if (id_) store.resolveToolType(id_);
+  };
+
   return {
     id: readonly(id),
+    beginPlacement,
     commit,
     add,
     remove,

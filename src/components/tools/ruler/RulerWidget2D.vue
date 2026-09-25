@@ -27,6 +27,7 @@ import {
   useRightClickContextMenu,
   useHoverEvent,
   useWidgetVisibility,
+  useToolAppearance,
 } from '@/src/composables/annotationTool';
 import { ToolID } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
@@ -162,6 +163,7 @@ export default defineComponent({
     return {
       ruler,
       slice,
+      appearance: useToolAppearance(rulerStore, () => ruler.value),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;
       }),
@@ -179,8 +181,8 @@ export default defineComponent({
     v-show="slice === ruler.slice"
     :point1="firstPoint"
     :point2="secondPoint"
-    :color="ruler.color"
-    :strokeWidth="ruler.strokeWidth"
+    :color="appearance.cssColor"
+    :stroke-width="appearance.strokeWidth"
     :length="length"
   />
 </template>

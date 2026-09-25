@@ -70,4 +70,4 @@ To layer images:
 
 ## State Files
 
-Load preconfigured scenes with annotations, segment groups, and view settings via [state files](./state_files.md). State files can embed data (`*.volview.zip`) or reference remote data via URIs (`*.volview.json`).
+Load preconfigured scenes with annotations, segmentations, and view settings via [state files](./state_files.md). State files can embed data (`*.volview.zip`) or reference remote data via URIs (`*.volview.json`).

@@ -717,7 +717,7 @@
                       }
                     },
                     "multiple": {
-                      "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. Only labelmap source refs bind plurally today — every group whose parent is the active dataset, in store order; on other type tags the flag has no effect yet.",
+                      "description": "When true, the parameter takes more than one value: the client sends one staged file per value, listed in `uris` in selection order. When absent or false, it takes a single value. For a labelmap input the client stages the active image's segmentation as overlap-free parts: when true, every mask, spread across as many files as it takes for no two masks to share a voxel; when absent or false, only the non-conflicting subset that fits one file, with the remaining masks omitted whole and reported to the user. No mask is ever clipped to fit.",
                       "type": "boolean"
                     }
                   },
@@ -1701,12 +1701,14 @@
                   "type": "object",
                   "properties": {
                     "color": {
+                      "description": "A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.",
                       "type": "string"
                     },
                     "strokeWidth": {
                       "type": "number"
                     },
                     "fillColor": {
+                      "description": "Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.",
                       "type": "string"
                     }
                   },
@@ -1723,12 +1725,14 @@
                   "type": "object",
                   "properties": {
                     "color": {
+                      "description": "A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.",
                       "type": "string"
                     },
                     "strokeWidth": {
                       "type": "number"
                     },
                     "fillColor": {
+                      "description": "Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.",
                       "type": "string"
                     }
                   },
@@ -1745,12 +1749,14 @@
                   "type": "object",
                   "properties": {
                     "color": {
+                      "description": "A hex colour such as `#d60000` or a CSS colour keyword such as `lime`. Any other syntax, including functional forms such as `rgb()` and `hsl()`, is ignored: the label keeps the colour the client already holds for it, and the client tells the user the value was rejected.",
                       "type": "string"
                     },
                     "strokeWidth": {
                       "type": "number"
                     },
                     "fillColor": {
+                      "description": "Accepted so an existing producer keeps validating, and ignored: the client draws every rectangle unfilled.",
                       "type": "string"
                     }
                   },

@@ -4,7 +4,6 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
-import { SegmentMask } from '@/src/types/segment';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -171,18 +170,6 @@ export const TOOL_COLORS = [
 
 export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
 
-export const RULER_LABEL_DEFAULTS = {
-  'Label 1': { color: 'red' },
-};
-
-export const RECTANGLE_LABEL_DEFAULTS = {
-  'Label 1': { color: 'red' },
-};
-
-export const POLYGON_LABEL_DEFAULTS = {
-  'Label 1': { color: 'red' },
-};
-
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
   MR: 'CT-Coronary-Arteries-2',
@@ -204,6 +191,7 @@ export const ACTION_TO_KEY = {
   ruler: 'm',
   paint: 'p',
   paintEraser: 'e',
+  paintEyedropper: 'd',
   brushSizeModifier: 'ctrl',
   decreaseBrushSize: '[',
   increaseBrushSize: ']',
@@ -221,6 +209,16 @@ export const ACTION_TO_KEY = {
 
   decrementLabel: 'q',
   incrementLabel: 'w',
+  selectSegment1: '1',
+  selectSegment2: '2',
+  selectSegment3: '3',
+  selectSegment4: '4',
+  selectSegment5: '5',
+  selectSegment6: '6',
+  selectSegment7: '7',
+  selectSegment8: '8',
+  selectSegment9: '9',
+  selectSegment10: '0',
 
   // the main delete key reports Backspace on macOS
   deleteSelectedAnnotations: ['delete', 'backspace'],
@@ -230,15 +228,6 @@ export const ACTION_TO_KEY = {
 
   showKeyboardShortcuts: '?',
 } satisfies Record<Action, Binding>;
-
-export const DEFAULT_SEGMENT_MASKS: SegmentMask[] = [
-  {
-    value: 1,
-    name: 'Segment 1',
-    color: [255, 255, 0, 255],
-    visible: true,
-  },
-];
 
 // from https://github.com/InsightSoftwareConsortium/itk-viewer-color-maps/blob/main/src/CategoricalColors.json
 export const CATEGORICAL_COLORS = [

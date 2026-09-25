@@ -27,7 +27,7 @@ function getPreset(id: string) {
   const layersStore = useLayersStore();
   const layer = layersStore.getLayer(id);
   if (!layer) {
-    // Return default preset if layer not found (e.g., for segment groups)
+    // Return default preset if layer not found (e.g., for segmentations)
     return LAYER_PRESET_DEFAULT;
   }
 

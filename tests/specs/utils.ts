@@ -116,6 +116,27 @@ export const waitForFileExists = (filePath: string, timeout: number) =>
     });
   });
 
+/**
+ * Waits for a download to land and to finish being written. The file appears
+ * empty first, so its existence alone is not enough to read it.
+ */
+export const waitForDownload = async (filePath: string, timeout: number) => {
+  await waitForFileExists(filePath, timeout);
+  await browser.waitUntil(
+    () => {
+      try {
+        return fs.statSync(filePath).size > 0;
+      } catch {
+        return false;
+      }
+    },
+    {
+      interval: 500,
+      timeoutMsg: `${path.basename(filePath)} stayed 0 bytes`,
+    }
+  );
+};
+
 export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   const manifest = {
     resources: datasets.map(({ name }) => ({ url: `/tmp/${name}` })),

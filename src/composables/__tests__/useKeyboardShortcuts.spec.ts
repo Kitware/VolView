@@ -47,7 +47,7 @@ const insideTextbox = () => {
 };
 
 describe('shouldIgnoreKeyboardShortcuts', () => {
-  describe('text entry keeps the keys it types with', () => {
+  describe('text entry keeps the keys it segments with', () => {
     it.each(['m', 'delete', 'backspace', 'arrowdown', 'home', '?'])(
       'yields %s to a text input',
       (binding) => {

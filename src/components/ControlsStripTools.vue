@@ -78,40 +78,31 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <menu-control-button
+      <control-button
         icon="mdi-vector-square"
         :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
-      >
-        <rectangle-controls />
-      </menu-control-button>
+      />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
-      <menu-control-button
+      <control-button
         icon="mdi-pentagon-outline"
         :name="`Polygon [${nameToShortcut['Polygon']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
-      >
-        <polygon-controls />
-      </menu-control-button>
+      />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <menu-control-button
+      <control-button
         icon="mdi-ruler"
         :name="`Ruler [${nameToShortcut['Ruler']}]`"
-        :mobileOnlyMenu="true"
-        :active="active"
+        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
         :disabled="noCurrentImage || isObliqueLayout"
         @click="toggle"
-      >
-        <ruler-controls />
-      </menu-control-button>
+      />
     </groupable-item>
 
     <div class="my-1 tool-separator" />
@@ -146,9 +137,6 @@ import { toRef } from 'vue';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
 import CropControls from '@/src/components/tools/crop/CropControls.vue';
 import ResetViews from '@/src/components/tools/ResetViews.vue';
-import RulerControls from '@/src/components/RulerControls.vue';
-import RectangleControls from '@/src/components/RectangleControls.vue';
-import PolygonControls from '@/src/components/PolygonControls.vue';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
 import {
   actionToKey,
@@ -166,9 +154,6 @@ export default defineComponent({
     GroupableItem,
     CropControls,
     ResetViews,
-    RulerControls,
-    RectangleControls,
-    PolygonControls,
     WindowLevelControls,
   },
   setup() {

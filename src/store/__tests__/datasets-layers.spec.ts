@@ -80,6 +80,35 @@ describe('useLayersStore.addLayer return contract', () => {
       'no overlap in physical space'
     );
   });
+
+  it('settles and removes the provisional layer when the source is absent', async () => {
+    seatImage('parent', 0);
+    const store = useLayersStore();
+
+    const id = await store.addLayer('parent', 'missing-source');
+
+    expect(id).toBeUndefined();
+    expect(store.getLayers('parent')).toHaveLength(0);
+    expect(useMessageStore().messages[0].options.details).toContain(
+      'Image did not load'
+    );
+  });
+  it('caches no layer image when the layer is deleted while it resamples', async () => {
+    seatOverlappingPair();
+    const store = useLayersStore();
+    ensureSameSpace.mockImplementation(
+      async (_parent: unknown, source: unknown) => {
+        store.deleteLayer('parent', 'source');
+        return source;
+      }
+    );
+
+    const id = await store.addLayer('parent', 'source');
+
+    expect(id).toBeUndefined();
+    expect(cached('parent::source')).toBe(false);
+    expect(useMessageStore().messages).toHaveLength(0);
+  });
 });
 
 describe('useLayersStore.remove', () => {
