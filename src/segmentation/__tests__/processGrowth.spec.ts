@@ -9,7 +9,7 @@ import {
   type ProcessTarget,
 } from '@/src/segmentation/editing/paintProcess';
 import { useViewStore } from '@/src/store/views';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import { defer } from '@/src/utils';
 import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import {
@@ -179,9 +179,7 @@ describe('process result placement', () => {
       expect(voxels.scalars()).toBe(buffer);
       expect(markedVoxels(id)).toEqual([[2, 0, 0, 1]]);
       expect(
-        useMessageStore().messages.some(({ title }) =>
-          title.includes('Operation Failed')
-        )
+        messageTitles().some((title) => title.includes('Operation Failed'))
       ).toBe(true);
     }
   );
@@ -254,9 +252,7 @@ describe('process result placement', () => {
 
     expect(process.processStep).toBe('start');
     expect(
-      useMessageStore().messages.some(({ title }) =>
-        title.includes('had nothing to do')
-      )
+      messageTitles().some((title) => title.includes('had nothing to do'))
     ).toBe(true);
   });
 

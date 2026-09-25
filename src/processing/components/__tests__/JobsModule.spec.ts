@@ -53,7 +53,7 @@ import {
   mintSegment,
   selectSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import { useViewStore } from '@/src/store/views';
 import { seatStagingScene } from '@/src/processing/engine/__tests__/stagingScene';
 
@@ -748,11 +748,7 @@ describe('JobsModule segmentation staging', () => {
     await flushPromises();
 
     expect(submitSpy).not.toHaveBeenCalled();
-    expect(useMessageStore().messages).toEqual([
-      expect.objectContaining({
-        title: 'Failed to stage segmentation input',
-      }),
-    ]);
+    expect(messageTitles()).toEqual(['Failed to stage segmentation input']);
     expect(form.props('submitting')).toBe(false);
   });
 });

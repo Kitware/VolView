@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 
 import { fillHoles } from '@/src/segmentation/editing/algorithms/fillHoles';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import {
   ProcessType,
   usePaintProcessStore,
@@ -287,9 +287,7 @@ describe('a process running over every segment', () => {
 
     expect(usePaintProcessStore().processState.step).toBe('start');
     expect(
-      useMessageStore().messages.some((message) =>
-        message.title.includes('nothing to do')
-      )
+      messageTitles().some((title) => title.includes('nothing to do'))
     ).toBe(true);
   });
 
@@ -367,9 +365,7 @@ describe('a process running over every segment', () => {
     expect(maskValueAt(left, [1, 1, 0])).toBe(0);
     expect(maskValueAt(right, [5, 5, 0])).toBe(0);
     expect(
-      useMessageStore().messages.some((message) =>
-        message.title.includes('Operation Failed')
-      )
+      messageTitles().some((title) => title.includes('Operation Failed'))
     ).toBe(true);
   });
 });

@@ -13,7 +13,10 @@ vi.mock('@/src/io/resample/resample', () => ({ ensureSameSpace }));
 
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useMessageStore } from '@/src/store/messages';
+import {
+  messageTitles,
+  mountMessageCenter,
+} from '@/src/components/__tests__/messageDisplay';
 import {
   ParentToLayers,
   type Manifest,
@@ -76,7 +79,7 @@ describe('useLayersStore.addLayer return contract', () => {
     expect(id).toBeUndefined();
     expect(store.getLayers('parent')).toHaveLength(0);
     expect(cached('parent::source')).toBe(false);
-    expect(useMessageStore().messages[0].options.details).toContain(
+    expect(mountMessageCenter().get('.details').text()).toContain(
       'no overlap in physical space'
     );
   });
@@ -89,7 +92,7 @@ describe('useLayersStore.addLayer return contract', () => {
 
     expect(id).toBeUndefined();
     expect(store.getLayers('parent')).toHaveLength(0);
-    expect(useMessageStore().messages[0].options.details).toContain(
+    expect(mountMessageCenter().get('.details').text()).toContain(
       'Image did not load'
     );
   });
@@ -107,7 +110,7 @@ describe('useLayersStore.addLayer return contract', () => {
 
     expect(id).toBeUndefined();
     expect(cached('parent::source')).toBe(false);
-    expect(useMessageStore().messages).toHaveLength(0);
+    expect(messageTitles()).toHaveLength(0);
   });
 });
 
@@ -181,7 +184,7 @@ describe('useLayersStore.deserialize with an image that did not load', () => {
     await settle();
 
     expect(Object.keys(store.parentToLayers)).toEqual([]);
-    expect(useMessageStore().messages).toHaveLength(0);
+    expect(messageTitles()).toHaveLength(0);
     // Before the guard this threw: the failed build left `parentToLayers` with
     // a key whose value was `undefined`, and serialize mapped over it.
     expect(resave()).toEqual([]);
@@ -197,7 +200,7 @@ describe('useLayersStore.deserialize with an image that did not load', () => {
     await settle();
 
     expect(store.getLayers('parent')).toHaveLength(0);
-    expect(useMessageStore().messages).toHaveLength(0);
+    expect(messageTitles()).toHaveLength(0);
     // Before the guard the parent's whole relationship was saved with an
     // `undefined` source key, which the save-time schema rejects outright.
     expect(ParentToLayers.safeParse(resave()).success).toBe(true);

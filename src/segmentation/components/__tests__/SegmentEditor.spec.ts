@@ -1,8 +1,10 @@
 import { defineComponent } from 'vue';
-import { mount, type VueWrapper } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { enableAutoUnmount, mount, type VueWrapper } from '@vue/test-utils';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import SegmentEditor from '@/src/segmentation/components/SegmentEditor.vue';
+
+enableAutoUnmount(afterEach);
 
 const Shell = { template: '<div><slot /></div>' };
 
@@ -15,7 +17,9 @@ const ButtonStub = defineComponent({
 const TextFieldStub = defineComponent({
   name: 'VTextField',
   props: ['modelValue', 'rules'],
-  template: '<input />',
+  emits: ['update:modelValue'],
+  template:
+    '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
 });
 
 const SliderStub = defineComponent({
@@ -68,7 +72,7 @@ describe('segment editor name validation', () => {
     expect(rule('Tumor')).toBe(true);
   });
 
-  it('rejects changing to another segment’s name', async () => {
+  it("rejects changing to another segment's name", async () => {
     const wrapper = mountEditor();
 
     await wrapper.setProps({ name: ' Node ' });
@@ -147,5 +151,31 @@ describe('segment editor stroke width', () => {
     strokeWidth.vm.$emit('update:modelValue', 3.6);
 
     expect(wrapper.emitted('update:strokeWidth')).toEqual([[4]]);
+  });
+});
+
+describe('segment editor field events', () => {
+  it.each([
+    ['Fill Opacity', 'update:fillOpacity'],
+    ['Outline Opacity', 'update:outlineOpacity'],
+  ])('emits %s changes', (name, event) => {
+    const wrapper = mountEditor();
+    const slider = wrapper
+      .findAllComponents(SliderStub)
+      .find((candidate) => candidate.props('name') === name)!;
+    slider.vm.$emit('update:modelValue', 0.35);
+    expect(wrapper.emitted(event)).toEqual([[0.35]]);
+  });
+
+  it('emits a name change from the name field', async () => {
+    const wrapper = mountEditor();
+    await wrapper.get('input').setValue('Lesion');
+    expect(wrapper.emitted('update:name')).toEqual([['Lesion']]);
+  });
+
+  it('finishes from Enter in the name field', async () => {
+    const wrapper = mountEditor();
+    await wrapper.get('input').trigger('keydown', { key: 'Enter' });
+    expect(wrapper.emitted('done')).toEqual([[]]);
   });
 });

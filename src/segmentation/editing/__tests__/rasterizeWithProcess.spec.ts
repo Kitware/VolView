@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createPinia, setActivePinia } from 'pinia';
-import { createApp, nextTick } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
-import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
 import {
   addMask,
   extentOf,
   maskValueAt,
-  seatImage,
+  activateAppPinia,
+  viewImage,
   seedVoxel,
   store,
   type Index3,
@@ -17,7 +15,6 @@ import {
   segmentOfMask,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
-import { useViewStore } from '@/src/store/views';
 import type { Extent3D } from '@/src/segmentation/geometry';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
@@ -47,12 +44,8 @@ function rasterize(maskId: string) {
 }
 
 async function setUpRasterizeView() {
-  const pinia = createPinia().use(CorePiniaProviderPlugin());
-  createApp({}).use(pinia);
-  setActivePinia(pinia);
-  await seatImage('img-1', { dimensions: DIMENSIONS });
-  useViewStore().setDataForAllViews('img-1');
-  await nextTick();
+  activateAppPinia();
+  await viewImage('img-1', { dimensions: DIMENSIONS });
 }
 
 function setUpOverlappingSegments(extent: Extent3D) {

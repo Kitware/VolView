@@ -1,29 +1,24 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useSegmentShapes } from '@/src/segmentation/composables/useSegmentShapes';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useImageCacheStore } from '@/src/store/image-cache';
-import { useViewStore } from '@/src/store/views';
+import {
+  seatImage,
+  viewImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { AXIAL_FRAME_OF_REFERENCE } from '@/src/utils/frameOfReference';
 
-const seat = (id: string) =>
-  useImageCacheStore().addVTKImageData(vtkImageData.newInstance(), 'CT', {
-    id,
-  });
-
 describe('segment shapes', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
-    seat('img-1');
-    seat('img-2');
-    useViewStore().setDataForAllViews('img-1');
+    await seatImage('img-2');
+    await viewImage('img-1');
   });
 
-  it('groups the viewed image’s finished shapes under their segments', () => {
+  it("groups the viewed image's finished shapes under their segments", () => {
     const { segments } = useSegmentStore();
     const tumor = segments.mintSegment({ name: 'Tumor' });
     const node = segments.mintSegment({ name: 'Node' });

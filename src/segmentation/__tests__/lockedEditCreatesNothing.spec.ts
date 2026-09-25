@@ -3,7 +3,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import {
   activateAppPinia,
   seatSpecImage,
@@ -34,9 +34,6 @@ const lockedSelection = () => {
   segments().selectSegment(segmentId);
   return segmentId;
 };
-
-const messageTitles = () =>
-  useMessageStore().messages.map((message) => message.title);
 
 const expectNothingCreated = (imageId: string, segmentId: string) => {
   expect(store().getSegmentationForImage(imageId)).toBeUndefined();

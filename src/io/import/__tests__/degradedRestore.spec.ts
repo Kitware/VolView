@@ -1,18 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { importDataSources } from '@/src/io/import/importDataSources';
-import { useMessageStore, MessageType } from '@/src/store/messages';
+import {
+  messageTitles,
+  mountMessageCenter,
+} from '@/src/components/__tests__/messageDisplay';
 import {
   recordingRestoreProcessors,
   yields,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
-
-// ---------------------------------------------------------------------------
-// Auto-degrade-to-ephemeral: a scene
-// whose restore application throws mid-way degrades to an ephemeral open —
-// already-loaded bases stay as plain datasets, ONE notice fires, and the
-// import NEVER becomes an error loop or a rejected promise.
-// ---------------------------------------------------------------------------
 
 const aSetup = yields({
   type: 'stateFileSetup',
@@ -25,7 +21,7 @@ const aSetup = yields({
 const sessionFile = () =>
   new File(['{}'], 'session.volview.json', { type: 'application/json' });
 
-describe('importDataSources — degraded restore', () => {
+describe('importDataSources degraded restore', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
@@ -34,7 +30,7 @@ describe('importDataSources — degraded restore', () => {
     const restore = recordingRestoreProcessors({
       setup: aSetup,
       completion: async () => {
-        throw new Error('segment group deserialize exploded');
+        throw new Error('Segmentation restore failed');
       },
     });
 
@@ -45,11 +41,11 @@ describe('importDataSources — degraded restore', () => {
 
     expect(results.filter((result) => result.type === 'error')).toEqual([]);
 
-    const { messages } = useMessageStore();
-    expect(messages.length).toBe(1);
-    expect(messages[0].type).toBe(MessageType.Warning);
-    expect(messages[0].options.details).toContain(
-      'segment group deserialize exploded'
+    const messages = mountMessageCenter();
+    expect(messages.findAll('.header > span')).toHaveLength(1);
+    expect(messages.findAll('.warn-message')).toHaveLength(1);
+    expect(messages.get('.details').text()).toContain(
+      'Segmentation restore failed'
     );
   });
 
@@ -62,6 +58,6 @@ describe('importDataSources — degraded restore', () => {
     );
 
     expect(restore.completions).toHaveLength(1);
-    expect(useMessageStore().messages).toEqual([]);
+    expect(messageTitles()).toEqual([]);
   });
 });

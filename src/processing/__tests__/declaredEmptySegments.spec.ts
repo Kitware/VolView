@@ -8,31 +8,16 @@ import {
   applyIntent,
   appApplyDependencies,
 } from '@/src/processing/applyResults';
-import { listMasks } from '@/src/segmentation/model';
-import { isEmptyExtent } from '@/src/segmentation/geometry';
 import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import {
-  inMemoryArtifactIO,
-  manifestForImages,
-  markedVoxels,
   parentImage,
   seatImage,
-  serializeToStateFiles,
-  store,
   type Index3,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
-
-// ---------------------------------------------------------------------------
-// A result declares the bins its run looked for, and the labelmap carries the
-// voxels it found. A segment a result DECLARES but leaves EMPTY still appears,
-// as an empty row. A run that looked for a spleen and found none must not read
-// the same as a run that never looked, so the declaration is what mints the
-// segment, not the voxels.
-// ---------------------------------------------------------------------------
+import { savedMasks, serializeScene } from './serializedScene';
 
 const GRID = { dimensions: [4, 4, 4] as Index3 };
 const LIVER_INDEX: Index3 = [1, 1, 1];
@@ -43,8 +28,6 @@ const DECLARED: SegmentDescriptor[] = [
   { value: 1, name: 'Liver', color: red },
   { value: 2, name: 'Spleen', color: blue },
 ];
-
-const registry = () => useSegmentStore().segments;
 
 const importResult = (segments: SegmentDescriptor[]) =>
   applyIntent(
@@ -70,33 +53,33 @@ const importResult = (segments: SegmentDescriptor[]) =>
     }
   );
 
-const segmentsOn = (imageId: string) =>
-  listMasks(store().getSegmentationForImage(imageId)!).map((segment) => {
-    const appearance = registry().appearanceOf(segment.segmentId);
-    return {
-      name: appearance.name,
-      color: [...appearance.color],
-      visible: appearance.visible,
-      extent: segment.representations.labelmap
-        ? [...segment.representations.labelmap.extent]
-        : undefined,
-      marks: markedVoxels(segment.id),
-    };
-  });
+const rowsOf = (
+  saved: Awaited<ReturnType<typeof serializeScene>>,
+  imageId: string
+) =>
+  savedMasks(saved, imageId).map(({ segment, extent, artifact }) => ({
+    name: segment!.name,
+    color: segment!.color,
+    visible: segment!.visible,
+    extent,
+    artifact,
+  }));
+
+const save = (imageId = 'parent') => serializeScene([imageId]);
 
 const LIVER_ROW = {
   name: 'Liver',
   color: red,
   visible: true,
   extent: [1, 1, 1, 1, 1, 1],
-  marks: [[...LIVER_INDEX, SEGMENT_VALUE]],
+  artifact: { dimensions: [1, 1, 1], values: [1] },
 };
 const EMPTY_SPLEEN_ROW = {
   name: 'Spleen',
   color: blue,
   visible: true,
   extent: [0, -1, 0, -1, 0, -1],
-  marks: [],
+  artifact: { dimensions: [1, 1, 1], values: [0] },
 };
 
 const liverOffset = () =>
@@ -119,20 +102,24 @@ describe('a segment a result declares but leaves empty', () => {
   it('appears as an empty row beside the segment that has voxels', async () => {
     expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
 
-    expect(segmentsOn('parent')).toEqual([LIVER_ROW, EMPTY_SPLEEN_ROW]);
-    // The empty row is a real mask record, holding no voxels.
-    const spleen = listMasks(store().getSegmentationForImage('parent')!)[1];
-    expect(store().maskVoxels(spleen.id).scalars()).toHaveLength(0);
+    expect(rowsOf(await save(), 'parent')).toEqual([
+      LIVER_ROW,
+      EMPTY_SPLEEN_ROW,
+    ]);
   });
 
   it('draws nothing for the empty segment', async () => {
     await importResult(DECLARED);
 
-    const spleen = listMasks(store().getSegmentationForImage('parent')!)[1];
-    const binding = spleen.representations.labelmap!;
-    expect(isEmptyExtent(binding.extent)).toBe(true);
+    const saved = await save();
+    const binding =
+      saved.manifest.segmentations![0].masks[1].representations.labelmap!;
+    const entry = saved.stateFiles.find(
+      ({ archivePath }) => archivePath === binding.path
+    )!;
+    const { image } = await saved.io.read(entry.file);
     expect(
-      segmentRenderMask(binding.image, parentImage('parent'), binding.extent, {
+      segmentRenderMask(image, parentImage('parent'), binding.extent, {
         axis: 2,
         index: 1,
       })
@@ -156,37 +143,31 @@ describe('a segment a result declares but leaves empty', () => {
 
       expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
 
-      // Compared whole: a twin is not the only way this can go wrong, and a
-      // mis-coloured, hidden or wrongly bounded empty must fail here too.
-      expect(segmentsOn('parent')).toEqual([LIVER_ROW, EMPTY_SPLEEN_ROW]);
+      expect(rowsOf(await save(), 'parent')).toEqual([
+        LIVER_ROW,
+        EMPTY_SPLEEN_ROW,
+      ]);
     }
   );
 
   it('keeps both segments across a save and restore', async () => {
     await importResult(DECLARED);
-    const before = segmentsOn('parent');
-    // Stated outright, so the comparison below cannot pass on a scene that
-    // dropped the empty row before it was ever saved.
+    const saved = await save();
+    const before = rowsOf(saved, 'parent');
     expect(before).toEqual([LIVER_ROW, EMPTY_SPLEEN_ROW]);
-    const io = inMemoryArtifactIO();
-
-    const { parsed, stateFiles } = await serializeToStateFiles(
-      manifestForImages(['parent']),
-      io
-    );
 
     setActivePinia(createPinia());
     await seatImage('new-parent', { ...GRID, name: 'CT' });
     const result = await useSegmentationStore().deserialize({
-      manifest: parsed,
-      stateFiles,
+      manifest: saved.manifest,
+      stateFiles: saved.stateFiles,
       dataIDMap: { parent: 'new-parent' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
-      io,
+      segmentIdMap: useSegmentStore().deserialize(saved.manifest).segmentIdMap,
+      io: saved.io,
     });
     await nextTick();
 
     expect(result.skipped).toEqual([]);
-    expect(segmentsOn('new-parent')).toEqual(before);
+    expect(rowsOf(await save('new-parent'), 'new-parent')).toEqual(before);
   });
 });

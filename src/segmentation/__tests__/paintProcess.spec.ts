@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { nextTick } from 'vue';
 import vtkLabelMap from '@/src/vtk/LabelMap';
 import { PaintMode } from '@/src/core/tools/paint';
-import { useMessageStore } from '@/src/store/messages';
+import { messageTitles } from '@/src/components/__tests__/messageDisplay';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import {
@@ -221,7 +221,6 @@ describe('Paint process store', () => {
 
   it('refuses to process a locked segment', async () => {
     const processStore = usePaintProcessStore();
-    const messageStore = useMessageStore();
     const { maskId, labelMap } = addActiveSegment();
     lockSegment(maskId);
 
@@ -233,9 +232,7 @@ describe('Paint process store', () => {
     expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([0, 0]);
     expect(
-      messageStore.messages.some((message) =>
-        message.title.includes('locked segment')
-      )
+      messageTitles().some((title) => title.includes('locked segment'))
     ).toBe(true);
   });
 
@@ -262,7 +259,6 @@ describe('Paint process store', () => {
   it('does not allocate storage for an unbound active segment', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    const messageStore = useMessageStore();
     const segmentation =
       segmentationStore.ensureSegmentationForImage('image-1');
     const segment = segmentationStore.createMask(
@@ -280,15 +276,12 @@ describe('Paint process store', () => {
     expect(segmentationStore.findMaskBinding(segment.id)).toBeUndefined();
     expect(boundMasks()).toHaveLength(0);
     expect(processStore.processState.step).toBe('start');
-    expect(messageStore.messages.map(({ title }) => title)).toContain(
-      'No segment content to process'
-    );
+    expect(messageTitles()).toContain('No segment content to process');
   });
 
   it('does not run against an empty bound mask', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    const messageStore = useMessageStore();
     const segmentation =
       segmentationStore.ensureSegmentationForImage('image-1');
     const segment = segmentationStore.createMask(
@@ -309,9 +302,7 @@ describe('Paint process store', () => {
       binding,
     ]);
     expect(processStore.processState.step).toBe('start');
-    expect(messageStore.messages.map(({ title }) => title)).toContain(
-      'No segment content to process'
-    );
+    expect(messageTitles()).toContain('No segment content to process');
   });
 
   it.each([
@@ -361,7 +352,6 @@ describe('Paint process store', () => {
 
   it('names the lock rather than reporting nothing to process', async () => {
     const processStore = usePaintProcessStore();
-    const messageStore = useMessageStore();
     const { maskId, labelMap } = addActiveSegment(new Uint8Array([1, 1]));
     lockSegment(maskId, true);
 
@@ -377,7 +367,7 @@ describe('Paint process store', () => {
 
     expect(processStore.processState.step).toBe('start');
     expect(getScalars(labelMap)).toEqual([1, 1]);
-    const titles = messageStore.messages.map((message) => message.title);
+    const titles = messageTitles();
     expect(titles).toContain('Every segment is locked');
     expect(titles).not.toContain('No segmentation to process');
   });
@@ -385,7 +375,6 @@ describe('Paint process store', () => {
   it('does not claim the lock when an unlocked segment simply holds nothing', async () => {
     const processStore = usePaintProcessStore();
     const segmentationStore = useSegmentationStore();
-    const messageStore = useMessageStore();
     const { segmentationId, maskId } = addActiveSegment(new Uint8Array([1, 1]));
     lockSegment(maskId, true);
     segmentationStore.createMask(
@@ -403,7 +392,7 @@ describe('Paint process store', () => {
       }
     );
 
-    const titles = messageStore.messages.map((message) => message.title);
+    const titles = messageTitles();
     expect(titles).toContain('No unlocked segment has anything to process');
     expect(titles).not.toContain('Every segment is locked');
   });
