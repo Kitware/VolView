@@ -77,7 +77,7 @@ export default defineComponent({
     const dark = ref(theme.global.name.value === DarkTheme);
 
     watch(dark, (isDark) => {
-      theme.global.name.value = isDark ? DarkTheme : LightTheme;
+      theme.change(isDark ? DarkTheme : LightTheme);
       store.value = theme.global.name.value;
     });
 
