@@ -298,7 +298,8 @@ const RGBAColor = z.tuple([z.number(), z.number(), z.number(), z.number()]);
 // Provenance of a scene object produced by a processing job. This durable
 // identity prevents a restored result from being applied twice. Optional and
 // additive wherever it is used; hand-made state has none. The shape mirrors the
-// backend contract's result source and is shared by groups and annotation tools.
+// backend contract's result source and is shared by mask bindings, artifacts
+// and annotation tools.
 export const ProcessingResultSource = z.object({
   providerId: z.string(),
   jobId: z.string(),

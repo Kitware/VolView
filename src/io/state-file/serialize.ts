@@ -192,8 +192,8 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   }
 
   // Dev-only cascade-gap backstop (DCE'd in prod by the NODE_ENV guard).
-  // Referential integrity of these dataset/view/group-keyed sections is owned by
-  // the synchronous remove cascade — a load-bearing but UNENFORCED invariant.
+  // Referential integrity of these dataset/segment/view-keyed sections is owned
+  // by the synchronous remove cascade: a load-bearing but UNENFORCED invariant.
   // Each cascade-owning store declares its manifest references next to its
   // cascade registration (declareManifestRefs); walking those declarations here
   // detects and REPORTS an orphan in dev/test without mutating output, and
