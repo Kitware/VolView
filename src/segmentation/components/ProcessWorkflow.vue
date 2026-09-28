@@ -75,11 +75,11 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 
-interface Props {
+type Props = {
   algorithm: ProcessAlgorithm;
   requiresActiveSegment?: boolean;
   label?: string;
-}
+};
 
 const props = withDefaults(defineProps<Props>(), {
   requiresActiveSegment: true,
