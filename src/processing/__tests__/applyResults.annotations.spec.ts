@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -7,6 +7,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import {
   appApplyDependencies,
   applyIntent,
+  autoLoadProcessingResults,
 } from '@/src/processing/applyResults';
 import type {
   ProcessingResult,
@@ -14,10 +15,18 @@ import type {
 } from '@/src/processing/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useImageStore } from '@/src/store/datasets-images';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
-import { messageTitles } from '@/src/components/__tests__/messageDisplay';
+import {
+  messageDetails,
+  messageTitles,
+} from '@/src/components/__tests__/messageDisplay';
+import { useProcessingJobsStore } from '@/src/processing/store';
+import { useMessageStore } from '@/src/store/messages';
+import { seatDataSource } from '@/src/store/__tests__/datasetFixtures';
+import { makeFakeProvider, registerFake } from './fakeProvider';
 import {
   savedMasks,
   serializeAnnotations,
@@ -809,5 +818,132 @@ describe('applyIntent — add-annotations', () => {
       expect(outcome.status).toBe('applied');
       expect(firstRuler().frame).toBeUndefined();
     });
+  });
+});
+
+describe('retrying annotations after loading the input image', () => {
+  const inputUri = '/job-input.nrrd';
+  const jobRef = { providerId: 'provider-1', jobId: 'job-1' };
+  const detail = {
+    jobId: jobRef.jobId,
+    log: [],
+    parameters: { inputVolume: { type: 'image', uris: [inputUri] } },
+  };
+
+  const adoptedJob = async (reloaded = false) => {
+    serveRulers(annotationsFile());
+    const provider = makeFakeProvider(
+      {
+        id: jobRef.providerId,
+        label: 'Analysis',
+        baseUrl: '/',
+        jobsBaseUrl: '/',
+      },
+      {
+        listJobHistory: vi.fn().mockResolvedValue({
+          jobs: [
+            {
+              jobId: jobRef.jobId,
+              taskId: 'task-1',
+              taskTitle: 'Annotate',
+              createdBy: { id: 'user-1', name: 'User' },
+              createdAt: '2026-07-03T19:00:00Z',
+              state: 'success',
+              resultState: 'ready',
+            },
+          ],
+          nextCursor: null,
+        }),
+        getJobHistoryDetail: vi.fn().mockResolvedValue(detail),
+        getResults: vi
+          .fn()
+          .mockResolvedValueOnce({ results: [intent()], missing: 0 })
+          .mockRejectedValue(new Error('Results requested more than once')),
+      }
+    );
+    const jobs = useProcessingJobsStore();
+    registerFake(jobs, provider);
+    await jobs.adoptJobHistory();
+    const loadAndApply = async () => {
+      await jobs.loadJobResults(jobRef);
+      await jobs.applyJobResults(jobRef, (pending, submitted) =>
+        autoLoadProcessingResults(pending, submitted, {
+          ...appApplyDependencies(),
+          fetchResult: results.fetchResult,
+        })
+      );
+    };
+    if (reloaded) {
+      registerInput(IMAGE_ID);
+      await jobs.loadJobResults(jobRef);
+      useImageStore().deleteData(IMAGE_ID);
+      await nextTick();
+    }
+    await loadAndApply();
+    expect(messageDetails('Failed to apply out.annotations.json')).toContain(
+      "Load the job's input image"
+    );
+    expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
+    useMessageStore().clearAll();
+    return { jobs, provider, loadAndApply };
+  };
+
+  const registerInput = (id: string) => {
+    useImageStore().addVTKImageData(
+      'CT',
+      useImageCacheStore().getVtkImageData(id)!,
+      { id }
+    );
+    seatDataSource(id, { type: 'uri', uri: inputUri, name: 'job-input.nrrd' });
+  };
+
+  const loadInput = () => {
+    seatImage('reopened');
+    registerInput('reopened');
+  };
+
+  it.each([false, true])(
+    'applies the cached result once with its appearance after reloading=%s',
+    async (reloaded) => {
+      const { loadAndApply } = await adoptedJob(reloaded);
+      loadInput();
+      await loadAndApply();
+      await loadAndApply();
+
+      expect(messageTitles()).toEqual([]);
+      expect(toolCounts()).toEqual({ rulers: 1, rectangles: 0, polygons: 0 });
+      const saved = serializeAnnotations();
+      const ruler = saved.tools!.rulers!.tools[0];
+      expect(ruler).toMatchObject({
+        imageID: 'reopened',
+        firstPoint: [1, 1, 5],
+        secondPoint: [4, 4, 5],
+        name: 'Long axis',
+        source,
+      });
+      expect(
+        saved.segments?.find(({ id }) => id === ruler.segmentId)
+      ).toMatchObject({ name: 'roi', color: [255, 0, 0, 255] });
+    }
+  );
+
+  it('does not apply a cached result after deletion during parent lookup', async () => {
+    const { jobs, provider, loadAndApply } = await adoptedJob();
+    loadInput();
+    const entered = defer<void>();
+    const released = defer<typeof detail>();
+    provider.getJobHistoryDetail.mockImplementationOnce(() => {
+      entered.resolve();
+      return released.promise;
+    });
+
+    const loading = loadAndApply();
+    await entered.promise;
+    await jobs.deleteJob(jobRef);
+    released.resolve(detail);
+    await loading;
+
+    expect(messageTitles()).toEqual([]);
+    expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
   });
 });
