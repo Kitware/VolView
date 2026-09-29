@@ -318,6 +318,7 @@ import {
   type JobHistoryDisplayRow,
 } from '@/src/processing/engine/jobHistory';
 import { offersSceneLoad } from '@/src/processing/engine/resultFiles';
+import { resultToIntent } from '@/src/processing/engine/resultToIntent';
 import { fetchProcessingResult } from '@/src/processing/engine/resultDownload';
 
 const providers = useProcessingJobsStore();
@@ -444,9 +445,9 @@ function resultsFor(job: JobRow): ProcessingResult[] {
   return providers.jobResults.get(rowKey(job)) ?? [];
 }
 
-function fileResultsFor(job: JobRow): ProcessingResult[] {
-  return resultsFor(job).filter((result) => !result.intent);
-}
+// A result the applier cannot route, intent or not, is an ordinary file.
+const fileResultsFor = (job: JobRow) =>
+  resultsFor(job).filter((result) => !resultToIntent(result));
 
 function missingFor(job: JobRow): number {
   const key = rowKey(job);
@@ -483,10 +484,8 @@ function resultHrefFor(result: ProcessingResult): string | undefined {
   return canFetchUrl(result.url) ? result.url : undefined;
 }
 
-// Results with an intent are handled by the scene-result pipeline (for example,
-// as images or label maps). Downloads are reserved for arbitrary file outputs.
 function canDownloadResult(result: ProcessingResult): boolean {
-  return !result.intent && Boolean(resultHrefFor(result));
+  return Boolean(resultHrefFor(result));
 }
 
 const downloadingResultKeys = reactive(new Set<string>());

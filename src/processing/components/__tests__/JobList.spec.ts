@@ -64,7 +64,7 @@ const makeProvider = (
 const btnStub = { template: '<button><slot /></button>' };
 const slotStub = { template: '<div><slot /></div>' };
 
-describe('JobList error log', () => {
+describe('JobList', () => {
   let pinia: ReturnType<typeof createPinia>;
   let wrapper: VueWrapper | undefined;
 
@@ -223,5 +223,29 @@ describe('JobList error log', () => {
 
     expect(list.find('.job-row').exists()).toBe(true);
     expect(provider.getJobHistoryDetail).not.toHaveBeenCalled();
+  });
+
+  it('offers a result whose intent this client cannot route as a download', async () => {
+    const provider = makeProvider({
+      getJob: vi.fn().mockResolvedValue(jobStatus(JOB_ID, 'success')),
+      getResults: vi.fn().mockResolvedValue({
+        results: [
+          {
+            id: 'mesh',
+            intent: 'add-mesh',
+            name: 'mesh.vtp',
+            url: 'http://p1/mesh.vtp',
+          },
+        ],
+        missing: 0,
+      }),
+    });
+    await submit(provider);
+    const list = mountList();
+
+    await expandDetails(list);
+
+    expect(list.find('.result-files').text()).toContain('mesh.vtp');
+    expect(list.find('button[title="Download mesh.vtp"]').exists()).toBe(true);
   });
 });
