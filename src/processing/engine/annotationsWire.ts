@@ -57,7 +57,7 @@ export type PolygonToolView = AnnotationToolCoreView & {
 export type AnnotationKindView<Tool> = {
   // Finished tools on ONE image; the caller owns that filter.
   tools: ReadonlyArray<Tool>;
-  // The whole store label map (keyed by label id); encode prunes it.
+  // Every registry segment keyed by segment id; encode prunes it.
   labels: Record<string, AnnotationLabelView>;
 };
 
