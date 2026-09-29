@@ -26,7 +26,7 @@ const getImageName = (imageID: string) => {
   return useImageCacheStore().getImageMetadata(imageID)?.name ?? null;
 };
 
-export const getSelectionName = (selection: string) => {
+const getSelectionName = (selection: string) => {
   if (isDicomImage(selection)) {
     return getDisplayName(useDICOMStore().volumeInfo[selection]);
   }
