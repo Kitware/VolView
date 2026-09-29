@@ -1,6 +1,9 @@
 // Vector annotations staged into a task or returned as a result. Coordinates
-// are world LPS millimeters. Tool records exclude session identity and state;
-// labels are namespaced by tool kind because the client stores are independent.
+// are world LPS millimeters. Tool records exclude session identity and state.
+// Labels are namespaced by tool kind on the wire, but the client binds every
+// kind into one segment registry by name: a name repeated across kinds is one
+// segment, the first kind to bind a new name (rulers, rectangles, polygons)
+// sets its style, and a label no tool references creates nothing.
 // Unknown envelope fields survive round-trip without gaining behavior.
 
 import { z } from 'zod';

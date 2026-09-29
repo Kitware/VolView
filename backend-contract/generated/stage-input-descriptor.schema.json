@@ -42,7 +42,8 @@
         "name",
         "referenceImage"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "The staged bytes are a `.seg.nrrd` labelmap on the reference image's voxel grid. Label values run from 1 to N within each file, in the client's segment order, with 0 as background. Voxels are unsigned 8-bit for up to 255 labels and unsigned 16-bit beyond. Segment names and colors ride in the header."
     },
     {
       "type": "object",
