@@ -5,11 +5,6 @@ import { computed, reactive, ref } from 'vue';
 import deepEqual from 'fast-deep-equal';
 
 import type { JobHistoryDetail, JobHistorySummary } from '@/backend-contract';
-import {
-  inputValueSchema,
-  TYPE_TAG_ANNOTATIONS,
-  TYPE_TAG_LABELMAP,
-} from '@/backend-contract';
 import { collectProvenanceUris } from '@/src/processing/engine/mintInput';
 import type {
   ProcessingJobStatus,
@@ -26,7 +21,10 @@ import {
   missingJobErrorDetails,
 } from '@/src/processing/types';
 import type { TrackedJobHistorySummary } from '@/src/processing/engine/jobHistory';
-import { selectJobHistoryRows } from '@/src/processing/engine/jobHistory';
+import {
+  selectJobHistoryRows,
+  selectParentImageUris,
+} from '@/src/processing/engine/jobHistory';
 import { autoLoadProcessingResults } from '@/src/processing/applyResults';
 import { useMessageStore } from '@/src/store/messages';
 import { useDatasetStore } from '@/src/store/datasets';
@@ -36,14 +34,6 @@ export const POLL_INTERVAL_MS = 2000;
 export const MAX_POLL_RETRIES = 4;
 export const MAX_POLL_BACKOFF_MS = 30000;
 export const MAX_JOB_HISTORY_PAGES = 1000;
-
-// Staged inputs derive FROM the scene rather than naming a dataset, so they are
-// never parent-image candidates. Excluding them by tag keeps the open image
-// vocabulary open: anything else that carries provenance URIs counts.
-const STAGED_INPUT_TYPES: ReadonlySet<string> = new Set([
-  TYPE_TAG_LABELMAP,
-  TYPE_TAG_ANNOTATIONS,
-]);
 
 const completionReady = (status: ProcessingJobStatus): boolean =>
   isTerminalJobState(status.state);
@@ -465,15 +455,6 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
       : context;
   }
 
-  // An adopted job's persisted image input carries the parent's provenance URIs,
-  // so the parent can be re-identified among the loaded datasets.
-  function isImageInputValue(
-    v: unknown
-  ): v is { type: string; uris: string[] } {
-    const parsed = inputValueSchema.safeParse(v);
-    return parsed.success && !STAGED_INPUT_TYPES.has(parsed.data.type);
-  }
-
   // Order-insensitive: a re-loaded dataset's provenance walk need not enumerate
   // in submit order.
   function sameUriSet(a: string[], b: ReadonlySet<string>): boolean {
@@ -500,13 +481,8 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     } catch {
       return undefined; // best-effort: the open-as-dataset fallback still works
     }
-    const imageInputs = Object.values(detail?.parameters ?? {}).filter(
-      isImageInputValue
-    );
-    // Anything but exactly one image input is ambiguous; never guess a parent to
-    // attach results to.
-    if (imageInputs.length !== 1) return undefined;
-    return datasetIdForUris(imageInputs[0].uris);
+    const uris = selectParentImageUris(detail?.parameters);
+    return uris === undefined ? undefined : datasetIdForUris(uris);
   }
 
   // Rebuild an adopted job's missing parent id so a labelmap result attaches
@@ -746,7 +722,6 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
   // path, so its results are not in `jobResults`.
   async function loadJobResults(jobRef: TrackedJobRef) {
     const key = jobKey(jobRef);
-    if (jobResults.has(key)) return;
     const context = submittedContexts.get(key);
     if (!context) return;
     // A delete landing while this fetch is in flight must not commit results or
@@ -754,6 +729,15 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     const gen = jobGenerations.get(key);
     try {
       const provider = await getProvider(jobRef.providerId);
+      if (jobResults.has(key)) {
+        await ensureAdoptedParentId(
+          provider,
+          key,
+          gen,
+          contextForAutoLoad(context)
+        );
+        return;
+      }
       await fetchAndRecordResults(provider, jobRef.jobId, key, gen, context);
     } catch (err) {
       if (expireSessionIf(err)) return;
