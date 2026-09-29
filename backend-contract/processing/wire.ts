@@ -196,9 +196,10 @@ export type SegmentDescriptor = z.infer<typeof segmentDescriptorSchema>;
 
 // The ONE canonical result-list-item shape, shared by every producer, the
 // client, the generated OpenAPI, the fixtures, and the backend copy. `id` is the
-// display key (required, nonempty); `name`/`url` are required; `mimeType`/`size`
-// are advisory file metadata that may be null. Every intent branch is built FROM
-// this shape, so there is no payload the contract accepts but the client rejects.
+// display key, unique within the job (required, nonempty); `name`/`url` are
+// required; `mimeType`/`size` are advisory file metadata that may be null. Every
+// intent branch is built FROM this shape, so there is no payload the contract
+// accepts but the client rejects.
 export const resultListItemSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
