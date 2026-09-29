@@ -429,11 +429,11 @@ const paths = (): Record<string, unknown> => ({
           description:
             'The resolved results as the { resultState, intents, missing } envelope ' +
             '(JobResults). Each entry of `intents` is a ResultIntent — a result ' +
-            'row carrying a required `id` display key and required `name`/`url`, ' +
-            'plus optional/null `mimeType`/`size` file metadata. `missing` counts ' +
-            'declared outputs that never arrived plus recorded outputs that cannot ' +
-            'be read. Total loss is a valid incomplete response with an empty ' +
-            'intents array.',
+            'row carrying a required `id` display key, unique within the job, and ' +
+            'required `name`/`url`, plus optional/null `mimeType`/`size` file ' +
+            'metadata. `missing` counts declared outputs that never arrived plus ' +
+            'recorded outputs that cannot be read. Total loss is a valid ' +
+            'incomplete response with an empty intents array.',
           content: json(ref('JobResults')),
         },
         '409': resultReadErrorResponse,
