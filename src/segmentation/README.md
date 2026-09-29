@@ -12,8 +12,8 @@ image; the mask's bounded labelmap is allocated only when needed.
   appearance. Stores holding masks or annotation tools declare their segment
   references on the registry, which hands them the removal. Removing the last
   image deletes every segment no config entry holds.
-- `deleteSegment.ts` deletes a segment with its masks and shapes and reports
-  what went with it.
+- `deleteSegment.ts` guards locked segments before deleting their masks and
+  shapes.
 - `store.ts` owns mask identity, attachment, lookup, and lifecycle. Import and
   restore use its operations to create records and attach prepared storage.
 - `masks/` contains allocation, growth, overlap operations, and voxel access.

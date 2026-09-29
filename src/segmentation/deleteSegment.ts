@@ -1,40 +1,6 @@
-import { maskHasContent } from '@/src/segmentation/model';
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
-import { useSegmentationStore } from '@/src/segmentation/store';
-import { useMessageStore } from '@/src/store/messages';
-import { AnnotationToolStoreMap } from '@/src/store/tools';
-import { plural } from '@/src/utils';
 
-/**
- * What deleting a segment is about to take with it, counted before the cascade
- * runs: its mask on every image, and every finished annotation naming it. A
- * tool still being placed is not counted, because the cascade leaves it alone,
- * and neither is a mask record with nothing in it: the cascade drops the
- * record, but the user never put anything on that image to lose.
- */
-function countCascade(segmentId: string) {
-  // A segment has at most one mask per image, so this counts both.
-  const images = useSegmentationStore()
-    .masksOfSegment(segmentId)
-    .filter(maskHasContent).length;
-  const annotations = Object.values(AnnotationToolStoreMap).reduce(
-    (total, useStore) =>
-      total +
-      useStore().finishedTools.filter((tool) => tool.segmentId === segmentId)
-        .length,
-    0
-  );
-  return { images, annotations };
-}
-
-/**
- * Deletes a segment and says what went with it. The cascade reaches masks on
- * images this one is not viewing and annotations on other slices and axes, so
- * its scope is invisible from here and there is no undo: the same reason
- * `removeSelectedTools` reports its count. No dialog asks first, which is what
- * the rest of the app does.
- */
-export function deleteSegmentAndReport(
+export function deleteUnlockedSegment(
   registry: SegmentRegistry,
   segmentId: string
 ) {
@@ -43,14 +9,5 @@ export function deleteSegmentAndReport(
     registry.appearanceOf(segmentId).locked
   )
     return;
-  const { images, annotations } = countCascade(segmentId);
   registry.deleteSegment(segmentId);
-
-  const removed = [
-    images > 0 &&
-      `${images} ${plural(images, 'mask')} on ${images} ${plural(images, 'image')}`,
-    annotations > 0 && `${annotations} ${plural(annotations, 'annotation')}`,
-  ].filter((part): part is string => !!part);
-  if (removed.length > 0)
-    useMessageStore().addInfo(`Deleted ${removed.join(' and ')}`);
 }

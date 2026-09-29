@@ -1086,7 +1086,7 @@ describe('locked segment editor routes', () => {
   );
 });
 
-describe('deleting a segment says what went with it', () => {
+describe('deleting a segment without a success notification', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
     await seatSpecImage('img-1');
@@ -1115,31 +1115,40 @@ describe('deleting a segment says what went with it', () => {
     await nextTick();
   };
 
-  it('counts the masks, the images they were on, and the annotations', async () => {
+  const expectDeleted = async (wrapper: VueWrapper) => {
+    for (const imageId of ['img-1', 'img-2']) {
+      await showImage(imageId);
+      expect(rowIds(wrapper)).toEqual([]);
+      expect(
+        wrapper
+          .get('[data-testid="save-segments-button"]')
+          .attributes('disabled')
+      ).toBeDefined();
+    }
+    expect(messageTitles()).toEqual([]);
+  };
+
+  it('removes a segment and its painted masks across images', async () => {
     const segmentId = spreadSegment(['img-1', 'img-2']);
     const wrapper = mountList();
     await nextTick();
 
     await deleteRow(wrapper, segmentId);
 
-    expect(messageTitles()).toEqual([
-      'Deleted 2 masks on 2 images and 2 annotations',
-    ]);
+    await expectDeleted(wrapper);
   });
 
-  it('says one of each in the singular', async () => {
+  it('removes a segment with content only on another image', async () => {
     const segmentId = spreadSegment(['img-2']);
     const wrapper = mountList();
     await nextTick();
 
     await deleteRow(wrapper, segmentId);
 
-    expect(messageTitles()).toEqual([
-      'Deleted 1 mask on 1 image and 1 annotation',
-    ]);
+    await expectDeleted(wrapper);
   });
 
-  it('names only what the segment had', async () => {
+  it('deletes painted and annotation-only segments', async () => {
     const painted = makeMask('img-1', 'Painted');
     seedVoxel(painted.maskId, [1, 1, 0]);
     const shaped = segments().addSegment({ name: 'Shaped' });
@@ -1153,18 +1162,16 @@ describe('deleting a segment says what went with it', () => {
     await nextTick();
 
     await deleteRow(wrapper, painted.segmentId);
+    expect(rowIds(wrapper)).toEqual([shaped]);
     await deleteRow(wrapper, shaped);
 
-    expect(messageTitles()).toEqual([
-      'Deleted 1 mask on 1 image',
-      'Deleted 1 annotation',
-    ]);
+    await expectDeleted(wrapper);
   });
 
   // A record is minted the moment a segment is resolved as an edit target, so
   // an image can hold one for a segment that was never painted there. Deleting
   // drops the record, but there was nothing on that image to lose.
-  it('counts no mask on an image the segment was only resolved on', async () => {
+  it('deletes empty mask records with their segment', async () => {
     const recorded = makeMask('img-1', 'Resolved');
     const allocated = maskOn('img-2', recorded.segmentId);
     store().maskVoxels(allocated.id).materialize();
@@ -1173,8 +1180,7 @@ describe('deleting a segment says what went with it', () => {
 
     await deleteRow(wrapper, recorded.segmentId);
 
-    expect(rowIds(wrapper)).toEqual([]);
-    expect(messageTitles()).toEqual([]);
+    await expectDeleted(wrapper);
   });
 
   it('stays quiet when the segment held nothing', async () => {
@@ -1184,11 +1190,10 @@ describe('deleting a segment says what went with it', () => {
 
     await deleteRow(wrapper, empty);
 
-    expect(rowIds(wrapper)).toEqual([]);
-    expect(messageTitles()).toEqual([]);
+    await expectDeleted(wrapper);
   });
 
-  it('reports the same cascade when the editor deletes', async () => {
+  it('removes the segment and its painted masks when the editor deletes', async () => {
     const segmentId = spreadSegment(['img-1', 'img-2']);
     const wrapper = mountList();
     await nextTick();
@@ -1199,10 +1204,7 @@ describe('deleting a segment says what went with it', () => {
     editor(wrapper).vm.$emit('delete');
     await nextTick();
 
-    expect(rowIds(wrapper)).toEqual([]);
-    expect(messageTitles()).toEqual([
-      'Deleted 2 masks on 2 images and 2 annotations',
-    ]);
+    await expectDeleted(wrapper);
   });
 });
 

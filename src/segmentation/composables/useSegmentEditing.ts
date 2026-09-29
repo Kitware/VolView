@@ -4,7 +4,7 @@ import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import type { Maybe } from '@/src/types';
 import { cssColorToRGBA } from '@/src/segmentation/color';
 import { cleanUndefined } from '@/src/utils';
-import { deleteSegmentAndReport } from '@/src/segmentation/deleteSegment';
+import { deleteUnlockedSegment } from '@/src/segmentation/deleteSegment';
 
 /**
  * The segment edit dialog: one editor, one set of fields, one place that
@@ -86,7 +86,7 @@ export function useSegmentEditing(registry: SegmentRegistry) {
   // Deleting a segment takes its masks on every image and its shapes with it.
   function deleteEditingSegment() {
     const id = editingSegmentId.value;
-    if (id) deleteSegmentAndReport(registry, id);
+    if (id) deleteUnlockedSegment(registry, id);
     stopEditing(false);
   }
 
