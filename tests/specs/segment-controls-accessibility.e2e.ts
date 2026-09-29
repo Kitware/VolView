@@ -63,10 +63,10 @@ describe('Segment control accessibility', () => {
     await $('button.v-expansion-panel-title*=Paint').click();
     const erase = $('button.mode-button*=Erase');
     const sync = $('input[aria-label="Sync Views"]');
+    const overlap = $('input[aria-label="Allow Overlap"]');
     await expect(erase).toBeDisabled();
     await expect(sync).toBeDisabled();
-    // It also decides how a polygon rasterizes, which needs no brush.
-    await expect($('input[aria-label="Allow Overlap"]')).toBeEnabled();
+    await expect(overlap).toBeDisabled();
 
     // Reached by keyboard from the panel title, so no pointer position is
     // involved: the disabled modes first, then the brush parameters.
@@ -85,10 +85,21 @@ describe('Segment control accessibility', () => {
     await expect(reason).toHaveText(
       'Select the Paint tool to adjust the brush'
     );
+    await browser.keys('Tab');
+    const overlapControls = $('.paint-switches > div:first-child');
+    await expect(overlapControls).toBeFocused();
+    const overlapReason = await tooltipOf(overlapControls);
+    await expect(overlapReason).toBeDisplayed();
+    await expect(overlapReason).toHaveText(
+      'Select the Paint tool to adjust the brush'
+    );
 
     await AppPage.activatePaint();
     await expect(erase).toBeEnabled();
     await expect(sync).toBeEnabled();
+    await expect(overlap).toBeEnabled();
+    await AppPage.activateRectangle();
+    await expect(overlap).toBeDisabled();
   });
 
   it('keeps the segment editor usable at 375px and side by side on desktop', async () => {

@@ -175,16 +175,23 @@
             </v-range-slider>
           </div>
           <div class="paint-switches mb-2">
-            <div class="d-flex align-center">
+            <div
+              class="d-flex align-center"
+              :tabindex="brushDisabledReason ? 0 : undefined"
+            >
               <label
                 :for="overlapSwitchId"
-                class="control-label text-body-2 text-no-wrap cursor-pointer"
+                :class="[
+                  'control-label text-body-2 text-no-wrap',
+                  { 'cursor-pointer': !brushDisabledReason },
+                ]"
               >
                 <v-icon size="small">mdi-set-center</v-icon>Allow Overlap
               </label>
               <v-switch
                 :id="overlapSwitchId"
                 aria-label="Allow Overlap"
+                :disabled="!!brushDisabledReason"
                 v-model="allowOverlap"
                 color="primary"
                 density="compact"
@@ -192,9 +199,14 @@
                 class="ml-3 flex-grow-0"
               ></v-switch>
               <v-tooltip :eager="false" activator="parent" location="top">
-                On: painting and rasterizing keep other segments' voxels, so
-                segments overlap. Off: they take voxels from unlocked segments
-                and go around locked ones.
+                <template v-if="brushDisabledReason">
+                  {{ brushDisabledReason }}
+                </template>
+                <template v-else>
+                  On: painting and rasterizing keep other segments' voxels, so
+                  segments overlap. Off: they take voxels from unlocked segments
+                  and go around locked ones.
+                </template>
               </v-tooltip>
             </div>
             <div
@@ -299,7 +311,6 @@ const {
 const { allowOverlap } = storeToRefs(useSegmentationStore());
 const overlapSwitchId = useId();
 const syncSwitchId = useId();
-// Allow Overlap stays live: it also governs a polygon's Rasterize.
 const brushDisabledReason = computed(
   () =>
     toolStore.paintUnavailableReason ||
