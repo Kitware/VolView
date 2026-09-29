@@ -143,7 +143,8 @@
                   "value": {
                     "type": "integer",
                     "minimum": 1,
-                    "maximum": 9007199254740991
+                    "maximum": 9007199254740991,
+                    "description": "The label value, from 1 to 65535; 0 is background. The client stores labels in at most 16 bits: voxels holding a larger value import as background with a warning, and a segment declared with one arrives empty."
                   },
                   "name": {
                     "type": "string"

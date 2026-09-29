@@ -187,7 +187,13 @@ const colorChannel = z.number().int().min(0).max(255);
 // A segment descriptor: `value` is a label index >= 1 (0 is reserved
 // background), `color` is RGBA 0-255.
 export const segmentDescriptorSchema = z.object({
-  value: z.number().int().min(1),
+  value: z
+    .number()
+    .int()
+    .min(1)
+    .describe(
+      'The label value, from 1 to 65535; 0 is background. The client stores labels in at most 16 bits: voxels holding a larger value import as background with a warning, and a segment declared with one arrives empty.'
+    ),
   name: z.string(),
   color: z.tuple([colorChannel, colorChannel, colorChannel, colorChannel]),
   visible: z.boolean().optional(),
