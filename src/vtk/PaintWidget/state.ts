@@ -10,8 +10,8 @@ export interface PaintPointWidgetState extends vtkWidgetState {
   getScale1(): number;
   setVisible(visible: boolean): boolean;
   getVisible(): boolean;
-  setColor(color: number): boolean;
-  getColor(): number;
+  setColor3(color: Vector3): boolean;
+  getColor3(): Vector3;
 }
 
 export interface PaintWidgetState extends vtkWidgetState {
@@ -26,7 +26,7 @@ export default function generateState() {
     .addStateFromMixin({
       labels: ['brush'],
       name: 'brush',
-      mixins: ['origin', 'scale1', 'visible', 'color'],
+      mixins: ['origin', 'scale1', 'visible', 'color3'],
       initialValues: {
         scale1: 1,
         origin: null,
