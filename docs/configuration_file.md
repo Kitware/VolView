@@ -298,7 +298,7 @@ match or the configuration is rejected.
 
 ## Keyboard Shortcuts
 
-Configure the keys to activate tools, change selected labels, and more.
+Configure the keys to activate tools, change the selected segment, and more.
 All [shortcut actions](https://github.com/Kitware/VolView/blob/main/src/constants.ts#L53) are under the `ACTIONS` variable.
 
 To configure a key for an action, add its action name and the key(s) under the `shortcuts` section. For key combinations, use `+` like `Ctrl+f`.
