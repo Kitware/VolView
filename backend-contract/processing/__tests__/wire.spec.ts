@@ -380,11 +380,9 @@ describe('result intent fixtures', () => {
   });
 
   it('rejects a wrong-length segment color (the tuple-length parity pin)', () => {
-    // The negative fixture carries a 3-element color. The STRICT union must
-    // reject it — and the generated JSON Schema must agree (backend side:
-    // test_contract_fixtures.py), so both validators close fixed-length
-    // tuples identically. The full union still accepts the row, demoted to an
-    // ordinary result with no state action (the designed fail-open).
+    // Only the strict known-intent union rejects the 3-element color; the
+    // published result-intent schema accepts the row and demotes it to an
+    // ordinary result with no state action.
     const short = loadFixture('negative/wrong-length-color.json');
     expect(knownResultIntentSchema.safeParse(short).success).toBe(false);
     expect(resultIntentSchema.safeParse(short).success).toBe(true);

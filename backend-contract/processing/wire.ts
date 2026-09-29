@@ -59,10 +59,14 @@ const stagedDescriptorCommon = {
 };
 
 // A parent-bound labelmap: the segmentation bytes overlaying the image.
-const stageLabelmapDescriptorSchema = z.strictObject({
-  type: z.literal(TYPE_TAG_LABELMAP),
-  ...stagedDescriptorCommon,
-});
+const stageLabelmapDescriptorSchema = z
+  .strictObject({
+    type: z.literal(TYPE_TAG_LABELMAP),
+    ...stagedDescriptorCommon,
+  })
+  .describe(
+    "The staged bytes are a `.seg.nrrd` labelmap on the reference image's voxel grid. Label values run from 1 to N within each file, in the client's segment order, with 0 as background. Voxels are unsigned 8-bit for up to 255 labels and unsigned 16-bit beyond. Segment names and colors ride in the header."
+  );
 
 // A parent-bound annotations file: the vector annotations (rulers, rectangles,
 // polygons) drawn on the image, as the `annotations.ts` interchange format.
@@ -194,7 +198,11 @@ export const segmentDescriptorSchema = z.object({
     .describe(
       'The label value, from 1 to 65535; 0 is background. The client stores labels in at most 16 bits: voxels holding a larger value import as background with a warning, and a segment declared with one arrives empty.'
     ),
-  name: z.string(),
+  name: z
+    .string()
+    .describe(
+      'Binds the segment by exact name. A segment the client already holds under this name, with no mask on the target image yet, takes these voxels and keeps its own color and visibility. Otherwise the client creates a segment from this descriptor, with a numbered name when the existing one already has a mask on that image.'
+    ),
   color: z.tuple([colorChannel, colorChannel, colorChannel, colorChannel]),
   visible: z.boolean().optional(),
 });
