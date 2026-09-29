@@ -42,24 +42,11 @@ describe('Slicer-compatible seg.nrrd export', function () {
     const config = { io: { segmentGroupSaveFormat: 'seg.nrrd' } };
     await openConfigAndDataset(config, 'seg-nrrd-export', ONE_CT_SLICE_DICOM);
 
-    // Activate paint tool — creates a segment group
     await volViewPage.activatePaint();
 
     // Paint a stroke so the labelmap has data
     const views2D = await volViewPage.getViews2D();
-    const canvas = await views2D[0].$('canvas');
-    const location = await canvas.getLocation();
-    const size = await canvas.getSize();
-    const cx = Math.round(location.x + size.width / 2);
-    const cy = Math.round(location.y + size.height / 2);
-
-    await browser
-      .action('pointer')
-      .move({ x: cx, y: cy })
-      .down()
-      .move({ x: cx + 20, y: cy })
-      .up()
-      .perform();
+    await volViewPage.paintStrokeOnView(views2D[0]);
 
     // Save session — downloads a .volview.zip containing the seg.nrrd
     const sessionFileName = await volViewPage.saveSession();
