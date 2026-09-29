@@ -58,7 +58,7 @@ const stagedDescriptorCommon = {
   referenceImage: stagedReferenceImageSchema,
 };
 
-// A parent-bound labelmap: the segment-group bytes overlaying the image.
+// A parent-bound labelmap: the segmentation bytes overlaying the image.
 const stageLabelmapDescriptorSchema = z.strictObject({
   type: z.literal(TYPE_TAG_LABELMAP),
   ...stagedDescriptorCommon,
@@ -227,7 +227,7 @@ const addLayer = z
 // labels-sidecar case; a `seg.nrrd` with embedded metadata carries none — the
 // client uses `segments` when present, else the file's own metadata) and an
 // optional `source` provenance tag (the idempotency key).
-const addSegmentGroup = z
+const importSegmentation = z
   .object({
     intent: z.literal('import-segmentation'),
     ...resultListItemSchema.shape,
@@ -255,7 +255,7 @@ const addAnnotations = z
 export const knownResultIntentSchema = z.discriminatedUnion('intent', [
   addBaseImage,
   addLayer,
-  addSegmentGroup,
+  importSegmentation,
   addAnnotations,
 ]);
 

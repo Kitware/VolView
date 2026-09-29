@@ -291,7 +291,7 @@ describe('result intent fixtures', () => {
     expect(parsed.source).toMatchObject({ outputId: 'outputLabelmap' });
   });
 
-  it('rejects a segment-group source without provider identity', () => {
+  it('rejects a segmentation source without provider identity', () => {
     const value = structuredClone(
       wire['intent.import-segmentation.with-segments']
     ) as { source: { providerId?: string } };
