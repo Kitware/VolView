@@ -122,7 +122,6 @@ function vtkPaintBrushContextRepresentation(publicAPI, model) {
 
   const actorProperty = model.pipelines.brush.actor.getProperty();
   actorProperty.setLineWidth(2);
-  actorProperty.setColor([1, 0, 0]);
   actorProperty.setDisplayLocation(DisplayLocation.FOREGROUND);
   actorProperty.setRepresentation(Representation.SURFACE);
 
@@ -135,6 +134,7 @@ function vtkPaintBrushContextRepresentation(publicAPI, model) {
 
     const stencil = widgetState.getStencil();
     const brush = widgetState.getBrush();
+    actorProperty.setColor(brush.getColor3().map((channel) => channel / 255));
     const { indexToWorld, worldToIndex } = model;
 
     if (stencil && brush.getOrigin()) {

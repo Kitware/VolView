@@ -24,6 +24,7 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
 import { usePaintInteractionMode } from '@/src/segmentation/composables/usePaintInteractionMode';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import eyedropperCursor from '@/src/assets/eyedropper-cursor.svg?url';
 import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 
@@ -69,6 +70,14 @@ export default defineComponent({
     widget.setPickable(false);
 
     // --- widget representation config --- //
+
+    const { segments } = useSegmentStore();
+    watchEffect(() => {
+      const [r, g, b] = segments.appearanceOf(
+        segments.selectedSegmentId.value
+      ).color;
+      widgetState.getBrush().setColor3([r, g, b]);
+    });
 
     // Every mask uses the parent voxel grid. Selection and mask growth do not
     // change the brush's world-space footprint.
