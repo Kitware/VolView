@@ -344,9 +344,10 @@ export async function importLabelmapImage(
 
   const images = extractEachComponent(childImage);
 
-  // Sequential, not fanned out: the splits share one segmentation, and each
-  // binds its segments against the ones already in it.
-  const created: ImportedSegment[][] = [];
+  const prepared: Array<{
+    labelmap: vtkLabelMap;
+    descriptors: LabelmapSegment[];
+  }> = [];
   const cache = useImageCacheStore();
   for (const [component, image] of images.entries()) {
     const matchingParentSpace = await (hooks.resample ?? ensureSameSpace)(
@@ -367,12 +368,15 @@ export async function importLabelmapImage(
     if (!cache.imageById[imageID]) {
       throw new Error('Labelmap image is no longer loaded');
     }
-    created.push(
-      hooks.split(labelmapImage, descriptors).map((maskId, index) => ({
-        sourceValue: descriptors[index].value,
-        maskId,
-      }))
-    );
+    prepared.push({ labelmap: labelmapImage, descriptors });
   }
-  return created;
+
+  // Finish fallible asynchronous work before creating any masks. The splits
+  // commit in order without yielding, so each sees the preceding bindings.
+  return prepared.map(({ labelmap, descriptors }): ImportedSegment[] =>
+    hooks.split(labelmap, descriptors).map((maskId, index) => ({
+      sourceValue: descriptors[index].value,
+      maskId,
+    }))
+  );
 }

@@ -13,6 +13,7 @@ import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
+import { defer } from '@/src/utils';
 import {
   seatImage,
   seedVoxel,
@@ -205,11 +206,18 @@ describe('processing segment identity', () => {
     ]);
   });
 
-  it('imports every component again when a retry follows a partial import', async () => {
+  it('keeps existing edits and imports each component once after a failed attempt', async () => {
+    const { maskId } = existingMask('parent-B', 'Existing');
+    const entered = defer<void>();
+    const released = defer<void>();
     const resample = vi
       .fn(ensureSameSpace)
       .mockImplementationOnce(ensureSameSpace)
-      .mockRejectedValueOnce(new Error('Resample failed'));
+      .mockImplementationOnce(async () => {
+        entered.resolve();
+        await released.promise;
+        throw new Error('Resample failed');
+      });
     const segmentWriter = {
       ...appApplyDependencies().segmentWriter,
       convertImageToLabelmap: (
@@ -235,35 +243,45 @@ describe('processing segment identity', () => {
         );
       return id;
     };
+    const attempt = () =>
+      importResult([{ value: 1, name: 'Liver', color: blue }], {
+        importVolume: importTwoComponents,
+        segmentWriter,
+      });
 
-    expect(
-      await importResult(undefined, {
-        importVolume: importTwoComponents,
-        segmentWriter,
-      })
-    ).toMatchObject({ status: 'failed' });
-    expect(savedMasks(await save(), 'parent-B')).toMatchObject([
+    const importing = attempt();
+    await entered.promise;
+    seedVoxel(maskId, [2, 1, 1]);
+    released.resolve();
+    expect(await importing).toMatchObject({ status: 'failed' });
+    const failed = await save();
+    const existing = {
+      id: maskId,
+      segment: { name: 'Existing', color: red },
+      extent: [1, 2, 1, 1, 1, 1],
+      source: undefined,
+      artifact: { values: [1, 1] },
+    };
+    expect(savedMasks(failed, 'parent-B')).toMatchObject([existing]);
+    expect(failed.manifest.segments).toHaveLength(1);
+
+    expect(await attempt()).toEqual({ status: 'applied' });
+    const retried = await save();
+    expect(savedMasks(retried, 'parent-B')).toMatchObject([
+      existing,
       {
+        segment: { name: 'Liver', color: blue },
         extent: [1, 1, 1, 1, 1, 1],
-        source: undefined,
+        source,
+        artifact: { values: [1] },
+      },
+      {
+        segment: { name: 'Liver (2)', color: blue },
+        extent: [2, 2, 2, 2, 2, 2],
+        source,
         artifact: { values: [1] },
       },
     ]);
-    expect(
-      await importResult(undefined, {
-        importVolume: importTwoComponents,
-        segmentWriter,
-      })
-    ).toEqual({ status: 'applied' });
-    expect(imports).toBe(2);
-    expect(savedMasks(await save(), 'parent-B')).toMatchObject([
-      {
-        extent: [1, 1, 1, 1, 1, 1],
-        source: undefined,
-        artifact: { values: [1] },
-      },
-      { extent: [1, 1, 1, 1, 1, 1], source, artifact: { values: [1] } },
-      { extent: [2, 2, 2, 2, 2, 2], source, artifact: { values: [1] } },
-    ]);
+    expect(retried.manifest.segments).toHaveLength(3);
   });
 });
