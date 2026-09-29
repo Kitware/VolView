@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { TypedArray } from 'itk-wasm';
 import { parseUrl } from '@/src/utils/url';
 import { EPSILON } from '../constants';
-import { Maybe } from '../types';
 
 export function identity<T>(arg: T) {
   return arg;
@@ -255,15 +254,6 @@ export const cleanUndefined = <T extends object>(record: T): Partial<T> =>
   Object.fromEntries(
     Object.entries(record).filter(([, value]) => value !== undefined)
   ) as Partial<T>;
-
-// converts named colors (red, antiquewhite, etc) to hex
-export function standardizeColor(color: Maybe<string>) {
-  if (!color) return '#ffffff';
-  const ctx = document.createElement('canvas').getContext('2d');
-  if (!ctx) throw new Error('Could not create canvas context');
-  ctx.fillStyle = color;
-  return ctx.fillStyle;
-}
 
 export function zodEnumFromObjKeys<K extends string>(obj: Record<K, any>) {
   const [firstKey, ...otherKeys] = Object.keys(obj) as K[];
