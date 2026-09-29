@@ -31,7 +31,7 @@
               v-model="interactionMode"
               mandatory
               selected-class="selected"
-              class="d-flex flex-wrap align-center justify-start ga-2"
+              class="d-flex flex-wrap align-center justify-space-between ga-2 w-100"
             >
               <v-item
                 :value="PaintMode.CirclePaint"
