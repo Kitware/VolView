@@ -51,7 +51,7 @@ const DRAWING_TOOLS = [
 ];
 
 describe('Annotations sidebar', () => {
-  it('deletes a segment with its painted mask and measurement and reports what was removed', async () => {
+  it('deletes a segment with its painted mask and measurement without a notification', async () => {
     const { axialView } = await placeRectangle();
     await volViewPage.activatePaint();
     await volViewPage.paintStrokeOnView(axialView);
@@ -67,9 +67,11 @@ describe('Annotations sidebar', () => {
     await expect(axialView.$('svg rect')).not.toExist();
     await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
     await volViewPage.notifications.click();
-    await expect($('.message-center .header > span')).toHaveText(
-      'Deleted 1 mask on 1 image and 1 annotation'
+    await expect($('.message-center')).toBeDisplayed();
+    const titles = await $$('.message-center .header > span').map((title) =>
+      title.getText()
     );
+    expect(titles.some((title) => title.startsWith('Deleted '))).toBe(false);
   });
 
   it('keeps the Segments list in place and selected across tool switches', async () => {

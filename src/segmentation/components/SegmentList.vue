@@ -10,7 +10,7 @@ import SaveSegmentationDialog from '@/src/segmentation/components/SaveSegmentati
 import SegmentEditor from '@/src/segmentation/components/SegmentEditor.vue';
 import SegmentListActions from '@/src/segmentation/components/SegmentListActions.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { deleteSegmentAndReport } from '@/src/segmentation/deleteSegment';
+import { deleteUnlockedSegment } from '@/src/segmentation/deleteSegment';
 import { useSegmentEditing } from '@/src/segmentation/composables/useSegmentEditing';
 import { pulseSegmentMask } from '@/src/segmentation/rendering/revealPulse';
 import {
@@ -408,7 +408,7 @@ const {
                 @reveal="revealSlice(item)"
                 @edit="editing.startEditing(item.id)"
                 @toggle-visible="toggleVisible(item.id)"
-                @delete="deleteSegmentAndReport(registry, item.id)"
+                @delete="deleteUnlockedSegment(registry, item.id)"
               />
             </template>
           </editable-item-list>
