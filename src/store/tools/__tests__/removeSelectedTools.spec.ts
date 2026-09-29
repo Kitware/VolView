@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useMessageStore } from '@/src/store/messages';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -88,34 +87,5 @@ describe('removeSelectedTools', () => {
     removeSelectedTools();
 
     expect(useRulerStore().toolByID).toHaveProperty(ruler);
-  });
-
-  // the selection can hold annotations with no visible cue in the current view
-  // (hidden, other slices, other axes) and there is no undo
-  it('reports how many annotations were deleted', () => {
-    const selectionStore = useToolSelectionStore();
-    selectionStore.addSelection(addRuler(), AnnotationToolType.Ruler);
-    selectionStore.addSelection(addRectangle(), AnnotationToolType.Rectangle);
-
-    removeSelectedTools();
-
-    const messages = useMessageStore().messages;
-    expect(messages.at(-1)?.title).toBe('Deleted 2 annotations');
-  });
-
-  it('uses the singular for a single deleted annotation', () => {
-    useToolSelectionStore().addSelection(addRuler(), AnnotationToolType.Ruler);
-
-    removeSelectedTools();
-
-    expect(useMessageStore().messages.at(-1)?.title).toBe(
-      'Deleted 1 annotation'
-    );
-  });
-
-  it('says nothing when nothing was deleted', () => {
-    removeSelectedTools();
-
-    expect(useMessageStore().messages).toHaveLength(0);
   });
 });

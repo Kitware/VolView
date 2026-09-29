@@ -8,8 +8,6 @@ import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
-import { useMessageStore } from '@/src/store/messages';
-import { plural } from '@/src/utils';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 import { useToolSelectionStore } from './toolSelection';
@@ -86,22 +84,9 @@ export function useAnnotationToolStore(
 export function removeSelectedTools() {
   const selectionStore = useToolSelectionStore();
 
-  // count what was actually removed: a selection entry can outlive its tool,
-  // and removeTool is a no-op for one that is already gone
-  const removed = [...selectionStore.selection].filter(({ id, type }) => {
-    const store = useAnnotationToolStore(type);
-    if (!(id in store.toolByID)) return false;
-    store.removeTool(id);
-    return true;
-  }).length;
-
-  // the selection can hold annotations with no visible cue in the current view
-  // (hidden, other slices, other axes) and there is no undo, so say what went
-  if (removed > 0) {
-    useMessageStore().addInfo(
-      `Deleted ${removed} ${plural(removed, 'annotation')}`
-    );
-  }
+  [...selectionStore.selection].forEach(({ id, type }) => {
+    useAnnotationToolStore(type).removeTool(id);
+  });
 
   // clears any entry whose tool was already gone
   selectionStore.clearSelection();
