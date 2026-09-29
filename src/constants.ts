@@ -106,10 +106,10 @@ export const ACTIONS = {
   },
 
   decrementLabel: {
-    readable: 'Activate previous label',
+    readable: 'Select previous segment',
   },
   incrementLabel: {
-    readable: 'Activate next label',
+    readable: 'Select next segment',
   },
 
   ...perSegmentShortcut((index) => ({
