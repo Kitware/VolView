@@ -144,11 +144,8 @@ const ARROW_KEYS = ['up', 'down', 'left', 'right'].map(
 
 // The keys a control acts on natively, paired with the controls that claim them.
 const NATIVE_KEY_CLAIMS = [
-  { keys: ['enter', ' '], selector: 'input, select, button, [role="button"]' },
-  {
-    keys: ARROW_KEYS,
-    selector: 'input[type="radio"], input[type="range"], select',
-  },
+  { keys: ['enter', ' '], selector: 'input, button, [role="button"]' },
+  { keys: ARROW_KEYS, selector: 'input[type="radio"], input[type="range"]' },
 ].map(({ keys, selector }) => ({ keys: new Set(keys), selector }));
 
 const isTextEntry = (element: HTMLElement) => {
