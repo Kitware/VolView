@@ -292,8 +292,8 @@ const serializingStoreHooks = [
   useViewStore,
   useViewConfigStore,
   useSegmentStore,
-  useSegmentationStore,
   useToolStore,
+  useSegmentationStore,
   useLayersStore,
 ];
 
@@ -340,10 +340,11 @@ export async function serialize(
     manifest,
   };
 
-  // Writers run in order: later ones read manifest entries the earlier ones
-  // wrote.
+  // Related synchronous snapshots stay together before mask encoding yields.
+  // Later writers can read manifest entries the earlier ones wrote.
   for (const write of dependencies.writers) {
-    await write(stateFile);
+    const pending = write(stateFile);
+    if (pending) await pending;
   }
   const repaired = normalizeManifest(manifest, zip);
   if (repaired.omitted.length > 0) {
