@@ -66,4 +66,4 @@ VolView reads the DICOM tags of your data to determine appropriate preset parame
 
 ## 4. Saving / loading state
 
-Once you have made the measures and generated the visualizations that you want to store to recall later or share with others, use the icons at the top of the toolbar to Load and Save state files. For more information on the json format of these state files and how they can be used to integrate VolView with workflows and other services, see [State Files](state_files.html).
+Use the Load and Save icons in the toolbar to reopen or save your images, annotations, and view settings. See [State Files](./state_files.md) for details on saving and sharing your work.
