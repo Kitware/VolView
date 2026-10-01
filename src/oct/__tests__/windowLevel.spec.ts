@@ -13,6 +13,8 @@ import { projectEnFace } from '@/src/oct/projection';
 import {
   windowLevelFromDrag,
   thinRegionColor,
+  paintThinRegionPixels,
+  paintProjectionIntensities,
   projectionWindowRanges,
 } from '@/src/oct/windowLevel';
 import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
@@ -334,11 +336,46 @@ describe('En face window/level drag and texture overlay', () => {
       )
     ).toEqual({ width: 1e-12, level: 100 });
   });
-  it('blends amber with reflectivity instead of replacing texture with a constant color', () => {
-    const dark = thinRegionColor(20);
-    const bright = thinRegionColor(200);
-    expect(dark).toEqual([102, 62, 13, 255]);
-    expect(bright).toEqual([219, 179, 130, 255]);
+  it('windows reflectivity before filling while clipping intensities outside the display range', () => {
+    const pixels = new Uint8ClampedArray(5 * 4);
+    paintProjectionIntensities([-20, 0, 50, 100, 120], pixels, {
+      width: 100,
+      level: 50,
+    });
+    expect(Array.from(pixels)).toEqual([
+      0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128, 255, 255, 255, 255, 255, 255,
+      255, 255, 255,
+    ]);
+  });
+  it('paints only present thin A-lines, leaving absent, equal and thick regions unchanged', () => {
+    const gray = Uint8ClampedArray.from({ length: 6 * 4 }, (_, index) =>
+      index % 4 === 3 ? 255 : 100
+    );
+    const count = paintThinRegionPixels(gray, [0, 20.8, 31, 52, NaN, -1], 31, {
+      color: [35, 215, 190, 255],
+      alpha: 0.3,
+    });
+    expect(count).toBe(1);
+    expect(Array.from(gray.slice(4, 8))).toEqual([81, 135, 127, 255]);
+    for (const index of [0, 2, 3, 4, 5])
+      expect(Array.from(gray.slice(index * 4, index * 4 + 4))).toEqual([
+        100, 100, 100, 255,
+      ]);
+  });
+  it('tints reflectivity with the selected segment color and shared fill opacity', () => {
+    const dark = thinRegionColor(20, [35, 215, 190, 255], 0.3);
+    const bright = thinRegionColor(200, [35, 215, 190, 255], 0.3);
+    expect(dark).toEqual([25, 79, 71, 255]);
+    expect(bright).toEqual([151, 205, 197, 255]);
     expect(bright[0]).toBeGreaterThan(dark[0]);
+    expect(thinRegionColor(100, [255, 0, 0, 255], 0.3)).toEqual([
+      147, 70, 70, 255,
+    ]);
+    expect(thinRegionColor(100, [0, 255, 0, 255], 0.3)).toEqual([
+      70, 147, 70, 255,
+    ]);
+    expect(thinRegionColor(100, [35, 215, 190, 0], 0)).toEqual([
+      100, 100, 100, 255,
+    ]);
   });
 });

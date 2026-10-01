@@ -44,17 +44,59 @@ export function windowLevelFromDrag(
   };
 }
 
-/** Amber overlay keeps the underlying OCT reflectivity texture visible. */
-export function thinRegionColor(gray: number) {
-  const alpha = 0.35;
+/** Blend the normal segment fill over OCT reflectivity, retaining its texture. */
+export function thinRegionColor(
+  gray: number,
+  color: readonly [number, number, number, number],
+  alpha: number
+) {
   return [
-    Math.round(gray * (1 - alpha) + 255 * alpha),
-    Math.round(gray * (1 - alpha) + 140 * alpha),
-    Math.round(gray * (1 - alpha)),
+    Math.round(gray * (1 - alpha) + color[0] * alpha),
+    Math.round(gray * (1 - alpha) + color[1] * alpha),
+    Math.round(gray * (1 - alpha) + color[2] * alpha),
     255,
   ];
 }
 
+/** Map projected intensities to the normal grayscale window before segment fill. */
+export function paintProjectionIntensities(
+  values: ArrayLike<number>,
+  pixels: Uint8ClampedArray,
+  window: { width: number; level: number }
+) {
+  const lower = window.level - window.width / 2;
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    const gray = Number.isFinite(value)
+      ? Math.round(
+          Math.min(1, Math.max(0, (value - lower) / window.width)) * 255
+        )
+      : 0;
+    pixels.set([gray, gray, gray, 255], index * 4);
+  }
+}
+/** Color only occupied A-lines strictly below the physical thickness threshold. */
+export function paintThinRegionPixels(
+  pixels: Uint8ClampedArray,
+  thickness: ArrayLike<number>,
+  thresholdMicrons: number,
+  appearance: {
+    color: readonly [number, number, number, number];
+    alpha: number;
+  }
+) {
+  let count = 0;
+  for (let index = 0; index < thickness.length; index += 1) {
+    if (thickness[index] > 0 && thickness[index] < thresholdMicrons) {
+      pixels.set(
+        thinRegionColor(pixels[index * 4], appearance.color, appearance.alpha),
+        index * 4
+      );
+      count += 1;
+    }
+  }
+  return count;
+}
 /** Bounded histogram of projected float intensities; Full Range remains exact. */
 export function projectionWindowRanges(values: ArrayLike<number>) {
   if (!values.length) return null;

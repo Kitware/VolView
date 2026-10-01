@@ -11,8 +11,13 @@ import {
 } from 'vue';
 import { useResizeObserver } from '@vueuse/core';
 import { useEnFaceWindowing } from './useEnFaceWindowing';
+import { useThinRegionAppearance } from './useThinRegionAppearance';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
-import { projectionWindowRanges, thinRegionColor } from './windowLevel';
+import {
+  projectionWindowRanges,
+  paintThinRegionPixels,
+  paintProjectionIntensities,
+} from './windowLevel';
 import { useEnFaceWindowLevelDrag } from './useEnFaceWindowLevelDrag';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
@@ -64,9 +69,11 @@ const segmentOptions = computed(() => {
   if (!currentImageID.value) return [];
   return segmentationStore.boundMaskIds(currentImageID.value).map((maskId) => {
     const mask = segmentationStore.getMask(maskId);
+    const appearance = segmentsRegistry.appearanceOf(mask.segmentId);
     return {
       value: maskId,
-      title: segmentsRegistry.appearanceOf(mask.segmentId).displayName,
+      title: appearance.displayName,
+      color: appearance.cssColor,
     };
   });
 });
@@ -139,6 +146,13 @@ const thicknessReason = computed(
     (!availability.value.calibratedAxes[settings.value.axis]
       ? 'Physical spacing for this A-line axis is missing from the DICOM metadata; thickness in micrometers is unavailable.'
       : null)
+);
+
+const highlightAppearance = useThinRegionAppearance(
+  computed(() => settings.value.selectedMaskId)
+);
+const highlightReason = computed(
+  () => thicknessReason.value || highlightAppearance.value?.reason || null
 );
 
 // Scalar and mask storage can change in place during streaming or segmentation editing.
@@ -308,33 +322,22 @@ const canvasStyle = computed(() => {
   return { width: `${width}px`, height: `${width / aspect}px` };
 });
 const highlightedPixels = ref(0);
-function paintIntensities(result: ProjectionResult, pixels: ImageData) {
-  const width = windowConfig.value.width;
-  const level = windowConfig.value.level;
-  const lower = level - width / 2;
-  for (let index = 0; index < result.values.length; index += 1) {
-    const value = result.values[index];
-    const gray = Number.isFinite(value)
-      ? Math.round(Math.min(1, Math.max(0, (value - lower) / width)) * 255)
-      : 0;
-    pixels.data.set([gray, gray, gray, 255], index * 4);
-  }
-}
 function paintThinRegions(result: ProjectionResult, pixels: ImageData) {
   const thickness = result.thicknessMicrons;
-  if (!settings.value.highlightThin || thicknessReason.value || !thickness)
+  const appearance = highlightAppearance.value;
+  if (
+    !settings.value.highlightThin ||
+    highlightReason.value ||
+    !thickness ||
+    !appearance
+  )
     return 0;
-  let count = 0;
-  for (let index = 0; index < thickness.length; index += 1) {
-    if (
-      thickness[index] > 0 &&
-      thickness[index] < settings.value.thresholdMicrons
-    ) {
-      pixels.data.set(thinRegionColor(pixels.data[index * 4]), index * 4);
-      count += 1;
-    }
-  }
-  return count;
+  return paintThinRegionPixels(
+    pixels.data,
+    thickness,
+    settings.value.thresholdMicrons,
+    appearance
+  );
 }
 function paintProjection() {
   const result = projection.value;
@@ -350,7 +353,7 @@ function paintProjection() {
   target.width = result.width;
   target.height = result.height;
   const pixels = context.createImageData(result.width, result.height);
-  paintIntensities(result, pixels);
+  paintProjectionIntensities(result.values, pixels.data, windowConfig.value);
   highlightedPixels.value = paintThinRegions(result, pixels);
   context.putImageData(pixels, 0, 0);
 }
@@ -362,7 +365,8 @@ watch(
     () => windowConfig.value.level,
     () => settings.value.highlightThin,
     () => settings.value.thresholdMicrons,
-    thicknessReason,
+    highlightReason,
+    highlightAppearance,
   ],
   paintProjection,
   { flush: 'post' }
@@ -479,6 +483,8 @@ const sourceLoading = computed(
           :data-width="projection?.width ?? 0"
           :data-height="projection?.height ?? 0"
           :data-highlighted-pixels="highlightedPixels"
+          :data-highlight-color="highlightAppearance?.color.join(',') ?? ''"
+          :data-highlight-opacity="highlightAppearance?.alpha ?? 0"
           :data-window-width="windowConfig.width"
           :data-window-level="windowConfig.level"
         >
@@ -487,7 +493,7 @@ const sourceLoading = computed(
               projection.width
             }}
             × {{ projection.height
-            }}<span v-if="settings.highlightThin && !thicknessReason">
+            }}<span v-if="settings.highlightThin && !highlightReason">
               • {{ highlightedPixels }} thin pixels (&lt;
               {{ settings.thresholdMicrons }} µm)</span
             ></template
@@ -524,11 +530,15 @@ const sourceLoading = computed(
               :depth-maximum="depthMaximum"
               :projection-reason="projectionReason"
               :segmentation-reason="segmentationReason"
-              :thickness-reason="thicknessReason"
+              :thickness-reason="highlightReason"
               :segments="segmentOptions"
             />
           </v-menu>
-          <ViewTypeSwitcher :view-id="viewId" :image-id="currentImageID" />
+          <ViewTypeSwitcher
+            class="ml-0"
+            :view-id="viewId"
+            :image-id="currentImageID"
+          />
         </div>
       </template>
     </ViewOverlayGrid>

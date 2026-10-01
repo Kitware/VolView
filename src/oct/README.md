@@ -13,17 +13,18 @@ The standard toolbar controls, reset action, and saved session share the same
 per-view windowing settings. Automatic presets use the projected intensities;
 projection contrast stays independent of the original OCT slice views.
 
-Keep an OCT slice view alongside the en face image. Yellow reference lines
-follow the slices of the same volume as you scroll or scrub the slice slider.
+Keep an OCT slice view above the en face image for a wide B-scan comparison.
+Yellow reference lines follow the slices of the same volume as you scroll or scrub the slice slider.
 Lines align to the displayed projection's image grid; slices parallel to the
 projection plane have no line intersection. Hidden and unrelated views do not
 contribute reference lines.
 
 The thickness controls list masks associated with that volume. Choose a
-segment and enable **Highlight thin regions**. A translucent amber overlay
-marks nonzero occupied
-segment thickness strictly below the threshold in micrometers. Thickness
-counts all selected-mask voxels on the full A-line, independent of the
+segment and enable **Highlight thin regions**. A translucent overlay in the
+selected segment's color marks nonzero occupied segment thickness strictly
+below the threshold in micrometers. The source slice and projection share the
+segment's visibility and fill appearance. Thickness counts all selected-mask
+voxels on the full A-line, independent of the
 intensity slab. Disconnected pieces contribute their occupied thickness;
 empty space between pieces does not contribute. An absent mask pixel is
 excluded rather than treated as a zero-thickness abnormality.

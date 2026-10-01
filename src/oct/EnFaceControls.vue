@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
+import ColorDot from '@/src/components/ColorDot.vue';
 import type { OCTViewConfig } from './store';
 
 const props = defineProps<{
@@ -9,9 +10,14 @@ const props = defineProps<{
   projectionReason: string | null;
   segmentationReason: string | null;
   thicknessReason: string | null;
-  segments: { value: string; title: string }[];
+  segments: { value: string; title: string; color?: string }[];
 }>();
 const emit = defineEmits<{ patch: [settings: Partial<OCTViewConfig>] }>();
+const selectedSegmentColor = computed(
+  () =>
+    props.segments.find(({ value }) => value === props.settings.selectedMaskId)
+      ?.color
+);
 const thresholdReason = computed(
   () =>
     props.thicknessReason ||
@@ -129,15 +135,24 @@ function updateHighlight(highlightThin: boolean | null) {
         <v-switch
           :model-value="settings.highlightThin"
           @update:model-value="updateHighlight"
-          label="Highlight thin regions"
-          color="amber-lighten-2"
-          inset
+          color="secondary"
           density="compact"
           hide-details
           :disabled="!!thicknessReason"
           aria-label="Highlight thin OCT regions"
           data-testid="oct-thin-highlight"
-        />
+        >
+          <template #label>
+            <span>Highlight thin regions</span>
+            <ColorDot
+              v-if="selectedSegmentColor"
+              :color="selectedSegmentColor"
+              class="ml-2"
+              aria-hidden="true"
+              data-testid="oct-highlight-color"
+            />
+          </template>
+        </v-switch>
       </ReasonedAction>
       <div class="threshold-heading">
         <span class="text-body-2">Thickness below</span>
@@ -169,9 +184,7 @@ function updateHighlight(highlightThin: boolean | null) {
           min="0"
           :max="Math.max(500, settings.thresholdMicrons)"
           :step="0"
-          :thumb-size="14"
-          :track-size="4"
-          color="amber-lighten-2"
+          density="compact"
           hide-details
           :disabled="!!thresholdReason"
           aria-label="OCT thickness threshold"

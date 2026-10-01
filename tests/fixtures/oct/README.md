@@ -68,9 +68,27 @@ The six scenarios compare real browser pixels with the independent projections,
 check both thickness controls and session restoration, and exercise the normal
 Window & Level toolbar with a real pointer drag. The comparison layout checks
 the yellow en face marker against the original B-scan slice index after
-keyboard, wheel, and slice-slider navigation. Synthetic labelmap overlays are
-hidden in the source B-scan for this comparison; the dedicated en face thickness
-overlay still measures the selected synthetic segment.
+keyboard, wheel, and slice-slider navigation. The comparison places the original B-scan above the en face view, each spanning
+the full view width. A visible teal source segmentation and matching en face
+highlight use a separate, clearly synthetic curved illustration.
 
 The optional capture directory receives the real Chrome comparison screenshot
 and a saved two-view session. Public images are served locally during tests.
+
+The comparison demo uses a curved synthetic layer with five depth voxels
+(52 µm) at most locations and two voxels (20.8 µm) in one small ellipse centered
+at column 76, B-scan 16 (both zero-based). The ellipse spans 107 of 4,096 A-lines;
+a 31 µm threshold highlights only that localized illustrative patch.
+The analytic curve approximates the visible retinal band for demonstration.
+Its placement and thicknesses are fabricated, do not detect anatomy, and do not
+represent a clinical segmentation or a finding of pathology. The deterministic
+rectangular mask above remains the independent numerical regression fixture.
+
+Generate this optional demo mask from the checked-in DICOM geometry:
+
+```sh
+python tests/fixtures/oct/illustrative.py .tmp/oct-evidence/illustrative-layer.nrrd
+```
+
+This requires pydicom. The browser comparison creates the same temporary mask
+in Node without a Python dependency. No illustrative binary is checked in.

@@ -25,7 +25,7 @@ function mountControls(overrides = {}) {
       projectionReason: null,
       segmentationReason: null,
       thicknessReason: null,
-      segments: [{ value: 'retina', title: 'Retinal layer' }],
+      segments: [{ value: 'retina', title: 'Retinal layer', color: '#ff0000' }],
     },
     global: { plugins: [createVuetify()] },
   });
@@ -65,6 +65,26 @@ describe('En face rendering controls', () => {
     ).toBeDefined();
   });
 
+  it('identifies the selected segment highlight color and follows selection changes', async () => {
+    const wrapper = mountControls();
+    const swatch = () => wrapper.get('[data-testid="oct-highlight-color"]');
+    expect(swatch().attributes('style')).toContain('background-color: #ff0000');
+    await wrapper.setProps({
+      segments: [
+        { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
+        { value: 'other-layer', title: 'Other layer', color: '#00ff00' },
+      ],
+      settings: { ...wrapper.props('settings'), selectedMaskId: 'other-layer' },
+    });
+    expect(swatch().attributes('style')).toContain('background-color: #00ff00');
+    await wrapper.setProps({ segments: [] });
+    expect(wrapper.find('[data-testid="oct-highlight-color"]').exists()).toBe(
+      false
+    );
+    expect(wrapper.get('[data-testid="oct-thin-highlight"]').text()).toContain(
+      'Highlight thin regions'
+    );
+  });
   it('preserves a decimal micron threshold and ignores a cleared numeric entry', async () => {
     const wrapper = mountControls();
     const input = wrapper.get(

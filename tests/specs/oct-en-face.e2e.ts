@@ -1,5 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  stageIllustrativeMask,
+  ILLUSTRATIVE_THIN_COLUMNS,
+  expectStackedSourceMask,
+  expectControlsBesideSelector,
+} from './octTestUtils';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
@@ -185,12 +191,24 @@ async function expectHighlightCount(count: number) {
 async function openRetina(withMask = false, comparison = false) {
   const image = stageFixture('retina-derived.dcm');
   await writeManifestToFile(
-    { layouts: { 'OCT test': [comparison ? ['axial', 'enface'] : ['axial']] } },
+    {
+      layouts: {
+        'OCT test': comparison ? [['axial'], ['enface']] : [['axial']],
+      },
+    },
     'oct-config.json'
   );
   const source = withMask ? 'oct-mask.volview.json' : image;
   if (withMask) {
-    const mask = stageFixture('synthetic-thickness.nrrd');
+    const mask = comparison
+      ? STEM +
+        '/' +
+        stageIllustrativeMask(
+          makeTempDir(STEM),
+          reference.size,
+          reference.spacing
+        )
+      : stageFixture('synthetic-thickness.nrrd');
     await writeManifestToFile(
       {
         version: '7.0.0',
@@ -203,24 +221,33 @@ async function openRetina(withMask = false, comparison = false) {
         segments: [
           {
             id: 'retina-layer',
-            name: 'Synthetic retinal band',
-            visible: !comparison,
-            color: [255, 0, 0, 255],
+            name: comparison
+              ? 'Synthetic retinal layer'
+              : 'Synthetic retinal band',
+            visible: true,
+            color: comparison ? [35, 215, 190, 255] : [255, 0, 0, 255],
           },
           {
             id: 'other-layer',
             name: 'Alternative synthetic band',
-            visible: !comparison,
+            visible: true,
             color: [0, 255, 0, 255],
           },
-        ],
+        ].filter((_, index) => !comparison || index === 0),
         selectedSegment: 'retina-layer',
         segmentations: [
           {
             id: 'oct-layer-segmentation',
-            name: 'Synthetic thickness bands',
+            name: comparison
+              ? 'Synthetic illustrative layer'
+              : 'Synthetic thickness bands',
             parentImage: 'oct-parent',
-            order: ['retina-layer-mask', 'other-layer-mask'],
+            ...(comparison
+              ? { fillOpacity: 0.3, outlineOpacity: 0.75, outlineThickness: 1 }
+              : {}),
+            order: comparison
+              ? ['retina-layer-mask']
+              : ['retina-layer-mask', 'other-layer-mask'],
             masks: [
               {
                 id: 'retina-layer-mask',
@@ -244,7 +271,7 @@ async function openRetina(withMask = false, comparison = false) {
                   },
                 },
               },
-            ],
+            ].filter((_, index) => !comparison || index === 0),
           },
         ],
         segmentationArtifacts: [
@@ -417,10 +444,20 @@ describe('Retinal OCT en face viewing', () => {
       { x: 60, z: 12 },
       { x: 100, z: 12 },
     ]);
+    const highlightColor = (await $(STATE).getAttribute('data-highlight-color'))
+      ?.split(',')
+      .map(Number);
+    const opacity = Number(
+      await $(STATE).getAttribute('data-highlight-opacity')
+    );
+    expect(highlightColor).toEqual([255, 0, 0, 255]);
+    expect(opacity).toBeCloseTo(0.3, 6);
     expect(colors[0]).toEqual([
-      Math.round(unhighlighted * 0.65 + 255 * 0.35),
-      Math.round(unhighlighted * 0.65 + 140 * 0.35),
-      Math.round(unhighlighted * 0.65),
+      ...highlightColor!
+        .slice(0, 3)
+        .map((channel) =>
+          Math.round(unhighlighted * (1 - opacity) + channel * opacity)
+        ),
       255,
     ]);
     expect(colors[1][0]).toBe(colors[1][1]);
@@ -518,6 +555,14 @@ describe('Retinal OCT en face viewing', () => {
     await $('[data-testid="oct-rendering-panel"]').waitForDisplayed({
       reverse: true,
     });
+    if (
+      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
+        'v-navigation-drawer--active'
+      )
+    )
+      await $('header i.mdi-menu').click();
+    await $(CANVAS).waitForStable();
+    await expectStackedSourceMask();
     await volViewPage.focusFirst2DView();
     await expectSliceLine();
     const beforeKey = await volViewPage.getFirst2DSlice();
@@ -668,13 +713,34 @@ describe('Retinal OCT en face viewing', () => {
     // Restore selection and capture the polished comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
     await openControls();
+    const patchPoints = [
+      { x: 76, z: 16 },
+      { x: 5, z: 12 },
+    ];
+    const unhighlightedPatch = await canvasPixels(patchPoints);
     await enableHighlight();
     await setNumber('oct-thickness-threshold-input', 31);
-    await expectHighlightCount(reference.thinColumns);
+    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
+      '35,215,190,255'
+    );
+    expect(
+      await $('[data-testid="oct-segmentation-segment"]').getText()
+    ).toContain('Synthetic retinal layer');
+    const highlightedPatch = await canvasPixels(patchPoints);
+    const alpha = Number(await $(STATE).getAttribute('data-highlight-opacity'));
+    expect(highlightedPatch[0]).toEqual([
+      ...[35, 215, 190].map((channel) =>
+        Math.round(unhighlightedPatch[0][0] * (1 - alpha) + channel * alpha)
+      ),
+      255,
+    ]);
+    expect(highlightedPatch[1]).toEqual(unhighlightedPatch[1]);
     await expectSliceLine();
     expect(
       await $('[data-testid="oct-rendering-panel"]').getSize()
     ).toMatchObject({ width: 300 });
+    await expectControlsBesideSelector();
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
@@ -695,10 +761,26 @@ describe('Retinal OCT en face viewing', () => {
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await volViewPage.waitForViews();
     await $(CANVAS).waitForDisplayed();
-    await expectHighlightCount(reference.thinColumns);
+    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
+      '35,215,190,255'
+    );
+    await openControls();
+    expect(
+      await $('[data-testid="oct-segmentation-segment"]').getText()
+    ).toContain('Synthetic retinal layer');
+    await browser.keys('Escape');
     await expectSliceLine();
     expect(await getWindow()).toEqual(savedWindow);
     expect(await getOriginalWindow()).toEqual(originalWindow);
+    if (
+      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
+        'v-navigation-drawer--active'
+      )
+    )
+      await $('header i.mdi-menu').click();
+    await $(CANVAS).waitForStable();
+    await expectStackedSourceMask();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
