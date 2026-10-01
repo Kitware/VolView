@@ -342,6 +342,24 @@ describe('samplesAreIntegral', () => {
 });
 
 describe('allocateImageFromChunks', () => {
+  it.each([
+    ['0.0104\\0', [1, 0.0104, 1]],
+    ['0.0104\\NaN', [1, 0.0104, 1]],
+    ['0.0104', [1, 0.0104, 1]],
+    ['0\\0.046875', [0.046875, 1, 1]],
+    ['NaN\\0.046875', [0.046875, 1, 1]],
+    ['0\\0', [1, 1, 1]],
+  ])(
+    'preserves valid axes independently for PixelSpacing %s',
+    (value, expected) => {
+      const image = allocateImageFromChunks([
+        chunk({ [Tags.PixelSpacing]: value as string }),
+      ]);
+      expect(image.getSpacing()).toEqual(expected);
+      image.delete();
+    }
+  );
+
   it('allocates for the modality range of every chunk', () => {
     const image = allocateImageFromChunks([
       positionedChunk(0),
@@ -367,6 +385,18 @@ describe('allocateImageFromChunks', () => {
     ]);
 
     expect(Array.from(image.getSpacing())).toEqual([0.75, 2.5, 7.25]);
+  });
+
+  it('uses declared inter-frame spacing for a multi-frame volume', () => {
+    const image = allocateImageFromChunks([
+      chunk({
+        [Tags.NumberOfFrames]: '32',
+        [Tags.PixelSpacing]: '0.0104\\0.046875',
+        [Tags.SpacingBetweenSlices]: '0.1875',
+      }),
+    ]);
+    expect(Array.from(image.getDimensions())).toEqual([4, 3, 32]);
+    expect(Array.from(image.getSpacing())).toEqual([0.046875, 0.0104, 0.1875]);
   });
 
   it('keeps deriving multi-slice Z spacing from ImagePositionPatient distance', () => {

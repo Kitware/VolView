@@ -68,6 +68,8 @@ export const getAvailableViews = () => {
     },
   ];
 
+  list.push({ name: 'En face', type: 'EnFace', dataID: null, options: {} });
+
   const byName = list.reduce(
     (acc, view) => ({ ...acc, [view.name]: view }),
     {} as Record<string, ViewInfoInit>

@@ -278,6 +278,17 @@ const ViewConfig = z.object({
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
   cinePlayback: CinePlaybackViewConfig.optional(),
+  octEnFace: z
+    .object({
+      axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+      method: z.enum(['mean', 'max', 'sum']),
+      depthStart: z.number().int().nonnegative(),
+      depthEnd: z.number().int().nonnegative().nullable(),
+      highlightThin: z.boolean(),
+      thresholdMicrons: z.number().nonnegative(),
+      segmentId: z.string().nullable().optional(),
+    })
+    .optional(),
 });
 
 export type ViewConfig = z.infer<typeof ViewConfig>;
@@ -285,7 +296,12 @@ export type ViewConfig = z.infer<typeof ViewConfig>;
 const View = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.union([z.literal('2D'), z.literal('3D'), z.literal('Oblique')]),
+  type: z.union([
+    z.literal('2D'),
+    z.literal('3D'),
+    z.literal('Oblique'),
+    z.literal('EnFace'),
+  ]),
   dataID: z.string().optional().nullable(),
   options: z.record(z.string(), z.string()).optional(),
   config: z.record(z.string(), ViewConfig).optional(),

@@ -233,8 +233,6 @@ export const createStateFileRestorer = ({
       }
     }
 
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
-
     // Registries first: masks and shapes both name a segment, and the
     // ids they name are minted here.
     const { segmentIdMap, repeated: repeatedSegments } =
@@ -248,6 +246,12 @@ export const createStateFileRestorer = ({
         segmentIdMap,
         labelmapSources: planLabelmapSources(manifest).sources,
       });
+
+    useViewConfigStore().deserializeAll(
+      manifest,
+      stateIDToStoreID,
+      segmentIdMap
+    );
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 

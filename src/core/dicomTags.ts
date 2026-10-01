@@ -35,6 +35,7 @@ const tags: Tag[] = [
   { name: 'RescaleSlope', tag: '0028|1053' },
   { name: 'NumberOfFrames', tag: '0028|0008' },
   { name: 'SOPClassUID', tag: '0008|0016' },
+  { name: 'OphthalmicVolumetricPropertiesFlag', tag: '0022|1622' },
   { name: 'PhotometricInterpretation', tag: '0028|0004' },
   { name: 'FrameTime', tag: '0018|1063' },
   { name: 'SequenceOfUltrasoundRegions', tag: '0018|6011' },

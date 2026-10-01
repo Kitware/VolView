@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getOCTAvailability } from '@/src/oct';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
 import { computed, toRefs } from 'vue';
@@ -17,7 +18,16 @@ const viewName = computed(() => {
 });
 
 const availableViewNames = computed(() =>
-  viewStore.availableViewsForSwitcher.map((v) => v.name)
+  viewStore.availableViewsForSwitcher.map((view) => {
+    const reason =
+      view.type === 'EnFace' ? getOCTAvailability(imageId.value).reason : null;
+    return {
+      title: view.name,
+      value: view.name,
+      reason,
+      props: { disabled: !!reason },
+    };
+  })
 );
 
 function updateView(newViewName: string) {
@@ -25,6 +35,11 @@ function updateView(newViewName: string) {
     (v) => v.name === newViewName
   );
   if (!selectedView) return;
+  if (
+    selectedView.type === 'EnFace' &&
+    !getOCTAvailability(imageId.value).available
+  )
+    return;
   viewStore.replaceView(viewId.value, {
     ...selectedView,
     dataID: imageId.value,
@@ -42,7 +57,18 @@ function updateView(newViewName: string) {
     variant="solo"
     class="pointer-events-all view-type-select"
     aria-label="View type"
-  ></v-select>
+  >
+    <template #item="{ props: itemProps, item }">
+      <v-tooltip :disabled="!item.raw.reason" location="left">
+        <template #activator="{ props: tooltipProps }">
+          <div v-bind="tooltipProps" :title="item.raw.reason ?? undefined">
+            <v-list-item v-bind="itemProps" />
+          </div>
+        </template>
+        {{ item.raw.reason }}
+      </v-tooltip>
+    </template>
+  </v-select>
 </template>
 
 <style scoped>

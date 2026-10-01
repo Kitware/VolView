@@ -15,6 +15,11 @@ const BINARY_DIRS = [
   'src/io/itk-dicom/emscripten-build/',
   'src/io/resample/emscripten-build/',
 ];
+// Licensed OCT pixels and their paired synthetic mask keep browser tests offline.
+const BINARY_FILES = new Set([
+  'tests/fixtures/oct/retina-derived.dcm',
+  'tests/fixtures/oct/synthetic-thickness.nrrd',
+]);
 const { base } = stagedContext();
 
 const failures = [];
@@ -33,7 +38,11 @@ numstat
   .filter(Boolean)
   .map((line) => line.split('\t'))
   .filter(([added, removed, file]) => added === '-' && removed === '-' && file)
-  .filter(([, , file]) => !BINARY_DIRS.some((dir) => file.startsWith(dir)))
+  .filter(
+    ([, , file]) =>
+      !BINARY_FILES.has(file) &&
+      !BINARY_DIRS.some((dir) => file.startsWith(dir))
+  )
   .forEach(([, , file]) =>
     failures.push(
       `${file} is a binary file. Generate test data (tests/specs/syntheticDicom.ts) or download it lazily; committed binaries belong in ${BINARY_DIRS.join(', ')}.`

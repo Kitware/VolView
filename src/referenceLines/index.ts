@@ -3,3 +3,4 @@
 
 export { default as ReferenceLines } from './ReferenceLines.vue';
 export { useReferenceLinesStore } from './store';
+export { slicePlane, computeReferenceLine, type SlicePlane } from './geometry';

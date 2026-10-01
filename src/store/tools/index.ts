@@ -14,6 +14,7 @@ import { useToolSelectionStore } from './toolSelection';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { getOCTAvailability } from '@/src/oct';
 import {
   EffectiveView,
   getEffectiveView,
@@ -26,11 +27,27 @@ const CINE_DISALLOWED_TOOLS = new Set([
 ]);
 
 export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
+  if (effective?.kind === 'enface')
+    return tool === Tools.Select || tool === Tools.WindowLevel;
   if (effective?.kind === 'cine' && CINE_DISALLOWED_TOOLS.has(tool))
     return false;
   return true;
 }
 
+export function getToolUnavailableReason(
+  tool: Tools,
+  effective: EffectiveView | null
+) {
+  if (!isToolAllowedFor(tool, effective)) {
+    return effective?.kind === 'enface'
+      ? 'This tool is unavailable on an En face projection. Switch to a slice view to use it.'
+      : 'This tool is unavailable for a cine clip.';
+  }
+  if (tool === Tools.WindowLevel && effective?.viewInfo.type === 'EnFace') {
+    return getOCTAvailability(effective.renderDataID).reason;
+  }
+  return null;
+}
 // These tools draw into the selected segment, so picking one up seats a
 // segment: the palette shows the color the next stroke will be before it is
 // made. Seating allocates no voxels.
@@ -44,7 +61,7 @@ const SEGMENT_TOOLS = new Set([
 const activeEffectiveView = () => getEffectiveView(useViewStore().activeView);
 
 function coerceForEffective(tool: Tools, effective: EffectiveView | null) {
-  return isToolAllowedFor(tool, effective) ? tool : Tools.Select;
+  return getToolUnavailableReason(tool, effective) ? Tools.Select : tool;
 }
 
 // TODO move these types out
@@ -140,6 +157,8 @@ export const useToolStore = defineStore('tool', () => {
     if (!currentImageID.value) return 'Load an image to paint';
     const kind = activeEffectiveView()?.kind;
     if (kind === 'cine') return 'A clip cannot be painted';
+    if (kind === 'enface')
+      return 'Painting is not available on an En face projection';
     if (kind === 'oblique')
       return 'Painting is not available in an oblique view';
     return '';
@@ -158,7 +177,14 @@ export const useToolStore = defineStore('tool', () => {
   }
 
   watch(
-    () => activeEffectiveView()?.kind ?? null,
+    () => {
+      const effective = activeEffectiveView();
+      return [
+        effective?.kind ?? null,
+        effective?.renderDataID ?? null,
+        getToolUnavailableReason(Tools.WindowLevel, effective),
+      ];
+    },
     () => {
       const eff = activeEffectiveView();
       const coerced = coerceForEffective(currentTool.value, eff);
@@ -166,7 +192,8 @@ export const useToolStore = defineStore('tool', () => {
         teardownTool(currentTool.value);
         currentTool.value = coerced;
       }
-    }
+    },
+    { immediate: true }
   );
 
   function serialize(state: StateFile) {

@@ -311,6 +311,18 @@ export default tseslint.config(
   },
   ...featureBoundaries([
     {
+      dir: 'oct',
+      pure: [
+        'src/oct/types.ts',
+        'src/oct/projection.ts',
+        'src/oct/sliceGeometry.ts',
+        'src/oct/windowLevel.ts',
+        'src/oct/projection.worker.ts',
+        'src/oct/detection.ts',
+        'src/oct/dicomMetadata.ts',
+      ],
+    },
+    {
       dir: 'segmentation',
       pure: [
         'src/segmentation/geometry.ts',

@@ -7,14 +7,16 @@ export function useSyncWindowing() {
   const windowingStore = useWindowingStore();
   const viewStore = useViewStore();
   let isUpdating = false;
+  const isProjection = (id: string) => viewStore.getView(id)?.type === 'EnFace';
 
   windowingStore.WindowingUpdateEvent.on((viewID, dataID) => {
-    if (isUpdating) return;
+    // Each projection method and slab has its own intensity distribution.
+    if (isUpdating || isProjection(viewID)) return;
     isUpdating = true;
     try {
       const config = windowingStore.getConfig(viewID, dataID);
       viewStore.viewIDs
-        .filter((id) => id !== viewID)
+        .filter((id) => id !== viewID && !isProjection(id))
         .forEach((vid) => {
           windowingStore.updateConfig(vid, dataID, config);
         });
@@ -27,21 +29,22 @@ export function useSyncWindowing() {
     const beforeView = viewStore.getView(beforeViewID);
     const afterView = viewStore.getView(afterViewID);
 
-    if (!beforeView || !afterView) return;
+    if (!beforeView || !afterView || afterView.type === 'EnFace') return;
 
     const dataID = afterView.dataID;
-    // don't sync to a blank view
     if (!dataID) return;
 
-    // find another view with the same data ID
     let sourceView: Maybe<ViewInfo> = beforeView;
-    if (beforeView.dataID !== dataID) {
+    if (beforeView.type === 'EnFace' || beforeView.dataID !== dataID) {
       sourceView = viewStore
         .getAllViews()
-        .find((view) => view.dataID === dataID);
+        .find(
+          (view) =>
+            view.id !== afterViewID &&
+            view.dataID === dataID &&
+            view.type !== 'EnFace'
+        );
     }
-
-    // no source view, so no sync
     if (!sourceView) return;
 
     const config = windowingStore.getConfig(sourceView.id, dataID);
@@ -49,18 +52,17 @@ export function useSyncWindowing() {
   });
 
   viewStore.ViewDataChangeEvent.on((viewID, dataID) => {
-    // no sync if no data
-    if (!dataID) return;
+    if (!dataID || isProjection(viewID)) return;
 
-    // if the config already exists, safe to assume that windowing
-    // is correct
     const config = windowingStore.getConfig(viewID, dataID);
     if ('width' in config && 'level' in config) return;
 
-    // find another view with the dataset and sync the config
     const sourceView = viewStore
       .getAllViews()
-      .find((view) => view.dataID === dataID);
+      .find(
+        (view) =>
+          view.id !== viewID && view.dataID === dataID && view.type !== 'EnFace'
+      );
     if (!sourceView) return;
 
     const sourceConfig = windowingStore.getConfig(sourceView.id, dataID);
