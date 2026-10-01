@@ -11,12 +11,18 @@ import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   makeTempDir,
   openVolViewPage,
+  openThroughDialog,
   writeManifestToFile,
   writeMetaImage,
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
 } from './utils';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
+import {
+  openAnnotationSegments,
+  selectSegment,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
 
 const reference = JSON.parse(
   fs.readFileSync(path.join(FIXTURES, 'oct', 'reference.json'), 'utf8')
@@ -140,6 +146,33 @@ async function getWindow() {
     width: Number(await $(STATE).getAttribute('data-window-width')),
     level: Number(await $(STATE).getAttribute('data-window-level')),
   };
+}
+
+async function dragEnFaceContrast() {
+  await $(CANVAS).click();
+  await $(WINDOW_TOOL).waitForClickable();
+  if (
+    !((await $(WINDOW_TOOL).getAttribute('class')) ?? '').includes(
+      'tool-btn-selected'
+    )
+  )
+    await $(WINDOW_TOOL).click();
+  const before = await getWindow();
+  const location = await $(CANVAS).getLocation();
+  const size = await $(CANVAS).getSize();
+  const x = Math.round(location.x + size.width / 2);
+  const y = Math.round(location.y + size.height / 2);
+  await browser
+    .action('pointer')
+    .move({ x, y })
+    .down()
+    .move({ x: x + 60, y: y + 40, duration: 300 })
+    .up()
+    .perform();
+  await browser.waitUntil(async () => {
+    const after = await getWindow();
+    return after.width !== before.width && after.level !== before.level;
+  });
 }
 
 async function getOriginalWindow() {
@@ -660,36 +693,11 @@ describe('Retinal OCT en face viewing', () => {
     await expectSliceLine();
 
     // Genuine pointer input through the normal toolbar changes rendered pixels.
-    await $(CANVAS).click();
-    await $(WINDOW_TOOL).waitForClickable();
-    if (
-      !((await $(WINDOW_TOOL).getAttribute('class')) ?? '').includes(
-        'tool-btn-selected'
-      )
-    )
-      await $(WINDOW_TOOL).click();
+    const beforePixels = await canvasPixels();
+    await dragEnFaceContrast();
     expect(await $(WINDOW_TOOL).getAttribute('class')).toContain(
       'tool-btn-selected'
     );
-    const beforeWindow = await getWindow();
-    const beforePixels = await canvasPixels();
-    const location = await $(CANVAS).getLocation();
-    const size = await $(CANVAS).getSize();
-    const x = Math.round(location.x + size.width / 2);
-    const y = Math.round(location.y + size.height / 2);
-    await browser
-      .action('pointer')
-      .move({ x, y })
-      .down()
-      .move({ x: x + 60, y: y + 40, duration: 300 })
-      .up()
-      .perform();
-    await browser.waitUntil(async () => {
-      const after = await getWindow();
-      return (
-        after.width !== beforeWindow.width && after.level !== beforeWindow.level
-      );
-    });
     expect(await canvasPixels()).not.toEqual(beforePixels);
     await expectProjectedPixels(reference.projections.mean);
     expect(await getOriginalWindow()).toEqual(originalWindow);
@@ -784,6 +792,140 @@ describe('Retinal OCT en face viewing', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
+  it('activates the built-in Retinal OCT layout through normal file import and attaches a segmentation through the Data panel', async () => {
+    await browser.setViewport({
+      width: 1440,
+      height: 900,
+      devicePixelRatio: 1,
+    });
+    const image = stageFixture('retina-derived.dcm');
+    const mask = stageIllustrativeMask(
+      makeTempDir(STEM),
+      reference.size,
+      reference.spacing
+    );
+    await volViewPage.open();
+    await openThroughDialog(path.join(TEMP_DIR, image));
+    await volViewPage.waitForViews();
+    const spacing = await waitForFirstCachedImageSpacing();
+    spacing.forEach((value, axis) =>
+      expect(value).toBeCloseTo(reference.spacing[axis], 6)
+    );
+    expect(await $(CANVAS).isExisting()).toBe(false);
+
+    await volViewPage.openLayoutMenu();
+    const layout = $('[data-testid="oct-layout"]');
+    await layout.waitForStable();
+    await layout.waitForClickable();
+    expect(await layout.getText()).toContain('Retinal OCT');
+    await layout.click();
+    await browser.keys('Escape');
+    await $(CANVAS).waitForDisplayed();
+    await waitForProjection('mean');
+    expect((await volViewPage.getViews2D()).length).toBe(1);
+    await expectProjectedPixels(reference.projections.mean);
+    await expectSliceLine();
+
+    await openThroughDialog(path.join(TEMP_DIR, STEM, mask));
+    await $('button[data-testid="module-tab-Data"]').click();
+    const card = $('.v-card:has([title="' + mask + '"])');
+    await card.waitForDisplayed();
+    await card.$('button.dataset-menu').click();
+    const attach = $(
+      '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Add as segmentation"]'
+    );
+    await attach.waitForStable();
+    await attach.waitForClickable();
+    await attach.click();
+    await openAnnotationSegments();
+    await waitForSegmentContent('Synthetic retinal layer');
+    await selectSegment('Synthetic retinal layer');
+    if (
+      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
+        'v-navigation-drawer--active'
+      )
+    )
+      await $('header i.mdi-menu').click();
+    await $(CANVAS).waitForStable();
+    await expectStackedSourceMask();
+
+    await openControls();
+    expect(
+      await $('[data-testid="oct-segmentation-segment"]').getText()
+    ).toContain('Synthetic retinal layer');
+    await enableHighlight();
+    await setNumber('oct-thickness-threshold-input', 31);
+    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
+      '35,215,190,255'
+    );
+    expect(
+      Number(await $(STATE).getAttribute('data-highlight-opacity'))
+    ).toBeCloseTo(0.3, 6);
+    await expectControlsBesideSelector();
+    await browser.keys('Escape');
+    await dragEnFaceContrast();
+    const retainedWindow = await getWindow();
+    const retainedSlice = await volViewPage.getFirst2DSlice();
+    const sourceViewId = await $(SLICE_LINE).getAttribute('data-view-id');
+    await volViewPage.openLayoutMenu();
+    await $('[data-testid="oct-layout"]').waitForStable();
+    await $('[data-testid="oct-layout"]').waitForClickable();
+    await $('[data-testid="oct-layout"]').click();
+    await browser.keys('Escape');
+    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    expect(await getWindow()).toEqual(retainedWindow);
+    expect(await volViewPage.getFirst2DSlice()).toBe(retainedSlice);
+    expect(await $(SLICE_LINE).getAttribute('data-view-id')).toBe(sourceViewId);
+    await expectSliceLine();
+    await openControls();
+    expect(
+      await $('[data-testid="oct-segmentation-segment"]').getText()
+    ).toContain('Synthetic retinal layer');
+    expect(Number(await $(THRESHOLD).getValue())).toBe(31);
+    await browser.keys('Escape');
+    await volViewPage.focusFirst2DView();
+    const before = await volViewPage.getFirst2DSlice();
+    if (before === null)
+      throw new Error('The original OCT has no slice position');
+    await volViewPage.advanceSliceAndWait();
+    expect(await volViewPage.getFirst2DSlice()).toBeLessThan(before);
+    await expectSliceLine();
+    await browser.keys('ArrowUp');
+    await browser.waitUntil(
+      async () => (await volViewPage.getFirst2DSlice()) === before
+    );
+    await expectSliceLine();
+
+    const saved = await volViewPage.saveSession();
+    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
+    const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
+    if (captureDirectory) {
+      fs.mkdirSync(captureDirectory, { recursive: true });
+      fs.copyFileSync(
+        path.join(TEMP_DIR, saved),
+        path.join(captureDirectory, 'oct-production-saved-session.volview.zip')
+      );
+    }
+    await volViewPage.open('?urls=[tmp/' + saved + ']');
+    await volViewPage.waitForViews();
+    await $(CANVAS).waitForDisplayed();
+    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    await expectSliceLine();
+    if (
+      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
+        'v-navigation-drawer--active'
+      )
+    )
+      await $('header i.mdi-menu').click();
+    await $(CANVAS).waitForStable();
+    await expectStackedSourceMask();
+    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
+      '35,215,190,255'
+    );
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
   it('keeps en face visible and disabled for a non-OCT volume with a reason', async () => {
     const image = writeMetaImage('oct-unrelated.mha');
     await openVolViewPage(image);
@@ -802,6 +944,17 @@ describe('Retinal OCT en face viewing', () => {
         element.parentElement?.getAttribute('title')
       )
     ).toContain('OCT');
+    await browser.keys('Escape');
+    await volViewPage.openLayoutMenu();
+    const octLayout = $('[data-testid="oct-layout"]');
+    await octLayout.waitForDisplayed();
+    expect(await octLayout.getAttribute('class')).toContain(
+      'v-list-item--disabled'
+    );
+    await octLayout.$('..').moveTo();
+    const layoutReason = $('.v-overlay--active.v-tooltip .v-overlay__content');
+    await layoutReason.waitForDisplayed();
+    expect(await layoutReason.getText()).toContain('OCT');
 
     await writeManifestToFile(
       { layouts: { 'Unavailable OCT test': [['enface']] } },

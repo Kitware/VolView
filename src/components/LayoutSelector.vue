@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useViewStore } from '@/src/store/views';
+import { OCTLayoutAction } from '@/src/oct';
 import LayoutGridEditor from './LayoutGridEditor.vue';
 
 const viewStore = useViewStore();
@@ -23,7 +24,7 @@ const selectNamedLayout = (name: string) => {
 
 <template>
   <div>
-    <div v-if="namedLayoutsList.length > 0" class="named-layouts">
+    <div class="named-layouts">
       <v-list density="compact">
         <v-list-item
           v-for="name in namedLayoutsList"
@@ -33,6 +34,7 @@ const selectNamedLayout = (name: string) => {
         >
           <v-list-item-title>{{ name }}</v-list-item-title>
         </v-list-item>
+        <OCTLayoutAction />
       </v-list>
       <v-divider class="my-2" />
     </div>

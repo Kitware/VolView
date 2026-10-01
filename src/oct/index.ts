@@ -6,3 +6,4 @@ export const EnFaceViewer = defineAsyncComponent(
 export { getOCTAvailability } from '@/src/oct/availability';
 export { useOCTViewStore } from '@/src/oct/store';
 export { augmentOCTMetadata } from '@/src/oct/dicomMetadata';
+export { default as OCTLayoutAction } from '@/src/oct/OCTLayoutAction.vue';

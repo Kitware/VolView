@@ -64,7 +64,7 @@ WebGL B-scan fails in Chrome 138's headless mode in this environment. The same
 observer-free test passes in regular Chrome. The test uses real WebDriver wheel
 input and does not modify event listeners.
 
-The six scenarios compare real browser pixels with the independent projections,
+The seven scenarios compare real browser pixels with the independent projections,
 check both thickness controls and session restoration, and exercise the normal
 Window & Level toolbar with a real pointer drag. The comparison layout checks
 the yellow en face marker against the original B-scan slice index after
@@ -75,7 +75,7 @@ highlight use a separate, clearly synthetic curved illustration.
 The optional capture directory receives the real Chrome comparison screenshot
 and a saved two-view session. Public images are served locally during tests.
 
-The comparison demo uses a curved synthetic layer with five depth voxels
+The comparison illustration uses a curved synthetic layer with five depth voxels
 (52 µm) at most locations and two voxels (20.8 µm) in one small ellipse centered
 at column 76, B-scan 16 (both zero-based). The ellipse spans 107 of 4,096 A-lines;
 a 31 µm threshold highlights only that localized illustrative patch.
@@ -84,7 +84,7 @@ Its placement and thicknesses are fabricated, do not detect anatomy, and do not
 represent a clinical segmentation or a finding of pathology. The deterministic
 rectangular mask above remains the independent numerical regression fixture.
 
-Generate this optional demo mask from the checked-in DICOM geometry:
+Generate this optional illustration mask from the checked-in DICOM geometry:
 
 ```sh
 python tests/fixtures/oct/illustrative.py .tmp/oct-evidence/illustrative-layer.nrrd
@@ -92,3 +92,12 @@ python tests/fixtures/oct/illustrative.py .tmp/oct-evidence/illustrative-layer.n
 
 This requires pydicom. The browser comparison creates the same temporary mask
 in Node without a Python dependency. No illustrative binary is checked in.
+
+A production-path scenario opens the DICOM through the normal Open files picker,
+chooses **Retinal OCT** in the standard Layouts menu, imports the temporary
+illustrative NRRD, and attaches it with the Data panel's **Add as segmentation**
+action. It uses no custom OCT layout, configuration, or association manifest.
+The NRRD's Slicer segment metadata supplies its synthetic name and teal color.
+The scenario verifies rendered source pixels, the 107-A-line highlight, the
+yellow B-scan marker, and restoration of the saved scene. Selecting the built-in
+layout again preserves its selected layer, threshold, contrast, and B-scan position.

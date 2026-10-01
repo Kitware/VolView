@@ -29,7 +29,10 @@ def generate(source, destination):
         "NRRD0005\ntype: unsigned char\ndimension: 3\n"
         f"sizes: {width} {depth} {frames}\nspace: left-posterior-superior\n"
         f"space directions: ({spacing[0]},0,0) (0,{spacing[1]},0) (0,0,{spacing[2]})\n"
-        "space origin: (0,0,0)\nencoding: gzip\n\n"
+        "space origin: (0,0,0)\n"
+        "Segment0_LabelValue:=1\nSegment0_Name:=Synthetic retinal layer\n"
+        "Segment0_Color:=0.13725490196078433 0.8431372549019608 0.7450980392156863\n"
+        "encoding: gzip\n\n"
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_bytes(header.encode() + gzip.compress(mask, mtime=0))

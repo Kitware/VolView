@@ -2,8 +2,14 @@
 
 Implementation worktree: `VolView/oct-en-face`, based on `origin/main`.
 
-Load an ophthalmic OCT DICOM volume, then choose **En face** in a viewport's
-view selector. The default is a mean projection along the B-scan row axis (Y).
+Load an ophthalmic OCT DICOM volume, then choose **Retinal OCT** in the
+**Layouts** menu. This places the original B-scan above the en face view and
+binds both to the active OCT volume. The B-scan orientation follows the scan's
+native frame axis. The action stays visible and disabled with a reason when
+the current volume is unsuitable. Customer layout presets are preserved.
+
+You can also choose **En face** in an individual viewport's view selector.
+The default is a mean projection along the B-scan row axis (Y).
 Open the tune button beside the selector to choose a retinal segment and adjust
 the thickness threshold with a slider or micrometer entry. **Advanced** holds
 maximum/sum projection, inclusive depth slab, and alternate A-line axes.
