@@ -276,14 +276,12 @@ watch(
                 v-bind="menuProps"
                 icon
                 size="x-small"
-                variant="flat"
-                color="surface"
-                border
+                variant="text"
                 class="pointer-events-all"
                 aria-label="En face rendering controls"
                 data-testid="enface-controls"
               >
-                <v-icon>mdi-tune</v-icon>
+                <v-icon size="small">mdi-tune</v-icon>
                 <v-tooltip activator="parent" location="top"
                   >En face rendering controls</v-tooltip
                 >
@@ -329,6 +327,6 @@ watch(
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 2px;
 }
 </style>

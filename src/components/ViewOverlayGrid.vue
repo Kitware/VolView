@@ -55,6 +55,27 @@
   flex: 1;
 }
 
+/* An empty center cell gives its share to the text beside it. */
+.cell.center {
+  flex: 0 1 auto;
+}
+
+/* Narrow panes squeeze the text cells so the right-hand controls stay inside. */
+.cell.left,
+.cell.center {
+  min-width: 0;
+}
+
+/* Text truncates in its own cell instead of running under the controls. */
+.cell.left > :global(*),
+.cell.center > :global(*),
+.cell.left > :global(*) > :global(div),
+.cell.center > :global(*) > :global(div) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .top,
 .left {
   align-items: flex-start;

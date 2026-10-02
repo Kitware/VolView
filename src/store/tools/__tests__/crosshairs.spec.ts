@@ -6,7 +6,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
-import type { ViewInfo2D } from '@/src/types/views';
+import type { ViewInfo2D, ViewInfoInit } from '@/src/types/views';
 import type { LPSAxis } from '@/src/types/lps';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { useEnFaceViewStore } from '@/src/enface/store';
@@ -66,28 +66,31 @@ describe('crosshairs tool store', () => {
   const sliceOf = (viewId: string, imageId: string) =>
     useViewSliceStore().getConfig(viewId, imageId)?.slice;
 
+  // Two more panes beside the default Four Up views.
   const projectionWithPeer = () => {
     const views = useViewStore();
-    views.setLayoutFromGrid([3, 2]);
-    views.replaceView(views.layoutViews[4].id, {
+    const retype = (init: ViewInfoInit) => {
+      views.replaceView(views.splitView(sagittalA, 'row')!, init);
+      return views.layoutViews.find(({ name }) => name === init.name)!.id;
+    };
+    const coronalA = retype({
       type: '2D',
-      name: 'Coronal',
+      name: 'Coronal A',
       dataID: imageA,
       options: { orientation: 'Coronal' },
     });
-    const coronalA = views.layoutViews[4].id;
     useViewSliceStore().updateConfig(coronalA, imageA, {
       slice: 6,
       min: 0,
       max: 19,
     });
-    views.replaceView(views.layoutViews[5].id, {
+    const projection = retype({
       type: 'EnFace',
       name: 'En face',
       dataID: imageA,
       options: {},
     });
-    return { projection: views.layoutViews[5].id, coronalA };
+    return { projection, coronalA };
   };
 
   it.each([0, 1, 2] as const)(
@@ -102,7 +105,7 @@ describe('crosshairs tool store', () => {
       });
       const before = { ...settings };
       useViewStore().setActiveView(coronalB);
-      useViewStore().setLayoutFromGrid([1, 1]);
+      useViewStore().toggleActiveViewMaximized();
 
       useCrosshairsToolStore().setPosition([2, 8, 17], projection);
 

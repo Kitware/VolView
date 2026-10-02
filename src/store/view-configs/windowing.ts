@@ -303,6 +303,7 @@ export const useWindowingStore = defineStore('windowing', () => {
   };
 
   return {
+    configs,
     runtimeConfigWindowLevel,
     setAutoRangeValues,
     materializeConfig,

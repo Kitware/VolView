@@ -56,13 +56,6 @@ test.describe('Retinal OCT import', () => {
     await oct.expectHighlight(true);
     await oct.expectControlsBesideSelector();
     await page.keyboard.press('Escape');
-    await octInteraction.dragEnFaceContrast();
-    const retainedWindow = await oct.getEnFaceWindow();
-    const retainedSlice = await volview.getFirst2DSlice();
-    await oct.selectTwoRowLayout();
-    await oct.expectHighlight(true);
-    expect(await oct.getEnFaceWindow()).toEqual(retainedWindow);
-    expect(await volview.getFirst2DSlice()).toBe(retainedSlice);
     await octInteraction.expectSliceLine();
     await oct.expectEnFaceSegmentShown('Synthetic retinal layer', '31');
     await volview.focusFirst2DView();

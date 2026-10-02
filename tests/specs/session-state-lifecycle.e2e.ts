@@ -181,7 +181,7 @@ test.describe('Session state lifecycle', () => {
     const segmentColorBefore = await segmentation.segmentColor('Right hip');
 
     const { session, manifest } = await saveAndParseManifest(volview, scratch);
-    expect(manifest.version).toEqual('8.0.0');
+    expect(manifest.version).toEqual('9.0.0');
 
     await volview.open(`?urls=[tmp/${session}]`);
     await volview.waitForViews();

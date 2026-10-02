@@ -114,13 +114,14 @@ const LayoutDirectionNative = z.enum([
 const LayoutItem: z.ZodType<LayoutItem> = z.lazy(() =>
   z.union([
     z.object({
-      type: z.literal('slot'),
-      slotIndex: z.number(),
+      type: z.literal('view'),
+      viewId: z.string(),
     }),
     z.object({
       type: z.literal('layout'),
       direction: LayoutDirectionNative,
       items: z.array(LayoutItem),
+      sizes: z.array(z.number()).optional(),
     }),
   ])
 );
@@ -129,6 +130,7 @@ const Layout: z.ZodType<Layout> = z.lazy(() =>
   z.object({
     direction: LayoutDirectionNative,
     items: z.array(LayoutItem),
+    sizes: z.array(z.number()).optional(),
   })
 );
 
@@ -531,7 +533,6 @@ export const ManifestSchema = z.object({
   viewByID: z.record(z.string(), View).optional(),
   primarySelection: z.string().optional(),
   layout: Layout.optional(),
-  layoutSlots: z.array(z.string()).optional(),
   parentToLayers: ParentToLayers.optional(),
   layerDisplay: z.record(z.string(), LayerDisplayConfig).optional(),
 });

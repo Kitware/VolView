@@ -135,6 +135,6 @@ describe('image segments wire shape', () => {
 
 describe('manifest version', () => {
   it('writes the image segment ownership version', () => {
-    expect(MANIFEST_VERSION).toBe('8.0.0');
+    expect(MANIFEST_VERSION).toBe('9.0.0');
   });
 });

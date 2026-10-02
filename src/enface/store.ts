@@ -160,6 +160,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
   }
 
   return {
+    configs,
     configFor,
     settingsFor,
     patchSegment,

@@ -39,7 +39,6 @@ function configureComparison() {
 describe('En face view configuration', () => {
   it.each([
     ['named', true],
-    ['regridded', false],
     ['retyped', false],
   ] as const)(
     'highlights a %s layout after restore only when its panes match',
@@ -49,7 +48,6 @@ describe('En face view configuration', () => {
       views.setDataForAllViews('oct');
       configureComparison();
       views.switchToNamedLayout('Comparison');
-      if (selection === 'regridded') views.setLayoutFromGrid([2, 1]);
       if (selection === 'retyped')
         views.replaceView(views.layoutViews[1].id, {
           name: 'Oblique',
@@ -57,9 +55,6 @@ describe('En face view configuration', () => {
           dataID: 'oct',
           options: {},
         });
-      const hidden = views
-        .getAllViews()
-        .filter((view) => !views.layoutViews.includes(view));
       const saved = await serialize({
         writers: [
           (state) => {
@@ -92,9 +87,6 @@ describe('En face view configuration', () => {
           dataID: 'restored-oct',
         },
       ]);
-      hidden.forEach(({ id, type }) =>
-        expect(restored.getView(id)?.type).toBe(type)
-      );
       const wrapper = mount(LayoutSelector, {
         global: { plugins: [createVuetify()] },
       });
@@ -123,33 +115,31 @@ describe('En face view configuration', () => {
     );
   });
 
-  it('preserves matching view ids, slice and projection settings on named layout reselection', async () => {
+  it('resets views, slice and projection settings when a named layout is picked again', async () => {
     await loadVolume('oct');
     const views = useViewStore();
     views.setDataForAllViews('oct');
     configureComparison();
     views.switchToNamedLayout('Comparison');
     const [source, enface] = views.visibleViews;
-    const ids = views.visibleViews.map(({ id }) => id);
-    const projection = useEnFaceViewStore().configFor(enface.id, 'oct');
-    Object.assign(projection, {
+    const defaults = { ...useEnFaceViewStore().configFor(enface.id, 'oct') };
+    Object.assign(useEnFaceViewStore().configFor(enface.id, 'oct'), {
       method: 'max',
       depthStart: 1,
       depthEnd: 2,
-      thresholdMicrons: 31.5,
     });
-    useViewSliceStore().updateConfig(source.id, 'oct', { slice: 2 });
-    views.setActiveView(enface.id);
+    useViewSliceStore().updateConfig(source.id, 'oct', { slice: 0 });
+
     views.switchToNamedLayout('Comparison');
-    expect(views.visibleViews.map(({ id }) => id)).toEqual(ids);
-    expect(views.activeView).toBe(enface.id);
-    expect(useEnFaceViewStore().configFor(enface.id, 'oct')).toBe(projection);
-    expect(projection).toMatchObject({
-      method: 'max',
-      depthStart: 1,
-      depthEnd: 2,
-      thresholdMicrons: 31.5,
-    });
-    expect(useViewSliceStore().getConfig(source.id, 'oct').slice).toBe(2);
+    const [nextSource, nextEnface] = views.visibleViews;
+    expect([nextSource.id, nextEnface.id]).not.toContain(source.id);
+    expect([nextSource.id, nextEnface.id]).not.toContain(enface.id);
+    expect(nextEnface.dataID).toBe('oct');
+    expect(useEnFaceViewStore().configFor(nextEnface.id, 'oct')).toEqual(
+      defaults
+    );
+    expect(useViewSliceStore().getConfig(nextSource.id, 'oct')?.slice).not.toBe(
+      0
+    );
   });
 });

@@ -4,6 +4,14 @@ export const EPSILON = 10e-6;
 export const NOOP = () => {};
 export const NO_NAME = '(no name)';
 
+// An oblique view renders through one synthetic sub-view ID per renderer.
+export const OBLIQUE_SUB_VIEWS = {
+  coronal: '-coronal',
+  sagittal: '-sagittal',
+  axial: '-axial',
+  multi: '-multi-oblique',
+} as const;
+
 // themes
 export const ThemeStorageKey = 'app-theme';
 export const DarkTheme = 'kw-dark';

@@ -82,7 +82,7 @@ test.describe('VolView Layout Configuration', () => {
     await volview.waitForViewCounts(2, true);
   });
 
-  test('should support multiple named layouts and preserve slice selection', async ({
+  test('should support multiple named layouts that each start at default slices', async ({
     volview,
     configUtils,
   }) => {
@@ -129,7 +129,7 @@ test.describe('VolView Layout Configuration', () => {
 
     await volview.focusFirst2DView();
     const sliceAfterLayoutSwitch = await volview.getFirst2DSlice();
-    expect(sliceAfterLayoutSwitch).toBe(sliceAfterScroll);
+    expect(sliceAfterLayoutSwitch).toBe(initialSlice);
 
     await volview.openLayoutMenu(3);
     await volview.selectLayoutOption('Dual Axial');
@@ -137,7 +137,7 @@ test.describe('VolView Layout Configuration', () => {
 
     await volview.focusFirst2DView();
     const sliceInFirstViewAfterDualSwitch = await volview.getFirst2DSlice();
-    expect(sliceInFirstViewAfterDualSwitch).toBe(sliceAfterScroll);
+    expect(sliceInFirstViewAfterDualSwitch).toBe(initialSlice);
   });
 
   test('should disable configured view types', async ({

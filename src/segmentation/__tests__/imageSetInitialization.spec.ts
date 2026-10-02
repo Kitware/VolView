@@ -363,14 +363,12 @@ describe('image segment initialization boundaries', () => {
           ? {
               layout: {
                 direction: 'row',
-                items: Array.from({ length: slotCount }, (_, slotIndex) => ({
-                  type: 'slot',
-                  slotIndex,
-                })),
+                items: [incomingViewId, previousViewId]
+                  .slice(0, slotCount)
+                  .map((viewId) => ({ type: 'view', viewId })),
               },
             }
           : {}),
-        layoutSlots: [incomingViewId, previousViewId],
         isActiveViewMaximized: true,
         ...(savedViews
           ? {

@@ -247,6 +247,17 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     deleteFirstKey(awaitingFit, viewID);
   };
 
+  const copyView = (sourceID: string, targetID: string) => {
+    const clone = (config: VolumeColorConfig) =>
+      JSON.parse(JSON.stringify(config)) as VolumeColorConfig;
+    Object.entries(configs[sourceID] ?? {}).forEach(([imageID, config]) =>
+      updateConfig(targetID, imageID, clone(config))
+    );
+    Object.entries(awaitingFit[sourceID] ?? {}).forEach(([imageID, applied]) =>
+      patchDoubleKeyRecord(awaitingFit, targetID, imageID, clone(applied))
+    );
+  };
+
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
       delete configs[viewID]?.[dataID];
@@ -281,6 +292,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     getPresetColorRange,
     getFitRange,
     removeView,
+    copyView,
     removeData,
     serialize,
     deserialize,

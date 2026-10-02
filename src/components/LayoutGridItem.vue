@@ -1,7 +1,8 @@
 <script lang="ts" setup>
+import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import CurrentImageProvider from '@/src/components/CurrentImageProvider.vue';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
-import { resolveSlotRendering } from '@/src/core/viewTypes';
+import { resolveViewRendering } from '@/src/core/viewTypes';
 import { useViewStore } from '@/src/store/views';
 import { computed, ref } from 'vue';
 
@@ -12,7 +13,7 @@ const dragCounter = ref(0);
 const showDropTarget = computed(() => dragCounter.value > 0);
 
 const rendering = computed(() =>
-  resolveSlotRendering(viewStore.viewByID[props.viewId])
+  resolveViewRendering(viewStore.viewByID[props.viewId])
 );
 
 const activeStyles = computed(() => {
@@ -72,8 +73,21 @@ function onDrop(event: DragEvent) {
       <v-icon color="grey-darken-3" size="x-large">mdi-image-off</v-icon>
     </div>
     <CurrentImageProvider :image-id="rendering.renderImageID">
-      <component :is="rendering.component" :view-id="viewId" />
+      <!-- The empty overlay hides the viewer, so its controls must not take focus. -->
+      <component
+        :is="rendering.component"
+        :view-id="viewId"
+        :inert="!rendering.renderImageID"
+      />
     </CurrentImageProvider>
+    <div
+      v-if="!rendering.renderImageID"
+      class="empty-view-controls"
+      @click.stop
+      @dblclick.stop
+    >
+      <ViewTypeSwitcher :view-id="viewId" :image-id="null" />
+    </div>
   </div>
 </template>
 
@@ -83,6 +97,16 @@ function onDrop(event: DragEvent) {
   box-sizing: border-box;
 }
 
+.empty-view-controls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 4px;
+  pointer-events: none;
+  z-index: 11;
+}
 .overlay {
   position: absolute;
   top: 0;

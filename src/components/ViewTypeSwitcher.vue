@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import ViewLayoutActions from '@/src/components/ViewLayoutActions.vue';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
 import { computed, toRefs } from 'vue';
@@ -45,27 +46,37 @@ function updateView(newViewName: string) {
 </script>
 
 <template>
-  <v-select
-    :model-value="viewName"
-    @update:model-value="updateView($event)"
-    :items="availableViewNames"
-    density="compact"
-    hide-details
-    variant="solo"
-    class="pointer-events-all view-type-select"
-    aria-label="View type"
-    @dblclick.stop
-  >
-    <template #item="{ props: itemProps, item }">
-      <ReasonedAction :reason="item.raw.reason ?? undefined" block>
-        <v-list-item v-bind="itemProps" />
-      </ReasonedAction>
-    </template>
-  </v-select>
+  <div class="view-controls pointer-events-all" @dblclick.stop>
+    <v-select
+      :model-value="viewName"
+      @update:model-value="updateView($event)"
+      :items="availableViewNames"
+      density="compact"
+      hide-details
+      variant="solo"
+      class="pointer-events-all view-type-select"
+      aria-label="View type"
+    >
+      <template #item="{ props: itemProps, item }">
+        <ReasonedAction :reason="item.raw.reason ?? undefined" block>
+          <v-list-item v-bind="itemProps" />
+        </ReasonedAction>
+      </template>
+    </v-select>
+    <ViewLayoutActions :view-id="viewId" />
+  </div>
 </template>
 
 <style scoped>
+.view-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
 .view-type-select {
+  width: 90px;
+  flex: 0 0 90px;
   max-width: 90px;
   font-size: 0.8125rem;
   margin-left: auto;

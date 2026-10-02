@@ -5,6 +5,7 @@ import { Maybe } from '@/src/types';
 import { useCineFrame } from '@/src/composables/useCineFrame';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
+import ViewLayoutActions from '@/src/components/ViewLayoutActions.vue';
 import PlayControls from '@/src/components/PlayControls.vue';
 
 type Props = {
@@ -42,8 +43,13 @@ const frameCount = computed(() => frameRange.value[1] + 1);
       </div>
     </template>
     <template #bottom-right>
-      <div class="annotation-cell" @click.stop>
+      <div
+        class="annotation-cell d-flex align-center justify-end"
+        @click.stop
+        @dblclick.stop
+      >
         <play-controls :view-id="viewId" :image-id="imageId" />
+        <ViewLayoutActions :view-id="viewId" />
       </div>
     </template>
   </view-overlay-grid>

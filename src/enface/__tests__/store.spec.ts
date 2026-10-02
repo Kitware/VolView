@@ -7,6 +7,7 @@ import {
 } from '@/src/enface/store';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { parseNamedLayouts } from '@/src/utils/layoutParsing';
+import { layoutLeaves } from '@/src/utils/layoutEditing';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
@@ -188,11 +189,12 @@ describe('En face view settings', () => {
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {
     const parsed = parseNamedLayouts({ OCT: [['enface', 'coronal']] });
-    expect(parsed.OCT.views[0]).toMatchObject({
+    const [enface] = layoutLeaves(parsed.OCT).map((leaf) => leaf.view);
+    expect(enface).toMatchObject({
       type: 'EnFace',
       name: 'En face',
     });
-    const view = { ...parsed.OCT.views[0], id: 'enface' };
+    const view = { ...enface, id: 'enface' };
     expect(computeEffectiveView(view, 'oct').kind).toBe('enface');
     expect(computeEffectiveView(view, null).kind).toBe('empty');
   });

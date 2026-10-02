@@ -39,7 +39,7 @@ function pickComponent(kind: EffectiveView['kind'], fallbackType: ViewType) {
   }
 }
 
-export function resolveSlotRendering(viewInfo: ViewInfo): {
+export function resolveViewRendering(viewInfo: ViewInfo): {
   component: Maybe<ViewComponent>;
   renderImageID: Maybe<string>;
 } {
