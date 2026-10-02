@@ -5,6 +5,7 @@ import type {
   ScalarVolume,
   ProjectionAxis,
   ProjectionMethod,
+  ProjectionPaddingRange,
 } from '@/src/oct/types';
 
 function validateDimensions(dimensions: readonly number[], name: string) {
@@ -161,6 +162,37 @@ function validateSlab(input: ProjectionInput) {
   }
 }
 
+function validatePaddingRange(range: ProjectionPaddingRange, frames: number) {
+  if (
+    !Number.isInteger(range.firstFrame) ||
+    !Number.isInteger(range.lastFrame) ||
+    range.firstFrame < 0 ||
+    range.lastFrame < range.firstFrame ||
+    range.lastFrame >= frames ||
+    !Number.isFinite(range.min) ||
+    !Number.isFinite(range.max) ||
+    range.min > range.max
+  )
+    throw new Error(
+      'OCT padding requires finite ordered bounds within the volume'
+    );
+}
+
+function preparePadding(volume: ScalarVolume) {
+  if (!volume.paddingRanges?.length) return undefined;
+  const byFrame = new Array<ProjectionPaddingRange | undefined>(
+    volume.dimensions[2]
+  );
+  for (const range of volume.paddingRanges) {
+    validatePaddingRange(range, byFrame.length);
+    for (let frame = range.firstFrame; frame <= range.lastFrame; frame += 1) {
+      if (byFrame[frame])
+        throw new Error('OCT padding frame ranges must not overlap');
+      byFrame[frame] = range;
+    }
+  }
+  return byFrame;
+}
 function prepareProjection(input: ProjectionInput) {
   validateVolume(input.volume);
   validateAxis(input.axis);
@@ -172,6 +204,7 @@ function prepareProjection(input: ProjectionInput) {
   const [dimX, dimY] = volume.dimensions;
   return {
     ...input,
+    paddingByFrame: preparePadding(volume),
     horizontalAxis,
     verticalAxis,
     width: volume.dimensions[horizontalAxis],
@@ -182,21 +215,32 @@ function prepareProjection(input: ProjectionInput) {
   };
 }
 
+function isPaddingVoxel(
+  grid: ReturnType<typeof prepareProjection>,
+  voxel: number
+) {
+  const range = grid.paddingByFrame?.[Math.floor(voxel / grid.strides[2])];
+  if (!range) return false;
+  const value = grid.volume.scalars[voxel];
+  return value >= range.min && value <= range.max;
+}
 function projectIntensityLine(
   grid: ReturnType<typeof prepareProjection>,
   lineStart: number
 ) {
   let aggregate = grid.method === 'max' ? -Infinity : 0;
   const stride = grid.strides[grid.axis];
+  let samples = 0;
   for (let depth = grid.depthStart; depth <= grid.depthEnd; depth += 1) {
-    const sample = grid.volume.scalars[lineStart + depth * stride];
+    const voxel = lineStart + depth * stride;
+    if (isPaddingVoxel(grid, voxel)) continue;
+    samples += 1;
+    const sample = grid.volume.scalars[voxel];
     aggregate =
       grid.method === 'max' ? Math.max(aggregate, sample) : aggregate + sample;
   }
-  const value =
-    grid.method === 'mean'
-      ? aggregate / (grid.depthEnd - grid.depthStart + 1)
-      : aggregate;
+  if (!samples) return NaN;
+  const value = grid.method === 'mean' ? aggregate / samples : aggregate;
   if (!Number.isFinite(Math.fround(value))) {
     throw new Error('Projection intensity exceeds the supported scalar range');
   }
@@ -223,10 +267,16 @@ function segmentThickness(
   const start =
     (column - extent[2 * horizontalAxis]) * strides[horizontalAxis] +
     (row - extent[2 * verticalAxis]) * strides[verticalAxis];
+  const parentStart =
+    column * grid.strides[horizontalAxis] +
+    row * grid.strides[verticalAxis] +
+    extent[2 * axis] * grid.strides[axis];
   let occupiedVoxels = 0;
   for (let depth = 0; depth < dimensions[axis]; depth += 1) {
-    if (scalars[start + depth * strides[axis]] === segmentValue)
-      occupiedVoxels += 1;
+    if (scalars[start + depth * strides[axis]] !== segmentValue) continue;
+    if (isPaddingVoxel(grid, parentStart + depth * grid.strides[axis]))
+      return NaN;
+    occupiedVoxels += 1;
   }
   const thickness = occupiedVoxels * micronsPerVoxel;
   if (!Number.isFinite(thickness)) {
@@ -238,17 +288,29 @@ function segmentThickness(
 function allocateResult(
   width: number,
   height: number,
-  hasMask: boolean
+  hasMask: boolean,
+  hasPadding: boolean
 ): ProjectionResult {
   return {
     width,
     height,
     values: new Float32Array(width * height),
+    validPixels: hasPadding ? new Uint8Array(width * height) : undefined,
     thicknessMicrons: hasMask ? new Float64Array(width * height) : undefined,
     thinMask: hasMask ? new Uint8Array(width * height) : undefined,
   };
 }
 
+function storeIntensity(
+  result: ProjectionResult,
+  pixel: number,
+  value: number
+) {
+  if (Number.isNaN(value)) return 0;
+  result.values[pixel] = value;
+  if (result.validPixels) result.validPixels[pixel] = 1;
+  return 1;
+}
 /**
  * Projects a Cartesian OCT volume along one voxel axis. It does not infer or
  * unwrap polar scan geometry: callers must provide a reconstructed volume.
@@ -260,14 +322,24 @@ export function projectEnFace(input: ProjectionInput): ProjectionResult {
   const mask = input.segmentation
     ? prepareSegmentation(input.segmentation, input.volume.dimensions)
     : undefined;
-  const result = allocateResult(grid.width, grid.height, !!mask);
+  const result = allocateResult(
+    grid.width,
+    grid.height,
+    !!mask,
+    !!grid.paddingByFrame
+  );
+  let validPixels = 0;
   for (let row = 0; row < grid.height; row += 1) {
     for (let column = 0; column < grid.width; column += 1) {
       const pixel = column + grid.width * row;
       const lineStart =
         column * grid.strides[grid.horizontalAxis] +
         row * grid.strides[grid.verticalAxis];
-      result.values[pixel] = projectIntensityLine(grid, lineStart);
+      validPixels += storeIntensity(
+        result,
+        pixel,
+        projectIntensityLine(grid, lineStart)
+      );
       if (mask) {
         const thickness = segmentThickness(grid, mask, column, row);
         result.thicknessMicrons![pixel] = thickness;
@@ -276,5 +348,9 @@ export function projectEnFace(input: ProjectionInput): ProjectionResult {
       }
     }
   }
+  if (!validPixels)
+    throw new Error(
+      'The selected OCT slab contains only padding; choose a slab with image data.'
+    );
   return result;
 }

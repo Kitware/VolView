@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import { createVuetify } from 'vuetify';
@@ -140,13 +140,24 @@ describe('En face rendering controls', () => {
     const slider = wrapper.get(
       '[data-testid="oct-thickness-threshold"] [role="slider"]'
     );
+    expect(slider.attributes('aria-label')).toBe(
+      'OCT thickness threshold in micrometers'
+    );
     expect(slider.attributes('aria-valuemax')).toBe('500');
     await slider.trigger('keydown', { key: 'ArrowRight' });
+    expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: 100.1 });
     expect(
       wrapper.get<HTMLInputElement>(
         '[data-testid="oct-thickness-threshold-input"] input'
       ).element.value
     ).toBe(slider.attributes('aria-valuenow'));
+    for (const [key, expected] of [
+      ['Home', 0],
+      ['End', 500],
+    ] as const) {
+      await slider.trigger('keydown', { key });
+      expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: expected });
+    }
     await wrapper
       .get<HTMLInputElement>(
         '[data-testid="oct-thickness-threshold-input"] input'
@@ -173,6 +184,10 @@ describe('En face rendering controls', () => {
     const slider = wrapper.get(
       '[data-testid="oct-thickness-threshold"] [role="slider"]'
     );
+    expect(slider.attributes('aria-label')).toBe(
+      'OCT thickness threshold in micrometers'
+    );
+    expect(slider.attributes('tabindex')).toBe('-1');
     await slider.trigger('keydown', { key: 'ArrowRight' });
     expect(wrapper.emitted('patch')).toBeUndefined();
     const action = wrapper
@@ -181,6 +196,29 @@ describe('En face rendering controls', () => {
         candidate.find('[data-testid="oct-thin-highlight"]').exists()
       );
     expect(action?.props('reason')).toBe(reason);
+  });
+
+  it('explains occupied-mask thickness and its user threshold on keyboard focus', async () => {
+    const wrapper = mountControls();
+    expect(
+      wrapper.get('[data-testid="oct-segmentation-segment"]').text()
+    ).toContain('Thickness segment');
+    const help = wrapper.get<HTMLButtonElement>(
+      '[data-testid="oct-thickness-help"]'
+    );
+    help.element.focus();
+    expect(document.activeElement).toBe(help.element);
+    await vi.waitFor(() => {
+      expect(document.body.textContent).toContain(
+        'independent of the intensity slab'
+      );
+      expect(document.body.textContent).toContain(
+        'missing coverage and zero thickness cannot be distinguished'
+      );
+      expect(document.body.textContent).toContain(
+        'not a normal reference range'
+      );
+    });
   });
 
   it('commits a slab endpoint after typing without lowering the other endpoint', async () => {

@@ -4,6 +4,7 @@ import dicomParser, { type DataSet } from 'dicom-parser';
 import { describe, expect, it } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
 import { augmentOCTMetadata } from '@/src/oct/dicomMetadata';
+import { octPadding, OCT_PADDING_ERROR } from '@/src/oct/padding';
 import {
   isOCTMetadata,
   octCalibratedAxes,
@@ -114,7 +115,9 @@ function sequence(tag: string, datasets: Uint8Array[]) {
 }
 
 function enhancedFile(
-  frames: { position?: string; spacing?: string; orientation?: string }[]
+  frames: { position?: string; spacing?: string; orientation?: string }[],
+  extraHeader: Uint8Array[] = [],
+  extraShared: Uint8Array[] = []
 ) {
   const positionSequence = (position: string) =>
     sequence('00209113', [element('00200032', 'DS', position)]);
@@ -128,10 +131,12 @@ function enhancedFile(
     element('00020010', 'UI', '1.2.840.10008.1.2.1'),
     element('00080016', 'UI', OPHTHALMIC_TOMOGRAPHY_SOP),
     element('00280008', 'IS', String(frames.length)),
+    ...extraHeader,
     sequence('52009229', [
       concat([
         measureSequence('0.01\\0.02'),
         orientationSequence('1\\0\\0\\0\\1\\0'),
+        ...extraShared,
       ]),
     ]),
     sequence(
@@ -355,5 +360,87 @@ describe('OCT enhanced spatial metadata', () => {
         [Tags.SpacingBetweenSlices, '0'],
       ])
     ).toEqual([false, false, false]);
+  });
+});
+
+function paddingElement(tag: string, value: number, signed = false) {
+  const bytes = new Uint8Array(2);
+  const view = new DataView(bytes.buffer);
+  if (signed) view.setInt16(0, value, true);
+  else view.setUint16(0, value, true);
+  return element(tag, signed ? 'SS' : 'US', bytes);
+}
+
+describe('OCT padding metadata from actual binary DICOM attributes', () => {
+  const frames = [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }];
+  function declarations(signed = false) {
+    return [
+      ...baseMetadata(),
+      [Tags.BitsStored, '16'],
+      [Tags.PixelRepresentation, signed ? '1' : '0'],
+    ] as Array<[string, string]>;
+  }
+
+  it.each([false, true])(
+    'reads unsigned or signed padding and inclusive range: signed=%s',
+    async (signed) => {
+      const first = signed ? -32768 : 65533;
+      const last = signed ? -32766 : 65535;
+      const file = enhancedFile(frames, [
+        paddingElement('00280103', Number(signed)),
+        paddingElement('00280120', first, signed),
+        paddingElement('00280121', last, signed),
+      ]);
+      const tags = await augmentOCTMetadata(file, declarations(signed));
+      expect(new Map(tags).get(Tags.PixelPaddingValue)).toBe(String(first));
+      expect(new Map(tags).get(Tags.PixelPaddingRangeLimit)).toBe(String(last));
+      expect(octPadding([tags], 2)).toEqual({
+        ranges: [{ firstFrame: 0, lastFrame: 1, min: first, max: last }],
+        reason: null,
+      });
+    }
+  );
+
+  it('rejects a padding VR that disagrees with signed pixel representation', async () => {
+    const tags = await augmentOCTMetadata(
+      enhancedFile(frames, [
+        paddingElement('00280103', 1),
+        paddingElement('00280120', 65535),
+      ]),
+      declarations(true)
+    );
+    expect(new Map(tags).get(OCT_PADDING_ERROR)).toMatch(
+      /cannot be interpreted/
+    );
+    expect(octPadding([tags], 2).reason).toMatch(/cannot be interpreted/);
+  });
+
+  it('rejects a shared pixel-value transformation whose decoder mapping is not established', async () => {
+    const transform = sequence('00289145', [element('00281053', 'DS', '0.25')]);
+    const tags = await augmentOCTMetadata(
+      enhancedFile(
+        frames,
+        [paddingElement('00280103', 0), paddingElement('00280120', 65535)],
+        [transform]
+      ),
+      declarations()
+    );
+    expect(octPadding([tags], 2).reason).toMatch(
+      /unsupported modality transformation/
+    );
+  });
+
+  it('rejects an unknown modality LUT when declared padding requires an exact mapping', async () => {
+    const tags = await augmentOCTMetadata(
+      enhancedFile(frames, [
+        paddingElement('00280103', 0),
+        paddingElement('00280120', 65535),
+        sequence('00283000', []),
+      ]),
+      declarations()
+    );
+    expect(octPadding([tags], 2).reason).toMatch(
+      /unsupported modality transformation/
+    );
   });
 });

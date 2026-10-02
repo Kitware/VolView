@@ -362,6 +362,25 @@ describe('En face window/level drag and texture overlay', () => {
         100, 100, 100, 255,
       ]);
   });
+  it('rounds half-channel values upward before storing grayscale and segment fill', () => {
+    const pixels = new Uint8ClampedArray(3 * 4);
+    paintProjectionIntensities([0.5 / 255, 1.5 / 255, 2.5 / 255], pixels, {
+      width: 1,
+      level: 0.5,
+    });
+    expect(Array.from(pixels)).toEqual([
+      1, 1, 1, 255, 2, 2, 2, 255, 3, 3, 3, 255,
+    ]);
+    expect(
+      paintThinRegionPixels(pixels, [1, 2, 3], 3, {
+        color: [0, 2, 4, 255],
+        alpha: 0.5,
+      })
+    ).toBe(2);
+    expect(Array.from(pixels)).toEqual([
+      1, 2, 3, 255, 1, 2, 3, 255, 3, 3, 3, 255,
+    ]);
+  });
   it('tints reflectivity with the selected segment color and shared fill opacity', () => {
     const dark = thinRegionColor(20, [35, 215, 190, 255], 0.3);
     const bright = thinRegionColor(200, [35, 215, 190, 255], 0.3);

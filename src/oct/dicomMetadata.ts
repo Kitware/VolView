@@ -1,5 +1,6 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { Tags } from '@/src/core/dicomTags';
+import { augmentOCTPadding } from '@/src/oct/padding';
 import {
   isOCTMetadata,
   OCT_GEOMETRY_ERROR,
@@ -18,6 +19,8 @@ const sequenceTags = new Set([
   ORIENTATION,
   POSITION,
   'x00221618',
+  'x00283000',
+  'x00289145',
 ]);
 
 const firstItem = (data: DataSet | undefined, tag: string) =>
@@ -183,6 +186,7 @@ export async function augmentOCTMetadata(
         vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
       }
     );
+    augmentOCTPadding(data, tags);
     const geometry = frameGeometry(data);
     const set = (tag: string, value: string | undefined) => {
       if (value) tags.set(tag, value);

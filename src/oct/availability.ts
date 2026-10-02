@@ -5,11 +5,9 @@ import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import { CALIBRATED_SPACING_AXES } from '@/src/io/imageHeaderMetadata';
-import {
-  isOCTMetadata,
-  octCalibratedAxes,
-  octGeometryReason,
-} from '@/src/oct/detection';
+import { isOCTMetadata, octGeometryReason } from '@/src/oct/detection';
+import { octSeriesGeometry } from '@/src/oct/seriesGeometry';
+import { octPadding } from '@/src/oct/padding';
 
 function gridReason(data: Maybe<vtkImageData>) {
   if (!data || data.getDimensions().some((n) => n < 2)) {
@@ -30,9 +28,7 @@ function loadReason(
   if (imageID && cache.imageErrors[imageID]?.length) {
     return 'The OCT volume failed to load completely.';
   }
-  if (!loaded) {
-    return 'Wait for the complete OCT volume to load.';
-  }
+  if (!loaded) return 'Wait for the complete OCT volume to load.';
   return gridReason(data);
 }
 
@@ -68,29 +64,66 @@ function inputReason(
   return octGeometryReason(metadata) ?? loadedReason;
 }
 
+function loadedGrid(data: Maybe<vtkImageData>, loaded: boolean) {
+  if (!loaded || !data) return undefined;
+  return {
+    spacing: data.getSpacing(),
+    direction: data.getDirection(),
+    origin: data.getOrigin(),
+  };
+}
+
+function dicomGeometry(
+  image: DicomChunkImage,
+  data: Maybe<vtkImageData>,
+  loaded: boolean
+) {
+  const metadata = image.getChunks().map((chunk) => chunk.metadata ?? []);
+  const series = octSeriesGeometry(metadata, loadedGrid(data, loaded));
+  const padding = octPadding(metadata, data?.getDimensions()[2] ?? 0);
+  return {
+    reason: series.reason ?? padding.reason,
+    calibratedAxes: series.calibratedAxes,
+    paddingRanges: padding.ranges.length ? padding.ranges : undefined,
+  };
+}
+
+function inputGeometry(
+  image: Maybe<ProgressiveImage>,
+  data: Maybe<vtkImageData>,
+  loaded: boolean
+) {
+  if (image instanceof DicomChunkImage)
+    return dicomGeometry(image, data, loaded);
+  return {
+    reason: null,
+    calibratedAxes: genericCalibratedAxes(image, data),
+    paddingRanges: undefined,
+  };
+}
+
 export function getOCTAvailability(imageID: Maybe<string>) {
   const cache = useImageCacheStore();
-  const image = imageID ? cache.imageById[imageID] : null;
-  // Chunk metadata is raw. Track allocation and progress even before chunks arrive.
-  const loaded = image?.isLoaded() ?? false;
-  const loading = image?.isLoading() ?? false;
+  const image = cache.imageById[imageID || ''];
+  // Track allocation and progress even before raw DICOM chunks arrive.
+  const loaded = Boolean(image?.isLoaded());
+  const loading = Boolean(image?.isLoading());
   const data = cache.getVtkImageData(imageID);
   const metadata = dicomMetadata(image);
   const isOCT = isOCTMetadata(metadata);
   const manualVolume = image instanceof LoadedVtkImage;
-  const calibratedAxes = isOCT
-    ? octCalibratedAxes(metadata)
-    : genericCalibratedAxes(image, data);
+  const geometry = inputGeometry(image, data, loaded);
   const reason = inputReason(
     isOCT || manualVolume,
     metadata,
-    loadReason(imageID, loaded && !loading, data)
+    geometry.reason ?? loadReason(imageID, loaded && !loading, data)
   );
   return {
     available: reason === null,
     isOCT,
     reason,
-    calibrated: calibratedAxes[1],
-    calibratedAxes,
+    calibrated: geometry.calibratedAxes[1],
+    calibratedAxes: geometry.calibratedAxes,
+    paddingRanges: geometry.paddingRanges,
   };
 }

@@ -22,6 +22,7 @@ import {
   SESSION_SAVE_TIMEOUT,
 } from './utils';
 import { nonOCTDicom } from '../fixtures/oct/volumes';
+import { paddedPublicOCT } from '../fixtures/oct/padding';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
   openAnnotationSegments,
@@ -446,6 +447,35 @@ describe('Retinal OCT en face viewing', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
+  it('excludes declared DICOM padding and identifies missing projection coverage', async () => {
+    const name = STEM + '/retina-padding.dcm';
+    const padded = paddedPublicOCT(
+      path.join(FIXTURES, 'oct', 'retina-derived.dcm')
+    );
+    fs.writeFileSync(
+      path.join(makeTempDir(STEM), 'retina-padding.dcm'),
+      padded.bytes
+    );
+    await openVolViewPage(name);
+    await selectEnFace();
+    await waitForProjection('mean');
+    await expectEnFacePixels(padded.mean, padded.points);
+    const coverage = $('[data-testid="oct-coverage-summary"]');
+    expect(await coverage.getAttribute('data-missing-intensity-alines')).toBe(
+      '2'
+    );
+    expect(await coverage.getText()).toContain('A-lines without intensity: 2');
+    expect(
+      await readEnFacePixels([
+        { x: 0, z: 0 },
+        { x: 5, z: 12 },
+      ])
+    ).toEqual([
+      [0, 0, 0, 255],
+      [0, 0, 0, 255],
+    ]);
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
   it('highlights physical thickness, excludes missing masks, and persists compact controls across a session restore', async () => {
     await openRetina(true);
     const unhighlighted = (await canvasPixels([{ x: 5, z: 12 }]))[0][0];
@@ -478,6 +508,13 @@ describe('Retinal OCT en face viewing', () => {
 
     // The compact slider and numeric input share one physical threshold.
     const slider = $('[data-testid="oct-thickness-threshold"] [role="slider"]');
+    expect(await slider.getAttribute('aria-label')).toBe(
+      'OCT thickness threshold in micrometers'
+    );
+    expect(await $(STATE).getAttribute('role')).toBe(null);
+    expect(
+      await $$('[data-testid="oct-en-face-viewer"] [role="status"]').length
+    ).toBe(1);
     await $(THRESHOLD).click();
     await browser.keys('Tab');
     expect(await slider.isFocused()).toBe(true);
@@ -486,6 +523,22 @@ describe('Retinal OCT en face viewing', () => {
       async () => (await $(THRESHOLD).getValue()) === '31.1'
     );
     await expectHighlightCount(reference.thinColumns);
+    await browser.keys('Home');
+    await browser.waitUntil(
+      async () => (await $(THRESHOLD).getValue()) === '0'
+    );
+    await expectHighlightCount(0);
+    await browser.keys('End');
+    await browser.waitUntil(
+      async () => (await $(THRESHOLD).getValue()) === '500'
+    );
+    await expectHighlightCount(reference.allSegmentedColumns);
+    expect(await $(STATE).getText()).toContain('Synthetic retinal band');
+    expect(
+      await $('[data-testid="oct-projection-status"]').getProperty(
+        'textContent'
+      )
+    ).toContain('En face projection ready.');
     await setNumber('oct-thickness-threshold-input', 20);
     await expectHighlightCount(0);
     await setNumber('oct-thickness-threshold-input', 20.8);

@@ -26,6 +26,8 @@ const tags: Tag[] = [
   { name: 'BitsAllocated', tag: '0028|0100' },
   { name: 'BitsStored', tag: '0028|0101' },
   { name: 'PixelRepresentation', tag: '0028|0103' },
+  { name: 'PixelPaddingValue', tag: '0028|0120' },
+  { name: 'PixelPaddingRangeLimit', tag: '0028|0121' },
   { name: 'ImagePositionPatient', tag: '0020|0032' },
   { name: 'ImageOrientationPatient', tag: '0020|0037' },
   { name: 'PixelSpacing', tag: '0028|0030' },

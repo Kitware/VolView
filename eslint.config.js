@@ -320,6 +320,8 @@ export default tseslint.config(
         'src/oct/projection.worker.ts',
         'src/oct/detection.ts',
         'src/oct/dicomMetadata.ts',
+        'src/oct/seriesGeometry.ts',
+        'src/oct/padding.ts',
       ],
     },
     {

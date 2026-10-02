@@ -14,9 +14,9 @@ import { useEnFaceWindowing } from './useEnFaceWindowing';
 import { useThinRegionAppearance } from './useThinRegionAppearance';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
 import {
-  projectionWindowRanges,
+  projectionWindowRanges as windowRanges,
   paintThinRegionPixels,
-  paintProjectionIntensities,
+  paintProjectionIntensities as paintIntensities,
 } from './windowLevel';
 import { useEnFaceWindowLevelDrag } from './useEnFaceWindowLevelDrag';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
@@ -28,6 +28,8 @@ import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import EnFaceControls from './EnFaceControls.vue';
+import EnFaceStatus from './EnFaceStatus.vue';
+import EnFaceSummary from './EnFaceSummary.vue';
 import { getOCTAvailability } from './availability';
 import { defaultOCTViewConfig, useOCTViewStore } from './store';
 import type { ProjectionInput, ProjectionResult } from './types';
@@ -86,6 +88,12 @@ watch(
     }
   },
   { immediate: true }
+);
+const selectedSegmentName = computed(
+  () =>
+    segmentOptions.value.find(
+      ({ value }) => value === settings.value.selectedMaskId
+    )?.title ?? 'Selected segment'
 );
 const selectedBinding = computed(() =>
   settings.value.selectedMaskId
@@ -184,6 +192,7 @@ const projectionRequest = computed(() => {
       dimensions: [...dimensions.value],
       spacing: currentImageData.value.getSpacing().map(Math.abs),
       numberOfComponents: volumeScalars.value.getNumberOfComponents(),
+      paddingRanges: availability.value.paddingRanges,
     },
     axis: settings.value.axis,
     method: settings.value.method,
@@ -268,9 +277,10 @@ watch(
   { immediate: true }
 );
 
-const projectionStats = computed(() =>
-  projection.value ? projectionWindowRanges(projection.value.values) : null
-);
+const projectionStats = computed(() => {
+  const result = projection.value;
+  return result ? windowRanges(result.values, result.validPixels) : null;
+});
 const autoRange = computed(
   () => projectionStats.value ?? { width: 1, level: 0.5, min: 0, max: 1 }
 );
@@ -336,7 +346,7 @@ function paintThinRegions(result: ProjectionResult, pixels: ImageData) {
     pixels.data,
     thickness,
     settings.value.thresholdMicrons,
-    appearance
+    { ...appearance, validPixels: result.validPixels }
   );
 }
 function paintProjection() {
@@ -353,7 +363,8 @@ function paintProjection() {
   target.width = result.width;
   target.height = result.height;
   const pixels = context.createImageData(result.width, result.height);
-  paintProjectionIntensities(result.values, pixels.data, windowConfig.value);
+  const { values, validPixels } = result;
+  paintIntensities(values, pixels.data, windowConfig.value, validPixels);
   highlightedPixels.value = paintThinRegions(result, pixels);
   context.putImageData(pixels, 0, 0);
 }
@@ -371,7 +382,6 @@ watch(
   paintProjection,
   { flush: 'post' }
 );
-
 const stateMessage = computed(
   () =>
     projectionReason.value ||
@@ -389,9 +399,11 @@ const state = computed(() =>
           ? 'ready'
           : 'unavailable'
 );
-const axisLabel = computed(() => ['X', 'Y', 'Z'][settings.value.axis]);
-const methodLabel = computed(
-  () => ({ mean: 'Mean', max: 'Maximum', sum: 'Sum' })[settings.value.method]
+const summaryHighlightReason = computed(
+  () =>
+    highlightReason.value ||
+    stateMessage.value ||
+    (!projection.value ? 'En face projection unavailable.' : null)
 );
 const sourceLoading = computed(
   () => currentImageID.value && imageCache.imageLoading[currentImageID.value]
@@ -442,28 +454,19 @@ const sourceLoading = computed(
         </svg>
       </div>
     </div>
-    <div
-      v-if="stateMessage"
-      class="projection-status"
-      role="status"
-      aria-live="polite"
-    >
-      <span>{{ stateMessage }}</span>
-      <v-btn
-        v-if="projectionError && !projectionReason"
-        size="small"
-        variant="outlined"
-        @click="retry += 1"
-        >Retry projection</v-btn
-      >
-    </div>
+    <EnFaceStatus
+      :message="stateMessage"
+      :ready="!!projection"
+      :retryable="!!projectionError && !projectionReason"
+      @retry="retry += 1"
+    />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
         <div class="annotation-cell">{{ currentImageMetadata.name }}</div>
       </template>
       <template #top-center
         ><div class="annotation-cell">
-          En face • {{ axisLabel }} A-line
+          En face • {{ ['X', 'Y', 'Z'][settings.axis] }} A-line
         </div></template
       >
       <template #top-right
@@ -471,9 +474,8 @@ const sourceLoading = computed(
           <DicomQuickInfoButton :image-id="currentImageID" /></div
       ></template>
       <template #bottom-left>
-        <div
+        <EnFaceSummary
           class="annotation-cell projection-summary"
-          role="status"
           data-testid="oct-en-face-state"
           :data-state="state"
           :data-projection-method="settings.method"
@@ -487,19 +489,15 @@ const sourceLoading = computed(
           :data-highlight-opacity="highlightAppearance?.alpha ?? 0"
           :data-window-width="windowConfig.width"
           :data-window-level="windowConfig.level"
-        >
-          <template v-if="projection"
-            >{{ methodLabel }} • slab {{ depthStart }}–{{ depthEnd }}<br />{{
-              projection.width
-            }}
-            × {{ projection.height
-            }}<span v-if="settings.highlightThin && !highlightReason">
-              • {{ highlightedPixels }} thin pixels (&lt;
-              {{ settings.thresholdMicrons }} µm)</span
-            ></template
-          >
-          <template v-else>{{ stateMessage }}</template>
-        </div>
+          :settings="settings"
+          :projection="projection"
+          :state-message="stateMessage"
+          :depth-start="depthStart"
+          :depth-end="depthEnd"
+          :segment-name="selectedSegmentName"
+          :highlighted-pixels="highlightedPixels"
+          :highlight-reason="summaryHighlightReason"
+        />
       </template>
       <template #bottom-right>
         <div class="annotation-cell corner-controls" @click.stop>
@@ -586,17 +584,6 @@ const sourceLoading = computed(
   stroke: yellow;
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
-}
-.projection-status {
-  position: absolute;
-  inset: 32px 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: white;
-  text-align: center;
 }
 .corner-controls {
   display: flex;

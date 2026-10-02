@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ColorDot from '@/src/components/ColorDot.vue';
+import { OCT_THICKNESS_HELP } from './thickness';
 import type { OCTViewConfig } from './store';
 
 const props = defineProps<{
@@ -126,7 +127,7 @@ function updateHighlight(highlightThin: boolean | null) {
           :model-value="settings.selectedMaskId"
           @update:model-value="updateSegment"
           :items="segments"
-          label="Segment"
+          label="Thickness segment"
           :placeholder="
             segments.length ? undefined : 'No associated segmentation'
           "
@@ -135,7 +136,7 @@ function updateHighlight(highlightThin: boolean | null) {
           variant="outlined"
           hide-details
           :disabled="!!segmentationReason"
-          aria-label="OCT segment"
+          aria-label="OCT thickness segment"
           data-testid="oct-segmentation-segment"
         />
       </ReasonedAction>
@@ -163,7 +164,18 @@ function updateHighlight(highlightThin: boolean | null) {
         </v-switch>
       </ReasonedAction>
       <div class="threshold-heading">
-        <span class="text-body-2">Thickness below</span>
+        <span class="text-body-2">
+          Thickness below
+          <ReasonedAction :tooltip="OCT_THICKNESS_HELP" class="ml-1">
+            <v-btn
+              icon="mdi-information-outline"
+              size="x-small"
+              variant="text"
+              aria-label="About OCT thickness"
+              data-testid="oct-thickness-help"
+            />
+          </ReasonedAction>
+        </span>
         <ReasonedAction
           :reason="thresholdReason ?? undefined"
           class="threshold-value"
@@ -195,7 +207,7 @@ function updateHighlight(highlightThin: boolean | null) {
           density="compact"
           hide-details
           :disabled="!!thresholdReason"
-          aria-label="OCT thickness threshold"
+          name="OCT thickness threshold in micrometers"
           data-testid="oct-thickness-threshold"
         />
       </ReasonedAction>
