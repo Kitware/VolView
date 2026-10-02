@@ -9,7 +9,8 @@ import { remoteFileToDataSource } from '@/src/io/import/dataSource';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { SAMPLE_DATA } from '@/src/config';
 import { useMessageStore } from '@/src/store/messages';
-import { SampleDataset } from '@/src/types';
+import { Maybe, SampleDataset } from '@/src/types';
+import { parseLayoutConfig } from '@/src/utils/layoutParsing';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { fetchFile } from '@/src/utils/fetch';
@@ -74,6 +75,24 @@ export default defineComponent({
       }
     });
 
+    function applySampleLayout(
+      sample: SampleDataset,
+      selection: Maybe<string>
+    ) {
+      if (!sample.defaults?.layout) return;
+      const { layout, views } = parseLayoutConfig(sample.defaults.layout);
+      if (views.some((view) => viewStore.disabledViewTypes.includes(view.type)))
+        return;
+      viewStore.currentLayoutName = null;
+      viewStore.setLayout(layout);
+      views.forEach((view, index) => {
+        viewStore.replaceView(viewStore.layoutViews[index].id, {
+          ...view,
+          dataID: selection,
+        });
+      });
+    }
+
     async function downloadSample(sample: SampleDataset) {
       const progress = (percent: number) => {
         status.progress[sample.name] = {
@@ -112,6 +131,7 @@ export default defineComponent({
           });
         }
         viewStore.setDataForAllViews(selection);
+        applySampleLayout(sample, selection);
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();

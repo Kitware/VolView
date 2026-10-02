@@ -1,0 +1,76 @@
+{
+  "dimensions": [
+    304,
+    3,
+    304
+  ],
+  "projectionAxis": 1,
+  "points": [
+    {
+      "x": 40,
+      "z": 75
+    },
+    {
+      "x": 80,
+      "z": 140
+    },
+    {
+      "x": 150,
+      "z": 155
+    },
+    {
+      "x": 210,
+      "z": 120
+    },
+    {
+      "x": 250,
+      "z": 225
+    }
+  ],
+  "centerPlane": [
+    1,
+    2,
+    8,
+    22,
+    12
+  ],
+  "threePlaneMean": [
+    1.0,
+    2.6666666666666665,
+    7.666666666666667,
+    22.666666666666668,
+    12.333333333333334
+  ],
+  "centerRange": [
+    0,
+    126
+  ],
+  "meanRange": [
+    0.0,
+    124.33333333333333
+  ],
+  "sourcePlaneNumbers": [
+    299,
+    300,
+    301
+  ],
+  "sourceDepthIndicesZeroBased": [
+    298,
+    299,
+    300
+  ],
+  "localCenterSlab": [
+    1,
+    1
+  ],
+  "physicalCalibration": "Not asserted. Unitless index spacing; creator depth scale conflicts with source dataset FOV.",
+  "sourceDataset": "OCTA Macula Coronal Views",
+  "creator": "Abdel-Razzak Al-Hinnawi",
+  "sourceDoi": "10.17632/p5h7x55zw7.1",
+  "sourceUrl": "https://data.mendeley.com/datasets/p5h7x55zw7/1",
+  "license": "CC BY 4.0",
+  "sourceArchiveUrl": "https://data.mendeley.com/public-files/datasets/p5h7x55zw7/files/5a0f2794-53c9-43d6-8ee2-d6407804a0dd/file_downloaded",
+  "centerPngSha256": "e14cf1dab0d51bc7a70521ee42faed03e2ac7117f202ba68d01e02782b09a0af",
+  "volumeSha256": "420f6ec50a8b0071bbb17a3fc39315add67018d9d9cf378e1a57505995027412",
+  "derivation": "Three adjacent original 304x304 grayscale coronal OCTA flow planes from public subject 10323 transposed to X=columns,Y=depth,Z=rows. Pixel intensities preserved. This is a tiny external-image regression crop, not a full clinical OCT scan, and no structural OCT or retinal boundary ground truth is supplied."
+}

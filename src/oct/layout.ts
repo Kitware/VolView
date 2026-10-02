@@ -15,6 +15,8 @@ function sourceOrientation(imageID: Maybe<string>) {
 
 export function getOCTLayoutReason(imageID: Maybe<string>) {
   const availability = getOCTAvailability(imageID);
+  if (!availability.isOCT)
+    return 'Load an ophthalmic OCT DICOM volume to use the Retinal OCT layout.';
   if (availability.reason) return availability.reason;
   const views = useViewStore();
   if (views.disabledViewTypes.includes('2D'))
@@ -39,6 +41,7 @@ function matchingOCTViews(panes: ViewInfo[]) {
     source.type === '2D' &&
     enface.type === 'EnFace' &&
     source.dataID === enface.dataID &&
+    getOCTAvailability(source.dataID).isOCT &&
     source.options.orientation === sourceOrientation(source.dataID)
   );
 }

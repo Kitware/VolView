@@ -1,10 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createVuetify } from 'vuetify';
-import { VListItem } from 'vuetify/components';
+import { VListItem, VSelect } from 'vuetify/components';
 import { nextTick, ref } from 'vue';
+import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import LayoutSelector from '@/src/components/LayoutSelector.vue';
+import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -23,6 +26,7 @@ import { createOCTFixture } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 
 const decodeReleases: (() => void)[] = [];
+afterEach(() => vi.unstubAllGlobals());
 enableAutoUnmount(afterEach);
 beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => cleanupCachedImages(decodeReleases));
@@ -75,6 +79,60 @@ function focusImage(imageID: string) {
 }
 
 describe('production Retinal OCT layout', () => {
+  it('keeps configuration-disabled En face visible with its reason and guards selection', async () => {
+    vi.stubGlobal('visualViewport', null);
+    await loadFixture('oct');
+    const views = useViewStore();
+    const volume = views.layoutViews.find((view) => view.type === '3D')!;
+    views.setDataForView(volume.id, 'oct');
+    views.disabledViewTypes = ['EnFace', 'Oblique'];
+    await nextTick();
+    const ids = views.layoutViews.map(({ id }) => id);
+    const wrapper = mount(ViewTypeSwitcher, {
+      props: { viewId: volume.id, imageId: 'oct' },
+      attachTo: document.body,
+      global: { plugins: [createVuetify()] },
+    });
+    const select = wrapper.getComponent(VSelect);
+    const option = () =>
+      select.props('items')!.find((item) => item.value === 'En face')!;
+    const reason = 'The current configuration disables En face views.';
+    expect(option()).toMatchObject({ reason, props: { disabled: true } });
+    expect(
+      select.props('items')!.some((item) => item.value === 'Oblique')
+    ).toBe(false);
+    expect(
+      views.availableViewsForSwitcher.some((view) => view.type === 'EnFace')
+    ).toBe(false);
+    await wrapper.get('.v-field').trigger('mousedown');
+    const disabledItem = document.querySelector(
+      '[title="' + reason + '"] .v-list-item'
+    );
+    expect(disabledItem).not.toBeNull();
+    expect(disabledItem!.classList.contains('v-list-item--disabled')).toBe(
+      true
+    );
+    disabledItem!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    select.vm.$emit('update:modelValue', 'En face');
+    await nextTick();
+    expect(views.layoutViews.map(({ id }) => id)).toEqual(ids);
+    expect(views.getView(volume.id)?.type).toBe('3D');
+
+    views.disabledViewTypes = ['Oblique'];
+    await nextTick();
+    expect(option()).toMatchObject({
+      reason: null,
+      props: { disabled: false },
+    });
+    select.vm.$emit('update:modelValue', 'En face');
+    await nextTick();
+    expect(
+      views.layoutViews.find((view) => view.dataID === 'oct')
+    ).toMatchObject({
+      type: 'EnFace',
+      dataID: 'oct',
+    });
+  });
   it('keeps the built-in action visible with a reason without replacing customer layouts', () => {
     const views = useViewStore();
     views.setNamedLayoutsFromConfig({ 'Customer layout': [['volume']] });
@@ -93,6 +151,44 @@ describe('production Retinal OCT layout', () => {
     expect(applyOCTLayout(null)).toBe(false);
     expect(views.namedLayouts).toBe(presets);
     expect(Object.keys(views.namedLayouts)).toEqual(['Customer layout']);
+  });
+
+  it('keeps the retinal preset disabled and inactive for a manually arranged generic volume', async () => {
+    const image = vtkImageData.newInstance();
+    image.setDimensions(2, 3, 4);
+    image
+      .getPointData()
+      .setScalars(vtkDataArray.newInstance({ values: new Uint16Array(24) }));
+    const imageID = useImageCacheStore().addVTKImageData(
+      image,
+      'Generic volume'
+    );
+    const views = useViewStore();
+    views.setLayoutFromGrid([1, 2]);
+    const [source, projection] = views.layoutViews;
+    views.replaceView(source.id, {
+      type: '2D',
+      name: 'Axial',
+      dataID: imageID,
+      options: { orientation: 'Axial' },
+    });
+    views.replaceView(projection.id, {
+      type: 'EnFace',
+      name: 'En face',
+      dataID: imageID,
+      options: {},
+    });
+    focusImage(imageID);
+    const before = JSON.stringify(views.visibleLayout);
+    const wrapper = mountSelector();
+    const builtin = action(wrapper).getComponent(VListItem);
+    expect(builtin.props('disabled')).toBe(true);
+    expect(builtin.props('active')).toBe(false);
+    expect(
+      action(wrapper).getComponent(ReasonedAction).props('reason')
+    ).toMatch(/ophthalmic OCT DICOM/);
+    expect(applyOCTLayout(imageID)).toBe(false);
+    expect(JSON.stringify(views.visibleLayout)).toBe(before);
   });
 
   it('distinguishes a customer preset with the same display name from the built-in action', async () => {

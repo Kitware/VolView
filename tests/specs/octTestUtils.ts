@@ -1,6 +1,49 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
+import { FIXTURES } from '../../wdio.shared.conf';
+import { publicOCTGrid, publicOCTVolume } from '../fixtures/oct/volumes';
+
+export function stageGenericOCT(
+  directory: string,
+  format: 'nrrd' | 'nii' | 'vti',
+  unitsKnown = true
+) {
+  const source = path.join(FIXTURES, 'oct', 'retina-derived.dcm');
+  const name =
+    'retina-public' + (unitsKnown ? '' : '-unknown-units') + '.' + format;
+  let bytes: Buffer;
+  if (format === 'vti') {
+    const volume = publicOCTGrid(source);
+    const [width, frames, depth] = volume.dimensions;
+    const spacing = [...volume.spacing];
+    spacing[0] *= -1;
+    bytes = Buffer.from(
+      '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
+        '<ImageData WholeExtent="0 ' +
+        (width - 1) +
+        ' 0 ' +
+        (frames - 1) +
+        ' 0 ' +
+        (depth - 1) +
+        '" Origin="0 0 0" Spacing="' +
+        spacing.join(' ') +
+        '">' +
+        '<Piece Extent="0 ' +
+        (width - 1) +
+        ' 0 ' +
+        (frames - 1) +
+        ' 0 ' +
+        (depth - 1) +
+        '"><PointData Scalars="intensity">' +
+        '<DataArray type="UInt16" Name="intensity" format="ascii">' +
+        Array.from(volume.scalars).join(' ') +
+        '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
+    );
+  } else bytes = publicOCTVolume(source, format, unitsKnown);
+  fs.writeFileSync(path.join(directory, name), bytes);
+  return name;
+}
 
 // A display illustration with a localized thin patch, never clinical ground truth.
 // This matches tests/fixtures/oct/illustrative.py without requiring Python at runtime.
@@ -128,4 +171,73 @@ export async function expectControlsBesideSelector() {
   expect(bounds.gap).toBeGreaterThanOrEqual(0);
   expect(bounds.gap).toBeLessThan(12);
   expect(bounds.panelLeft).toBeGreaterThanOrEqual(bounds.imageRight);
+}
+
+const CANVAS = '[data-testid="oct-en-face-canvas"]';
+const STATE = '[data-testid="oct-en-face-state"]';
+
+export async function readEnFacePixels(points: { x: number; z: number }[]) {
+  return browser.execute(
+    (selector, coordinates) => {
+      const canvas = document.querySelector(selector) as HTMLCanvasElement;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('OCT projection canvas has no 2D context');
+      return coordinates.map(({ x, z }) =>
+        Array.from(context.getImageData(x, z, 1, 1).data)
+      );
+    },
+    CANVAS,
+    points
+  );
+}
+
+export async function getEnFaceWindow() {
+  return {
+    width: Number(await $(STATE).getAttribute('data-window-width')),
+    level: Number(await $(STATE).getAttribute('data-window-level')),
+  };
+}
+
+function grayPixel(value: number, window: { width: number; level: number }) {
+  const intensity = Math.round(
+    Math.min(
+      1,
+      Math.max(0, (value - (window.level - window.width / 2)) / window.width)
+    ) * 255
+  );
+  return [intensity, intensity, intensity, 255];
+}
+
+export async function expectEnFacePixels(
+  values: number[],
+  points: { x: number; z: number }[]
+) {
+  await browser.waitUntil(
+    async () => {
+      const window = await getEnFaceWindow();
+      const expected = values.map((value) => grayPixel(value, window));
+      const actual = await readEnFacePixels(points);
+      return JSON.stringify(actual) === JSON.stringify(expected);
+    },
+    {
+      timeoutMsg:
+        'Expected independently calculated real OCT projection pixels',
+    }
+  );
+}
+
+export async function expectEnFaceDisabledInSwitcher(reason: string) {
+  const switcher = (await $$('.view-type-select .v-field'))[0];
+  await switcher.click();
+  const option = $(
+    '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
+  );
+  await option.waitForDisplayed();
+  expect(await option.getAttribute('class')).toContain('v-list-item--disabled');
+  expect(await option.getText()).toContain('En face');
+  expect(
+    await option.execute((element) =>
+      element.parentElement?.getAttribute('title')
+    )
+  ).toContain(reason);
 }

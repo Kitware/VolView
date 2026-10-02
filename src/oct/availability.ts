@@ -3,6 +3,8 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
+import { LoadedVtkImage } from '@/src/core/progressiveImage';
+import { CALIBRATED_SPACING_AXES } from '@/src/io/imageHeaderMetadata';
 import {
   isOCTMetadata,
   octCalibratedAxes,
@@ -39,6 +41,33 @@ function dicomMetadata(image: Maybe<ProgressiveImage>) {
     ? (image.getDicomMetadata() ?? [])
     : [];
 }
+
+function genericCalibratedAxes(
+  image: Maybe<ProgressiveImage>,
+  data: Maybe<vtkImageData>
+) {
+  const declared = image?.headerMetadata
+    ?.get(CALIBRATED_SPACING_AXES)
+    ?.split(',');
+  const spacing = data?.getSpacing() ?? [];
+  return [0, 1, 2].map(
+    (axis) =>
+      declared?.[axis] === '1' &&
+      Number.isFinite(spacing[axis]) &&
+      spacing[axis] > 0
+  );
+}
+
+function inputReason(
+  eligible: boolean,
+  metadata: Iterable<[string, string]>,
+  loadedReason: string | null
+) {
+  if (!eligible)
+    return 'Load an ophthalmic OCT DICOM volume, or select a grayscale 3D volume to use En face.';
+  return octGeometryReason(metadata) ?? loadedReason;
+}
+
 export function getOCTAvailability(imageID: Maybe<string>) {
   const cache = useImageCacheStore();
   const image = imageID ? cache.imageById[imageID] : null;
@@ -48,11 +77,15 @@ export function getOCTAvailability(imageID: Maybe<string>) {
   const data = cache.getVtkImageData(imageID);
   const metadata = dicomMetadata(image);
   const isOCT = isOCTMetadata(metadata);
-  const calibratedAxes = octCalibratedAxes(metadata);
-  const reason = isOCT
-    ? (octGeometryReason(metadata) ??
-      loadReason(imageID, loaded && !loading, data))
-    : 'Load an ophthalmic OCT DICOM volume to use En face.';
+  const manualVolume = image instanceof LoadedVtkImage;
+  const calibratedAxes = isOCT
+    ? octCalibratedAxes(metadata)
+    : genericCalibratedAxes(image, data);
+  const reason = inputReason(
+    isOCT || manualVolume,
+    metadata,
+    loadReason(imageID, loaded && !loading, data)
+  );
   return {
     available: reason === null,
     isOCT,

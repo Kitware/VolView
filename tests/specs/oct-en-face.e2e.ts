@@ -2,9 +2,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   stageIllustrativeMask,
+  stageGenericOCT,
   ILLUSTRATIVE_THIN_COLUMNS,
   expectStackedSourceMask,
   expectControlsBesideSelector,
+  expectEnFacePixels,
+  expectEnFaceDisabledInSwitcher,
+  readEnFacePixels,
+  getEnFaceWindow as getWindow,
 } from './octTestUtils';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -13,10 +18,10 @@ import {
   openVolViewPage,
   openThroughDialog,
   writeManifestToFile,
-  writeMetaImage,
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
 } from './utils';
+import { nonOCTDicom } from '../fixtures/oct/volumes';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
   openAnnotationSegments,
@@ -67,6 +72,20 @@ async function selectEnFace() {
         'Expected the real OCT volume to generate a 128-column en face bitmap',
     }
   );
+}
+
+async function attachMaskThroughDataPanel(file: string) {
+  await openThroughDialog(path.join(TEMP_DIR, file));
+  await $('button[data-testid="module-tab-Data"]').click();
+  const card = $('.v-card:has([title="' + path.basename(file) + '"])');
+  await card.waitForDisplayed();
+  await card.$('button.dataset-menu').click();
+  const attach = $(
+    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Add as segmentation"]'
+  );
+  await attach.waitForStable();
+  await attach.waitForClickable();
+  await attach.click();
 }
 
 async function openControls() {
@@ -127,25 +146,7 @@ async function waitForProjection(method: string) {
 }
 
 async function canvasPixels(points = reference.points) {
-  return browser.execute(
-    (selector, coordinates) => {
-      const canvas = document.querySelector(selector) as HTMLCanvasElement;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('OCT projection canvas has no 2D context');
-      return coordinates.map(({ x, z }) =>
-        Array.from(context.getImageData(x, z, 1, 1).data)
-      );
-    },
-    CANVAS,
-    points
-  );
-}
-
-async function getWindow() {
-  return {
-    width: Number(await $(STATE).getAttribute('data-window-width')),
-    level: Number(await $(STATE).getAttribute('data-window-level')),
-  };
+  return readEnFacePixels(points);
 }
 
 async function dragEnFaceContrast() {
@@ -185,29 +186,8 @@ async function getOriginalWindow() {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-function grayPixel(value: number, window: { width: number; level: number }) {
-  const intensity = Math.round(
-    Math.min(
-      1,
-      Math.max(0, (value - (window.level - window.width / 2)) / window.width)
-    ) * 255
-  );
-  return [intensity, intensity, intensity, 255];
-}
-
 async function expectProjectedPixels(values: number[]) {
-  await browser.waitUntil(
-    async () => {
-      const window = await getWindow();
-      const expected = values.map((value) => grayPixel(value, window));
-      const actual = await canvasPixels();
-      return JSON.stringify(actual) === JSON.stringify(expected);
-    },
-    {
-      timeoutMsg:
-        'Expected independently calculated real OCT projection pixels',
-    }
-  );
+  return expectEnFacePixels(values, reference.points);
 }
 async function expectHighlightCount(count: number) {
   await browser.waitUntil(
@@ -826,17 +806,7 @@ describe('Retinal OCT en face viewing', () => {
     await expectProjectedPixels(reference.projections.mean);
     await expectSliceLine();
 
-    await openThroughDialog(path.join(TEMP_DIR, STEM, mask));
-    await $('button[data-testid="module-tab-Data"]').click();
-    const card = $('.v-card:has([title="' + mask + '"])');
-    await card.waitForDisplayed();
-    await card.$('button.dataset-menu').click();
-    const attach = $(
-      '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Add as segmentation"]'
-    );
-    await attach.waitForStable();
-    await attach.waitForClickable();
-    await attach.click();
+    await attachMaskThroughDataPanel(STEM + '/' + mask);
     await openAnnotationSegments();
     await waitForSegmentContent('Synthetic retinal layer');
     await selectSegment('Synthetic retinal layer');
@@ -926,24 +896,109 @@ describe('Retinal OCT en face viewing', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('keeps en face visible and disabled for a non-OCT volume with a reason', async () => {
-    const image = writeMetaImage('oct-unrelated.mha');
-    await openVolViewPage(image);
-    const switcher = (await $$('.view-type-select .v-field'))[0];
-    await switcher.click();
-    const option = $(
-      '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
+  for (const format of ['nrrd', 'nii', 'vti'] as const) {
+    it(
+      'manually projects public OCT pixels from ' +
+        format +
+        ' with an explicit axis and restores its settings',
+      async () => {
+        const directory = makeTempDir(STEM);
+        const name = stageGenericOCT(directory, format);
+        await volViewPage.open();
+        await openThroughDialog(path.join(directory, name));
+        await volViewPage.waitForViews();
+        expect(await $(CANVAS).isExisting()).toBe(false);
+        const viewCount = (await $$('.view-type-select')).length;
+        const spacing = await waitForFirstCachedImageSpacing();
+        expect(Math.abs(spacing[0])).toBeCloseTo(reference.spacing[0], 6);
+        expect(spacing[1]).toBeCloseTo(reference.spacing[2], 6);
+        expect(spacing[2]).toBeCloseTo(reference.spacing[1], 6);
+        if (format === 'vti') expect(spacing[0]).toBeLessThan(0);
+        await selectEnFace();
+        await waitForProjection('mean');
+        expect((await $$('.view-type-select')).length).toBe(viewCount);
+        await openControls();
+        expect(
+          await $('[data-testid="oct-advanced-toggle"]').getAttribute(
+            'aria-expanded'
+          )
+        ).toBe('true');
+        await selectSetting('oct-projection-axis', 'Z (frames)');
+        await browser.waitUntil(
+          async () => (await $(CANVAS).getAttribute('height')) === '32'
+        );
+        await waitForProjection('mean');
+        await expectProjectedPixels(reference.projections.mean);
+        const display = await $(CANVAS).getSize();
+        expect(display.width).toBeGreaterThan(0);
+        expect(display.height).toBeGreaterThan(0);
+        expect(display.width / display.height).toBeCloseTo(1, 1);
+        await setNumber('oct-slab-start', reference.slab.start);
+        await setNumber('oct-slab-end', reference.slab.end);
+        await waitForProjection('mean');
+        await expectProjectedPixels(reference.slab.mean);
+        await browser.keys('Escape');
+        const saved = await volViewPage.saveSession();
+        await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
+        await volViewPage.open();
+        await openThroughDialog(path.join(TEMP_DIR, saved));
+        await volViewPage.waitForViews();
+        await $(CANVAS).waitForDisplayed();
+        await waitForProjection('mean');
+        expect(await $(STATE).getAttribute('data-projection-axis')).toBe('2');
+        expect(await $(STATE).getAttribute('data-slab-start')).toBe(
+          String(reference.slab.start)
+        );
+        expect(await $(STATE).getAttribute('data-slab-end')).toBe(
+          String(reference.slab.end)
+        );
+        await expectProjectedPixels(reference.slab.mean);
+        await openControls();
+        expect(
+          await $('[data-testid="oct-projection-axis"] input').getValue()
+        ).toBe('Z (frames)');
+      }
     );
-    await option.waitForDisplayed();
-    expect(await option.getAttribute('class')).toContain(
-      'v-list-item--disabled'
+  }
+
+  it('renders NIfTI with unknown units while keeping physical thickness disabled with a reason', async () => {
+    const directory = makeTempDir(STEM);
+    const name = stageGenericOCT(directory, 'nii', false);
+    await volViewPage.open();
+    await openThroughDialog(path.join(directory, name));
+    await volViewPage.waitForViews();
+    await selectEnFace();
+    await openControls();
+    await selectSetting('oct-projection-axis', 'Z (frames)');
+    await browser.waitUntil(
+      async () => (await $(CANVAS).getAttribute('height')) === '32'
     );
-    expect(await option.getText()).toContain('En face');
+    await waitForProjection('mean');
+    await expectProjectedPixels(reference.projections.mean);
+    await browser.keys('Escape');
+    await attachMaskThroughDataPanel(stageFixture('synthetic-thickness.nrrd'));
+    await openControls();
+    await browser.waitUntil(async () =>
+      $('[data-testid="oct-segmentation-segment"] input').isEnabled()
+    );
     expect(
-      await option.execute((element) =>
-        element.parentElement?.getAttribute('title')
-      )
-    ).toContain('OCT');
+      await $('[data-testid="oct-thin-highlight"] input').isEnabled()
+    ).toBe(false);
+    expect(await $(THRESHOLD).isEnabled()).toBe(false);
+    await $('[data-testid="oct-thin-highlight"]').$('..').moveTo();
+    const reason = $('.v-overlay--active.v-tooltip .v-overlay__content');
+    await reason.waitForDisplayed();
+    expect(await reason.getText()).toContain('units or spacing');
+  });
+
+  it('keeps en face visible and disabled for a non-ophthalmic DICOM volume with a reason', async () => {
+    const image = STEM + '/oct-unrelated.dcm';
+    fs.writeFileSync(
+      path.join(makeTempDir(STEM), 'oct-unrelated.dcm'),
+      nonOCTDicom(path.join(FIXTURES, 'oct', 'retina-derived.dcm'))
+    );
+    await openVolViewPage(image);
+    await expectEnFaceDisabledInSwitcher('OCT');
     await browser.keys('Escape');
     await volViewPage.openLayoutMenu();
     const octLayout = $('[data-testid="oct-layout"]');
@@ -1001,19 +1056,6 @@ describe('Retinal OCT en face viewing', () => {
     const file = STEM + '/retina-derived-radial.dcm';
     fs.writeFileSync(path.join(TEMP_DIR, file), raw);
     await openVolViewPage(file);
-    const switcher = (await $$('.view-type-select .v-field'))[0];
-    await switcher.click();
-    const option = $(
-      '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
-    );
-    await option.waitForDisplayed();
-    expect(await option.getAttribute('class')).toContain(
-      'v-list-item--disabled'
-    );
-    expect(
-      await option.execute((element) =>
-        element.parentElement?.getAttribute('title')
-      )
-    ).toContain('spatial reconstruction');
+    await expectEnFaceDisabledInSwitcher('spatial reconstruction');
   });
 });

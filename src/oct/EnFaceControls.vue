@@ -10,9 +10,17 @@ const props = defineProps<{
   projectionReason: string | null;
   segmentationReason: string | null;
   thicknessReason: string | null;
+  expandAdvanced?: boolean;
   segments: { value: string; title: string; color?: string }[];
 }>();
 const emit = defineEmits<{ patch: [settings: Partial<OCTViewConfig>] }>();
+const expandedPanel = ref(props.expandAdvanced ? 0 : undefined);
+watch(
+  () => props.expandAdvanced,
+  (expand) => {
+    expandedPanel.value = expand ? 0 : undefined;
+  }
+);
 const selectedSegmentColor = computed(
   () =>
     props.segments.find(({ value }) => value === props.settings.selectedMaskId)
@@ -192,7 +200,12 @@ function updateHighlight(highlightThin: boolean | null) {
         />
       </ReasonedAction>
       <v-divider class="mt-1 mb-1" />
-      <v-expansion-panels variant="accordion" flat class="advanced-controls">
+      <v-expansion-panels
+        v-model="expandedPanel"
+        variant="accordion"
+        flat
+        class="advanced-controls"
+      >
         <v-expansion-panel bg-color="transparent">
           <v-expansion-panel-title
             class="advanced-title"

@@ -8,7 +8,7 @@ import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
 enableAutoUnmount(afterEach);
 
-function mountControls(overrides = {}) {
+function mountControls(overrides = {}, expandAdvanced = false) {
   const settings = reactive({
     ...defaultOCTViewConfig(),
     highlightThin: true,
@@ -21,6 +21,7 @@ function mountControls(overrides = {}) {
       settings,
       onPatch: (patch: Partial<OCTViewConfig>) =>
         Object.assign(settings, patch),
+      expandAdvanced,
       depthMaximum: 221,
       projectionReason: null,
       segmentationReason: null,
@@ -63,6 +64,38 @@ describe('En face rendering controls', () => {
     expect(
       wrapper.get('[data-testid="oct-projection-method"] input').element
     ).toBeDefined();
+  });
+
+  it('exposes one axis selector for generic inputs without changing their saved settings', async () => {
+    const saved = {
+      axis: 2 as const,
+      depthStart: 100,
+      depthEnd: 103,
+      method: 'sum' as const,
+    };
+    const wrapper = mountControls(saved, true);
+    expect(
+      wrapper
+        .get('[data-testid="oct-advanced-toggle"]')
+        .attributes('aria-expanded')
+    ).toBe('true');
+    expect(wrapper.findAll('[data-testid="oct-projection-axis"]')).toHaveLength(
+      1
+    );
+    expect(
+      wrapper.get<HTMLInputElement>('[data-testid="oct-projection-axis"] input')
+        .element.value
+    ).toBe('Z (frames)');
+    expect(wrapper.emitted('patch')).toBeUndefined();
+    await wrapper.setProps({ expandAdvanced: false });
+    expect(
+      wrapper
+        .get('[data-testid="oct-advanced-toggle"]')
+        .attributes('aria-expanded')
+    ).toBe('false');
+    await wrapper.setProps({ expandAdvanced: true });
+    expect(wrapper.props('settings')).toMatchObject(saved);
+    expect(wrapper.emitted('patch')).toBeUndefined();
   });
 
   it('identifies the selected segment highlight color and follows selection changes', async () => {

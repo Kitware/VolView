@@ -169,6 +169,15 @@
       Sample data provided by the following sources:
       <ul>
         <li>
+          Retinal OCT: Heidelberg Spectralis data from
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://github.com/theislab/DeepRT#thickness-map-calculation"
+            >DeepRT</a
+          >, Theis Lab (MIT license).
+        </li>
+        <li>
           PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz,
           Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge data",
           The Cancer Imaging Archive (2017). DOI: 10.7937/K9TCIA.2017.MURS5CL

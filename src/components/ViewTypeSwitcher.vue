@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { getOCTAvailability } from '@/src/oct';
+import { getAvailableViews } from '@/src/config';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
 import { computed, toRefs } from 'vue';
@@ -17,10 +18,21 @@ const viewName = computed(() => {
   return viewInfo?.name ?? '';
 });
 
+const switcherViews = computed(() =>
+  getAvailableViews().list.filter(
+    (view) =>
+      view.type === 'EnFace' || !viewStore.disabledViewTypes.includes(view.type)
+  )
+);
+const enFaceReason = computed(() =>
+  viewStore.disabledViewTypes.includes('EnFace')
+    ? 'The current configuration disables En face views.'
+    : getOCTAvailability(imageId.value).reason
+);
+
 const availableViewNames = computed(() =>
-  viewStore.availableViewsForSwitcher.map((view) => {
-    const reason =
-      view.type === 'EnFace' ? getOCTAvailability(imageId.value).reason : null;
+  switcherViews.value.map((view) => {
+    const reason = view.type === 'EnFace' ? enFaceReason.value : null;
     return {
       title: view.name,
       value: view.name,
@@ -31,15 +43,9 @@ const availableViewNames = computed(() =>
 );
 
 function updateView(newViewName: string) {
-  const selectedView = viewStore.availableViewsForSwitcher.find(
-    (v) => v.name === newViewName
-  );
+  const selectedView = switcherViews.value.find((v) => v.name === newViewName);
   if (!selectedView) return;
-  if (
-    selectedView.type === 'EnFace' &&
-    !getOCTAvailability(imageId.value).available
-  )
-    return;
+  if (selectedView.type === 'EnFace' && enFaceReason.value) return;
   viewStore.replaceView(viewId.value, {
     ...selectedView,
     dataID: imageId.value,

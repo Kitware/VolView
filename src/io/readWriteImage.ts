@@ -10,21 +10,11 @@ import { getWorker } from '@/src/io/itk/worker';
 import type { LabelmapSegment } from '@/src/segmentation/model';
 import { maybeBuildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { repairUnusableSpacing } from '@/src/utils/imageSpace';
+import { imageHeaderMetadata } from './imageHeaderMetadata';
 
 export type ReadImageResult = {
   image: vtkImageData;
   headerMetadata?: Map<string, string>;
-};
-
-const getHeaderMetadata = (image: { metadata?: Map<string, unknown> }) => {
-  const metadata = image.metadata;
-  if (!(metadata instanceof Map) || !metadata.size) return undefined;
-
-  const headerMetadata = new Map<string, string>();
-  metadata.forEach((value, key) => {
-    headerMetadata.set(key, typeof value === 'string' ? value : String(value));
-  });
-  return headerMetadata;
 };
 
 // Repaired like the parent import so a restored labelmap keeps its grid.
@@ -36,11 +26,12 @@ export const readImage = async (file: File): Promise<ReadImageResult> => {
   }
 
   const { image } = await readImageItk(file, { webWorker: getWorker() });
+  const headerMetadata = await imageHeaderMetadata(file, image);
   const vtkImage = vtkITKHelper.convertItkToVtkImage(image);
   repairUnusableSpacing(vtkImage);
   return {
     image: vtkImage,
-    headerMetadata: getHeaderMetadata(image),
+    headerMetadata,
   };
 };
 

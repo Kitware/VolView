@@ -4,6 +4,7 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
+import RetinalOCTThumbnail from '@/src/assets/samples/Retinal-OCT.png';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -109,6 +110,14 @@ export const DefaultNamedLayouts: Record<string, LayoutConfig> = {
 };
 
 export const SAMPLE_DATA: SampleDataset[] = [
+  {
+    name: 'Retinal OCT',
+    filename: 'retinal-oct.dcm',
+    description: 'Heidelberg Spectralis retinal OCT. (12 MB)',
+    url: `${import.meta.env.BASE_URL}samples/retinal-oct.dcm`,
+    image: RetinalOCTThumbnail,
+    defaults: { layout: [['axial'], ['enface']] },
+  },
   {
     name: 'CTA Head and Neck',
     filename: 'CTA-Head_and_Neck.zip',

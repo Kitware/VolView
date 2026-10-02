@@ -144,7 +144,7 @@ const thicknessReason = computed(
     segmentationReason.value ||
     maskGeometryReason.value ||
     (!availability.value.calibratedAxes[settings.value.axis]
-      ? 'Physical spacing for this A-line axis is missing from the DICOM metadata; thickness in micrometers is unavailable.'
+      ? 'Physical units or spacing for this A-line axis are unavailable; thickness in micrometers is unavailable.'
       : null)
 );
 
@@ -182,7 +182,7 @@ const projectionRequest = computed(() => {
     volume: {
       scalars: volumeScalars.value.getData(),
       dimensions: [...dimensions.value],
-      spacing: [...currentImageData.value.getSpacing()],
+      spacing: currentImageData.value.getSpacing().map(Math.abs),
       numberOfComponents: volumeScalars.value.getNumberOfComponents(),
     },
     axis: settings.value.axis,
@@ -313,8 +313,8 @@ const canvasStyle = computed(() => {
   if (!result || !request) return {};
   const axes = [0, 1, 2].filter((axis) => axis !== request.axis);
   const aspect =
-    (result.width * request.volume.spacing[axes[0]]) /
-    (result.height * request.volume.spacing[axes[1]]);
+    (result.width * Math.abs(request.volume.spacing[axes[0]])) /
+    (result.height * Math.abs(request.volume.spacing[axes[1]]));
   const width = Math.min(
     displaySize.value.width,
     displaySize.value.height * aspect
@@ -532,6 +532,7 @@ const sourceLoading = computed(
               :segmentation-reason="segmentationReason"
               :thickness-reason="highlightReason"
               :segments="segmentOptions"
+              :expand-advanced="availability.available && !availability.isOCT"
             />
           </v-menu>
           <ViewTypeSwitcher

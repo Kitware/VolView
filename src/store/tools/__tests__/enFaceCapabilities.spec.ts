@@ -60,12 +60,14 @@ async function loadOCT(
   return id;
 }
 
-function addRegularVolume() {
+function addRegularVolume(flat = false) {
   const image = vtkImageData.newInstance();
-  image.setDimensions(2, 2, 2);
+  image.setDimensions(2, 2, flat ? 1 : 2);
   image
     .getPointData()
-    .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(8) }));
+    .setScalars(
+      vtkDataArray.newInstance({ values: new Uint8Array(flat ? 4 : 8) })
+    );
   return useImageCacheStore().addVTKImageData(image, 'Regular volume', {
     id: 'regular-volume',
   });
@@ -120,14 +122,33 @@ describe('activating an En face view', () => {
     expect(tools.currentTool).toBe(Tools.WindowLevel);
     expect(tools.paintUnavailableReason).toContain('En face projection');
   });
-  it.each(['non-OCT', 'radial', 'incomplete', 'missing'])(
+  it('allows standard contrast for a manually projected generic volume', async () => {
+    const dataID = addRegularVolume();
+    activateEnFace(dataID);
+    const tools = useToolStore();
+    await nextTick();
+    expect(getOCTAvailability(dataID)).toMatchObject({
+      available: true,
+      isOCT: false,
+    });
+    tools.setCurrentTool(Tools.WindowLevel);
+    expect(tools.currentTool).toBe(Tools.WindowLevel);
+    expect(
+      getToolUnavailableReason(
+        Tools.WindowLevel,
+        getEffectiveView(useViewStore().activeView)
+      )
+    ).toBeNull();
+  });
+
+  it.each(['2D', 'radial', 'incomplete', 'missing'])(
     'disables contrast after replacing En face with %s data without changing the view kind',
     async (replacement) => {
       const viewID = activateEnFace(await loadOCT());
       const tools = useToolStore();
       expect(tools.currentTool).toBe(Tools.WindowLevel);
       let dataID = 'missing';
-      if (replacement === 'non-OCT') dataID = addRegularVolume();
+      if (replacement === '2D') dataID = addRegularVolume(true);
       if (replacement === 'radial')
         dataID = await loadOCT('radial', { scanPattern: '128282' });
       if (replacement === 'incomplete')
