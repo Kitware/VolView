@@ -67,7 +67,7 @@
     "@wdio/visual-service": "^10.1.0",
     "color-name": "^1.1.4",
     "comlink": "^4.4.2",
-    "concurrently": "^10.0.4",
+    "concurrently": "^10.0.6",
     "core-js": "3.47.0",
     "cors": "^2.8.5",
     "cross-env": "^10.1.0",
