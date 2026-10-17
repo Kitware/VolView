@@ -314,6 +314,7 @@ export default tseslint.config(
       dir: 'oct',
       pure: [
         'src/oct/types.ts',
+        'src/oct/thickness.ts',
         'src/oct/projection.ts',
         'src/oct/sliceGeometry.ts',
         'src/oct/windowLevel.ts',

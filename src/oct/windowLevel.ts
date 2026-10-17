@@ -1,4 +1,5 @@
 import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
+import { isPresentThicknessBelow } from '@/src/oct/thickness';
 
 /** Same normalized viewport sensitivity as vtkMouseRangeManipulator. */
 export function windowLevelFromDrag(
@@ -95,8 +96,7 @@ export function paintThinRegionPixels(
   let count = 0;
   for (let index = 0; index < thickness.length; index += 1) {
     if (
-      thickness[index] > 0 &&
-      thickness[index] < thresholdMicrons &&
+      isPresentThicknessBelow(thickness[index], thresholdMicrons) &&
       (!appearance.validPixels || appearance.validPixels[index] === 1)
     ) {
       const offset = index * 4;

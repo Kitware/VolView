@@ -298,6 +298,68 @@ describe('Projection histogram windows', () => {
   });
 });
 describe('En face window/level drag and texture overlay', () => {
+  it.each([
+    ['native decimal equality', 0.003872, 35, 135.52, false],
+    ['slider decimal equality', 0.0039, 13, 50.7, false],
+    ['two-ULP decimal equality', 0.000511, 293, 149.723, false],
+    [
+      'native thickness below by 1e-12 µm',
+      0.003872,
+      35,
+      135.520000000001,
+      true,
+    ],
+    ['slider thickness below by 1e-12 µm', 0.0039, 13, 50.700000000001, true],
+    ['tiny thickness below by 1e-16 µm', 1e-18, 1, 1.1e-15, true],
+    ['above threshold', 0.003872, 35, 135.51, false],
+    ['absent label', 0.003872, 0, 135.52, false],
+    ['zero threshold', 0.003872, 35, 0, false],
+  ] as const)(
+    'paints calibrated projection pixels for %s',
+    (_, spacing, occupied, thresholdMicrons, highlighted) => {
+      const depth = Math.max(2, occupied);
+      const dimensions = [3, depth, 1];
+      const labels = new Uint8Array(3 * depth);
+      for (let y = 0; y < occupied; y += 1) labels[y * 3] = 1;
+      const result = projectEnFace({
+        volume: {
+          dimensions,
+          spacing: [0.01, spacing, 0.2],
+          scalars: new Uint8Array(3 * depth).fill(100),
+        },
+        axis: 1,
+        method: 'mean',
+        depthStart: 0,
+        depthEnd: depth - 1,
+        segmentation: { dimensions, scalars: labels, thresholdMicrons },
+      });
+      const pixels = new Uint8ClampedArray(12);
+      paintProjectionIntensities(result.values, pixels, {
+        width: 200,
+        level: 100,
+      });
+      expect(
+        paintThinRegionPixels(
+          pixels,
+          result.thicknessMicrons!,
+          thresholdMicrons,
+          { color: [0, 255, 0, 255], alpha: 1 }
+        )
+      ).toBe(highlighted ? 1 : 0);
+      expect(Array.from(result.thinMask!)).toEqual([highlighted ? 1 : 0, 0, 0]);
+      expect(Array.from(pixels)).toEqual([
+        ...(highlighted ? [0, 255, 0, 255] : [128, 128, 128, 255]),
+        128,
+        128,
+        128,
+        255,
+        128,
+        128,
+        128,
+        255,
+      ]);
+    }
+  );
   it('rejects malformed drag inputs instead of writing NaN contrast into the view', () => {
     expect(() =>
       windowLevelFromDrag(

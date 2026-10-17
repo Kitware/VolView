@@ -7,6 +7,7 @@ import type {
   ProjectionMethod,
   ProjectionPaddingRange,
 } from '@/src/oct/types';
+import { isPresentThicknessBelow } from '@/src/oct/thickness';
 
 function validateDimensions(dimensions: readonly number[], name: string) {
   if (
@@ -210,7 +211,6 @@ function prepareProjection(input: ProjectionInput) {
     width: volume.dimensions[horizontalAxis],
     height: volume.dimensions[verticalAxis],
     strides: [1, dimX, dimX * dimY],
-    // Convert units before multiplication to preserve decimal thresholds such as 20.8 µm.
     micronsPerVoxel: volume.spacing[axis] * 1000,
   };
 }
@@ -343,8 +343,12 @@ export function projectEnFace(input: ProjectionInput): ProjectionResult {
       if (mask) {
         const thickness = segmentThickness(grid, mask, column, row);
         result.thicknessMicrons![pixel] = thickness;
-        result.thinMask![pixel] =
-          thickness > 0 && thickness < mask.thresholdMicrons ? 1 : 0;
+        result.thinMask![pixel] = isPresentThicknessBelow(
+          thickness,
+          mask.thresholdMicrons
+        )
+          ? 1
+          : 0;
       }
     }
   }
