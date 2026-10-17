@@ -22,7 +22,7 @@ import {
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
 } from './utils';
-import { nonOCTDicom } from '../fixtures/oct/volumes';
+import { deflatedExplicitVR, nonOCTDicom } from '../fixtures/oct/volumes';
 import { paddedPublicOCT } from '../fixtures/oct/padding';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
@@ -181,6 +181,19 @@ async function getOriginalWindow() {
 async function expectProjectedPixels(values: number[]) {
   return expectEnFacePixels(values, reference.points);
 }
+
+async function expectPaddingPixels() {
+  expect(
+    await readEnFacePixels([
+      { x: 0, z: 0 },
+      { x: 5, z: 12 },
+    ])
+  ).toEqual([
+    [0, 0, 0, 255],
+    [0, 0, 0, 255],
+  ]);
+}
+
 async function expectHighlightCount(count: number) {
   await browser.waitUntil(
     async () =>
@@ -456,15 +469,35 @@ describe('Retinal OCT en face viewing', () => {
       '2'
     );
     expect(await coverage.getText()).toContain('A-lines without intensity: 2');
+    await expectPaddingPixels();
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+  it('imports deflated OCT through the file dialog with calibrated geometry and padding', async () => {
+    const directory = makeTempDir(STEM);
+    const file = path.join(directory, 'retina-padding-deflated.dcm');
+    const padded = paddedPublicOCT(
+      path.join(FIXTURES, 'oct', 'retina-derived.dcm')
+    );
+    fs.writeFileSync(file, deflatedExplicitVR(padded.bytes));
+    await volViewPage.open();
+    await openThroughDialog(file);
+    await volViewPage.waitForViews();
+    await volViewPage.openLayoutMenu();
+    const layout = $('[data-testid="oct-layout"]');
+    await layout.waitForClickable();
+    expect(await layout.getAttribute('class')).not.toContain(
+      'v-list-item--disabled'
+    );
+    await layout.click();
+    await $(CANVAS).waitForDisplayed();
+    await waitForProjection('mean');
+    await expectEnFacePixels(padded.mean, padded.points);
     expect(
-      await readEnFacePixels([
-        { x: 0, z: 0 },
-        { x: 5, z: 12 },
-      ])
-    ).toEqual([
-      [0, 0, 0, 255],
-      [0, 0, 0, 255],
-    ]);
+      await $('[data-testid="oct-coverage-summary"]').getAttribute(
+        'data-missing-intensity-alines'
+      )
+    ).toBe('2');
+    await expectPaddingPixels();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
   it('highlights physical thickness, excludes missing masks, and persists compact controls across a session restore', async () => {

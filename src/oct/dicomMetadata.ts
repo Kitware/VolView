@@ -1,4 +1,5 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
+import { inflateSync } from 'fflate';
 import { Tags } from '@/src/core/dicomTags';
 import { augmentOCTPadding } from '@/src/oct/padding';
 import {
@@ -184,6 +185,14 @@ export async function augmentOCTMetadata(
       {
         untilTag: 'x7fe00010',
         vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
+        inflater: (bytes, position) => {
+          const inflated = inflateSync(bytes.subarray(position));
+          // The parser requires the Part 10 header to retain metadata offsets.
+          const complete = new Uint8Array(position + inflated.length);
+          complete.set(bytes.subarray(0, position));
+          complete.set(inflated, position);
+          return complete;
+        },
       }
     );
     augmentOCTPadding(data, tags);

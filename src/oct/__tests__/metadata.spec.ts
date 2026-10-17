@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
 import { augmentOCTMetadata } from '@/src/oct/dicomMetadata';
 import { octPadding, OCT_PADDING_ERROR } from '@/src/oct/padding';
+import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
   isOCTMetadata,
   octCalibratedAxes,
@@ -191,6 +192,20 @@ describe('OCT DICOM activation', () => {
 });
 
 describe('OCT enhanced spatial metadata', () => {
+  it('reads deflated Explicit VR geometry with the required trailing NULL padding', async () => {
+    const bytes = deflatedExplicitVR(fixtureBytes());
+    expect(bytes.length % 2).toBe(0);
+    expect(bytes.at(-1)).toBe(0);
+    expect(await augmented(bytes)).toEqual(await augmented());
+  });
+
+  it('disables projection when the deflated dataset is truncated', async () => {
+    const bytes = deflatedExplicitVR(fixtureBytes());
+    expect(octGeometryReason(await augmented(bytes.subarray(0, -10)))).toMatch(
+      /could not be read|unavailable/
+    );
+  });
+
   it('reads the public real-pixel fixture and promotes nested geometry', async () => {
     const tags = await augmented();
     const pixelSpacing = tags.get(Tags.PixelSpacing)!.split('\\').map(Number);
@@ -264,14 +279,21 @@ describe('OCT enhanced spatial metadata', () => {
       );
     }
   );
-  it('rejects nonuniform B-scan positions in the public fixture', async () => {
-    const bytes = fixtureBytes();
-    const data = readDataset(bytes);
-    const finalFrame = data.elements.x52009230.items!.at(-1)!.dataSet!;
-    const position = firstItem(finalFrame, 'x00209113');
-    overwrite(position, 'x00200032', '0.0\\0.0\\5.8225');
-    expect(octGeometryReason(await augmented(bytes))).toMatch(/nonuniform/);
-  });
+  it.each([false, true])(
+    'rejects nonuniform B-scan positions with deflate=%s',
+    async (deflated) => {
+      const bytes = fixtureBytes();
+      const data = readDataset(bytes);
+      const finalFrame = data.elements.x52009230.items!.at(-1)!.dataSet!;
+      const position = firstItem(finalFrame, 'x00209113');
+      overwrite(position, 'x00200032', '0.0\\0.0\\5.8225');
+      expect(
+        octGeometryReason(
+          await augmented(deflated ? deflatedExplicitVR(bytes) : bytes)
+        )
+      ).toMatch(/nonuniform/);
+    }
+  );
 
   it('rejects tilted scan positions that leave the Cartesian voxel grid', async () => {
     const bytes = fixtureBytes();
@@ -430,17 +452,25 @@ describe('OCT padding metadata from actual binary DICOM attributes', () => {
     );
   });
 
-  it('rejects an unknown modality LUT when declared padding requires an exact mapping', async () => {
-    const tags = await augmentOCTMetadata(
-      enhancedFile(frames, [
+  it.each([false, true])(
+    'rejects an unknown modality LUT with deflate=%s',
+    async (deflated) => {
+      const file = enhancedFile(frames, [
         paddingElement('00280103', 0),
         paddingElement('00280120', 65535),
         sequence('00283000', []),
-      ]),
-      declarations()
-    );
-    expect(octPadding([tags], 2).reason).toMatch(
-      /unsupported modality transformation/
-    );
-  });
+      ]);
+      const tags = await augmentOCTMetadata(
+        deflated
+          ? new Blob([
+              deflatedExplicitVR(new Uint8Array(await file.arrayBuffer())),
+            ])
+          : file,
+        declarations()
+      );
+      expect(octPadding([tags], 2).reason).toMatch(
+        /unsupported modality transformation/
+      );
+    }
+  );
 });

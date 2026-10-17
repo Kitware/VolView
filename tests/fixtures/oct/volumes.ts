@@ -1,6 +1,46 @@
 import fs from 'node:fs';
 import dicomParser from 'dicom-parser';
-import { gzipSync } from 'node:zlib';
+import { deflateRawSync, gzipSync } from 'node:zlib';
+
+/** Preserve a Part 10 dataset while changing only its transfer syntax. */
+export function deflatedExplicitVR(source: Uint8Array) {
+  const data = dicomParser.parseDicom(source, { untilTag: 'x7fe00010' });
+  const position = Math.max(
+    ...Object.values(data.elements)
+      .filter((element) => element.tag.startsWith('x0002'))
+      .map((element) => element.dataOffset + element.length)
+  );
+  const syntax = data.elements.x00020010;
+  const uid = Buffer.from('1.2.840.10008.1.2.1.99', 'ascii');
+  const header = Buffer.alloc(8);
+  header.writeUInt16LE(2, 0);
+  header.writeUInt16LE(16, 2);
+  header.write('UI', 4);
+  header.writeUInt16LE(uid.length, 6);
+  let prefix = Buffer.concat([
+    source.subarray(0, syntax.dataOffset - 8),
+    header,
+    uid,
+    source.subarray(syntax.dataOffset + syntax.length, position),
+  ]);
+  const groupLength = data.elements.x00020000;
+  if (!groupLength) {
+    const lengthElement = Buffer.alloc(12);
+    lengthElement.writeUInt16LE(2, 0);
+    lengthElement.write('UL', 4);
+    lengthElement.writeUInt16LE(4, 6);
+    prefix = Buffer.concat([
+      prefix.subarray(0, 132),
+      lengthElement,
+      prefix.subarray(132),
+    ]);
+  }
+  const lengthOffset = groupLength?.dataOffset ?? 140;
+  prefix.writeUInt32LE(prefix.length - (lengthOffset + 4), lengthOffset);
+  const deflated = deflateRawSync(source.subarray(position));
+  // DICOM requires an even-length deflated stream with a trailing NULL if needed.
+  return Buffer.concat([prefix, deflated, Buffer.alloc(deflated.length % 2)]);
+}
 
 export function nonOCTDicom(sourcePath: string) {
   const bytes = fs.readFileSync(sourcePath);
