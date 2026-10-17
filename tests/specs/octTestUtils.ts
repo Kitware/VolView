@@ -176,6 +176,25 @@ export async function expectControlsBesideSelector() {
 const CANVAS = '[data-testid="oct-en-face-canvas"]';
 const STATE = '[data-testid="oct-en-face-state"]';
 
+export async function dragContrast(
+  canvas: WebdriverIO.Element,
+  dx: number,
+  dy: number,
+  duration = 100
+) {
+  const location = await canvas.getLocation();
+  const size = await canvas.getSize();
+  const x = Math.round(location.x + size.width / 2);
+  const y = Math.round(location.y + size.height / 2);
+  await browser
+    .action('pointer')
+    .move({ x, y })
+    .down()
+    .move({ x: x + dx, y: y + dy, duration })
+    .up()
+    .perform();
+}
+
 export async function readEnFacePixels(points: { x: number; z: number }[]) {
   return browser.execute(
     (selector, coordinates) => {

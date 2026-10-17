@@ -5,6 +5,7 @@ import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { makeTempDir, openThroughDialog, writeManifestToFile } from './utils';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
+  dragContrast,
   expectEnFacePixels,
   expectEnFaceDisabledInSwitcher,
 } from './octTestUtils';
@@ -47,6 +48,42 @@ async function waitForBitmap(width: number, height: number) {
       (await $(CANVAS).getAttribute('width')) === String(width) &&
       (await $(CANVAS).getAttribute('height')) === String(height)
   );
+}
+
+async function displayedWindow(view: WebdriverIO.Element) {
+  const match = (await view.getText()).match(
+    /W\/L:\s*([\d.]+)\s*\/\s*([\d.]+)/
+  );
+  if (!match) throw new Error('The source view has no window-level annotation');
+  return { width: Number(match[1]), level: Number(match[2]) };
+}
+
+async function canvasImage(view: WebdriverIO.Element) {
+  const source = await view.$('canvas').getElement();
+  return source.execute((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const copy = document.createElement('canvas');
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext('2d')!;
+    context.drawImage(canvas, 0, 0);
+    const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+    return {
+      image: copy.toDataURL(),
+      visiblePixels: pixels.filter(
+        (value, index) => index % 4 !== 3 && value > 20
+      ).length,
+    };
+  });
+}
+
+async function openNativeSample() {
+  await volViewPage.open();
+  const sample = volViewPage.samplesList.$('div[title="Retinal OCT"]');
+  await sample.waitForClickable();
+  await sample.click();
+  await waitForBitmap(native.dimensions[0], native.dimensions[2]);
+  await volViewPage.waitForViewCounts(1, false);
 }
 
 async function setSlab(start: number, end: number) {
@@ -110,13 +147,68 @@ async function expectSuppliedEnFacePlane(url: string) {
 }
 
 describe('Public OCT exports', () => {
+  it('keeps source contrast and pixels when replacing an independently windowed projection', async () => {
+    await openNativeSample();
+    if (
+      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
+        'v-navigation-drawer--active'
+      )
+    )
+      await $('header .mdi-menu').click();
+    const source = await (await volViewPage.getViews2D())[0].getElement();
+    const windowTool = $(
+      'button[data-testid^="control-button-Window & Level "]'
+    );
+    if (
+      !((await windowTool.getAttribute('class')) ?? '').includes(
+        'tool-btn-selected'
+      )
+    )
+      await windowTool.click();
+    await source.$('canvas').waitForStable();
+    const initialWindow = await displayedWindow(source);
+    const initialImage = await canvasImage(source);
+    await source.$('canvas').waitForClickable();
+    await dragContrast(await source.$('canvas').getElement(), 65, 45);
+    await browser.waitUntil(async () => {
+      const window = await displayedWindow(source);
+      return (
+        window.width !== initialWindow.width &&
+        window.level !== initialWindow.level &&
+        (await canvasImage(source)).image !== initialImage.image
+      );
+    });
+    const projectionWidth = await $(STATE).getAttribute('data-window-width');
+    await $(CANVAS).waitForStable();
+    await dragContrast(await $(CANVAS).getElement(), -50, 40);
+    await browser.waitUntil(
+      async () =>
+        (await $(STATE).getAttribute('data-window-width')) !== projectionWidth
+    );
+    const beforeWindow = await displayedWindow(source);
+    const beforeImage = await canvasImage(source);
+    expect(beforeImage.visiblePixels).toBeGreaterThan(1000);
+    await $(
+      '[data-testid="oct-en-face-viewer"] .view-type-select .v-field'
+    ).click();
+    const axial = $(
+      '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Axial"]'
+    );
+    await axial.waitForClickable();
+    await axial.click();
+    await $(CANVAS).waitForExist({ reverse: true });
+    await volViewPage.waitForViewCounts(2, false);
+    const replacement = await (await volViewPage.getViews2D())[1].getElement();
+    await browser.waitUntil(
+      async () => (await canvasImage(replacement)).visiblePixels > 1000
+    );
+    expect(await displayedWindow(source)).toEqual(beforeWindow);
+    expect(await displayedWindow(replacement)).toEqual(beforeWindow);
+    expect((await canvasImage(source)).image).toBe(beforeImage.image);
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
   it('loads the native Heidelberg DICOM from the sample browser with calibrated stacked views', async () => {
-    await volViewPage.open();
-    const sample = volViewPage.samplesList.$('div[title="Retinal OCT"]');
-    await sample.waitForClickable();
-    await sample.click();
-    await waitForBitmap(native.dimensions[0], native.dimensions[2]);
-    await volViewPage.waitForViewCounts(1, false);
+    await openNativeSample();
     const spacing = await waitForFirstCachedImageSpacing();
     spacing.forEach((value, axis) =>
       expect(value).toBeCloseTo(native.spacing[axis], 6)

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  dragContrast,
   stageIllustrativeMask,
   stageGenericOCT,
   ILLUSTRATIVE_THIN_COLUMNS,
@@ -160,17 +161,7 @@ async function dragEnFaceContrast() {
   )
     await $(WINDOW_TOOL).click();
   const before = await getWindow();
-  const location = await $(CANVAS).getLocation();
-  const size = await $(CANVAS).getSize();
-  const x = Math.round(location.x + size.width / 2);
-  const y = Math.round(location.y + size.height / 2);
-  await browser
-    .action('pointer')
-    .move({ x, y })
-    .down()
-    .move({ x: x + 60, y: y + 40, duration: 300 })
-    .up()
-    .perform();
+  await dragContrast(await $(CANVAS).getElement(), 60, 40, 300);
   await browser.waitUntil(async () => {
     const after = await getWindow();
     return after.width !== before.width && after.level !== before.level;
