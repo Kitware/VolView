@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { URL as FileURL } from 'node:url';
 import dicomParser from 'dicom-parser';
 import { Chunk } from '@/src/core/streaming/chunk';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
@@ -7,16 +5,13 @@ import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoa
 import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
 import { Tags } from '@/src/core/dicomTags';
 
-const fixtureURL = new FileURL(
-  '../fixtures/oct/retina-derived.dcm',
-  import.meta.url
-);
+import { createSyntheticOCT } from '../fixtures/oct/dicom';
 
-/** Uses real fixture pixels and production chunk/file loaders without a browser WASM worker. */
+/** Uses synthetic pixels and production chunk/file loaders without a browser WASM worker. */
 export function createOCTFixture(
   options: { scanPattern?: string; deferDecode?: boolean } = {}
 ) {
-  const bytes = Uint8Array.from(readFileSync(fixtureURL));
+  const bytes = Uint8Array.from(createSyntheticOCT());
   if (options.scanPattern) {
     const data = dicomParser.parseDicom(bytes, { untilTag: 'x7fe00010' });
     const pattern =
@@ -27,7 +22,7 @@ export function createOCTFixture(
     bytes.fill(0x20, pattern.dataOffset, pattern.dataOffset + pattern.length);
     bytes.set(replacement, pattern.dataOffset);
   }
-  const file = new File([bytes], 'retina-derived.dcm');
+  const file = new File([bytes], 'synthetic-oct.dcm');
   const chunk = new Chunk({
     metaLoader: new DicomFileMetaLoader(file, async (input) => {
       const data = dicomParser.parseDicom(

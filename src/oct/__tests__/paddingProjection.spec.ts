@@ -30,21 +30,19 @@ function mask() {
     scalars: Uint8Array.from([
       1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0,
     ]),
-    thresholdMicrons: 9,
   };
 }
 
 describe('Declared OCT padding', () => {
   it.each([
-    ['mean', [20, 0, 100.5, 0, 60, 11]],
-    ['max', [30, 0, 101, 0, 70, 12]],
-    ['sum', [40, 0, 201, 0, 180, 33]],
+    ['mean', [20, 0, 100.5, NaN, 60, 11]],
+    ['max', [30, 0, 101, NaN, 70, 12]],
+    ['sum', [40, 0, 201, NaN, 180, 33]],
   ] as const)(
     'excludes padding from %s while preserving measured zeros',
     (method, expected) => {
       const result = projectEnFace({ ...input(), method });
       expect(Array.from(result.values)).toEqual(expected);
-      expect(Array.from(result.validPixels!)).toEqual([1, 1, 1, 0, 1, 1]);
     }
   );
 
@@ -52,11 +50,9 @@ describe('Declared OCT padding', () => {
     const request = { ...input(), segmentation: mask() };
     const full = projectEnFace(request);
     expect(Array.from(full.thicknessMicrons!)).toEqual([NaN, 8, 4, NaN, 12, 0]);
-    expect(Array.from(full.thinMask!)).toEqual([0, 1, 1, 0, 0, 0]);
     const slab = projectEnFace({ ...request, depthEnd: 0 });
     expect(slab.thicknessMicrons).toEqual(full.thicknessMicrons);
     expect(slab.values[0]).toBe(10);
-    expect(slab.validPixels![0]).toBe(1);
     expect(request.segmentation.scalars).toEqual(mask().scalars);
   });
 
@@ -67,17 +63,14 @@ describe('Declared OCT padding', () => {
         dimensions: [1, 2, 1],
         extent: [0, 0, 1, 2, 0, 0],
         scalars: Uint8Array.from([1, 1]),
-        thresholdMicrons: 9,
       },
     });
     expect(Array.from(result.thicknessMicrons!)).toEqual([NaN, 0, 0, 0, 0, 0]);
-    expect(Array.from(result.thinMask!)).toEqual([0, 0, 0, 0, 0, 0]);
   });
 
   it('uses the source frame of every sample for projections along Z and X', () => {
     const z = projectEnFace({ ...input(), axis: 2, depthEnd: 1 });
-    expect(Array.from(z.values)).toEqual([10, 25, 55, 0, 30, 56, 30, 70, 12]);
-    expect(Array.from(z.validPixels!)).toEqual([1, 1, 1, 0, 1, 1, 1, 1, 1]);
+    expect(Array.from(z.values)).toEqual([10, 25, 55, NaN, 30, 56, 30, 70, 12]);
     const x = projectEnFace({ ...input(), axis: 0 });
     expect(Array.from(x.values)).toEqual([
       Math.fround(110 / 3),
@@ -107,7 +100,6 @@ describe('Declared OCT padding', () => {
       5,
       Math.fround(10 / 3),
     ]);
-    expect(Array.from(result.validPixels!)).toEqual([1, 1, 1, 1, 1, 1]);
   });
 
   it('rejects an entirely padded slab and malformed or overlapping declarations', () => {
@@ -135,14 +127,13 @@ describe('Declared OCT padding', () => {
   });
 
   it('excludes missing pixels from contrast and keeps missing areas black', () => {
-    const values = Float32Array.from([0, 100, 200]);
-    const valid = Uint8Array.from([0, 1, 1]);
-    expect(projectionWindowRanges(values, valid)?.ranges.FullRange).toEqual([
+    const values = Float32Array.from([NaN, 100, 200]);
+    expect(projectionWindowRanges(values)?.ranges.FullRange).toEqual([
       100, 200,
     ]);
-    expect(projectionWindowRanges(values, new Uint8Array(3))).toBeNull();
+    expect(projectionWindowRanges([NaN, NaN, NaN])).toBeNull();
     const pixels = new Uint8ClampedArray(12);
-    paintProjectionIntensities(values, pixels, { width: 200, level: 0 }, valid);
+    paintProjectionIntensities(values, pixels, { width: 200, level: 0 });
     expect(Array.from(pixels)).toEqual([
       0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     ]);
@@ -150,7 +141,7 @@ describe('Declared OCT padding', () => {
       paintThinRegionPixels(pixels, [4, 0, 4], 5, {
         color: [0, 255, 0, 255],
         alpha: 1,
-        validPixels: valid,
+        values,
       })
     ).toBe(1);
     expect(Array.from(pixels.slice(0, 4))).toEqual([0, 0, 0, 255]);

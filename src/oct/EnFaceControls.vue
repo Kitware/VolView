@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ColorDot from '@/src/components/ColorDot.vue';
 import { OCT_THICKNESS_HELP } from './thickness';
@@ -8,24 +8,21 @@ import type { OCTViewConfig } from './store';
 const props = defineProps<{
   settings: OCTViewConfig;
   depthMaximum: number;
+  thresholdMaximum: number;
   projectionReason: string | null;
   segmentationReason: string | null;
+  highlightReason: string | null;
   thicknessReason: string | null;
-  expandAdvanced?: boolean;
   segments: { value: string; title: string; color?: string }[];
 }>();
 const emit = defineEmits<{ patch: [settings: Partial<OCTViewConfig>] }>();
-const expandedPanel = ref(props.expandAdvanced ? 0 : undefined);
-watch(
-  () => props.expandAdvanced,
-  (expand) => {
-    expandedPanel.value = expand ? 0 : undefined;
-  }
-);
-const selectedSegmentColor = computed(
+const expandedSections = ref([0, 1]);
+const segmentReason = computed(
   () =>
-    props.segments.find(({ value }) => value === props.settings.selectedMaskId)
-      ?.color
+    props.segmentationReason ||
+    (!props.settings.highlightThin
+      ? 'Enable thin-region highlighting to choose a segment.'
+      : null)
 );
 const thresholdReason = computed(
   () =>
@@ -39,50 +36,19 @@ const projectionMethods = [
   { title: 'Maximum', value: 'max' },
   { title: 'Sum', value: 'sum' },
 ];
-const projectionLabel = computed(
-  () =>
-    projectionMethods.find(({ value }) => value === props.settings.method)
-      ?.title ?? 'Mean'
-);
 const axes = [
   { title: 'X (columns)', value: 0 },
   { title: 'Y (rows)', value: 1 },
   { title: 'Z (frames)', value: 2 },
 ];
-const depthStartDraft = ref<string | number | null>(null);
-const depthEndDraft = ref<string | number | null>(null);
-function syncDepthDrafts() {
-  depthStartDraft.value = props.settings.depthStart;
-  depthEndDraft.value = props.settings.depthEnd ?? props.depthMaximum;
-}
-watch(
-  [
-    () => props.settings.depthStart,
-    () => props.settings.depthEnd,
-    () => props.depthMaximum,
-  ],
-  syncDepthDrafts,
-  { immediate: true }
-);
-
-function commitDepth(field: 'depthStart' | 'depthEnd') {
-  const draft =
-    field === 'depthStart' ? depthStartDraft.value : depthEndDraft.value;
-  const parsed = Number(draft);
-  if (draft === null || draft === '' || !Number.isFinite(parsed)) {
-    syncDepthDrafts();
-    return;
-  }
-  const value = Math.min(props.depthMaximum, Math.max(0, Math.round(parsed)));
-  const patch: Partial<OCTViewConfig> = { [field]: value };
-  if (
-    field === 'depthStart' &&
-    value > (props.settings.depthEnd ?? props.depthMaximum)
-  )
-    patch.depthEnd = value;
-  if (field === 'depthEnd' && value < props.settings.depthStart)
-    patch.depthStart = value;
-  emit('patch', patch);
+// VRangeSlider does not expose separate accessible names for its thumbs.
+const vSlabLabels = (element: HTMLElement) => {
+  element.querySelectorAll('[role="slider"]').forEach((thumb, index) => {
+    thumb.setAttribute('aria-label', index === 0 ? 'Slab start' : 'Slab end');
+  });
+};
+function updateSlab([depthStart, depthEnd]: number[]) {
+  emit('patch', { depthStart, depthEnd });
 }
 function updateThreshold(value: string | number | null) {
   const parsed = Number(value);
@@ -114,116 +80,23 @@ function updateHighlight(highlightThin: boolean | null) {
     width="300"
     rounded="lg"
     data-testid="oct-rendering-panel"
+    @dblclick.stop
   >
-    <v-card-title class="controls-title">
-      <span>En face</span>
-      <v-chip size="x-small" variant="tonal" class="projection-chip"
-        >{{ projectionLabel }} projection</v-chip
-      >
-    </v-card-title>
+    <v-card-title class="controls-title">En face</v-card-title>
     <v-card-text class="pt-0 pb-3">
-      <ReasonedAction :reason="segmentationReason ?? undefined" block>
-        <v-select
-          :model-value="settings.selectedMaskId"
-          @update:model-value="updateSegment"
-          :items="segments"
-          label="Thickness segment"
-          :placeholder="
-            segments.length ? undefined : 'No associated segmentation'
-          "
-          persistent-placeholder
-          density="compact"
-          variant="outlined"
-          hide-details
-          :disabled="!!segmentationReason"
-          aria-label="OCT thickness segment"
-          data-testid="oct-segmentation-segment"
-        />
-      </ReasonedAction>
-      <ReasonedAction :reason="thicknessReason ?? undefined" block>
-        <v-switch
-          :model-value="settings.highlightThin"
-          @update:model-value="updateHighlight"
-          color="secondary"
-          density="compact"
-          hide-details
-          :disabled="!!thicknessReason"
-          aria-label="Highlight thin OCT regions"
-          data-testid="oct-thin-highlight"
-        >
-          <template #label>
-            <span>Highlight thin regions</span>
-            <ColorDot
-              v-if="selectedSegmentColor"
-              :color="selectedSegmentColor"
-              class="ml-2"
-              aria-hidden="true"
-              data-testid="oct-highlight-color"
-            />
-          </template>
-        </v-switch>
-      </ReasonedAction>
-      <div class="threshold-heading">
-        <span class="text-body-2">
-          Thickness below
-          <ReasonedAction :tooltip="OCT_THICKNESS_HELP" class="ml-1">
-            <v-btn
-              icon="mdi-information-outline"
-              size="x-small"
-              variant="text"
-              aria-label="About OCT thickness"
-              data-testid="oct-thickness-help"
-            />
-          </ReasonedAction>
-        </span>
-        <ReasonedAction
-          :reason="thresholdReason ?? undefined"
-          class="threshold-value"
-          block
-        >
-          <v-text-field
-            :model-value="settings.thresholdMicrons"
-            @update:model-value="updateThreshold"
-            type="number"
-            min="0"
-            step="any"
-            suffix="µm"
-            density="compact"
-            variant="outlined"
-            hide-details
-            :disabled="!!thresholdReason"
-            aria-label="OCT thickness threshold in micrometers"
-            data-testid="oct-thickness-threshold-input"
-          />
-        </ReasonedAction>
-      </div>
-      <ReasonedAction :reason="thresholdReason ?? undefined" block>
-        <v-slider
-          :model-value="settings.thresholdMicrons"
-          @update:model-value="updateSliderThreshold"
-          min="0"
-          :max="Math.max(500, settings.thresholdMicrons)"
-          :step="0"
-          density="compact"
-          hide-details
-          :disabled="!!thresholdReason"
-          name="OCT thickness threshold in micrometers"
-          data-testid="oct-thickness-threshold"
-        />
-      </ReasonedAction>
-      <v-divider class="mt-1 mb-1" />
       <v-expansion-panels
-        v-model="expandedPanel"
+        v-model="expandedSections"
+        multiple
         variant="accordion"
         flat
-        class="advanced-controls"
+        class="control-sections"
       >
         <v-expansion-panel bg-color="transparent">
           <v-expansion-panel-title
-            class="advanced-title"
+            class="section-title"
             :min-height="36"
-            data-testid="oct-advanced-toggle"
-            >Advanced</v-expansion-panel-title
+            data-testid="oct-projection-toggle"
+            >Projection</v-expansion-panel-title
           >
           <v-expansion-panel-text>
             <ReasonedAction :reason="projectionReason ?? undefined" block>
@@ -256,50 +129,146 @@ function updateHighlight(highlightThin: boolean | null) {
                 data-testid="oct-projection-axis"
               />
             </ReasonedAction>
-            <div class="slab-fields">
+            <ReasonedAction
+              :reason="projectionReason ?? undefined"
+              tooltip="First and last A-line sample indices, both included in the projection."
+              block
+            >
+              <v-range-slider
+                v-slab-labels
+                :model-value="[
+                  settings.depthStart,
+                  settings.depthEnd ?? depthMaximum,
+                ]"
+                @update:model-value="updateSlab"
+                label="Slab"
+                min="0"
+                :max="depthMaximum"
+                step="1"
+                thumb-label="always"
+                density="compact"
+                hide-details
+                :disabled="!!projectionReason"
+                data-testid="oct-slab-range"
+              />
+            </ReasonedAction>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+        <v-expansion-panel bg-color="transparent">
+          <v-expansion-panel-title
+            class="section-title"
+            :min-height="36"
+            data-testid="oct-thickness-toggle"
+            >Thickness highlighting</v-expansion-panel-title
+          >
+          <v-expansion-panel-text class="thickness-controls">
+            <ReasonedAction :reason="highlightReason ?? undefined" block>
+              <v-switch
+                :model-value="settings.highlightThin"
+                @update:model-value="updateHighlight"
+                color="secondary"
+                density="compact"
+                hide-details
+                :disabled="!!highlightReason"
+                aria-label="Highlight thin OCT regions"
+                data-testid="oct-thin-highlight"
+                label="Highlight thin regions"
+              />
+            </ReasonedAction>
+            <ReasonedAction :reason="segmentReason ?? undefined" block>
+              <v-select
+                :model-value="settings.selectedMaskId"
+                @update:model-value="updateSegment"
+                :items="segments"
+                label="Thickness segment"
+                :placeholder="
+                  segments.length ? undefined : 'No associated segmentation'
+                "
+                persistent-placeholder
+                density="compact"
+                variant="outlined"
+                hide-details
+                :disabled="!!segmentReason"
+                aria-label="OCT thickness segment"
+                data-testid="oct-segmentation-segment"
+              >
+                <template #selection="{ item }">
+                  <span class="d-inline-flex align-center overflow-hidden">
+                    <ColorDot
+                      v-if="item.raw.color"
+                      :color="item.raw.color"
+                      class="mr-2 flex-shrink-0"
+                      aria-hidden="true"
+                      data-testid="oct-segment-color"
+                    />
+                    <span class="text-truncate">{{ item.title }}</span>
+                  </span>
+                </template>
+                <template #item="{ props: itemProps, item }">
+                  <v-list-item v-bind="itemProps">
+                    <template #prepend>
+                      <ColorDot
+                        v-if="item.raw.color"
+                        :color="item.raw.color"
+                        class="mr-2"
+                        aria-hidden="true"
+                        data-testid="oct-segment-option-color"
+                      />
+                    </template>
+                  </v-list-item>
+                </template>
+              </v-select>
+            </ReasonedAction>
+            <div class="threshold-heading">
+              <span class="threshold-label text-body-2">
+                Thickness below
+                <ReasonedAction :tooltip="OCT_THICKNESS_HELP" class="ml-1">
+                  <v-btn
+                    icon="mdi-information-outline"
+                    size="x-small"
+                    variant="text"
+                    aria-label="About OCT thickness"
+                    data-testid="oct-thickness-help"
+                  />
+                </ReasonedAction>
+              </span>
               <ReasonedAction
-                :reason="projectionReason ?? undefined"
-                tooltip="First A-line sample index, included in the projection."
+                :reason="thresholdReason ?? undefined"
+                class="threshold-value"
                 block
               >
                 <v-text-field
-                  v-model="depthStartDraft"
-                  @change="commitDepth('depthStart')"
-                  label="Slab start"
+                  :model-value="settings.thresholdMicrons"
+                  @update:model-value="updateThreshold"
                   type="number"
                   min="0"
-                  :max="depthMaximum"
-                  step="1"
+                  step="any"
+                  suffix="µm"
                   density="compact"
                   variant="outlined"
                   hide-details
-                  :disabled="!!projectionReason"
-                  aria-label="En face slab start"
-                  data-testid="oct-slab-start"
-                />
-              </ReasonedAction>
-              <ReasonedAction
-                :reason="projectionReason ?? undefined"
-                tooltip="Last A-line sample index, included in the projection."
-                block
-              >
-                <v-text-field
-                  v-model="depthEndDraft"
-                  @change="commitDepth('depthEnd')"
-                  label="Slab end"
-                  type="number"
-                  min="0"
-                  :max="depthMaximum"
-                  step="1"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-                  :disabled="!!projectionReason"
-                  aria-label="En face slab end"
-                  data-testid="oct-slab-end"
+                  :disabled="!!thresholdReason"
+                  aria-label="OCT thickness threshold in micrometers"
+                  data-testid="oct-thickness-threshold-input"
                 />
               </ReasonedAction>
             </div>
+            <ReasonedAction :reason="thresholdReason ?? undefined" block>
+              <v-slider
+                :model-value="
+                  Math.min(settings.thresholdMicrons, thresholdMaximum)
+                "
+                @update:model-value="updateSliderThreshold"
+                min="0"
+                :max="thresholdMaximum"
+                :step="0"
+                density="compact"
+                hide-details
+                :disabled="!!thresholdReason"
+                name="OCT thickness threshold in micrometers"
+                data-testid="oct-thickness-threshold"
+              />
+            </ReasonedAction>
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
@@ -313,42 +282,34 @@ function updateHighlight(highlightThin: boolean | null) {
   overflow-y: auto;
 }
 .controls-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   font-size: 1rem;
   padding: 12px 16px;
-}
-.projection-chip {
-  font-weight: 400;
-  letter-spacing: normal;
 }
 .threshold-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   margin-top: 4px;
+}
+.threshold-label {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
 }
 .threshold-value {
   width: 112px;
   flex: 0 0 112px;
 }
-.slab-fields {
-  display: flex;
-  gap: 8px;
-}
-.slab-fields > * {
-  flex: 1;
-  min-width: 0;
-}
-.advanced-title {
+.section-title {
   padding: 0 4px;
   font-size: 0.8125rem;
 }
-.advanced-controls :deep(.v-expansion-panel-text__wrapper) {
+.control-sections :deep(.v-expansion-panel-text__wrapper) {
   padding: 8px 0 0;
+}
+.thickness-controls :deep(.v-expansion-panel-text__wrapper) {
+  padding-top: 0;
 }
 .en-face-controls :deep(.v-switch .v-label) {
   font-size: 0.875rem;

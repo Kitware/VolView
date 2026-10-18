@@ -10,27 +10,24 @@ export type ProjectionPaddingRange = {
   max: number;
 };
 /** Scalar voxels use VTK order: x + width * (y + height * z). */
-export interface ScalarVolume {
+export type ScalarVolume = {
   scalars: ArrayLike<number>;
   dimensions: readonly number[];
   /** Physical voxel spacing in millimeters. */
   spacing: readonly number[];
   paddingRanges?: readonly ProjectionPaddingRange[];
   numberOfComponents?: number;
-}
+};
 
-export interface SegmentationProjection {
+export type SegmentationProjection = {
   scalars: ArrayLike<number>;
   dimensions: readonly number[];
   numberOfComponents?: number;
   /** Inclusive bounds in parent voxel coordinates; omitted for a full mask. */
   extent?: readonly number[];
-  /** Positive label value to measure; binary segment masks use 1. */
-  segmentValue?: number;
-  thresholdMicrons: number;
-}
+};
 
-export interface ProjectionInput {
+export type ProjectionInput = {
   volume: ScalarVolume;
   axis: ProjectionAxis;
   method: ProjectionMethod;
@@ -38,17 +35,14 @@ export interface ProjectionInput {
   depthStart: number;
   depthEnd: number;
   segmentation?: SegmentationProjection;
-}
+};
 
-export interface ProjectionResult {
+export type ProjectionResult = {
   /** The remaining voxel axes, in increasing axis order, are width then height. */
   width: number;
   height: number;
+  /** NaN marks an A-line with no valid intensity samples in the selected slab. */
   values: Float32Array;
-  /** 0 marks an A-line with no valid intensity samples in the selected slab. */
-  validPixels?: Uint8Array;
   /** Full-A-line occupied thickness; NaN when a selected mask voxel is padding. */
   thicknessMicrons?: Float64Array;
-  /** 1 only where present segment thickness is strictly below the threshold. */
-  thinMask?: Uint8Array;
-}
+};

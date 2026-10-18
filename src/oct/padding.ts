@@ -1,5 +1,6 @@
 import type { DataSet } from 'dicom-parser';
 import { Tags } from '@/src/core/dicomTags';
+import type { ProjectionPaddingRange } from '@/src/oct/types';
 
 export const OCT_PADDING_ERROR = 'oct:padding-error';
 const paddingTags = [Tags.PixelPaddingValue, Tags.PixelPaddingRangeLimit];
@@ -90,14 +91,10 @@ function paddingForChunk(tags: Map<string, string>) {
   return { range, reason: range ? null : invalid };
 }
 
-type PaddingRange = {
-  firstFrame: number;
-  lastFrame: number;
-  min: number;
-  max: number;
-};
-
-function appendRange(ranges: PaddingRange[], next: PaddingRange) {
+function appendRange(
+  ranges: ProjectionPaddingRange[],
+  next: ProjectionPaddingRange
+) {
   const previous = ranges.at(-1);
   if (
     previous &&
@@ -115,7 +112,7 @@ export function octPadding(
   frameCount: number
 ) {
   const declarations = metadata.map((entry) => paddingForChunk(new Map(entry)));
-  const ranges: PaddingRange[] = [];
+  const ranges: ProjectionPaddingRange[] = [];
   const error = declarations.find(({ reason }) => reason);
   if (error) return { ranges, reason: error.reason };
   if (!declarations.some(({ range }) => range)) return { ranges, reason: null };

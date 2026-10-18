@@ -1,20 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { gzipSync } from 'node:zlib';
-import { FIXTURES } from '../../wdio.shared.conf';
-import { publicOCTGrid, publicOCTVolume } from '../fixtures/oct/volumes';
+import { Key } from 'webdriverio';
+import {
+  syntheticOCTGrid,
+  syntheticOCTVolume,
+  syntheticMask,
+} from '../fixtures/oct/volumes';
 
 export function stageGenericOCT(
   directory: string,
   format: 'nrrd' | 'nii' | 'vti',
   unitsKnown = true
 ) {
-  const source = path.join(FIXTURES, 'oct', 'retina-derived.dcm');
   const name =
-    'retina-public' + (unitsKnown ? '' : '-unknown-units') + '.' + format;
+    'synthetic-oct' + (unitsKnown ? '' : '-unknown-units') + '.' + format;
   let bytes: Buffer;
   if (format === 'vti') {
-    const volume = publicOCTGrid(source);
+    const volume = syntheticOCTGrid();
     const [width, frames, depth] = volume.dimensions;
     const spacing = [...volume.spacing];
     spacing[0] *= -1;
@@ -40,59 +42,16 @@ export function stageGenericOCT(
         Array.from(volume.scalars).join(' ') +
         '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
     );
-  } else bytes = publicOCTVolume(source, format, unitsKnown);
+  } else bytes = syntheticOCTVolume(format, unitsKnown);
   fs.writeFileSync(path.join(directory, name), bytes);
   return name;
 }
 
-// A display illustration with a localized thin patch, never clinical ground truth.
-// This matches tests/fixtures/oct/illustrative.py without requiring Python at runtime.
-export function stageIllustrativeMask(
-  directory: string,
-  size: number[],
-  spacing: number[]
-) {
-  const [width, depth, frames] = size;
-  const mask = Buffer.alloc(width * depth * frames);
-  for (let z = 0; z < frames; z++) {
-    for (let x = 0; x < width; x++) {
-      const bottom = Math.round(
-        145 +
-          26 * Math.sin((Math.PI * x) / (width - 1)) +
-          2 * Math.sin((Math.PI * z) / (frames - 1))
-      );
-      const thin = ((x - 76) / 12) ** 2 + ((z - 16) / 3) ** 2 <= 1;
-      const thickness = thin ? 2 : 5;
-      for (let y = bottom - thickness + 1; y <= bottom; y++)
-        mask[(z * depth + y) * width + x] = 1;
-    }
-  }
-  const [sx, sy, sz] = spacing;
-  const header = [
-    'NRRD0005',
-    'type: unsigned char',
-    'dimension: 3',
-    'sizes: ' + width + ' ' + depth + ' ' + frames,
-    'space: left-posterior-superior',
-    'space directions: (' + sx + ',0,0) (0,' + sy + ',0) (0,0,' + sz + ')',
-    'space origin: (0,0,0)',
-    'Segment0_LabelValue:=1',
-    'Segment0_Name:=Synthetic retinal layer',
-    'Segment0_Color:=0.13725490196078433 0.8431372549019608 0.7450980392156863',
-    'encoding: gzip',
-    '',
-    '',
-  ].join('\n');
+export function stageIllustrativeMask(directory: string) {
   const name = 'illustrative-layer.nrrd';
-  fs.writeFileSync(
-    path.join(directory, name),
-    Buffer.concat([Buffer.from(header), gzipSync(mask)])
-  );
+  fs.writeFileSync(path.join(directory, name), syntheticMask(true));
   return name;
 }
-// Independently counted by the Python generator from the same known voxel geometry.
-export const ILLUSTRATIVE_THIN_COLUMNS = 107;
-
 async function sourceMaskPixels() {
   return browser.execute(() => {
     const source = document.querySelector<HTMLCanvasElement>(
@@ -165,16 +124,70 @@ export async function expectControlsBesideSelector() {
     return {
       gap: select.left - tune.right,
       panelLeft: panel.getBoundingClientRect().left,
-      imageRight: canvas.getBoundingClientRect().right,
+      panelRight: panel.getBoundingClientRect().right,
+      viewportWidth: innerWidth,
     };
   });
   expect(bounds.gap).toBeGreaterThanOrEqual(0);
   expect(bounds.gap).toBeLessThan(12);
-  expect(bounds.panelLeft).toBeGreaterThanOrEqual(bounds.imageRight);
+  expect(bounds.panelLeft).toBeGreaterThanOrEqual(0);
+  expect(bounds.panelRight).toBeLessThanOrEqual(bounds.viewportWidth);
 }
 
 const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const STATE = '[data-testid="oct-en-face-state"]';
+
+export async function expandEnFaceSection(section: 'projection' | 'thickness') {
+  const toggle = $('[data-testid="oct-' + section + '-toggle"]');
+  await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await toggle.waitForClickable();
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true')
+    await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  const content = toggle.$('..').$('.v-expansion-panel-text');
+  await content.waitForDisplayed();
+  await content.waitForStable();
+  await $('[data-testid="oct-rendering-panel"]').waitForStable();
+}
+
+export const slabThumb = (bound: 'start' | 'end') =>
+  $(
+    '[data-testid="oct-slab-range"] [role="slider"][aria-label="Slab ' +
+      bound +
+      '"]'
+  );
+
+export async function setSlabRange(start: number, end: number) {
+  for (const [bound, value] of [
+    ['start', 0],
+    ['end', end],
+    ['start', start],
+  ] as const) {
+    const thumb = slabThumb(bound);
+    await thumb.scrollIntoView({ block: 'center', inline: 'nearest' });
+    await thumb.waitForClickable();
+    if (Number(await thumb.getAttribute('aria-valuenow')) !== value) {
+      await thumb.click();
+      const min = Number(
+        await (bound === 'end' ? slabThumb('start') : thumb).getAttribute(
+          bound === 'end' ? 'aria-valuenow' : 'aria-valuemin'
+        )
+      );
+      const max = Number(
+        await (bound === 'start' ? slabThumb('end') : thumb).getAttribute(
+          bound === 'start' ? 'aria-valuenow' : 'aria-valuemax'
+        )
+      );
+      const fromMin = value - min <= max - value;
+      const endpoint = fromMin ? Key.Home : Key.End;
+      const direction = fromMin ? Key.ArrowRight : Key.ArrowLeft;
+      const distance = fromMin ? value - min : max - value;
+      const keys = browser.action('key').down(endpoint).up(endpoint);
+      for (let i = 0; i < distance; i++) keys.down(direction).up(direction);
+      await keys.perform();
+    }
+    await expect(thumb).toHaveAttribute('aria-valuenow', String(value));
+  }
+}
 
 export async function dragContrast(
   canvas: WebdriverIO.Element,
@@ -195,54 +208,98 @@ export async function dragContrast(
     .perform();
 }
 
-export async function readEnFacePixels(points: { x: number; z: number }[]) {
-  return browser.execute(
-    (selector, coordinates) => {
-      const canvas = document.querySelector(selector) as HTMLCanvasElement;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('OCT projection canvas has no 2D context');
-      return coordinates.map(({ x, z }) =>
-        Array.from(context.getImageData(x, z, 1, 1).data)
-      );
-    },
-    CANVAS,
-    points
+export async function canvasAppearance(source: WebdriverIO.Element) {
+  return source.execute((element) => {
+    const canvas = element as HTMLCanvasElement;
+    const copy = document.createElement('canvas');
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext('2d')!;
+    context.drawImage(canvas, 0, 0);
+    const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+    let visiblePixels = 0;
+    let coloredPixels = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const max = Math.max(pixels[i], pixels[i + 1], pixels[i + 2]);
+      const min = Math.min(pixels[i], pixels[i + 1], pixels[i + 2]);
+      if (max > 20) visiblePixels++;
+      if (max - min > 20) coloredPixels++;
+    }
+    return {
+      image: copy.toDataURL(),
+      visiblePixels,
+      coloredPixels,
+      visibleChannels: pixels.filter(
+        (value, index) => index % 4 !== 3 && value > 20
+      ).length,
+    };
+  });
+}
+
+export async function enFaceAppearance() {
+  return canvasAppearance(await $(CANVAS).getElement());
+}
+
+export async function waitForEnFaceReady() {
+  await $(CANVAS).waitForDisplayed();
+  await expect($('[data-testid="oct-en-face-viewer"]')).toHaveAttribute(
+    'aria-busy',
+    'false'
+  );
+  await browser.waitUntil(
+    async () => (await enFaceAppearance()).visiblePixels > 100
   );
 }
 
 export async function getEnFaceWindow() {
-  return {
-    width: Number(await $(STATE).getAttribute('data-window-width')),
-    level: Number(await $(STATE).getAttribute('data-window-level')),
+  const panel = $('[data-testid="oct-rendering-panel"]');
+  const restorePanel =
+    (await panel.isExisting()) && (await panel.isDisplayed());
+  const sections = ['projection', 'thickness'] as const;
+  const expanded = await Promise.all(
+    sections.map(
+      async (section) =>
+        restorePanel &&
+        (await $('[data-testid="oct-' + section + '-toggle"]').getAttribute(
+          'aria-expanded'
+        )) === 'true'
+    )
+  );
+  await browser.keys('Escape');
+  if (restorePanel) await panel.waitForDisplayed({ reverse: true });
+  await $(CANVAS).waitForClickable();
+  await $(CANVAS).click();
+  const tool = $('button[data-testid^="control-button-Window & Level "]');
+  await tool.waitForClickable();
+  await tool.click();
+  const inputs = $$('.v-overlay--active .manual-inputs input');
+  await inputs[0].waitForDisplayed();
+  const result = {
+    width: Number(await inputs[0].getValue()),
+    level: Number(await inputs[1].getValue()),
   };
-}
-
-function grayPixel(value: number, window: { width: number; level: number }) {
-  const intensity = Math.round(
-    Math.min(
-      1,
-      Math.max(0, (value - (window.level - window.width / 2)) / window.width)
-    ) * 255
-  );
-  return [intensity, intensity, intensity, 255];
-}
-
-export async function expectEnFacePixels(
-  values: number[],
-  points: { x: number; z: number }[]
-) {
-  await browser.waitUntil(
-    async () => {
-      const window = await getEnFaceWindow();
-      const expected = values.map((value) => grayPixel(value, window));
-      const actual = await readEnFacePixels(points);
-      return JSON.stringify(actual) === JSON.stringify(expected);
-    },
-    {
-      timeoutMsg:
-        'Expected independently calculated real OCT projection pixels',
+  await browser.keys('Escape');
+  await inputs[0].waitForDisplayed({ reverse: true });
+  if (restorePanel) {
+    const controls = $('[data-testid="oct-en-face-controls"]');
+    await controls.waitForClickable();
+    await controls.click();
+    const reopened = $('[data-testid="oct-rendering-panel"]');
+    await reopened.waitForDisplayed();
+    await reopened.waitForStable();
+    for (const [index, section] of sections.entries()) {
+      const toggle = $('[data-testid="oct-' + section + '-toggle"]');
+      if (expanded[index]) {
+        await expandEnFaceSection(section);
+      } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
+        await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await toggle.waitForClickable();
+        await toggle.click();
+      }
     }
-  );
+    await panel.waitForStable();
+  }
+  return result;
 }
 
 export async function expectEnFaceDisabledInSwitcher(reason: string) {

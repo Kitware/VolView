@@ -24,29 +24,15 @@ export function useEnFaceWindowing(
       level: shared?.level ?? 0.5,
     };
   });
-  let registered: { viewID: string; imageID: string } | null = null;
-  function clearRanges() {
-    if (!registered) return;
-    windowing.setAutoRangeValues(registered.viewID, registered.imageID, null);
-    registered = null;
-  }
   watch(
     [() => unref(viewId), () => unref(imageId), () => unref(autoRanges)],
-    ([viewID, imageID, ranges]) => {
-      if (
-        registered &&
-        (registered.viewID !== viewID ||
-          registered.imageID !== imageID ||
-          !ranges)
-      )
-        clearRanges();
+    ([viewID, imageID, ranges], _previous, onCleanup) => {
       if (!imageID || !ranges) return;
       windowing.setAutoRangeValues(viewID, imageID, ranges);
-      registered = { viewID, imageID };
+      onCleanup(() => windowing.setAutoRangeValues(viewID, imageID, null));
     },
     { immediate: true, flush: 'sync' }
   );
-  onScopeDispose(clearRanges);
   const resets = useResetViewsEvents().onClick(() =>
     windowing.resetConfig(unref(viewId), unref(imageId))
   );

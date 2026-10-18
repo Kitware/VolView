@@ -37,11 +37,9 @@ describe('OCT physical calibration through DICOM allocation', () => {
         segmentation: {
           dimensions: image.getDimensions(),
           scalars: new Uint8Array(8).fill(1),
-          thresholdMicrons: 100,
         },
       });
       expect(Array.from(result.thicknessMicrons!)).toEqual(Array(4).fill(20.8));
-      expect(Array.from(result.thinMask!)).toEqual([1, 1, 1, 1]);
       image.delete();
     }
   );

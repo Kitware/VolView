@@ -251,7 +251,7 @@ hdf5, iwi.cbor, mha, nii, nii.gz, nrrd, vtk
 When loading multiple files, VolView can automatically associate related images based on file naming patterns.
 Example: `base.[extension].nrrd` will match `base.nii`.
 
-The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot). Files matching `base.[extension]...` will be associated with a base image named `base.*`.
+The extension must appear anywhere in the filename after splitting by dots, and the filename must start with the same prefix as the base image (everything before the first dot), followed by a dot, dash, or underscore. Files matching `base.[extension]...` will be associated with a base image named `base.*`; `base2.[extension]...` will not.
 
 **Ordering:** When multiple layers match a base image, they are sorted alphabetically by filename and added to the stack in that order. To control the stacking order explicitly, you could use numeric prefixes in your filenames. Matching segmentation files each add their labels as segments to the base image's one segmentation.
 
@@ -260,13 +260,13 @@ For example, with a base image `patient001.nrrd`:
 - Layers (sorted alphabetically): `patient001.layer.1.pet.nii`, `patient001.layer.2.ct.mha`, `patient001.layer.3.overlay.vtk`
 - Segmentations: `patient001.seg.1.tumor.nii.gz`, `patient001.seg.2.lesion.mha`
 
-Both features default to `''` which disables them.
+Segmentation matching defaults to `seg`. Image layering defaults to `''`, which disables it.
 
 ### Segmentations
 
 Use `segmentationExtension` to automatically import the labels of matching non-DICOM images as segments.
 For example, `myFile.seg.nrrd` adds its labels as segments on `myFile.nii`.
-Defaults to `''` which disables matching.
+The default is `seg`, so `myFile.seg.nii.gz` also matches `myFile.nii.gz` without a configuration file. This applies to files loaded together from disk, a ZIP archive, or URL parameters. Set `segmentationExtension` to `''` to disable matching, or use another value for a different naming convention.
 
 ```json
 {

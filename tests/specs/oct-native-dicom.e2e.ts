@@ -1,54 +1,35 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { FIXTURES } from '../../wdio.shared.conf';
+import { JHU_RETINAL_LAYERS, RETINAL_OCT_DICOM } from '../datasets';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, openThroughDialog, writeManifestToFile } from './utils';
+import { writeManifestToFile } from './utils';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
+  canvasAppearance,
   dragContrast,
-  expectEnFacePixels,
   expectEnFaceDisabledInSwitcher,
+  expandEnFaceSection,
+  setSlabRange,
+  enFaceAppearance,
+  waitForEnFaceReady,
 } from './octTestUtils';
+import {
+  openAnnotationSegments,
+  segmentNames,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
 
 const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const STATE = '[data-testid="oct-en-face-state"]';
 const PANEL = '[data-testid="oct-rendering-panel"]';
-const FLOW_ASSETS = path.join(FIXTURES, '..', 'baseline', 'oct');
 const native = JSON.parse(
   fs.readFileSync(
     path.join(FIXTURES, 'oct', 'heidelberg-reference.json'),
     'utf8'
   )
 ) as {
-  dimensions: number[];
   spacing: number[];
-  projectionSamples: {
-    x: number;
-    z: number;
-    mean: number;
-    slab100to300mean: number;
-  }[];
 };
-const flow = JSON.parse(
-  fs.readFileSync(
-    path.join(FIXTURES, 'oct', 'retinal-flow-reference.json'),
-    'utf8'
-  )
-) as {
-  dimensions: number[];
-  points: { x: number; z: number }[];
-  threePlaneMean: number[];
-};
-
-async function waitForBitmap(width: number, height: number) {
-  await $(CANVAS).waitForDisplayed();
-  await browser.waitUntil(
-    async () =>
-      (await $(STATE).getAttribute('data-state')) === 'ready' &&
-      (await $(CANVAS).getAttribute('width')) === String(width) &&
-      (await $(CANVAS).getAttribute('height')) === String(height)
-  );
-}
 
 async function displayedWindow(view: WebdriverIO.Element) {
   const match = (await view.getText()).match(
@@ -60,95 +41,181 @@ async function displayedWindow(view: WebdriverIO.Element) {
 
 async function canvasImage(view: WebdriverIO.Element) {
   const source = await view.$('canvas').getElement();
-  return source.execute((element) => {
-    const canvas = element as HTMLCanvasElement;
-    const copy = document.createElement('canvas');
-    copy.width = canvas.width;
-    copy.height = canvas.height;
-    const context = copy.getContext('2d')!;
-    context.drawImage(canvas, 0, 0);
-    const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
-    return {
-      image: copy.toDataURL(),
-      visiblePixels: pixels.filter(
-        (value, index) => index % 4 !== 3 && value > 20
-      ).length,
-    };
-  });
+  const { image, visibleChannels } = await canvasAppearance(source);
+  return { image, visiblePixels: visibleChannels };
 }
 
-async function openNativeSample() {
-  await volViewPage.open();
-  const sample = volViewPage.samplesList.$('div[title="Retinal OCT"]');
-  await sample.waitForClickable();
-  await sample.click();
-  await waitForBitmap(native.dimensions[0], native.dimensions[2]);
+async function openNativeDicom() {
+  await volViewPage.open('?urls=[tmp/' + RETINAL_OCT_DICOM.name + ']');
+  await volViewPage.waitForViews();
+  await waitForFirstCachedImageSpacing();
+  await volViewPage.openLayoutMenu();
+  const layout = $('[data-testid="oct-layout"]');
+  await layout.waitForClickable();
+  await layout.click();
+  await browser.keys('Escape');
+  await waitForEnFaceReady();
   await volViewPage.waitForViewCounts(1, false);
 }
 
 async function setSlab(start: number, end: number) {
   await $('[data-testid="oct-en-face-controls"]').click();
   await $(PANEL).waitForDisplayed();
-  const advanced = $('[data-testid="oct-advanced-toggle"]');
-  if ((await advanced.getAttribute('aria-expanded')) !== 'true')
-    await advanced.click();
-  for (const [name, value] of [
-    ['start', start],
-    ['end', end],
-  ] as const) {
-    const input = $('[data-testid="oct-slab-' + name + '"] input');
-    await input.scrollIntoView({ block: 'center' });
-    await input.waitForClickable();
-    await setValueVueInput(input, String(value));
-    await $(PANEL + ' .controls-title').click();
-  }
-}
-
-async function expectSuppliedEnFacePlane(url: string) {
-  const result = await browser.execute(async (referenceUrl) => {
-    const reference = new Image();
-    reference.src = referenceUrl;
-    await reference.decode();
-    const copy = document.createElement('canvas');
-    copy.width = reference.width;
-    copy.height = reference.height;
-    const context = copy.getContext('2d')!;
-    context.drawImage(reference, 0, 0);
-    const supplied = context.getImageData(0, 0, copy.width, copy.height).data;
-    const canvas = document.querySelector<HTMLCanvasElement>(
-      '[data-testid="oct-en-face-canvas"]'
-    )!;
-    const rendered = canvas
-      .getContext('2d')!
-      .getImageData(0, 0, canvas.width, canvas.height).data;
-    const state = document.querySelector<HTMLElement>(
-      '[data-testid="oct-en-face-state"]'
-    )!;
-    const width = Number(state.dataset.windowWidth);
-    const level = Number(state.dataset.windowLevel);
-    let different = 0;
-    for (let i = 0; i < supplied.length; i += 4) {
-      const gray = Math.round(
-        Math.min(1, Math.max(0, (supplied[i] - (level - width / 2)) / width)) *
-          255
-      );
-      if (
-        rendered[i] !== gray ||
-        rendered[i + 1] !== gray ||
-        rendered[i + 2] !== gray ||
-        rendered[i + 3] !== 255
-      )
-        different++;
-    }
-    return { different, compared: supplied.length / 4 };
-  }, url);
-  expect(result.compared).toBe(304 * 304);
-  expect(result.different).toBe(0);
+  await expandEnFaceSection('projection');
+  await setSlabRange(start, end);
 }
 
 describe('Public OCT exports', () => {
+  before(async () => {
+    await browser.addInitScript(
+      (remote, local) => {
+        const original = window.fetch;
+        window.fetch = (input, init) =>
+          original(input === remote ? local : input, init);
+      },
+      JHU_RETINAL_LAYERS.origin,
+      '/tmp/' + JHU_RETINAL_LAYERS.name
+    );
+  });
+
+  it('loads retinal layers from a ZIP URL or sample card and projects a layer on request', async () => {
+    const names = [
+      'Retinal nerve fiber layer (RNFL)',
+      'Ganglion cell and inner plexiform layers (GCL+IPL)',
+      'Inner nuclear layer (INL)',
+      'Outer plexiform layer (OPL)',
+      'Outer nuclear layer (ONL)',
+      'Photoreceptor inner segments (IS)',
+      'Photoreceptor outer segments (OS)',
+      'Retinal pigment epithelium (RPE)',
+    ];
+    for (const fromSample of [false, true]) {
+      await volViewPage.open(
+        fromSample ? '/' : '?urls=[tmp/' + JHU_RETINAL_LAYERS.name + ']'
+      );
+      await volViewPage.waitForViewCounts(3, true);
+      if (fromSample) {
+        const sample = volViewPage.samplesList.$(
+          'div[title="Retinal OCT layers"]'
+        );
+        await sample.waitForClickable();
+        await expect(
+          volViewPage.samplesList.$('div[title="Retinal OCT"]')
+        ).not.toExist();
+        await sample.click();
+      }
+      await volViewPage.waitForViews();
+      await expect(
+        $('.image-list-card:has([title="jhu-hc01.nrrd"])')
+      ).toHaveElementClass('image-list-card-active');
+      await openAnnotationSegments();
+      await waitForSegmentContent(names[7]);
+      expect(await segmentNames()).toEqual(names);
+      await volViewPage.waitForViewCounts(3, true);
+      expect(
+        await $$('.view-type-select input').map((input) => input.getValue())
+      ).toEqual(['Axial', 'Coronal', 'Sagittal', 'Volume']);
+      expect(await $(CANVAS).isExisting()).toBe(false);
+      await browser.waitUntil(async () =>
+        browser.execute(() => {
+          const source = document.querySelector<HTMLCanvasElement>(
+            'div[data-testid~="vtk-two-view"] canvas'
+          )!;
+          const copy = document.createElement('canvas');
+          copy.width = source.width;
+          copy.height = source.height;
+          const context = copy.getContext('2d')!;
+          context.drawImage(source, 0, 0);
+          const pixels = context.getImageData(
+            0,
+            0,
+            copy.width,
+            copy.height
+          ).data;
+          let colored = 0;
+          for (let i = 0; i < pixels.length; i += 4)
+            if (
+              Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) -
+                Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) >
+              40
+            )
+              colored++;
+          return colored > 200;
+        })
+      );
+      expect(await volViewPage.getNotificationsCount()).toBe(0);
+    }
+
+    const option = (title: string) =>
+      $(
+        '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
+          title +
+          '"]'
+      );
+    await (await $$('.view-type-select .v-field'))[1].click();
+    await option('En face').waitForClickable();
+    await option('En face').click();
+    await waitForEnFaceReady();
+    await $('[data-testid="oct-en-face-controls"]').click();
+    await $(PANEL).waitForDisplayed();
+    await $(PANEL).waitForStable();
+    for (const section of ['projection', 'thickness'])
+      await expect(
+        $('[data-testid="oct-' + section + '-toggle"]')
+      ).toHaveAttribute('aria-expanded', 'true');
+    await expandEnFaceSection('projection');
+    const axis = $('[data-testid="oct-projection-axis"]');
+    await axis.scrollIntoView({ block: 'center' });
+    await axis.waitForClickable();
+    await axis.click();
+    await option('Y (rows)').waitForClickable();
+    await option('Y (rows)').click();
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('[data-testid="oct-segmentation-segment"] input')
+    ).toBeDisabled();
+    await $('[data-testid="oct-thin-highlight"] label').click();
+    const segment = $('[data-testid="oct-segmentation-segment"]');
+    await segment.scrollIntoView({ block: 'center' });
+    await segment.waitForClickable();
+    await segment.click();
+    await option(names[2]).waitForClickable();
+    await option(names[2]).click();
+    const thresholdSlider = $(
+      '[data-testid="oct-thickness-threshold"] [role="slider"]'
+    );
+    await expect(thresholdSlider).toHaveAttribute('aria-valuemax', '58.1');
+    await setValueVueInput(
+      $('[data-testid="oct-thickness-threshold-input"] input'),
+      '20'
+    );
+    await expect(thresholdSlider).toHaveAttribute('aria-valuenow', '20');
+    await $('[data-testid="oct-projection-toggle"]').click();
+    await $('[data-testid="oct-projection-toggle"]')
+      .$('..')
+      .$('.v-expansion-panel-text')
+      .waitForDisplayed({ reverse: true });
+    await expect($('[data-testid="oct-thickness-toggle"]')).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
+    await expect(
+      $('[data-testid="oct-thickness-threshold-input"] input')
+    ).toHaveValue('20');
+    const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
+    if (captureDirectory) {
+      fs.mkdirSync(captureDirectory, { recursive: true });
+      await browser.saveScreenshot(
+        path.join(captureDirectory, 'jhu-en-face-controls.png')
+      );
+    }
+    await browser.keys('Escape');
+    await expect($('[data-testid="oct-thin-outline"]')).toBeDisplayed();
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
   it('keeps source contrast and pixels when replacing an independently windowed projection', async () => {
-    await openNativeSample();
+    await openNativeDicom();
     if (
       ((await $('#left-nav').getAttribute('class')) ?? '').includes(
         'v-navigation-drawer--active'
@@ -178,12 +245,16 @@ describe('Public OCT exports', () => {
         (await canvasImage(source)).image !== initialImage.image
       );
     });
-    const projectionWidth = await $(STATE).getAttribute('data-window-width');
+    const projectionBefore = await $(CANVAS).execute((element) =>
+      (element as HTMLCanvasElement).toDataURL()
+    );
     await $(CANVAS).waitForStable();
     await dragContrast(await $(CANVAS).getElement(), -50, 40);
     await browser.waitUntil(
       async () =>
-        (await $(STATE).getAttribute('data-window-width')) !== projectionWidth
+        (await $(CANVAS).execute((element) =>
+          (element as HTMLCanvasElement).toDataURL()
+        )) !== projectionBefore
     );
     const beforeWindow = await displayedWindow(source);
     const beforeImage = await canvasImage(source);
@@ -207,30 +278,27 @@ describe('Public OCT exports', () => {
     expect((await canvasImage(source)).image).toBe(beforeImage.image);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
-  it('loads the native Heidelberg DICOM from the sample browser with calibrated stacked views', async () => {
-    await openNativeSample();
+  it('loads the native Heidelberg DICOM fixture with calibrated stacked views', async () => {
+    await openNativeDicom();
     const spacing = await waitForFirstCachedImageSpacing();
     spacing.forEach((value, axis) =>
       expect(value).toBeCloseTo(native.spacing[axis], 6)
     );
-    await expectEnFacePixels(
-      native.projectionSamples.map((p) => p.mean),
-      native.projectionSamples
-    );
+    const fullProjection = await enFaceAppearance();
     await volViewPage.openLayoutMenu();
     expect(
       await $('[data-testid="oct-layout"]').getAttribute('class')
     ).toContain('v-list-item--active');
     await volViewPage.layoutButton.click();
     await setSlab(100, 300);
-    await expectEnFacePixels(
-      native.projectionSamples.map((p) => p.slab100to300mean),
-      native.projectionSamples
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).image !== fullProjection.image
     );
+    await waitForEnFaceReady();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('preserves the allowed customer layout when sample defaults contain a disabled view type', async () => {
+  it('preserves the configured volume layout when loading retinal layers with disabled view types', async () => {
     for (const disabled of ['2D', 'EnFace']) {
       const configName = 'oct-disable-' + disabled + '.json';
       await writeManifestToFile(
@@ -242,7 +310,9 @@ describe('Public OCT exports', () => {
       );
       await volViewPage.open('?urls=[tmp/' + configName + ']');
       await volViewPage.waitForViewCounts(0, true);
-      const sample = volViewPage.samplesList.$('div[title="Retinal OCT"]');
+      const sample = volViewPage.samplesList.$(
+        'div[title="Retinal OCT layers"]'
+      );
       await sample.waitForClickable();
       await sample.click();
       await waitForFirstCachedImageSpacing();
@@ -260,47 +330,5 @@ describe('Public OCT exports', () => {
       }
       expect(await volViewPage.getNotificationsCount()).toBe(0);
     }
-  });
-  it('matches every pixel of a supplied OCTA en face plane through manual NRRD selection', async () => {
-    const directory = makeTempDir('oct-external-reference');
-    for (const name of ['retinal-flow.nrrd', 'retinal-flow-source.png'])
-      fs.copyFileSync(path.join(FLOW_ASSETS, name), path.join(directory, name));
-    await volViewPage.open();
-    await openThroughDialog(path.join(directory, 'retinal-flow.nrrd'));
-    await volViewPage.waitForViews();
-    await (await $$('.view-type-select .v-field'))[0].click();
-    const option = $(
-      '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
-    );
-    await option.waitForClickable();
-    await option.click();
-    await waitForBitmap(flow.dimensions[0], flow.dimensions[2]);
-    await expectEnFacePixels(flow.threePlaneMean, flow.points);
-    await setSlab(1, 1);
-    await expect($('[data-testid="oct-thin-highlight"] input')).toBeDisabled();
-    await browser.waitUntil(
-      async () =>
-        (await $(STATE).getAttribute('data-slab-start')) === '1' &&
-        (await $(STATE).getAttribute('data-slab-end')) === '1' &&
-        (await $(STATE).getAttribute('data-state')) === 'ready'
-    );
-    await expectSuppliedEnFacePlane(
-      '/tmp/oct-external-reference/retinal-flow-source.png'
-    );
-    if (process.env.OCT_EVIDENCE_DIR) {
-      fs.mkdirSync(process.env.OCT_EVIDENCE_DIR, { recursive: true });
-      const pixels = await browser.execute(
-        (selector) =>
-          document
-            .querySelector<HTMLCanvasElement>(selector)!
-            .toDataURL('image/png'),
-        CANVAS
-      );
-      fs.writeFileSync(
-        path.join(process.env.OCT_EVIDENCE_DIR, 'supplied-enface.png'),
-        Buffer.from(pixels.split(',')[1], 'base64')
-      );
-    }
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

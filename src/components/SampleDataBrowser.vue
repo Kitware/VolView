@@ -1,20 +1,19 @@
 <script lang="ts">
 import { defineComponent, reactive, computed } from 'vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
+import { displayImportedData } from '@/src/actions/loadUserFiles';
+import { importDataSources } from '@/src/io/import/importDataSources';
 import {
-  convertSuccessResultToDataSelection,
-  importDataSources,
-} from '@/src/io/import/importDataSources';
-import { remoteFileToDataSource } from '@/src/io/import/dataSource';
+  getDataSourceName,
+  remoteFileToDataSource,
+} from '@/src/io/import/dataSource';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { SAMPLE_DATA } from '@/src/config';
 import { useMessageStore } from '@/src/store/messages';
-import { Maybe, SampleDataset } from '@/src/types';
-import { parseLayoutConfig } from '@/src/utils/layoutParsing';
+import { SampleDataset } from '@/src/types';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { fetchFile } from '@/src/utils/fetch';
-import { useViewStore } from '@/src/store/views';
 
 enum ProgressState {
   Pending,
@@ -34,7 +33,6 @@ export default defineComponent({
     ImageListCard,
   },
   setup() {
-    const viewStore = useViewStore();
     const status = reactive<{ progress: Progress }>({
       progress: {},
     });
@@ -75,24 +73,6 @@ export default defineComponent({
       }
     });
 
-    function applySampleLayout(
-      sample: SampleDataset,
-      selection: Maybe<string>
-    ) {
-      if (!sample.defaults?.layout) return;
-      const { layout, views } = parseLayoutConfig(sample.defaults.layout);
-      if (views.some((view) => viewStore.disabledViewTypes.includes(view.type)))
-        return;
-      viewStore.currentLayoutName = null;
-      viewStore.setLayout(layout);
-      views.forEach((view, index) => {
-        viewStore.replaceView(viewStore.layoutViews[index].id, {
-          ...view,
-          dataID: selection,
-        });
-      });
-    }
-
     async function downloadSample(sample: SampleDataset) {
       const progress = (percent: number) => {
         status.progress[sample.name] = {
@@ -108,30 +88,36 @@ export default defineComponent({
         });
         status.progress[sample.name].state = ProgressState.Done;
 
-        const [loadResult] = await importDataSources([
+        const results = await importDataSources([
           remoteFileToDataSource(sampleFile, sample.url),
         ]);
 
-        if (!loadResult) {
+        if (!results.length) {
           throw new Error('Did not receive a load result');
         }
-        if (loadResult.type === 'error') {
-          throw loadResult.error;
+        const errors = results.filter((result) => result.type === 'error');
+        if (errors.length) {
+          throw new AggregateError(
+            errors.map(({ error }) => error),
+            errors
+              .map(
+                ({ dataSource, error }) =>
+                  `${getDataSourceName(dataSource) ?? sample.filename}: ${error.message}`
+              )
+              .join('\n')
+          );
         }
 
-        const selection = convertSuccessResultToDataSelection(loadResult);
+        const selection = displayImportedData(results);
         if (selection) {
           loaded.idToURL[selection] = sample.url;
           loaded.urlToID[sample.url] = selection;
-
           useVolumeColoringStore().setDefaults(selection, {
             transferFunction: {
               preset: sample.defaults?.colorPreset,
             },
           });
         }
-        viewStore.setDataForAllViews(selection);
-        applySampleLayout(sample, selection);
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();

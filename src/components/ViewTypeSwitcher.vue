@@ -63,6 +63,7 @@ function updateView(newViewName: string) {
     variant="solo"
     class="pointer-events-all view-type-select"
     aria-label="View type"
+    @dblclick.stop
   >
     <template #item="{ props: itemProps, item }">
       <v-tooltip :disabled="!item.raw.reason" location="left">

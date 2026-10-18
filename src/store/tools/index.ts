@@ -28,7 +28,9 @@ const CINE_DISALLOWED_TOOLS = new Set([
 
 export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
   if (effective?.kind === 'enface')
-    return tool === Tools.Select || tool === Tools.WindowLevel;
+    return [Tools.Select, Tools.WindowLevel, Tools.Pan, Tools.Zoom].includes(
+      tool
+    );
   if (effective?.kind === 'cine' && CINE_DISALLOWED_TOOLS.has(tool))
     return false;
   return true;
@@ -43,7 +45,10 @@ export function getToolUnavailableReason(
       ? 'This tool is unavailable on an En face projection. Switch to a slice view to use it.'
       : 'This tool is unavailable for a cine clip.';
   }
-  if (tool === Tools.WindowLevel && effective?.viewInfo.type === 'EnFace') {
+  if (
+    effective?.viewInfo.type === 'EnFace' &&
+    [Tools.WindowLevel, Tools.Pan, Tools.Zoom].includes(tool)
+  ) {
     return getOCTAvailability(effective.renderDataID).reason;
   }
   return null;

@@ -69,13 +69,13 @@ describe('canonical segmentation configuration', () => {
   it('converts labels during recognition and reports all deprecated keys', async () => {
     const recognized = await recognizeConfig({
       labels: legacy,
-      io: { segmentGroupSaveFormat: 'nii', segmentGroupExtension: 'seg' },
+      io: { segmentGroupSaveFormat: 'nii', segmentGroupExtension: 'mask' },
     });
     expect(recognized).toMatchObject({
       kind: 'config',
       config: {
         segments: legacy.defaultLabels,
-        io: { segmentationSaveFormat: 'nii', segmentationExtension: 'seg' },
+        io: { segmentationSaveFormat: 'nii', segmentationExtension: 'mask' },
       },
       ignoredKeys: [],
       deprecations: [

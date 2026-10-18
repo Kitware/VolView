@@ -1,5 +1,4 @@
 import type { UnwrapRef } from 'vue';
-import type { LayoutConfig } from '../utils/layoutParsing';
 
 export type Maybe<T> = T | null | undefined;
 
@@ -31,7 +30,6 @@ export type SampleDataset = {
   image: string;
   defaults?: {
     colorPreset?: string;
-    layout?: LayoutConfig;
   };
 };
 

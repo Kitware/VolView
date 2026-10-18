@@ -7,7 +7,7 @@ import {
 
 const close = (a: number, b: number) =>
   Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-5;
-const same = (a: ArrayLike<number>, b: ArrayLike<number>) =>
+export const sameVector = (a: ArrayLike<number>, b: ArrayLike<number>) =>
   a.length === b.length && Array.from(a).every((n, i) => close(n, b[i]));
 const dot = (a: readonly number[], b: readonly number[]) =>
   a.reduce((sum, n, i) => sum + n * b[i], 0);
@@ -25,14 +25,14 @@ function vector(tags: Map<string, string>, tag: string, length: number) {
     : null;
 }
 
-function orientation(tags: Map<string, string>) {
-  const basis = vector(tags, Tags.ImageOrientationPatient, 6);
-  if (!basis) return null;
+export function octDirection(basis: number[] | null | undefined) {
+  if (!basis || basis.length !== 6 || !basis.every(Number.isFinite))
+    return null;
   const row = basis.slice(0, 3);
   const column = basis.slice(3);
   if (
-    !close(dot(row, row), 1) ||
-    !close(dot(column, column), 1) ||
+    !close(Math.hypot(...row), 1) ||
+    !close(Math.hypot(...column), 1) ||
     !close(dot(row, column), 0)
   )
     return null;
@@ -42,6 +42,47 @@ function orientation(tags: Map<string, string>) {
     row[2] * column[0] - row[0] * column[2],
     row[0] * column[1] - row[1] * column[0],
   ];
+}
+
+/** Validate equally spaced B-scans along the positive image normal. */
+export function octGridGeometry(positions: number[][], direction?: number[]) {
+  if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
+    return {
+      reason:
+        'OCT B-scan positions are invalid; spatial reconstruction is required.',
+    };
+  if (positions.length < 2) return { reason: null };
+  const step = positions[1].map((n, axis) => n - positions[0][axis]);
+  const distance = Math.hypot(...step);
+  if (distance <= 1e-5)
+    return {
+      reason: 'Repeated OCT B-scan locations need spatial reconstruction.',
+    };
+  if (
+    direction &&
+    !sameVector(
+      step,
+      direction.slice(6).map((n) => n * distance)
+    )
+  )
+    return {
+      reason:
+        'OCT B-scan positions do not follow the image grid; spatial reconstruction is required.',
+    };
+  if (
+    positions.some(
+      (position, i) =>
+        !sameVector(
+          position,
+          positions[0].map((n, axis) => n + i * step[axis])
+        )
+    )
+  )
+    return {
+      reason:
+        'OCT B-scans have nonuniform positions; spatial reconstruction is required.',
+    };
+  return { reason: null, distance };
 }
 
 function declaredSeriesReason(tags: Map<string, string>[]) {
@@ -59,7 +100,7 @@ function declaredSeriesReason(tags: Map<string, string>[]) {
   if (
     tags.some((entry) => {
       const other = vector(entry, Tags.PixelSpacing, 2);
-      return spacing && other ? !same(spacing, other) : spacing !== other;
+      return spacing && other ? !sameVector(spacing, other) : spacing !== other;
     })
   )
     return 'The OCT files have inconsistent pixel spacing; spatial reconstruction is required.';
@@ -71,33 +112,6 @@ function seriesPositions(tags: Map<string, string>[]) {
     vector(entry, Tags.ImagePositionPatient, 3)
   );
   return positions.every((position) => position !== null) ? positions : null;
-}
-
-function positionReason(
-  positions: number[][],
-  direction: number[],
-  step: number[],
-  distance: number
-) {
-  if (
-    distance <= 1e-5 ||
-    !same(
-      step,
-      direction.slice(6).map((n) => n * distance)
-    )
-  )
-    return 'The OCT file positions do not follow the voxel grid; spatial reconstruction is required.';
-  if (
-    positions.some(
-      (position, i) =>
-        !same(
-          position,
-          positions[0].map((n, axis) => n + i * step[axis])
-        )
-    )
-  )
-    return 'The OCT files have nonuniform B-scan positions; spatial reconstruction is required.';
-  return null;
 }
 
 function sliceSpacingReason(tags: Map<string, string>[], distance: number) {
@@ -121,8 +135,8 @@ function loadedGridReason(
 ) {
   if (
     grid &&
-    (!same(grid.direction, direction) ||
-      !same(grid.origin, origin) ||
+    (!sameVector(grid.direction, direction) ||
+      !sameVector(grid.origin, origin) ||
       !close(grid.spacing[2], distance))
   )
     return 'The loaded OCT grid does not match its file geometry; spatial reconstruction is required.';
@@ -132,12 +146,16 @@ function loadedGridReason(
 function seriesGeometry(tags: Map<string, string>[], grid?: Grid) {
   const declaredReason = declaredSeriesReason(tags);
   if (declaredReason) return { reason: declaredReason };
-  const direction = orientation(tags[0]);
+  const direction = octDirection(
+    vector(tags[0], Tags.ImageOrientationPatient, 6)
+  );
   if (
     !direction ||
     tags.some((entry) => {
-      const other = orientation(entry);
-      return !other || !same(direction, other);
+      const other = octDirection(
+        vector(entry, Tags.ImageOrientationPatient, 6)
+      );
+      return !other || !sameVector(direction, other);
     })
   )
     return {
@@ -150,10 +168,10 @@ function seriesGeometry(tags: Map<string, string>[], grid?: Grid) {
       reason:
         'The OCT files have incomplete or invalid B-scan positions; spatial reconstruction is required.',
     };
-  const step = positions[1].map((n, axis) => n - positions[0][axis]);
-  const distance = dot(step, direction.slice(6));
+  const geometry = octGridGeometry(positions, direction);
+  if (geometry.reason) return geometry;
+  const distance = geometry.distance!;
   const reason =
-    positionReason(positions, direction, step, distance) ||
     sliceSpacingReason(tags, distance) ||
     loadedGridReason(grid, direction, positions[0], distance);
   return { reason, distance };

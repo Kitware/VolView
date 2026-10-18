@@ -93,12 +93,10 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       segmentation: {
         dimensions: data.getDimensions(),
         scalars: new Uint8Array(12).fill(1),
-        thresholdMicrons: 20.8,
       },
     });
     expect([...result.values]).toEqual([1, 1, 2, 2, 3, 3]);
     expect([...result.thicknessMicrons!]).toEqual(Array(6).fill(20.8));
-    expect([...result.thinMask!]).toEqual(Array(6).fill(0));
   });
 
   it('rejects nonuniform positions that the allocator otherwise replaces with average spacing', async () => {

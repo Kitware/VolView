@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import dicomParser from 'dicom-parser';
 
 function paddingElement() {
@@ -11,9 +10,8 @@ function paddingElement() {
   return bytes;
 }
 
-/** Declared missing data added to a public raster; original reflectivity retained elsewhere. */
-export function paddedPublicOCT(sourcePath: string) {
-  const original = fs.readFileSync(sourcePath);
+/** Declared missing data added to a synthetic raster; original intensity retained elsewhere. */
+export function paddedSyntheticOCT(original: Uint8Array) {
   const source = dicomParser.parseDicom(original);
   const next = Object.keys(source.elements)
     .sort()

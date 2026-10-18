@@ -7,9 +7,17 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useThinRegionAppearance } from '@/src/oct/useThinRegionAppearance';
-import { thinRegionColor } from '@/src/oct/windowLevel';
+import { paintThinRegionPixels } from '@/src/oct/windowLevel';
 
 beforeEach(() => setActivePinia(createPinia()));
+
+function paintAppearance(
+  appearance: NonNullable<ReturnType<typeof useThinRegionAppearance>['value']>
+) {
+  const pixels = new Uint8ClampedArray([100, 100, 100, 255]);
+  paintThinRegionPixels(pixels, [1], 2, appearance);
+  return Array.from(pixels);
+}
 
 function appearanceScene() {
   const parent = vtkImageData.newInstance();
@@ -45,11 +53,11 @@ describe('thin-region appearance from the source segmentation', () => {
     expect(appearance.value).toEqual({
       color: [35, 215, 190, 255],
       alpha: 0.3,
+      outlineWidth: 2,
+      outlineOpacity: 1,
       reason: null,
     });
-    expect(
-      thinRegionColor(100, appearance.value!.color, appearance.value!.alpha)
-    ).toEqual([81, 135, 127, 255]);
+    expect(paintAppearance(appearance.value!)).toEqual([81, 135, 127, 255]);
     expect(binding.image.getPointData().getScalars().getData()).toBe(scalars);
   });
 
@@ -59,7 +67,7 @@ describe('thin-region appearance from the source segmentation', () => {
     const stop = watch(
       appearance,
       (value) => {
-        if (value) painted.push(thinRegionColor(100, value.color, value.alpha));
+        if (value) painted.push(paintAppearance(value));
       },
       { immediate: true, flush: 'sync' }
     );
@@ -89,7 +97,7 @@ describe('thin-region appearance from the source segmentation', () => {
     expect(appearance.value).toBeNull();
   });
 
-  it('explains invisible fills while leaving outline-only settings independent', () => {
+  it('keeps outline-only highlighting available and explains fully hidden appearances', () => {
     const { appearance, registry, store, group, segmentId } = appearanceScene();
     registry.updateSegment(segmentId, { visible: false });
     expect(appearance.value).toMatchObject({
@@ -97,17 +105,43 @@ describe('thin-region appearance from the source segmentation', () => {
       reason: 'Show the selected segment to highlight thin regions.',
     });
     registry.updateSegment(segmentId, { visible: true, fillOpacity: 0 });
-    expect(appearance.value!.reason).toContain('selected segment opacity');
+    expect(appearance.value).toMatchObject({
+      alpha: 0,
+      outlineWidth: 2,
+      outlineOpacity: 1,
+      reason: null,
+    });
     registry.updateSegment(segmentId, { fillOpacity: 1 });
     store.updateSegmentationDisplay(group.id, { fillOpacity: 0 });
     expect(appearance.value).toMatchObject({
       alpha: 0,
-      reason: 'Increase segmentation fill opacity to highlight thin regions.',
+      reason: null,
     });
+    registry.updateSegment(segmentId, { outlineOpacity: 0.5 });
+    store.updateSegmentationDisplay(group.id, {
+      outlineOpacity: 0.4,
+      outlineThickness: 4,
+    });
+    expect(appearance.value).toMatchObject({
+      outlineWidth: 4,
+      outlineOpacity: 0.2,
+      reason: null,
+    });
+    store.updateSegmentationDisplay(group.id, { outlineOpacity: 0 });
+    expect(appearance.value!.reason).toContain(
+      'fill opacity or enable an outline'
+    );
+    store.updateSegmentationDisplay(group.id, { outlineOpacity: 1 });
+    expect(appearance.value!.reason).toBeNull();
+    store.updateSegmentationDisplay(group.id, { outlineThickness: 0 });
+    expect(appearance.value!.reason).toContain(
+      'fill opacity or enable an outline'
+    );
+    store.updateSegmentationDisplay(group.id, { outlineThickness: 2 });
     store.updateSegmentationDisplay(group.id, { fillOpacity: 0.3 });
     registry.updateSegment(segmentId, { color: [35, 215, 190, 0] });
     expect(appearance.value).toMatchObject({ alpha: 0 });
-    expect(appearance.value!.reason).toContain('selected segment opacity');
+    expect(appearance.value!.reason).toBeNull();
     registry.updateSegment(segmentId, {
       color: [35, 215, 190, 255],
       outlineOpacity: 0,

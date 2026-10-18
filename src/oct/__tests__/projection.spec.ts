@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { projectEnFace } from '@/src/oct/projection';
+import {
+  isPresentThicknessBelow,
+  thicknessSliderMaximum,
+} from '@/src/oct/thickness';
 import type { ProjectionInput, SegmentationProjection } from '@/src/oct/types';
 
 function coordinateVolume() {
@@ -56,7 +60,6 @@ function thicknessInput(): ProjectionInput {
       // First A-line has a gap: occupied thickness is 2 voxels, not a 3-voxel span.
       scalars: new Uint8Array([1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0]),
       dimensions: [3, 1, 4],
-      thresholdMicrons: 30,
     },
   };
 }
@@ -134,27 +137,23 @@ describe('OCT en face projection', () => {
     const input = thicknessInput();
     const result = projectEnFace({ ...input, segmentation: undefined });
     expect(result.thicknessMicrons).toBeUndefined();
-    expect(result.thinMask).toBeUndefined();
   });
 });
 
 describe('OCT segment thickness', () => {
-  it('counts occupied voxels in microns and highlights only present values strictly below threshold', () => {
+  it('counts occupied voxels in microns while keeping absent A-lines at zero', () => {
     const result = projectEnFace(thicknessInput());
     expect(Array.from(result.thicknessMicrons!)).toEqual([20, 30, 0]);
-    expect(Array.from(result.thinMask!)).toEqual([1, 0, 0]);
   });
 
-  it('preserves decimal physical thickness at an equal threshold', () => {
+  it('preserves decimal physical thickness', () => {
     const input = thicknessInput();
     const result = projectEnFace({
       ...input,
       volume: { ...input.volume, spacing: [0.1, 0.2, 0.0104] },
-      segmentation: { ...input.segmentation!, thresholdMicrons: 20.8 },
     });
     expect(result.thicknessMicrons).toBeInstanceOf(Float64Array);
     expect(result.thicknessMicrons![0]).toBe(20.8);
-    expect(result.thinMask![0]).toBe(0);
     expect(result.thicknessMicrons![0] < 20.8).toBe(false);
   });
 
@@ -165,41 +164,6 @@ describe('OCT segment thickness', () => {
     expect(Array.from(clipped.values)).toEqual([5, 7, 9]);
     expect(clipped.values).not.toEqual(full.values);
     expect(clipped.thicknessMicrons).toEqual(full.thicknessMicrons);
-    expect(clipped.thinMask).toEqual(full.thinMask);
-  });
-
-  it('uses the selected label and ignores other labels', () => {
-    const input = thicknessInput();
-    const result = projectEnFace({
-      ...input,
-      segmentation: {
-        ...input.segmentation!,
-        scalars: new Uint8Array([2, 1, 0, 0, 2, 0, 2, 1, 0, 0, 0, 0]),
-        segmentValue: 2,
-      },
-    });
-    expect(Array.from(result.thicknessMicrons!)).toEqual([20, 10, 0]);
-    expect(Array.from(result.thinMask!)).toEqual([1, 1, 0]);
-  });
-
-  it('never highlights an absent segment or a zero threshold', () => {
-    const input = thicknessInput();
-    expect(
-      Array.from(
-        projectEnFace({
-          ...input,
-          segmentation: { ...input.segmentation!, thresholdMicrons: 0 },
-        }).thinMask!
-      )
-    ).toEqual([0, 0, 0]);
-    expect(
-      Array.from(
-        projectEnFace({
-          ...input,
-          segmentation: { ...input.segmentation!, scalars: new Uint8Array(12) },
-        }).thinMask!
-      )
-    ).toEqual([0, 0, 0]);
   });
 
   it.each([0 as const, 1 as const, 2 as const])(
@@ -218,15 +182,34 @@ describe('OCT segment thickness', () => {
         segmentation: {
           dimensions: [2, 2, 2],
           scalars: new Uint8Array(8).fill(1),
-          thresholdMicrons: 10,
         },
       });
       expect(Array.from(result.thicknessMicrons!)).toEqual(
         new Array(4).fill([2, 4, 8][axis])
       );
-      expect(Array.from(result.thinMask!)).toEqual([1, 1, 1, 1]);
+      expect(thicknessSliderMaximum(result)).toBe([2.1, 4.1, 8.1][axis]);
     }
   );
+
+  it('fits the slider to measurable layer thickness without missing-intensity outliers', () => {
+    expect(
+      thicknessSliderMaximum({
+        width: 3,
+        height: 1,
+        values: new Float32Array([5, NaN, 7]),
+        thicknessMicrons: new Float64Array([20.8, 5000, NaN]),
+      })
+    ).toBe(20.9);
+    const thickness = 4 * (0.0104 * 1000);
+    const maximum = thicknessSliderMaximum({
+      width: 1,
+      height: 1,
+      values: new Float32Array([5]),
+      thicknessMicrons: new Float64Array([thickness]),
+    });
+    expect(isPresentThicknessBelow(thickness, maximum)).toBe(true);
+    expect(thicknessSliderMaximum(null)).toBeGreaterThan(0);
+  });
 
   it.each([0 as const, 1 as const, 2 as const])(
     'maps a bounded mask into parent pixels on axis %i',
@@ -245,17 +228,13 @@ describe('OCT segment thickness', () => {
           dimensions: [2, 2, 2],
           extent: [1, 2, 1, 2, 1, 2],
           scalars: new Uint8Array(8).fill(1),
-          thresholdMicrons: 7,
         },
       });
       const expectedThickness = new Array(16).fill(0);
-      const expectedThin = new Array(16).fill(0);
       for (const index of [5, 6, 9, 10]) {
         expectedThickness[index] = [2, 4, 6][axis];
-        expectedThin[index] = 1;
       }
       expect(Array.from(result.thicknessMicrons!)).toEqual(expectedThickness);
-      expect(Array.from(result.thinMask!)).toEqual(expectedThin);
     }
   );
 
@@ -269,11 +248,9 @@ describe('OCT segment thickness', () => {
         dimensions: [1, 1, 2],
         extent: [1, 1, 0, 0, 2, 3],
         scalars: new Uint8Array([1, 1]),
-        thresholdMicrons: 21,
       },
     });
     expect(Array.from(result.thicknessMicrons!)).toEqual([0, 20, 0]);
-    expect(Array.from(result.thinMask!)).toEqual([0, 1, 0]);
   });
 });
 
@@ -370,12 +347,9 @@ describe('OCT projection validation', () => {
     { extent: [0, 2, 0, 0, 0, 2.5] },
     { numberOfComponents: 2 },
     { scalars: new Float32Array(11) },
-    { segmentValue: 0 },
-    { segmentValue: 1.5 },
-    { thresholdMicrons: -1 },
-    { thresholdMicrons: Infinity },
     { scalars: new Float32Array(12).fill(NaN) },
     { scalars: new Float32Array(12).fill(0.5) },
+    { scalars: new Uint8Array(12).fill(2) },
   ])('rejects invalid segmentation %#', (invalid) => {
     const input = thicknessInput();
     const segmentation = {

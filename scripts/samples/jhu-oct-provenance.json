@@ -1,0 +1,152 @@
+{
+  "dataset": "JHU IACL full retinal layer dataset, healthy control hc01, right eye",
+  "citation": "Y. He, A. Carass, S.D. Solomon, S. Saidha, P.A. Calabresi, J.L. Prince. Retinal layer parcellation of optical coherence tomography images: Data resource for Multiple Sclerosis and Healthy Controls. Data in Brief 22 (2019), 601-604. DOI: 10.1016/j.dib.2018.12.073.",
+  "paper_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6327073/",
+  "dataset_url": "https://iacl.ece.jhu.edu/index.php/OCT_Data",
+  "archive_url": "https://iacl.ece.jhu.edu/~aaron/data/OCT_Manual_Delineations-2018_June_29_b.zip",
+  "sources": [
+    {
+      "filename": "hc01_spectralis_macula_v1_s1_R.vol",
+      "archive_member": "OCT_Manual_Delineations-2018_June_29/vol/hc01_spectralis_macula_v1_s1_R.vol",
+      "bytes": 104921220,
+      "sha256": "b3cc8ee76292e9c85ba5032ba864c0a3418b831817d458d231e01a453cae3a56"
+    },
+    {
+      "filename": "hc01_spectralis_macula_v1_s1_R.mat",
+      "archive_member": "OCT_Manual_Delineations-2018_June_29/delineation/hc01_spectralis_macula_v1_s1_R.mat",
+      "bytes": 76661,
+      "sha256": "89b390fe2c0ec59feabefe611fd411640917c96521d21650b22a85e8786fa85b"
+    }
+  ],
+  "annotation_reference": {
+    "repository": "https://github.com/heyufan1995/oct_preprocess/tree/9248a91ed093711fe2642da491bae6faa58b8e9d",
+    "reader": "OCTMatTool/Preprocess/Preprocess Utils/readControlPoints.m",
+    "labeling": "OCTMatTool/Preprocess/Preprocess Utils/convertBoundariesToLabels.m",
+    "selection": "OCTMatTool/Preprocess/Preprocess.m removes empty one-based boundary slots 3 and 11",
+    "interpolation": "Sort and deduplicate lateral controls, source unit-parameter natural cubic spline, nearest endpoint extrapolation, and clamp successive boundaries against crossing.",
+    "rasterization": "Round one-based depth boundaries; each layer occupies upper+1 through lower inclusive.",
+    "coverage": "All 49 B-scans contain nine manually delineated boundaries. The eight layers are inferred between adjacent source boundaries."
+  },
+  "layers": [
+    {
+      "value": 1,
+      "name": "RNFL",
+      "description": "Retinal nerve fiber layer"
+    },
+    {
+      "value": 2,
+      "name": "GCL+IPL",
+      "description": "Ganglion cell and inner plexiform layers"
+    },
+    {
+      "value": 3,
+      "name": "INL",
+      "description": "Inner nuclear layer"
+    },
+    {
+      "value": 4,
+      "name": "OPL",
+      "description": "Outer plexiform layer"
+    },
+    {
+      "value": 5,
+      "name": "ONL",
+      "description": "Outer nuclear layer"
+    },
+    {
+      "value": 6,
+      "name": "IS",
+      "description": "Photoreceptor inner segments"
+    },
+    {
+      "value": 7,
+      "name": "OS",
+      "description": "Photoreceptor outer segments"
+    },
+    {
+      "value": 8,
+      "name": "RPE",
+      "description": "Retinal pigment epithelium"
+    }
+  ],
+  "conversion": {
+    "command": "python scripts/samples/convert_jhu_oct.py /path/to/extracted/source .tmp/jhu-oct --write-validity",
+    "dependencies": [
+      "numpy",
+      "scipy"
+    ],
+    "source_dimensions_lateral_depth_slow": [
+      1024,
+      496,
+      49
+    ],
+    "output_dimensions_lateral_depth_slow": [
+      512,
+      496,
+      49
+    ],
+    "output_spacing_mm": [
+      0.012018056586384773,
+      0.003867251332849264,
+      0.12810914486180988
+    ],
+    "axial_spacing_microns": 3.867251332849264,
+    "lateral_sampling": "Retain native lateral indices 0,2,...,1022; native index 1023 is omitted. ScaleX is doubled.",
+    "slow_sampling": "Linearly resample transformed intensities and unrounded boundaries from per-B-scan physical positions to 49 evenly spaced positions across 6.149238953366875 mm. Native adjacent pitches range from 0.12010203066263614 to 0.13211284885730468 mm.",
+    "axial_sampling": "Native depth samples and ScaleZ are preserved; thickness is occupied depth voxels multiplied by 3.867251332849264 microns.",
+    "coordinates": "Shared local zero origin, identity direction, and millimetre spacing for image and segmentation. Patient anatomical orientation is not inferred.",
+    "intensities": "Nested float32 square roots of source reflectivity before slow-axis interpolation. This is a display transform, not unmodified linear reflectivity.",
+    "missing_reflectivity": "Non-finite or out-of-range native values are missing. A resampled voxel is valid only when every source with nonzero interpolation weight is valid. Missing output intensity is zero.",
+    "missing_annotations": "An entire retinal column is excluded from all eight labels when any expected retinal voxel lacks valid intensity. 22 of 25088 output columns are excluded; 25066 have complete retinal coverage.",
+    "limitations": "Without the optional validity image, genuine zero reflectivity and missing intensity are indistinguishable. Zero-filled missing samples contribute to mean and sum projections. Missing labels are zero, so the image/segmentation pair alone cannot distinguish anatomical absence from excluded coverage. Thickness is quantized to the native axial voxel pitch and inherits manual-boundary and slow-axis interpolation uncertainty.",
+    "bundle": "jhu-retinal-layers.zip contains only jhu-hc01.nrrd and jhu-hc01.seg.nrrd. No layout, session, manifest, or runtime configuration. Optional validity and conversion reports remain outside the ZIP.",
+    "patient_metadata": "No patient or visit header fields are exported.",
+    "loading": "Load the ZIP from the Retinal OCT layers sample, disk, or URL parameters. The default seg filename convention selects jhu-hc01.nrrd as the base image and associates jhu-hc01.seg.nrrd as its segmentation. Select the En face view and choose Y (rows) as the depth axis for this non-DICOM OCT; physical calibration is already present in the NRRD."
+  },
+  "terms": {
+    "article_license": "CC BY 4.0 applies to the article.",
+    "dataset_statement": "The institutional dataset page and archive README request citation of the paper. An explicit license for redistribution of the external raw archive or converted derivatives has not been established.",
+    "distribution": "The converted image and segmentation are publicly downloadable from the hosted derivative archive recorded in reference_outputs.archive."
+  },
+  "reference_outputs": {
+    "files": [
+      {
+        "filename": "jhu-hc01.nrrd",
+        "bytes": 37059213,
+        "sha256": "977e2aaebd9379be4b3a8a5f6ef2c3e3855fa8f99b821d0c71e4f82dcb2725c7",
+        "voxel_payload_sha256": "fb40c053a314b0b31a037eefc2b09707f1f46d4e88f9e5bcd78b0756b3ee57a2"
+      },
+      {
+        "filename": "jhu-hc01.seg.nrrd",
+        "bytes": 99060,
+        "sha256": "4dfa99cb9b390435f1b4fcf64502c369036c545fd2cb94ea3cbd4a599ca6e7c3",
+        "voxel_payload_sha256": "ea0f7df26604f3f1193321766123242c4165cfb4fb99a32a335e6b789c977edf"
+      }
+    ],
+    "archive": {
+      "filename": "jhu-retinal-layers.zip",
+      "download_url": "https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download",
+      "file_id": "6ad50668958ec4db1f0d94d7",
+      "content_type": "application/x-zip-compressed",
+      "bytes": 37158507,
+      "sha256": "c9b3547e46c79f9739303dc5256bebb9630aef8f370f9d138fddfb60c75f689f"
+    },
+    "runtime": {
+      "python": "3.11.13",
+      "numpy": "2.4.6",
+      "scipy": "1.17.1"
+    },
+    "checksum_note": "NRRD and ZIP hashes identify the reference outputs, verified against the hosted derivative archive. Voxel-payload hashes avoid differences in gzip implementation across runtimes.",
+    "segmentation_label_counts_including_background": [
+      10452711,
+      317632,
+      409992,
+      180509,
+      238345,
+      335378,
+      107797,
+      163552,
+      237732
+    ]
+  }
+}

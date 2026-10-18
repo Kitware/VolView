@@ -1,15 +1,8 @@
+import reference from '@/tests/fixtures/oct/reference.json';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  mkdtempSync,
-  readFileSync,
-  unlinkSync,
-  rmdirSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync, unlinkSync, rmdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { URL as FileURL, fileURLToPath } from 'node:url';
-import dicomParser from 'dicom-parser';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import { readImageNode } from '@itk-wasm/image-io';
@@ -17,7 +10,7 @@ import { gzipSync } from 'node:zlib';
 import {
   createNrrdVolume,
   createNiftiVolume,
-  publicOCTVolume,
+  syntheticOCTVolume,
 } from '@/tests/fixtures/oct/volumes';
 import { convertItkToVtkImage } from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -27,25 +20,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { getOCTAvailability } from '@/src/oct/availability';
 import { projectEnFace } from '@/src/oct/projection';
 
-// Use public OCT intensities with tiny format fixtures; both readers decode the
-// actual file bytes through their installed WASM pipelines, without mocks.
-const dicomBytes = Uint8Array.from(
-  readFileSync(
-    new FileURL(
-      '../../../tests/fixtures/oct/retina-derived.dcm',
-      import.meta.url
-    )
-  )
-);
-const dicom = dicomParser.parseDicom(dicomBytes);
-const sourcePixels = new DataView(
-  dicomBytes.buffer,
-  dicom.elements.x7fe00010.dataOffset,
-  24
-);
-const samples = Uint16Array.from({ length: 12 }, (_, index) =>
-  sourcePixels.getUint16(index * 2, true)
-);
+const samples = Uint16Array.from({ length: 12 }, (_, index) => index);
 const dimensions = [2, 3, 2];
 
 function nrrd(units: string[]) {
@@ -192,7 +167,6 @@ describe('manual En face with real generic image readers', () => {
         segmentation: {
           dimensions,
           scalars: new Uint8Array(12).fill(1),
-          thresholdMicrons: 0,
         },
       });
       expect(projection.thicknessMicrons![0]).toBeCloseTo(
@@ -255,26 +229,10 @@ describe('manual En face with real generic image readers', () => {
   });
 
   it.each(['nrrd', 'nii'] as const)(
-    'preserves the public retinal volume geometry when A-lines use another voxel axis: %s',
+    'preserves the synthetic raster geometry when A-lines use another voxel axis: %s',
     async (format) => {
-      const source = new FileURL(
-        '../../../tests/fixtures/oct/retina-derived.dcm',
-        import.meta.url
-      );
-      const reference = JSON.parse(
-        readFileSync(
-          new FileURL(
-            '../../../tests/fixtures/oct/reference.json',
-            import.meta.url
-          ),
-          'utf8'
-        )
-      );
       const { id, data } = await load(
-        new File(
-          [publicOCTVolume(fileURLToPath(source), format)],
-          `retina.${format}`
-        )
+        new File([syntheticOCTVolume(format)], `retina.${format}`)
       );
       expect(getOCTAvailability(id)).toMatchObject({
         available: true,

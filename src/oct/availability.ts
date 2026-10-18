@@ -122,7 +122,6 @@ export function getOCTAvailability(imageID: Maybe<string>) {
     available: reason === null,
     isOCT,
     reason,
-    calibrated: geometry.calibratedAxes[1],
     calibratedAxes: geometry.calibratedAxes,
     paddingRanges: geometry.paddingRanges,
   };

@@ -7,7 +7,6 @@ import type {
   ProjectionMethod,
   ProjectionPaddingRange,
 } from '@/src/oct/types';
-import { isPresentThicknessBelow } from '@/src/oct/thickness';
 
 function validateDimensions(dimensions: readonly number[], name: string) {
   if (
@@ -84,28 +83,6 @@ function validateMaskExtent(
   }
 }
 
-function validateSegmentSettings(segmentation: SegmentationProjection) {
-  const segmentValue = segmentation.segmentValue ?? 1;
-  if (!Number.isInteger(segmentValue) || segmentValue <= 0) {
-    throw new Error('Selected segment label must be a positive integer');
-  }
-  if (
-    !Number.isFinite(segmentation.thresholdMicrons) ||
-    segmentation.thresholdMicrons < 0
-  ) {
-    throw new Error('Thickness threshold must be finite and nonnegative');
-  }
-  for (let index = 0; index < segmentation.scalars.length; index += 1) {
-    const label = segmentation.scalars[index];
-    if (!Number.isInteger(label) || label < 0) {
-      throw new Error(
-        'Segmentation scalars must be nonnegative integer labels'
-      );
-    }
-  }
-  return segmentValue;
-}
-
 function prepareSegmentation(
   segmentation: SegmentationProjection,
   parentDimensions: readonly number[]
@@ -126,12 +103,14 @@ function prepareSegmentation(
     parentDimensions[2] - 1,
   ];
   validateMaskExtent(extent, segmentation.dimensions, parentDimensions);
-  const segmentValue = validateSegmentSettings(segmentation);
+  for (let index = 0; index < count; index += 1) {
+    if (segmentation.scalars[index] !== 0 && segmentation.scalars[index] !== 1)
+      throw new Error('Segmentation scalars must be a binary mask');
+  }
   const [dimX, dimY] = segmentation.dimensions;
   return {
     ...segmentation,
     extent,
-    segmentValue,
     strides: [1, dimX, dimX * dimY],
   };
 }
@@ -254,7 +233,7 @@ function segmentThickness(
   row: number
 ) {
   const { horizontalAxis, verticalAxis, axis, micronsPerVoxel } = grid;
-  const { extent, strides, scalars, dimensions, segmentValue } = mask;
+  const { extent, strides, scalars, dimensions } = mask;
   // Lines outside a bounded mask remain absent and are never highlighted.
   if (
     column < extent[2 * horizontalAxis] ||
@@ -273,7 +252,7 @@ function segmentThickness(
     extent[2 * axis] * grid.strides[axis];
   let occupiedVoxels = 0;
   for (let depth = 0; depth < dimensions[axis]; depth += 1) {
-    if (scalars[start + depth * strides[axis]] !== segmentValue) continue;
+    if (scalars[start + depth * strides[axis]] !== 1) continue;
     if (isPaddingVoxel(grid, parentStart + depth * grid.strides[axis]))
       return NaN;
     occupiedVoxels += 1;
@@ -288,29 +267,16 @@ function segmentThickness(
 function allocateResult(
   width: number,
   height: number,
-  hasMask: boolean,
-  hasPadding: boolean
+  hasMask: boolean
 ): ProjectionResult {
   return {
     width,
     height,
     values: new Float32Array(width * height),
-    validPixels: hasPadding ? new Uint8Array(width * height) : undefined,
     thicknessMicrons: hasMask ? new Float64Array(width * height) : undefined,
-    thinMask: hasMask ? new Uint8Array(width * height) : undefined,
   };
 }
 
-function storeIntensity(
-  result: ProjectionResult,
-  pixel: number,
-  value: number
-) {
-  if (Number.isNaN(value)) return 0;
-  result.values[pixel] = value;
-  if (result.validPixels) result.validPixels[pixel] = 1;
-  return 1;
-}
 /**
  * Projects a Cartesian OCT volume along one voxel axis. It does not infer or
  * unwrap polar scan geometry: callers must provide a reconstructed volume.
@@ -322,12 +288,7 @@ export function projectEnFace(input: ProjectionInput): ProjectionResult {
   const mask = input.segmentation
     ? prepareSegmentation(input.segmentation, input.volume.dimensions)
     : undefined;
-  const result = allocateResult(
-    grid.width,
-    grid.height,
-    !!mask,
-    !!grid.paddingByFrame
-  );
+  const result = allocateResult(grid.width, grid.height, !!mask);
   let validPixels = 0;
   for (let row = 0; row < grid.height; row += 1) {
     for (let column = 0; column < grid.width; column += 1) {
@@ -335,20 +296,16 @@ export function projectEnFace(input: ProjectionInput): ProjectionResult {
       const lineStart =
         column * grid.strides[grid.horizontalAxis] +
         row * grid.strides[grid.verticalAxis];
-      validPixels += storeIntensity(
-        result,
-        pixel,
-        projectIntensityLine(grid, lineStart)
-      );
+      const value = projectIntensityLine(grid, lineStart);
+      result.values[pixel] = value;
+      if (!Number.isNaN(value)) validPixels += 1;
       if (mask) {
-        const thickness = segmentThickness(grid, mask, column, row);
-        result.thicknessMicrons![pixel] = thickness;
-        result.thinMask![pixel] = isPresentThicknessBelow(
-          thickness,
-          mask.thresholdMicrons
-        )
-          ? 1
-          : 0;
+        result.thicknessMicrons![pixel] = segmentThickness(
+          grid,
+          mask,
+          column,
+          row
+        );
       }
     }
   }

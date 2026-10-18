@@ -1,24 +1,14 @@
 <script setup lang="ts">
-import * as Comlink from 'comlink';
-import {
-  computed,
-  reactive,
-  ref,
-  shallowRef,
-  toRefs,
-  useTemplateRef,
-  watch,
-} from 'vue';
-import { useResizeObserver } from '@vueuse/core';
+import { computed, reactive, ref, shallowRef, toRefs, watch } from 'vue';
 import { useEnFaceWindowing } from './useEnFaceWindowing';
 import { useThinRegionAppearance } from './useThinRegionAppearance';
+import { thicknessSliderMaximum, thinRegionOutlinePath } from './thickness';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
 import {
   projectionWindowRanges as windowRanges,
   paintThinRegionPixels,
   paintProjectionIntensities as paintIntensities,
 } from './windowLevel';
-import { useEnFaceWindowLevelDrag } from './useEnFaceWindowLevelDrag';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
@@ -26,20 +16,22 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useImageCacheStore } from '@/src/store/image-cache';
+import { extentSize } from '@/src/segmentation/geometry';
 import EnFaceControls from './EnFaceControls.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
-import EnFaceSummary from './EnFaceSummary.vue';
+import EnFaceProjectionView from './EnFaceProjectionView.vue';
 import { getOCTAvailability } from './availability';
 import { defaultOCTViewConfig, useOCTViewStore } from './store';
 import type { ProjectionInput, ProjectionResult } from './types';
-import type { ProjectionWorker } from './projection.worker';
 
 const props = defineProps<{ viewId: string }>();
 const { viewId } = toRefs(props);
-const { currentImageID, currentImageData, currentImageMetadata } =
-  useCurrentImage();
-const imageCache = useImageCacheStore();
+const {
+  currentImageID,
+  currentImageData,
+  currentImageMetadata,
+  isImageLoading: sourceLoading,
+} = useCurrentImage();
 const segmentationStore = useSegmentationStore();
 const segmentsRegistry = useSegmentStore().segments;
 const octStore = useOCTViewStore();
@@ -89,12 +81,6 @@ watch(
   },
   { immediate: true }
 );
-const selectedSegmentName = computed(
-  () =>
-    segmentOptions.value.find(
-      ({ value }) => value === settings.value.selectedMaskId
-    )?.title ?? 'Selected segment'
-);
 const selectedBinding = computed(() =>
   settings.value.selectedMaskId
     ? segmentationStore.findMaskBinding(settings.value.selectedMaskId)
@@ -130,13 +116,8 @@ const maskGeometryReason = computed(() => {
       value >= 0 &&
       value < dimensions.value[Math.floor(index / 2)]
   );
-  const maskDimensions = [
-    extent[1] - extent[0] + 1,
-    extent[3] - extent[2] + 1,
-    extent[5] - extent[4] + 1,
-  ];
   const gridMatches =
-    arraysNear(binding.image.getDimensions(), maskDimensions) &&
+    arraysNear(binding.image.getDimensions(), extentSize(extent)) &&
     arraysNear(binding.image.getSpacing(), parent.getSpacing()) &&
     arraysNear(binding.image.getDirection(), parent.getDirection());
   const originMatches = arraysNear(
@@ -147,13 +128,15 @@ const maskGeometryReason = computed(() => {
     ? null
     : 'This segmentation mask does not match the OCT voxel grid; align it to the volume before measuring thickness.';
 });
-const thicknessReason = computed(
+const highlightEligibilityReason = computed(
   () =>
     segmentationReason.value ||
-    maskGeometryReason.value ||
     (!availability.value.calibratedAxes[settings.value.axis]
       ? 'Physical units or spacing for this A-line axis are unavailable; thickness in micrometers is unavailable.'
       : null)
+);
+const thicknessReason = computed(
+  () => highlightEligibilityReason.value || maskGeometryReason.value
 );
 
 const highlightAppearance = useThinRegionAppearance(
@@ -207,13 +190,15 @@ const projectionRequest = computed(() => {
       dimensions: [...binding.image.getDimensions()],
       extent: [...binding.extent],
       numberOfComponents: scalars.getNumberOfComponents(),
-      thresholdMicrons: 0,
     };
   }
   return request;
 });
 
 const projection = shallowRef<ProjectionResult | null>(null);
+const thresholdMaximum = computed(() =>
+  thicknessSliderMaximum(projection.value)
+);
 const renderedRequest = shallowRef<ProjectionInput | null>(null);
 const computing = ref(false);
 const projectionError = ref<string | null>(null);
@@ -222,10 +207,8 @@ watch(
   (request, _oldRequest, onCleanup) => {
     let active = true;
     let worker: Worker | undefined;
-    let rejectFailure: ((error: Error) => void) | undefined;
     onCleanup(() => {
       active = false;
-      rejectFailure?.(new Error('The OCT projection was superseded.'));
       worker?.terminate();
     });
     projection.value = null;
@@ -233,53 +216,40 @@ watch(
     projectionError.value = null;
     computing.value = !!request;
     if (!request) return;
-    const run = async () => {
-      try {
-        worker = new Worker(
-          new URL('./projection.worker.ts', import.meta.url),
-          { type: 'module' }
-        );
-        const failure = new Promise<never>((_resolve, reject) => {
-          rejectFailure = reject;
-        });
-        const handleFailure = (event: Event) =>
-          rejectFailure?.(
-            new Error(
-              (event as ErrorEvent).message ||
-                'The OCT projection worker failed.'
-            )
-          );
-        worker.addEventListener('error', handleFailure);
-        worker.addEventListener('messageerror', handleFailure);
-        const remote = Comlink.wrap<ProjectionWorker>(worker);
-        // Structured cloning preserves the image and mask buffers used by the other views.
-        const result = await Promise.race([
-          remote.projectEnFace(request),
-          failure,
-        ]);
-        if (active) {
-          projection.value = result;
-          renderedRequest.value = request;
-        }
-      } catch (error) {
-        if (active)
-          projectionError.value =
-            error instanceof Error
-              ? error.message
-              : 'En face projection failed.';
-      } finally {
-        worker?.terminate();
-        if (active) computing.value = false;
-      }
+    const fail = (message: string) => {
+      if (!active) return;
+      projectionError.value = message;
+      computing.value = false;
+      worker?.terminate();
     };
-    void run();
+    try {
+      worker = new Worker(new URL('./projection.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+      worker.onmessage = (event: MessageEvent<ProjectionResult>) => {
+        if (!active) return;
+        projection.value = event.data;
+        renderedRequest.value = request;
+        computing.value = false;
+        worker?.terminate();
+      };
+      worker.onerror = (event) =>
+        fail(event.message || 'The OCT projection worker failed.');
+      worker.onmessageerror = () => fail('The OCT projection worker failed.');
+      // Structured cloning preserves buffers used by the source views.
+      worker.postMessage(request);
+    } catch (error) {
+      fail(
+        error instanceof Error ? error.message : 'En face projection failed.'
+      );
+    }
   },
   { immediate: true }
 );
 
 const projectionStats = computed(() => {
   const result = projection.value;
-  return result ? windowRanges(result.values, result.validPixels) : null;
+  return result ? windowRanges(result.values) : null;
 });
 const autoRange = computed(
   () => projectionStats.value ?? { width: 1, level: 0.5, min: 0, max: 1 }
@@ -300,118 +270,59 @@ const sliceLines = useEnFaceSliceLines(
   )
 );
 
-const { startWindowing, moveWindowing, stopWindowing } =
-  useEnFaceWindowLevelDrag({
-    viewId,
-    imageId: currentImageID,
-    ready: computed(() => !!projection.value),
-    range: autoRange,
-    config: windowConfig,
-  });
-const canvas = useTemplateRef<HTMLCanvasElement>('canvas');
-const canvasContainer = useTemplateRef<HTMLElement>('canvas-container');
-const displaySize = ref({ width: 0, height: 0 });
-useResizeObserver(canvasContainer, ([entry]) => {
-  displaySize.value = {
-    width: entry.contentRect.width,
-    height: entry.contentRect.height,
-  };
+const highlightOutline = computed(() => {
+  const result = projection.value;
+  const appearance = highlightAppearance.value;
+  return result &&
+    settings.value.highlightThin &&
+    !highlightReason.value &&
+    appearance &&
+    appearance.outlineWidth > 0 &&
+    appearance.outlineOpacity > 0
+    ? thinRegionOutlinePath(result, settings.value.thresholdMicrons)
+    : '';
 });
-const canvasStyle = computed(() => {
+const projectionFrame = computed(() => {
   const result = projection.value;
   const request = renderedRequest.value;
-  if (!result || !request) return {};
-  const axes = [0, 1, 2].filter((axis) => axis !== request.axis);
-  const aspect =
-    (result.width * Math.abs(request.volume.spacing[axes[0]])) /
-    (result.height * Math.abs(request.volume.spacing[axes[1]]));
-  const width = Math.min(
-    displaySize.value.width,
-    displaySize.value.height * aspect
-  );
-  return { width: `${width}px`, height: `${width / aspect}px` };
-});
-const highlightedPixels = ref(0);
-function paintThinRegions(result: ProjectionResult, pixels: ImageData) {
-  const thickness = result.thicknessMicrons;
-  const appearance = highlightAppearance.value;
+  if (!result || !request) return null;
+  const pixels = new Uint8ClampedArray(result.width * result.height * 4);
+  paintIntensities(result.values, pixels, windowConfig.value);
   if (
-    !settings.value.highlightThin ||
-    highlightReason.value ||
-    !thickness ||
-    !appearance
+    settings.value.highlightThin &&
+    !highlightReason.value &&
+    result.thicknessMicrons &&
+    highlightAppearance.value
   )
-    return 0;
-  return paintThinRegionPixels(
-    pixels.data,
-    thickness,
-    settings.value.thresholdMicrons,
-    { ...appearance, validPixels: result.validPixels }
-  );
-}
-function paintProjection() {
-  const result = projection.value;
-  const target = canvas.value;
-  highlightedPixels.value = 0;
-  if (!target) return;
-  const context = target.getContext('2d');
-  if (!context) return;
-  if (!result) {
-    context.clearRect(0, 0, target.width, target.height);
-    return;
-  }
-  target.width = result.width;
-  target.height = result.height;
-  const pixels = context.createImageData(result.width, result.height);
-  const { values, validPixels } = result;
-  paintIntensities(values, pixels.data, windowConfig.value, validPixels);
-  highlightedPixels.value = paintThinRegions(result, pixels);
-  context.putImageData(pixels, 0, 0);
-}
-watch(
-  [
-    canvas,
-    projection,
-    () => windowConfig.value.width,
-    () => windowConfig.value.level,
-    () => settings.value.highlightThin,
-    () => settings.value.thresholdMicrons,
-    highlightReason,
-    highlightAppearance,
-  ],
-  paintProjection,
-  { flush: 'post' }
-);
+    paintThinRegionPixels(
+      pixels,
+      result.thicknessMicrons,
+      settings.value.thresholdMicrons,
+      { ...highlightAppearance.value, values: result.values }
+    );
+  const axes = [0, 1, 2].filter((axis) => axis !== request.axis);
+  return {
+    width: result.width,
+    height: result.height,
+    spacing: axes.map((axis) => Math.abs(request.volume.spacing[axis])),
+    pixels: new Uint8Array(pixels.buffer),
+  };
+});
 const stateMessage = computed(
   () =>
     projectionReason.value ||
     projectionError.value ||
     (computing.value ? 'Generating en face projection…' : null)
 );
-const state = computed(() =>
-  projectionReason.value
-    ? 'unavailable'
-    : projectionError.value
-      ? 'error'
-      : computing.value
-        ? 'computing'
-        : projection.value
-          ? 'ready'
-          : 'unavailable'
-);
-const summaryHighlightReason = computed(
-  () =>
-    highlightReason.value ||
-    stateMessage.value ||
-    (!projection.value ? 'En face projection unavailable.' : null)
-);
-const sourceLoading = computed(
-  () => currentImageID.value && imageCache.imageLoading[currentImageID.value]
-);
 </script>
 
 <template>
-  <div class="en-face-viewer" tabindex="0" data-testid="oct-en-face-viewer">
+  <div
+    class="en-face-viewer"
+    tabindex="0"
+    :aria-busy="computing"
+    data-testid="oct-en-face-viewer"
+  >
     <v-progress-linear
       v-if="computing || sourceLoading"
       indeterminate
@@ -419,41 +330,41 @@ const sourceLoading = computed(
       color="grey"
       class="loading-indicator"
     />
-    <div ref="canvas-container" class="projection-display">
-      <div class="projection-image" :style="canvasStyle">
-        <canvas
-          ref="canvas"
-          tabindex="0"
-          @pointerdown="startWindowing"
-          @pointermove="moveWindowing"
-          @pointerup="stopWindowing"
-          @pointercancel="stopWindowing"
-          @lostpointercapture="stopWindowing"
-          :hidden="!projection"
-          aria-label="OCT en face projection"
-          data-testid="oct-en-face-canvas"
-        />
-        <svg
-          v-if="projection"
-          class="slice-position-lines"
-          :viewBox="[0, 0, projection.width, projection.height].join(' ')"
-          preserveAspectRatio="none"
-          data-testid="oct-slice-lines"
-        >
+    <EnFaceProjectionView
+      :view-id="viewId"
+      :image-id="currentImageID"
+      :frame="projectionFrame"
+      :window-range="autoRange"
+      :window-config="windowConfig"
+      v-slot="{ imageTransform }"
+    >
+      <svg
+        v-if="projection"
+        class="slice-position-lines"
+        data-testid="oct-slice-lines"
+      >
+        <g :transform="imageTransform">
+          <path
+            v-if="highlightOutline && highlightAppearance"
+            :d="highlightOutline"
+            fill="none"
+            :stroke="`rgb(${highlightAppearance.color.slice(0, 3).join(',')})`"
+            :stroke-opacity="highlightAppearance.outlineOpacity"
+            :stroke-width="highlightAppearance.outlineWidth"
+            stroke-linecap="square"
+            vector-effect="non-scaling-stroke"
+            data-testid="oct-thin-outline"
+          />
           <line
             v-for="line in sliceLines"
             :key="line.viewId"
             v-bind="line"
             :data-view-id="line.viewId"
-            :data-x1="line.x1"
-            :data-y1="line.y1"
-            :data-x2="line.x2"
-            :data-y2="line.y2"
             data-testid="oct-slice-line"
           />
-        </svg>
-      </div>
-    </div>
+        </g>
+      </svg>
+    </EnFaceProjectionView>
     <EnFaceStatus
       :message="stateMessage"
       :ready="!!projection"
@@ -464,43 +375,12 @@ const sourceLoading = computed(
       <template #top-left>
         <div class="annotation-cell">{{ currentImageMetadata.name }}</div>
       </template>
-      <template #top-center
-        ><div class="annotation-cell">
-          En face • {{ ['X', 'Y', 'Z'][settings.axis] }} A-line
-        </div></template
-      >
       <template #top-right
         ><div class="annotation-cell">
           <DicomQuickInfoButton :image-id="currentImageID" /></div
       ></template>
-      <template #bottom-left>
-        <EnFaceSummary
-          class="annotation-cell projection-summary"
-          data-testid="oct-en-face-state"
-          :data-state="state"
-          :data-projection-method="settings.method"
-          :data-projection-axis="settings.axis"
-          :data-slab-start="depthStart"
-          :data-slab-end="depthEnd"
-          :data-width="projection?.width ?? 0"
-          :data-height="projection?.height ?? 0"
-          :data-highlighted-pixels="highlightedPixels"
-          :data-highlight-color="highlightAppearance?.color.join(',') ?? ''"
-          :data-highlight-opacity="highlightAppearance?.alpha ?? 0"
-          :data-window-width="windowConfig.width"
-          :data-window-level="windowConfig.level"
-          :settings="settings"
-          :projection="projection"
-          :state-message="stateMessage"
-          :depth-start="depthStart"
-          :depth-end="depthEnd"
-          :segment-name="selectedSegmentName"
-          :highlighted-pixels="highlightedPixels"
-          :highlight-reason="summaryHighlightReason"
-        />
-      </template>
       <template #bottom-right>
-        <div class="annotation-cell corner-controls" @click.stop>
+        <div class="annotation-cell corner-controls" @click.stop @dblclick.stop>
           <v-menu
             :close-on-content-click="false"
             location="top end"
@@ -511,7 +391,9 @@ const sourceLoading = computed(
                 v-bind="menuProps"
                 icon
                 size="x-small"
-                variant="text"
+                variant="flat"
+                color="surface"
+                border
                 class="pointer-events-all"
                 aria-label="En face rendering controls"
                 data-testid="oct-en-face-controls"
@@ -526,11 +408,12 @@ const sourceLoading = computed(
               :settings="settings"
               @patch="Object.assign(settings, $event)"
               :depth-maximum="depthMaximum"
+              :threshold-maximum="thresholdMaximum"
               :projection-reason="projectionReason"
               :segmentation-reason="segmentationReason"
-              :thickness-reason="highlightReason"
+              :thickness-reason="highlightReason || stateMessage"
+              :highlight-reason="highlightEligibilityReason"
               :segments="segmentOptions"
-              :expand-advanced="availability.available && !availability.isOCT"
             />
           </v-menu>
           <ViewTypeSwitcher
@@ -555,28 +438,11 @@ const sourceLoading = computed(
   background: black;
   overflow: hidden;
 }
-.projection-display {
-  position: absolute;
-  inset: 28px 16px 48px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.projection-image {
-  position: relative;
-  flex: none;
-}
-.projection-image canvas,
 .slice-position-lines {
-  width: 100%;
-  height: 100%;
   position: absolute;
   inset: 0;
-}
-.projection-image canvas {
-  touch-action: none;
-}
-.slice-position-lines {
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   overflow: hidden;
 }
@@ -590,10 +456,5 @@ const sourceLoading = computed(
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-}
-.projection-summary {
-  font-size: 0.75rem;
-  letter-spacing: normal;
-  white-space: normal;
 }
 </style>

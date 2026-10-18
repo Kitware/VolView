@@ -2,14 +2,30 @@
 // into the dataset cache before any spec starts, and specs read them from the
 // local server at `/tmp/<name>`. CI keys its dataset cache on this file.
 //
-// The files are assets of one GitHub release. An asset can be replaced after
+// Most files are assets of one GitHub release. An asset can be replaced after
 // it is published, so each download is checked against its hash. To change or
-// add a file, publish a new release and point DATASET_RELEASE at it.
+// add a release asset, publish a new release and point DATASET_RELEASE at it.
+// Pinned upstream files can explicitly use their original source instead.
 export const DATASET_RELEASE =
   'https://github.com/Kitware/VolView/releases/download/test-data-1';
 
 // `origin` is where the file was first published.
 const DATASETS = {
+  JHU_RETINAL_LAYERS: {
+    name: 'jhu-retinal-layers.zip',
+    origin:
+      'https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download',
+    downloadFromOrigin: true,
+    sha256: 'c9b3547e46c79f9739303dc5256bebb9630aef8f370f9d138fddfb60c75f689f',
+  },
+  // MIT, copyright 2020 Theis Lab. An anonymized example from DeepRT.
+  RETINAL_OCT_DICOM: {
+    name: 'retinal-oct.dcm',
+    origin:
+      'https://raw.githubusercontent.com/theislab/DeepRT/be86ac601294866d0c3f1d924418d8fee41ead37/thickness_map_calculation/data/256692_R_20160524/1.3.6.1.4.1.33437.10.4.4089432.13108567473.25811.4.1.dcm',
+    downloadFromOrigin: true,
+    sha256: 'f82badd35ee5691133a0d25c34568cedb0bd17575bb75b8812d61c03f13a4992',
+  },
   ONE_CT_SLICE_DICOM: {
     name: 'CT000085.dcm',
     origin:
@@ -86,6 +102,8 @@ const DATASETS = {
 } as const;
 
 export const {
+  JHU_RETINAL_LAYERS,
+  RETINAL_OCT_DICOM,
   ONE_CT_SLICE_DICOM,
   MINIMAL_DICOM,
   MINIMAL_501_SESSION,

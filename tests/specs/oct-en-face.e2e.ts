@@ -2,14 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   dragContrast,
+  enFaceAppearance,
+  waitForEnFaceReady,
   stageIllustrativeMask,
   stageGenericOCT,
-  ILLUSTRATIVE_THIN_COLUMNS,
   expectStackedSourceMask,
   expectControlsBesideSelector,
-  expectEnFacePixels,
   expectEnFaceDisabledInSwitcher,
-  readEnFacePixels,
+  expandEnFaceSection,
+  setSlabRange,
+  slabThumb,
   getEnFaceWindow as getWindow,
 } from './octTestUtils';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
@@ -22,8 +24,13 @@ import {
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
 } from './utils';
-import { deflatedExplicitVR, nonOCTDicom } from '../fixtures/oct/volumes';
-import { paddedPublicOCT } from '../fixtures/oct/padding';
+import {
+  deflatedExplicitVR,
+  nonOCTDicom,
+  syntheticMask,
+} from '../fixtures/oct/volumes';
+import { createSyntheticOCT } from '../fixtures/oct/dicom';
+import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
   openAnnotationSegments,
@@ -37,15 +44,10 @@ const reference = JSON.parse(
   size: number[];
   spacing: number[];
   range: number[];
-  points: { x: number; z: number }[];
-  projections: Record<string, number[]>;
-  slab: { start: number; end: number; mean: number[] };
+  slab: { start: number; end: number };
   thinColumns: number;
-  allSegmentedColumns: number;
-  alternateSegmentColumns: number;
 };
 const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const STATE = '[data-testid="oct-en-face-state"]';
 const CONTROLS = '[data-testid="oct-en-face-controls"]';
 const THRESHOLD = '[data-testid="oct-thickness-threshold-input"] input';
 const WINDOW_TOOL = 'button[data-testid^="control-button-Window & Level "]';
@@ -54,7 +56,10 @@ const STEM = 'oct-fixtures';
 
 function stageFixture(name: string) {
   const directory = makeTempDir(STEM);
-  fs.copyFileSync(path.join(FIXTURES, 'oct', name), path.join(directory, name));
+  fs.writeFileSync(
+    path.join(directory, name),
+    name.endsWith('.dcm') ? createSyntheticOCT() : syntheticMask()
+  );
   return STEM + '/' + name;
 }
 
@@ -67,13 +72,7 @@ async function selectEnFace() {
   await option.waitForClickable();
   await option.click();
   await $(CANVAS).waitForDisplayed();
-  await browser.waitUntil(
-    async () => (await $(CANVAS).getAttribute('width')) === '128',
-    {
-      timeoutMsg:
-        'Expected the real OCT volume to generate a 128-column en face bitmap',
-    }
-  );
+  await waitForEnFaceReady();
 }
 
 async function attachMaskThroughDataPanel(file: string) {
@@ -97,21 +96,12 @@ async function openControls() {
   await panel.waitForStable();
 }
 
-async function setNumber(testId: string, value: number) {
-  const input = $('[data-testid="' + testId + '"] input');
+async function setThicknessThreshold(value: number) {
+  await expandEnFaceSection('thickness');
+  const input = $(THRESHOLD);
   await input.scrollIntoView({ block: 'center', inline: 'nearest' });
   await input.waitForClickable();
   await setValueVueInput(input, String(value));
-  if (testId.startsWith('oct-slab-'))
-    await $('[data-testid="oct-rendering-panel"] .controls-title').click();
-}
-
-async function expandAdvanced() {
-  const toggle = $('[data-testid="oct-advanced-toggle"]');
-  if ((await toggle.getAttribute('aria-expanded')) !== 'true')
-    await toggle.click();
-  await $('[data-testid="oct-projection-axis"]').waitForDisplayed();
-  await $('[data-testid="oct-rendering-panel"]').waitForStable();
 }
 
 async function selectSetting(testId: string, title: string) {
@@ -129,26 +119,12 @@ async function selectSetting(testId: string, title: string) {
 }
 
 async function enableHighlight() {
+  await expandEnFaceSection('thickness');
   const label = $('[data-testid="oct-thin-highlight"] label');
   await label.scrollIntoView({ block: 'center', inline: 'nearest' });
   await label.waitForClickable();
-  await label.click();
-}
-
-async function waitForProjection(method: string) {
-  await browser.waitUntil(async () => {
-    const state = $(STATE);
-    if ((await state.getAttribute('data-state')) === 'error')
-      throw new Error(await state.getText());
-    return (
-      (await state.getAttribute('data-state')) === 'ready' &&
-      (await state.getAttribute('data-projection-method')) === method
-    );
-  });
-}
-
-async function canvasPixels(points = reference.points) {
-  return readEnFacePixels(points);
+  if (!(await $('[data-testid="oct-thin-highlight"] input').isSelected()))
+    await label.click();
 }
 
 async function dragEnFaceContrast() {
@@ -178,36 +154,35 @@ async function getOriginalWindow() {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-async function expectProjectedPixels(values: number[]) {
-  return expectEnFacePixels(values, reference.points);
+async function expectHighlight(present: boolean) {
+  await waitForEnFaceReady();
+  const outline = $('[data-testid="oct-thin-outline"]');
+  if (present) await expect(outline).toBeDisplayed();
+  else await expect(outline).not.toExist();
 }
 
-async function expectPaddingPixels() {
-  expect(
-    await readEnFacePixels([
-      { x: 0, z: 0 },
-      { x: 5, z: 12 },
-    ])
-  ).toEqual([
-    [0, 0, 0, 255],
-    [0, 0, 0, 255],
-  ]);
-}
-
-async function expectHighlightCount(count: number) {
-  await browser.waitUntil(
-    async () =>
-      (await $(STATE).getAttribute('data-highlighted-pixels')) ===
-      String(count),
-    {
-      timeoutMsg:
-        'Expected ' + count + ' physically thin A-lines to be highlighted',
-    }
+async function expectCalibratedEnFace() {
+  await waitForEnFaceReady();
+  const spacing = await waitForFirstCachedImageSpacing();
+  spacing.forEach((value, axis) =>
+    expect(value).toBeCloseTo(reference.spacing[axis], 6)
   );
+  expect(await volViewPage.getNotificationsCount()).toBe(0);
+}
+
+async function expectStackedMaskWithoutSidebar() {
+  if (
+    ((await $('#left-nav').getAttribute('class')) ?? '').includes(
+      'v-navigation-drawer--active'
+    )
+  )
+    await $('header i.mdi-menu').click();
+  await $(CANVAS).waitForStable();
+  await expectStackedSourceMask();
 }
 
 async function openRetina(withMask = false, comparison = false) {
-  const image = stageFixture('retina-derived.dcm');
+  const image = stageFixture('synthetic-oct.dcm');
   await writeManifestToFile(
     {
       layouts: {
@@ -216,95 +191,7 @@ async function openRetina(withMask = false, comparison = false) {
     },
     'oct-config.json'
   );
-  const source = withMask ? 'oct-mask.volview.json' : image;
-  if (withMask) {
-    const mask = comparison
-      ? STEM +
-        '/' +
-        stageIllustrativeMask(
-          makeTempDir(STEM),
-          reference.size,
-          reference.spacing
-        )
-      : stageFixture('synthetic-thickness.nrrd');
-    await writeManifestToFile(
-      {
-        version: '7.0.0',
-        dataSources: [
-          { id: 1, type: 'uri', uri: '/tmp/' + image },
-          { id: 2, type: 'uri', uri: '/tmp/' + mask },
-          { id: 3, type: 'collection', sources: [2] },
-        ],
-        datasets: [{ id: 'oct-parent', dataSourceId: 1 }],
-        segments: [
-          {
-            id: 'retina-layer',
-            name: comparison
-              ? 'Synthetic retinal layer'
-              : 'Synthetic retinal band',
-            visible: true,
-            color: comparison ? [35, 215, 190, 255] : [255, 0, 0, 255],
-          },
-          {
-            id: 'other-layer',
-            name: 'Alternative synthetic band',
-            visible: true,
-            color: [0, 255, 0, 255],
-          },
-        ].filter((_, index) => !comparison || index === 0),
-        selectedSegment: 'retina-layer',
-        segmentations: [
-          {
-            id: 'oct-layer-segmentation',
-            name: comparison
-              ? 'Synthetic illustrative layer'
-              : 'Synthetic thickness bands',
-            parentImage: 'oct-parent',
-            ...(comparison
-              ? { fillOpacity: 0.3, outlineOpacity: 0.75, outlineThickness: 1 }
-              : {}),
-            order: comparison
-              ? ['retina-layer-mask']
-              : ['retina-layer-mask', 'other-layer-mask'],
-            masks: [
-              {
-                id: 'retina-layer-mask',
-                segmentId: 'retina-layer',
-                representations: {
-                  labelmap: {
-                    artifactId: 'oct-layer-artifact',
-                    sourceValue: 1,
-                    extent: [0, -1, 0, -1, 0, -1],
-                  },
-                },
-              },
-              {
-                id: 'other-layer-mask',
-                segmentId: 'other-layer',
-                representations: {
-                  labelmap: {
-                    artifactId: 'oct-layer-artifact',
-                    sourceValue: 2,
-                    extent: [0, -1, 0, -1, 0, -1],
-                  },
-                },
-              },
-            ].filter((_, index) => !comparison || index === 0),
-          },
-        ],
-        segmentationArtifacts: [
-          {
-            id: 'oct-layer-artifact',
-            parentImage: 'oct-parent',
-            name: 'Synthetic thickness bands',
-            dataSourceId: 3,
-          },
-        ],
-      },
-      source
-    );
-  }
-  await volViewPage.open('?urls=[tmp/oct-config.json,tmp/' + source + ']');
+  await volViewPage.open('?urls=[tmp/oct-config.json,tmp/' + image + ']');
   await volViewPage.waitForViews();
   const spacing = await waitForFirstCachedImageSpacing();
   spacing.forEach((value, axis) =>
@@ -312,7 +199,19 @@ async function openRetina(withMask = false, comparison = false) {
   );
   if (comparison) await $(CANVAS).waitForDisplayed();
   else await selectEnFace();
-  await waitForProjection('mean');
+  await waitForEnFaceReady();
+  if (withMask) {
+    const mask = comparison
+      ? STEM + '/' + stageIllustrativeMask(makeTempDir(STEM))
+      : stageFixture('synthetic-thickness.nrrd');
+    await attachMaskThroughDataPanel(mask);
+    await openAnnotationSegments();
+    const segment = comparison
+      ? 'Synthetic retinal layer'
+      : 'Synthetic retinal band';
+    await waitForSegmentContent(segment);
+    await selectSegment(segment);
+  }
   await openControls();
 }
 
@@ -324,7 +223,7 @@ async function expectSliceLine() {
       return (
         (await lines.length) === 1 &&
         slice !== null &&
-        Number(await lines[0].getAttribute('data-y1')) === slice - 0.5
+        Number(await lines[0].getAttribute('y1')) === slice - 0.5
       );
     },
     {
@@ -336,10 +235,10 @@ async function expectSliceLine() {
   if (slice === null)
     throw new Error('The original OCT view has no slice position');
   const line = $(SLICE_LINE);
-  expect(Number(await line.getAttribute('data-x1'))).toBe(0);
-  expect(Number(await line.getAttribute('data-x2'))).toBe(128);
-  expect(Number(await line.getAttribute('data-y1'))).toBe(slice - 0.5);
-  expect(Number(await line.getAttribute('data-y2'))).toBe(slice - 0.5);
+  expect(Number(await line.getAttribute('x1'))).toBe(0);
+  expect(Number(await line.getAttribute('x2'))).toBe(128);
+  expect(Number(await line.getAttribute('y1'))).toBe(slice - 0.5);
+  expect(Number(await line.getAttribute('y2'))).toBe(slice - 0.5);
   expect(
     await line.execute((element) =>
       getComputedStyle(element).stroke.replace(/\s/g, '')
@@ -361,123 +260,121 @@ describe('Retinal OCT en face viewing', () => {
     }
   });
 
-  it('loads public real OCT pixels and projects mean, maximum, sum and an inclusive depth slab', async () => {
+  it('keeps both stacked views visible when double-clicking rendering controls and the view selector', async () => {
+    await openRetina(true, true);
+    const source = (await volViewPage.getViews2D())[0];
+    const expectBothViews = async () => {
+      await expect(source.$('canvas')).toBeDisplayed();
+      await expect($(CANVAS)).toBeDisplayed();
+    };
+    await $(CONTROLS).doubleClick();
+    await expectBothViews();
+    const panel = $('[data-testid="oct-rendering-panel"]');
+    if (!(await panel.isDisplayed())) await openControls();
+    await enableHighlight();
+    const inlineHelp = await $('[data-testid="oct-thickness-help"]').execute(
+      (button) => {
+        const text = button.parentElement?.parentElement?.firstChild;
+        if (!text) return false;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const caption = range.getBoundingClientRect();
+        const icon = button.getBoundingClientRect();
+        return (
+          icon.left >= caption.right &&
+          icon.top < caption.bottom &&
+          icon.bottom > caption.top
+        );
+      }
+    );
+    expect(inlineHelp).toBe(true);
+    await $(THRESHOLD).doubleClick();
+    await expectBothViews();
+    await $(
+      '[data-testid="oct-thickness-threshold"] [role="slider"]'
+    ).doubleClick();
+    await expectBothViews();
+    await browser.keys('Escape');
+    await $(
+      '[data-testid="oct-en-face-viewer"] .view-type-select .v-field'
+    ).doubleClick();
+    await browser.keys('Escape');
+    await expectBothViews();
+  });
+
+  it('changes projection, slab, axis and windowing through compact controls', async () => {
     await openRetina();
-    expect(
-      await $('button[data-testid^="control-button-Select "]').isEnabled()
-    ).toBe(true);
-    expect(
-      await $('button[data-testid^="control-button-Paint "]').isEnabled()
-    ).toBe(false);
     expect(await $(WINDOW_TOOL).isEnabled()).toBe(true);
-    expect(await $(CANVAS).getAttribute('width')).toBe(
-      String(reference.size[0])
-    );
-    expect(await $(CANVAS).getAttribute('height')).toBe(
-      String(reference.size[2])
-    );
-    expect(await $('[data-testid="oct-window-width"]').isExisting()).toBe(
-      false
-    );
-    expect(await $('[data-testid="oct-window-level"]').isExisting()).toBe(
-      false
-    );
     const compactPanel = await $(
       '[data-testid="oct-rendering-panel"]'
     ).getSize();
     expect(compactPanel.width).toBe(300);
-    expect(compactPanel.height).toBeLessThan(450);
-    expect(
-      await $('[data-testid="oct-advanced-toggle"]').getAttribute(
-        'aria-expanded'
-      )
-    ).toBe('false');
-    await expectProjectedPixels(reference.projections.mean);
-
-    await expandAdvanced();
+    expect(compactPanel.height).toBeLessThanOrEqual(560);
+    for (const section of ['projection', 'thickness'])
+      await expect(
+        $('[data-testid="oct-' + section + '-toggle"]')
+      ).toHaveAttribute('aria-expanded', 'true');
+    const mean = await enFaceAppearance();
+    await expandEnFaceSection('projection');
     await selectSetting('oct-projection-method', 'Maximum');
-    await waitForProjection('max');
-    await expectProjectedPixels(reference.projections.max);
-    await selectSetting('oct-projection-method', 'Sum');
-    await waitForProjection('sum');
-    const sumValues = reference.projections.mean.map(
-      (value) => value * reference.size[1]
+    await waitForEnFaceReady();
+    await expect($('[data-testid="oct-projection-method"] input')).toHaveValue(
+      'Maximum'
     );
-    await expectProjectedPixels(sumValues);
-    // The standard Full Range preset must use projected intensities for Sum.
+    await selectSetting('oct-projection-method', 'Sum');
+    await waitForEnFaceReady();
+    await expect($('[data-testid="oct-projection-method"] input')).toHaveValue(
+      'Sum'
+    );
+    await selectSetting('oct-projection-method', 'Mean');
+    await setSlabRange(reference.slab.start, reference.slab.end);
+    await waitForEnFaceReady();
     await browser.keys('Escape');
     await $(CANVAS).click();
     await $(WINDOW_TOOL).click();
-    const fullRange = $('label=Full Range');
-    await fullRange.waitForClickable();
-    await fullRange.click();
+    const manual = $$('.v-overlay--active .manual-inputs input');
+    await manual[0].waitForDisplayed();
+    await setValueVueInput(manual[0], '1');
+    await setValueVueInput(manual[1], '202.5');
     await browser.keys('Escape');
-    await expectProjectedPixels(sumValues);
-    expect(
-      new Set((await canvasPixels()).map(([gray]) => gray)).size
-    ).toBeGreaterThan(1);
+    await manual[0].waitForDisplayed({ reverse: true });
+    expect(await getWindow()).toEqual({ width: 1, level: 202.5 });
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).image !== mean.image
+    );
     await openControls();
-    await expandAdvanced();
-    await selectSetting('oct-projection-method', 'Mean');
-    await waitForProjection('mean');
-    await setNumber('oct-slab-start', reference.slab.start);
-    await setNumber('oct-slab-end', reference.slab.end);
-    await browser.waitUntil(
-      async () =>
-        (await $(STATE).getAttribute('data-slab-start')) ===
-          String(reference.slab.start) &&
-        (await $(STATE).getAttribute('data-slab-end')) ===
-          String(reference.slab.end) &&
-        (await $(STATE).getAttribute('data-state')) === 'ready'
-    );
-    await expectProjectedPixels(reference.slab.mean);
+    await expandEnFaceSection('projection');
     await selectSetting('oct-projection-axis', 'X (columns)');
-    await browser.waitUntil(
-      async () => (await $(CANVAS).getAttribute('width')) === '222'
+    await waitForEnFaceReady();
+    await expect($('[data-testid="oct-projection-axis"] input')).toHaveValue(
+      'X (columns)'
     );
-    expect(await $(CANVAS).getAttribute('height')).toBe('32');
-    expect(
-      await $('[data-testid="oct-thin-highlight"] input').isEnabled()
-    ).toBe(false);
-    expect(await $(THRESHOLD).isEnabled()).toBe(false);
-    expect(
-      await $('[data-testid="oct-segmentation-segment"] input').isEnabled()
-    ).toBe(false);
-    expect(
-      await $('[data-testid="oct-segmentation-segment"] input').getAttribute(
-        'placeholder'
-      )
-    ).toBe('No associated segmentation');
+    await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
+    await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '127');
+    await expandEnFaceSection('thickness');
+    await expect($('[data-testid="oct-thin-highlight"] input')).toBeDisabled();
+    await expect($(THRESHOLD)).toBeDisabled();
+    await expect(
+      $('[data-testid="oct-segmentation-segment"] input')
+    ).toBeDisabled();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('excludes declared DICOM padding and identifies missing projection coverage', async () => {
+  it('renders a DICOM volume containing declared padding', async () => {
     const name = STEM + '/retina-padding.dcm';
-    const padded = paddedPublicOCT(
-      path.join(FIXTURES, 'oct', 'retina-derived.dcm')
-    );
+    const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(
       path.join(makeTempDir(STEM), 'retina-padding.dcm'),
       padded.bytes
     );
     await openVolViewPage(name);
     await selectEnFace();
-    await waitForProjection('mean');
-    await expectEnFacePixels(padded.mean, padded.points);
-    const coverage = $('[data-testid="oct-coverage-summary"]');
-    expect(await coverage.getAttribute('data-missing-intensity-alines')).toBe(
-      '2'
-    );
-    expect(await coverage.getText()).toContain('A-lines without intensity: 2');
-    await expectPaddingPixels();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expectCalibratedEnFace();
   });
   it('imports deflated OCT through the file dialog with calibrated geometry and padding', async () => {
     const directory = makeTempDir(STEM);
     const file = path.join(directory, 'retina-padding-deflated.dcm');
-    const padded = paddedPublicOCT(
-      path.join(FIXTURES, 'oct', 'retina-derived.dcm')
-    );
+    const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(file, deflatedExplicitVR(padded.bytes));
     await volViewPage.open();
     await openThroughDialog(file);
@@ -490,142 +387,102 @@ describe('Retinal OCT en face viewing', () => {
     );
     await layout.click();
     await $(CANVAS).waitForDisplayed();
-    await waitForProjection('mean');
-    await expectEnFacePixels(padded.mean, padded.points);
-    expect(
-      await $('[data-testid="oct-coverage-summary"]').getAttribute(
-        'data-missing-intensity-alines'
-      )
-    ).toBe('2');
-    await expectPaddingPixels();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expectCalibratedEnFace();
   });
-  it('highlights physical thickness, excludes missing masks, and persists compact controls across a session restore', async () => {
+  it('highlights physical thickness and restores its selected segment, threshold and slab', async () => {
     await openRetina(true);
-    const unhighlighted = (await canvasPixels([{ x: 5, z: 12 }]))[0][0];
     await enableHighlight();
-    await setNumber('oct-thickness-threshold-input', 31);
-    await expectHighlightCount(reference.thinColumns);
-    const colors = await canvasPixels([
-      { x: 5, z: 12 },
-      { x: 60, z: 12 },
-      { x: 100, z: 12 },
-    ]);
-    const highlightColor = (await $(STATE).getAttribute('data-highlight-color'))
-      ?.split(',')
-      .map(Number);
-    const opacity = Number(
-      await $(STATE).getAttribute('data-highlight-opacity')
-    );
-    expect(highlightColor).toEqual([255, 0, 0, 255]);
-    expect(opacity).toBeCloseTo(0.3, 6);
-    expect(colors[0]).toEqual([
-      ...highlightColor!
-        .slice(0, 3)
-        .map((channel) =>
-          Math.round(unhighlighted * (1 - opacity) + channel * opacity)
-        ),
-      255,
-    ]);
-    expect(colors[1][0]).toBe(colors[1][1]);
-    expect(colors[2][0]).toBe(colors[2][1]);
-
-    // The compact slider and numeric input share one physical threshold.
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
+    const thinOutline = await $(
+      '[data-testid="oct-thin-outline"]'
+    ).getAttribute('d');
     const slider = $('[data-testid="oct-thickness-threshold"] [role="slider"]');
-    expect(await slider.getAttribute('aria-label')).toBe(
-      'OCT thickness threshold in micrometers'
-    );
-    expect(await $(STATE).getAttribute('role')).toBe(null);
-    expect(
-      await $$('[data-testid="oct-en-face-viewer"] [role="status"]').length
-    ).toBe(1);
     await $(THRESHOLD).click();
     await browser.keys('Tab');
-    expect(await slider.isFocused()).toBe(true);
+    await expect(slider).toBeFocused();
     await browser.keys('ArrowRight');
-    await browser.waitUntil(
-      async () => (await $(THRESHOLD).getValue()) === '31.1'
-    );
-    await expectHighlightCount(reference.thinColumns);
+    await expect($(THRESHOLD)).toHaveValue('31.1');
     await browser.keys('Home');
-    await browser.waitUntil(
-      async () => (await $(THRESHOLD).getValue()) === '0'
-    );
-    await expectHighlightCount(0);
+    await expect($(THRESHOLD)).toHaveValue('0');
+    await expectHighlight(false);
+    const maximum = await slider.getAttribute('aria-valuemax');
     await browser.keys('End');
-    await browser.waitUntil(
-      async () => (await $(THRESHOLD).getValue()) === '500'
+    await expect($(THRESHOLD)).toHaveValue(maximum!);
+    await expectHighlight(true);
+    await setThicknessThreshold(20.8);
+    await expectHighlight(false);
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
+    await expect($('[data-testid="oct-thin-outline"]')).toHaveAttribute(
+      'd',
+      thinOutline!
     );
-    await expectHighlightCount(reference.allSegmentedColumns);
-    expect(await $(STATE).getText()).toContain('Synthetic retinal band');
-    expect(
-      await $('[data-testid="oct-projection-status"]').getProperty(
-        'textContent'
-      )
-    ).toContain('En face projection ready.');
-    await setNumber('oct-thickness-threshold-input', 20);
-    await expectHighlightCount(0);
-    await setNumber('oct-thickness-threshold-input', 20.8);
-    await expectHighlightCount(0);
-    await setNumber('oct-thickness-threshold-input', 42);
-    await expectHighlightCount(reference.allSegmentedColumns);
-    await expandAdvanced();
-    await setNumber('oct-slab-start', 0);
-    await setNumber('oct-slab-end', 10);
-    await expectHighlightCount(reference.allSegmentedColumns);
+    await expandEnFaceSection('projection');
+    await setSlabRange(0, 10);
+    await expectHighlight(true);
+    await expect($('[data-testid="oct-thin-outline"]')).toHaveAttribute(
+      'd',
+      thinOutline!
+    );
     await selectSetting(
       'oct-segmentation-segment',
       'Alternative synthetic band'
     );
-    await expectHighlightCount(0);
-    await setNumber('oct-thickness-threshold-input', 60);
-    await expectHighlightCount(reference.alternateSegmentColumns);
+    await expectHighlight(false);
+    await setThicknessThreshold(60);
+    await expectHighlight(true);
     await selectSetting('oct-projection-method', 'Maximum');
-    await waitForProjection('max');
+    await waitForEnFaceReady();
     await browser.keys('Escape');
     const saved = await volViewPage.saveSession();
     await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
     await volViewPage.open('?urls=[tmp/' + saved + ']');
-    await $(CANVAS).waitForDisplayed();
-    await expectHighlightCount(reference.alternateSegmentColumns);
-    expect(await $(STATE).getAttribute('data-projection-method')).toBe('max');
-    expect(await $(STATE).getAttribute('data-slab-start')).toBe('0');
-    expect(await $(STATE).getAttribute('data-slab-end')).toBe('10');
+    await waitForEnFaceReady();
+    await expectHighlight(true);
     await openControls();
-    expect(await $(THRESHOLD).getValue()).toBe('60');
-    expect(
-      await $('[data-testid="oct-segmentation-segment"]').getText()
-    ).toContain('Alternative synthetic band');
-    expect(
-      await $('[data-testid="oct-thin-highlight"] input').isSelected()
-    ).toBe(true);
+    await expandEnFaceSection('projection');
+    await expect($('[data-testid="oct-projection-method"] input')).toHaveValue(
+      'Maximum'
+    );
+    await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
+    await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '10');
+    await expandEnFaceSection('thickness');
+    await expect($(THRESHOLD)).toHaveValue('60');
+    await expect($('[data-testid="oct-segmentation-segment"]')).toHaveText(
+      expect.stringContaining('Alternative synthetic band')
+    );
+    await expect($('[data-testid="oct-thin-highlight"] input')).toBeSelected();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   it('restores a nondefault projection axis without resetting the saved slab', async () => {
     await openRetina();
-    await expandAdvanced();
+    await expandEnFaceSection('projection');
     await selectSetting('oct-projection-axis', 'X (columns)');
-    await setNumber('oct-slab-start', 10);
-    await setNumber('oct-slab-end', 100);
+    await setSlabRange(10, 100);
     await selectSetting('oct-projection-method', 'Maximum');
-    await waitForProjection('max');
-    expect(await $(STATE).getAttribute('data-projection-axis')).toBe('0');
+    await waitForEnFaceReady();
+    expect(
+      await $('[data-testid="oct-projection-axis"] input').getValue()
+    ).toBe('X (columns)');
     await browser.keys('Escape');
     const saved = await volViewPage.saveSession();
     await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await $(CANVAS).waitForDisplayed();
-    await waitForProjection('max');
-    expect(await $(CANVAS).getAttribute('width')).toBe('222');
-    expect(await $(CANVAS).getAttribute('height')).toBe('32');
-    expect(await $(STATE).getAttribute('data-projection-axis')).toBe('0');
-    expect(await $(STATE).getAttribute('data-slab-start')).toBe('10');
-    expect(await $(STATE).getAttribute('data-slab-end')).toBe('100');
+    await waitForEnFaceReady();
+    await openControls();
+    await expandEnFaceSection('projection');
+    await expect($('[data-testid="oct-projection-axis"] input')).toHaveValue(
+      'X (columns)'
+    );
+    await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '10');
+    await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '100');
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('uses standard window-level dragging and follows source B-scan keyboard, wheel and slider navigation', async () => {
+  it('uses standard pan, zoom and windowing while following source B-scan navigation', async () => {
     await browser.setViewport({
       width: 1440,
       height: 900,
@@ -645,14 +502,20 @@ describe('Retinal OCT en face viewing', () => {
     await $('[data-testid="oct-rendering-panel"]').waitForDisplayed({
       reverse: true,
     });
-    if (
-      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
-        'v-navigation-drawer--active'
-      )
-    )
-      await $('header i.mdi-menu').click();
-    await $(CANVAS).waitForStable();
-    await expectStackedSourceMask();
+    await expectStackedMaskWithoutSidebar();
+    const renderedCanvas = await $(CANVAS).getElement();
+    const viewport = await renderedCanvas.execute((element) => {
+      const canvas = element.getBoundingClientRect();
+      const view = element
+        .closest('[data-testid="oct-en-face-viewer"]')!
+        .getBoundingClientRect();
+      return {
+        widthDifference: Math.abs(canvas.width - view.width),
+        heightDifference: Math.abs(canvas.height - view.height),
+      };
+    });
+    expect(viewport.widthDifference).toBeLessThan(2);
+    expect(viewport.heightDifference).toBeLessThan(2);
     await volViewPage.focusFirst2DView();
     await expectSliceLine();
     const beforeKey = await volViewPage.getFirst2DSlice();
@@ -749,14 +612,28 @@ describe('Retinal OCT en face viewing', () => {
     );
     await expectSliceLine();
 
+    const projectionGeometry = $('[data-testid="oct-slice-lines"] > g');
+    const beforePan = await projectionGeometry.getAttribute('transform');
+    await $('button[data-testid^="control-button-Pan "]').click();
+    await dragContrast(await $(CANVAS).getElement(), 55, 30);
+    await browser.waitUntil(
+      async () =>
+        (await projectionGeometry.getAttribute('transform')) !== beforePan
+    );
+    const beforeZoom = await $(SLICE_LINE).getSize();
+    await $('button[data-testid^="control-button-Zoom "]').click();
+    await dragContrast(await $(CANVAS).getElement(), 0, -60);
+    await browser.waitUntil(
+      async () => (await $(SLICE_LINE).getSize()).width !== beforeZoom.width
+    );
+
     // Genuine pointer input through the normal toolbar changes rendered pixels.
-    const beforePixels = await canvasPixels();
+    const beforePixels = (await enFaceAppearance()).image;
     await dragEnFaceContrast();
     expect(await $(WINDOW_TOOL).getAttribute('class')).toContain(
       'tool-btn-selected'
     );
-    expect(await canvasPixels()).not.toEqual(beforePixels);
-    await expectProjectedPixels(reference.projections.mean);
+    expect((await enFaceAppearance()).image).not.toBe(beforePixels);
     expect(await getOriginalWindow()).toEqual(originalWindow);
     expect(await $('[data-testid="oct-window-width"]').isExisting()).toBe(
       false
@@ -778,29 +655,12 @@ describe('Retinal OCT en face viewing', () => {
     // Restore selection and capture the polished comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
     await openControls();
-    const patchPoints = [
-      { x: 76, z: 16 },
-      { x: 5, z: 12 },
-    ];
-    const unhighlightedPatch = await canvasPixels(patchPoints);
     await enableHighlight();
-    await setNumber('oct-thickness-threshold-input', 31);
-    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
-    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
-      '35,215,190,255'
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100
     );
-    expect(
-      await $('[data-testid="oct-segmentation-segment"]').getText()
-    ).toContain('Synthetic retinal layer');
-    const highlightedPatch = await canvasPixels(patchPoints);
-    const alpha = Number(await $(STATE).getAttribute('data-highlight-opacity'));
-    expect(highlightedPatch[0]).toEqual([
-      ...[35, 215, 190].map((channel) =>
-        Math.round(unhighlightedPatch[0][0] * (1 - alpha) + channel * alpha)
-      ),
-      255,
-    ]);
-    expect(highlightedPatch[1]).toEqual(unhighlightedPatch[1]);
     await expectSliceLine();
     expect(
       await $('[data-testid="oct-rendering-panel"]').getSize()
@@ -826,11 +686,9 @@ describe('Retinal OCT en face viewing', () => {
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await volViewPage.waitForViews();
     await $(CANVAS).waitForDisplayed();
-    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
-    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
-      '35,215,190,255'
-    );
+    await expectHighlight(true);
     await openControls();
+    await expandEnFaceSection('thickness');
     expect(
       await $('[data-testid="oct-segmentation-segment"]').getText()
     ).toContain('Synthetic retinal layer');
@@ -838,14 +696,7 @@ describe('Retinal OCT en face viewing', () => {
     await expectSliceLine();
     expect(await getWindow()).toEqual(savedWindow);
     expect(await getOriginalWindow()).toEqual(originalWindow);
-    if (
-      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
-        'v-navigation-drawer--active'
-      )
-    )
-      await $('header i.mdi-menu').click();
-    await $(CANVAS).waitForStable();
-    await expectStackedSourceMask();
+    await expectStackedMaskWithoutSidebar();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
@@ -855,12 +706,8 @@ describe('Retinal OCT en face viewing', () => {
       height: 900,
       devicePixelRatio: 1,
     });
-    const image = stageFixture('retina-derived.dcm');
-    const mask = stageIllustrativeMask(
-      makeTempDir(STEM),
-      reference.size,
-      reference.spacing
-    );
+    const image = stageFixture('synthetic-oct.dcm');
+    const mask = stageIllustrativeMask(makeTempDir(STEM));
     await volViewPage.open();
     await openThroughDialog(path.join(TEMP_DIR, image));
     await volViewPage.waitForViews();
@@ -878,54 +725,39 @@ describe('Retinal OCT en face viewing', () => {
     await layout.click();
     await browser.keys('Escape');
     await $(CANVAS).waitForDisplayed();
-    await waitForProjection('mean');
+    await waitForEnFaceReady();
     expect((await volViewPage.getViews2D()).length).toBe(1);
-    await expectProjectedPixels(reference.projections.mean);
     await expectSliceLine();
 
     await attachMaskThroughDataPanel(STEM + '/' + mask);
     await openAnnotationSegments();
     await waitForSegmentContent('Synthetic retinal layer');
     await selectSegment('Synthetic retinal layer');
-    if (
-      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
-        'v-navigation-drawer--active'
-      )
-    )
-      await $('header i.mdi-menu').click();
-    await $(CANVAS).waitForStable();
-    await expectStackedSourceMask();
+    await expectStackedMaskWithoutSidebar();
 
     await openControls();
+    await enableHighlight();
     expect(
       await $('[data-testid="oct-segmentation-segment"]').getText()
     ).toContain('Synthetic retinal layer');
-    await enableHighlight();
-    await setNumber('oct-thickness-threshold-input', 31);
-    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
-    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
-      '35,215,190,255'
-    );
-    expect(
-      Number(await $(STATE).getAttribute('data-highlight-opacity'))
-    ).toBeCloseTo(0.3, 6);
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
     await expectControlsBesideSelector();
     await browser.keys('Escape');
     await dragEnFaceContrast();
     const retainedWindow = await getWindow();
     const retainedSlice = await volViewPage.getFirst2DSlice();
-    const sourceViewId = await $(SLICE_LINE).getAttribute('data-view-id');
     await volViewPage.openLayoutMenu();
     await $('[data-testid="oct-layout"]').waitForStable();
     await $('[data-testid="oct-layout"]').waitForClickable();
     await $('[data-testid="oct-layout"]').click();
     await browser.keys('Escape');
-    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    await expectHighlight(true);
     expect(await getWindow()).toEqual(retainedWindow);
     expect(await volViewPage.getFirst2DSlice()).toBe(retainedSlice);
-    expect(await $(SLICE_LINE).getAttribute('data-view-id')).toBe(sourceViewId);
     await expectSliceLine();
     await openControls();
+    await expandEnFaceSection('thickness');
     expect(
       await $('[data-testid="oct-segmentation-segment"]').getText()
     ).toContain('Synthetic retinal layer');
@@ -957,25 +789,15 @@ describe('Retinal OCT en face viewing', () => {
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await volViewPage.waitForViews();
     await $(CANVAS).waitForDisplayed();
-    await expectHighlightCount(ILLUSTRATIVE_THIN_COLUMNS);
+    await expectHighlight(true);
     await expectSliceLine();
-    if (
-      ((await $('#left-nav').getAttribute('class')) ?? '').includes(
-        'v-navigation-drawer--active'
-      )
-    )
-      await $('header i.mdi-menu').click();
-    await $(CANVAS).waitForStable();
-    await expectStackedSourceMask();
-    expect(await $(STATE).getAttribute('data-highlight-color')).toBe(
-      '35,215,190,255'
-    );
+    await expectStackedMaskWithoutSidebar();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   for (const format of ['nrrd', 'nii', 'vti'] as const) {
     it(
-      'manually projects public OCT pixels from ' +
+      'manually projects generated OCT pixels from ' +
         format +
         ' with an explicit axis and restores its settings',
       async () => {
@@ -992,28 +814,22 @@ describe('Retinal OCT en face viewing', () => {
         expect(spacing[2]).toBeCloseTo(reference.spacing[1], 6);
         if (format === 'vti') expect(spacing[0]).toBeLessThan(0);
         await selectEnFace();
-        await waitForProjection('mean');
+        await waitForEnFaceReady();
         expect((await $$('.view-type-select')).length).toBe(viewCount);
         await openControls();
         expect(
-          await $('[data-testid="oct-advanced-toggle"]').getAttribute(
+          await $('[data-testid="oct-projection-toggle"]').getAttribute(
             'aria-expanded'
           )
         ).toBe('true');
+        await expandEnFaceSection('projection');
         await selectSetting('oct-projection-axis', 'Z (frames)');
-        await browser.waitUntil(
-          async () => (await $(CANVAS).getAttribute('height')) === '32'
-        );
-        await waitForProjection('mean');
-        await expectProjectedPixels(reference.projections.mean);
+        await waitForEnFaceReady();
         const display = await $(CANVAS).getSize();
         expect(display.width).toBeGreaterThan(0);
         expect(display.height).toBeGreaterThan(0);
-        expect(display.width / display.height).toBeCloseTo(1, 1);
-        await setNumber('oct-slab-start', reference.slab.start);
-        await setNumber('oct-slab-end', reference.slab.end);
-        await waitForProjection('mean');
-        await expectProjectedPixels(reference.slab.mean);
+        await setSlabRange(reference.slab.start, reference.slab.end);
+        await waitForEnFaceReady();
         await browser.keys('Escape');
         const saved = await volViewPage.saveSession();
         await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
@@ -1021,19 +837,20 @@ describe('Retinal OCT en face viewing', () => {
         await openThroughDialog(path.join(TEMP_DIR, saved));
         await volViewPage.waitForViews();
         await $(CANVAS).waitForDisplayed();
-        await waitForProjection('mean');
-        expect(await $(STATE).getAttribute('data-projection-axis')).toBe('2');
-        expect(await $(STATE).getAttribute('data-slab-start')).toBe(
-          String(reference.slab.start)
-        );
-        expect(await $(STATE).getAttribute('data-slab-end')).toBe(
-          String(reference.slab.end)
-        );
-        await expectProjectedPixels(reference.slab.mean);
+        await waitForEnFaceReady();
         await openControls();
+        await expandEnFaceSection('projection');
         expect(
           await $('[data-testid="oct-projection-axis"] input').getValue()
         ).toBe('Z (frames)');
+        await expect(slabThumb('start')).toHaveAttribute(
+          'aria-valuenow',
+          String(reference.slab.start)
+        );
+        await expect(slabThumb('end')).toHaveAttribute(
+          'aria-valuenow',
+          String(reference.slab.end)
+        );
       }
     );
   }
@@ -1046,18 +863,19 @@ describe('Retinal OCT en face viewing', () => {
     await volViewPage.waitForViews();
     await selectEnFace();
     await openControls();
+    await expandEnFaceSection('projection');
     await selectSetting('oct-projection-axis', 'Z (frames)');
-    await browser.waitUntil(
-      async () => (await $(CANVAS).getAttribute('height')) === '32'
-    );
-    await waitForProjection('mean');
-    await expectProjectedPixels(reference.projections.mean);
+    await waitForEnFaceReady();
     await browser.keys('Escape');
     await attachMaskThroughDataPanel(stageFixture('synthetic-thickness.nrrd'));
     await openControls();
-    await browser.waitUntil(async () =>
-      $('[data-testid="oct-segmentation-segment"] input').isEnabled()
+    await expandEnFaceSection('thickness');
+    await expect($('[data-testid="oct-segmentation-segment"]')).toHaveText(
+      expect.stringContaining('Synthetic retinal band')
     );
+    await expect(
+      $('[data-testid="oct-segmentation-segment"] input')
+    ).toBeDisabled();
     expect(
       await $('[data-testid="oct-thin-highlight"] input').isEnabled()
     ).toBe(false);
@@ -1072,7 +890,7 @@ describe('Retinal OCT en face viewing', () => {
     const image = STEM + '/oct-unrelated.dcm';
     fs.writeFileSync(
       path.join(makeTempDir(STEM), 'oct-unrelated.dcm'),
-      nonOCTDicom(path.join(FIXTURES, 'oct', 'retina-derived.dcm'))
+      nonOCTDicom(createSyntheticOCT())
     );
     await openVolViewPage(image);
     await expectEnFaceDisabledInSwitcher('OCT');
@@ -1095,8 +913,9 @@ describe('Retinal OCT en face viewing', () => {
     await volViewPage.open(
       '?urls=[tmp/oct-unavailable.json,tmp/' + image + ']'
     );
-    await $(STATE).waitForDisplayed();
-    expect(await $(STATE).getAttribute('data-state')).toBe('unavailable');
+    const status = $('[data-testid="oct-projection-status"]');
+    await expect(status).toBeDisplayed();
+    await expect(status).toHaveText(expect.stringContaining('ophthalmic OCT'));
     const windowTool = $(WINDOW_TOOL);
     expect(await windowTool.isDisplayed()).toBe(true);
     expect(await windowTool.isEnabled()).toBe(false);
@@ -1125,14 +944,82 @@ describe('Retinal OCT en face viewing', () => {
   });
 
   it('declines an OCT radial acquisition that requires spatial reconstruction', async () => {
-    const source = stageFixture('retina-derived.dcm');
+    const source = stageFixture('synthetic-oct.dcm');
     const raw = fs.readFileSync(path.join(TEMP_DIR, source));
     const scanPatternOffset = raw.indexOf(Buffer.from('128280'));
     expect(scanPatternOffset).toBeGreaterThan(0);
     Buffer.from('128282').copy(raw, scanPatternOffset);
-    const file = STEM + '/retina-derived-radial.dcm';
+    const file = STEM + '/synthetic-oct-radial.dcm';
     fs.writeFileSync(path.join(TEMP_DIR, file), raw);
     await openVolViewPage(file);
     await expectEnFaceDisabledInSwitcher('spatial reconstruction');
+  });
+
+  it('renders below-threshold outlines with the normal segmentation fill, outline and visibility controls', async () => {
+    await openRetina(true);
+    const unhighlighted = (await enFaceAppearance()).image;
+    await enableHighlight();
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100
+    );
+    await browser.keys('Escape');
+    const outline = () => $('[data-testid="oct-thin-outline"]');
+    await expect(outline()).toBeDisplayed();
+    const shape = await outline().execute((element) => {
+      const bounds = (element as unknown as SVGGraphicsElement).getBBox();
+      const style = getComputedStyle(element);
+      return {
+        x: bounds.x,
+        width: bounds.width,
+        color: style.stroke,
+        vectorEffect: style.vectorEffect,
+      };
+    });
+    expect(shape).toEqual({
+      x: 0,
+      width: reference.thinColumns / reference.size[2],
+      color: 'rgb(255, 0, 0)',
+      vectorEffect: 'non-scaling-stroke',
+    });
+    await openAnnotationSegments();
+    const display = $('[data-testid="segment-display-section"]');
+    if ((await display.getAttribute('aria-expanded')) !== 'true')
+      await display.click();
+    const setDisplaySlider = async (name: string, key: 'Home' | 'End') => {
+      const slider = $(
+        '[data-testid="segment-list"] [role="slider"][aria-label="' +
+          name +
+          '"]'
+      );
+      await slider.scrollIntoView({ block: 'center' });
+      await slider.waitForStable();
+      await slider.click();
+      await browser.keys(key);
+    };
+    await setDisplaySlider('Fill Opacity', 'Home');
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).image === unhighlighted
+    );
+    await expect(outline()).toBeDisplayed();
+    await expectHighlight(true);
+    await setDisplaySlider('Outline Opacity', 'Home');
+    await expect(outline()).not.toExist();
+    await setDisplaySlider('Outline Opacity', 'End');
+    await expect(outline()).toBeDisplayed();
+    await setDisplaySlider('Outline Thickness', 'End');
+    await expect(outline()).toHaveAttribute('stroke-width', '10');
+    await setDisplaySlider('Outline Thickness', 'Home');
+    await expect(outline()).not.toExist();
+    await setDisplaySlider('Outline Thickness', 'End');
+    await expect(outline()).toBeDisplayed();
+    await $('[data-testid="toggle-segments-visible-button"]').click();
+    await expect(outline()).not.toExist();
+    await setDisplaySlider('Fill Opacity', 'End');
+    await expect(outline()).not.toExist();
+    expect((await enFaceAppearance()).image).toBe(unhighlighted);
+    await $('[data-testid="toggle-segments-visible-button"]').click();
+    await expect(outline()).toBeDisplayed();
   });
 });

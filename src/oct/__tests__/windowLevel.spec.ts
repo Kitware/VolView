@@ -11,8 +11,6 @@ import { useViewStore } from '@/src/store/views';
 import { useEnFaceWindowing } from '@/src/oct/useEnFaceWindowing';
 import { projectEnFace } from '@/src/oct/projection';
 import {
-  windowLevelFromDrag,
-  thinRegionColor,
   paintThinRegionPixels,
   paintProjectionIntensities,
   projectionWindowRanges,
@@ -294,10 +292,11 @@ describe('Projection histogram windows', () => {
       [7, 7],
     ]);
     expect(constant.width).toBeGreaterThan(0);
-    expect(() => projectionWindowRanges([1, NaN])).toThrow(/finite/);
+    expect(projectionWindowRanges([1, NaN])?.ranges.FullRange).toEqual([1, 1]);
+    expect(() => projectionWindowRanges([1, Infinity])).toThrow(/finite/);
   });
 });
-describe('En face window/level drag and texture overlay', () => {
+describe('En face texture windowing and segment overlay', () => {
   it.each([
     ['native decimal equality', 0.003872, 35, 135.52, false],
     ['slider decimal equality', 0.0039, 13, 50.7, false],
@@ -331,7 +330,7 @@ describe('En face window/level drag and texture overlay', () => {
         method: 'mean',
         depthStart: 0,
         depthEnd: depth - 1,
-        segmentation: { dimensions, scalars: labels, thresholdMicrons },
+        segmentation: { dimensions, scalars: labels },
       });
       const pixels = new Uint8ClampedArray(12);
       paintProjectionIntensities(result.values, pixels, {
@@ -346,7 +345,6 @@ describe('En face window/level drag and texture overlay', () => {
           { color: [0, 255, 0, 255], alpha: 1 }
         )
       ).toBe(highlighted ? 1 : 0);
-      expect(Array.from(result.thinMask!)).toEqual([highlighted ? 1 : 0, 0, 0]);
       expect(Array.from(pixels)).toEqual([
         ...(highlighted ? [0, 255, 0, 255] : [128, 128, 128, 255]),
         128,
@@ -360,44 +358,6 @@ describe('En face window/level drag and texture overlay', () => {
       ]);
     }
   );
-  it('rejects malformed drag inputs instead of writing NaN contrast into the view', () => {
-    expect(() =>
-      windowLevelFromDrag(
-        { width: 40, level: 50 },
-        { min: 0, max: 100 },
-        { x: NaN, y: 10 },
-        { width: 200, height: 100 }
-      )
-    ).toThrow(/finite/);
-    expect(() =>
-      windowLevelFromDrag(
-        { width: 0, level: 50 },
-        { min: 0, max: 100 },
-        { x: 1, y: 10 },
-        { width: 200, height: 100 }
-      )
-    ).toThrow(/positive/);
-  });
-  it('matches VTK normalized viewport sensitivity: horizontal level, upward width', () => {
-    const result = windowLevelFromDrag(
-      { width: 40, level: 50 },
-      { min: 0, max: 100 },
-      { x: 50, y: -20 },
-      { width: 200, height: 100 }
-    );
-    expect(result.level).toBeCloseTo(50 + 25 / (1 + 1 / 256), 2);
-    expect(result.width).toBeCloseTo(40 + 20 / (1 + 1 / 256), 2);
-  });
-  it('clamps width positive and level to the projected intensity range', () => {
-    expect(
-      windowLevelFromDrag(
-        { width: 40, level: 50 },
-        { min: 0, max: 100 },
-        { x: 10000, y: 10000 },
-        { width: 200, height: 100 }
-      )
-    ).toEqual({ width: 1e-12, level: 100 });
-  });
   it('windows reflectivity before filling while clipping intensities outside the display range', () => {
     const pixels = new Uint8ClampedArray(5 * 4);
     paintProjectionIntensities([-20, 0, 50, 100, 120], pixels, {
@@ -441,22 +401,6 @@ describe('En face window/level drag and texture overlay', () => {
     ).toBe(2);
     expect(Array.from(pixels)).toEqual([
       1, 2, 3, 255, 1, 2, 3, 255, 3, 3, 3, 255,
-    ]);
-  });
-  it('tints reflectivity with the selected segment color and shared fill opacity', () => {
-    const dark = thinRegionColor(20, [35, 215, 190, 255], 0.3);
-    const bright = thinRegionColor(200, [35, 215, 190, 255], 0.3);
-    expect(dark).toEqual([25, 79, 71, 255]);
-    expect(bright).toEqual([151, 205, 197, 255]);
-    expect(bright[0]).toBeGreaterThan(dark[0]);
-    expect(thinRegionColor(100, [255, 0, 0, 255], 0.3)).toEqual([
-      147, 70, 70, 255,
-    ]);
-    expect(thinRegionColor(100, [0, 255, 0, 255], 0.3)).toEqual([
-      70, 147, 70, 255,
-    ]);
-    expect(thinRegionColor(100, [35, 215, 190, 0], 0)).toEqual([
-      100, 100, 100, 255,
     ]);
   });
 });

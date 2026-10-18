@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { reactive } from 'vue';
 import { createVuetify } from 'vuetify';
@@ -6,9 +6,13 @@ import EnFaceControls from '@/src/oct/EnFaceControls.vue';
 import { defaultOCTViewConfig, type OCTViewConfig } from '@/src/oct/store';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
+beforeEach(() => {
+  vi.stubGlobal('visualViewport', null);
+});
+afterEach(() => vi.unstubAllGlobals());
 enableAutoUnmount(afterEach);
 
-function mountControls(overrides = {}, expandAdvanced = false) {
+function mountControls(overrides = {}) {
   const settings = reactive({
     ...defaultOCTViewConfig(),
     highlightThin: true,
@@ -21,10 +25,11 @@ function mountControls(overrides = {}, expandAdvanced = false) {
       settings,
       onPatch: (patch: Partial<OCTViewConfig>) =>
         Object.assign(settings, patch),
-      expandAdvanced,
       depthMaximum: 221,
+      thresholdMaximum: 200,
       projectionReason: null,
       segmentationReason: null,
+      highlightReason: null,
       thicknessReason: null,
       segments: [{ value: 'retina', title: 'Retinal layer', color: '#ff0000' }],
     },
@@ -32,17 +37,20 @@ function mountControls(overrides = {}, expandAdvanced = false) {
   });
 }
 
-async function openAdvanced(wrapper: ReturnType<typeof mountControls>) {
-  await wrapper.get('[data-testid="oct-advanced-toggle"]').trigger('click');
-}
-
 function lastPatch(wrapper: ReturnType<typeof mountControls>) {
   return wrapper.emitted('patch')?.at(-1)?.[0];
 }
 
 describe('En face rendering controls', () => {
-  it('keeps advanced projection settings collapsed while showing the thickness controls', async () => {
+  it('starts both sections expanded and collapses them independently', async () => {
     const wrapper = mountControls();
+    for (const section of ['projection', 'thickness']) {
+      expect(
+        wrapper
+          .get(`[data-testid="oct-${section}-toggle"]`)
+          .attributes('aria-expanded')
+      ).toBe('true');
+    }
     expect(
       wrapper.find('[data-testid="oct-segmentation-segment"] input').exists()
     ).toBe(true);
@@ -51,34 +59,46 @@ describe('En face rendering controls', () => {
         .find('[data-testid="oct-thickness-threshold-input"] input')
         .exists()
     ).toBe(true);
-    expect(wrapper.find('[data-testid="oct-projection-method"]').exists()).toBe(
-      false
-    );
     expect(wrapper.find('[data-testid="oct-window-width"]').exists()).toBe(
       false
     );
     expect(
       wrapper.find('[data-testid="oct-segmentation-group"]').exists()
     ).toBe(false);
-    await openAdvanced(wrapper);
     expect(
       wrapper.get('[data-testid="oct-projection-method"] input').element
     ).toBeDefined();
+    expect(
+      wrapper
+        .get('[data-testid="oct-thin-highlight"]')
+        .element.compareDocumentPosition(
+          wrapper.get('[data-testid="oct-segmentation-segment"]').element
+        ) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    const projection = wrapper.get('[data-testid="oct-projection-toggle"]');
+    const thickness = wrapper.get('[data-testid="oct-thickness-toggle"]');
+    await projection.trigger('click');
+    expect(projection.attributes('aria-expanded')).toBe('false');
+    expect(thickness.attributes('aria-expanded')).toBe('true');
+    await thickness.trigger('click');
+    await projection.trigger('click');
+    expect(projection.attributes('aria-expanded')).toBe('true');
+    expect(thickness.attributes('aria-expanded')).toBe('false');
   });
 
-  it('exposes one axis selector for generic inputs without changing their saved settings', async () => {
+  it('preserves saved projection settings when collapsed and reopened', async () => {
     const saved = {
       axis: 2 as const,
       depthStart: 100,
       depthEnd: 103,
       method: 'sum' as const,
     };
-    const wrapper = mountControls(saved, true);
-    expect(
-      wrapper
-        .get('[data-testid="oct-advanced-toggle"]')
-        .attributes('aria-expanded')
-    ).toBe('true');
+    const wrapper = mountControls(saved);
+    const toggle = wrapper.get('[data-testid="oct-projection-toggle"]');
+    await toggle.trigger('click');
+    expect(toggle.attributes('aria-expanded')).toBe('false');
+    await toggle.trigger('click');
+    expect(toggle.attributes('aria-expanded')).toBe('true');
     expect(wrapper.findAll('[data-testid="oct-projection-axis"]')).toHaveLength(
       1
     );
@@ -86,21 +106,23 @@ describe('En face rendering controls', () => {
       wrapper.get<HTMLInputElement>('[data-testid="oct-projection-axis"] input')
         .element.value
     ).toBe('Z (frames)');
-    expect(wrapper.emitted('patch')).toBeUndefined();
-    await wrapper.setProps({ expandAdvanced: false });
     expect(
-      wrapper
-        .get('[data-testid="oct-advanced-toggle"]')
-        .attributes('aria-expanded')
-    ).toBe('false');
-    await wrapper.setProps({ expandAdvanced: true });
-    expect(wrapper.props('settings')).toMatchObject(saved);
+      wrapper.get<HTMLInputElement>(
+        '[data-testid="oct-projection-method"] input'
+      ).element.value
+    ).toBe('Sum');
+    expect(
+      wrapper.get('[aria-label="Slab start"]').attributes('aria-valuenow')
+    ).toBe('100');
+    expect(
+      wrapper.get('[aria-label="Slab end"]').attributes('aria-valuenow')
+    ).toBe('103');
     expect(wrapper.emitted('patch')).toBeUndefined();
   });
 
-  it('identifies the selected segment highlight color and follows selection changes', async () => {
+  it('shows segment colors in the selected segment and its dropdown options', async () => {
     const wrapper = mountControls();
-    const swatch = () => wrapper.get('[data-testid="oct-highlight-color"]');
+    const swatch = () => wrapper.get('[data-testid="oct-segment-color"]');
     expect(swatch().attributes('style')).toContain('background-color: #ff0000');
     await wrapper.setProps({
       segments: [
@@ -110,12 +132,39 @@ describe('En face rendering controls', () => {
       settings: { ...wrapper.props('settings'), selectedMaskId: 'other-layer' },
     });
     expect(swatch().attributes('style')).toContain('background-color: #00ff00');
-    await wrapper.setProps({ segments: [] });
-    expect(wrapper.find('[data-testid="oct-highlight-color"]').exists()).toBe(
-      false
-    );
+    expect(
+      wrapper.get('[data-testid="oct-segmentation-segment"]').text()
+    ).toContain('Other layer');
+    await wrapper
+      .get('[data-testid="oct-segmentation-segment"] input')
+      .trigger('keydown', { key: 'Enter' });
+    await vi.waitFor(() => {
+      const options = document.body.querySelectorAll('[role="option"]');
+      expect(options).toHaveLength(2);
+      for (const [index, [name, color]] of [
+        ['Retinal layer', '#ff0000'],
+        ['Other layer', '#00ff00'],
+      ].entries()) {
+        expect(options[index].textContent).toContain(name);
+        expect(
+          options[index]
+            .querySelector('[data-testid="oct-segment-option-color"]')
+            ?.getAttribute('style')
+        ).toContain(`background-color: ${color}`);
+      }
+    });
+    expect(
+      wrapper
+        .get('[data-testid="oct-thin-highlight"]')
+        .find('.color-dot')
+        .exists()
+    ).toBe(false);
     expect(wrapper.get('[data-testid="oct-thin-highlight"]').text()).toContain(
       'Highlight thin regions'
+    );
+    await wrapper.setProps({ segments: [] });
+    expect(wrapper.find('[data-testid="oct-segment-color"]').exists()).toBe(
+      false
     );
   });
   it('preserves a decimal micron threshold and ignores a cleared numeric entry', async () => {
@@ -135,7 +184,7 @@ describe('En face rendering controls', () => {
     expect(wrapper.emitted('patch')).toHaveLength(previousCount);
   });
 
-  it('keeps slider changes and the micron input synchronized across a 500 micron span', async () => {
+  it('keeps the threshold slider range fixed while preserving larger numeric thresholds', async () => {
     const wrapper = mountControls();
     const slider = wrapper.get(
       '[data-testid="oct-thickness-threshold"] [role="slider"]'
@@ -143,7 +192,7 @@ describe('En face rendering controls', () => {
     expect(slider.attributes('aria-label')).toBe(
       'OCT thickness threshold in micrometers'
     );
-    expect(slider.attributes('aria-valuemax')).toBe('500');
+    expect(slider.attributes('aria-valuemax')).toBe('200');
     await slider.trigger('keydown', { key: 'ArrowRight' });
     expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: 100.1 });
     expect(
@@ -153,7 +202,7 @@ describe('En face rendering controls', () => {
     ).toBe(slider.attributes('aria-valuenow'));
     for (const [key, expected] of [
       ['Home', 0],
-      ['End', 500],
+      ['End', 200],
     ] as const) {
       await slider.trigger('keydown', { key });
       expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: expected });
@@ -163,14 +212,31 @@ describe('En face rendering controls', () => {
         '[data-testid="oct-thickness-threshold-input"] input'
       )
       .setValue('750.25');
-    expect(slider.attributes('aria-valuemax')).toBe('750.25');
-    expect(slider.attributes('aria-valuenow')).toBe('750.25');
+    expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: 750.25 });
+    expect(slider.attributes('aria-valuemax')).toBe('200');
+    expect(slider.attributes('aria-valuenow')).toBe('200');
+    expect(
+      wrapper.get<HTMLInputElement>(
+        '[data-testid="oct-thickness-threshold-input"] input'
+      ).element.value
+    ).toBe('750.25');
+    await wrapper.setProps({ thresholdMaximum: 50 });
+    expect(slider.attributes('aria-valuemax')).toBe('50');
+    expect(slider.attributes('aria-valuenow')).toBe('50');
+    expect(
+      wrapper.get<HTMLInputElement>(
+        '[data-testid="oct-thickness-threshold-input"] input'
+      ).element.value
+    ).toBe('750.25');
   });
 
   it('keeps calibrated thickness actions disabled when the selected axis has no physical spacing', async () => {
     const wrapper = mountControls();
     const reason = 'Physical A-line spacing is unavailable.';
-    await wrapper.setProps({ thicknessReason: reason });
+    await wrapper.setProps({
+      highlightReason: reason,
+      thicknessReason: reason,
+    });
     expect(
       wrapper
         .get('[data-testid="oct-segmentation-segment"] input')
@@ -221,25 +287,58 @@ describe('En face rendering controls', () => {
     });
   });
 
-  it('commits a slab endpoint after typing without lowering the other endpoint', async () => {
+  it('adjusts inclusive slab bounds with two named keyboard-operated thumbs', async () => {
     const wrapper = mountControls({ depthStart: 100, depthEnd: 221 });
-    await openAdvanced(wrapper);
-    const input = wrapper.get('[data-testid="oct-slab-end"] input');
-    for (const value of ['1', '10', '103']) {
-      (input.element as HTMLInputElement).value = value;
-      await input.trigger('input');
-    }
-    expect(wrapper.emitted('patch')).toBeUndefined();
-    await input.trigger('change');
-    expect(lastPatch(wrapper)).toEqual({ depthEnd: 103 });
+    const range = wrapper.get('[data-testid="oct-slab-range"]');
+    const start = range.get('[role="slider"][aria-label="Slab start"]');
+    const end = range.get('[role="slider"][aria-label="Slab end"]');
+    expect(start.attributes('aria-valuenow')).toBe('100');
+    expect(end.attributes('aria-valuenow')).toBe('221');
+    await end.trigger('keydown', { key: 'Home' });
+    expect(lastPatch(wrapper)).toEqual({ depthStart: 100, depthEnd: 100 });
+    await start.trigger('keydown', { key: 'ArrowRight' });
+    expect(start.attributes('aria-valuenow')).toBe('100');
+    await start.trigger('keydown', { key: 'Home' });
+    expect(lastPatch(wrapper)).toEqual({ depthStart: 0, depthEnd: 100 });
+    await end.trigger('keydown', { key: 'End' });
+    expect(lastPatch(wrapper)).toEqual({ depthStart: 0, depthEnd: 221 });
+    expect(range.text()).toContain('0');
+    expect(range.text()).toContain('221');
+    await wrapper.setProps({ depthMaximum: 0 });
+    expect(start.attributes('aria-valuenow')).toBe('0');
+    expect(end.attributes('aria-valuenow')).toBe('0');
+    await end.trigger('keydown', { key: 'End' });
+    expect(start.attributes('aria-valuenow')).toBe('0');
+    expect(end.attributes('aria-valuenow')).toBe('0');
   });
 
   it('keeps unavailable thickness controls visible and exposes the reason through their wrapper', async () => {
     const wrapper = mountControls();
+    const toggle = wrapper.get('[data-testid="oct-thin-highlight"] input');
+    const segment = wrapper.get(
+      '[data-testid="oct-segmentation-segment"] input'
+    );
+    await toggle.setValue(false);
+    expect(segment.attributes('disabled')).toBeDefined();
+    const segmentAction = wrapper
+      .findAllComponents(ReasonedAction)
+      .find((action) =>
+        action.find('[data-testid="oct-segmentation-segment"]').exists()
+      );
+    expect(segmentAction?.props('reason')).toBe(
+      'Enable thin-region highlighting to choose a segment.'
+    );
+    await wrapper.setProps({
+      thicknessReason: 'The selected segment is hidden.',
+    });
+    expect(toggle.attributes('disabled')).toBeUndefined();
+    await toggle.setValue(true);
+    expect(segment.attributes('disabled')).toBeUndefined();
     const reason = 'Load an associated segmentation to measure thickness.';
     await wrapper.setProps({
       segments: [],
       segmentationReason: reason,
+      highlightReason: reason,
       thicknessReason: reason,
     });
     expect(

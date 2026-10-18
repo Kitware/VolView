@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { URL as FileURL } from 'node:url';
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { describe, expect, it } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
@@ -17,16 +15,13 @@ import {
   OPHTHALMIC_EN_FACE_SOP,
 } from '@/src/oct/detection';
 
-const fixtureURL = new FileURL(
-  '../../../tests/fixtures/oct/retina-derived.dcm',
-  import.meta.url
-);
-const reference = JSON.parse(
-  readFileSync(
-    new FileURL('../../../tests/fixtures/oct/reference.json', import.meta.url),
-    'utf8'
-  )
-);
+import reference from '@/tests/fixtures/oct/reference.json';
+import {
+  createSyntheticOCT,
+  element,
+  sequence,
+  enhancedFile,
+} from '@/tests/fixtures/oct/dicom';
 
 const baseMetadata = (): Array<[string, string]> => [
   [Tags.SOPClassUID, OPHTHALMIC_TOMOGRAPHY_SOP],
@@ -37,7 +32,7 @@ const firstItem = (data: DataSet, tag: string) =>
   data.elements[tag].items![0].dataSet!;
 
 function fixtureBytes() {
-  return new Uint8Array(readFileSync(fixtureURL));
+  return new Uint8Array(createSyntheticOCT());
 }
 
 function readDataset(bytes: Uint8Array) {
@@ -69,91 +64,6 @@ async function augmented(bytes = fixtureBytes()) {
   return new Map(
     await augmentOCTMetadata(new Blob([bytes as BlobPart]), baseMetadata())
   );
-}
-
-function concat(chunks: Uint8Array[]) {
-  const output = new Uint8Array(
-    chunks.reduce((length, bytes) => length + bytes.length, 0)
-  );
-  let offset = 0;
-  for (const chunk of chunks) {
-    output.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return output;
-}
-
-function element(tag: string, vr: string, value: string | Uint8Array) {
-  let payload =
-    typeof value === 'string' ? new TextEncoder().encode(value) : value;
-  if (payload.length % 2)
-    payload = concat([payload, new Uint8Array([vr === 'UI' ? 0 : 0x20])]);
-  const header = new Uint8Array(vr === 'SQ' ? 12 : 8);
-  const view = new DataView(header.buffer);
-  view.setUint16(0, parseInt(tag.slice(0, 4), 16), true);
-  view.setUint16(2, parseInt(tag.slice(4), 16), true);
-  header.set(new TextEncoder().encode(vr), 4);
-  if (vr === 'SQ') view.setUint32(8, payload.length, true);
-  else view.setUint16(6, payload.length, true);
-  return concat([header, payload]);
-}
-
-function sequence(tag: string, datasets: Uint8Array[]) {
-  return element(
-    tag,
-    'SQ',
-    concat(
-      datasets.map((dataset) => {
-        const header = new Uint8Array(8);
-        const view = new DataView(header.buffer);
-        view.setUint16(0, 0xfffe, true);
-        view.setUint16(2, 0xe000, true);
-        view.setUint32(4, dataset.length, true);
-        return concat([header, dataset]);
-      })
-    )
-  );
-}
-
-function enhancedFile(
-  frames: { position?: string; spacing?: string; orientation?: string }[],
-  extraHeader: Uint8Array[] = [],
-  extraShared: Uint8Array[] = []
-) {
-  const positionSequence = (position: string) =>
-    sequence('00209113', [element('00200032', 'DS', position)]);
-  const measureSequence = (spacing: string) =>
-    sequence('00289110', [element('00280030', 'DS', spacing)]);
-  const orientationSequence = (orientation: string) =>
-    sequence('00209116', [element('00200037', 'DS', orientation)]);
-  const bytes = concat([
-    new Uint8Array(128),
-    new TextEncoder().encode('DICM'),
-    element('00020010', 'UI', '1.2.840.10008.1.2.1'),
-    element('00080016', 'UI', OPHTHALMIC_TOMOGRAPHY_SOP),
-    element('00280008', 'IS', String(frames.length)),
-    ...extraHeader,
-    sequence('52009229', [
-      concat([
-        measureSequence('0.01\\0.02'),
-        orientationSequence('1\\0\\0\\0\\1\\0'),
-        ...extraShared,
-      ]),
-    ]),
-    sequence(
-      '52009230',
-      frames.map((frame) =>
-        concat([
-          ...(frame.position ? [positionSequence(frame.position)] : []),
-          ...(frame.spacing ? [measureSequence(frame.spacing)] : []),
-          ...(frame.orientation
-            ? [orientationSequence(frame.orientation)]
-            : []),
-        ])
-      )
-    ),
-  ]);
-  return new Blob([bytes]);
 }
 
 describe('OCT DICOM activation', () => {
@@ -193,10 +103,28 @@ describe('OCT DICOM activation', () => {
 
 describe('OCT enhanced spatial metadata', () => {
   it('reads deflated Explicit VR geometry with the required trailing NULL padding', async () => {
-    const bytes = deflatedExplicitVR(fixtureBytes());
+    const source = new Uint8Array(
+      await enhancedFile([
+        { position: '0\\0\\0' },
+        { position: '0\\0\\0.2' },
+      ]).arrayBuffer()
+    );
+    let streamLength = 0;
+    const bytes = deflatedExplicitVR(source, (dataset) => {
+      expect(dataset.length).toBeLessThan(65536);
+      // A final stored DEFLATE block adds five bytes to the even DICOM dataset.
+      const header = Buffer.alloc(5);
+      header[0] = 1;
+      header.writeUInt16LE(dataset.length, 1);
+      header.writeUInt16LE(~dataset.length & 0xffff, 3);
+      const stream = Buffer.concat([header, dataset]);
+      streamLength = stream.length;
+      return stream;
+    });
+    expect(streamLength % 2).toBe(1);
     expect(bytes.length % 2).toBe(0);
     expect(bytes.at(-1)).toBe(0);
-    expect(await augmented(bytes)).toEqual(await augmented());
+    expect(await augmented(bytes)).toEqual(await augmented(source));
   });
 
   it('disables projection when the deflated dataset is truncated', async () => {
@@ -206,7 +134,7 @@ describe('OCT enhanced spatial metadata', () => {
     );
   });
 
-  it('reads the public real-pixel fixture and promotes nested geometry', async () => {
+  it('reads the generated OCT fixture and promotes nested geometry', async () => {
     const tags = await augmented();
     const pixelSpacing = tags.get(Tags.PixelSpacing)!.split('\\').map(Number);
     expect(pixelSpacing).toEqual([reference.spacing[1], reference.spacing[0]]);
@@ -330,6 +258,14 @@ describe('OCT enhanced spatial metadata', () => {
       baseMetadata()
     );
     expect(octGeometryReason(tags)).toMatch(/different pixel spacing/);
+  });
+
+  it('rejects unequal per-frame slice spacing without positions', async () => {
+    const tags = await augmentOCTMetadata(
+      enhancedFile([{ slowSpacing: '0.2' }, { slowSpacing: '0.3' }]),
+      baseMetadata()
+    );
+    expect(octGeometryReason(tags)).toMatch(/slice spacing/);
   });
 
   it('rejects nonparallel frames', async () => {

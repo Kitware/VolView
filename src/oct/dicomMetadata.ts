@@ -3,6 +3,11 @@ import { inflateSync } from 'fflate';
 import { Tags } from '@/src/core/dicomTags';
 import { augmentOCTPadding } from '@/src/oct/padding';
 import {
+  octDirection,
+  octGridGeometry,
+  sameVector,
+} from '@/src/oct/seriesGeometry';
+import {
   isOCTMetadata,
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
@@ -29,9 +34,6 @@ const firstItem = (data: DataSet | undefined, tag: string) =>
 const stringValue = (data: DataSet | undefined, tag: string) =>
   data?.string(tag)?.trim();
 const vector = (value: string | undefined) => value?.split('\\').map(Number);
-const close = (a: number, b: number) => Math.abs(a - b) <= 1e-5;
-const sameVector = (a: number[], b: number[]) =>
-  a.length === b.length && a.every((value, i) => close(value, b[i]));
 
 function frameAttribute(
   data: DataSet | undefined,
@@ -41,27 +43,21 @@ function frameAttribute(
   return stringValue(firstItem(data, sequence), attribute);
 }
 
-function geometryString(
-  primary: DataSet | undefined,
-  data: DataSet,
-  tag: string
-) {
-  return stringValue(primary, tag) ?? stringValue(data, tag);
-}
-
 function frameGeometry(data: DataSet) {
   const shared = firstItem(data, SHARED);
   const frames =
     data.elements[PER_FRAME]?.items?.flatMap((item) =>
       item.dataSet ? [item.dataSet] : []
     ) ?? [];
-  const measures =
-    firstItem(shared, MEASURES) ?? firstItem(frames[0], MEASURES);
+  const measure = (tag: string) =>
+    frameAttribute(shared, MEASURES, tag) ??
+    frameAttribute(frames[0], MEASURES, tag) ??
+    stringValue(data, tag);
   const orientation =
     frameAttribute(shared, ORIENTATION, 'x00200037') ??
     frameAttribute(frames[0], ORIENTATION, 'x00200037') ??
     stringValue(data, 'x00200037');
-  const spacing = geometryString(measures, data, 'x00280030');
+  const spacing = measure('x00280030');
   const positions = frames.map((frame) =>
     vector(frameAttribute(frame, POSITION, 'x00200032'))
   );
@@ -73,7 +69,7 @@ function frameGeometry(data: DataSet) {
     spacing,
     positions,
     origin,
-    sliceSpacing: geometryString(measures, data, 'x00180088'),
+    sliceSpacing: measure('x00180088'),
   };
 }
 
@@ -91,62 +87,14 @@ function frameAttributeMismatch(
   });
 }
 
-function validOrientation(orientation: number[]) {
-  if (orientation.length !== 6 || !orientation.every(Number.isFinite))
-    return false;
-  const row = orientation.slice(0, 3);
-  const column = orientation.slice(3);
-  return (
-    close(Math.hypot(...row), 1) &&
-    close(Math.hypot(...column), 1) &&
-    close(
-      row.reduce((dot, n, i) => dot + n * column[i], 0),
-      0
-    )
-  );
-}
-
-function followsGrid(step: number[], orientation: number[] | undefined) {
-  if (!orientation) return true;
-  if (!validOrientation(orientation)) return false;
-  const normal = [
-    orientation[1] * orientation[5] - orientation[2] * orientation[4],
-    orientation[2] * orientation[3] - orientation[0] * orientation[5],
-    orientation[0] * orientation[4] - orientation[1] * orientation[3],
-  ];
-  const distance = step.reduce((sum, value, i) => sum + value * normal[i], 0);
-  return (
-    distance > 0 &&
-    sameVector(
-      step,
-      normal.map((n) => n * distance)
-    )
-  );
-}
-
 function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const positions = geometry.positions.filter((p): p is number[] => !!p);
   if (positions.length > 0 && positions.length !== geometry.positions.length)
     return 'OCT frame positions are incomplete; spatial reconstruction is required.';
-  if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
-    return 'OCT frame positions are invalid; spatial reconstruction is required.';
-  if (positions.length < 2) return null;
-  const step = positions[1].map((p, i) => p - positions[0][i]);
-  if (!step.some((n) => Math.abs(n) > 1e-5))
-    return 'Repeated OCT B-scan locations need spatial reconstruction.';
-  if (!followsGrid(step, vector(geometry.orientation)))
-    return 'OCT frame positions do not follow the image grid; spatial reconstruction is required.';
-  if (
-    positions.some(
-      (p, frame) =>
-        !sameVector(
-          p,
-          positions[0].map((n, i) => n + frame * step[i])
-        )
-    )
-  )
-    return 'OCT B-scans have nonuniform positions; spatial reconstruction is required.';
-  return null;
+  return octGridGeometry(
+    positions,
+    octDirection(vector(geometry.orientation)) ?? undefined
+  ).reason;
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {
@@ -156,10 +104,19 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   )
     return 'OCT frame geometry does not match Number of Frames; spatial reconstruction is required.';
   const orientation = vector(geometry.orientation);
-  if (orientation && !validOrientation(orientation))
+  if (orientation && !octDirection(orientation))
     return 'OCT image orientation is invalid; spatial reconstruction is required.';
   if (frameAttributeMismatch(geometry, MEASURES, 'x00280030', geometry.spacing))
     return 'OCT frames have different pixel spacing; spatial reconstruction is required.';
+  if (
+    frameAttributeMismatch(
+      geometry,
+      MEASURES,
+      'x00180088',
+      geometry.sliceSpacing
+    )
+  )
+    return 'OCT frames have different slice spacing; spatial reconstruction is required.';
   if (
     frameAttributeMismatch(
       geometry,

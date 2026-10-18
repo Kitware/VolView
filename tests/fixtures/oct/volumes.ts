@@ -1,9 +1,13 @@
-import fs from 'node:fs';
 import dicomParser from 'dicom-parser';
 import { deflateRawSync, gzipSync } from 'node:zlib';
+import reference from './reference.json';
+import { syntheticScalars } from './dicom';
 
 /** Preserve a Part 10 dataset while changing only its transfer syntax. */
-export function deflatedExplicitVR(source: Uint8Array) {
+export function deflatedExplicitVR(
+  source: Uint8Array,
+  deflate: (dataset: Uint8Array) => Uint8Array = deflateRawSync
+) {
   const data = dicomParser.parseDicom(source, { untilTag: 'x7fe00010' });
   const position = Math.max(
     ...Object.values(data.elements)
@@ -37,13 +41,13 @@ export function deflatedExplicitVR(source: Uint8Array) {
   }
   const lengthOffset = groupLength?.dataOffset ?? 140;
   prefix.writeUInt32LE(prefix.length - (lengthOffset + 4), lengthOffset);
-  const deflated = deflateRawSync(source.subarray(position));
+  const deflated = deflate(source.subarray(position));
   // DICOM requires an even-length deflated stream with a trailing NULL if needed.
   return Buffer.concat([prefix, deflated, Buffer.alloc(deflated.length % 2)]);
 }
 
-export function nonOCTDicom(sourcePath: string) {
-  const bytes = fs.readFileSync(sourcePath);
+export function nonOCTDicom(source: Uint8Array) {
+  const bytes = Buffer.from(source);
   const dicom = dicomParser.parseDicom(bytes);
   for (const [tag, value] of [
     ['x00020002', '1.2.840.10008.5.1.4.1.1.7.3'],
@@ -152,45 +156,74 @@ export function createNiftiVolume({
   return Buffer.concat([header, scalarBytes(scalars)]);
 }
 
-// Preserve public pixels and physical geometry while moving A-lines to grid Z.
-export function publicOCTGrid(sourcePath: string) {
-  const bytes = fs.readFileSync(sourcePath);
-  const dicom = dicomParser.parseDicom(bytes);
-  const width = dicom.uint16('x00280011')!;
-  const depth = dicom.uint16('x00280010')!;
-  const frames = Number(dicom.string('x00280008'));
-  const spacing = dicom.string('x00280030')!.split('\\').map(Number);
-  const pixels = new DataView(
-    bytes.buffer,
-    bytes.byteOffset + dicom.elements.x7fe00010.dataOffset,
-    width * depth * frames * 2
-  );
-  const scalars = new Uint16Array(width * depth * frames);
+export function syntheticOCTGrid() {
+  const [width, depth, frames] = reference.size;
+  const [sx, sy, sz] = reference.spacing;
+  const source = syntheticScalars();
+  const scalars = new Uint16Array(source.length);
   for (let y = 0; y < depth; y++)
     for (let z = 0; z < frames; z++)
       for (let x = 0; x < width; x++)
-        scalars[(y * frames + z) * width + x] = pixels.getUint16(
-          ((z * depth + y) * width + x) * 2,
-          true
-        );
+        scalars[(y * frames + z) * width + x] =
+          source[(z * depth + y) * width + x];
   return {
     scalars,
     dimensions: [width, frames, depth],
-    spacing: [spacing[1], Number(dicom.string('x00180088')), spacing[0]],
+    spacing: [sx, sz, sy],
     direction: [1, 0, 0, 0, 0, 1, 0, 1, 0],
   };
 }
 
-export function publicOCTVolume(
-  sourcePath: string,
-  format: 'nrrd' | 'nii',
-  unitsKnown = true
-) {
-  const volume = publicOCTGrid(sourcePath);
+export function syntheticOCTVolume(format: 'nrrd' | 'nii', unitsKnown = true) {
+  const volume = syntheticOCTGrid();
   return format === 'nrrd'
     ? createNrrdVolume({
         ...volume,
         units: unitsKnown ? ['mm', 'mm', 'mm'] : [],
       })
     : createNiftiVolume({ ...volume, units: unitsKnown ? 2 : 0 });
+}
+
+export function syntheticMask(illustrative = false) {
+  const [width, depth, frames] = reference.size;
+  const scalars = new Uint16Array(width * depth * frames);
+  for (let z = 0; z < frames; z++)
+    for (let x = 0; x < width; x++) {
+      if (illustrative) {
+        const bottom = Math.round(
+          145 +
+            26 * Math.sin((Math.PI * x) / (width - 1)) +
+            2 * Math.sin((Math.PI * z) / (frames - 1))
+        );
+        const thickness =
+          ((x - 76) / 12) ** 2 + ((z - 16) / 3) ** 2 <= 1 ? 2 : 5;
+        for (let y = bottom - thickness + 1; y <= bottom; y++)
+          scalars[(z * depth + y) * width + x] = 1;
+      } else {
+        for (let y = 100; y < (x < 43 ? 102 : x < 86 ? 104 : 100); y++)
+          scalars[(z * depth + y) * width + x] = 1;
+        for (let y = 110; y < 115; y++)
+          scalars[(z * depth + y) * width + x] = 2;
+      }
+    }
+  return createNrrdVolume({
+    scalars,
+    dimensions: reference.size,
+    spacing: reference.spacing,
+    metadata: illustrative
+      ? {
+          Segment0_LabelValue: '1',
+          Segment0_Name: 'Synthetic retinal layer',
+          Segment0_Color:
+            '0.13725490196078433 0.8431372549019608 0.7450980392156863',
+        }
+      : {
+          Segment0_LabelValue: '1',
+          Segment0_Name: 'Synthetic retinal band',
+          Segment0_Color: '1 0 0',
+          Segment1_LabelValue: '2',
+          Segment1_Name: 'Alternative synthetic band',
+          Segment1_Color: '0 1 0',
+        },
+  });
 }

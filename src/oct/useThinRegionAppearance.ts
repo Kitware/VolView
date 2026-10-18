@@ -1,9 +1,12 @@
 import { computed, unref, type MaybeRef } from 'vue';
 import type { Maybe } from '@/src/types';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { segmentFillAlpha } from '@/src/segmentation/rendering/display';
+import {
+  segmentFillAlpha,
+  segmentOutline,
+} from '@/src/segmentation/rendering/display';
 
-/** The selected mask uses the same color, visibility, and fill as its source slice. */
+/** The selected mask uses its source slice's normal fill and outline settings. */
 export function useThinRegionAppearance(maskId: MaybeRef<Maybe<string>>) {
   const segmentationStore = useSegmentationStore();
   return computed(() => {
@@ -13,14 +16,25 @@ export function useThinRegionAppearance(maskId: MaybeRef<Maybe<string>>) {
     const segmentation = segmentationStore.segmentationOfMask(id);
     if (!descriptor || !segmentation) return null;
     const alpha = segmentFillAlpha(descriptor, segmentation.fillOpacity);
+    const { thicknesses, opacities } = segmentOutline(
+      descriptor,
+      segmentation.outlineThickness,
+      segmentation.outlineOpacity
+    );
+    const outlineWidth = thicknesses[0];
+    const outlineOpacity = opacities[0];
     let reason: string | null = null;
     if (!descriptor.visible)
       reason = 'Show the selected segment to highlight thin regions.';
-    else if (segmentation.fillOpacity <= 0)
-      reason = 'Increase segmentation fill opacity to highlight thin regions.';
-    else if (alpha <= 0)
+    else if (alpha <= 0 && (outlineWidth <= 0 || outlineOpacity <= 0))
       reason =
-        'Increase the selected segment opacity to highlight thin regions.';
-    return { color: descriptor.color, alpha, reason };
+        'Increase segmentation fill opacity or enable an outline to highlight thin regions.';
+    return {
+      color: descriptor.color,
+      alpha,
+      outlineWidth,
+      outlineOpacity,
+      reason,
+    };
   });
 }

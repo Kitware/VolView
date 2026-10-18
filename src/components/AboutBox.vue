@@ -169,13 +169,30 @@
       Sample data provided by the following sources:
       <ul>
         <li>
-          Retinal OCT: Heidelberg Spectralis data from
+          Retinal layers: OCT data and manual delineations from
           <a
             rel="noopener noreferrer"
             target="_blank"
-            href="https://github.com/theislab/DeepRT#thickness-map-calculation"
-            >DeepRT</a
-          >, Theis Lab (MIT license).
+            href="https://iacl.ece.jhu.edu/index.php/OCT_Data"
+            >Johns Hopkins IACL</a
+          >. Y. He, A. Carass, S. D. Solomon, S. Saidha, P. A. Calabresi, and J.
+          L. Prince, "Retinal layer parcellation of optical coherence tomography
+          images: Data resource for Multiple Sclerosis and Healthy Controls",
+          Data in Brief 22:601–604 (2019),
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://doi.org/10.1016/j.dib.2018.12.073"
+            >doi:10.1016/j.dib.2018.12.073</a
+          >. Source data publication: © 2018 The Authors,
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://creativecommons.org/licenses/by/4.0/"
+            >CC BY 4.0</a
+          >. Converted from VOL/MAT to NRRD, with lateral subsampling,
+          interpolation onto a regular B-scan grid, and rasterization of the
+          manual boundaries into eight tissue labels.
         </li>
         <li>
           PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz,

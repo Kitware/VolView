@@ -29,7 +29,12 @@ const view: ViewInfoEnFace = {
   options: {},
 };
 const enFace = computeEffectiveView(view, view.dataID);
-const supportedTools = new Set([Tools.Select, Tools.WindowLevel]);
+const supportedTools = new Set([
+  Tools.Select,
+  Tools.WindowLevel,
+  Tools.Pan,
+  Tools.Zoom,
+]);
 
 function activateEnFace(dataID = view.dataID) {
   const views = useViewStore();
@@ -78,7 +83,7 @@ afterEach(() => cleanupCachedImages(decodeReleases));
 
 describe('En face tool capabilities', () => {
   it.each(Object.values(Tools))(
-    'supports contrast and selection when evaluating %s',
+    'supports viewing tools when evaluating %s',
     (tool) => {
       expect(isToolAllowedFor(tool, enFace)).toBe(supportedTools.has(tool));
     }
@@ -92,12 +97,12 @@ describe('En face tool capabilities', () => {
 });
 
 describe('activating an En face view', () => {
-  it('falls back to Select when changing from a view using Pan', async () => {
+  it('keeps Pan selected when changing to an En face view', async () => {
     const tools = useToolStore();
     tools.setCurrentTool(Tools.Pan);
     activateEnFace(await loadOCT());
     await nextTick();
-    expect(tools.currentTool).toBe(Tools.Select);
+    expect(tools.currentTool).toBe(Tools.Pan);
   });
   it('keeps the standard window/level tool active when supported OCT pixels are loaded', async () => {
     const tools = useToolStore();
@@ -168,13 +173,16 @@ describe('activating an En face view', () => {
       expect(tools.currentTool).toBe(Tools.Select);
     }
   );
-  it('rejects a contrast shortcut in an En face slot with no dataset', async () => {
-    activateEnFace(null);
-    const tools = useToolStore();
-    await nextTick();
-    tools.setCurrentTool(Tools.WindowLevel);
-    expect(tools.currentTool).toBe(Tools.Select);
-  });
+  it.each([Tools.WindowLevel, Tools.Pan, Tools.Zoom])(
+    'rejects the %s shortcut in an En face slot with no dataset',
+    async (tool) => {
+      activateEnFace(null);
+      const tools = useToolStore();
+      await nextTick();
+      tools.setCurrentTool(tool);
+      expect(tools.currentTool).toBe(Tools.Select);
+    }
+  );
   it('preserves normal-view contrast shortcuts when their dataset is missing', () => {
     const views = useViewStore();
     views.setDataForView(views.layoutViews[0].id, 'missing');
