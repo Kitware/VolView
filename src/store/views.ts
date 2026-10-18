@@ -96,7 +96,10 @@ function generateLayoutFromGrid(size: [number, number]): Layout {
   };
 }
 
-function needsViewReplacement(existingView: ViewInfo, nextView: ViewInfoInit) {
+export function needsViewReplacement(
+  existingView: ViewInfo,
+  nextView: ViewInfoInit
+) {
   if (existingView.type !== nextView.type) return true;
 
   const existingOptions = existingView.options ?? null;

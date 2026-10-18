@@ -2,7 +2,7 @@ import type { Maybe } from '@/src/types';
 import type { ViewInfo, ViewInfoInit } from '@/src/types/views';
 import type { LayoutItem } from '@/src/types/layout';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useViewStore } from '@/src/store/views';
+import { needsViewReplacement, useViewStore } from '@/src/store/views';
 import { LPSAxes } from '@/src/utils/lps';
 import { getOCTAvailability } from './availability';
 
@@ -75,11 +75,9 @@ export function applyOCTLayout(imageID: Maybe<string>) {
   views.setLayoutFromGrid([1, 2]);
   comparisonViews.forEach((next, index) => {
     const existing = views.layoutViews[index];
-    const matches =
-      existing.type === next.type &&
-      JSON.stringify(existing.options) === JSON.stringify(next.options);
-    if (matches) views.setDataForView(existing.id, imageID);
-    else views.replaceView(existing.id, next);
+    if (needsViewReplacement(existing, next))
+      views.replaceView(existing.id, next);
+    else views.setDataForView(existing.id, imageID);
   });
   return true;
 }

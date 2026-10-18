@@ -118,6 +118,51 @@ async function selectSetting(testId: string, title: string) {
   await option.click();
 }
 
+async function setEnFaceWindow(width: number, level: number) {
+  await browser.keys('Escape');
+  await $(CANVAS).click();
+  await $(WINDOW_TOOL).click();
+  const manual = $$('.v-overlay--active .manual-inputs input');
+  await manual[0].waitForDisplayed();
+  await setValueVueInput(manual[0], String(width));
+  await setValueVueInput(manual[1], String(level));
+  await browser.keys('Escape');
+  await manual[0].waitForDisplayed({ reverse: true });
+}
+
+async function expectProjectionPixel(gray: number) {
+  const source = await $(CANVAS).getElement();
+  await browser.waitUntil(
+    async () => {
+      const pixel = await source.execute((element) => {
+        const canvas = element as HTMLCanvasElement;
+        const transform = document
+          .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+          .getScreenCTM()!;
+        const center = new DOMPoint(60.5, 12.5).matrixTransform(transform);
+        const bounds = canvas.getBoundingClientRect();
+        const x = Math.floor(
+          ((center.x - bounds.left) * canvas.width) / bounds.width
+        );
+        const y = Math.floor(
+          ((center.y - bounds.top) * canvas.height) / bounds.height
+        );
+        const copy = document.createElement('canvas');
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        const context = copy.getContext('2d')!;
+        context.drawImage(canvas, 0, 0);
+        return Array.from(context.getImageData(x, y, 1, 1).data);
+      });
+      return (
+        pixel[3] === 255 &&
+        pixel.slice(0, 3).every((channel) => Math.abs(channel - gray) <= 1)
+      );
+    },
+    { timeoutMsg: `Expected en face pixel (60, 12) to be grayscale ${gray}` }
+  );
+}
+
 async function enableHighlight() {
   await expandEnFaceSection('thickness');
   const label = $('[data-testid="oct-thin-highlight"] label');
@@ -314,30 +359,28 @@ describe('Retinal OCT en face viewing', () => {
       await expect(
         $('[data-testid="oct-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
+    await setEnFaceWindow(1000, 500);
+    // Fixed windowing distinguishes the fixture's mean 317, max 538 and sum 70374.
+    await expectProjectionPixel(81);
     const mean = await enFaceAppearance();
+    await openControls();
     await expandEnFaceSection('projection');
     await selectSetting('oct-projection-method', 'Maximum');
     await waitForEnFaceReady();
     await expect($('[data-testid="oct-projection-method"] input')).toHaveValue(
       'Maximum'
     );
+    await expectProjectionPixel(137);
     await selectSetting('oct-projection-method', 'Sum');
     await waitForEnFaceReady();
     await expect($('[data-testid="oct-projection-method"] input')).toHaveValue(
       'Sum'
     );
+    await expectProjectionPixel(255);
     await selectSetting('oct-projection-method', 'Mean');
     await setSlabRange(reference.slab.start, reference.slab.end);
     await waitForEnFaceReady();
-    await browser.keys('Escape');
-    await $(CANVAS).click();
-    await $(WINDOW_TOOL).click();
-    const manual = $$('.v-overlay--active .manual-inputs input');
-    await manual[0].waitForDisplayed();
-    await setValueVueInput(manual[0], '1');
-    await setValueVueInput(manual[1], '202.5');
-    await browser.keys('Escape');
-    await manual[0].waitForDisplayed({ reverse: true });
+    await setEnFaceWindow(1, 202.5);
     expect(await getWindow()).toEqual({ width: 1, level: 202.5 });
     await browser.waitUntil(
       async () => (await enFaceAppearance()).image !== mean.image
