@@ -21,10 +21,17 @@ import { useImageCacheStore } from './image-cache';
 import { useMessageStore } from './messages';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 
+export type ImageHistogram = {
+  counts: readonly number[];
+  origin: number;
+  binWidth: number;
+};
+
 export type ImageStats = {
   scalarMin: number;
   scalarMax: number;
   autoRangeValues?: Record<string, [number, number]>;
+  histogram?: ImageHistogram;
 };
 
 function getRangesWithCache(scalars: vtkDataArray) {
@@ -48,10 +55,10 @@ function getAllComponentRange(scalars: vtkDataArray) {
   return { min, max };
 }
 
-async function computeAutoRangeValues(imageData: vtkImageData) {
+async function computeHistogramStats(imageData: vtkImageData) {
   const scalars = imageData.getPointData()?.getScalars();
   if (!scalars) {
-    return {};
+    return { autoRangeValues: {} };
   }
 
   const { min, max } = getAllComponentRange(scalars);
@@ -78,7 +85,7 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
   const width = (max - min + 1) / WL_HIST_BINS;
   const totalCount = scalarData.length;
 
-  return Object.fromEntries(
+  const autoRangeValues = Object.fromEntries(
     Object.entries(WLAutoRanges).map(([key, percentage]) => {
       const lowerBound = percentage * 0.01 * totalCount;
       const upperBound = (1 - percentage * 0.01) * totalCount;
@@ -91,6 +98,10 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
       return [key, [start, end] as [number, number]];
     })
   );
+  return {
+    autoRangeValues,
+    histogram: { counts: hist, origin: min, binWidth: width },
+  };
 }
 
 export const useImageStatsStore = defineStore('image-stats', () => {
@@ -101,7 +112,7 @@ export const useImageStatsStore = defineStore('image-stats', () => {
   const statsEffectScope: Record<string, EffectScope> = {};
   const autoRangeComputations: Record<
     string,
-    Promise<Record<string, [number, number]>>
+    ReturnType<typeof computeHistogramStats>
   > = {};
 
   const internalSetScalarRange = (
@@ -116,13 +127,13 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     };
   };
 
-  const internalSetAutoRangeValues = (
+  const internalSetHistogramStats = (
     imageID: string,
-    autoValues: Record<string, [number, number]>
+    histogramStats: Awaited<ReturnType<typeof computeHistogramStats>>
   ) => {
     stats[imageID] = {
       ...stats[imageID],
-      autoRangeValues: autoValues,
+      ...histogramStats,
     };
   };
 
@@ -169,13 +180,13 @@ export const useImageStatsStore = defineStore('image-stats', () => {
     });
 
     const triggerAutoRangeComputation = (image: vtkImageData) => {
-      autoRangeComputations[id] = computeAutoRangeValues(image);
+      autoRangeComputations[id] = computeHistogramStats(image);
 
       autoRangeComputations[id]
-        .then((autoValues) => {
+        .then((histogramStats) => {
           if (imageCacheStore.imageIds.includes(id)) {
             // not deleted yet, save values
-            internalSetAutoRangeValues(id, autoValues);
+            internalSetHistogramStats(id, histogramStats);
           }
         })
         .catch((error) => {

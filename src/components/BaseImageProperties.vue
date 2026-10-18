@@ -78,6 +78,11 @@ const imageRange = computed(() => {
   const range = scalars.value?.getRange() ?? [0, 1];
   return [stats?.scalarMin ?? range[0], stats?.scalarMax ?? range[1]] as const;
 });
+const histogram = computed(() =>
+  !isCineImage(props.imageId) && scalars.value?.getNumberOfComponents() === 1
+    ? statsStore.stats[props.imageId]?.histogram
+    : undefined
+);
 const unavailableReason = computed(() => {
   if (!imageData.value || !scalars.value)
     return 'The image must finish loading first.';
@@ -182,6 +187,7 @@ function setRange([min, max]: [number, number]) {
               :key="imageId"
               :model-value="mappingRange"
               :data-range="imageRange"
+              :histogram="histogram"
               :preset="preset"
               :disabled="!!unavailableReason"
               test-id-prefix="base-image-range"

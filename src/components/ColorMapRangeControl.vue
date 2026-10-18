@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useDevicePixelRatio, useElementSize } from '@vueuse/core';
 import ColorMapSwatch from './ColorMapSwatch.vue';
+import ColorMapHistogram from './ColorMapHistogram.vue';
+import type { ImageHistogram } from '@/src/store/image-stats';
 
 type Range = readonly [number, number];
 type Handle = 'min' | 'max' | 'center';
@@ -19,6 +21,7 @@ type Drag = {
 const props = defineProps<{
   modelValue: Range;
   dataRange: Range;
+  histogram?: ImageHistogram;
   preset: string;
   transparentBackground?: boolean;
   disabled?: boolean;
@@ -264,6 +267,11 @@ onBeforeUnmount(endDrag);
         :transparent-background="transparentBackground"
         aria-hidden="true"
       />
+      <ColorMapHistogram
+        :histogram="histogram"
+        :data-range="dataRange"
+        :data-testid="`${testIdPrefix}-histogram`"
+      />
       <span
         v-for="handle in handles"
         :key="handle"
@@ -343,7 +351,7 @@ onBeforeUnmount(endDrag);
 .palette-window-bar {
   position: relative;
   width: 100%;
-  height: 16px;
+  height: 32px;
 }
 .palette-window-colors {
   position: absolute;

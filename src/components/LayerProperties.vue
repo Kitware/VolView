@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import '@/src/vtk/ColorMaps';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME, WLAutoRanges } from '@/src/constants';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { Layer, useLayersStore } from '@/src/store/datasets-layers';
@@ -89,6 +90,12 @@ const imageRange = computed(() => {
   const range = image.value?.getPointData().getScalars().getRange() ?? [0, 1];
   return [range[0], range[1]] as const;
 });
+const histogram = computed(() =>
+  !isCineImage(props.layer.selection) &&
+  image.value?.getPointData().getScalars()?.getNumberOfComponents() === 1
+    ? imageStatsStore.stats[props.layer.id]?.histogram
+    : undefined
+);
 const validRange = (
   range: readonly [number, number] | undefined
 ): range is readonly [number, number] =>
@@ -186,6 +193,7 @@ function setRange(range: [number, number]) {
             class="mt-1"
             :model-value="mappingRange ?? [0, 1]"
             :data-range="imageRange"
+            :histogram="histogram"
             :preset="preset"
             :transparent-background="transparentBackground"
             :disabled="!!coloringUnavailableReason"

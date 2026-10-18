@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch, useId } from 'vue';
 import { formatDisplayRange } from '@/src/utils/formatDisplayRange';
+import type { ImageHistogram } from '@/src/store/image-stats';
 import ColorMapRangeControl from './ColorMapRangeControl.vue';
 
 const props = withDefaults(
   defineProps<{
     modelValue: readonly [number, number];
     dataRange: readonly [number, number];
+    histogram?: ImageHistogram;
     preset: string;
     transparentBackground?: boolean;
     disabled?: boolean;
@@ -129,6 +131,7 @@ function updateRangeControl(range: number[]) {
     <ColorMapRangeControl
       :model-value="modelValue"
       :data-range="dataRange"
+      :histogram="histogram"
       :preset="preset"
       :test-id-prefix="testIdPrefix"
       :transparent-background="transparentBackground"
