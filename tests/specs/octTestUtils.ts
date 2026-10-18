@@ -163,9 +163,9 @@ export async function setSlabRange(start: number, end: number) {
     ['start', start],
   ] as const) {
     const thumb = slabThumb(bound);
-    await thumb.scrollIntoView({ block: 'center', inline: 'nearest' });
-    await thumb.waitForClickable();
     if (Number(await thumb.getAttribute('aria-valuenow')) !== value) {
+      await thumb.scrollIntoView({ block: 'center', inline: 'nearest' });
+      await thumb.waitForClickable();
       await thumb.click();
       const min = Number(
         await (bound === 'end' ? slabThumb('start') : thumb).getAttribute(

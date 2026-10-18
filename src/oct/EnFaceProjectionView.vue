@@ -23,8 +23,10 @@ import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useMouseRangeManipulatorListener } from '@/src/core/vtk/useMouseRangeManipulatorListener';
 import { useVTKMultiWorldToSVG } from '@/src/composables/useVTKWorldToDisplay';
 import { useAutoFitState } from '@/src/composables/useAutoFitState';
+import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfig';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
+import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -44,7 +46,7 @@ const props = defineProps<{
   windowRange: { min: number; max: number };
   windowConfig: { width: number; level: number };
 }>();
-const { frame } = toRefs(props);
+const { frame, viewId, imageId } = toRefs(props);
 const container = ref<HTMLElement>();
 const scope = effectScope(true);
 const view = scope.run(() => useVtkView(container))!;
@@ -160,6 +162,14 @@ watch(
 );
 
 const autoFit = useAutoFitState(camera);
+const cameras = useViewCameraStore();
+const cameraDataId = computed(() =>
+  cameras.isCameraInitialized(viewId.value, imageId.value)
+    ? imageId.value
+    : undefined
+);
+// Restore the camera before calculating the projected image's clip range.
+usePersistCameraConfig(viewId, cameraDataId, camera);
 function fitImage() {
   const current = frame.value;
   if (!current || !autoFit.autoFit.value) return;
@@ -187,19 +197,29 @@ function resetCamera() {
   });
 }
 let imageGeometry = '';
+let cameraImageId: Maybe<string>;
 watch(
-  [frame, () => props.imageId],
-  ([current]) => {
+  [frame, imageId],
+  ([current, currentImageId]) => {
     if (!current) return;
-    const geometry = [
-      props.imageId,
-      current.width,
-      current.height,
-      ...current.spacing,
-    ].join(',');
-    if (geometry === imageGeometry) return;
+    const geometry = [current.width, current.height, ...current.spacing].join(
+      ','
+    );
+    const sameImage = currentImageId === cameraImageId;
+    if (sameImage && geometry === imageGeometry) return;
+    if (
+      !cameras.isCameraInitialized(viewId.value, currentImageId) ||
+      (sameImage && imageGeometry && geometry !== imageGeometry)
+    ) {
+      resetCamera();
+      cameras.markCameraAsInitialized(viewId.value, currentImageId);
+    } else {
+      autoFit.autoFit.value = false;
+      view.renderer.resetCameraClippingRange();
+      view.requestRender();
+    }
+    cameraImageId = currentImageId;
     imageGeometry = geometry;
-    resetCamera();
   },
   { immediate: true }
 );

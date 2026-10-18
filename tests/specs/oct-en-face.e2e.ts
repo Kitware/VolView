@@ -124,6 +124,8 @@ async function setEnFaceWindow(width: number, level: number) {
   await $(WINDOW_TOOL).click();
   const manual = $$('.v-overlay--active .manual-inputs input');
   await manual[0].waitForDisplayed();
+  await manual[0].waitForStable();
+  await manual[0].waitForClickable();
   await setValueVueInput(manual[0], String(width));
   await setValueVueInput(manual[1], String(level));
   await browser.keys('Escape');
@@ -160,6 +162,22 @@ async function expectProjectionPixel(gray: number) {
       );
     },
     { timeoutMsg: `Expected en face pixel (60, 12) to be grayscale ${gray}` }
+  );
+}
+
+async function projectionTransform() {
+  const transform = await $('[data-testid="oct-slice-lines"] > g').getAttribute(
+    'transform'
+  );
+  if (!transform) throw new Error('The projection has no image transform');
+  return transform.slice(7, -1).split(',').map(Number);
+}
+
+async function expectProjectionTransform(expected: number[]) {
+  await browser.waitUntil(async () =>
+    (await projectionTransform()).every(
+      (value, index) => Math.abs(value - expected[index]) < 1e-4
+    )
   );
 }
 
@@ -522,6 +540,85 @@ describe('Retinal OCT en face viewing', () => {
     );
     await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '10');
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '100');
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('preserves the projection camera across pane remounts and saved scenes, and resets on request', async () => {
+    await openRetina(false, true);
+    await setEnFaceWindow(1000, 500);
+    await expectProjectionPixel(81);
+    const initial = await projectionTransform();
+    await $('button[data-testid^="control-button-Pan "]').click();
+    await dragContrast(await $(CANVAS).getElement(), 55, 30);
+    await browser.waitUntil(
+      async () => (await projectionTransform())[4] !== initial[4]
+    );
+    const panned = await projectionTransform();
+    await $('button[data-testid^="control-button-Zoom "]').click();
+    await dragContrast(await $(CANVAS).getElement(), 0, -60);
+    await browser.waitUntil(
+      async () => (await projectionTransform())[0] !== panned[0]
+    );
+    const inspected = await projectionTransform();
+    await expectProjectionPixel(81);
+
+    const sourceCanvas = () => $('div[data-testid~="vtk-two-view"] canvas');
+    await sourceCanvas().doubleClick();
+    await expect($(CANVAS)).not.toExist();
+    await sourceCanvas().waitForStable();
+    await sourceCanvas().doubleClick();
+    await waitForEnFaceReady();
+    await expectProjectionTransform(inspected);
+    await expectProjectionPixel(81);
+
+    const saved = await volViewPage.saveSession();
+    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
+    await volViewPage.open('?urls=[tmp/' + saved + ']');
+    await waitForEnFaceReady();
+    await expectProjectionTransform(inspected);
+    await expectProjectionPixel(81);
+
+    await $('button[data-testid="control-button-Reset Views"]').click();
+    await expectProjectionTransform(initial);
+    await setEnFaceWindow(1000, 500);
+    const reset = await projectionTransform();
+    await browser.setViewport({
+      width: 1000,
+      height: 600,
+      devicePixelRatio: 1,
+    });
+    await browser.waitUntil(
+      async () => (await projectionTransform())[0] !== reset[0]
+    );
+    await expectProjectionPixel(81);
+
+    await $('button[data-testid^="control-button-Pan "]').click();
+    await dragContrast(await $(CANVAS).getElement(), 55, 30);
+    await openControls();
+    await expandEnFaceSection('projection');
+    await selectSetting('oct-projection-axis', 'X (columns)');
+    await waitForEnFaceReady();
+    await browser.keys('Escape');
+    const renderedCanvas = await $(CANVAS).getElement();
+    const geometry = await renderedCanvas.execute(
+      (canvas, width, height) => {
+        const bounds = canvas.getBoundingClientRect();
+        const transform = document
+          .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+          .getScreenCTM()!;
+        const center = new DOMPoint(width / 2, height / 2).matrixTransform(
+          transform
+        );
+        return {
+          x: center.x - (bounds.left + bounds.width / 2),
+          y: center.y - (bounds.top + bounds.height / 2),
+        };
+      },
+      reference.size[1],
+      reference.size[2]
+    );
+    expect(geometry.x).toBeCloseTo(0, 2);
+    expect(geometry.y).toBeCloseTo(0, 2);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
