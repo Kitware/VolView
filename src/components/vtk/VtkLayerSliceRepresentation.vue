@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nativeColorWindow } from '@/src/utils/nativeColorWindow';
 import { toRefs, watchEffect, inject, computed, onScopeDispose } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
@@ -37,17 +38,65 @@ const imageCacheStore = useImageCacheStore();
 const imageData = computed(() =>
   imageCacheStore.getVtkImageData(layerId.value)
 );
-const sliceRep = useSliceRepresentation(view, imageData);
+const componentCount = computed(
+  () =>
+    imageData.value?.getPointData().getScalars()?.getNumberOfComponents() ?? 0
+);
+const scalarImage = computed(() => componentCount.value === 1);
+const supportedImage = computed(() => [1, 3, 4].includes(componentCount.value));
+const mapperInput = computed(() =>
+  supportedImage.value ? imageData.value : undefined
+);
+const sliceRep = useSliceRepresentation(view, mapperInput);
+// Keep overlays in the same compositing pass as segments at every opacity.
+sliceRep.actor.setForceTranslucent(true);
 
 const ownedColorTransferFunction = vtkColorTransferFunction.newInstance();
 const ownedOpacityFunction = vtkPiecewiseFunction.newInstance();
-sliceRep.property.setRGBTransferFunction(0, ownedColorTransferFunction);
-sliceRep.property.setScalarOpacity(0, ownedOpacityFunction);
 onScopeDispose(() => {
   ownedColorTransferFunction.delete();
   ownedOpacityFunction.delete();
 });
-sliceRep.property.setUseLookupTableScalarRange(false);
+
+const backgroundFragment = computed(() => {
+  const config = coloringConfig.value;
+  if (!scalarImage.value || !(config?.transparentBackground ?? true)) return '';
+  const [min, max] = config.transferFunction.mappingRange;
+  const width = max - min;
+  if (!Number.isFinite(width) || width <= 0) {
+    return 'gl_FragData[0] = vec4(0.0);';
+  }
+  // Color coordinates track the display range without resampling preset opacity.
+  return 'gl_FragData[0] = vec4(tcolor, scalarOpacity * opacity * clamp(10.0 * (intensity * cscale0 + cshift0), 0.0, 1.0));';
+});
+
+watchEffect(() => {
+  const rgba = componentCount.value === 4;
+  const originalValue = rgba
+    ? 'texture2D(colorTexture1, vec2(tcolor.b,0.5)).r, tcolor.a);'
+    : 'gl_FragData[0] = vec4(tcolor, scalarOpacity * opacity);';
+  const replacementValue = rgba
+    ? 'texture2D(colorTexture1, vec2(tcolor.b,0.5)).r, tcolor.a * opacity);'
+    : backgroundFragment.value;
+  sliceRep.mapper.set({
+    viewSpecificProperties: {
+      OpenGL: {
+        ShaderReplacements: replacementValue
+          ? [
+              {
+                shaderType: 'Fragment',
+                originalValue,
+                replaceFirst: false,
+                replaceAll: false,
+                replacementValue,
+              },
+            ]
+          : [],
+      },
+    },
+  });
+  view.requestRender();
+});
 
 // set slice ordering to be in front of the segmentations
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
@@ -73,30 +122,37 @@ const applyLayerColoring = () => {
   const config = coloringConfig.value;
   if (!config) return;
 
-  const cfun = sliceRep.property.getRGBTransferFunction(0);
-  const ofun = sliceRep.property.getPiecewiseFunction(0);
-
-  if (!cfun || !ofun) throw new Error('Missing transfer functions');
-
-  applyColoring({
-    props: {
-      colorFunction: config.transferFunction,
-      opacityFunction: config.opacityFunction,
-    },
-    cfun,
-    ofun,
-  });
-
-  const { opacityFunction } = config;
-
-  const { mappingRange } = opacityFunction;
-  const width = mappingRange[1] - mappingRange[0];
-  const center = (mappingRange[1] + mappingRange[0]) / 2;
-
-  sliceRep.property.setColorWindow(width);
-  sliceRep.property.setColorLevel(center);
+  sliceRep.property.setIndependentComponents(false);
+  sliceRep.property.setUseLookupTableScalarRange(scalarImage.value);
+  sliceRep.property.setRGBTransferFunction(
+    0,
+    scalarImage.value ? ownedColorTransferFunction : null
+  );
+  sliceRep.property.setScalarOpacity(
+    0,
+    scalarImage.value ? ownedOpacityFunction : null
+  );
+  if (scalarImage.value) {
+    applyColoring({
+      props: {
+        colorFunction: config.transferFunction,
+        opacityFunction: config.opacityFunction,
+      },
+      cfun: ownedColorTransferFunction,
+      ofun: ownedOpacityFunction,
+    });
+  } else {
+    const { width, level } = nativeColorWindow(
+      mapperInput.value?.getPointData().getScalars()?.getDataType()
+    );
+    sliceRep.property.setColorWindow(width);
+    sliceRep.property.setColorLevel(level);
+  }
   sliceRep.property.setOpacity(config.blendConfig.opacity);
-  sliceRep.actor.setVisibility(config.blendConfig.visibility);
+  sliceRep.actor.setVisibility(
+    supportedImage.value && config.blendConfig.visibility
+  );
+  view.requestRender();
 };
 
 watchEffect(applyLayerColoring);

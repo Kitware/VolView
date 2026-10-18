@@ -1,3 +1,4 @@
+import { DEFAULT_LAYER_PRESET } from '@/src/vtk/LayerColorPresets';
 import MRICardiacThumbnail from '@/src/assets/samples/MRI-Cardiac.jpg';
 import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
 import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
@@ -179,9 +180,9 @@ export const DEFAULT_PRESET = 'CT-AAA';
 
 export const LAYER_PRESET_BY_MODALITY: Record<string, string> = {
   ...DEFAULT_PRESET_BY_MODALITY,
-  PT: '2hot-opaque',
+  PT: DEFAULT_LAYER_PRESET,
 };
-export const LAYER_PRESET_DEFAULT = '2hot-opaque';
+export const LAYER_PRESET_DEFAULT = DEFAULT_LAYER_PRESET;
 
 // Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {

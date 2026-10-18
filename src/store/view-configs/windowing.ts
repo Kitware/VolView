@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { resolveBaseColorPreset } from '@/src/vtk/LayerColorPresets';
 import { markRaw, reactive, ref } from 'vue';
 import { createEventHook } from '@vueuse/core';
 import {
@@ -28,6 +29,7 @@ const minMaxToWidthLevel = (min: number, max: number) => ({
 
 export const defaultWindowLevelConfig = () =>
   ({
+    visibility: true,
     width: 1,
     level: 0.5,
     auto: WL_AUTO_DEFAULT,
@@ -80,7 +82,11 @@ export const useWindowingStore = defineStore('windowing', () => {
       computeDefaultConfig(dataID);
 
     if (!internalConfig.useAuto) {
-      return { ...internalConfig };
+      return {
+        ...internalConfig,
+        preset: resolveBaseColorPreset(internalConfig.preset),
+        visibility: internalConfig.visibility ?? true,
+      };
     }
 
     const autoKey = internalConfig.auto;
@@ -89,10 +95,16 @@ export const useWindowingStore = defineStore('windowing', () => {
       const [min, max] = autoValues[autoKey];
       return {
         ...internalConfig,
+        preset: resolveBaseColorPreset(internalConfig.preset),
+        visibility: internalConfig.visibility ?? true,
         ...minMaxToWidthLevel(min, max),
       };
     }
-    return { ...internalConfig };
+    return {
+      ...internalConfig,
+      preset: resolveBaseColorPreset(internalConfig.preset),
+      visibility: internalConfig.visibility ?? true,
+    };
   };
 
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
@@ -105,7 +117,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     userTriggered = false
   ) => {
     const currentInternalConfig = getInternalConfig(viewID, dataID);
-    const defaults = defaultWindowLevelConfig();
+    const defaults = computeDefaultConfig(dataID);
 
     let effectiveUseAuto = currentInternalConfig?.useAuto ?? defaults.useAuto;
     let widthLevelPatchOnSwitchingFromAuto;

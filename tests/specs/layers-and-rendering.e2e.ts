@@ -2,8 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { DOWNLOAD_TIMEOUT, FIXTURES, TEMP_DIR } from '@/wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import { openUrls, openVolViewPage, writeManifestToFile } from './utils';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import {
+  openUrls,
+  openVolViewPage,
+  waitForModuleTransitions,
+  writeManifestToFile,
+} from './utils';
 import { PROSTATEX_DATASET } from '../datasets';
 
 const openLayeringFixtures = async () => {
@@ -55,6 +60,57 @@ describe('Layers and Rendering', () => {
 
     await expect(volumeRenderingSection).toBeDisplayed();
     await expect(pwfCanvas).toExist();
+
+    const volumePanel = $('[data-testid="volume-rendering-panel"]');
+    const toggle = $('[data-testid="volume-rendering-toggle"]');
+    const presets = volumePanel.$('.v-expansion-panel-title*=Color Presets');
+    const cinematic = volumePanel.$(
+      '.v-expansion-panel-title*=Cinematic Rendering'
+    );
+    const shift = volumePanel
+      .$('.mapping-range-editor .v-slider')
+      .$('[role="slider"]');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(presets).toBeDisplayed();
+    await expect(cinematic).toBeDisplayed();
+    const initialShift = await shift.getAttribute('aria-valuenow');
+    await shift.execute((element) => element.focus());
+    await browser.keys('ArrowRight');
+    await expect(shift).not.toHaveAttribute(
+      'aria-valuenow',
+      initialShift ?? ''
+    );
+    const editedShift = await shift.getAttribute('aria-valuenow');
+    if (editedShift === null) throw new Error('Expected a displayed 3D shift');
+
+    await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await waitForModuleTransitions();
+    await expect(pwfCanvas).not.toBeDisplayed();
+    await expect(presets).not.toBeDisplayed();
+    await expect(cinematic).not.toBeDisplayed();
+    const minimum = $('[data-testid="base-image-range-min"] input');
+    const maximum = $('[data-testid="base-image-range-max"] input');
+    await expect(minimum).toBeDisplayed();
+    await expect(minimum).toBeEnabled();
+    await setValueVueInput(minimum, '0');
+    await setValueVueInput(maximum, '100');
+    await browser.keys('Enter');
+    for (const view of await volViewPage.getViews2D())
+      await expect(view).toHaveText(
+        expect.stringContaining('W/L: 100.00 / 50.00')
+      );
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await waitForModuleTransitions();
+    await expect(pwfCanvas).toBeDisplayed();
+    await expect(presets).toBeDisplayed();
+    await expect(cinematic).toBeDisplayed();
+    await expect(shift).toHaveAttribute('aria-valuenow', editedShift);
+    await expect(minimum).toHaveAttribute('title', '0');
+    await expect(maximum).toHaveAttribute('title', '100');
   });
 
   it('should create overlay with 2 DICOM images', async () => {
@@ -115,27 +171,9 @@ describe('Layers and Rendering', () => {
     );
     await addLayerButton.click();
 
-    await browser.waitUntil(
-      () =>
-        browser.execute(() => {
-          const app = (document.querySelector('#app') as any)?.__vue_app__;
-          const pinia = app?.config?.globalProperties?.$pinia;
-          const imageCache = pinia?._s?.get('image-cache');
-          const layerId = imageCache?.imageIds?.find((id: string) =>
-            id.includes('::')
-          );
-          return layerId && imageCache.imageStatus[layerId] === 'complete';
-        }),
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected the layer image to finish loading',
-      }
-    );
-
     const renderTab = await volViewPage.renderingModuleTab;
     await renderTab.click();
 
-    // need to wait a little for layer section to render
     await browser.waitUntil(
       async function slidersExist() {
         const layerOpacitySliders = await volViewPage.layerOpacitySliders;
@@ -145,6 +183,16 @@ describe('Layers and Rendering', () => {
         timeoutMsg: `Expected at least one layer opacity slider`,
       }
     );
+
+    const minimum = $('[data-testid="layer-range-min"] input');
+    const maximum = $('[data-testid="layer-range-max"] input');
+    await minimum.waitForEnabled();
+    await waitForModuleTransitions();
+    // The resampled fixture spans scalar values 0 through 763.
+    await setValueVueInput(minimum, '0');
+    await setValueVueInput(maximum, '763');
+    await expect(minimum).toHaveAttribute('title', '0');
+    await expect(maximum).toHaveAttribute('title', '763');
 
     const layerOpacitySliders = await volViewPage.layerOpacitySliders;
     const firstSlider = layerOpacitySliders[0];

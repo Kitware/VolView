@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { nativeColorWindow } from '@/src/utils/nativeColorWindow';
 import { computed, toRefs, watchEffect, inject } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
+import { useBaseSliceColoring } from '@/src/composables/useBaseSliceColoring';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useCineRendering } from '@/src/composables/useCineRendering';
 import { LPSAxis } from '@/src/types/lps';
@@ -37,7 +39,23 @@ const { cine, mapperInput } = useCineRendering(
   () => props.frame
 );
 
-const sliceRep = useSliceRepresentation(view, mapperInput);
+const components = computed(
+  () =>
+    mapperInput.value?.getPointData().getScalars()?.getNumberOfComponents() ?? 0
+);
+const renderInput = computed(() =>
+  components.value >= 1 && components.value <= 4 ? mapperInput.value : undefined
+);
+const sliceRep = useSliceRepresentation(view, renderInput);
+watchEffect(() => {
+  sliceRep.actor.setVisibility(wlConfig.config.value?.visibility ?? true);
+});
+useBaseSliceColoring(
+  sliceRep.property,
+  computed(() => wlConfig.config.value?.preset),
+  computed(() => !cine.value && components.value === 1),
+  view.requestRender
+);
 
 // Push the base image behind layers/segmentations.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
@@ -56,16 +74,20 @@ const slice = vtkFieldRef(sliceRep.mapper, 'slice');
 const renderSlice = computed(() => (cine.value ? 0 : sliceConfig.slice.value));
 syncRefs(renderSlice, slice, { immediate: true });
 
-// Cine pixels are 8-bit display-encoded — pin W/L to a full-byte pass-through
-// and skip the bidirectional wlConfig sync, which would otherwise overwrite
-// these with uninitialized defaults on first paint.
+// Cine and dependent color pixels bypass scalar window/level settings.
 const colorLevel = vtkFieldRef(sliceRep.property, 'colorLevel');
 const colorWindow = vtkFieldRef(sliceRep.property, 'colorWindow');
 
 watchEffect((onCleanup) => {
-  if (cine.value) {
-    colorWindow.value = 255;
-    colorLevel.value = 127.5;
+  sliceRep.property.setIndependentComponents(false);
+  if (cine.value || components.value > 1) {
+    const { width, level } = nativeColorWindow(
+      cine.value
+        ? 'Uint8Array'
+        : mapperInput.value?.getPointData().getScalars()?.getDataType()
+    );
+    colorWindow.value = width;
+    colorLevel.value = level;
     return;
   }
   const stopLevel = syncRefs(wlConfig.level, colorLevel, { immediate: true });

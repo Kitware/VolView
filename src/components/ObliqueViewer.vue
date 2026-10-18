@@ -56,6 +56,8 @@
 </template>
 
 <script setup lang="ts">
+import { provide, toRef } from 'vue';
+import { WindowingViewContext } from '@/src/composables/useWindowingConfig';
 import MultiObliqueSliceViewer from '@/src/components/MultiObliqueSliceViewer.vue';
 import ObliqueSliceViewer from '@/src/components/ObliqueSliceViewer.vue';
 import useResliceCursorStore from '@/src/store/reslice-cursor';
@@ -67,7 +69,8 @@ interface Props {
   viewId: string;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+provide(WindowingViewContext, toRef(props, 'viewId'));
 
 const { currentImageID } = useCurrentImage();
 

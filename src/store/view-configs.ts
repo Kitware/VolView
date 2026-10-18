@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { getLayerId } from '@/src/utils/layers';
 
 import useViewSliceStore from './view-configs/slicing';
 import { useWindowingStore } from './view-configs/windowing';
@@ -74,11 +75,31 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     manifest: StateFile['manifest'],
     dataIDMap: Record<string, string>
   ) => {
-    if (!manifest.viewByID) return;
+    // Layer images are rebuilt after view settings are restored.
+    const configIDMap = { ...dataIDMap };
+    manifest.parentToLayers?.forEach(
+      ({ selectionKey, sourceSelectionKeys }) => {
+        const parent = dataIDMap[selectionKey];
+        if (!parent) return;
+        sourceSelectionKeys.forEach((sourceKey) => {
+          const source = dataIDMap[sourceKey];
+          if (!source) return;
+          configIDMap[getLayerId(selectionKey, sourceKey)] = getLayerId(
+            parent,
+            source
+          );
+        });
+      }
+    );
 
-    Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
+    layerColoringStore.deserializeDisplayConfigs(
+      manifest.layerDisplay ?? {},
+      configIDMap
+    );
+
+    Object.entries(manifest.viewByID ?? {}).forEach(([viewID, view]) => {
       if (view.config) {
-        deserialize(viewID, view.config, dataIDMap);
+        deserialize(viewID, view.config, configIDMap);
       }
     });
   };

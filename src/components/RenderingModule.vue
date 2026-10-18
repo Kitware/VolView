@@ -11,7 +11,7 @@ export default defineComponent({
   components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
   setup() {
     // Use global current image - this gets the first loaded image when no view is selected
-    const { currentImageData, currentImage, currentLayers, currentImageID } =
+    const { currentImageData, currentImage, currentImageID } =
       useCurrentImage('global');
 
     const viewStore = useViewStore();
@@ -42,14 +42,13 @@ export default defineComponent({
       () => hasCurrentImage.value && !!view3DId.value
     );
 
-    const hasLayers = computed(() => !!currentLayers.value.length);
-
-    const panels = ref<string[]>(['properties', 'layers']);
+    const panels = ref<string[]>(['volume', 'layers']);
+    const volumePanels = ref<string[]>(['properties']);
 
     return {
       panels,
+      volumePanels,
       hasCurrentImage,
-      hasLayers,
       isImageLoading,
       canShow3DControls,
       view3DId,
@@ -61,39 +60,56 @@ export default defineComponent({
 <template>
   <div class="mx-2 mt-1">
     <template v-if="hasCurrentImage">
-      <template v-if="canShow3DControls">
-        <v-skeleton-loader v-if="isImageLoading" type="image">
-        </v-skeleton-loader>
-        <volume-rendering v-else :view-id="view3DId" />
-      </template>
-      <template v-else>
-        <div class="pt-4 text-body-2 text-center text-medium-emphasis">
-          Create a 3D view to access volume rendering controls
-        </div>
-      </template>
+      <div
+        v-if="!canShow3DControls"
+        class="pt-4 text-body-2 text-center text-medium-emphasis"
+      >
+        Create a 3D view to access volume rendering controls
+      </div>
 
       <v-expansion-panels v-model="panels" multiple variant="accordion">
-        <v-expansion-panel v-if="canShow3DControls" value="preset">
-          <v-expansion-panel-title>
-            <v-icon class="flex-grow-0 mr-4">mdi-palette</v-icon>
-            Color Presets
+        <v-expansion-panel
+          v-if="canShow3DControls"
+          value="volume"
+          data-testid="volume-rendering-panel"
+        >
+          <v-expansion-panel-title data-testid="volume-rendering-toggle">
+            <v-icon class="flex-grow-0 mr-4">mdi-cube-outline</v-icon>
+            3D Rendering
           </v-expansion-panel-title>
-          <v-expansion-panel-text>
-            <volume-presets :view-id="view3DId" />
+          <v-expansion-panel-text eager class="volume-controls">
+            <v-skeleton-loader v-if="isImageLoading" type="image" />
+            <volume-rendering v-else :view-id="view3DId" />
+
+            <v-expansion-panels
+              v-model="volumePanels"
+              multiple
+              variant="accordion"
+            >
+              <v-expansion-panel value="preset">
+                <v-expansion-panel-title>
+                  <v-icon class="flex-grow-0 mr-4">mdi-palette</v-icon>
+                  Color Presets
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <volume-presets :view-id="view3DId" />
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+
+              <v-expansion-panel value="properties">
+                <v-expansion-panel-title>
+                  <v-icon class="flex-grow-0 mr-4">mdi-cube-scan</v-icon>
+                  Cinematic Rendering
+                </v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <volume-properties :view-id="view3DId" />
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel v-if="canShow3DControls" value="properties">
-          <v-expansion-panel-title>
-            <v-icon class="flex-grow-0 mr-4">mdi-cube-scan</v-icon>
-            Cinematic Rendering
-          </v-expansion-panel-title>
-          <v-expansion-panel-text>
-            <volume-properties :view-id="view3DId" />
-          </v-expansion-panel-text>
-        </v-expansion-panel>
-
-        <v-expansion-panel v-if="hasLayers" value="layers">
+        <v-expansion-panel value="layers">
           <v-expansion-panel-title>
             <v-icon class="flex-grow-0 mr-4">mdi-layers</v-icon>
             Layers
@@ -107,9 +123,15 @@ export default defineComponent({
     <template v-else>
       <div class="pt-12 text-subtitle-1 d-flex flex-row justify-center">
         <div class="text-center" style="max-width: 75%">
-          Load an image and add a 3D view to see rendering controls
+          Load an image to adjust its display settings
         </div>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.volume-controls > :deep(.v-expansion-panel-text__wrapper) {
+  padding: 0;
+}
+</style>
