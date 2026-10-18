@@ -1,8 +1,9 @@
-import petCtSources from '../scripts/samples/pet-ct-sources.json' with { type: 'json' };
+import { PET_CT_SOURCES } from '../src/samples/petCT.ts';
 
 // Every file the suite fetches from the internet. The runner downloads them
 // into the dataset cache before any spec starts, and specs read them from the
-// local server at `/tmp/<name>`. CI keys its dataset cache on this file.
+// local server at `/tmp/<name>`. CI hashes this manifest and the PET source
+// definitions for its dataset cache.
 //
 // Release fixtures and original public DICOM instances are pinned by SHA-256.
 export const DATASET_RELEASE =
@@ -110,19 +111,14 @@ export const {
   CT_ELECTRODES,
 } = DATASETS;
 
-export const PET_CT_DICOM_DATASETS = petCtSources.map((source) => {
-  const query = new URLSearchParams({
-    SeriesInstanceUID: source.series,
-    SOPInstanceUID: source.sop,
-  });
-  const url = `https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?${query}`;
-  return {
-    name: `PET-CT-${source.path.replace('/', '-')}`,
+export const PET_CT_DICOM_DATASETS = PET_CT_SOURCES.map(
+  ({ path, url, sha256 }) => ({
+    name: `PET-CT-${path.replace('/', '-')}`,
     origin: url,
     url,
-    sha256: source.sha256,
-  };
-});
+    sha256,
+  })
+);
 
 // Everything declared above is downloaded.
 export const TEST_DATASETS = [
