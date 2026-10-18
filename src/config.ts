@@ -1,10 +1,11 @@
 import { DEFAULT_LAYER_PRESET } from '@/src/vtk/LayerColorPresets';
-import MRICardiacThumbnail from '@/src/assets/samples/MRI-Cardiac.jpg';
 import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
 import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
+import { PET_CT_URLS } from './samples/petCT';
+import PETCTChestThumbnail from '@/src/assets/samples/PET-CT-Chest.png';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -111,40 +112,28 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'CTA Head and Neck',
     filename: 'CTA-Head_and_Neck.zip',
-    description:
-      'CTA head and neck scan of elderly patient with tumor. (80 MB)',
+    description: 'Head and neck CT angiography. 80 MB',
     url: 'https://data.kitware.com/api/v1/item/6347159711dab81428208e24/download',
     image: CTAHeadThumbnail,
   },
   {
     name: 'MRA Head and Neck',
     filename: 'MRA-Head_and_Neck.zip',
-    description:
-      'MRA from Patient Contributed Image Repository. Click application help icon "(?)" for more info. (15 MB)',
+    description: 'Head and neck MR angiography. 15 MB',
     url: 'https://data.kitware.com/api/v1/item/6352a2b311dab8142820a33b/download',
     image: MRAHeadThumbnail,
   },
   {
-    name: 'MRI Cardiac 3D and Cine',
-    filename: 'MRI-Cardiac-3D_and_Cine.zip',
-    description:
-      'MRI scan with two series: 3D axial non-gated and 2 chamber cine. (4 MB)',
-    url: 'https://data.kitware.com/api/v1/item/6350b28f11dab8142820949d/download',
-    image: MRICardiacThumbnail,
-  },
-  {
     name: 'MRI PROSTATEx',
     filename: 'MRI-PROSTATEx-0004.zip',
-    description:
-      'MRI from the SPIE-AAPM-NCI PROSTATEx challenge. Click application help "(?)" icon for more info. (3 MB)',
+    description: 'Prostate MRI. 3 MB',
     url: 'https://data.kitware.com/api/v1/item/63527c7311dab8142820a338/download',
     image: MRIPROSTATExThumbnail,
   },
   {
     name: '3D US Fetus',
     filename: '3DUS-Fetus.mha',
-    description:
-      '3D ultrasound of a baby. Downloaded from tomovision.com.(8 MB)',
+    description: '3D fetal ultrasound. 8 MB',
     url: 'https://data.kitware.com/api/v1/item/635679c311dab8142820a4f4/download',
     image: USFetusThumbnail,
     defaults: {
@@ -154,9 +143,25 @@ export const SAMPLE_DATA: SampleDataset[] = [
   {
     name: 'Ultrasound Cine',
     filename: 'US_multiframe_30frames.dcm',
-    description: '30-frame echocardiogram with cine playback. (225 KB)',
+    description: '30-frame echocardiogram with cine playback. 225 KB',
     url: 'https://raw.githubusercontent.com/pydicom/pydicom/v3.0.1/src/pydicom/data/test_files/examples_ybr_color.dcm',
     image: USCineThumbnail,
+  },
+  {
+    name: 'PET/CT Chest',
+    description: 'PET layered over chest CT. 6 MB',
+    urls: PET_CT_URLS,
+    image: PETCTChestThumbnail,
+    defaults: {
+      overlay: {
+        baseModality: 'CT',
+        modality: 'PT',
+        preset: DEFAULT_LAYER_PRESET,
+        mappingRange: [0, 8000],
+        opacity: 0.45,
+        transparentBackground: true,
+      },
+    },
   },
 ];
 

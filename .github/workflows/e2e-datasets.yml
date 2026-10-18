@@ -22,7 +22,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .tmp/datasets
-          key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
+          key: e2e-datasets-${{ hashFiles('tests/datasets.ts', 'scripts/samples/pet-ct-sources.json') }}
           restore-keys: e2e-datasets-
       - name: Download missing datasets
         run: node tests/downloadDatasets.ts

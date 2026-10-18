@@ -24,14 +24,20 @@ export type ProcessingResultSource = {
 
 export type SampleDataset = {
   name: string;
-  filename: string;
   description: string;
-  url: string;
   image: string;
   defaults?: {
     colorPreset?: string;
+    overlay?: {
+      baseModality: string;
+      modality: string;
+      preset: string;
+      mappingRange: [number, number];
+      opacity: number;
+      transparentBackground: boolean;
+    };
   };
-};
+} & ({ url: string; filename: string } | { urls: string[] });
 
 /**
  * Sets certain keys to be required and the rest to optional.

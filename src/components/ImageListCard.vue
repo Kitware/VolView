@@ -11,7 +11,7 @@
       }"
       v-bind="{ ...props, ...$attrs }"
     >
-      <v-container :title="htmlTitle">
+      <v-container :title="htmlTitle" :class="{ 'pa-2': compact }">
         <v-row no-gutters class="flex-nowrap">
           <v-col v-if="selectable" cols="1" class="d-flex align-center">
             <v-checkbox
@@ -27,6 +27,7 @@
           <v-col
             cols="4"
             class="image-container flex-grow-0"
+            :class="{ 'mx-0': compact }"
             :style="{ maxWidth: `${imageSize}px` }"
           >
             <v-img
@@ -72,6 +73,7 @@ import PersistentOverlay from './PersistentOverlay.vue';
 export default defineComponent({
   name: 'ImageListCard',
   props: {
+    compact: Boolean,
     active: Boolean,
     imageSize: {
       type: Number,
