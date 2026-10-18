@@ -14,7 +14,7 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { fetchFile } from '@/src/utils/fetch';
 import { useViewStore } from '@/src/store/views';
-import { applySampleDefaults } from '@/src/utils/sampleData';
+import { showSampleOverlay } from '@/src/samples/showSampleOverlay';
 
 export default defineComponent({
   components: {
@@ -100,8 +100,8 @@ export default defineComponent({
         if (!selections.length)
           throw new Error('Did not receive a load result');
 
-        if (sample.defaults?.overlay) {
-          await applySampleDefaults(selections, sample.defaults.overlay);
+        if (sample.overlay) {
+          await showSampleOverlay(selections, sample.overlay);
         } else {
           const [selection] = selections;
           useVolumeColoringStore().setDefaults(selection, {

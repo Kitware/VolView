@@ -152,15 +152,9 @@ export const SAMPLE_DATA: SampleDataset[] = [
     description: 'PET layered over chest CT. 6 MB',
     urls: PET_CT_URLS,
     image: PETCTChestThumbnail,
-    defaults: {
-      overlay: {
-        baseModality: 'CT',
-        modality: 'PT',
-        preset: DEFAULT_LAYER_PRESET,
-        mappingRange: [0, 8000],
-        opacity: 0.45,
-        transparentBackground: true,
-      },
+    overlay: {
+      baseModality: 'CT',
+      modality: 'PT',
     },
   },
 ];

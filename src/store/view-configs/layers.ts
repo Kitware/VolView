@@ -18,6 +18,8 @@ import { LAYER_PRESET_BY_MODALITY, LAYER_PRESET_DEFAULT } from '@/src/config';
 import { resolveLayerColorPreset } from '@/src/vtk/LayerColorPresets';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import { getConsistentDicomWindowRange } from '@/src/utils/dicomWindowRange';
 import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import { LayerDisplayConfig, LayersConfig } from './types';
 import { useLayersStore } from '../datasets-layers';
@@ -117,10 +119,20 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
 
     const imageDataRange = image.getPointData().getScalars().getRange();
 
+    const layer = useLayersStore().getLayer(dataID);
+    const source = layer && imageCacheStore.imageById[layer.selection];
+    const isPET =
+      source instanceof DicomChunkImage && source.getModality() === 'PT';
+    const dicomRange =
+      isPET && image.getPointData().getScalars().getNumberOfComponents() === 1
+        ? getConsistentDicomWindowRange(
+            source.getChunks().map((chunk) => chunk.metadata)
+          )
+        : undefined;
     const ctRange = getColorFunctionRangeFromPreset(preset);
     const ctFunc: Partial<ColorTransferFunction> = {
       preset,
-      mappingRange: ctRange || imageDataRange,
+      mappingRange: dicomRange ?? ctRange ?? imageDataRange,
     };
 
     const opacityFunction = getOpacityFunctionFromPreset(preset);
@@ -128,6 +140,10 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     return {
       ...defaults,
       transferFunction: { ...defaults.transferFunction, ...ctFunc },
+      blendConfig: {
+        ...defaults.blendConfig,
+        opacity: isPET ? 0.5 : defaults.blendConfig.opacity,
+      },
       opacityFunction:
         opacityFunction.mode === vtkPiecewiseFunctionProxy.Mode.Points
           ? { ...opacityFunction, mappingRange: imageDataRange }

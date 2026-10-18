@@ -28,14 +28,10 @@ export type SampleDataset = {
   image: string;
   defaults?: {
     colorPreset?: string;
-    overlay?: {
-      baseModality: string;
-      modality: string;
-      preset: string;
-      mappingRange: [number, number];
-      opacity: number;
-      transparentBackground: boolean;
-    };
+  };
+  overlay?: {
+    baseModality: string;
+    modality: string;
   };
 } & ({ url: string; filename: string } | { urls: string[] });
 
