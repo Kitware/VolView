@@ -5,9 +5,9 @@ import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { makeTempDir, writeManifestToFile } from './utils';
 import {
   canvasAppearance,
+  chooseEnFaceProjection,
   displayedWindow,
   enFacePixel,
-  expandEnFaceSection,
   waitForEnFaceReady,
 } from './octTestUtils';
 
@@ -125,24 +125,7 @@ async function chooseMethod(label: string, mode: WorkerMode) {
   await browser.execute((next) => {
     (window as unknown as LifecycleWindow).projectionLifecycle.nextMode = next;
   }, mode);
-  await $('[data-testid="oct-en-face-controls"]').click();
-  await expandEnFaceSection('projection');
-  const select = $('[data-testid="oct-projection-method"]');
-  await select.scrollIntoView({ block: 'center', inline: 'nearest' });
-  await select.waitForClickable();
-  await select.click();
-  const option = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
-      label +
-      '"]'
-  );
-  await option.waitForClickable();
-  await option.click();
-  await option.waitForDisplayed({ reverse: true });
-  await browser.keys('Escape');
-  await $('[data-testid="oct-rendering-panel"]').waitForDisplayed({
-    reverse: true,
-  });
+  await chooseEnFaceProjection('oct-projection-method', label);
 }
 
 async function completedHeldWorker(method: string) {

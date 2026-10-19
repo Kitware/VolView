@@ -3,8 +3,8 @@ import path from 'node:path';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { makeTempDir } from './utils';
 import {
+  chooseEnFaceProjection,
   enFacePixel,
-  expandEnFaceSection,
   waitForEnFaceReady,
 } from './octTestUtils';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
@@ -99,12 +99,14 @@ async function renderingCounts(width: number, height: number) {
 
 function stageFloatVolume(
   name: string,
-  value: (x: number, y: number, z: number) => number
+  value: (x: number, y: number, z: number) => number,
+  type: 'float' | 'double' = 'float'
 ) {
   const dimensions = [16, 4, 8];
+  const bytesPerVoxel = type === 'double' ? 8 : 4;
   const header = [
     'NRRD0005',
-    'type: float',
+    'type: ' + type,
     'dimension: 3',
     'sizes: ' + dimensions.join(' '),
     'space: left-posterior-superior',
@@ -116,14 +118,20 @@ function stageFloatVolume(
     '',
     '',
   ].join('\n');
-  const voxels = Buffer.alloc(dimensions.reduce((a, b) => a * b) * 4);
+  const voxels = Buffer.alloc(
+    dimensions.reduce((a, b) => a * b) * bytesPerVoxel
+  );
+  const writeVoxel =
+    type === 'double'
+      ? voxels.writeDoubleLE.bind(voxels)
+      : voxels.writeFloatLE.bind(voxels);
   for (let z = 0; z < dimensions[2]; z++)
     for (let y = 0; y < dimensions[1]; y++)
-      for (let x = 0; x < dimensions[0]; x++)
-        voxels.writeFloatLE(
-          value(x, y, z),
-          ((z * dimensions[1] + y) * dimensions[0] + x) * 4
-        );
+      for (let x = 0; x < dimensions[0]; x++) {
+        const offset =
+          ((z * dimensions[1] + y) * dimensions[0] + x) * bytesPerVoxel;
+        writeVoxel(value(x, y, z), offset);
+      }
   fs.writeFileSync(
     path.join(makeTempDir(STEM), name),
     Buffer.concat([Buffer.from(header), voxels])
@@ -196,20 +204,7 @@ async function expectGray(x: number, y: number, gray: number) {
 }
 
 async function chooseProjection(testId: string, label: string) {
-  await $('[data-testid="oct-en-face-controls"]').click();
-  await expandEnFaceSection('projection');
-  const select = $('[data-testid="' + testId + '"]');
-  await select.scrollIntoView({ block: 'center', inline: 'nearest' });
-  await select.waitForClickable();
-  await select.click();
-  const option = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
-      label +
-      '"]'
-  );
-  await option.waitForClickable();
-  await option.click();
-  await browser.keys('Escape');
+  await chooseEnFaceProjection(testId, label);
   await waitForEnFaceReady();
 }
 
@@ -281,6 +276,38 @@ describe('Scalar derived image rendering', () => {
     await setWindow(8, 99999996);
     await expectGray(1, 3, 0);
     await expectGray(2, 3, 255);
+  });
+
+  it('renders an intermediate mean between high-valued Float32 samples', async () => {
+    await openEnFace(
+      stageFloatVolume('high-mean.nrrd', (x, y) =>
+        x < 8 || y % 2 === 0 ? 33554432 : 33554436
+      )
+    );
+    await setWindow(2, 33554433);
+    await expectGray(4, 3, 0);
+    await expectGray(12, 3, 255);
+  });
+
+  it('renders nearby Float64 intensities through mean, maximum, and sum projections', async () => {
+    await openEnFace(
+      stageFloatVolume(
+        'double-neighbors.nrrd',
+        (x) => (x < 8 ? 1073741824 : 1073741824.25),
+        'double'
+      )
+    );
+    await setWindow(0.25, 1073741824.125);
+    await expectGray(4, 3, 0);
+    await expectGray(12, 3, 255);
+    await chooseProjection('oct-projection-method', 'Maximum');
+    await setWindow(0.25, 1073741824.125);
+    await expectGray(4, 3, 0);
+    await expectGray(12, 3, 255);
+    await chooseProjection('oct-projection-method', 'Sum');
+    await setWindow(1, 4294967296.5);
+    await expectGray(4, 3, 0);
+    await expectGray(12, 3, 255);
   });
 
   it('keeps padding black without projection workers or plane uploads during window changes', async () => {

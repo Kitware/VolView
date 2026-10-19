@@ -74,14 +74,7 @@ describe('Declared OCT padding', () => {
     const z = projectEnFace({ ...input(), axis: 2, depthEnd: 1 });
     expect(Array.from(z.values)).toEqual([10, 25, 55, NaN, 30, 56, 30, 70, 12]);
     const x = projectEnFace({ ...input(), axis: 0 });
-    expect(Array.from(x.values)).toEqual([
-      Math.fround(110 / 3),
-      50.5,
-      30,
-      30,
-      35.5,
-      41,
-    ]);
+    expect(Array.from(x.values)).toEqual([110 / 3, 50.5, 30, 30, 35.5, 41]);
   });
 
   it('allows inclusive signed ranges that differ between source frames', () => {
@@ -96,11 +89,11 @@ describe('Declared OCT padding', () => {
     const result = projectEnFace(request);
     expect(Array.from(result.values)).toEqual([
       20,
-      Math.fround(-11 / 3),
-      Math.fround(22 / 3),
+      -11 / 3,
+      22 / 3,
       10,
       5,
-      Math.fround(10 / 3),
+      10 / 3,
     ]);
   });
 

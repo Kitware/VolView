@@ -111,10 +111,9 @@ describe('manual En face with real generic image readers', () => {
       depthEnd: 2,
     });
     expect(Array.from(projection.values)).toEqual(
-      [0, 1, 6, 7].map((offset) =>
-        Math.fround(
+      [0, 1, 6, 7].map(
+        (offset) =>
           (samples[offset] + samples[offset + 2] + samples[offset + 4]) / 3
-        )
       )
     );
   });
@@ -288,7 +287,7 @@ describe('manual En face with real generic image readers', () => {
       reference.points.forEach(
         ({ x, z }: { x: number; z: number }, index: number) => {
           expect(projection.values[z * 128 + x]).toBe(
-            Math.fround(reference.projections.mean[index])
+            reference.projections.mean[index]
           );
         }
       );

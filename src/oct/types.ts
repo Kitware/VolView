@@ -42,7 +42,7 @@ export type ProjectionResult = {
   width: number;
   height: number;
   /** NaN marks an A-line with no valid intensity samples in the selected slab. */
-  values: Float32Array;
+  values: Float64Array;
   /** Full-A-line occupied thickness; NaN when a selected mask voxel is padding. */
   thicknessMicrons?: Float64Array;
 };

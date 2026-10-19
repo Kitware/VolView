@@ -37,7 +37,9 @@ beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => scopes.splice(0).forEach((scope) => scope.stop()));
 
 function create(
-  values = ref<Float32Array | null>(Float32Array.from([0, 25, 50, 75, 100])),
+  values = ref<ArrayLike<number> | null>(
+    Float32Array.from([0, 25, 50, 75, 100])
+  ),
   viewId = ref('view'),
   imageId = ref<string | null>('image')
 ) {

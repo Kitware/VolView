@@ -272,7 +272,7 @@ function allocateResult(
   return {
     width,
     height,
-    values: new Float32Array(width * height),
+    values: new Float64Array(width * height),
     thicknessMicrons: hasMask ? new Float64Array(width * height) : undefined,
   };
 }

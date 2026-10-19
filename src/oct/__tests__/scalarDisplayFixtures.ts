@@ -7,7 +7,7 @@ export function scalarImageFixture(
   return {
     width: values.length,
     height: 1,
-    values: Float32Array.from(values),
+    values: Float64Array.from(values),
     thicknessMicrons: thickness ? Float64Array.from(thickness) : undefined,
   };
 }
@@ -17,7 +17,7 @@ export function scalarReferencePixels(
   values: ArrayLike<number>,
   window: { width: number; level: number }
 ) {
-  const plane = prepareScalarPlane(Float32Array.from(values));
+  const plane = prepareScalarPlane(values);
   const transformed = scalarWindow(window, plane);
   return Uint8Array.from({ length: values.length * 4 }, (_, offset) => {
     if (offset % 4 === 3) return 255;

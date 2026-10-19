@@ -157,6 +157,31 @@ export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   await $('[data-testid="oct-rendering-panel"]').waitForStable();
 }
 
+export async function chooseEnFaceProjection(testId: string, label: string) {
+  const panel = $('[data-testid="oct-rendering-panel"]');
+  if (!(await panel.isDisplayed())) {
+    const controls = $('[data-testid="oct-en-face-controls"]');
+    await controls.waitForClickable();
+    await controls.click();
+  }
+  await panel.waitForDisplayed();
+  await expandEnFaceSection('projection');
+  const select = $('[data-testid="' + testId + '"]');
+  await select.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await select.waitForClickable();
+  await select.click();
+  const option = $(
+    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
+      label +
+      '"]'
+  );
+  await option.waitForClickable();
+  await option.click();
+  await option.waitForDisplayed({ reverse: true });
+  await browser.keys('Escape');
+  await panel.waitForDisplayed({ reverse: true });
+}
+
 export const slabThumb = (bound: 'start' | 'end') =>
   $(
     '[data-testid="oct-slab-range"] [role="slider"][aria-label="Slab ' +

@@ -196,7 +196,7 @@ describe('OCT segment thickness', () => {
       thicknessSliderMaximum({
         width: 3,
         height: 1,
-        values: new Float32Array([5, NaN, 7]),
+        values: new Float64Array([5, NaN, 7]),
         thicknessMicrons: new Float64Array([20.8, 5000, NaN]),
       })
     ).toBe(20.9);
@@ -204,7 +204,7 @@ describe('OCT segment thickness', () => {
     const maximum = thicknessSliderMaximum({
       width: 1,
       height: 1,
-      values: new Float32Array([5]),
+      values: new Float64Array([5]),
       thicknessMicrons: new Float64Array([thickness]),
     });
     expect(isPresentThicknessBelow(thickness, maximum)).toBe(true);
@@ -359,7 +359,7 @@ describe('OCT projection validation', () => {
     expect(() => projectEnFace({ ...input, segmentation })).toThrow();
   });
 
-  it('reports Float32 output overflow instead of returning unusable projection pixels', () => {
+  it('rejects projections outside the supported Float32 render range', () => {
     const input = thicknessInput();
     expect(() =>
       projectEnFace({

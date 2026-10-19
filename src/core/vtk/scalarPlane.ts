@@ -4,13 +4,13 @@ export type ScalarPlaneInput = {
   width: number;
   height: number;
   spacing: readonly number[];
-  values: Float32Array;
+  values: ArrayLike<number>;
 };
 
 export type ScalarTransform = { offset: number; scale: number };
 
-/** Same-sign, nearby floats subtract exactly; wide ranges retain their original values. */
-export function prepareScalarPlane(values: Float32Array) {
+/** Recenter nearby same-sign values before the render-owned Float32 upload. */
+export function prepareScalarPlane(values: ArrayLike<number>) {
   const { min, max } = scalarRange(values) ?? { min: 0, max: 0 };
   const offset =
     min > 0 && max <= 2 * min ? min : max < 0 && min >= 2 * max ? max : 0;
