@@ -37,6 +37,84 @@ function create(
 }
 
 describe('En face windowing with normal view controls', () => {
+  it.each(['mean', 'max', 'sum'] as const)(
+    'renders a constant high-valued %s projection at midpoint while missing pixels stay black',
+    (method) => {
+      const result = projectEnFace({
+        volume: {
+          scalars: Uint16Array.from([65535, 0, 65535, 0]),
+          dimensions: [2, 2, 1],
+          spacing: [1, 1, 1],
+          paddingRanges: [{ firstFrame: 0, lastFrame: 0, min: 0, max: 0 }],
+        },
+        axis: 1,
+        method,
+        depthStart: 0,
+        depthEnd: 1,
+      });
+      expect(result.values[0]).toBe(method === 'sum' ? 131070 : 65535);
+      expect(result.values[1]).toBeNaN();
+      const { config, store } = create(ref(result.values));
+      for (const auto of Object.keys(WLAutoRanges) as Array<
+        keyof typeof WLAutoRanges
+      >) {
+        store.updateConfig('view', 'image', { auto }, true);
+        const pixels = new Uint8ClampedArray(8);
+        paintProjectionIntensities(result.values, pixels, config.value);
+        expect(Array.from(pixels)).toEqual([128, 128, 128, 255, 0, 0, 0, 255]);
+      }
+    }
+  );
+
+  it.each([-65535, 0, 7, 1234, 0.0001])(
+    'keeps a finite constant projection of %s near midpoint',
+    (value) => {
+      const values = Float32Array.from([value, NaN]);
+      const { config } = create(ref(values));
+      const pixels = new Uint8ClampedArray(8);
+      paintProjectionIntensities(values, pixels, config.value);
+      expect(pixels[0]).toBeGreaterThanOrEqual(127);
+      expect(pixels[0]).toBeLessThanOrEqual(128);
+      expect(Array.from(pixels.slice(4))).toEqual([0, 0, 0, 255]);
+    }
+  );
+
+  it('retains fractional full-range contrast and explicit manual windows for constant projections', () => {
+    const values = ref<Float32Array | null>(
+      Float32Array.from([1 / 8192, 2 / 8192, 3 / 8192, NaN])
+    );
+    const { config, store } = create(values);
+    const pixels = new Uint8ClampedArray(16);
+    paintProjectionIntensities(values.value!, pixels, config.value);
+    expect(Array.from(pixels)).toEqual([
+      0, 0, 0, 255, 128, 128, 128, 255, 255, 255, 255, 255, 0, 0, 0, 255,
+    ]);
+
+    store.updateConfig('view', 'image', { width: 20, level: 65540 }, true);
+    for (const [value, gray] of [
+      [65535, 64],
+      [65540, 128],
+    ]) {
+      values.value = Float32Array.from([value, NaN]);
+      paintProjectionIntensities(values.value, pixels, config.value);
+      expect(config.value).toMatchObject({
+        width: 20,
+        level: 65540,
+        useAuto: false,
+      });
+      expect(Array.from(pixels.slice(0, 8))).toEqual([
+        gray,
+        gray,
+        gray,
+        255,
+        0,
+        0,
+        0,
+        255,
+      ]);
+    }
+  });
+
   it('fits projected Full Range and recalculates it when a sum/slab changes intensity units', () => {
     const { config, values } = create();
     expect(config.value).toMatchObject({

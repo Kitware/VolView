@@ -10,10 +10,11 @@ export function paintProjectionIntensities(
   const lower = window.level - window.width / 2;
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
+    // A narrow window's lower bound can round back to its center.
+    const normalized =
+      value === window.level ? 0.5 : (value - lower) / window.width;
     const gray = Number.isFinite(value)
-      ? Math.round(
-          Math.min(1, Math.max(0, (value - lower) / window.width)) * 255
-        )
+      ? Math.round(Math.min(1, Math.max(0, normalized)) * 255)
       : 0;
     const offset = index * 4;
     pixels[offset] = gray;
