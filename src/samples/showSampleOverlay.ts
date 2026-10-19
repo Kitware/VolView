@@ -21,9 +21,6 @@ export async function showSampleOverlay(
   if (!layerID) throw new Error('Sample overlay could not be loaded');
   const views = useViewStore();
   views.setDataForAllViews(base);
-  views.viewIDs.forEach((viewID) => {
-    const slices = useViewSliceStore();
-    const { min, max } = slices.getConfig(viewID, base);
-    slices.updateConfig(viewID, base, { slice: Math.ceil((min + max) / 2) });
-  });
+  const slices = useViewSliceStore();
+  views.viewIDs.forEach((viewID) => slices.resetSlice(viewID, base));
 }
