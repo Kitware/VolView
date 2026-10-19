@@ -245,6 +245,38 @@ export async function enFaceAppearance() {
   return canvasAppearance(await $(CANVAS).getElement());
 }
 
+export async function enFacePixel(x: number, y: number) {
+  const source = await $(CANVAS).getElement();
+  return source.execute(
+    (element, imageX, imageY) => {
+      const canvas = element as HTMLCanvasElement;
+      const transform = document
+        .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+        .getScreenCTM()!;
+      const center = new DOMPoint(imageX + 0.5, imageY + 0.5).matrixTransform(
+        transform
+      );
+      const bounds = canvas.getBoundingClientRect();
+      const capture = document.createElement('canvas').getContext('2d')!;
+      Object.assign(capture.canvas, {
+        width: canvas.width,
+        height: canvas.height,
+      });
+      capture.drawImage(canvas, 0, 0);
+      return Array.from(
+        capture.getImageData(
+          Math.floor(((center.x - bounds.left) * canvas.width) / bounds.width),
+          Math.floor(((center.y - bounds.top) * canvas.height) / bounds.height),
+          1,
+          1
+        ).data
+      );
+    },
+    x,
+    y
+  );
+}
+
 export async function waitForEnFaceReady() {
   await $(CANVAS).waitForDisplayed();
   await expect($('[data-testid="oct-en-face-viewer"]')).toHaveAttribute(

@@ -1,0 +1,41 @@
+import { prepareScalarPlane, scalarWindow } from '@/src/core/vtk/scalarPlane';
+
+export function scalarImageFixture(
+  values: ArrayLike<number>,
+  thickness?: ArrayLike<number>
+) {
+  return {
+    width: values.length,
+    height: 1,
+    values: Float32Array.from(values),
+    thicknessMicrons: thickness ? Float64Array.from(thickness) : undefined,
+  };
+}
+
+/** Numerical oracle for the scalar transform and VTK's linear grayscale map. */
+export function scalarReferencePixels(
+  values: ArrayLike<number>,
+  window: { width: number; level: number }
+) {
+  const plane = prepareScalarPlane(Float32Array.from(values));
+  const transformed = scalarWindow(window, plane);
+  return Uint8Array.from({ length: values.length * 4 }, (_, offset) => {
+    if (offset % 4 === 3) return 255;
+    const index = Math.floor(offset / 4);
+    if (!Number.isFinite(values[index])) return 0;
+    const normalized =
+      (plane.scalars[index] - transformed.level) / transformed.width + 0.5;
+    return Math.round(Math.min(1, Math.max(0, normalized)) * 255);
+  });
+}
+
+export function compositeReferencePixels(
+  base: ArrayLike<number>,
+  overlay: ArrayLike<number>
+) {
+  return Uint8Array.from({ length: base.length }, (_, index) => {
+    if (index % 4 === 3) return 255;
+    const alpha = overlay[index - (index % 4) + 3] / 255;
+    return Math.round(base[index] * (1 - alpha) + overlay[index] * alpha);
+  });
+}

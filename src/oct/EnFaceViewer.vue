@@ -1,14 +1,30 @@
 <script setup lang="ts">
-import { computed, reactive, ref, shallowRef, toRefs, watch } from 'vue';
-import { useEnFaceWindowing } from './useEnFaceWindowing';
+import {
+  computed,
+  onScopeDispose,
+  reactive,
+  ref,
+  toRefs,
+  watch,
+  watchPostEffect,
+} from 'vue';
+import { useDerivedImageWindowing } from '@/src/composables/useDerivedImageWindowing';
+import { imageWindowRanges } from '@/src/utils/imageWindowing';
+import { useScalarImagePlane } from '@/src/core/vtk/useScalarImagePlane';
+import { useEnFaceProjection } from './useEnFaceProjection';
+import { createThinRegionOverlay } from './thinRegionOverlay';
+import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
+import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
+import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
+import VtkImagePlaneRepresentation from '@/src/components/vtk/VtkImagePlaneRepresentation.vue';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
+import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
+import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
+import type { VtkViewApi } from '@/src/types/vtk-types';
 import { useThinRegionAppearance } from './useThinRegionAppearance';
 import { thicknessSliderMaximum, thinRegionOutlinePath } from './thickness';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
-import {
-  projectionWindowRanges as windowRanges,
-  paintThinRegionPixels,
-  paintProjectionIntensities as paintIntensities,
-} from './windowLevel';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
@@ -19,10 +35,9 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { extentSize } from '@/src/segmentation/geometry';
 import EnFaceControls from './EnFaceControls.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
-import EnFaceProjectionView from './EnFaceProjectionView.vue';
 import { getOCTAvailability } from './availability';
 import { defaultOCTViewConfig, useOCTViewStore } from './store';
-import type { ProjectionInput, ProjectionResult } from './types';
+import type { ProjectionInput } from './types';
 
 const props = defineProps<{ viewId: string }>();
 const { viewId } = toRefs(props);
@@ -195,70 +210,39 @@ const projectionRequest = computed(() => {
   return request;
 });
 
-const projection = shallowRef<ProjectionResult | null>(null);
+const {
+  accepted,
+  computing,
+  error: projectionError,
+} = useEnFaceProjection(projectionRequest);
+const projection = computed(() => accepted.value?.result ?? null);
+const renderedRequest = computed(() => accepted.value?.request ?? null);
 const thresholdMaximum = computed(() =>
   thicknessSliderMaximum(projection.value)
 );
-const renderedRequest = shallowRef<ProjectionInput | null>(null);
-const computing = ref(false);
-const projectionError = ref<string | null>(null);
-watch(
-  projectionRequest,
-  (request, _oldRequest, onCleanup) => {
-    let active = true;
-    let worker: Worker | undefined;
-    onCleanup(() => {
-      active = false;
-      worker?.terminate();
-    });
-    projection.value = null;
-    renderedRequest.value = null;
-    projectionError.value = null;
-    computing.value = !!request;
-    if (!request) return;
-    const fail = (message: string) => {
-      if (!active) return;
-      projectionError.value = message;
-      computing.value = false;
-      worker?.terminate();
-    };
-    try {
-      worker = new Worker(new URL('./projection.worker.ts', import.meta.url), {
-        type: 'module',
-      });
-      worker.onmessage = (event: MessageEvent<ProjectionResult>) => {
-        if (!active) return;
-        projection.value = event.data;
-        renderedRequest.value = request;
-        computing.value = false;
-        worker?.terminate();
-      };
-      worker.onerror = (event) =>
-        fail(event.message || 'The OCT projection worker failed.');
-      worker.onmessageerror = () => fail('The OCT projection worker failed.');
-      // Structured cloning preserves buffers used by the source views.
-      worker.postMessage(request);
-    } catch (error) {
-      fail(
-        error instanceof Error ? error.message : 'En face projection failed.'
-      );
-    }
-  },
-  { immediate: true }
+const projectionStats = computed(() =>
+  projection.value ? imageWindowRanges(projection.value.values) : null
 );
-
-const projectionStats = computed(() => {
-  const result = projection.value;
-  return result ? windowRanges(result.values) : null;
-});
-const autoRange = computed(
-  () => projectionStats.value ?? { width: 1, level: 0.5, min: 0, max: 1 }
-);
-const windowConfig = useEnFaceWindowing(
+const windowConfig = useDerivedImageWindowing(
   viewId,
   currentImageID,
   computed(() => projectionStats.value?.ranges ?? null)
 );
+const vtkView = ref<VtkViewApi>();
+useWebGLWatchdog(vtkView);
+const resets = useResetViewsEvents().onClick(() =>
+  vtkView.value?.resetCamera()
+);
+onScopeDispose(resets.off);
+const tools = useToolStore();
+const windowingManipulatorProps = computed(() => ({
+  button: tools.currentTool === Tools.WindowLevel ? 1 : -1,
+}));
+watchPostEffect(() => {
+  const canvas = vtkView.value?.renderWindowView.getCanvas();
+  canvas?.setAttribute('data-testid', 'oct-en-face-canvas');
+  canvas?.setAttribute('aria-label', 'OCT en face projection');
+});
 const sliceLines = useEnFaceSliceLines(
   viewId,
   currentImageID,
@@ -282,31 +266,46 @@ const highlightOutline = computed(() => {
     ? thinRegionOutlinePath(result, settings.value.thresholdMicrons)
     : '';
 });
-const projectionFrame = computed(() => {
+const projectionPlane = computed(() => {
   const result = projection.value;
   const request = renderedRequest.value;
   if (!result || !request) return null;
-  const pixels = new Uint8ClampedArray(result.width * result.height * 4);
-  paintIntensities(result.values, pixels, windowConfig.value);
-  if (
-    settings.value.highlightThin &&
-    !highlightReason.value &&
-    result.thicknessMicrons &&
-    highlightAppearance.value
-  )
-    paintThinRegionPixels(
-      pixels,
-      result.thicknessMicrons,
-      settings.value.thresholdMicrons,
-      { ...highlightAppearance.value, values: result.values }
-    );
   const axes = [0, 1, 2].filter((axis) => axis !== request.axis);
   return {
     width: result.width,
     height: result.height,
     spacing: axes.map((axis) => Math.abs(request.volume.spacing[axis])),
-    pixels: new Uint8Array(pixels.buffer),
+    values: result.values,
   };
+});
+const {
+  imageData: planeImage,
+  metadata: planeGeometry,
+  transform: scalarTransform,
+} = useScalarImagePlane(projectionPlane);
+const geometryKey = computed(() => {
+  const plane = projectionPlane.value;
+  return plane
+    ? [
+        renderedRequest.value!.axis,
+        plane.width,
+        plane.height,
+        ...plane.spacing,
+      ].join(',')
+    : '';
+});
+const overlayPixels = computed(() => {
+  const result = projection.value;
+  if (!result) return null;
+  const appearance =
+    settings.value.highlightThin && !highlightReason.value
+      ? highlightAppearance.value
+      : null;
+  return createThinRegionOverlay(
+    result,
+    settings.value.thresholdMicrons,
+    appearance
+  );
 });
 const stateMessage = computed(
   () =>
@@ -330,41 +329,58 @@ const stateMessage = computed(
       color="grey"
       class="loading-indicator"
     />
-    <EnFaceProjectionView
+    <VtkSliceView
+      ref="vtkView"
+      class="projection-view"
       :view-id="viewId"
       :image-id="currentImageID"
-      :frame="projectionFrame"
-      :window-range="autoRange"
-      :window-config="windowConfig"
-      v-slot="{ imageTransform }"
+      :render-geometry="planeGeometry"
+      :geometry-key="geometryKey"
+      view-direction="Superior"
+      view-up="Anterior"
+      zoom-on-scroll
     >
-      <svg
-        v-if="projection"
-        class="slice-position-lines"
-        data-testid="oct-slice-lines"
+      <VtkSliceViewNavigation scroll-zoom />
+      <VtkSliceViewWindowManipulator
+        :view-id="viewId"
+        :image-id="currentImageID"
+        :manipulator-config="windowingManipulatorProps"
+      />
+      <VtkImagePlaneRepresentation
+        :image-data="planeImage"
+        :window="windowConfig"
+        :scalar-transform="scalarTransform"
+        :overlay-pixels="overlayPixels"
+        v-slot="{ imageTransform }"
       >
-        <g :transform="imageTransform">
-          <path
-            v-if="highlightOutline && highlightAppearance"
-            :d="highlightOutline"
-            fill="none"
-            :stroke="`rgb(${highlightAppearance.color.slice(0, 3).join(',')})`"
-            :stroke-opacity="highlightAppearance.outlineOpacity"
-            :stroke-width="highlightAppearance.outlineWidth"
-            stroke-linecap="square"
-            vector-effect="non-scaling-stroke"
-            data-testid="oct-thin-outline"
-          />
-          <line
-            v-for="line in sliceLines"
-            :key="line.viewId"
-            v-bind="line"
-            :data-view-id="line.viewId"
-            data-testid="oct-slice-line"
-          />
-        </g>
-      </svg>
-    </EnFaceProjectionView>
+        <svg
+          v-if="projection"
+          class="slice-position-lines"
+          data-testid="oct-slice-lines"
+        >
+          <g :transform="imageTransform">
+            <path
+              v-if="highlightOutline && highlightAppearance"
+              :d="highlightOutline"
+              fill="none"
+              :stroke="`rgb(${highlightAppearance.color.slice(0, 3).join(',')})`"
+              :stroke-opacity="highlightAppearance.outlineOpacity"
+              :stroke-width="highlightAppearance.outlineWidth"
+              stroke-linecap="square"
+              vector-effect="non-scaling-stroke"
+              data-testid="oct-thin-outline"
+            />
+            <line
+              v-for="line in sliceLines"
+              :key="line.viewId"
+              v-bind="line"
+              :data-view-id="line.viewId"
+              data-testid="oct-slice-line"
+            />
+          </g>
+        </svg>
+      </VtkImagePlaneRepresentation>
+    </VtkSliceView>
     <EnFaceStatus
       :message="stateMessage"
       :ready="!!projection"
@@ -437,6 +453,10 @@ const stateMessage = computed(
   min-height: 0;
   background: black;
   overflow: hidden;
+}
+.projection-view {
+  position: absolute;
+  inset: 0;
 }
 .slice-position-lines {
   position: absolute;

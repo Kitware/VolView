@@ -317,7 +317,7 @@ export default tseslint.config(
         'src/oct/thickness.ts',
         'src/oct/projection.ts',
         'src/oct/sliceGeometry.ts',
-        'src/oct/windowLevel.ts',
+        'src/oct/thinRegionOverlay.ts',
         'src/oct/projection.worker.ts',
         'src/oct/detection.ts',
         'src/oct/dicomMetadata.ts',

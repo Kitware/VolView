@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
-import { computed, effectScope, nextTick, ref } from 'vue';
+import {
+  computed,
+  defineComponent,
+  effectScope,
+  h,
+  nextTick,
+  onScopeDispose,
+  ref,
+} from 'vue';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createVuetify } from 'vuetify';
 import WindowLevelControls from '@/src/components/tools/windowing/WindowLevelControls.vue';
@@ -8,14 +16,20 @@ import ResetViews from '@/src/components/tools/ResetViews.vue';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { useViewStore } from '@/src/store/views';
-import { useEnFaceWindowing } from '@/src/oct/useEnFaceWindowing';
+import { useDerivedImageWindowing } from '@/src/composables/useDerivedImageWindowing';
+import { imageWindowRanges } from '@/src/utils/imageWindowing';
 import { projectEnFace } from '@/src/oct/projection';
+import { createThinRegionOverlay } from '@/src/oct/thinRegionOverlay';
 import {
-  paintThinRegionPixels,
-  paintProjectionIntensities,
-  projectionWindowRanges,
-} from '@/src/oct/windowLevel';
+  compositeReferencePixels,
+  scalarReferencePixels,
+  scalarImageFixture,
+} from './scalarDisplayFixtures';
 import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
+import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
+import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
+import { VtkViewContext } from '@/src/components/vtk/context';
+import type { VtkViewApi } from '@/src/types/vtk-types';
 
 enableAutoUnmount(afterEach);
 const scopes: ReturnType<typeof effectScope>[] = [];
@@ -30,9 +44,35 @@ function create(
   const scope = effectScope();
   scopes.push(scope);
   const ranges = computed(() =>
-    values.value ? (projectionWindowRanges(values.value)?.ranges ?? null) : null
+    values.value ? (imageWindowRanges(values.value)?.ranges ?? null) : null
   );
-  const config = scope.run(() => useEnFaceWindowing(viewId, imageId, ranges))!;
+  const config = scope.run(() => {
+    const current = useDerivedImageWindowing(viewId, imageId, ranges);
+    const interactorStyle = vtkInteractorStyleManipulator.newInstance();
+    const wrapper = mount(
+      defineComponent({
+        setup: () => () =>
+          h(VtkSliceViewWindowManipulator, {
+            viewId: viewId.value,
+            imageId: imageId.value,
+          }),
+      }),
+      {
+        global: {
+          provide: {
+            [VtkViewContext as symbol]: {
+              interactorStyle,
+            } as unknown as VtkViewApi,
+          },
+        },
+      }
+    );
+    onScopeDispose(() => {
+      wrapper.unmount();
+      interactorStyle.delete();
+    });
+    return current;
+  })!;
   return { config, scope, values, viewId, imageId, store: useWindowingStore() };
 }
 
@@ -60,7 +100,7 @@ describe('En face windowing with normal view controls', () => {
       >) {
         store.updateConfig('view', 'image', { auto }, true);
         const pixels = new Uint8ClampedArray(8);
-        paintProjectionIntensities(result.values, pixels, config.value);
+        pixels.set(scalarReferencePixels(result.values, config.value));
         expect(Array.from(pixels)).toEqual([128, 128, 128, 255, 0, 0, 0, 255]);
       }
     }
@@ -72,7 +112,7 @@ describe('En face windowing with normal view controls', () => {
       const values = Float32Array.from([value, NaN]);
       const { config } = create(ref(values));
       const pixels = new Uint8ClampedArray(8);
-      paintProjectionIntensities(values, pixels, config.value);
+      pixels.set(scalarReferencePixels(values, config.value));
       expect(pixels[0]).toBeGreaterThanOrEqual(127);
       expect(pixels[0]).toBeLessThanOrEqual(128);
       expect(Array.from(pixels.slice(4))).toEqual([0, 0, 0, 255]);
@@ -85,7 +125,7 @@ describe('En face windowing with normal view controls', () => {
     );
     const { config, store } = create(values);
     const pixels = new Uint8ClampedArray(16);
-    paintProjectionIntensities(values.value!, pixels, config.value);
+    pixels.set(scalarReferencePixels(values.value!, config.value));
     expect(Array.from(pixels)).toEqual([
       0, 0, 0, 255, 128, 128, 128, 255, 255, 255, 255, 255, 0, 0, 0, 255,
     ]);
@@ -96,7 +136,7 @@ describe('En face windowing with normal view controls', () => {
       [65540, 128],
     ]) {
       values.value = Float32Array.from([value, NaN]);
-      paintProjectionIntensities(values.value, pixels, config.value);
+      pixels.set(scalarReferencePixels(values.value, config.value));
       expect(config.value).toMatchObject({
         width: 20,
         level: 65540,
@@ -331,7 +371,7 @@ describe('En face windowing with normal view controls', () => {
 describe('Projection histogram windows', () => {
   it('fits exact Full Range and approximates percentile cutoffs within one of 512 bins', () => {
     const values = Float32Array.from({ length: 1000 }, (_, index) => index);
-    const stats = projectionWindowRanges(values)!;
+    const stats = imageWindowRanges(values)!;
     expect(stats.ranges.FullRange).toEqual([0, 999]);
     for (const [key, percent] of Object.entries(WLAutoRanges)) {
       if (!percent) continue;
@@ -354,15 +394,15 @@ describe('Projection histogram windows', () => {
       { length: 1000 },
       (_, index) => index * 0.0001
     );
-    const stats = projectionWindowRanges(values)!;
+    const stats = imageWindowRanges(values)!;
     expect(stats.ranges.HighContrast[0]).toBeGreaterThan(0.004);
     expect(stats.ranges.HighContrast[1]).toBeLessThan(0.096);
     expect(stats.ranges.FullRange[1]).toBe(values[999]);
   });
 
   it('handles constant/empty data and rejects corrupt projection intensities', () => {
-    expect(projectionWindowRanges([])).toBeNull();
-    const constant = projectionWindowRanges(Float32Array.from([7, 7, 7]))!;
+    expect(imageWindowRanges([])).toBeNull();
+    const constant = imageWindowRanges(Float32Array.from([7, 7, 7]))!;
     expect(Object.values(constant.ranges)).toEqual([
       [7, 7],
       [7, 7],
@@ -370,8 +410,8 @@ describe('Projection histogram windows', () => {
       [7, 7],
     ]);
     expect(constant.width).toBeGreaterThan(0);
-    expect(projectionWindowRanges([1, NaN])?.ranges.FullRange).toEqual([1, 1]);
-    expect(() => projectionWindowRanges([1, Infinity])).toThrow(/finite/);
+    expect(imageWindowRanges([1, NaN])?.ranges.FullRange).toEqual([1, 1]);
+    expect(() => imageWindowRanges([1, Infinity])).toThrow(/finite/);
   });
 });
 describe('En face texture windowing and segment overlay', () => {
@@ -411,18 +451,28 @@ describe('En face texture windowing and segment overlay', () => {
         segmentation: { dimensions, scalars: labels },
       });
       const pixels = new Uint8ClampedArray(12);
-      paintProjectionIntensities(result.values, pixels, {
-        width: 200,
-        level: 100,
+      pixels.set(
+        scalarReferencePixels(result.values, {
+          width: 200,
+          level: 100,
+        })
+      );
+      const overlay = createThinRegionOverlay(result, thresholdMicrons, {
+        color: [0, 255, 0, 255],
+        alpha: 1,
       });
-      expect(
-        paintThinRegionPixels(
-          pixels,
-          result.thicknessMicrons!,
-          thresholdMicrons,
-          { color: [0, 255, 0, 255], alpha: 1 }
-        )
-      ).toBe(highlighted ? 1 : 0);
+      expect(Array.from(overlay)).toEqual([
+        ...(highlighted ? [0, 255, 0, 255] : [0, 0, 0, 0]),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+      ]);
+      pixels.set(compositeReferencePixels(pixels, overlay));
       expect(Array.from(pixels)).toEqual([
         ...(highlighted ? [0, 255, 0, 255] : [128, 128, 128, 255]),
         128,
@@ -438,10 +488,12 @@ describe('En face texture windowing and segment overlay', () => {
   );
   it('windows reflectivity before filling while clipping intensities outside the display range', () => {
     const pixels = new Uint8ClampedArray(5 * 4);
-    paintProjectionIntensities([-20, 0, 50, 100, 120], pixels, {
-      width: 100,
-      level: 50,
-    });
+    pixels.set(
+      scalarReferencePixels([-20, 0, 50, 100, 120], {
+        width: 100,
+        level: 50,
+      })
+    );
     expect(Array.from(pixels)).toEqual([
       0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128, 255, 255, 255, 255, 255, 255,
       255, 255, 255,
@@ -451,34 +503,57 @@ describe('En face texture windowing and segment overlay', () => {
     const gray = Uint8ClampedArray.from({ length: 6 * 4 }, (_, index) =>
       index % 4 === 3 ? 255 : 100
     );
-    const count = paintThinRegionPixels(gray, [0, 20.8, 31, 52, NaN, -1], 31, {
-      color: [35, 215, 190, 255],
-      alpha: 0.3,
-    });
-    expect(count).toBe(1);
-    expect(Array.from(gray.slice(4, 8))).toEqual([81, 135, 127, 255]);
+    const overlay = createThinRegionOverlay(
+      scalarImageFixture(new Float32Array(6).fill(100), [
+        0,
+        20.8,
+        31,
+        52,
+        NaN,
+        -1,
+      ]),
+      31,
+      {
+        color: [35, 215, 190, 255],
+        alpha: 0.3,
+      }
+    );
+    expect(Array.from(overlay.slice(4, 8))).toEqual([35, 215, 190, 77]);
+    expect(
+      overlay.filter((value, index) => index % 4 === 3 && value > 0)
+    ).toHaveLength(1);
+    gray.set(compositeReferencePixels(gray, overlay));
+    expect(Array.from(gray.slice(4, 8))).toEqual([80, 135, 127, 255]);
     for (const index of [0, 2, 3, 4, 5])
       expect(Array.from(gray.slice(index * 4, index * 4 + 4))).toEqual([
         100, 100, 100, 255,
       ]);
   });
-  it('rounds half-channel values upward before storing grayscale and segment fill', () => {
+  it('keeps half-channel grayscale and fill within the encoded texture precision', () => {
     const pixels = new Uint8ClampedArray(3 * 4);
-    paintProjectionIntensities([0.5 / 255, 1.5 / 255, 2.5 / 255], pixels, {
-      width: 1,
-      level: 0.5,
-    });
+    pixels.set(
+      scalarReferencePixels([0.5 / 255, 1.5 / 255, 2.5 / 255], {
+        width: 1,
+        level: 0.5,
+      })
+    );
     expect(Array.from(pixels)).toEqual([
       1, 1, 1, 255, 2, 2, 2, 255, 3, 3, 3, 255,
     ]);
-    expect(
-      paintThinRegionPixels(pixels, [1, 2, 3], 3, {
+    const overlay = createThinRegionOverlay(
+      scalarImageFixture([0.5 / 255, 1.5 / 255, 2.5 / 255], [1, 2, 3]),
+      3,
+      {
         color: [0, 2, 4, 255],
         alpha: 0.5,
-      })
-    ).toBe(2);
+      }
+    );
+    expect(Array.from(overlay)).toEqual([
+      0, 2, 4, 128, 0, 2, 4, 128, 0, 0, 0, 0,
+    ]);
+    pixels.set(compositeReferencePixels(pixels, overlay));
     expect(Array.from(pixels)).toEqual([
-      1, 2, 3, 255, 1, 2, 3, 255, 3, 3, 3, 255,
+      0, 2, 3, 255, 1, 2, 3, 255, 3, 3, 3, 255,
     ]);
   });
 });

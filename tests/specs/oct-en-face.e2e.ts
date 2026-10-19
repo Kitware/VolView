@@ -4,6 +4,7 @@ import { Key } from 'webdriverio';
 import {
   dragContrast,
   enFaceAppearance,
+  enFacePixel,
   waitForEnFaceReady,
   stageIllustrativeMask,
   stageGenericOCT,
@@ -134,36 +135,9 @@ async function setEnFaceWindow(width: number, level: number) {
 }
 
 async function expectProjectionPixel(gray: number, x = 60, y = 12) {
-  const source = await $(CANVAS).getElement();
   await browser.waitUntil(
     async () => {
-      const pixel = await source.execute(
-        (element, imageX, imageY) => {
-          const canvas = element as HTMLCanvasElement;
-          const transform = document
-            .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
-            .getScreenCTM()!;
-          const center = new DOMPoint(
-            imageX + 0.5,
-            imageY + 0.5
-          ).matrixTransform(transform);
-          const bounds = canvas.getBoundingClientRect();
-          const canvasX = Math.floor(
-            ((center.x - bounds.left) * canvas.width) / bounds.width
-          );
-          const canvasY = Math.floor(
-            ((center.y - bounds.top) * canvas.height) / bounds.height
-          );
-          const copy = document.createElement('canvas');
-          copy.width = canvas.width;
-          copy.height = canvas.height;
-          const context = copy.getContext('2d')!;
-          context.drawImage(canvas, 0, 0);
-          return Array.from(context.getImageData(canvasX, canvasY, 1, 1).data);
-        },
-        x,
-        y
-      );
+      const pixel = await enFacePixel(x, y);
       return (
         pixel[3] === 255 &&
         pixel.slice(0, 3).every((channel) => Math.abs(channel - gray) <= 1)

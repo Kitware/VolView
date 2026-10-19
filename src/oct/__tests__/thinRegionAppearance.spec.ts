@@ -7,16 +7,27 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useThinRegionAppearance } from '@/src/oct/useThinRegionAppearance';
-import { paintThinRegionPixels } from '@/src/oct/windowLevel';
+import { createThinRegionOverlay } from '@/src/oct/thinRegionOverlay';
+import {
+  compositeReferencePixels,
+  scalarImageFixture,
+} from './scalarDisplayFixtures';
 
 beforeEach(() => setActivePinia(createPinia()));
 
 function paintAppearance(
   appearance: NonNullable<ReturnType<typeof useThinRegionAppearance>['value']>
 ) {
-  const pixels = new Uint8ClampedArray([100, 100, 100, 255]);
-  paintThinRegionPixels(pixels, [1], 2, appearance);
-  return Array.from(pixels);
+  const overlay = createThinRegionOverlay(
+    scalarImageFixture([100], [1]),
+    2,
+    appearance
+  );
+  expect(Array.from(overlay)).toEqual([
+    ...appearance.color.slice(0, 3),
+    Math.round(255 * appearance.alpha),
+  ]);
+  return Array.from(compositeReferencePixels([100, 100, 100, 255], overlay));
 }
 
 function appearanceScene() {
@@ -57,7 +68,7 @@ describe('thin-region appearance from the source segmentation', () => {
       outlineOpacity: 1,
       reason: null,
     });
-    expect(paintAppearance(appearance.value!)).toEqual([81, 135, 127, 255]);
+    expect(paintAppearance(appearance.value!)).toEqual([80, 135, 127, 255]);
     expect(binding.image.getPointData().getScalars().getData()).toBe(scalars);
   });
 

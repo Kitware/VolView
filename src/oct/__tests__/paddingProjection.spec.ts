@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { projectEnFace } from '@/src/oct/projection';
+import { imageWindowRanges } from '@/src/utils/imageWindowing';
+import { createThinRegionOverlay } from '@/src/oct/thinRegionOverlay';
 import {
-  projectionWindowRanges,
-  paintProjectionIntensities,
-  paintThinRegionPixels,
-} from '@/src/oct/windowLevel';
+  compositeReferencePixels,
+  scalarImageFixture,
+  scalarReferencePixels,
+} from './scalarDisplayFixtures';
 
 function input() {
   return {
@@ -128,23 +130,25 @@ describe('Declared OCT padding', () => {
 
   it('excludes missing pixels from contrast and keeps missing areas black', () => {
     const values = Float32Array.from([NaN, 100, 200]);
-    expect(projectionWindowRanges(values)?.ranges.FullRange).toEqual([
-      100, 200,
-    ]);
-    expect(projectionWindowRanges([NaN, NaN, NaN])).toBeNull();
-    const pixels = new Uint8ClampedArray(12);
-    paintProjectionIntensities(values, pixels, { width: 200, level: 0 });
+    expect(imageWindowRanges(values)?.ranges.FullRange).toEqual([100, 200]);
+    expect(imageWindowRanges([NaN, NaN, NaN])).toBeNull();
+    const pixels = scalarReferencePixels(values, { width: 200, level: 0 });
     expect(Array.from(pixels)).toEqual([
       0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     ]);
-    expect(
-      paintThinRegionPixels(pixels, [4, 0, 4], 5, {
+    const overlay = createThinRegionOverlay(
+      scalarImageFixture(values, [4, 0, 4]),
+      5,
+      {
         color: [0, 255, 0, 255],
         alpha: 1,
-        values,
-      })
-    ).toBe(1);
-    expect(Array.from(pixels.slice(0, 4))).toEqual([0, 0, 0, 255]);
-    expect(Array.from(pixels.slice(8, 12))).toEqual([0, 255, 0, 255]);
+      }
+    );
+    expect(Array.from(overlay)).toEqual([
+      0, 0, 0, 255, 0, 0, 0, 0, 0, 255, 0, 255,
+    ]);
+    const composited = compositeReferencePixels(pixels, overlay);
+    expect(Array.from(composited.slice(0, 4))).toEqual([0, 0, 0, 255]);
+    expect(Array.from(composited.slice(8, 12))).toEqual([0, 255, 0, 255]);
   });
 });
