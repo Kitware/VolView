@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { Key } from 'webdriverio';
 import {
   dragContrast,
   enFaceAppearance,
@@ -201,6 +202,9 @@ async function enableHighlight() {
 
 async function dragEnFaceContrast() {
   await $(CANVAS).click();
+  await $('[data-testid="oct-rendering-panel"]').waitForDisplayed({
+    reverse: true,
+  });
   await $(WINDOW_TOOL).waitForClickable();
   if (
     !((await $(WINDOW_TOOL).getAttribute('class')) ?? '').includes(
@@ -419,6 +423,49 @@ describe('Retinal OCT en face viewing', () => {
       $('[data-testid="oct-segmentation-segment"] input')
     ).toBeDisabled();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('keeps Pan selected when temporary Crosshairs is denied in En face', async () => {
+    await openRetina(false, true);
+    await browser.keys('Escape');
+    await $(CANVAS).click();
+    const pan = $('button[data-testid^="control-button-Pan "]');
+    const crosshairs = $('button[data-testid^="control-button-Crosshairs "]');
+    const select = $('button[data-testid^="control-button-Select "]');
+    const ruler = $('button[data-testid^="control-button-Ruler "]');
+    const keyboard = () =>
+      browser.action('key', { id: 'oct-crosshairs-shortcut' });
+    const hold = () => keyboard().down(Key.Shift).down('c').perform(true);
+    const release = () => keyboard().up('c').up(Key.Shift).perform(true);
+
+    await pan.click();
+    await expect(pan).toHaveElementClass('tool-btn-selected');
+    await expect(crosshairs).toBeDisabled();
+    try {
+      await hold();
+      await expect(pan).toHaveElementClass('tool-btn-selected');
+      await release();
+      await expect(pan).toHaveElementClass('tool-btn-selected');
+
+      await volViewPage.focusFirst2DView();
+      await expect(crosshairs).toBeEnabled();
+      await hold();
+      await expect(crosshairs).toHaveElementClass('tool-btn-selected');
+      await release();
+      await expect(pan).toHaveElementClass('tool-btn-selected');
+
+      await ruler.click();
+      await expect(ruler).toHaveElementClass('tool-btn-selected');
+      await hold();
+      await expect(crosshairs).toHaveElementClass('tool-btn-selected');
+      await $(CANVAS).click();
+      await expect(select).toHaveElementClass('tool-btn-selected');
+      await expect(crosshairs).toBeDisabled();
+      await release();
+      await expect(select).toHaveElementClass('tool-btn-selected');
+    } finally {
+      await browser.releaseActions();
+    }
   });
 
   it('renders a DICOM volume containing declared padding', async () => {
@@ -878,6 +925,12 @@ describe('Retinal OCT en face viewing', () => {
     expect((await volViewPage.getViews2D()).length).toBe(1);
     await expectSliceLine();
 
+    await volViewPage.openLayoutMenu();
+    await expect($('[data-testid="oct-layout"]')).toHaveElementClass(
+      'v-list-item--active'
+    );
+    await browser.keys('Escape');
+
     await attachMaskThroughDataPanel(STEM + '/' + mask);
     await openAnnotationSegments();
     await waitForSegmentContent('Synthetic retinal layer');
@@ -941,6 +994,11 @@ describe('Retinal OCT en face viewing', () => {
     await expectHighlight(true);
     await expectSliceLine();
     await expectStackedMaskWithoutSidebar();
+    await volViewPage.openLayoutMenu();
+    await expect($('[data-testid="oct-layout"]')).toHaveElementClass(
+      'v-list-item--active'
+    );
+    await browser.keys('Escape');
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
