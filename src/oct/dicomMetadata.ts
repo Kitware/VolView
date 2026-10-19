@@ -91,10 +91,10 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const positions = geometry.positions.filter((p): p is number[] => !!p);
   if (positions.length > 0 && positions.length !== geometry.positions.length)
     return 'OCT frame positions are incomplete; spatial reconstruction is required.';
-  return octGridGeometry(
-    positions,
-    octDirection(vector(geometry.orientation)) ?? undefined
-  ).reason;
+  const direction = octDirection(vector(geometry.orientation));
+  if (positions.length > 1 && !direction)
+    return 'OCT image orientation is missing; spatial reconstruction is required.';
+  return octGridGeometry(positions, direction ?? undefined).reason;
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {

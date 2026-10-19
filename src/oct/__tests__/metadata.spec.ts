@@ -249,6 +249,35 @@ describe('OCT enhanced spatial metadata', () => {
     expect(octCalibratedAxes(tags)).toEqual([true, true, true]);
   });
 
+  it('requires orientation before deriving spacing from positioned frames', async () => {
+    const bytes = new Uint8Array(
+      await enhancedFile([
+        { position: '0\\0\\0' },
+        { position: '0.2\\0\\0' },
+      ]).arrayBuffer()
+    );
+    const shared = firstItem(readDataset(bytes), 'x52009229');
+    hide(firstItem(shared, 'x00209116'), 'x00200037');
+    const tags = await augmented(bytes);
+    expect(octGeometryReason(tags)).toMatch(/orientation.*missing/);
+    expect(tags.has(Tags.SpacingBetweenSlices)).toBe(false);
+  });
+
+  it('preserves unpositioned projection without patient orientation', async () => {
+    const bytes = new Uint8Array(
+      await enhancedFile(
+        [{}, {}],
+        [element('00180088', 'DS', '0.2')]
+      ).arrayBuffer()
+    );
+    const shared = firstItem(readDataset(bytes), 'x52009229');
+    hide(firstItem(shared, 'x00209116'), 'x00200037');
+    const tags = await augmented(bytes);
+    expect(octGeometryReason(tags)).toBeNull();
+    expect(octCalibratedAxes(tags)).toEqual([true, true, true]);
+    expect(tags.get(Tags.SpacingBetweenSlices)).toBe('0.2');
+  });
+
   it('rejects frames with inconsistent pixel spacing', async () => {
     const tags = await augmentOCTMetadata(
       enhancedFile([
