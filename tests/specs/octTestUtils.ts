@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Key } from 'webdriverio';
+import { volViewPage } from '../pageobjects/volview.page';
 import {
   syntheticOCTGrid,
   syntheticOCTVolume,
@@ -135,6 +136,27 @@ export async function expectControlsBesideSelector() {
 }
 
 const CANVAS = '[data-testid="oct-en-face-canvas"]';
+
+export async function selectEnFace(viewIndex = 0) {
+  const switcher = (await $$('.view-type-select .v-field'))[viewIndex];
+  await switcher.click();
+  const option = $(
+    '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
+  );
+  await option.waitForClickable();
+  await option.click();
+  await $(CANVAS).waitForDisplayed();
+}
+
+export async function selectTwoRowLayout() {
+  await volViewPage.openLayoutMenu();
+  const gridCell = $('.v-overlay--active .grid-cell:nth-child(4)');
+  await gridCell.waitForStable();
+  await gridCell.waitForClickable();
+  await gridCell.moveTo();
+  await gridCell.click();
+  await browser.keys('Escape');
+}
 
 export async function displayedWindow(view: WebdriverIO.Element) {
   const match = (await view.getText()).match(

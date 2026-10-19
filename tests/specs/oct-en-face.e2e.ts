@@ -18,6 +18,8 @@ import {
   displayedWindow,
   projectionTransform,
   expectProjectionTransform,
+  selectEnFace,
+  selectTwoRowLayout,
 } from './octTestUtils';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -66,17 +68,6 @@ function stageFixture(name: string) {
     name.endsWith('.dcm') ? createSyntheticOCT() : syntheticMask()
   );
   return STEM + '/' + name;
-}
-
-async function selectEnFace() {
-  const switcher = (await $$('.view-type-select .v-field'))[0];
-  await switcher.click();
-  const option = $(
-    '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
-  );
-  await option.waitForClickable();
-  await option.click();
-  await $(CANVAS).waitForDisplayed();
 }
 
 async function attachMaskThroughDataPanel(file: string) {
@@ -628,14 +619,7 @@ describe('Retinal OCT en face viewing', () => {
     await volViewPage.open();
     await openThroughDialog(file);
     await volViewPage.waitForViews();
-    await volViewPage.openLayoutMenu();
-    const layout = $('[data-testid="oct-layout"]');
-    await layout.waitForClickable();
-    expect(await layout.getAttribute('class')).not.toContain(
-      'v-list-item--disabled'
-    );
-    await layout.click();
-    await $(CANVAS).waitForDisplayed();
+    await selectEnFace();
     await expectCalibratedEnFace();
   });
   it('highlights physical thickness and restores its selected segment, threshold and slab', async () => {
@@ -865,6 +849,22 @@ describe('Retinal OCT en face viewing', () => {
     expect(viewport.heightDifference).toBeLessThan(2);
     await volViewPage.focusFirst2DView();
     await expectSliceLine();
+    const horizontalDirection = await $(SLICE_LINE).execute((element) => {
+      if (!(element instanceof SVGLineElement))
+        throw new Error('Expected an SVG slice indicator');
+      const line = element;
+      const transform = line.getScreenCTM()!;
+      const start = new DOMPoint(
+        line.x1.baseVal.value,
+        line.y1.baseVal.value
+      ).matrixTransform(transform);
+      const end = new DOMPoint(
+        line.x2.baseVal.value,
+        line.y2.baseVal.value
+      ).matrixTransform(transform);
+      return end.x - start.x;
+    });
+    expect(horizontalDirection).toBeGreaterThan(0);
     const beforeKey = await volViewPage.getFirst2DSlice();
     if (beforeKey === null)
       throw new Error('The original OCT view has no slice position');
@@ -909,6 +909,9 @@ describe('Retinal OCT en face viewing', () => {
       height: sourceBounds.height,
     };
     const beforeWheel = await volViewPage.getFirst2DSlice();
+    const sourceHandle = $('.vtk-container-wrapper .slice-slider-handle');
+    const beforeWheelHandleY = await sourceHandle.getLocation('y');
+    const beforeWheelLineY = await $(SLICE_LINE).getLocation('y');
     await browser
       .action('pointer')
       .move({
@@ -940,24 +943,39 @@ describe('Retinal OCT en face viewing', () => {
       await browser.releaseActions();
     }
     await expectSliceLine();
+    expect(await sourceHandle.getLocation('y')).toBeGreaterThan(
+      beforeWheelHandleY
+    );
+    expect(await $(SLICE_LINE).getLocation('y')).toBeGreaterThan(
+      beforeWheelLineY
+    );
 
     const slider = $('.vtk-container-wrapper .slice-slider');
     const sliderLocation = await slider.getLocation();
     const sliderSize = await slider.getSize();
     const beforeSlider = await volViewPage.getFirst2DSlice();
+    const handleLocation = await sourceHandle.getLocation();
+    const handleSize = await sourceHandle.getSize();
+    const beforeSliderLineY = await $(SLICE_LINE).getLocation('y');
+    const handleX = Math.round(handleLocation.x + handleSize.width / 2);
+    const handleY = Math.round(handleLocation.y + handleSize.height / 2);
     await browser
       .action('pointer')
-      .move({
-        x: Math.round(sliderLocation.x + sliderSize.width / 2),
-        y: Math.round(sliderLocation.y + sliderSize.height * 0.35),
-      })
+      .move({ x: handleX, y: handleY })
       .down()
+      .move({ x: handleX, y: handleY + Math.round(sliderSize.height * 0.15) })
       .up()
       .perform();
     await browser.waitUntil(
       async () => (await volViewPage.getFirst2DSlice()) !== beforeSlider
     );
     await expectSliceLine();
+    expect(await sourceHandle.getLocation('y')).toBeGreaterThan(
+      handleLocation.y
+    );
+    expect(await $(SLICE_LINE).getLocation('y')).toBeGreaterThan(
+      beforeSliderLineY
+    );
 
     const projectionGeometry = $('[data-testid="oct-slice-lines"] > g');
     const beforePan = await projectionGeometry.getAttribute('transform');
@@ -1047,7 +1065,7 @@ describe('Retinal OCT en face viewing', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('activates the built-in Retinal OCT layout through normal file import and attaches a segmentation through the Data panel', async () => {
+  it('builds stacked en face views with the layout grid after file import and attaches a segmentation through the Data panel', async () => {
     await browser.setViewport({
       width: 1440,
       height: 900,
@@ -1065,22 +1083,16 @@ describe('Retinal OCT en face viewing', () => {
     expect(await $(CANVAS).isExisting()).toBe(false);
 
     await volViewPage.openLayoutMenu();
-    const layout = $('[data-testid="oct-layout"]');
-    await layout.waitForStable();
-    await layout.waitForClickable();
-    expect(await layout.getText()).toContain('Retinal OCT');
-    await layout.click();
+    expect(await volViewPage.getLayoutOptionTitles()).not.toContain(
+      'Retinal OCT'
+    );
     await browser.keys('Escape');
-    await $(CANVAS).waitForDisplayed();
+    await selectTwoRowLayout();
+    await volViewPage.waitForViewCounts(2, false);
+    await selectEnFace(1);
     await waitForEnFaceReady();
     expect((await volViewPage.getViews2D()).length).toBe(1);
     await expectSliceLine();
-
-    await volViewPage.openLayoutMenu();
-    await expect($('[data-testid="oct-layout"]')).toHaveElementClass(
-      'v-list-item--active'
-    );
-    await browser.keys('Escape');
 
     await attachMaskThroughDataPanel(STEM + '/' + mask);
     await openAnnotationSegments();
@@ -1100,11 +1112,7 @@ describe('Retinal OCT en face viewing', () => {
     await dragEnFaceContrast();
     const retainedWindow = await getWindow();
     const retainedSlice = await volViewPage.getFirst2DSlice();
-    await volViewPage.openLayoutMenu();
-    await $('[data-testid="oct-layout"]').waitForStable();
-    await $('[data-testid="oct-layout"]').waitForClickable();
-    await $('[data-testid="oct-layout"]').click();
-    await browser.keys('Escape');
+    await selectTwoRowLayout();
     await expectHighlight(true);
     expect(await getWindow()).toEqual(retainedWindow);
     expect(await volViewPage.getFirst2DSlice()).toBe(retainedSlice);
@@ -1145,11 +1153,7 @@ describe('Retinal OCT en face viewing', () => {
     await expectHighlight(true);
     await expectSliceLine();
     await expectStackedMaskWithoutSidebar();
-    await volViewPage.openLayoutMenu();
-    await expect($('[data-testid="oct-layout"]')).toHaveElementClass(
-      'v-list-item--active'
-    );
-    await browser.keys('Escape');
+    await volViewPage.waitForViewCounts(1, false);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
@@ -1258,17 +1262,6 @@ describe('Retinal OCT en face viewing', () => {
     await openVolViewPage(image);
     await expectEnFaceDisabledInSwitcher('OCT');
     await browser.keys('Escape');
-    await volViewPage.openLayoutMenu();
-    const octLayout = $('[data-testid="oct-layout"]');
-    await octLayout.waitForDisplayed();
-    expect(await octLayout.getAttribute('class')).toContain(
-      'v-list-item--disabled'
-    );
-    await octLayout.$('..').moveTo();
-    const layoutReason = $('.v-overlay--active.v-tooltip .v-overlay__content');
-    await layoutReason.waitForDisplayed();
-    expect(await layoutReason.getText()).toContain('OCT');
-
     await writeManifestToFile(
       { layouts: { 'Unavailable OCT test': [['enface']] } },
       'oct-unavailable.json'

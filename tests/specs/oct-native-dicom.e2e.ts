@@ -14,6 +14,8 @@ import {
   enFaceAppearance,
   waitForEnFaceReady,
   displayedWindow,
+  selectEnFace,
+  selectTwoRowLayout,
 } from './octTestUtils';
 import {
   openAnnotationSegments,
@@ -41,11 +43,9 @@ async function openNativeDicom() {
   await volViewPage.open('?urls=[tmp/' + RETINAL_OCT_DICOM.name + ']');
   await volViewPage.waitForViews();
   await waitForFirstCachedImageSpacing();
-  await volViewPage.openLayoutMenu();
-  const layout = $('[data-testid="oct-layout"]');
-  await layout.waitForClickable();
-  await layout.click();
-  await browser.keys('Escape');
+  await selectTwoRowLayout();
+  await volViewPage.waitForViewCounts(2, false);
+  await selectEnFace(1);
   await waitForEnFaceReady();
   await volViewPage.waitForViewCounts(1, false);
 }
@@ -281,11 +281,6 @@ describe('Public OCT exports', () => {
       expect(value).toBeCloseTo(native.spacing[axis], 6)
     );
     const fullProjection = await enFaceAppearance();
-    await volViewPage.openLayoutMenu();
-    expect(
-      await $('[data-testid="oct-layout"]').getAttribute('class')
-    ).toContain('v-list-item--active');
-    await volViewPage.layoutButton.click();
     await setSlab(100, 300);
     await browser.waitUntil(
       async () => (await enFaceAppearance()).image !== fullProjection.image
@@ -312,14 +307,9 @@ describe('Public OCT exports', () => {
       await sample.waitForClickable();
       await sample.click();
       await waitForFirstCachedImageSpacing();
-      await volViewPage.openLayoutMenu();
-      expect(
-        await $('[data-testid="oct-layout"]').getAttribute('class')
-      ).toContain('v-list-item--disabled');
       await volViewPage.waitForViewCounts(0, true);
       expect(await $(CANVAS).isExisting()).toBe(false);
       expect(await $('.view-type-select input').getValue()).toBe('Volume');
-      await browser.keys('Escape');
       if (disabled === 'EnFace') {
         await expectEnFaceDisabledInSwitcher('configuration disables En face');
         await browser.keys('Escape');

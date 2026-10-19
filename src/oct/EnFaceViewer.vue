@@ -145,8 +145,8 @@ const stateMessage = computed(
       :view-id="viewId"
       :image-id="currentImageID"
       :render-geometry="renderGeometry"
-      view-direction="Superior"
-      view-up="Anterior"
+      view-direction="Inferior"
+      view-up="Posterior"
       zoom-on-scroll
     >
       <VtkSliceViewNavigation scroll-zoom />
