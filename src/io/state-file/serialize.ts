@@ -232,6 +232,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'isActiveViewMaximized',
     'viewByID',
     'layout',
+    'currentLayoutName',
     'layoutSlots',
   ]);
   const invalidViewByID =
@@ -255,6 +256,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'viewByID',
     'primarySelection',
     'layout',
+    'currentLayoutName',
     'layoutSlots',
   ] as const;
   const optionalEntries = optionalRoots.flatMap((key) => {

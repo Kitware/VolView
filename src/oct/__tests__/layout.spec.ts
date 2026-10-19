@@ -5,7 +5,8 @@ import { createVuetify } from 'vuetify';
 import { VListItem, VSelect } from 'vuetify/components';
 import { nextTick, ref } from 'vue';
 import JSZip from 'jszip';
-import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
+import { ManifestSchema } from '@/src/io/state-file/schema';
+import { MANIFEST, serialize } from '@/src/io/state-file/serialize';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import LayoutSelector from '@/src/components/LayoutSelector.vue';
@@ -98,12 +99,20 @@ describe('production Retinal OCT layout', () => {
       const hidden = views
         .getAllViews()
         .filter((view) => !views.layoutViews.includes(view));
-      const state: StateFile = {
-        zip: new JSZip(),
-        manifest: { version: '7.0.0', datasets: [], dataSources: [] },
-      };
-      views.serialize(state);
-      const raw = JSON.parse(JSON.stringify(state.manifest));
+      const saved = await serialize({
+        writers: [
+          (state) => {
+            state.manifest.datasets = [{ id: 'oct', dataSourceId: 1 }];
+            state.manifest.dataSources = [
+              { id: 1, type: 'uri', uri: '/oct.dcm' },
+            ];
+            views.serialize(state);
+          },
+        ],
+        addWarning: () => {},
+      });
+      const zip = await JSZip.loadAsync(saved);
+      const raw = JSON.parse(await zip.file(MANIFEST)!.async('string'));
       if (selection === 'legacy customer') delete raw.currentLayoutName;
       const manifest = ManifestSchema.parse(raw);
       await cleanupCachedImages(decodeReleases);
