@@ -33,7 +33,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .tmp/datasets
-          key: e2e-datasets-${{ hashFiles('tests/datasets.ts', 'src/samples/petCT.ts', 'src/samples/pet-ct-sources.json') }}
+          key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
           restore-keys: e2e-datasets-
       - name: Install xvfb (linux)
         if: matrix.os == 'ubuntu-latest'
