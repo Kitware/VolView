@@ -143,4 +143,41 @@ describe('Display range number steppers', () => {
       maximum
     );
   });
+
+  it('steps large off-image endpoints with buttons and keyboard for base and overlay ranges', async () => {
+    await openRanges([0, 1]);
+    const minimum = 1e16;
+    const maximum = minimum + 100;
+    for (const prefix of ['base-image-range', 'layer-range']) {
+      for (const endpoint of ['min', 'max']) {
+        await setValueVueInput(input(prefix, 'max'), String(maximum));
+        await setValueVueInput(input(prefix, 'min'), String(minimum));
+        await $('header').click();
+        await reversibleStep(prefix, endpoint, 4);
+      }
+    }
+  });
+
+  it('shows tiny Contrast values and preserves full precision when editing the other manual field', async () => {
+    await openRanges([0, 1]);
+    await setValueVueInput(input('base-image-range', 'min'), '0');
+    await setValueVueInput(input('base-image-range', 'max'), '0.0001');
+    await control('base-image-contrast').click();
+    const manual = $('.v-menu.v-overlay--active .manual-inputs');
+    await manual.waitForDisplayed();
+    const fields = await manual.$$('input');
+    await expect(fields[0]).toHaveValue('0.0001');
+    await expect(fields[1]).toHaveValue('0.00005');
+    await setValueVueInput(fields[0], '1.23456789e-8');
+    await setValueVueInput(fields[1], '2.34567891e-8');
+    await browser.keys('Escape');
+    await expectEndpoint('base-image-range', 'min', 1.728394965e-8, 1e-22);
+    await expectEndpoint('base-image-range', 'max', 2.962962855e-8, 1e-22);
+    await control('base-image-contrast').click();
+    await expect(fields[0]).toHaveValue('1.235e-8');
+    await expect(fields[1]).toHaveValue('2.346e-8');
+    await browser.keys('Escape');
+    await expectEndpoint('base-image-range', 'min', 1.728394965e-8, 1e-22);
+    await expectEndpoint('base-image-range', 'max', 2.962962855e-8, 1e-22);
+  });
 });

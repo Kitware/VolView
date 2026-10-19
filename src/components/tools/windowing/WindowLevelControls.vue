@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   useWindowingStore,
@@ -10,8 +10,6 @@ import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { storeToRefs } from 'pinia';
-
-const MIN_VALUE = 0.001;
 
 export default defineComponent({
   props: {
@@ -68,13 +66,14 @@ export default defineComponent({
     const wlWidth = computed(() => wlConfig.value.width ?? 1);
     const wlLevel = computed(() => wlConfig.value.level ?? 0.5);
 
-    const formatForDisplay = (value: number) => {
-      if (Math.abs(value) < MIN_VALUE) return 0;
-      return Math.round(value * 100) / 100;
-    };
+    const widthFocused = ref(false);
+    const levelFocused = ref(false);
+
+    const formatForDisplay = (value: number) => Number(value.toPrecision(4));
 
     const displayWidth = computed({
-      get: () => formatForDisplay(wlWidth.value),
+      get: () =>
+        widthFocused.value ? wlWidth.value : formatForDisplay(wlWidth.value),
       set: (value: number) => {
         const imageID = targetImageID.value;
         const viewID = targetViewID.value;
@@ -90,7 +89,8 @@ export default defineComponent({
     });
 
     const displayLevel = computed({
-      get: () => formatForDisplay(wlLevel.value),
+      get: () =>
+        levelFocused.value ? wlLevel.value : formatForDisplay(wlLevel.value),
       set: (value: number) => {
         const imageID = targetImageID.value;
         const viewID = targetViewID.value;
@@ -163,6 +163,8 @@ export default defineComponent({
       WLAutoRanges,
       displayWidth,
       displayLevel,
+      widthFocused,
+      levelFocused,
     };
   },
 });
@@ -218,6 +220,7 @@ export default defineComponent({
         <div class="manual-inputs">
           <v-text-field
             v-model.number="displayWidth"
+            v-model:focused="widthFocused"
             label="Window"
             type="number"
             variant="underlined"
@@ -226,6 +229,7 @@ export default defineComponent({
           />
           <v-text-field
             v-model.number="displayLevel"
+            v-model:focused="levelFocused"
             label="Level"
             type="number"
             variant="underlined"

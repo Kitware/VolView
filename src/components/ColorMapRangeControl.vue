@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { adjacentNumber } from '@/src/utils/adjacentNumber';
 import { useDevicePixelRatio, useElementSize } from '@vueuse/core';
 import ColorMapSwatch from './ColorMapSwatch.vue';
 import ColorMapHistogram from './ColorMapHistogram.vue';
@@ -64,15 +65,6 @@ const valid = computed(
   () => validRange(props.dataRange) && validRange(props.modelValue)
 );
 
-// Adjacent floating-point values keep even very narrow windows from collapsing.
-const adjacent = (value: number, direction: number) => {
-  if (value === 0) return direction * Number.MIN_VALUE;
-  const view = new DataView(new ArrayBuffer(8));
-  view.setFloat64(0, value);
-  const bits = view.getBigUint64(0);
-  view.setBigUint64(0, bits + BigInt((value > 0 ? 1 : -1) * direction));
-  return view.getFloat64(0);
-};
 const bounds = (
   handle: Handle,
   range: Range = props.modelValue,
@@ -80,8 +72,10 @@ const bounds = (
 ): Range => {
   const [low, high] = domain;
   if (!valid.value) return [0, 0];
-  if (handle === 'min') return [low, Math.min(high, adjacent(range[1], -1))];
-  if (handle === 'max') return [Math.max(low, adjacent(range[0], 1)), high];
+  if (handle === 'min')
+    return [low, Math.min(high, adjacentNumber(range[1], -1))];
+  if (handle === 'max')
+    return [Math.max(low, adjacentNumber(range[0], 1)), high];
   const halfWidth = (range[1] - range[0]) / 2;
   const limit = Number.MAX_VALUE - halfWidth;
   const first = clamp(low + halfWidth, -limit, limit);
@@ -240,7 +234,8 @@ const onKeydown = (event: KeyboardEvent, handle: Handle) => {
   let next = current + (span.value / 100) * direction;
   if (event.key === 'Home') next = low;
   else if (event.key === 'End') next = high;
-  else if (next === current) next = adjacent(current, Math.sign(direction));
+  else if (next === current)
+    next = adjacentNumber(current, Math.sign(direction));
   update(handle, next, props.modelValue);
 };
 onBeforeUnmount(endDrag);

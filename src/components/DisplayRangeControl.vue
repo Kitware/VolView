@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, useId } from 'vue';
+import { adjacentNumber } from '@/src/utils/adjacentNumber';
 import { formatDisplayRange } from '@/src/utils/formatDisplayRange';
 import type { ImageHistogram } from '@/src/store/image-stats';
 import ColorMapRangeControl from './ColorMapRangeControl.vue';
@@ -95,7 +96,13 @@ function steppedRange(endpoint: RangeEndpoint, direction: number) {
   if (props.disabled || rangeError.value) return undefined;
   const index = endpoint === 'min' ? 0 : 1;
   const current = draftRange.value[index];
-  const next = current + direction * inputStep.value;
+  // Width/level reconstruction needs room for rounding at both endpoints.
+  const resolution =
+    2 * Number.EPSILON * Math.max(...props.modelValue.map(Math.abs));
+  const step = Math.max(inputStep.value, resolution);
+  const stepped = current + direction * step;
+  const next =
+    stepped === current ? adjacentNumber(current, direction) : stepped;
   const range: [number, number] = [...props.modelValue];
   range[index] = next;
   if (
