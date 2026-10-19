@@ -146,6 +146,15 @@ export const useWindowingStore = defineStore('windowing', () => {
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
 
+  const getRange = (viewID: string, dataID: string): [number, number] => {
+    const override = getDoubleKeyRecord(autoRangeOverrides, viewID, dataID);
+    if (override) return [...override.FullRange];
+    const stats = imageStatsStore.stats[dataID];
+    return stats?.scalarMin != null && stats.scalarMax != null
+      ? [stats.scalarMin, stats.scalarMax]
+      : [0, 1];
+  };
+
   const updateConfig = (
     viewID: string,
     dataID: string,
@@ -234,6 +243,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     runtimeConfigWindowLevel,
     setAutoRangeValues,
     getConfig,
+    getRange,
     updateConfig,
     resetConfig,
     removeView,

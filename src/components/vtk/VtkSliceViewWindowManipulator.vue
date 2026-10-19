@@ -11,14 +11,13 @@ import vtkMouseRangeManipulator, {
 } from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import type { Vector2 } from '@kitware/vtk.js/types';
-import { syncRef } from '@vueuse/core';
-import { inject, toRefs, computed } from 'vue';
+import { inject, toRefs, computed, watch, onScopeDispose } from 'vue';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
   manipulatorConfig?: IMouseRangeManipulatorInitialValues;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId, imageId, manipulatorConfig } = toRefs(props);
@@ -48,9 +47,10 @@ const { instance: rangeManipulator } = useVtkInteractionManipulator(
 );
 
 const wlConfig = useWindowingConfig(viewId, imageId);
-useResetViewsEvents().onClick(() => {
-  useWindowingStore().resetConfig(imageId.value, viewId.value);
+const resets = useResetViewsEvents().onClick(() => {
+  useWindowingStore().resetConfig(viewId.value, imageId.value);
 });
+onScopeDispose(resets.off);
 
 const computeStep = (range: Vector2) => {
   const diff = range[1] - range[0] || 1;
@@ -58,24 +58,39 @@ const computeStep = (range: Vector2) => {
 };
 const wlStep = computed(() => computeStep(wlConfig.range.value));
 
-const horiz = useMouseRangeManipulatorListener(
-  rangeManipulator,
-  'horizontal',
-  wlConfig.range,
-  wlStep,
-  wlConfig.level.value
-);
-
-const vert = useMouseRangeManipulatorListener(
-  rangeManipulator,
-  'vertical',
-  computed(() => [1e-12, wlConfig.range.value[1] - wlConfig.range.value[0]]),
-  wlStep,
-  wlConfig.width.value
-);
-
-syncRef(horiz, wlConfig.level, { immediate: true });
-syncRef(vert, wlConfig.width, { immediate: true });
+for (const [direction, field] of [
+  ['horizontal', 'level'],
+  ['vertical', 'width'],
+] as const) {
+  const value = useMouseRangeManipulatorListener(
+    rangeManipulator,
+    direction,
+    computed(() =>
+      field === 'level'
+        ? wlConfig.range.value
+        : [
+            1e-12,
+            Math.max(
+              1e-12,
+              wlConfig.range.value[1] - wlConfig.range.value[0] || 1
+            ),
+          ]
+    ),
+    wlStep,
+    wlConfig[field].value,
+    1,
+    () => {
+      wlConfig[field].value = value.value;
+    }
+  );
+  watch(
+    wlConfig[field],
+    (incoming) => {
+      value.value = incoming;
+    },
+    { flush: 'sync' }
+  );
+}
 </script>
 
 <template><slot></slot></template>
