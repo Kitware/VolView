@@ -42,12 +42,7 @@ async function expectPaletteOptions() {
 }
 
 async function captureViewPixels() {
-  const pixels = await capture2DViewScreenshotMetrics('overlay-capture.png');
-  return pixels.map(({ colored, blue, checksum }) => ({
-    colored,
-    blue,
-    checksum,
-  }));
+  return capture2DViewScreenshotMetrics('overlay-capture.png');
 }
 
 async function windowingLabels() {
@@ -117,6 +112,90 @@ async function expectRenderedPixels(
   );
 }
 
+async function openDisplayFixture({
+  preset = 'Cool to Warm',
+  mappingRange = [-2.75, 100.25],
+  opacity = 0.5,
+  transparentBackground = false,
+} = {}) {
+  const display = { preset, mappingRange, opacity, transparentBackground };
+  const base = writeMetaImage('display-base.mha');
+  const overlay = writeMetaImage('display-overlay.mha', { step: 29 });
+  const manifest = 'display-controls.json';
+  await writeManifestToFile(
+    {
+      ...layeredImageManifest(base, overlay),
+      layerDisplay: {
+        'base::overlay': display,
+      },
+    },
+    manifest
+  );
+
+  await openVolViewPage(manifest);
+  const baseCard = $(`.image-list-card*=${base}`);
+  await baseCard.waitForClickable();
+  await baseCard.$('[data-testid="dataset-menu-button"]').click();
+  const showInAllViews = $('.v-list-item*=Show in all views');
+  await showInAllViews.waitForClickable();
+  await showInAllViews.click();
+  await browser.keys('Escape');
+  await openLayerDisplayControls();
+  await $('header').moveTo();
+  await browser.waitUntil(
+    async () => {
+      const pixels = await captureViewPixels();
+      return (
+        pixels.length === 3 && pixels.every(({ colored }) => colored > 1000)
+      );
+    },
+    { timeoutMsg: 'Expected the overlay to render in all three 2D views' }
+  );
+}
+
+async function openEditedDisplayFixture() {
+  await openDisplayFixture({
+    preset: 'DICOM Hot Iron',
+    mappingRange: [0, 255],
+    opacity: 0.6,
+  });
+  const select = $('[data-testid="layer-colormap"]');
+  await select.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await select.click();
+  const option = $('[role="option"]*=Cool to Warm');
+  await option.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await option.waitForClickable();
+  await option.click();
+  await setValueVueInput($('[data-testid="layer-range-min"] input'), '-2.75');
+  await setValueVueInput($('[data-testid="layer-range-max"] input'), '100.25');
+  await browser.execute(() => {
+    document
+      .querySelector<HTMLElement>(
+        '[data-testid="layer-opacity-slider"] [role="slider"]'
+      )!
+      .focus();
+  });
+  await browser.keys('PageDown');
+  await expectDisplaySettings('-2.75', '100.25', '100.3');
+  await $('header').moveTo();
+  await browser.waitUntil(
+    async () => {
+      const pixels = await captureViewPixels();
+      return (
+        pixels.length === 3 &&
+        pixels.every(({ colored, blue }) => colored > 1000 && blue > 0)
+      );
+    },
+    {
+      timeoutMsg: 'Expected the edited Cool to Warm palette in all three views',
+    }
+  );
+  const baseWindowing = await windowingLabels();
+  expect(baseWindowing.every(Boolean)).toBe(true);
+  const appliedPixels = await captureViewPixels();
+  return { baseWindowing, appliedPixels };
+}
+
 describe('Overlay display controls', () => {
   for (const { title, preset } of [
     { title: 'missing', preset: undefined },
@@ -162,7 +241,6 @@ describe('Overlay display controls', () => {
       ).not.toBeChecked();
       await select.scrollIntoView({ block: 'center', behavior: 'instant' });
       await select.click();
-      await expectPaletteOptions();
       await expect($('[role="option"]*=DICOM Hot Iron')).toHaveAttribute(
         'aria-selected',
         'true'
@@ -171,34 +249,13 @@ describe('Overlay display controls', () => {
     });
   }
 
-  it('applies and restores overlay display controls across views and saved sessions', async () => {
-    const base = writeMetaImage('display-base.mha');
-    const overlay = writeMetaImage('display-overlay.mha', { step: 29 });
-    const manifest = 'display-controls.json';
-    await writeManifestToFile(
-      {
-        ...layeredImageManifest(base, overlay),
-        layerDisplay: {
-          'base::overlay': {
-            preset: '2hot',
-            mappingRange: [0, 255],
-            opacity: 1,
-            transparentBackground: true,
-          },
-        },
-      },
-      manifest
-    );
-
-    await openVolViewPage(manifest);
-    const baseCard = $(`.image-list-card*=${base}`);
-    await baseCard.waitForClickable();
-    await baseCard.$('[data-testid="dataset-menu-button"]').click();
-    const showInAllViews = $('.v-list-item*=Show in all views');
-    await showInAllViews.waitForClickable();
-    await showInAllViews.click();
-    await browser.keys('Escape');
-    await openLayerDisplayControls();
+  it('applies palette, opacity and range edits in every view and preserves pixels for invalid drafts', async () => {
+    await openDisplayFixture({
+      preset: '2hot',
+      mappingRange: [0, 255],
+      opacity: 1,
+      transparentBackground: true,
+    });
     const transparent = $('[data-testid="layer-transparent-background"] input');
     await expect(transparent).toBeChecked();
     await browser.waitUntil(
@@ -257,7 +314,6 @@ describe('Overlay display controls', () => {
       async () => (await $$('.Vue-Toastification__toast').length) === 0
     );
     await select.click();
-    await expectPaletteOptions();
     await expect($('[role="option"]*=DICOM Hot Iron')).toHaveAttribute(
       'aria-selected',
       'true'
@@ -283,15 +339,11 @@ describe('Overlay display controls', () => {
       }
     );
 
-    await browser.saveScreenshot(path.join(TEMP_DIR, 'overlay-palette.png'));
     const beforeRange = await captureViewPixels();
     await $('[data-testid="layer-range-min"] input').scrollIntoView({
       block: 'center',
       behavior: 'instant',
     });
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'overlay-before-input.png')
-    );
     await $('[data-testid="layer-range-min"] input').waitForClickable();
     await setValueVueInput($('[data-testid="layer-range-min"] input'), '-2.75');
     await setValueVueInput(
@@ -355,6 +407,57 @@ describe('Overlay display controls', () => {
       $('[data-testid="layer-range-max"] input'),
       '100.25'
     );
+    await setValueVueInput($('[data-testid="layer-range-min"] input'), '0');
+    await setValueVueInput($('[data-testid="layer-range-max"] input'), '255');
+    await $('header').moveTo();
+    await expectAppliedRange('0', '255');
+    await expect($('[data-testid="layer-colormap"]')).toHaveText(
+      expect.stringContaining('Cool to Warm')
+    );
+    await expect(
+      $('[data-testid="layer-opacity-slider"] [role="slider"]')
+    ).toHaveAttribute('aria-valuenow', '0.5');
+    await browser.waitUntil(
+      async () => {
+        const fullRange = await captureViewPixels();
+        return (
+          fullRange.length === 3 &&
+          fullRange.every(({ blue }, index) => blue === beforeRange[index].blue)
+        );
+      },
+      {
+        timeoutMsg:
+          'Expected entering the full image range to restore the colors in all three views',
+      }
+    );
+    await browser.execute(() => {
+      document
+        .querySelector<HTMLElement>('[data-testid="layer-range-max-handle"]')!
+        .focus();
+    });
+    await browser.keys('PageDown');
+    await expectAppliedRange('0', '229.5');
+    await $('header').moveTo();
+    await browser.waitUntil(
+      async () => {
+        const pixels = await captureViewPixels();
+        return (
+          pixels.length === 3 &&
+          pixels.every(({ blue }, index) => blue < beforeRange[index].blue)
+        );
+      },
+      {
+        timeoutMsg:
+          'Expected the range slider to update the overlay immediately in all three views',
+      }
+    );
+    await browser.saveScreenshot(
+      path.join(TEMP_DIR, 'overlay-display-controls.png')
+    );
+  });
+
+  it('disables controls without a 2D view and preserves appearance when replacing layouts', async () => {
+    const { baseWindowing, appliedPixels } = await openEditedDisplayFixture();
     await selectLayout('3D Only', 0, true);
     await expect($('[data-testid="layer-colormap"]')).toBeDisplayed();
     await expect($('[data-testid="layer-colormap"] input')).toBeDisabled();
@@ -404,12 +507,26 @@ describe('Overlay display controls', () => {
           'Expected the edited overlay to render in the replacement axial view',
       }
     );
-    const axialPixels = await captureViewPixels();
     await selectLayout('Four Up', 3, true);
     await expectDisplaySettings('-2.75', '100.25', '100.3');
     expect(await windowingLabels()).toEqual(baseWindowing);
     await expectRenderedPixels(appliedPixels);
+  });
 
+  it('restores global appearance after converting every 2D view and saving a 3D-only session', async () => {
+    const { baseWindowing, appliedPixels } = await openEditedDisplayFixture();
+    await selectLayout('Axial Only', 1, false);
+    await expectDisplaySettings('-2.75', '100.25', '100.3');
+    await browser.waitUntil(
+      async () => {
+        const pixels = await captureViewPixels();
+        return pixels.length === 1 && pixels[0].colored > 1000;
+      },
+      { timeoutMsg: 'Expected the overlay to render in the axial view' }
+    );
+    const axialPixels = await captureViewPixels();
+    await selectLayout('Four Up', 3, true);
+    await expectRenderedPixels(appliedPixels);
     for (let remaining = 2; remaining >= 0; remaining--) {
       const view = (await volViewPage.getViews2D())[0];
       await view.$('.view-type-select').click();
@@ -433,54 +550,19 @@ describe('Overlay display controls', () => {
     expect(await windowingLabels()).toEqual(baseWindowing);
     await expectRenderedPixels(appliedPixels);
 
-    await setValueVueInput($('[data-testid="layer-range-min"] input'), '0');
-    await setValueVueInput($('[data-testid="layer-range-max"] input'), '255');
-    await $('header').moveTo();
-    await expectAppliedRange('0', '255');
-    await expect($('[data-testid="layer-colormap"]')).toHaveText(
-      expect.stringContaining('Cool to Warm')
+    const select = $('[data-testid="layer-colormap"]');
+    await select.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await select.click();
+    await expect($('[role="option"]*=Cool to Warm')).toHaveAttribute(
+      'aria-selected',
+      'true'
     );
-    await expect(
-      $('[data-testid="layer-opacity-slider"] [role="slider"]')
-    ).toHaveAttribute('aria-valuenow', '0.5');
-    await browser.waitUntil(
-      async () => {
-        const fullRange = await captureViewPixels();
-        return (
-          fullRange.length === 3 &&
-          fullRange.every(({ blue }, index) => blue === beforeRange[index].blue)
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected entering the full image range to restore the colors in all three views',
-      }
-    );
-    await browser.execute(() => {
-      document
-        .querySelector<HTMLElement>('[data-testid="layer-range-max-handle"]')!
-        .focus();
-    });
-    await browser.keys('PageDown');
-    await expectAppliedRange('0', '229.5');
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () => {
-        const pixels = await captureViewPixels();
-        return (
-          pixels.length === 3 &&
-          pixels.every(({ blue }, index) => blue < beforeRange[index].blue)
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected the range slider to update the overlay immediately in all three views',
-      }
-    );
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'overlay-display-controls.png')
-    );
+    await browser.keys('Escape');
+  });
 
+  it('preserves transparent background and rendered colors when reopening a session', async () => {
+    await openDisplayFixture({ mappingRange: [0, 229.5] });
+    await expectDisplaySettings('0', '229.5');
     const beforeTransparent = await captureViewPixels();
     const restoredTransparent = $(
       '[data-testid="layer-transparent-background"] input'
@@ -521,12 +603,30 @@ describe('Overlay display controls', () => {
     ).toBeChecked();
     await expectRenderedPixels(transparentPixels);
 
-    const restoredSelect = $('[data-testid="layer-colormap"]');
-    await restoredSelect.scrollIntoView({
+    const select = $('[data-testid="layer-colormap"]');
+    await select.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await select.click();
+    await expect($('[role="option"]*=Cool to Warm')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    await browser.keys('Escape');
+    await browser.saveScreenshot(
+      path.join(TEMP_DIR, 'overlay-transparent-restored.png')
+    );
+  });
+
+  it('offers the curated palette inventory and renders Spring and Winter in every view', async () => {
+    await openDisplayFixture({
+      mappingRange: [0, 229.5],
+      transparentBackground: true,
+    });
+    const select = $('[data-testid="layer-colormap"]');
+    await select.scrollIntoView({
       block: 'center',
       behavior: 'instant',
     });
-    await restoredSelect.click();
+    await select.click();
     await expectPaletteOptions();
     await expect($('[role="option"]*=Cool to Warm')).toHaveAttribute(
       'aria-selected',
@@ -536,7 +636,7 @@ describe('Overlay display controls', () => {
       await browser.keys('Escape');
       await $('header').moveTo();
       const beforePalette = await captureViewPixels();
-      await restoredSelect.click();
+      await select.click();
       const option = $(`[role="option"]*=${title}`);
       await option.scrollIntoView({ block: 'center', behavior: 'instant' });
       await option.waitForClickable();
@@ -544,7 +644,7 @@ describe('Overlay display controls', () => {
         option.$('[data-testid="layer-palette-option-swatch"]')
       ).toBeDisplayed();
       await option.click();
-      await expect(restoredSelect).toHaveText(expect.stringContaining(title));
+      await expect(select).toHaveText(expect.stringContaining(title));
       await $('header').moveTo();
       await browser.waitUntil(
         async () => {
@@ -561,8 +661,7 @@ describe('Overlay display controls', () => {
           timeoutMsg: `Expected ${title} to change colors in all three 2D views`,
         }
       );
-      await restoredSelect.click();
-      await expectPaletteOptions();
+      await select.click();
       await expect($(`[role="option"]*=${title}`)).toHaveAttribute(
         'aria-selected',
         'true'

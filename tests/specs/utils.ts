@@ -25,10 +25,8 @@ async function capture2DViews(
       const context = canvas.getContext('2d')!;
       context.drawImage(image, 0, 0);
       const scaleX = image.width / window.innerWidth;
-      const scaleY = summarize ? image.height / window.innerHeight : scaleX;
-      const selector = summarize
-        ? 'div[data-testid~="vtk-two-view"]'
-        : '[data-testid~="vtk-two-view"]';
+      const scaleY = image.height / window.innerHeight;
+      const selector = '[data-testid~="vtk-two-view"]';
       return Array.from(document.querySelectorAll(selector)).map((view) => {
         const rect = view.getBoundingClientRect();
         const pixels = context.getImageData(

@@ -206,7 +206,8 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function addView(viewInit: ViewInfoInit) {
-    const id = idStore.nextId();
+    let id = idStore.nextId();
+    while (id in viewByID) id = idStore.nextId();
 
     const view = {
       id,
