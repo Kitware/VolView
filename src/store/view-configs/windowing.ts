@@ -43,6 +43,17 @@ export const defaultWindowLevelConfig = () =>
 export const useWindowingStore = defineStore('windowing', () => {
   const configs = reactive<DoubleKeyRecord<WindowLevelConfig>>({});
   const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
+  // Composite renderers keep child config keys within their owner's windowing domain.
+  const viewOwners = new Map<string, { id: string }>();
+
+  const registerViewOwner = (viewID: string, ownerID: string) => {
+    const owner = { id: ownerID };
+    viewOwners.set(viewID, owner);
+    return () => {
+      if (viewOwners.get(viewID) === owner) viewOwners.delete(viewID);
+    };
+  };
+  const getViewOwner = (viewID: string) => viewOwners.get(viewID)?.id;
   // Derived images can have different intensity units from their source volume.
   // These ranges belong to the live rendering and are regenerated after restore.
   const autoRangeOverrides = reactive<DoubleKeyRecord<WindowingAutoRanges>>({});
@@ -241,6 +252,8 @@ export const useWindowingStore = defineStore('windowing', () => {
 
   return {
     runtimeConfigWindowLevel,
+    registerViewOwner,
+    getViewOwner,
     setAutoRangeValues,
     getConfig,
     getRange,

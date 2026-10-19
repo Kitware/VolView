@@ -8,9 +8,15 @@ export function useSyncWindowing() {
   const viewStore = useViewStore();
   let isUpdating = false;
   const isProjection = (id: string) => viewStore.getView(id)?.type === 'EnFace';
+  const getSourceView = (id: string) => {
+    const source = viewStore.getView(id);
+    if (source) return source;
+    const owner = viewStore.getView(windowingStore.getViewOwner(id));
+    return owner?.type === 'Oblique' ? owner : null;
+  };
 
   windowingStore.WindowingUpdateEvent.on((viewID, dataID) => {
-    const sourceView = viewStore.getView(viewID);
+    const sourceView = getSourceView(viewID);
     // Each projection method and slab has its own intensity distribution.
     if (isUpdating || !sourceView || sourceView.type === 'EnFace') return;
     isUpdating = true;

@@ -62,12 +62,22 @@ import useResliceCursorStore from '@/src/store/reslice-cursor';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import { watchEffect } from 'vue';
 
-interface Props {
+type Props = {
   viewId: string;
-}
+};
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const windowingStore = useWindowingStore();
+watchEffect((onCleanup) => {
+  const unregister = ['coronal', 'sagittal', 'axial'].map((axis) =>
+    windowingStore.registerViewOwner(`${props.viewId}-${axis}`, props.viewId)
+  );
+  onCleanup(() => unregister.forEach((remove) => remove()));
+});
 
 const { currentImageID } = useCurrentImage();
 

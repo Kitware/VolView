@@ -33,7 +33,111 @@ function setup() {
   return { views, windowing, raw, rawPeer, projected };
 }
 
+function setupOblique() {
+  const state = setup();
+  state.views.replaceView(state.rawPeer.id, {
+    type: 'Oblique',
+    name: 'Oblique',
+    dataID: 'oct',
+    options: {},
+  });
+  const parent = state.views.layoutViews.find(
+    (view) => view.type === 'Oblique'
+  )!;
+  return { ...state, parent };
+}
+
 describe('raw and projected windowing domains', () => {
+  it.each(['coronal', 'sagittal', 'axial'])(
+    'synchronizes a live Oblique %s child into its parent and source peers',
+    (axis) => {
+      const { windowing, raw, projected, parent } = setupOblique();
+      windowing.updateConfig(raw.id, 'oct', { width: 100, level: 50 }, true);
+      const child = `${parent.id}-${axis}`;
+      windowing.registerViewOwner(child, parent.id);
+      windowing.updateConfig(child, 'oct', { width: 40, level: 25 }, true);
+
+      for (const id of [child, parent.id, raw.id]) {
+        expect(windowing.getConfig(id, 'oct')).toMatchObject({
+          width: 40,
+          level: 25,
+        });
+      }
+      expect(windowing.getConfig(projected.id, 'oct')).toMatchObject({
+        width: 2179,
+        level: 17080,
+      });
+    }
+  );
+
+  it('ignores unknown child origins and late updates from a removed projection', () => {
+    const { views, windowing, raw, rawPeer, projected } = setup();
+    views.replaceView(projected.id, {
+      type: '2D',
+      name: 'Source',
+      dataID: 'oct',
+      options: { orientation: 'Axial' },
+    });
+    windowing.updateConfig(raw.id, 'oct', { width: 100, level: 50 }, true);
+    windowing.registerViewOwner('missing-coronal', 'missing');
+    windowing.registerViewOwner(`${raw.id}-axial`, raw.id);
+
+    for (const id of ['missing-coronal', `${raw.id}-axial`, projected.id]) {
+      windowing.updateConfig(id, 'oct', { width: 40, level: 25 }, true);
+    }
+
+    for (const id of [raw.id, rawPeer.id]) {
+      expect(windowing.getConfig(id, 'oct')).toMatchObject({
+        width: 100,
+        level: 50,
+      });
+    }
+  });
+
+  it('ignores child updates after their Oblique parent is removed', () => {
+    const { views, windowing, raw, parent } = setupOblique();
+    const child = `${parent.id}-coronal`;
+    windowing.registerViewOwner(child, parent.id);
+    views.replaceView(parent.id, {
+      type: '2D',
+      name: 'Source',
+      dataID: 'oct',
+      options: { orientation: 'Coronal' },
+    });
+    windowing.updateConfig(raw.id, 'oct', { width: 100, level: 50 }, true);
+    windowing.updateConfig(child, 'oct', { width: 40, level: 25 }, true);
+
+    expect(windowing.getConfig(raw.id, 'oct')).toMatchObject({
+      width: 100,
+      level: 50,
+    });
+  });
+
+  it('retains current child ownership until its own registration is disposed', () => {
+    const { windowing, raw, parent } = setupOblique();
+    const child = `${parent.id}-coronal`;
+    const removePreviousMount = windowing.registerViewOwner(child, parent.id);
+    const unregister = windowing.registerViewOwner(child, parent.id);
+    removePreviousMount();
+    windowing.updateConfig(child, 'oct', { width: 40, level: 25 }, true);
+    expect(windowing.getConfig(parent.id, 'oct')).toMatchObject({
+      width: 40,
+      level: 25,
+    });
+    windowing.updateConfig(raw.id, 'oct', { width: 100, level: 50 }, true);
+    unregister();
+    windowing.updateConfig(child, 'oct', { width: 40, level: 25 }, true);
+
+    expect(windowing.getConfig(parent.id, 'oct')).toMatchObject({
+      width: 100,
+      level: 50,
+    });
+    expect(windowing.getConfig(raw.id, 'oct')).toMatchObject({
+      width: 100,
+      level: 50,
+    });
+  });
+
   it('synchronizes raw views without overwriting a projection window', () => {
     const { windowing, raw, rawPeer, projected } = setup();
     windowing.updateConfig(raw.id, 'oct', { width: 30000, level: 20000 }, true);

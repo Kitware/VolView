@@ -173,7 +173,7 @@ async function dragEnFaceContrast() {
   )
     await $(WINDOW_TOOL).click();
   const before = await getWindow();
-  await dragContrast(await $(CANVAS).getElement(), 60, 40, 300);
+  await dragContrast(await $(CANVAS).getElement(), 60, 40, { duration: 300 });
   await browser.waitUntil(async () => {
     const after = await getWindow();
     return after.width !== before.width && after.level !== before.level;

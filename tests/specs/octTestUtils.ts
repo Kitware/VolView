@@ -226,12 +226,12 @@ export async function dragContrast(
   canvas: WebdriverIO.Element,
   dx: number,
   dy: number,
-  duration = 100
+  { position = { x: 0.5, y: 0.5 }, duration = 100 } = {}
 ) {
   const location = await canvas.getLocation();
   const size = await canvas.getSize();
-  const x = Math.round(location.x + size.width / 2);
-  const y = Math.round(location.y + size.height / 2);
+  const x = Math.round(location.x + size.width * position.x);
+  const y = Math.round(location.y + size.height * position.y);
   await browser
     .action('pointer')
     .move({ x, y })
