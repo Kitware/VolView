@@ -48,9 +48,18 @@ async function capture2DViews(
             checksum += data[i] + 3 * data[i + 1] + 7 * data[i + 2];
           }
         }
+        let bytes = '';
+        if (!summarize) {
+          // One byte string avoids a separate BiDi value object per channel.
+          for (let offset = 0; offset < pixels.data.length; offset += 32768) {
+            bytes += String.fromCharCode(
+              ...pixels.data.subarray(offset, offset + 32768)
+            );
+          }
+        }
         return {
           width: pixels.width,
-          data: summarize ? [] : Array.from(pixels.data),
+          data: summarize ? '' : btoa(bytes),
           colored,
           blue,
           checksum,
@@ -66,7 +75,7 @@ async function capture2DViews(
 export async function capture2DViewPixels(inset: number, fileName: string) {
   return (await capture2DViews(inset, fileName)).map(({ width, data }) => ({
     width,
-    data,
+    data: Array.from(Buffer.from(data, 'base64')),
   }));
 }
 

@@ -46,8 +46,8 @@ const writeImages = () => {
   );
 };
 
-const captureSlice = async () =>
-  (await capture2DViewPixels(80, 'overlay-opacity-capture.png'))[0].data;
+const captureSlice = async (fileName: string) =>
+  (await capture2DViewPixels(80, fileName))[0].data;
 
 describe('Overlay opacity with segmentation', () => {
   it('keeps segmentation colors continuous when opacity reaches 100%', async () => {
@@ -96,7 +96,7 @@ describe('Overlay opacity with segmentation', () => {
     let background: number[] = [];
     await browser.waitUntil(
       async () => {
-        below = await captureSlice();
+        below = await captureSlice('overlay-opacity-99.png');
         background = [];
         let blue = 0;
         for (let i = 0; i < below.length; i += 4) {
@@ -130,7 +130,7 @@ describe('Overlay opacity with segmentation', () => {
     // 99% frame, even when the controls update before the next render.
     await browser.waitUntil(
       async () => {
-        const full = await captureSlice();
+        const full = await captureSlice('overlay-opacity-100.png');
         return (
           full.length === below.length &&
           background.every(
