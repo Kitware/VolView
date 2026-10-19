@@ -138,6 +138,41 @@ describe('manual En face with real generic image readers', () => {
     expect(getOCTAvailability(id).calibratedAxes).toEqual([true, true, false]);
   });
 
+  it('supports calibrated thickness from per-axis NRRD spacings and units', async () => {
+    const header = [
+      'NRRD0005',
+      'type: unsigned short',
+      'dimension: 3',
+      'sizes: 2 3 2',
+      'spacings: 0.03 0.01 0.2',
+      'units: "mm" "mm" "mm"',
+      'encoding: raw',
+      'endian: little',
+      '',
+      '',
+    ].join('\n');
+    const { id, data } = await load(
+      new File([header, samples], 'axis-units.nrrd')
+    );
+    expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
+    expect(getOCTAvailability(id)).toMatchObject({
+      available: true,
+      calibratedAxes: [true, true, true],
+    });
+    const projection = projectEnFace({
+      volume: projectionVolume(data),
+      axis: 1,
+      method: 'mean',
+      depthStart: 0,
+      depthEnd: 2,
+      segmentation: {
+        dimensions,
+        scalars: new Uint8Array(samples.length).fill(1),
+      },
+    });
+    expect(Array.from(projection.thicknessMicrons!)).toEqual([30, 30, 30, 30]);
+  });
+
   it.each([1, 2, 3, 10])(
     'uses NIfTI normalized millimeters for spatial unit code %i',
     async (units) => {

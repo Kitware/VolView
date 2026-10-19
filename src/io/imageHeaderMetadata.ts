@@ -43,11 +43,13 @@ async function nrrdCalibration(file: File) {
         return match ? [[match[1].trim().toLowerCase(), match[2]]] : [];
       })
   );
+  const directions = fields.get('space directions');
   const units = Array.from(
-    (fields.get('space units') ?? '').matchAll(/"([^"\\]*)"/g),
+    (fields.get(directions ? 'space units' : 'units') ?? '').matchAll(
+      /"([^"\\]*)"/g
+    ),
     (match) => match[1]
   );
-  const directions = fields.get('space directions');
   if (directions) return nrrdDirectionCalibration(directions, units);
   return (fields.get('spacings') ?? '')
     .trim()
