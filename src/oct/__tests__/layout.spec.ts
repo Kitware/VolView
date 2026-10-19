@@ -4,6 +4,8 @@ import { createPinia, setActivePinia } from 'pinia';
 import { createVuetify } from 'vuetify';
 import { VListItem, VSelect } from 'vuetify/components';
 import { nextTick, ref } from 'vue';
+import JSZip from 'jszip';
+import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import LayoutSelector from '@/src/components/LayoutSelector.vue';
@@ -79,6 +81,62 @@ function focusImage(imageID: string) {
 }
 
 describe('production Retinal OCT layout', () => {
+  it.each(['built-in', 'customer', 'legacy customer'])(
+    'restores the %s layout indicator without inferring customer identity from panes',
+    async (selection) => {
+      await loadFixture('oct');
+      focusImage('oct');
+      const views = useViewStore();
+      views.setDataForAllViews('oct');
+      const configureCustomer = () =>
+        useViewStore().setNamedLayoutsFromConfig({
+          [OCT_LAYOUT_NAME]: [['axial'], ['enface']],
+        });
+      configureCustomer();
+      if (selection === 'built-in') applyOCTLayout('oct');
+      else views.switchToNamedLayout(OCT_LAYOUT_NAME);
+      const hidden = views
+        .getAllViews()
+        .filter((view) => !views.layoutViews.includes(view));
+      const state: StateFile = {
+        zip: new JSZip(),
+        manifest: { version: '7.0.0', datasets: [], dataSources: [] },
+      };
+      views.serialize(state);
+      const raw = JSON.parse(JSON.stringify(state.manifest));
+      if (selection === 'legacy customer') delete raw.currentLayoutName;
+      const manifest = ManifestSchema.parse(raw);
+      await cleanupCachedImages(decodeReleases);
+      setActivePinia(createPinia());
+      await loadFixture('restored-oct');
+      configureCustomer();
+      const restored = useViewStore();
+      if (selection === 'legacy customer') applyOCTLayout('restored-oct');
+      restored.deserializeLayout(manifest);
+      restored.bindViewsToData('oct', 'restored-oct', manifest);
+      expect(
+        restored.layoutViews.map(({ type, dataID }) => ({ type, dataID }))
+      ).toEqual([
+        { type: '2D', dataID: 'restored-oct' },
+        { type: 'EnFace', dataID: 'restored-oct' },
+      ]);
+      hidden.forEach(({ id, type }) =>
+        expect(restored.getView(id)?.type).toBe(type)
+      );
+      const wrapper = mountSelector();
+      const builtin = wrapper.get('[data-testid="oct-layout"]');
+      expect(builtin.classes().includes('v-list-item--active')).toBe(
+        selection === 'built-in'
+      );
+      const customer = wrapper
+        .findAll('.v-list-item')
+        .find((item) => item.attributes('data-testid') !== 'oct-layout')!;
+      expect(customer.classes().includes('v-list-item--active')).toBe(
+        selection === 'customer'
+      );
+      expect(Object.keys(restored.namedLayouts)).toEqual([OCT_LAYOUT_NAME]);
+    }
+  );
   it('keeps configuration-disabled En face visible with its reason and guards selection', async () => {
     vi.stubGlobal('visualViewport', null);
     await loadFixture('oct');
