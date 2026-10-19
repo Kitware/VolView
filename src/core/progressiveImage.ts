@@ -67,7 +67,7 @@ export const defaultImageMetadata = (): ImageMetadata => ({
   indexToWorld: mat4.create(),
 });
 
-function metadataFromVtkImageData(
+export function metadataFromVtkImageData(
   imageData: vtkImageData
 ): Omit<ImageMetadata, 'name'> {
   return {
