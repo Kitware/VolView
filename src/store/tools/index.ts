@@ -138,7 +138,7 @@ function teardownTool(tool: Tools) {
 
 export const useToolStore = defineStore('tool', () => {
   const currentTool = ref(Tools.WindowLevel);
-  const toolBeforeTemporaryCrosshairs = ref<Tools>(currentTool.value);
+  const toolBeforeTemporaryCrosshairs = ref<Tools>();
   const { currentImageID } = useCurrentImage('global');
 
   function setCurrentTool(tool: Tools) {
@@ -170,6 +170,7 @@ export const useToolStore = defineStore('tool', () => {
   });
 
   function activateTemporaryCrosshairs() {
+    if (toolBeforeTemporaryCrosshairs.value !== undefined) return;
     if (!isToolAllowedFor(Tools.Crosshairs, activeEffectiveView())) return;
     toolBeforeTemporaryCrosshairs.value = currentTool.value;
     setCurrentTool(Tools.Crosshairs);
@@ -177,8 +178,11 @@ export const useToolStore = defineStore('tool', () => {
   }
 
   function deactivateTemporaryCrosshairs() {
+    const previous = toolBeforeTemporaryCrosshairs.value;
+    if (previous === undefined) return;
+    toolBeforeTemporaryCrosshairs.value = undefined;
     useCrosshairsToolStore().setDragging(false);
-    setCurrentTool(toolBeforeTemporaryCrosshairs.value);
+    setCurrentTool(previous);
   }
 
   watch(

@@ -1,4 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
+import { createVuetify } from 'vuetify';
+import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -80,6 +83,58 @@ function addRegularVolume(flat = false) {
 
 beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => cleanupCachedImages(decodeReleases));
+afterEach(() => vi.unstubAllGlobals());
+enableAutoUnmount(afterEach);
+
+async function crosshairsChord(type: 'keydown' | 'keyup') {
+  const keys = type === 'keydown' ? ['Shift', 'C'] : ['C', 'Shift'];
+  keys.forEach((key) =>
+    window.dispatchEvent(
+      new KeyboardEvent(type, {
+        key,
+        code: key === 'C' ? 'KeyC' : 'ShiftLeft',
+        shiftKey: type === 'keydown' || key === 'C',
+        bubbles: true,
+      })
+    )
+  );
+  await nextTick();
+}
+
+describe('temporary crosshairs in the toolbar', () => {
+  it.each(['denied', 'successful', 'focus change'])(
+    'preserves selection after a %s hold',
+    async (scenario) => {
+      const imageID = await loadOCT();
+      const views = useViewStore();
+      views.setDataForAllViews(imageID);
+      if (scenario === 'denied') activateEnFace(imageID);
+      vi.stubGlobal('visualViewport', null);
+      const toolbar = mount(ControlsStripTools, {
+        attachTo: document.body,
+        global: { plugins: [createVuetify()] },
+      });
+      const initial = scenario === 'focus change' ? 'Ruler' : 'Pan';
+      const button = (name: string) =>
+        toolbar.get('button[data-testid^="control-button-' + name + ' "]');
+      await button(initial).trigger('click');
+      expect(button(initial).classes()).toContain('tool-btn-selected');
+      await crosshairsChord('keydown');
+      expect(
+        button(scenario === 'denied' ? initial : 'Crosshairs').classes()
+      ).toContain('tool-btn-selected');
+      if (scenario === 'focus change') {
+        activateEnFace(imageID);
+        await nextTick();
+        expect(button('Select').classes()).toContain('tool-btn-selected');
+      }
+      await crosshairsChord('keyup');
+      expect(
+        button(scenario === 'focus change' ? 'Select' : initial).classes()
+      ).toContain('tool-btn-selected');
+    }
+  );
+});
 
 describe('En face tool capabilities', () => {
   it.each(Object.values(Tools))(
