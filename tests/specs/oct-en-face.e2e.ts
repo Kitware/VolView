@@ -16,6 +16,8 @@ import {
   slabThumb,
   getEnFaceWindow as getWindow,
   displayedWindow,
+  projectionTransform,
+  expectProjectionTransform,
 } from './octTestUtils';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -146,22 +148,6 @@ async function expectProjectionPixel(gray: number, x = 60, y = 12) {
     {
       timeoutMsg: `Expected en face pixel (${x}, ${y}) to be grayscale ${gray}`,
     }
-  );
-}
-
-async function projectionTransform() {
-  const transform = await $('[data-testid="oct-slice-lines"] > g').getAttribute(
-    'transform'
-  );
-  if (!transform) throw new Error('The projection has no image transform');
-  return transform.slice(7, -1).split(',').map(Number);
-}
-
-async function expectProjectionTransform(expected: number[]) {
-  await browser.waitUntil(async () =>
-    (await projectionTransform()).every(
-      (value, index) => Math.abs(value - expected[index]) < 1e-4
-    )
   );
 }
 

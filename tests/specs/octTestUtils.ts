@@ -379,3 +379,19 @@ export async function expectEnFaceDisabledInSwitcher(reason: string) {
     )
   ).toContain(reason);
 }
+
+export async function projectionTransform() {
+  const transform = await $('[data-testid="oct-slice-lines"] > g').getAttribute(
+    'transform'
+  );
+  if (!transform) throw new Error('The projection has no image transform');
+  return transform.slice(7, -1).split(',').map(Number);
+}
+
+export async function expectProjectionTransform(expected: number[]) {
+  await browser.waitUntil(async () =>
+    (await projectionTransform()).every(
+      (value, index) => Math.abs(value - expected[index]) < 1e-4
+    )
+  );
+}

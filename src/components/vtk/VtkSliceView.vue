@@ -95,6 +95,7 @@ function resetCamera() {
     resetCameraToImage(view, metadata, viewDirection.value, viewUp.value);
     autoFitImage();
   });
+  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
 }
 
 let previousGeometry: { viewId: string; imageId: Maybe<string>; key?: string };
@@ -119,7 +120,6 @@ watchImmediate(
       !noAutoReset
     ) {
       resetCamera();
-      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
     } else if (props.renderGeometry !== undefined && !sameImage) {
       autoFit.autoFit.value = false;
     }
@@ -132,7 +132,7 @@ watchImmediate(
 // saved position must be syncRef'd back first or the slice falls outside
 // the clip volume and the canvas goes black.
 const cameraImageID = computed(() =>
-  props.renderGeometry === undefined ||
+  props.renderGeometry !== null ||
   viewCameraStore.isCameraInitialized(viewID.value, imageID.value)
     ? imageID.value
     : undefined
