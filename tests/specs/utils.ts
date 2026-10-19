@@ -2,87 +2,98 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import JSZip from 'jszip';
+import { PNG } from 'pngjs';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import type { TestDataset } from '../datasets';
 
-async function capture2DViews(
+export async function captureViewPixels(
+  selector: string,
   inset: number,
-  fileName: string,
-  metricsOnly = false
+  fileName: string
 ) {
-  const capture = (
+  const screenshot = PNG.sync.read(
     await browser.saveScreenshot(path.join(TEMP_DIR, fileName))
-  ).toString('base64');
-  return browser.execute(
-    async (png, margin, summarize) => {
-      const image = new Image();
-      image.src = `data:image/png;base64,${png}`;
-      await image.decode();
-      const canvas = document.createElement('canvas');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      const context = canvas.getContext('2d')!;
-      context.drawImage(image, 0, 0);
-      const scaleX = image.width / window.innerWidth;
-      const scaleY = image.height / window.innerHeight;
-      const selector = '[data-testid~="vtk-two-view"]';
-      return Array.from(document.querySelectorAll(selector)).map((view) => {
-        const rect = view.getBoundingClientRect();
-        const pixels = context.getImageData(
-          (rect.x + margin) * scaleX,
-          (rect.y + margin) * scaleY,
-          (rect.width - 2 * margin) * scaleX,
-          (rect.height - 2 * margin) * scaleY
-        );
-        let colored = 0;
-        let blue = 0;
-        let checksum = 0;
-        if (summarize) {
-          const { data } = pixels;
-          for (let i = 0; i < data.length; i += 4) {
-            const channels = [data[i], data[i + 1], data[i + 2]];
-            if (Math.max(...channels) - Math.min(...channels) > 40) colored++;
-            if (data[i + 2] > data[i] + 40 && data[i + 2] > data[i + 1] + 40)
-              blue++;
-            checksum += data[i] + 3 * data[i + 1] + 7 * data[i + 2];
-          }
-        }
-        let bytes = '';
-        if (!summarize) {
-          // One byte string avoids a separate BiDi value object per channel.
-          for (let offset = 0; offset < pixels.data.length; offset += 32768) {
-            bytes += String.fromCharCode(
-              ...pixels.data.subarray(offset, offset + 32768)
-            );
-          }
-        }
-        return {
-          width: pixels.width,
-          data: summarize ? '' : btoa(bytes),
-          colored,
-          blue,
-          checksum,
-        };
-      });
-    },
-    capture,
-    inset,
-    metricsOnly
   );
+  const geometry = await browser.execute(
+    (viewSelector) => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+      views: Array.from(document.querySelectorAll(viewSelector)).map((view) => {
+        const rect = view.getBoundingClientRect();
+        return {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        };
+      }),
+    }),
+    selector
+  );
+  const scaleX = screenshot.width / geometry.width;
+  const scaleY = screenshot.height / geometry.height;
+  return geometry.views.map((rect) => {
+    const x = Math.trunc((rect.x + inset) * scaleX);
+    const y = Math.trunc((rect.y + inset) * scaleY);
+    const width = Math.trunc((rect.width - 2 * inset) * scaleX);
+    const height = Math.trunc((rect.height - 2 * inset) * scaleY);
+    if (
+      width <= 0 ||
+      height <= 0 ||
+      x < 0 ||
+      y < 0 ||
+      x + width > screenshot.width ||
+      y + height > screenshot.height
+    )
+      throw new Error(
+        `Expected a nonempty view crop inside the screenshot: ${selector}`
+      );
+    const data = Buffer.alloc(width * height * 4);
+    for (let row = 0; row < height; row++) {
+      const source = ((y + row) * screenshot.width + x) * 4;
+      screenshot.data.copy(data, row * width * 4, source, source + width * 4);
+    }
+    return { width, data };
+  });
 }
 
 export async function capture2DViewPixels(inset: number, fileName: string) {
-  return (await capture2DViews(inset, fileName)).map(({ width, data }) => ({
+  const views = await captureViewPixels(
+    '[data-testid~="vtk-two-view"]',
+    inset,
+    fileName
+  );
+  return views.map(({ width, data }) => ({
     width,
-    data: Array.from(Buffer.from(data, 'base64')),
+    data: Array.from(data),
   }));
 }
 
 export async function capture2DViewScreenshotMetrics(fileName: string) {
-  return (await capture2DViews(40, fileName, true)).map(
-    ({ colored, blue, checksum }) => ({ colored, blue, checksum })
+  const views = await captureViewPixels(
+    '[data-testid~="vtk-two-view"]',
+    40,
+    fileName
   );
+  return views.map(({ data }) => {
+    let colored = 0;
+    let blue = 0;
+    let checksum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const red = data[i];
+      const green = data[i + 1];
+      const blueChannel = data[i + 2];
+      if (
+        Math.max(red, green, blueChannel) - Math.min(red, green, blueChannel) >
+        40
+      )
+        colored++;
+      if (blueChannel > red + 40 && blueChannel > green + 40) blue++;
+      checksum += red + 3 * green + 7 * blueChannel;
+    }
+    return { colored, blue, checksum };
+  });
 }
 
 export async function waitForModuleTransitions() {

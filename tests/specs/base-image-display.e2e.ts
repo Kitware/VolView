@@ -4,6 +4,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   capture2DViewScreenshotMetrics,
+  captureViewPixels,
   makeTempDir,
   openVolViewPage,
   selectLayout,
@@ -130,27 +131,20 @@ async function selectBasePalette(title: string) {
 }
 
 async function coloredPixels(selector: string) {
-  const png = await $(selector).takeScreenshot();
-  return browser.execute(async (data) => {
-    const image = new Image();
-    image.src = `data:image/png;base64,${data}`;
-    await image.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const context = canvas.getContext('2d')!;
-    context.drawImage(image, 0, 0);
-    const pixels = context.getImageData(0, 0, image.width, image.height).data;
-    let colored = 0;
-    for (let i = 0; i < pixels.length; i += 4)
-      if (
-        Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) -
-          Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) >
-        40
-      )
-        colored++;
-    return colored;
-  }, png);
+  const [{ data }] = await captureViewPixels(
+    selector,
+    0,
+    'base-oblique-capture.png'
+  );
+  let colored = 0;
+  for (let i = 0; i < data.length; i += 4)
+    if (
+      Math.max(data[i], data[i + 1], data[i + 2]) -
+        Math.min(data[i], data[i + 1], data[i + 2]) >
+      40
+    )
+      colored++;
+  return colored;
 }
 
 describe('Base image display range', () => {
