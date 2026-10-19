@@ -13,6 +13,7 @@ import {
   setSlabRange,
   slabThumb,
   getEnFaceWindow as getWindow,
+  displayedWindow,
 } from './octTestUtils';
 import { FIXTURES, TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -72,7 +73,6 @@ async function selectEnFace() {
   await option.waitForClickable();
   await option.click();
   await $(CANVAS).waitForDisplayed();
-  await waitForEnFaceReady();
 }
 
 async function attachMaskThroughDataPanel(file: string) {
@@ -132,36 +132,45 @@ async function setEnFaceWindow(width: number, level: number) {
   await manual[0].waitForDisplayed({ reverse: true });
 }
 
-async function expectProjectionPixel(gray: number) {
+async function expectProjectionPixel(gray: number, x = 60, y = 12) {
   const source = await $(CANVAS).getElement();
   await browser.waitUntil(
     async () => {
-      const pixel = await source.execute((element) => {
-        const canvas = element as HTMLCanvasElement;
-        const transform = document
-          .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
-          .getScreenCTM()!;
-        const center = new DOMPoint(60.5, 12.5).matrixTransform(transform);
-        const bounds = canvas.getBoundingClientRect();
-        const x = Math.floor(
-          ((center.x - bounds.left) * canvas.width) / bounds.width
-        );
-        const y = Math.floor(
-          ((center.y - bounds.top) * canvas.height) / bounds.height
-        );
-        const copy = document.createElement('canvas');
-        copy.width = canvas.width;
-        copy.height = canvas.height;
-        const context = copy.getContext('2d')!;
-        context.drawImage(canvas, 0, 0);
-        return Array.from(context.getImageData(x, y, 1, 1).data);
-      });
+      const pixel = await source.execute(
+        (element, imageX, imageY) => {
+          const canvas = element as HTMLCanvasElement;
+          const transform = document
+            .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+            .getScreenCTM()!;
+          const center = new DOMPoint(
+            imageX + 0.5,
+            imageY + 0.5
+          ).matrixTransform(transform);
+          const bounds = canvas.getBoundingClientRect();
+          const canvasX = Math.floor(
+            ((center.x - bounds.left) * canvas.width) / bounds.width
+          );
+          const canvasY = Math.floor(
+            ((center.y - bounds.top) * canvas.height) / bounds.height
+          );
+          const copy = document.createElement('canvas');
+          copy.width = canvas.width;
+          copy.height = canvas.height;
+          const context = copy.getContext('2d')!;
+          context.drawImage(canvas, 0, 0);
+          return Array.from(context.getImageData(canvasX, canvasY, 1, 1).data);
+        },
+        x,
+        y
+      );
       return (
         pixel[3] === 255 &&
         pixel.slice(0, 3).every((channel) => Math.abs(channel - gray) <= 1)
       );
     },
-    { timeoutMsg: `Expected en face pixel (60, 12) to be grayscale ${gray}` }
+    {
+      timeoutMsg: `Expected en face pixel (${x}, ${y}) to be grayscale ${gray}`,
+    }
   );
 }
 
@@ -208,13 +217,8 @@ async function dragEnFaceContrast() {
 }
 
 async function getOriginalWindow() {
-  const source = (await volViewPage.getViews2D())[0];
-  const match = (await source.getText()).match(
-    /W\/L:\s*([\d.]+)\s*\/\s*([\d.]+)/
-  );
-  if (!match)
-    throw new Error('The original B-scan has no window-level annotation');
-  return { width: Number(match[1]), level: Number(match[2]) };
+  const source = await (await volViewPage.getViews2D())[0].getElement();
+  return displayedWindow(source);
 }
 
 async function expectHighlight(present: boolean) {
@@ -380,7 +384,6 @@ describe('Retinal OCT en face viewing', () => {
     await setEnFaceWindow(1000, 500);
     // Fixed windowing distinguishes the fixture's mean 317, max 538 and sum 70374.
     await expectProjectionPixel(81);
-    const mean = await enFaceAppearance();
     await openControls();
     await expandEnFaceSection('projection');
     await selectSetting('oct-projection-method', 'Maximum');
@@ -398,11 +401,8 @@ describe('Retinal OCT en face viewing', () => {
     await selectSetting('oct-projection-method', 'Mean');
     await setSlabRange(reference.slab.start, reference.slab.end);
     await waitForEnFaceReady();
-    await setEnFaceWindow(1, 202.5);
-    expect(await getWindow()).toEqual({ width: 1, level: 202.5 });
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).image !== mean.image
-    );
+    await expectProjectionPixel(76);
+    await browser.keys('Escape');
     await openControls();
     await expandEnFaceSection('projection');
     await selectSetting('oct-projection-axis', 'X (columns)');
@@ -430,7 +430,16 @@ describe('Retinal OCT en face viewing', () => {
     );
     await openVolViewPage(name);
     await selectEnFace();
+    // Fix the window before requiring bright pixels, including incorrect padding.
+    await setEnFaceWindow(1000, 500);
     await expectCalibratedEnFace();
+    await expectProjectionPixel(0, 5, 12);
+    for (const [index, point] of padded.points.entries())
+      await expectProjectionPixel(
+        Math.round((padded.mean[index] / 1000) * 255),
+        point.x,
+        point.z
+      );
   });
   it('imports deflated OCT through the file dialog with calibrated geometry and padding', async () => {
     const directory = makeTempDir(STEM);
@@ -767,7 +776,7 @@ describe('Retinal OCT en face viewing', () => {
       async () => (await $(SLICE_LINE).getSize()).width !== beforeZoom.width
     );
 
-    // Genuine pointer input through the normal toolbar changes rendered pixels.
+    // Pointer input through the toolbar changes rendered pixels.
     const beforePixels = (await enFaceAppearance()).image;
     await dragEnFaceContrast();
     expect(await $(WINDOW_TOOL).getAttribute('class')).toContain(
@@ -792,7 +801,7 @@ describe('Retinal OCT en face viewing', () => {
       .up()
       .perform();
     await expectSliceLine();
-    // Restore selection and capture the polished comparison with a textured overlay.
+    // Select before capturing the comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
     await openControls();
     await enableHighlight();
@@ -971,6 +980,11 @@ describe('Retinal OCT en face viewing', () => {
         await setSlabRange(reference.slab.start, reference.slab.end);
         await waitForEnFaceReady();
         await browser.keys('Escape');
+        if (format === 'nrrd') {
+          await setEnFaceWindow(1000, 500);
+          // The transposed grid has the same inclusive depth mean at (60, 12).
+          await expectProjectionPixel(76);
+        }
         const saved = await volViewPage.saveSession();
         await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
         await volViewPage.open();

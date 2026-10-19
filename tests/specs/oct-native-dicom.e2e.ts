@@ -13,6 +13,7 @@ import {
   setSlabRange,
   enFaceAppearance,
   waitForEnFaceReady,
+  displayedWindow,
 } from './octTestUtils';
 import {
   openAnnotationSegments,
@@ -31,18 +32,9 @@ const native = JSON.parse(
   spacing: number[];
 };
 
-async function displayedWindow(view: WebdriverIO.Element) {
-  const match = (await view.getText()).match(
-    /W\/L:\s*([\d.]+)\s*\/\s*([\d.]+)/
-  );
-  if (!match) throw new Error('The source view has no window-level annotation');
-  return { width: Number(match[1]), level: Number(match[2]) };
-}
-
 async function canvasImage(view: WebdriverIO.Element) {
   const source = await view.$('canvas').getElement();
-  const { image, visibleChannels } = await canvasAppearance(source);
-  return { image, visiblePixels: visibleChannels };
+  return canvasAppearance(source);
 }
 
 async function openNativeDicom() {
@@ -258,6 +250,7 @@ describe('Public OCT exports', () => {
     );
     const beforeWindow = await displayedWindow(source);
     const beforeImage = await canvasImage(source);
+    // Require over 1000 actual pixels with at least one RGB channel above 20.
     expect(beforeImage.visiblePixels).toBeGreaterThan(1000);
     await $(
       '[data-testid="oct-en-face-viewer"] .view-type-select .v-field'

@@ -136,6 +136,14 @@ export async function expectControlsBesideSelector() {
 
 const CANVAS = '[data-testid="oct-en-face-canvas"]';
 
+export async function displayedWindow(view: WebdriverIO.Element) {
+  const match = (await view.getText()).match(
+    /W\/L:\s*([\d.]+)\s*\/\s*([\d.]+)/
+  );
+  if (!match) throw new Error('The source view has no window-level annotation');
+  return { width: Number(match[1]), level: Number(match[2]) };
+}
+
 export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   const toggle = $('[data-testid="oct-' + section + '-toggle"]');
   await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -229,9 +237,6 @@ export async function canvasAppearance(source: WebdriverIO.Element) {
       image: copy.toDataURL(),
       visiblePixels,
       coloredPixels,
-      visibleChannels: pixels.filter(
-        (value, index) => index % 4 !== 3 && value > 20
-      ).length,
     };
   });
 }
