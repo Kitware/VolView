@@ -151,7 +151,6 @@ export const useWindowingStore = defineStore('windowing', () => {
       autoRangeOverrides[viewID] ??= {};
       autoRangeOverrides[viewID][dataID] = { ...values };
     }
-    WindowingUpdateEvent.trigger(viewID, dataID);
   };
 
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>

@@ -69,15 +69,9 @@ describe('Runtime automatic windows for derived images', () => {
     expect(store.getConfig('a', 'two').width).toBe(1);
   });
 
-  it('rejects invalid ranges and avoids duplicate change events for identical ranges', () => {
+  it('rejects invalid ranges without changing the resolved window', () => {
     const store = useWindowingStore();
-    let count = 0;
-    const listener = store.WindowingUpdateEvent.on(() => {
-      count += 1;
-    });
     store.setAutoRangeValues('derived', 'image', projectedRanges);
-    store.setAutoRangeValues('derived', 'image', { ...projectedRanges });
-    expect(count).toBe(1);
     expect(() =>
       store.setAutoRangeValues('derived', 'image', {
         ...projectedRanges,
@@ -92,9 +86,7 @@ describe('Runtime automatic windows for derived images', () => {
     ).toThrow(/ordered/);
     expect(store.getConfig('derived', 'image').width).toBe(1000);
     store.setAutoRangeValues('derived', 'image', null);
-    expect(count).toBe(2);
     expect(store.getConfig('derived', 'image').width).toBe(1);
-    listener.off();
   });
 
   it('uses a positive automatic window for a constant projection', () => {

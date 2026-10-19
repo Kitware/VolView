@@ -248,7 +248,10 @@ describe('Projection camera persistence', () => {
     const threshold = $('[data-testid="oct-thickness-threshold-input"] input');
     await threshold.scrollIntoView();
     await setValueVueInput(threshold, '6500');
-    await expect($('[data-testid="oct-thin-outline"]')).toBeDisplayed();
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the en face labelmap to be visible' }
+    );
     const inspected = await panAndZoom();
     const saved = await saveScene();
 
@@ -272,7 +275,10 @@ describe('Projection camera persistence', () => {
     );
     await expect(highlight.$('input')).toBeSelected();
     await expect(threshold).toHaveValue('6500');
-    await expect($('[data-testid="oct-thin-outline"]')).toBeDisplayed();
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the en face labelmap to be visible' }
+    );
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

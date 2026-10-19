@@ -11,8 +11,12 @@ export function useEnFaceProjection(
   createWorker = createProjectionWorker
 ) {
   const accepted = shallowRef<{
-    request: ProjectionInput;
     result: ProjectionResult;
+    render: {
+      axis: ProjectionInput['axis'];
+      depthMidpoint: number;
+      spacing: number[];
+    };
   } | null>(null);
   const computing = ref(false);
   const error = ref<string | null>(null);
@@ -35,6 +39,13 @@ export function useEnFaceProjection(
       error.value = null;
       computing.value = !!incoming;
       if (!incoming) return;
+      const render = {
+        axis: incoming.axis,
+        depthMidpoint: (incoming.depthStart + incoming.depthEnd) / 2,
+        spacing: incoming.volume.spacing
+          .filter((_spacing, axis) => axis !== incoming.axis)
+          .map(Math.abs),
+      };
       const fail = (message: string) => {
         if (!active) return;
         error.value = message;
@@ -45,7 +56,7 @@ export function useEnFaceProjection(
         worker = createWorker();
         worker.onmessage = (event: MessageEvent<ProjectionResult>) => {
           if (!active) return;
-          accepted.value = { request: incoming, result: event.data };
+          accepted.value = { result: event.data, render };
           computing.value = false;
           finish();
         };

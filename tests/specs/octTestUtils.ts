@@ -270,10 +270,14 @@ export async function enFaceAppearance() {
   return canvasAppearance(await $(CANVAS).getElement());
 }
 
-export async function enFacePixel(x: number, y: number) {
+export async function enFacePixel(
+  x: number,
+  y: number,
+  framebufferOffset = { x: 0, y: 0 }
+) {
   const source = await $(CANVAS).getElement();
   return source.execute(
-    (element, imageX, imageY) => {
+    (element, imageX, imageY, offset) => {
       const canvas = element as HTMLCanvasElement;
       const transform = document
         .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
@@ -290,15 +294,19 @@ export async function enFacePixel(x: number, y: number) {
       capture.drawImage(canvas, 0, 0);
       return Array.from(
         capture.getImageData(
-          Math.floor(((center.x - bounds.left) * canvas.width) / bounds.width),
-          Math.floor(((center.y - bounds.top) * canvas.height) / bounds.height),
+          Math.floor(((center.x - bounds.left) * canvas.width) / bounds.width) +
+            offset.x,
+          Math.floor(
+            ((center.y - bounds.top) * canvas.height) / bounds.height
+          ) + offset.y,
           1,
           1
         ).data
       );
     },
     x,
-    y
+    y,
+    framebufferOffset
   );
 }
 

@@ -22,12 +22,11 @@ describe('scalar upload precision', () => {
       const values = Float32Array.from([min, max]);
       const plane = prepareScalarPlane(values);
       expect(plane.offset).toBe(offset);
-      expect(plane.scale).toBe(1);
       expect(
         Array.from(plane.scalars, (value) => value + plane.offset)
       ).toEqual(Array.from(values));
       const window = { width: 1e-12, level: values[0] };
-      expect(scalarWindow(window, plane).level).toBe(plane.scalars[0]);
+      expect(scalarWindow(window, plane.offset).level).toBe(plane.scalars[0]);
     }
   );
 
@@ -36,7 +35,7 @@ describe('scalar upload precision', () => {
     const plane = prepareScalarPlane(values);
     expect(plane.offset).toBe(0);
     expect(Array.from(plane.scalars)).toEqual(Array.from(values));
-    expect(scalarWindow({ width: 8, level: 99999996 }, plane)).toEqual({
+    expect(scalarWindow({ width: 8, level: 99999996 }, plane.offset)).toEqual({
       width: 8,
       level: 99999996,
     });

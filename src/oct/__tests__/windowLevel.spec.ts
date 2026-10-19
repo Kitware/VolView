@@ -19,9 +19,8 @@ import { useViewStore } from '@/src/store/views';
 import { useDerivedImageWindowing } from '@/src/composables/useDerivedImageWindowing';
 import { imageWindowRanges } from '@/src/utils/imageWindowing';
 import { projectEnFace } from '@/src/oct/projection';
-import { createThinRegionOverlay } from '@/src/oct/thinRegionOverlay';
+import { createThinRegionMask } from '@/src/oct/projectionMasks';
 import {
-  compositeReferencePixels,
   scalarReferencePixels,
   scalarImageFixture,
 } from './scalarDisplayFixtures';
@@ -416,7 +415,7 @@ describe('Projection histogram windows', () => {
     expect(() => imageWindowRanges([1, Infinity])).toThrow(/finite/);
   });
 });
-describe('En face texture windowing and segment overlay', () => {
+describe('En face windowing and thin-region selection', () => {
   it.each([
     ['native decimal equality', 0.003872, 35, 135.52, false],
     ['slider decimal equality', 0.0039, 13, 50.7, false],
@@ -434,7 +433,7 @@ describe('En face texture windowing and segment overlay', () => {
     ['absent label', 0.003872, 0, 135.52, false],
     ['zero threshold', 0.003872, 35, 0, false],
   ] as const)(
-    'paints calibrated projection pixels for %s',
+    'selects calibrated projection pixels for %s',
     (_, spacing, occupied, thresholdMicrons, highlighted) => {
       const depth = Math.max(2, occupied);
       const dimensions = [3, depth, 1];
@@ -452,43 +451,12 @@ describe('En face texture windowing and segment overlay', () => {
         depthEnd: depth - 1,
         segmentation: { dimensions, scalars: labels },
       });
-      const pixels = new Uint8ClampedArray(12);
-      pixels.set(
-        scalarReferencePixels(result.values, {
-          width: 200,
-          level: 100,
-        })
-      );
-      const overlay = createThinRegionOverlay(result, thresholdMicrons, {
-        color: [0, 255, 0, 255],
-        alpha: 1,
-      });
-      expect(Array.from(overlay)).toEqual([
-        ...(highlighted ? [0, 255, 0, 255] : [0, 0, 0, 0]),
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-      ]);
-      pixels.set(compositeReferencePixels(pixels, overlay));
-      expect(Array.from(pixels)).toEqual([
-        ...(highlighted ? [0, 255, 0, 255] : [128, 128, 128, 255]),
-        128,
-        128,
-        128,
-        255,
-        128,
-        128,
-        128,
-        255,
-      ]);
+      expect(
+        Array.from(createThinRegionMask(result, thresholdMicrons))
+      ).toEqual([Number(highlighted), 0, 0]);
     }
   );
-  it('windows reflectivity before filling while clipping intensities outside the display range', () => {
+  it('windows reflectivity while clipping intensities outside the display range', () => {
     const pixels = new Uint8ClampedArray(5 * 4);
     pixels.set(
       scalarReferencePixels([-20, 0, 50, 100, 120], {
@@ -501,11 +469,8 @@ describe('En face texture windowing and segment overlay', () => {
       255, 255, 255,
     ]);
   });
-  it('paints only present thin A-lines, leaving absent, equal and thick regions unchanged', () => {
-    const gray = Uint8ClampedArray.from({ length: 6 * 4 }, (_, index) =>
-      index % 4 === 3 ? 255 : 100
-    );
-    const overlay = createThinRegionOverlay(
+  it('selects only present thin A-lines, excluding absent, equal and thick regions', () => {
+    const mask = createThinRegionMask(
       scalarImageFixture(new Float32Array(6).fill(100), [
         0,
         20.8,
@@ -514,24 +479,11 @@ describe('En face texture windowing and segment overlay', () => {
         NaN,
         -1,
       ]),
-      31,
-      {
-        color: [35, 215, 190, 255],
-        alpha: 0.3,
-      }
+      31
     );
-    expect(Array.from(overlay.slice(4, 8))).toEqual([35, 215, 190, 77]);
-    expect(
-      overlay.filter((value, index) => index % 4 === 3 && value > 0)
-    ).toHaveLength(1);
-    gray.set(compositeReferencePixels(gray, overlay));
-    expect(Array.from(gray.slice(4, 8))).toEqual([80, 135, 127, 255]);
-    for (const index of [0, 2, 3, 4, 5])
-      expect(Array.from(gray.slice(index * 4, index * 4 + 4))).toEqual([
-        100, 100, 100, 255,
-      ]);
+    expect(Array.from(mask)).toEqual([0, 1, 0, 0, 0, 0]);
   });
-  it('keeps half-channel grayscale and fill within the encoded texture precision', () => {
+  it('keeps half-channel grayscale within the encoded texture precision', () => {
     const pixels = new Uint8ClampedArray(3 * 4);
     pixels.set(
       scalarReferencePixels([0.5 / 255, 1.5 / 255, 2.5 / 255], {
@@ -541,21 +493,6 @@ describe('En face texture windowing and segment overlay', () => {
     );
     expect(Array.from(pixels)).toEqual([
       1, 1, 1, 255, 2, 2, 2, 255, 3, 3, 3, 255,
-    ]);
-    const overlay = createThinRegionOverlay(
-      scalarImageFixture([0.5 / 255, 1.5 / 255, 2.5 / 255], [1, 2, 3]),
-      3,
-      {
-        color: [0, 2, 4, 255],
-        alpha: 0.5,
-      }
-    );
-    expect(Array.from(overlay)).toEqual([
-      0, 2, 4, 128, 0, 2, 4, 128, 0, 0, 0, 0,
-    ]);
-    pixels.set(compositeReferencePixels(pixels, overlay));
-    expect(Array.from(pixels)).toEqual([
-      0, 2, 3, 255, 1, 2, 3, 255, 3, 3, 3, 255,
     ]);
   });
 });

@@ -70,7 +70,7 @@ describe('owned scalar plane geometry', () => {
     const image = plane.imageData.value!;
     const scalars = image.getPointData().getScalars();
 
-    expect(plane.transform.value).toEqual({ offset: 65535, scale: 1 });
+    expect(plane.offset.value).toBe(65535);
     expect(Array.from(scalars.getData())).toEqual([0, 0]);
     expect(scalars.getData()).toBeInstanceOf(Float32Array);
     expect((scalars.getData() as Float32Array).buffer).not.toBe(values.buffer);
@@ -80,7 +80,7 @@ describe('owned scalar plane geometry', () => {
     input.value = makePlane(2, 1, [1, 1], Float32Array.from([1, 5]));
     expect(plane.imageData.value).toBe(image);
     expect(image.getPointData().getScalars()).toBe(scalars);
-    expect(plane.transform.value).toEqual({ offset: 0, scale: 1 });
+    expect(plane.offset.value).toBe(0);
     expect(Array.from(scalars.getData())).toEqual([1, 5]);
 
     input.value = null;

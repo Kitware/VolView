@@ -1,18 +1,11 @@
 <script setup lang="ts">
-import {
-  computed,
-  onScopeDispose,
-  reactive,
-  ref,
-  toRefs,
-  watch,
-  watchPostEffect,
-} from 'vue';
+import { computed, onScopeDispose, ref, toRefs, watchPostEffect } from 'vue';
 import { useDerivedImageWindowing } from '@/src/composables/useDerivedImageWindowing';
 import { imageWindowRanges } from '@/src/utils/imageWindowing';
 import { useScalarImagePlane } from '@/src/core/vtk/useScalarImagePlane';
 import { useEnFaceProjection } from './useEnFaceProjection';
-import { createThinRegionOverlay } from './thinRegionOverlay';
+import { useEnFaceInput } from './useEnFaceInput';
+import VtkEnFaceLabelmapRepresentation from './VtkEnFaceLabelmapRepresentation.vue';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
@@ -23,200 +16,37 @@ import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import type { VtkViewApi } from '@/src/types/vtk-types';
 import { useThinRegionAppearance } from './useThinRegionAppearance';
-import { thicknessSliderMaximum, thinRegionOutlinePath } from './thickness';
+import { thicknessSliderMaximum } from './thickness';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
-import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { useSegmentationStore } from '@/src/segmentation/store';
-import { useSegmentStore } from '@/src/segmentation/segments';
-import { extentSize } from '@/src/segmentation/geometry';
 import EnFaceControls from './EnFaceControls.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
-import { getOCTAvailability } from './availability';
-import { defaultOCTViewConfig, useOCTViewStore } from './store';
-import type { ProjectionInput } from './types';
 
 const props = defineProps<{ viewId: string }>();
 const { viewId } = toRefs(props);
+const { source, settings, controls, request, retry } = useEnFaceInput(viewId);
 const {
   currentImageID,
-  currentImageData,
   currentImageMetadata,
   isImageLoading: sourceLoading,
-} = useCurrentImage();
-const segmentationStore = useSegmentationStore();
-const segmentsRegistry = useSegmentStore().segments;
-const octStore = useOCTViewStore();
-const emptySettings = reactive(defaultOCTViewConfig());
-const settings = computed(() =>
-  currentImageID.value
-    ? octStore.configFor(viewId.value, currentImageID.value)
-    : emptySettings
-);
-const availability = computed(() => getOCTAvailability(currentImageID.value));
-const projectionReason = computed(() => availability.value.reason);
-const dimensions = computed(
-  () => currentImageData.value?.getDimensions() ?? [1, 1, 1]
-);
-const depthMaximum = computed(() =>
-  Math.max(0, dimensions.value[settings.value.axis] - 1)
-);
-const depthStart = computed(() =>
-  Math.min(depthMaximum.value, Math.max(0, settings.value.depthStart))
-);
-const depthEnd = computed(() =>
-  Math.max(
-    depthStart.value,
-    Math.min(depthMaximum.value, settings.value.depthEnd ?? depthMaximum.value)
-  )
-);
-
-const segmentOptions = computed(() => {
-  if (!currentImageID.value) return [];
-  return segmentationStore.boundMaskIds(currentImageID.value).map((maskId) => {
-    const mask = segmentationStore.getMask(maskId);
-    const appearance = segmentsRegistry.appearanceOf(mask.segmentId);
-    return {
-      value: maskId,
-      title: appearance.displayName,
-      color: appearance.cssColor,
-    };
-  });
-});
-watch(
-  [settings, segmentOptions],
-  ([config, options]) => {
-    if (!options.some((option) => option.value === config.selectedMaskId)) {
-      if (config.selectedMaskId) config.highlightThin = false;
-      config.selectedMaskId = options[0]?.value ?? null;
-    }
-  },
-  { immediate: true }
-);
-const selectedBinding = computed(() =>
-  settings.value.selectedMaskId
-    ? segmentationStore.findMaskBinding(settings.value.selectedMaskId)
-    : undefined
-);
-const segmentationReason = computed(
-  () =>
-    projectionReason.value ||
-    (!segmentOptions.value.length
-      ? 'Load or create a segmentation mask associated with this OCT volume.'
-      : null)
-);
-const volumeRevision = ref(0);
-const maskRevision = ref(0);
-function arraysNear(left: ArrayLike<number>, right: ArrayLike<number>) {
-  return (
-    left.length === right.length &&
-    Array.from(left).every(
-      (value, index) => Math.abs(value - right[index]) < 1e-5
-    )
-  );
-}
-const maskGeometryReason = computed(() => {
-  void volumeRevision.value;
-  void maskRevision.value;
-  const binding = selectedBinding.value;
-  const parent = currentImageData.value;
-  if (!binding || !parent) return null;
-  const extent = binding.extent;
-  const validExtent = extent.every(
-    (value, index) =>
-      Number.isInteger(value) &&
-      value >= 0 &&
-      value < dimensions.value[Math.floor(index / 2)]
-  );
-  const gridMatches =
-    arraysNear(binding.image.getDimensions(), extentSize(extent)) &&
-    arraysNear(binding.image.getSpacing(), parent.getSpacing()) &&
-    arraysNear(binding.image.getDirection(), parent.getDirection());
-  const originMatches = arraysNear(
-    binding.image.getOrigin(),
-    parent.indexToWorld([extent[0], extent[2], extent[4]])
-  );
-  return validExtent && gridMatches && originMatches
-    ? null
-    : 'This segmentation mask does not match the OCT voxel grid; align it to the volume before measuring thickness.';
-});
-const highlightEligibilityReason = computed(
-  () =>
-    segmentationReason.value ||
-    (!availability.value.calibratedAxes[settings.value.axis]
-      ? 'Physical units or spacing for this A-line axis are unavailable; thickness in micrometers is unavailable.'
-      : null)
-);
-const thicknessReason = computed(
-  () => highlightEligibilityReason.value || maskGeometryReason.value
-);
-
+} = source;
 const highlightAppearance = useThinRegionAppearance(
   computed(() => settings.value.selectedMaskId)
 );
 const highlightReason = computed(
-  () => thicknessReason.value || highlightAppearance.value?.reason || null
+  () =>
+    controls.value.thicknessReason || highlightAppearance.value?.reason || null
 );
-
-// Scalar and mask storage can change in place during streaming or segmentation editing.
-const volumeScalars = computed(() =>
-  currentImageData.value?.getPointData().getScalars()
-);
-const maskImage = computed(() => selectedBinding.value?.image);
-onVTKEvent(currentImageData, 'onModified', () => {
-  volumeRevision.value += 1;
-});
-onVTKEvent(volumeScalars, 'onModified', () => {
-  volumeRevision.value += 1;
-});
-onVTKEvent(maskImage, 'onModified', () => {
-  maskRevision.value += 1;
-});
-
-const retry = ref(0);
-const projectionRequest = computed(() => {
-  // Track VTK events even though the underlying arrays are intentionally raw.
-  void volumeRevision.value;
-  void maskRevision.value;
-  void retry.value;
-  if (projectionReason.value || !currentImageData.value || !volumeScalars.value)
-    return null;
-  const request: ProjectionInput = {
-    volume: {
-      scalars: volumeScalars.value.getData(),
-      dimensions: [...dimensions.value],
-      spacing: currentImageData.value.getSpacing().map(Math.abs),
-      numberOfComponents: volumeScalars.value.getNumberOfComponents(),
-      paddingRanges: availability.value.paddingRanges,
-    },
-    axis: settings.value.axis,
-    method: settings.value.method,
-    depthStart: depthStart.value,
-    depthEnd: depthEnd.value,
-  };
-  const binding = selectedBinding.value;
-  if (binding && !thicknessReason.value) {
-    const scalars = binding.image.getPointData().getScalars();
-    request.segmentation = {
-      scalars: scalars.getData(),
-      dimensions: [...binding.image.getDimensions()],
-      extent: [...binding.extent],
-      numberOfComponents: scalars.getNumberOfComponents(),
-    };
-  }
-  return request;
-});
 
 const {
   accepted,
   computing,
   error: projectionError,
-} = useEnFaceProjection(projectionRequest);
+} = useEnFaceProjection(request);
 const projection = computed(() => accepted.value?.result ?? null);
-const renderedRequest = computed(() => accepted.value?.request ?? null);
+const renderedGeometry = computed(() => accepted.value?.render ?? null);
 const thresholdMaximum = computed(() =>
   thicknessSliderMaximum(projection.value)
 );
@@ -246,70 +76,48 @@ watchPostEffect(() => {
 const sliceLines = useEnFaceSliceLines(
   viewId,
   currentImageID,
-  computed(() => renderedRequest.value?.axis ?? settings.value.axis),
-  computed(() =>
-    renderedRequest.value
-      ? (renderedRequest.value.depthStart + renderedRequest.value.depthEnd) / 2
-      : 0
-  )
+  computed(() => renderedGeometry.value?.axis ?? settings.value.axis),
+  computed(() => renderedGeometry.value?.depthMidpoint ?? 0)
 );
 
-const highlightOutline = computed(() => {
-  const result = projection.value;
-  const appearance = highlightAppearance.value;
-  return result &&
-    settings.value.highlightThin &&
-    !highlightReason.value &&
-    appearance &&
-    appearance.outlineWidth > 0 &&
-    appearance.outlineOpacity > 0
-    ? thinRegionOutlinePath(result, settings.value.thresholdMicrons)
-    : '';
-});
 const projectionPlane = computed(() => {
   const result = projection.value;
-  const request = renderedRequest.value;
-  if (!result || !request) return null;
-  const axes = [0, 1, 2].filter((axis) => axis !== request.axis);
+  const geometry = renderedGeometry.value;
+  if (!result || !geometry) return null;
   return {
     width: result.width,
     height: result.height,
-    spacing: axes.map((axis) => Math.abs(request.volume.spacing[axis])),
+    spacing: geometry.spacing,
     values: result.values,
   };
 });
 const {
   imageData: planeImage,
   metadata: planeGeometry,
-  transform: scalarTransform,
+  offset: scalarOffset,
 } = useScalarImagePlane(projectionPlane);
-const geometryKey = computed(() => {
+const renderGeometry = computed(() => {
   const plane = projectionPlane.value;
-  return plane
-    ? [
-        renderedRequest.value!.axis,
-        plane.width,
-        plane.height,
-        ...plane.spacing,
-      ].join(',')
-    : '';
+  return {
+    metadata: planeGeometry.value,
+    fitKey: plane
+      ? [
+          renderedGeometry.value!.axis,
+          plane.width,
+          plane.height,
+          ...plane.spacing,
+        ].join(',')
+      : '',
+  };
 });
-const overlayPixels = computed(() => {
-  const result = projection.value;
-  if (!result) return null;
-  const appearance =
-    settings.value.highlightThin && !highlightReason.value
-      ? highlightAppearance.value
-      : null;
-  return createThinRegionOverlay(
-    result,
-    settings.value.thresholdMicrons,
-    appearance
-  );
-});
+const labelmapAppearance = computed(() =>
+  settings.value.highlightThin && !highlightReason.value
+    ? highlightAppearance.value
+    : null
+);
 const stateMessage = computed(
   () =>
-    projectionReason.value ||
+    controls.value.projectionReason ||
     projectionError.value ||
     (computing.value ? 'Generating en face projection…' : null)
 );
@@ -334,8 +142,7 @@ const stateMessage = computed(
       class="projection-view"
       :view-id="viewId"
       :image-id="currentImageID"
-      :render-geometry="planeGeometry"
-      :geometry-key="geometryKey"
+      :render-geometry="renderGeometry"
       view-direction="Superior"
       view-up="Anterior"
       zoom-on-scroll
@@ -349,8 +156,7 @@ const stateMessage = computed(
       <VtkImagePlaneRepresentation
         :image-data="planeImage"
         :window="windowConfig"
-        :scalar-transform="scalarTransform"
-        :overlay-pixels="overlayPixels"
+        :scalar-offset="scalarOffset"
         v-slot="{ imageTransform }"
       >
         <svg
@@ -359,17 +165,6 @@ const stateMessage = computed(
           data-testid="oct-slice-lines"
         >
           <g :transform="imageTransform">
-            <path
-              v-if="highlightOutline && highlightAppearance"
-              :d="highlightOutline"
-              fill="none"
-              :stroke="`rgb(${highlightAppearance.color.slice(0, 3).join(',')})`"
-              :stroke-opacity="highlightAppearance.outlineOpacity"
-              :stroke-width="highlightAppearance.outlineWidth"
-              stroke-linecap="square"
-              vector-effect="non-scaling-stroke"
-              data-testid="oct-thin-outline"
-            />
             <line
               v-for="line in sliceLines"
               :key="line.viewId"
@@ -380,12 +175,18 @@ const stateMessage = computed(
           </g>
         </svg>
       </VtkImagePlaneRepresentation>
+      <VtkEnFaceLabelmapRepresentation
+        :image-data="planeImage"
+        :projection="projection"
+        :threshold="settings.thresholdMicrons"
+        :appearance="labelmapAppearance"
+      />
     </VtkSliceView>
     <EnFaceStatus
       :message="stateMessage"
       :ready="!!projection"
-      :retryable="!!projectionError && !projectionReason"
-      @retry="retry += 1"
+      :retryable="!!projectionError && !controls.projectionReason"
+      @retry="retry"
     />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
@@ -423,13 +224,13 @@ const stateMessage = computed(
             <EnFaceControls
               :settings="settings"
               @patch="Object.assign(settings, $event)"
-              :depth-maximum="depthMaximum"
+              :depth-maximum="controls.depthMaximum"
               :threshold-maximum="thresholdMaximum"
-              :projection-reason="projectionReason"
-              :segmentation-reason="segmentationReason"
+              :projection-reason="controls.projectionReason"
+              :segmentation-reason="controls.segmentationReason"
               :thickness-reason="highlightReason || stateMessage"
-              :highlight-reason="highlightEligibilityReason"
-              :segments="segmentOptions"
+              :highlight-reason="controls.highlightEligibilityReason"
+              :segments="controls.segmentOptions"
             />
           </v-menu>
           <ViewTypeSwitcher

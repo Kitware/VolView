@@ -29,8 +29,7 @@ type Props = {
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
-  renderGeometry?: ImageMetadata | null;
-  geometryKey?: string;
+  renderGeometry?: { metadata: ImageMetadata | null; fitKey: string };
   zoomOnScroll?: boolean;
 };
 
@@ -50,7 +49,7 @@ const { metadata: sourceMetadata } = useImage(imageID);
 const imageMetadata = computed(() =>
   props.renderGeometry === undefined
     ? sourceMetadata.value
-    : props.renderGeometry
+    : props.renderGeometry.metadata
 );
 
 // use a detached scope so that actors can be removed from
@@ -107,7 +106,7 @@ watchImmediate(
     imageID,
     disableCameraAutoReset,
     imageMetadata,
-    () => props.geometryKey,
+    () => props.renderGeometry?.fitKey,
   ],
   ([viewID_, imageID_, noAutoReset, metadata, geometryKey]) => {
     if (!metadata) return;
@@ -132,7 +131,7 @@ watchImmediate(
 // saved position must be syncRef'd back first or the slice falls outside
 // the clip volume and the canvas goes black.
 const cameraImageID = computed(() =>
-  props.renderGeometry !== null ||
+  props.renderGeometry?.metadata !== null ||
   viewCameraStore.isCameraInitialized(viewID.value, imageID.value)
     ? imageID.value
     : undefined

@@ -187,9 +187,42 @@ async function getOriginalWindow() {
 
 async function expectHighlight(present: boolean) {
   await waitForEnFaceReady();
-  const outline = $('[data-testid="oct-thin-outline"]');
-  if (present) await expect(outline).toBeDisplayed();
-  else await expect(outline).not.toExist();
+  await browser.waitUntil(
+    async () => {
+      const { coloredPixels } = await enFaceAppearance();
+      return present ? coloredPixels > 100 : coloredPixels === 0;
+    },
+    {
+      timeoutMsg: `Expected en face highlight to be ${present ? 'visible' : 'hidden'}`,
+    }
+  );
+}
+
+async function openHighlightedSegmentationDisplay() {
+  await openControls();
+  await enableHighlight();
+  await setThicknessThreshold(31);
+  await expectHighlight(true);
+  await browser.keys('Escape');
+  await openAnnotationSegments();
+  const display = $('[data-testid="segment-display-section"]');
+  if ((await display.getAttribute('aria-expanded')) !== 'true')
+    await display.click();
+}
+
+async function setDisplaySlider(name: string, value: number) {
+  const slider = $(
+    '[data-testid="segment-list"] [role="slider"][aria-label="' + name + '"]'
+  );
+  await slider.scrollIntoView({ block: 'center' });
+  await slider.waitForStable();
+  await slider.click();
+  const step = name === 'Outline Thickness' ? 1 : 0.01;
+  const keys = browser.action('key').down(Key.Home).up(Key.Home);
+  for (let i = 0; i < Math.round(value / step); i++)
+    keys.down(Key.ArrowRight).up(Key.ArrowRight);
+  await keys.perform();
+  await expect(slider).toHaveAttribute('aria-valuenow', String(value));
 }
 
 async function expectCalibratedEnFace() {
@@ -428,7 +461,7 @@ describe('Retinal OCT en face viewing', () => {
     }
   });
 
-  it('renders a DICOM volume containing declared padding', async () => {
+  it('keeps declared padding black across window extremes with label outlines enabled and hidden', async () => {
     const name = STEM + '/retina-padding.dcm';
     const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(
@@ -447,6 +480,54 @@ describe('Retinal OCT en face viewing', () => {
         point.x,
         point.z
       );
+
+    await attachMaskThroughDataPanel(stageFixture('synthetic-thickness.nrrd'));
+    await openAnnotationSegments();
+    await waitForSegmentContent('Synthetic retinal band');
+    await selectSegment('Synthetic retinal band');
+    await openHighlightedSegmentationDisplay();
+    await setDisplaySlider('Fill Opacity', 0);
+    await setDisplaySlider('Outline Thickness', 10);
+
+    for (const [level, gray] of [
+      [-1000, 255],
+      [1000, 0],
+    ]) {
+      await setEnFaceWindow(1, level);
+      await expectProjectionPixel(gray, 60, 12);
+      for (const highlighted of [true, false]) {
+        await openControls();
+        await expandEnFaceSection('thickness');
+        const input = $('[data-testid="oct-thin-highlight"] input');
+        if ((await input.isSelected()) !== highlighted)
+          await $('[data-testid="oct-thin-highlight"] label').click();
+        await browser.keys('Escape');
+        await browser.waitUntil(async () => {
+          const { coloredPixels } = await enFaceAppearance();
+          return highlighted ? coloredPixels > 100 : coloredPixels === 0;
+        });
+        await expectProjectionPixel(0, 5, 12);
+        await expectProjectionPixel(0, 0, 0);
+        await expectProjectionPixel(gray, 20, 12);
+        // The missing column is an internal hole: its neighboring label gets an outline,
+        // while the missing column itself stays black even when the scalar maps to white.
+        await browser.waitUntil(
+          async () => {
+            const pixel = await enFacePixel(4.5, 12, { x: -2, y: 0 });
+            const expected = highlighted
+              ? [255, 0, 0, 255]
+              : [gray, gray, gray, 255];
+            return pixel.every(
+              (channel, index) => Math.abs(channel - expected[index]) <= 1
+            );
+          },
+          {
+            timeoutMsg:
+              'Expected the label outline to surround opaque black padding',
+          }
+        );
+      }
+    }
   });
   it('imports deflated OCT through the file dialog with calibrated geometry and padding', async () => {
     const directory = makeTempDir(STEM);
@@ -471,9 +552,25 @@ describe('Retinal OCT en face viewing', () => {
     await enableHighlight();
     await setThicknessThreshold(31);
     await expectHighlight(true);
-    const thinOutline = await $(
-      '[data-testid="oct-thin-outline"]'
-    ).getAttribute('d');
+    const expectThinColumns = async () => {
+      await browser.waitUntil(
+        async () => {
+          const thin = await enFacePixel(20, 12);
+          const thick = await enFacePixel(60, 12);
+          const absent = await enFacePixel(100, 12);
+          return (
+            thin[0] > thin[1] + 20 &&
+            thick[0] === thick[1] &&
+            absent[0] === absent[1]
+          );
+        },
+        {
+          timeoutMsg:
+            'Only positive thickness below the threshold should be highlighted',
+        }
+      );
+    };
+    await expectThinColumns();
     const slider = $('[data-testid="oct-thickness-threshold"] [role="slider"]');
     await $(THRESHOLD).click();
     await browser.keys('Tab');
@@ -491,17 +588,11 @@ describe('Retinal OCT en face viewing', () => {
     await expectHighlight(false);
     await setThicknessThreshold(31);
     await expectHighlight(true);
-    await expect($('[data-testid="oct-thin-outline"]')).toHaveAttribute(
-      'd',
-      thinOutline!
-    );
+    await expectThinColumns();
     await expandEnFaceSection('projection');
     await setSlabRange(0, 10);
     await expectHighlight(true);
-    await expect($('[data-testid="oct-thin-outline"]')).toHaveAttribute(
-      'd',
-      thinOutline!
-    );
+    await expectThinColumns();
     await selectSetting(
       'oct-segmentation-segment',
       'Alternative synthetic band'
@@ -1127,71 +1218,75 @@ describe('Retinal OCT en face viewing', () => {
     await expectEnFaceDisabledInSwitcher('spatial reconstruction');
   });
 
-  it('renders below-threshold outlines with the normal segmentation fill, outline and visibility controls', async () => {
+  it('renders below-threshold labels with normal fill, outline and visibility controls', async () => {
     await openRetina(true);
-    const unhighlighted = (await enFaceAppearance()).image;
-    await enableHighlight();
-    await setThicknessThreshold(31);
-    await expectHighlight(true);
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).coloredPixels > 100
-    );
-    await browser.keys('Escape');
-    const outline = () => $('[data-testid="oct-thin-outline"]');
-    await expect(outline()).toBeDisplayed();
-    const shape = await outline().execute((element) => {
-      const bounds = (element as unknown as SVGGraphicsElement).getBBox();
-      const style = getComputedStyle(element);
-      return {
-        x: bounds.x,
-        width: bounds.width,
-        color: style.stroke,
-        vectorEffect: style.vectorEffect,
-      };
-    });
-    expect(shape).toEqual({
-      x: 0,
-      width: reference.thinColumns / reference.size[2],
-      color: 'rgb(255, 0, 0)',
-      vectorEffect: 'non-scaling-stroke',
-    });
-    await openAnnotationSegments();
-    const display = $('[data-testid="segment-display-section"]');
-    if ((await display.getAttribute('aria-expanded')) !== 'true')
-      await display.click();
-    const setDisplaySlider = async (name: string, key: 'Home' | 'End') => {
-      const slider = $(
-        '[data-testid="segment-list"] [role="slider"][aria-label="' +
-          name +
-          '"]'
-      );
-      await slider.scrollIntoView({ block: 'center' });
-      await slider.waitForStable();
-      await slider.click();
-      await browser.keys(key);
+    await setEnFaceWindow(1000, 500);
+    await expectProjectionPixel(81);
+    const interior = () => enFacePixel(20, 12);
+    const boundary = () => enFacePixel(42.5, 12, { x: -2, y: 0 });
+    const innerBoundary = () => enFacePixel(42.5, 12, { x: -12, y: 0 });
+    const scanEdge = () => enFacePixel(-0.5, 12, { x: 2, y: 0 });
+    const outside = () => enFacePixel(60, 12);
+    const baseline = {
+      interior: await interior(),
+      boundary: await boundary(),
+      innerBoundary: await innerBoundary(),
+      scanEdge: await scanEdge(),
+      outside: await outside(),
     };
-    await setDisplaySlider('Fill Opacity', 'Home');
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).image === unhighlighted
-    );
-    await expect(outline()).toBeDisplayed();
-    await expectHighlight(true);
-    await setDisplaySlider('Outline Opacity', 'Home');
-    await expect(outline()).not.toExist();
-    await setDisplaySlider('Outline Opacity', 'End');
-    await expect(outline()).toBeDisplayed();
-    await setDisplaySlider('Outline Thickness', 'End');
-    await expect(outline()).toHaveAttribute('stroke-width', '10');
-    await setDisplaySlider('Outline Thickness', 'Home');
-    await expect(outline()).not.toExist();
-    await setDisplaySlider('Outline Thickness', 'End');
-    await expect(outline()).toBeDisplayed();
+    const expectPixel = async (
+      sample: () => Promise<number[]>,
+      expected: number[]
+    ) =>
+      browser.waitUntil(
+        async () =>
+          (await sample()).every(
+            (channel, index) => Math.abs(channel - expected[index]) <= 2
+          ),
+        { timeoutMsg: `Expected rendered label pixel ${expected.join(',')}` }
+      );
+    const red = (background: number[], alpha: number) =>
+      background.map((channel, index) =>
+        index === 3
+          ? 255
+          : Math.round(channel * (1 - alpha) + (index === 0 ? 255 : 0) * alpha)
+      );
+    await openHighlightedSegmentationDisplay();
+
+    await setDisplaySlider('Outline Thickness', 10);
+    await setDisplaySlider('Fill Opacity', 0);
+    await expectPixel(boundary, [255, 0, 0, 255]);
+    await expectPixel(interior, baseline.interior);
+    await expectPixel(innerBoundary, baseline.innerBoundary);
+    await expectPixel(outside, baseline.outside);
+    // Standard label outlines stay inside the label and do not invent scan-edge background.
+    await expectPixel(scanEdge, baseline.scanEdge);
+    expect((await enFaceAppearance()).coloredPixels).toBeGreaterThan(100);
+
+    await setDisplaySlider('Fill Opacity', 0.5);
+    await setDisplaySlider('Outline Opacity', 0.5);
+    await expectPixel(interior, red(baseline.interior, 0.5));
+    await expectPixel(boundary, red(baseline.boundary, 0.5));
+    await expectPixel(outside, baseline.outside);
+
+    await setDisplaySlider('Outline Opacity', 0);
+    await expectPixel(boundary, baseline.boundary);
+    await expectPixel(interior, red(baseline.interior, 0.5));
+    await setDisplaySlider('Outline Thickness', 0);
+    await expectPixel(boundary, red(baseline.boundary, 0.5));
+    await setDisplaySlider('Fill Opacity', 0);
+    await expectHighlight(false);
+    await setDisplaySlider('Outline Opacity', 1);
+    await setDisplaySlider('Outline Thickness', 10);
+    await expectPixel(boundary, [255, 0, 0, 255]);
+    await expectPixel(interior, baseline.interior);
+
     await $('[data-testid="toggle-segments-visible-button"]').click();
-    await expect(outline()).not.toExist();
-    await setDisplaySlider('Fill Opacity', 'End');
-    await expect(outline()).not.toExist();
-    expect((await enFaceAppearance()).image).toBe(unhighlighted);
+    await expectHighlight(false);
+    await setDisplaySlider('Fill Opacity', 1);
+    await expectHighlight(false);
     await $('[data-testid="toggle-segments-visible-button"]').click();
-    await expect(outline()).toBeDisplayed();
+    await expectPixel(interior, [255, 0, 0, 255]);
+    await expectPixel(boundary, [255, 0, 0, 255]);
   });
 });

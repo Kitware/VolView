@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { projectEnFace } from '@/src/oct/projection';
 import { imageWindowRanges } from '@/src/utils/imageWindowing';
-import { createThinRegionOverlay } from '@/src/oct/thinRegionOverlay';
 import {
-  compositeReferencePixels,
+  createInvalidPixelMask,
+  createThinRegionMask,
+} from '@/src/oct/projectionMasks';
+import {
   scalarImageFixture,
   scalarReferencePixels,
 } from './scalarDisplayFixtures';
@@ -121,7 +123,7 @@ describe('Declared OCT padding', () => {
     expect(() => projectEnFace(duplicate)).toThrow(/overlap/);
   });
 
-  it('excludes missing pixels from contrast and keeps missing areas black', () => {
+  it('excludes missing pixels from contrast and thin regions while marking their padding', () => {
     const values = Float32Array.from([NaN, 100, 200]);
     expect(imageWindowRanges(values)?.ranges.FullRange).toEqual([100, 200]);
     expect(imageWindowRanges([NaN, NaN, NaN])).toBeNull();
@@ -129,19 +131,8 @@ describe('Declared OCT padding', () => {
     expect(Array.from(pixels)).toEqual([
       0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255,
     ]);
-    const overlay = createThinRegionOverlay(
-      scalarImageFixture(values, [4, 0, 4]),
-      5,
-      {
-        color: [0, 255, 0, 255],
-        alpha: 1,
-      }
-    );
-    expect(Array.from(overlay)).toEqual([
-      0, 0, 0, 255, 0, 0, 0, 0, 0, 255, 0, 255,
-    ]);
-    const composited = compositeReferencePixels(pixels, overlay);
-    expect(Array.from(composited.slice(0, 4))).toEqual([0, 0, 0, 255]);
-    expect(Array.from(composited.slice(8, 12))).toEqual([0, 255, 0, 255]);
+    const result = scalarImageFixture(values, [4, 0, 4]);
+    expect(Array.from(createThinRegionMask(result, 5))).toEqual([0, 0, 1]);
+    expect(Array.from(createInvalidPixelMask(result))).toEqual([1, 0, 0]);
   });
 });

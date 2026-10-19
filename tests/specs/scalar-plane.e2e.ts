@@ -18,6 +18,7 @@ type Upload = {
   width: number;
   height: number;
   components: number;
+  floatingPoint: boolean;
 };
 type ProbeWindow = Window & {
   scalarPlaneProbe: {
@@ -66,6 +67,7 @@ async function installRenderingProbe() {
               width: Number(args[offset]),
               height: Number(args[offset + 1]),
               components: args[6] === this.RGBA ? 4 : 1,
+              floatingPoint: args[7] === this.FLOAT,
             });
             return Reflect.apply(original, this, args);
           },
@@ -86,10 +88,13 @@ async function renderingCounts(width: number, height: number) {
       );
       return {
         workers: probe.workers,
-        scalarUploads: uploads.filter((upload) => upload.components === 1)
-          .length,
-        overlayUploads: uploads.filter((upload) => upload.components === 4)
-          .length,
+        scalarUploads: uploads.filter(
+          (upload) => upload.components === 1 && upload.floatingPoint
+        ).length,
+        maskUploads: uploads.filter(
+          (upload) => upload.components === 1 && !upload.floatingPoint
+        ).length,
+        rgbaUploads: uploads.filter((upload) => upload.components === 4).length,
       };
     },
     width,
@@ -323,7 +328,8 @@ describe('Scalar derived image rendering', () => {
     await expectGray(5, 12, 0);
     const before = await renderingCounts(128, 32);
     expect(before.scalarUploads).toBeGreaterThan(0);
-    expect(before.overlayUploads).toBeGreaterThan(0);
+    expect(before.maskUploads).toBeGreaterThan(0);
+    expect(before.rgbaUploads).toBe(0);
     console.log(
       'Scalar plane initial rendering counters:',
       JSON.stringify(before)

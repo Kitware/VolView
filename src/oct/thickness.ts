@@ -23,31 +23,5 @@ export function thicknessSliderMaximum(result: ProjectionResult | null) {
   return Math.max(0.1, rounded);
 }
 
-/** Exposed pixel edges outline the selected region, including any holes. */
-export function thinRegionOutlinePath(
-  { width, height, values, thicknessMicrons }: ProjectionResult,
-  threshold: number
-) {
-  if (!thicknessMicrons) return '';
-  const selected = (x: number, y: number) =>
-    x >= 0 &&
-    x < width &&
-    y >= 0 &&
-    y < height &&
-    Number.isFinite(values[x + y * width]) &&
-    isPresentThicknessBelow(thicknessMicrons[x + y * width], threshold);
-  const edges: string[] = [];
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      if (!selected(x, y)) continue;
-      if (!selected(x, y - 1)) edges.push(`M${x},${y}h1`);
-      if (!selected(x, y + 1)) edges.push(`M${x},${y + 1}h1`);
-      if (!selected(x - 1, y)) edges.push(`M${x},${y}v1`);
-      if (!selected(x + 1, y)) edges.push(`M${x + 1},${y}v1`);
-    }
-  }
-  return edges.join('');
-}
-
 export const OCT_THICKNESS_HELP =
   'Thickness counts occupied voxels along the full A-line, independent of the intensity slab. A-lines without the selected label are excluded; missing coverage and zero thickness cannot be distinguished. This user threshold is not a normal reference range.';

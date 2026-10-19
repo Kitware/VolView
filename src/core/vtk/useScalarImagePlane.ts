@@ -38,9 +38,6 @@ export function useScalarImagePlane(input: MaybeRef<ScalarPlaneInput | null>) {
     metadata: computed(() =>
       unref(input) ? { name: '', ...metadataFromVtkImageData(image) } : null
     ),
-    transform: computed(() => ({
-      offset: prepared.value?.offset ?? 0,
-      scale: prepared.value?.scale ?? 1,
-    })),
+    offset: computed(() => prepared.value?.offset ?? 0),
   };
 }

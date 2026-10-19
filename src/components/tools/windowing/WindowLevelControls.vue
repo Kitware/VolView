@@ -48,7 +48,6 @@ export default defineComponent({
     type PresetValue = { width: number; level: number };
 
     const wlConfig = computed(() => {
-      // All views will have the same settings, just grab the first
       const viewID = activeView.value;
       const imageID = currentImageID.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();

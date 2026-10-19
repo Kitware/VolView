@@ -38,7 +38,9 @@ describe('OCT projection intensity precision', () => {
     ]);
     const plane = prepareScalarPlane(result.values);
     expect(Array.from(plane.scalars)).toEqual(testCase.residuals);
-    expect(scalarWindow({ width: 2, level: testCase.level }, plane)).toEqual({
+    expect(
+      scalarWindow({ width: 2, level: testCase.level }, plane.offset)
+    ).toEqual({
       width: 2,
       level: testCase.residuals[1] / 2,
     });
