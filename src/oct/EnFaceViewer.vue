@@ -21,6 +21,7 @@ import { useEnFaceSliceLines } from './useEnFaceSliceLines';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import EnFaceControls from './EnFaceControls.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
 
@@ -60,9 +61,10 @@ const windowConfig = useDerivedImageWindowing(
 );
 const vtkView = ref<VtkViewApi>();
 useWebGLWatchdog(vtkView);
-const resets = useResetViewsEvents().onClick(() =>
-  vtkView.value?.resetCamera()
-);
+function resetCamera() {
+  vtkView.value?.resetCamera();
+}
+const resets = useResetViewsEvents().onClick(resetCamera);
 onScopeDispose(resets.off);
 const tools = useToolStore();
 const windowingManipulatorProps = computed(() => ({
@@ -190,7 +192,34 @@ const stateMessage = computed(
     />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
-        <div class="annotation-cell">{{ currentImageMetadata.name }}</div>
+        <div class="annotation-cell" @click.stop @dblclick.stop>
+          <ReasonedAction
+            class="pointer-events-all"
+            :reason="
+              planeGeometry
+                ? undefined
+                : stateMessage || 'No en face projection is available.'
+            "
+            tooltip="Reset Camera"
+            v-slot="{ disabled }"
+          >
+            <v-btn
+              color="white"
+              icon
+              size="medium"
+              variant="text"
+              :disabled="disabled"
+              aria-label="Reset Camera"
+              data-testid="oct-reset-camera"
+              @click="resetCamera"
+            >
+              <v-icon size="medium" class="py-1 view-control-icon"
+                >mdi-camera-flip-outline</v-icon
+              >
+            </v-btn>
+          </ReasonedAction>
+          <span class="ml-3">{{ currentImageMetadata.name }}</span>
+        </div>
       </template>
       <template #top-right
         ><div class="annotation-cell">

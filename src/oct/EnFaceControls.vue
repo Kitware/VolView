@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ColorDot from '@/src/components/ColorDot.vue';
 import { OCT_THICKNESS_HELP } from './thickness';
@@ -17,6 +17,18 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ patch: [settings: Partial<OCTViewConfig>] }>();
 const expandedSections = ref([0, 1]);
+const slabDraft = ref<number[] | null>(null);
+watch(
+  () => [
+    props.settings.axis,
+    props.settings.depthStart,
+    props.settings.depthEnd,
+    props.depthMaximum,
+  ],
+  () => {
+    slabDraft.value = null;
+  }
+);
 const segmentReason = computed(
   () =>
     props.segmentationReason ||
@@ -48,7 +60,12 @@ const vSlabLabels = (element: HTMLElement) => {
   });
 };
 function updateSlab([depthStart, depthEnd]: number[]) {
+  slabDraft.value = null;
   emit('patch', { depthStart, depthEnd });
+}
+function applyKeyboardSlab() {
+  // Thumb key handlers update the draft before the event bubbles here.
+  if (slabDraft.value) updateSlab(slabDraft.value);
 }
 function updateThreshold(value: string | number | null) {
   const parsed = Number(value);
@@ -136,16 +153,20 @@ function updateHighlight(highlightThin: boolean | null) {
             >
               <v-range-slider
                 v-slab-labels
-                :model-value="[
-                  settings.depthStart,
-                  settings.depthEnd ?? depthMaximum,
-                ]"
-                @update:model-value="updateSlab"
+                :model-value="
+                  slabDraft ?? [
+                    settings.depthStart,
+                    settings.depthEnd ?? depthMaximum,
+                  ]
+                "
+                @update:model-value="slabDraft = $event"
+                @end="updateSlab"
+                @keydown="applyKeyboardSlab"
                 label="Slab"
                 min="0"
                 :max="depthMaximum"
                 step="1"
-                thumb-label="always"
+                thumb-label
                 density="compact"
                 hide-details
                 :disabled="!!projectionReason"

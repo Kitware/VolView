@@ -151,6 +151,35 @@ async function expectProjectionPixel(gray: number, x = 60, y = 12) {
   );
 }
 
+async function observeSlabProjectionChanges() {
+  await browser.execute(() => {
+    const viewer = document.querySelector(
+      '[data-testid="oct-en-face-viewer"]'
+    )!;
+    const threshold = document.querySelector(
+      '[data-testid="oct-thickness-threshold"] [role="slider"]'
+    )!;
+    const changes: string[] = [];
+    const observer = new MutationObserver((records) => {
+      records.forEach((record) => changes.push(record.attributeName!));
+    });
+    observer.observe(viewer, { attributeFilter: ['aria-busy'] });
+    observer.observe(threshold, { attributeFilter: ['aria-valuemax'] });
+    Object.assign(window, {
+      readSlabProjectionChanges: () => {
+        observer.disconnect();
+        return changes;
+      },
+    });
+  });
+  return () =>
+    browser.execute(() =>
+      (
+        window as typeof window & { readSlabProjectionChanges: () => string[] }
+      ).readSlabProjectionChanges()
+    );
+}
+
 async function enableHighlight() {
   await expandEnFaceSection('thickness');
   const label = $('[data-testid="oct-thin-highlight"] label');
@@ -416,6 +445,68 @@ describe('Retinal OCT en face viewing', () => {
       $('[data-testid="oct-segmentation-segment"] input')
     ).toBeDisabled();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('shows slab values only during interaction and applies a drag on release', async () => {
+    await openRetina(true);
+    await waitForEnFaceReady();
+    const labels = $$('[data-testid="oct-slab-range"] .v-slider-thumb__label');
+    expect(await labels.length).toBe(2);
+    for (const label of await labels) await expect(label).not.toBeDisplayed();
+    await setEnFaceWindow(1000, 500);
+    await expectProjectionPixel(81);
+    await openControls();
+    const threshold = $(
+      '[data-testid="oct-thickness-threshold"] [role="slider"]'
+    );
+    const thresholdMaximum = await threshold.getAttribute('aria-valuemax');
+    expect(Number(thresholdMaximum)).toBeGreaterThan(1);
+    const thresholdValue = await $(THRESHOLD).getValue();
+    const start = slabThumb('start');
+    const end = slabThumb('end');
+    await start.scrollIntoView({ block: 'center', inline: 'nearest' });
+    await start.waitForStable();
+    const startBounds = await start.getLocation();
+    const startSize = await start.getSize();
+    const endBounds = await end.getLocation();
+    const endSize = await end.getSize();
+    const startX = Math.round(startBounds.x + startSize.width / 2);
+    const endX = Math.round(endBounds.x + endSize.width / 2);
+    const y = Math.round(startBounds.y + startSize.height / 2);
+    const readProjectionChanges = await observeSlabProjectionChanges();
+    let draggedStart = 0;
+    try {
+      await browser
+        .action('pointer', { id: 'oct-slab-drag' })
+        .move({ x: startX, y })
+        .down()
+        .move({ x: Math.round((startX + endX) / 2), y })
+        .perform(true);
+      await expect(start).not.toHaveAttribute('aria-valuenow', '0');
+      draggedStart = Number(await start.getAttribute('aria-valuenow'));
+      expect(draggedStart).toBeGreaterThan(90);
+      expect(draggedStart).toBeLessThan(130);
+      await expect(start.$('.v-slider-thumb__label')).toBeDisplayed();
+      await expect(threshold).toHaveAttribute(
+        'aria-valuemax',
+        thresholdMaximum!
+      );
+      await expect($(THRESHOLD)).toHaveValue(thresholdValue);
+      await expectProjectionPixel(81);
+      expect(await readProjectionChanges()).toEqual([]);
+    } finally {
+      await browser.action('pointer', { id: 'oct-slab-drag' }).up().perform();
+      await readProjectionChanges();
+    }
+    await waitForEnFaceReady();
+    await expectProjectionPixel(
+      Math.round(((317 + draggedStart) * 255) / 1000)
+    );
+    await expect(threshold).toHaveAttribute('aria-valuemax', thresholdMaximum!);
+    await expect($(THRESHOLD)).toHaveValue(thresholdValue);
+    await browser.keys(Key.Home);
+    await expect(start).toHaveAttribute('aria-valuenow', '0');
+    await expectProjectionPixel(81);
   });
 
   it('keeps Pan selected when temporary Crosshairs is denied in En face', async () => {
@@ -684,6 +775,15 @@ describe('Retinal OCT en face viewing', () => {
     await waitForEnFaceReady();
     await expectProjectionTransform(inspected);
     await expectProjectionPixel(81);
+
+    await $('[data-testid="oct-reset-camera"]').click();
+    await expectProjectionTransform(initial);
+    await expectProjectionPixel(81);
+    await $('button[data-testid^="control-button-Zoom "]').click();
+    await dragContrast(await $(CANVAS).getElement(), 0, -60);
+    await browser.waitUntil(
+      async () => (await projectionTransform())[0] !== initial[0]
+    );
 
     await $('button[data-testid="control-button-Reset Views"]').click();
     await expectProjectionTransform(initial);
