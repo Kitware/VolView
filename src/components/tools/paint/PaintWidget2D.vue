@@ -16,6 +16,7 @@ import { getLPSAxisFromDir } from '@/src/utils/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { useViewStore } from '@/src/store/views';
 import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
@@ -51,6 +52,7 @@ export default defineComponent({
     const slice = computed(() => sliceInfo.value?.slice);
 
     const paintStore = usePaintToolStore();
+    const viewStore = useViewStore();
     const interactionMode = usePaintInteractionMode();
     const sampling = computed(
       () => interactionMode.value === PaintMode.Eyedropper
@@ -153,6 +155,11 @@ export default defineComponent({
 
     let checkIfPointerInView = false;
     const pointerInView = ref(false);
+    watchEffect(() => {
+      if (pointerInView.value && imageId.value) {
+        paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
+      }
+    });
     const cursorStyles = view.widgetManager.getCursorStyles();
     watchEffect(() => {
       widget.setSampling(sampling.value);
@@ -173,16 +180,10 @@ export default defineComponent({
       if (!checkIfPointerInView) return;
       checkIfPointerInView = false;
       pointerInView.value = true;
-      if (imageId.value) {
-        paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
-      }
     };
     onVTKEvent(view.interactor, 'onMouseMove', showPreviewOnFirstMove);
 
     onVTKEvent(view.interactor, 'onMouseEnter', () => {
-      if (imageId.value) {
-        paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
-      }
       pointerInView.value = true;
     });
 
@@ -200,9 +201,9 @@ export default defineComponent({
     const handleWheelEvent = (event: WheelEvent) => {
       if (!enableBrushSizeAdjustment.value) return;
       event.preventDefault();
+      viewStore.setActiveView(viewId.value);
       const delta = event.deltaY < 0 ? 1 : -1;
-      const newSize = Math.max(1, Math.min(50, paintStore.brushSize + delta));
-      paintStore.setBrushSize(newSize);
+      paintStore.setBrushSize(paintStore.brushSize + delta);
     };
 
     onMounted(() => {

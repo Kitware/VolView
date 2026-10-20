@@ -79,8 +79,7 @@ const deleteCurrentImage = () => () => {
 
 const changeBrushSize = (delta: number) => () => {
   const paintStore = usePaintToolStore();
-  const newSize = Math.max(1, paintStore.brushSize + delta);
-  paintStore.setBrushSize(newSize);
+  paintStore.setBrushSize(paintStore.brushSize + delta);
 };
 
 export const ACTION_TO_FUNC = {

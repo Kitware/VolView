@@ -5,7 +5,7 @@ import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
-import { computed, ref, unref, watch } from 'vue';
+import { computed, ref, unref, watch, watchEffect } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -27,6 +27,8 @@ import { useViewCameraStore } from '../view-configs/camera';
 import { useImageCacheStore } from '../image-cache';
 
 const DEFAULT_BRUSH_SIZE = 4;
+const getBrushSizeLimit = (dimensions: Iterable<number>) =>
+  Math.max(1, Math.ceil(Math.max(...dimensions) / 10));
 
 // Growing a mask copies the whole of it, so a stroke that has to grow it asks
 // for room beyond its footprint and the samples that follow grow nothing.
@@ -53,11 +55,22 @@ export const usePaintToolStore = defineStore('paint', () => {
   // rather than per sample. A stroke that never ended leaves them to the next.
   const strokeMaskIds = new Set<string>();
 
-  const { currentImageID, currentImageMetadata } = useCurrentImage('global');
+  const { currentImageID, currentImageData, currentImageMetadata } =
+    useCurrentImage('global');
   const imageStatsStore = useImageStatsStore();
   const viewSliceStore = useViewSliceStore();
   const viewStore = useViewStore();
   const viewCameraStore = useViewCameraStore();
+
+  const brushSizeMax = computed(() =>
+    getBrushSizeLimit(currentImageMetadata.value.dimensions)
+  );
+
+  watchEffect(() => {
+    if (currentImageData.value && brushSize.value > brushSizeMax.value) {
+      brushSize.value = brushSizeMax.value;
+    }
+  });
 
   function getWidgetFactory(this: _This) {
     return this.$paint.factory;
@@ -150,8 +163,14 @@ export const usePaintToolStore = defineStore('paint', () => {
    * @param size
    */
   function setBrushSize(this: _This, size: number) {
-    brushSize.value = Math.round(size);
-    this.$paint.setBrushSize(size);
+    const max = currentImageData.value
+      ? brushSizeMax.value
+      : Number.POSITIVE_INFINITY;
+    const nextSize = Math.max(1, Math.min(max, Math.round(size)));
+    // Preserve the hovered image's cap; inactive tools still initialize the stencil.
+    if (isActive.value && nextSize === brushSize.value) return;
+    brushSize.value = nextSize;
+    this.$paint.setBrushSize(nextSize);
   }
 
   function selectSegmentAt(worldPoint: vec3, imageID: string) {
@@ -281,9 +300,19 @@ export const usePaintToolStore = defineStore('paint', () => {
     const imageData = useImageCacheStore().getVtkImageData(imageID);
     if (!imageData) return;
 
-    const spacing = [...imageData.getSpacing()];
+    const spacing = imageData.getSpacing().map(Math.abs);
+    // One size unit follows the same voxel spacing in every slice plane.
+    const finestSpacing = Math.min(...spacing);
     spacing.splice(axisIndex, 1);
-    const scale: Vector2 = [1 / spacing[0], 1 / spacing[1]];
+    const scale: Vector2 = [
+      finestSpacing / spacing[0],
+      finestSpacing / spacing[1],
+    ];
+    const max = getBrushSizeLimit(imageData.getDimensions());
+    if (imageID === currentImageID.value && this.brushSize > max) {
+      this.setBrushSize(max);
+    }
+    this.$paint.setBrushSize(Math.min(this.brushSize, max));
     this.$paint.setBrushScale(scale);
   }
 
@@ -352,7 +381,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     // Selecting the tool configures the widget and nothing else. Storage is
     // allocated by the first stroke, so picking up the brush and putting it
     // down again leaves the image untouched.
-    this.$paint.setBrushSize(this.brushSize);
+    this.setBrushSize(this.brushSize);
     this.$paint.setBrushValue(SEGMENT_VALUE);
 
     isActive.value = true;
@@ -442,6 +471,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     activePaintMode,
     processControlsOpen,
     brushSize,
+    brushSizeMax,
     strokePoints,
     isActive,
     isPaintingModeActive,
