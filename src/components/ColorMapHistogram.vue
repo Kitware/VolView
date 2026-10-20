@@ -22,14 +22,26 @@ const path = computed(() => {
     !histogram.counts.every((count) => Number.isFinite(count) && count >= 0)
   )
     return '';
+  const firstBin = Math.max(
+    0,
+    Math.floor((min - histogram.origin) / histogram.binWidth)
+  );
+  const lastBin = Math.min(
+    histogram.counts.length,
+    Math.floor((max - histogram.origin) / histogram.binWidth) + 1
+  );
+  const visibleCounts = histogram.counts.slice(
+    firstBin,
+    Math.max(firstBin, lastBin)
+  );
   const groupSize = Math.max(
     1,
-    Math.ceil(histogram.counts.length / PREVIEW_BIN_COUNT)
+    Math.ceil(visibleCounts.length / PREVIEW_BIN_COUNT)
   );
   const counts = Array.from(
-    { length: Math.ceil(histogram.counts.length / groupSize) },
+    { length: Math.ceil(visibleCounts.length / groupSize) },
     (_, index) =>
-      histogram.counts
+      visibleCounts
         .slice(index * groupSize, (index + 1) * groupSize)
         .reduce((sum, count) => sum + count, 0)
   );
@@ -39,7 +51,8 @@ const path = computed(() => {
   const position = (value: number) =>
     Math.max(0, Math.min(1, (value - min) / span));
   const steps = counts.flatMap((count, index) => {
-    const start = histogram.origin + index * binWidth;
+    const start =
+      histogram.origin + firstBin * histogram.binWidth + index * binWidth;
     const end = start + binWidth;
     if (start > max || end < min) return [];
     const height = 15.5 - (count / peak) * 15;

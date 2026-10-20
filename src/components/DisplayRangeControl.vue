@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, useId } from 'vue';
+import { computed, nextTick, ref, watch, useId } from 'vue';
 import { adjacentNumber } from '@/src/utils/adjacentNumber';
 import { formatDisplayRange } from '@/src/utils/formatDisplayRange';
 import type { ImageHistogram } from '@/src/store/image-stats';
@@ -13,6 +13,7 @@ const props = withDefaults(
     preset: string;
     transparentBackground?: boolean;
     disabled?: boolean;
+    windowLevel?: boolean;
     testIdPrefix?: string;
   }>(),
   { testIdPrefix: 'layer-range' }
@@ -26,6 +27,7 @@ const minimum = ref('');
 const maximum = ref('');
 type RangeEndpoint = 'min' | 'max';
 const dirty = ref({ min: false, max: false });
+const focused = ref<RangeEndpoint>();
 const formattedRange = computed(() => formatDisplayRange(props.modelValue));
 function refreshRangeInputs() {
   if (!dirty.value.min) minimum.value = formattedRange.value[0];
@@ -37,6 +39,7 @@ watch(
   { immediate: true }
 );
 function blurRangeInput(endpoint: RangeEndpoint) {
+  focused.value = undefined;
   if (!props.disabled && !rangeError.value) dirty.value[endpoint] = false;
   refreshRangeInputs();
 }
@@ -72,13 +75,28 @@ function setRange(range: number[]) {
     return;
   emit('update:modelValue', [min, max]);
 }
-function updateRangeInput(endpoint: RangeEndpoint, value: string) {
+async function updateRangeInput(endpoint: RangeEndpoint, value: string) {
   dirty.value[endpoint] = true;
   if (endpoint === 'min') minimum.value = value;
   else maximum.value = value;
   const [min, max] = draftRange.value;
-  if (!rangeError.value && min !== undefined && max !== undefined)
-    setRange([min, max]);
+  if (rangeError.value || min === undefined || max === undefined) return;
+  setRange([min, max]);
+  const halfWidth = (max - min) / 2;
+  const level = min + halfWidth;
+  const expected = props.windowLevel
+    ? [level - halfWidth, level + halfWidth]
+    : [min, max];
+  await nextTick();
+  if (
+    expected.some(
+      (endpointValue, index) => endpointValue !== props.modelValue[index]
+    )
+  )
+    return;
+  const sibling = endpoint === 'min' ? 'max' : 'min';
+  if (focused.value !== sibling) dirty.value[sibling] = false;
+  refreshRangeInputs();
 }
 const inputStep = computed(() => {
   const imageSpan = props.dataRange[1] - props.dataRange[0];
@@ -143,6 +161,7 @@ function updateRangeControl(range: number[]) {
       :test-id-prefix="testIdPrefix"
       :transparent-background="transparentBackground"
       :disabled="disabled"
+      :window-level="windowLevel"
       :describedby="rangeError ? rangeMessageId : undefined"
       @update:model-value="updateRangeControl"
     />
@@ -164,6 +183,7 @@ function updateRangeControl(range: number[]) {
         hide-details
         :data-testid="`${testIdPrefix}-min`"
         :title="String(modelValue[0])"
+        @focus="focused = 'min'"
         @blur="blurRangeInput('min')"
         @update:model-value="updateRangeInput('min', $event)"
         @keydown.up.prevent="stepRange('min', 1)"
@@ -206,6 +226,7 @@ function updateRangeControl(range: number[]) {
         hide-details
         :data-testid="`${testIdPrefix}-max`"
         :title="String(modelValue[1])"
+        @focus="focused = 'max'"
         @blur="blurRangeInput('max')"
         @update:model-value="updateRangeInput('max', $event)"
         @keydown.up.prevent="stepRange('max', 1)"

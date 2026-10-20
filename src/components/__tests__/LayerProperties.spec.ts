@@ -253,12 +253,16 @@ describe('LayerProperties', () => {
 
   it('displays global controls even when the active view has independent settings', () => {
     const second = views2D()[1];
-    useLayerColoringStore().updateColorTransferFunction(second.id, layer.id, {
-      preset: 'Grayscale',
-      mappingRange: [-3, 7],
-    });
-    useLayerColoringStore().updateBlendConfig(second.id, layer.id, {
-      opacity: 0.9,
+    const coloring = useLayerColoringStore();
+    const config = coloring.getConfig(second.id, layer.id);
+    coloring.deserialize(second.id, {
+      [layer.id]: {
+        layers: {
+          ...config,
+          transferFunction: { preset: 'Grayscale', mappingRange: [-3, 7] },
+          blendConfig: { ...config.blendConfig, opacity: 0.9 },
+        },
+      },
     });
     useViewStore().setActiveView(second.id);
     const wrapper = mountControls();

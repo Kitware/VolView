@@ -26,6 +26,7 @@ const props = defineProps<{
   preset: string;
   transparentBackground?: boolean;
   disabled?: boolean;
+  windowLevel?: boolean;
   describedby?: string;
   testIdPrefix?: string;
 }>();
@@ -65,6 +66,11 @@ const valid = computed(
   () => validRange(props.dataRange) && validRange(props.modelValue)
 );
 
+const endpointLimit = (value: number, direction: number) => {
+  const next = adjacentNumber(value, direction);
+  // A window/level pair needs a representable midpoint between its endpoints.
+  return props.windowLevel ? adjacentNumber(next, direction) : next;
+};
 const bounds = (
   handle: Handle,
   range: Range = props.modelValue,
@@ -73,9 +79,9 @@ const bounds = (
   const [low, high] = domain;
   if (!valid.value) return [0, 0];
   if (handle === 'min')
-    return [low, Math.min(high, adjacentNumber(range[1], -1))];
+    return [low, Math.min(high, endpointLimit(range[1], -1))];
   if (handle === 'max')
-    return [Math.max(low, adjacentNumber(range[0], 1)), high];
+    return [Math.max(low, endpointLimit(range[0], 1)), high];
   const halfWidth = (range[1] - range[0]) / 2;
   const limit = Number.MAX_VALUE - halfWidth;
   const first = clamp(low + halfWidth, -limit, limit);

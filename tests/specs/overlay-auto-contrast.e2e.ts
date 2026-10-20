@@ -162,7 +162,7 @@ describe('Overlay automatic contrast', () => {
       'Full Range\nLow Contrast\nMedium Contrast\nHigh Contrast'
     );
     await browser.saveScreenshot(
-      join(TEMP_DIR, '../../overlay-contrast-controls.png')
+      join(TEMP_DIR, 'overlay-contrast-controls.png')
     );
     await expect(menu.$('input')).not.toExist();
     await expect(menu.$('label=Bones')).not.toExist();

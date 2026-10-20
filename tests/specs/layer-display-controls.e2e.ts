@@ -100,14 +100,16 @@ async function expectRenderedPixels(
       return (
         pixels.length === expected.length &&
         pixels.every(
-          ({ colored, blue }, index) =>
-            colored === expected[index].colored && blue === expected[index].blue
+          ({ colored, blue, checksum }, index) =>
+            colored === expected[index].colored &&
+            blue === expected[index].blue &&
+            checksum === expected[index].checksum
         )
       );
     },
     {
       timeoutMsg:
-        'Expected the same overlay colors after replacing views or reopening the session',
+        'Expected matching overlay color counts and intensity sum after replacing views or reopening the session',
     }
   );
 }

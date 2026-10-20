@@ -141,8 +141,8 @@ const Vector3 = z.tuple([
 type AutoRangeKeys = keyof typeof WLAutoRanges;
 const WindowLevelConfig = z
   .object({
-    preset: z.string().optional(),
-    visibility: z.boolean().optional(),
+    preset: z.string().default('Grayscale'),
+    visibility: z.boolean().default(true),
     width: z.number().optional(),
     level: z.number().optional(),
     auto: z.string() as z.ZodType<AutoRangeKeys>,

@@ -24,7 +24,8 @@ const matchingViews = computed(() =>
 );
 const sliceView = computed(() => {
   const views = matchingViews.value.filter(
-    ({ type }) => type === '2D' || type === 'Oblique'
+    ({ type }) =>
+      isCineImage(props.imageId) || type === '2D' || type === 'Oblique'
   );
   return views.find(({ id }) => id === viewStore.activeView) ?? views[0];
 });
@@ -190,6 +191,7 @@ function setRange([min, max]: [number, number]) {
               :histogram="histogram"
               :preset="preset"
               :disabled="!!unavailableReason"
+              window-level
               test-id-prefix="base-image-range"
               @update:model-value="setRange"
             >

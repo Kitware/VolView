@@ -162,6 +162,7 @@ async function press(name: string, key: string) {
   await browser.execute((selector) => {
     document.querySelector<HTMLElement>(selector)!.focus();
   }, `[data-testid="layer-range-${name}-handle"]`);
+  await expect(handle(name)).toBeFocused();
   await browser.keys(key);
 }
 
@@ -425,8 +426,15 @@ describe('Palette window interaction', () => {
     await expectRange(2.55, 229.5);
     await press('min', 'End');
     await expectInputsSynced();
+    const minimumBound = await range();
+    expect(minimumBound[0]).toBeGreaterThan(229);
+    expect(minimumBound[1]).toBe(229.5);
+    await press('min', 'Home');
     await press('max', 'Home');
     await expectInputsSynced();
+    const maximumBound = await range();
+    expect(maximumBound[0]).toBe(0);
+    expect(maximumBound[1]).toBe(Number.MIN_VALUE);
 
     await setValueVueInput(input('min'), '-2.123456789');
     await browser.keys('Enter');

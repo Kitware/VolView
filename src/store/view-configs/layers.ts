@@ -13,36 +13,13 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
-import { identity } from '@/src/utils';
-import { LAYER_PRESET_BY_MODALITY, LAYER_PRESET_DEFAULT } from '@/src/config';
 import { resolveLayerColorPreset } from '@/src/vtk/LayerColorPresets';
-import { isDicomImage } from '@/src/utils/dataSelection';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { getConsistentDicomWindowRange } from '@/src/utils/dicomWindowRange';
 import { StateFile, ViewConfig } from '../../io/state-file/schema';
 import { LayerDisplayConfig, LayersConfig } from './types';
 import { useLayersStore } from '../datasets-layers';
-import { useDICOMStore } from '../datasets-dicom';
-
-function getPreset(id: string) {
-  const layersStore = useLayersStore();
-  const layer = layersStore.getLayer(id);
-  if (!layer) {
-    // A layer can be gone by the time its preset is asked for.
-    return LAYER_PRESET_DEFAULT;
-  }
-
-  if (isDicomImage(layer.selection)) {
-    const dicomStore = useDICOMStore();
-    const { Modality = undefined } = dicomStore.volumeInfo[layer.selection];
-    return (
-      (Modality && LAYER_PRESET_BY_MODALITY[Modality]) || LAYER_PRESET_DEFAULT
-    );
-  }
-
-  return LAYER_PRESET_DEFAULT;
-}
 
 export const defaultLayersConfig = (): LayersConfig => ({
   colorBy: {
@@ -112,7 +89,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
 
   const computeDefaultConfig = (dataID: string): LayersConfig => {
     const defaults = defaultLayersConfig();
-    const preset = resolveLayerColorPreset(getPreset(dataID));
+    const preset = defaults.transferFunction.preset;
 
     const image = imageCacheStore.getVtkImageData(dataID);
     if (!image) return defaults;
@@ -234,59 +211,6 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     });
   };
 
-  const createUpdateFunc = <
-    K extends keyof Omit<LayersConfig, 'transparentBackground'>,
-  >(
-    key: K,
-    transform: (config: LayersConfig[K]) => LayersConfig[K] = identity
-  ) => {
-    return (
-      viewID: string,
-      dataID: string,
-      update: Partial<LayersConfig[K]>
-    ) => {
-      const config = getConfig(viewID, dataID) ?? defaultLayersConfig();
-      const updatedConfig = transform({
-        ...config[key],
-        ...update,
-      });
-      updateConfig(viewID, dataID, { [key]: updatedConfig });
-    };
-  };
-
-  const updateColorBy = createUpdateFunc('colorBy');
-  const updateColorTransferFunction = createUpdateFunc('transferFunction');
-  const updateOpacityFunction = createUpdateFunc('opacityFunction');
-  const updateBlendConfig = createUpdateFunc('blendConfig');
-
-  const setColorPreset = (
-    viewID: string,
-    layerID: string,
-    requestedPreset: string
-  ) => {
-    const preset = resolveLayerColorPreset(requestedPreset);
-    const image = imageCacheStore.getVtkImageData(layerID);
-    if (!image) return;
-    const imageDataRange = image.getPointData().getScalars().getRange();
-
-    const ctRange = getColorFunctionRangeFromPreset(preset);
-    const ctFunc: Partial<ColorTransferFunction> = {
-      preset,
-      mappingRange: ctRange || imageDataRange,
-    };
-    updateColorTransferFunction(viewID, layerID, ctFunc);
-
-    const opFunc = {
-      ...getOpacityFunctionFromPreset(preset),
-      mappingRange: imageDataRange,
-    };
-    updateOpacityFunction(viewID, layerID, opFunc);
-  };
-
-  const resetColorPreset = (viewID: string, layerID: string) => {
-    setColorPreset(viewID, layerID, getPreset(layerID));
-  };
-
   const removeView = (viewID: string) => {
     delete configs[viewID];
   };
@@ -360,13 +284,6 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     getDisplayConfig,
     updateDisplayConfig,
     getConfig,
-    updateConfig,
-    updateColorBy,
-    updateColorTransferFunction,
-    updateOpacityFunction,
-    updateBlendConfig,
-    setColorPreset,
-    resetColorPreset,
     removeView,
     removeData,
     serialize,

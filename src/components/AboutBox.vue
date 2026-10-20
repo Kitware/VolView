@@ -238,7 +238,7 @@
             target="_blank"
             href="https://creativecommons.org/licenses/by/4.0/"
             >CC BY 4.0</a
-          >. Ten original DICOM instances per series selected and repackaged.
+          >. Ten original DICOM instances selected from each series.
         </li>
       </ul>
     </v-card-text>

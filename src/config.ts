@@ -1,4 +1,3 @@
-import { DEFAULT_LAYER_PRESET } from '@/src/vtk/LayerColorPresets';
 import MRIPROSTATExThumbnail from '@/src/assets/samples/MRI-PROSTATEx.jpg';
 import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
@@ -176,12 +175,6 @@ export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   US: 'US-Fetal',
 };
 export const DEFAULT_PRESET = 'CT-AAA';
-
-export const LAYER_PRESET_BY_MODALITY: Record<string, string> = {
-  ...DEFAULT_PRESET_BY_MODALITY,
-  PT: DEFAULT_LAYER_PRESET,
-};
-export const LAYER_PRESET_DEFAULT = DEFAULT_LAYER_PRESET;
 
 // Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {

@@ -18,8 +18,13 @@ async function captureAxialPixels() {
   return (await capture2DViewScreenshotMetrics('pet-ct-capture.png'))[0];
 }
 
+let samplePreload:
+  | Awaited<ReturnType<typeof browser.addInitScript>>
+  | undefined;
+
 async function useLocalSampleFiles(files: { url: string; name: string }[]) {
-  await browser.addInitScript((datasets) => {
+  await samplePreload?.remove();
+  samplePreload = await browser.addInitScript((datasets) => {
     const localUrls = new Map(
       datasets.map(({ url, name }) => [url, `/tmp/${name}`])
     );
@@ -188,6 +193,10 @@ async function openPetMetadataVariant(
 describe('PET/CT sample', () => {
   before(async () => {
     await useLocalSampleFiles(PET_CT_DICOM_DATASETS);
+  });
+
+  after(async () => {
+    await samplePreload?.remove();
   });
 
   it('preserves Four Up when loading and reopening the sample', async () => {
@@ -391,11 +400,15 @@ describe('PET/CT sample', () => {
     await browser.waitUntil(
       async () => {
         const pixels = await captureAxialPixels();
-        return pixels.blue === edited.blue && pixels.colored === edited.colored;
+        return (
+          pixels.blue === edited.blue &&
+          pixels.colored === edited.colored &&
+          pixels.checksum === edited.checksum
+        );
       },
       {
         timeoutMsg:
-          'Expected the edited PET overlay to render identically after replacing the axial view',
+          'Expected matching PET color counts and intensity sum after replacing the axial view',
       }
     );
     await browser.saveScreenshot(

@@ -12,7 +12,7 @@ import { Maybe } from '@/src/types';
 import { WL_AUTO_DEFAULT } from '@/src/constants';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
-import { ViewConfig } from '@/src/io/state-file/schema';
+import { StateFile, ViewConfig } from '@/src/io/state-file/schema';
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
@@ -25,6 +25,12 @@ type WindowLevel = {
 const minMaxToWidthLevel = (min: number, max: number) => ({
   width: max - min,
   level: (max + min) / 2,
+});
+
+const withAppearanceDefaults = (config: WindowLevelConfig) => ({
+  ...config,
+  preset: resolveBaseColorPreset(config.preset),
+  visibility: config.visibility ?? true,
 });
 
 export const defaultWindowLevelConfig = () =>
@@ -77,16 +83,13 @@ export const useWindowingStore = defineStore('windowing', () => {
   };
 
   const getConfig = (viewID: string, dataID: string): WindowLevelConfig => {
-    const internalConfig =
+    const internalConfig = withAppearanceDefaults(
       getDoubleKeyRecord(configs, viewID, dataID) ??
-      computeDefaultConfig(dataID);
+        computeDefaultConfig(dataID)
+    );
 
     if (!internalConfig.useAuto) {
-      return {
-        ...internalConfig,
-        preset: resolveBaseColorPreset(internalConfig.preset),
-        visibility: internalConfig.visibility ?? true,
-      };
+      return internalConfig;
     }
 
     const autoKey = internalConfig.auto;
@@ -95,16 +98,10 @@ export const useWindowingStore = defineStore('windowing', () => {
       const [min, max] = autoValues[autoKey];
       return {
         ...internalConfig,
-        preset: resolveBaseColorPreset(internalConfig.preset),
-        visibility: internalConfig.visibility ?? true,
         ...minMaxToWidthLevel(min, max),
       };
     }
-    return {
-      ...internalConfig,
-      preset: resolveBaseColorPreset(internalConfig.preset),
-      visibility: internalConfig.visibility ?? true,
-    };
+    return internalConfig;
   };
 
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
@@ -181,7 +178,20 @@ export const useWindowingStore = defineStore('windowing', () => {
     }
   };
 
-  const serialize = createViewConfigSerializer(configs, 'window');
+  const serialize = (stateFile: StateFile) => {
+    const savedConfigs = Object.fromEntries(
+      Object.entries(configs).map(([viewID, viewConfigs]) => [
+        viewID,
+        Object.fromEntries(
+          Object.entries(viewConfigs).map(([dataID, config]) => [
+            dataID,
+            withAppearanceDefaults(config),
+          ])
+        ),
+      ])
+    );
+    createViewConfigSerializer(savedConfigs, 'window')(stateFile);
+  };
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {

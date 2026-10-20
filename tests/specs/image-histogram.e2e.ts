@@ -7,7 +7,11 @@ import {
 } from './layerDisplayTestUtils';
 import { makeTempDir, openVolViewPage, writeManifestToFile } from './utils';
 
-function writeFractionalImage(name: string, peaks: [number, number]) {
+function writeFractionalImage(
+  name: string,
+  peaks: [number, number],
+  maximum = 1
+) {
   const directory = makeTempDir(name);
   const header = [
     'NRRD0005',
@@ -21,7 +25,7 @@ function writeFractionalImage(name: string, peaks: [number, number]) {
   ].join('\n');
   const values = Array.from({ length: 4096 }, (_, index) => {
     if (index === 0) return 0;
-    if (index === 4095) return 1;
+    if (index === 4095) return maximum;
     return peaks[index % 4 === 0 ? 1 : 0];
   }).join(' ');
   writeFileSync(join(directory, `${name}.nrrd`), `${header}\n\n${values}`);
@@ -41,7 +45,7 @@ async function histogramShape(prefix: string, peaks: number[]) {
         );
       return {
         major: inside(positions[0], 1),
-        wideMajor: inside(positions[0] + 0.01, 1),
+        nearMajor: inside(positions[0] + 0.001, 1),
         minor: inside(positions[1], 13),
         minorTall: inside(positions[1], 8),
         empty: inside(0.37, 14.5),
@@ -53,23 +57,27 @@ async function histogramShape(prefix: string, peaks: number[]) {
   );
 }
 
+async function openHistogramControls(base: string, overlay: string) {
+  await writeManifestToFile(
+    layeredImageManifest(base, overlay),
+    'histogram.json'
+  );
+  await openVolViewPage('histogram.json');
+  await $(`.image-list-card*=${base.split('/').at(-1)}`)
+    .$('[data-testid="dataset-menu-button"]')
+    .click();
+  const show = $('.v-list-item*=Show in all views');
+  await show.waitForClickable();
+  await show.click();
+  await browser.keys('Escape');
+  await openLayerDisplayControls();
+}
+
 describe('Image histograms in display range bars', () => {
   it('positions fractional base and overlay peaks on the fixed image axis without intercepting range edits', async () => {
     const base = writeFractionalImage('histogram-base', [0.125, 0.625]);
     const overlay = writeFractionalImage('histogram-overlay', [0.25, 0.75]);
-    await writeManifestToFile(
-      layeredImageManifest(base, overlay),
-      'histogram.json'
-    );
-    await openVolViewPage('histogram.json');
-    await $('.image-list-card*=histogram-base.nrrd')
-      .$('[data-testid="dataset-menu-button"]')
-      .click();
-    const show = $('.v-list-item*=Show in all views');
-    await show.waitForClickable();
-    await show.click();
-    await browser.keys('Escape');
-    await openLayerDisplayControls();
+    await openHistogramControls(base, overlay);
 
     for (const [prefix, peaks, bar] of [
       ['base-image-range', [0.127, 0.627], 'base-image-range-bar'],
@@ -86,7 +94,7 @@ describe('Image histograms in display range bars', () => {
           const shape = await histogramShape(prefix, [...peaks]);
           return (
             shape.major &&
-            shape.wideMajor &&
+            shape.nearMajor &&
             shape.minor &&
             !shape.minorTall &&
             !shape.empty &&
@@ -111,4 +119,50 @@ describe('Image histograms in display range bars', () => {
       expect((await control(bar).getSize()).height).toBe(32);
     }
   });
+
+  for (const { title, name, peaks, maximum, positions } of [
+    {
+      title:
+        'distinct occupied histogram bins in tiny fractional base and overlay ranges',
+      name: 'tiny',
+      peaks: [0.0005, 0.0025],
+      maximum: 0.003,
+      positions: [0.25, 0.8],
+    },
+    {
+      title:
+        'an upper-end histogram peak when the maximum lies on a bin boundary',
+      name: 'endpoint',
+      peaks: [255, 64],
+      maximum: 255,
+      positions: [0.998, 0.253],
+    },
+  ] as const) {
+    it(`preserves ${title}`, async () => {
+      const base = writeFractionalImage(
+        `histogram-${name}-base`,
+        [...peaks],
+        maximum
+      );
+      const overlay = writeFractionalImage(
+        `histogram-${name}-overlay`,
+        [...peaks],
+        maximum
+      );
+      await openHistogramControls(base, overlay);
+
+      for (const prefix of ['base-image-range', 'layer-range']) {
+        await control(`${prefix}-histogram`).waitForDisplayed();
+        await browser.waitUntil(
+          async () => {
+            const shape = await histogramShape(prefix, [...positions]);
+            return shape.major && shape.minor && !shape.minorTall;
+          },
+          {
+            timeoutMsg: `Expected distinct major and minor histogram heights in ${prefix} for values between 0 and ${maximum}`,
+          }
+        );
+      }
+    });
+  }
 });

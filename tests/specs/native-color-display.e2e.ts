@@ -30,8 +30,8 @@ function writeColorImage(
     'encoding: ascii',
   ].join('\n');
   const values = Array.from({ length: 4096 }, (_, index) =>
-    channels.length === 1 && (index === 0 || index === 4095)
-      ? String(index === 0 ? 0 : 255)
+    channels.length <= 2 && (index === 0 || index === 4095)
+      ? [index === 0 ? 0 : 255, ...channels.slice(1)].join(' ')
       : channels.join(' ')
   ).join(' ');
   writeFileSync(join(directory, `${name}.nrrd`), `${header}\n\n${values}`);
@@ -46,6 +46,33 @@ async function openControls() {
   await browser.waitUntil(
     async () => (await $$('.Vue-Toastification__toast').length) === 0
   );
+}
+
+async function openOverlayControls(name: string, channels: number[]) {
+  const base = writeColorImage('native-color-base', [128]);
+  const overlay = writeColorImage(name, channels);
+  await writeManifestToFile(
+    {
+      ...layeredImageManifest(base, overlay),
+      layerDisplay: {
+        'base::overlay': {
+          preset: 'DICOM Hot Iron',
+          mappingRange: [0, 255],
+          opacity: 1,
+          transparentBackground: false,
+        },
+      },
+    },
+    'native-color-overlay.json'
+  );
+  await openVolViewPage('native-color-overlay.json');
+  await $(`.image-list-card*=${base.split('/').at(-1)}`)
+    .$('[data-testid="dataset-menu-button"]')
+    .click();
+  await $('.v-menu.v-overlay--active .v-overlay__content').waitForStable();
+  await $('.v-list-item*=Show in all views').click();
+  await browser.keys('Escape');
+  await openControls();
 }
 
 const pixels = () => capture2DViewScreenshotMetrics('native-color-display.png');
@@ -103,6 +130,15 @@ describe('Native color display controls', () => {
         $('[data-testid="base-image-range-max"] input')
       ).toBeDisabled();
       await expect($('[data-testid="base-image-contrast"]')).toBeDisabled();
+      const windowingTool = $(
+        'button[data-testid^="control-button-Window & Level"]'
+      );
+      await expect(windowingTool).toBeDisplayed();
+      await expect(windowingTool).toBeDisabled();
+      await $('[data-testid="windowing-tool"]').moveTo();
+      await expect(
+        $('.v-tooltip.v-overlay--active .v-overlay__content')
+      ).toHaveText('Window/level editing requires a single-component image.');
       await $('header').moveTo();
       await expectNativeColor([180, 30, 60], 1);
       const visibility = $('[data-testid="base-image-visibility"]');
@@ -118,31 +154,37 @@ describe('Native color display controls', () => {
     });
   }
 
-  it('keeps RGBA overlay opacity and visibility usable without applying a scalar palette', async () => {
-    const base = writeColorImage('native-color-base', [128]);
-    const rgba = writeColorImage('native-rgba', [0, 0, 220, 128]);
-    await writeManifestToFile(
-      {
-        ...layeredImageManifest(base, rgba),
-        layerDisplay: {
-          'base::overlay': {
-            preset: 'DICOM Hot Iron',
-            mappingRange: [0, 255],
-            opacity: 1,
-            transparentBackground: false,
-          },
-        },
-      },
-      'native-color-overlay.json'
+  it('keeps unsupported two-component overlay controls visible and explains why they are disabled', async () => {
+    await openOverlayControls('native-two-component', [220, 255]);
+    const controls = $('[data-testid="layer-display-controls"]');
+    for (const name of [
+      'colormap',
+      'range-min',
+      'range-max',
+      'opacity-slider',
+      'transparent-background',
+    ]) {
+      await expect($(`[data-testid="layer-${name}"]`)).toBeDisplayed();
+      await expect($(`[data-testid="layer-${name}"] input`)).toBeDisabled();
+    }
+    for (const name of ['visibility', 'contrast']) {
+      const button = $(`[data-testid="layer-${name}"]`);
+      await expect(button).toBeDisplayed();
+      await expect(button).toBeDisabled();
+    }
+    await controls.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await $('header').moveTo();
+    await controls.moveTo();
+    const tooltipId = await controls.getAttribute('aria-describedby');
+    const tooltip = $(`#${tooltipId}.v-overlay--active .v-overlay__content`);
+    await expect(tooltip).toBeDisplayed();
+    await expect(tooltip).toHaveText(
+      '2-component overlays are not supported. Use a single-component, RGB, or RGBA image.'
     );
-    await openVolViewPage('native-color-overlay.json');
-    await $(`.image-list-card*=${base.split('/').at(-1)}`)
-      .$('[data-testid="dataset-menu-button"]')
-      .click();
-    await $('.v-menu.v-overlay--active .v-overlay__content').waitForStable();
-    await $('.v-list-item*=Show in all views').click();
-    await browser.keys('Escape');
-    await openControls();
+  });
+
+  it('keeps RGBA overlay opacity and visibility usable without applying a scalar palette', async () => {
+    await openOverlayControls('native-rgba', [0, 0, 220, 128]);
     for (const name of ['colormap', 'range-min', 'range-max'])
       await expect($(`[data-testid="layer-${name}"] input`)).toBeDisabled();
     await expect($('[data-testid="layer-contrast"]')).toBeDisabled();

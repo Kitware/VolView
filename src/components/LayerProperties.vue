@@ -22,32 +22,33 @@ const imageName = computed(
   () => imageCacheStore.getImageMetadata(props.layer.selection)?.name ?? NO_NAME
 );
 const image = computed(() => imageCacheStore.getVtkImageData(props.layer.id));
-const referenceView = computed(() => {
-  const visibleViews = viewStore.visibleViews.filter(
+const hasVisibleView = computed(() =>
+  viewStore.visibleViews.some(
     (view) =>
       view.type === '2D' &&
       layersStore.getLayers(view.dataID).some(({ id }) => id === props.layer.id)
-  );
-  return (
-    visibleViews.find(({ id }) => id === viewStore.activeView) ??
-    visibleViews[0]
-  );
-});
+  )
+);
+const componentCount = computed(
+  () => image.value?.getPointData().getScalars()?.getNumberOfComponents() ?? 0
+);
 const unavailableReason = computed(() => {
   if (!image.value) return 'The overlay image must finish loading first.';
-  if (!referenceView.value)
+  if (![1, 3, 4].includes(componentCount.value))
+    return `${componentCount.value}-component overlays are not supported. Use a single-component, RGB, or RGBA image.`;
+  if (!hasVisibleView.value)
     return 'Open a 2D view showing this overlay to adjust it.';
   return '';
 });
 const coloringUnavailableReason = computed(() => {
   if (unavailableReason.value) return unavailableReason.value;
-  if (image.value?.getPointData().getScalars()?.getNumberOfComponents() !== 1)
+  if (componentCount.value !== 1)
     return 'Color map, range, and contrast require a single-component overlay.';
   return '';
 });
 const transparencyUnavailableReason = computed(() => {
   if (unavailableReason.value) return unavailableReason.value;
-  if (image.value?.getPointData().getScalars().getNumberOfComponents() !== 1)
+  if (componentCount.value !== 1)
     return 'Transparent background requires a single-component image.';
   return '';
 });
@@ -91,8 +92,7 @@ const imageRange = computed(() => {
   return [range[0], range[1]] as const;
 });
 const histogram = computed(() =>
-  !isCineImage(props.layer.selection) &&
-  image.value?.getPointData().getScalars()?.getNumberOfComponents() === 1
+  !isCineImage(props.layer.selection) && componentCount.value === 1
     ? imageStatsStore.stats[props.layer.id]?.histogram
     : undefined
 );
@@ -163,6 +163,7 @@ function setRange(range: [number, number]) {
       <template #activator="{ props: tooltipProps }">
         <div
           class="ms-4"
+          data-testid="layer-display-controls"
           v-bind="tooltipProps"
           :tabindex="coloringUnavailableReason ? 0 : undefined"
         >
