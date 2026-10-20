@@ -2,6 +2,7 @@ import SliceViewer from '@/src/components/SliceViewer.vue';
 import VolumeViewer from '@/src/components/VolumeViewer.vue';
 import ObliqueViewer from '@/src/components/ObliqueViewer.vue';
 import CineViewer from '@/src/components/CineViewer.vue';
+import { EnFaceViewer } from '@/src/oct';
 import { ViewInfo, ViewType } from '@/src/types/views';
 import { Maybe } from '@/src/types';
 import {
@@ -13,10 +14,13 @@ type ViewComponent =
   | typeof SliceViewer
   | typeof VolumeViewer
   | typeof ObliqueViewer
-  | typeof CineViewer;
+  | typeof CineViewer
+  | typeof EnFaceViewer;
 
 function pickComponent(kind: EffectiveView['kind'], fallbackType: ViewType) {
   switch (kind) {
+    case 'enface':
+      return EnFaceViewer;
     case 'cine':
       return CineViewer;
     case 'volume2D':
@@ -26,6 +30,7 @@ function pickComponent(kind: EffectiveView['kind'], fallbackType: ViewType) {
     case 'oblique':
       return ObliqueViewer;
     case 'empty':
+      if (fallbackType === 'EnFace') return EnFaceViewer;
       if (fallbackType === '2D') return SliceViewer;
       if (fallbackType === '3D') return VolumeViewer;
       return ObliqueViewer;

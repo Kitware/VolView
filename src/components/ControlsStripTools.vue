@@ -9,113 +9,127 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
     >
-      <menu-control-button
-        icon="mdi-circle-half-full"
-        :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
-        :active="active"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      >
-        <window-level-controls />
-      </menu-control-button>
+      <ReasonedAction :reason="toolUnavailableReason(Tools.WindowLevel)">
+        <menu-control-button
+          icon="mdi-circle-half-full"
+          :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
+          :active="active"
+          :disabled="!!toolUnavailableReason(Tools.WindowLevel)"
+          @click="toggle"
+        >
+          <window-level-controls />
+        </menu-control-button>
+      </ReasonedAction>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
-      <control-button
-        icon="mdi-cursor-move"
-        :name="`Pan [${nameToShortcut['Pan']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Pan)">
+        <control-button
+          icon="mdi-cursor-move"
+          :name="`Pan [${nameToShortcut['Pan']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Pan)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Zoom">
-      <control-button
-        icon="mdi-magnify-plus-outline"
-        :name="`Zoom [${nameToShortcut['Zoom']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Zoom)">
+        <control-button
+          icon="mdi-magnify-plus-outline"
+          :name="`Zoom [${nameToShortcut['Zoom']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Zoom)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
       :value="Tools.Crosshairs"
     >
-      <control-button
-        icon="mdi-crosshairs"
-        :name="`Crosshairs [${nameToShortcut['Crosshairs']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="
-          noCurrentImage ||
-          isObliqueLayout ||
-          isDisallowedOnCine(Tools.Crosshairs)
-        "
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Crosshairs)">
+        <control-button
+          icon="mdi-crosshairs"
+          :name="`Crosshairs [${nameToShortcut['Crosshairs']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Crosshairs)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Select">
-      <control-button
-        icon="mdi-cursor-default"
-        :name="`Select [${nameToShortcut['Select']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage"
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Select)">
+        <control-button
+          icon="mdi-cursor-default"
+          :name="`Select [${nameToShortcut['Select']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Select)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <control-button
-        icon="mdi-brush"
-        :name="`Paint [${nameToShortcut['Paint']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="!!paintUnavailableReason"
-        @click="toggle"
-      ></control-button>
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Paint)">
+        <control-button
+          icon="mdi-brush"
+          :name="`Paint [${nameToShortcut['Paint']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Paint)"
+          @click="toggle"
+        ></control-button>
+      </ReasonedAction>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <control-button
-        icon="mdi-vector-square"
-        :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Rectangle)">
+        <control-button
+          icon="mdi-vector-square"
+          :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Rectangle)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
-      <control-button
-        icon="mdi-pentagon-outline"
-        :name="`Polygon [${nameToShortcut['Polygon']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Polygon)">
+        <control-button
+          icon="mdi-pentagon-outline"
+          :name="`Polygon [${nameToShortcut['Polygon']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Polygon)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <control-button
-        icon="mdi-ruler"
-        :name="`Ruler [${nameToShortcut['Ruler']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Ruler)">
+        <control-button
+          icon="mdi-ruler"
+          :name="`Ruler [${nameToShortcut['Ruler']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="!!toolUnavailableReason(Tools.Ruler)"
+          @click="toggle"
+        />
+      </ReasonedAction>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
-      <menu-control-button
-        icon="mdi-crop"
-        :name="`Crop [${nameToShortcut['Crop']}]`"
-        :active="active"
-        :disabled="
-          noCurrentImage || isObliqueLayout || isDisallowedOnCine(Tools.Crop)
-        "
-        @click="toggle"
-      >
-        <crop-controls />
-      </menu-control-button>
+      <ReasonedAction :reason="toolUnavailableReason(Tools.Crop)">
+        <menu-control-button
+          icon="mdi-crop"
+          :name="`Crop [${nameToShortcut['Crop']}]`"
+          :active="active"
+          :disabled="!!toolUnavailableReason(Tools.Crop)"
+          @click="toggle"
+        >
+          <crop-controls />
+        </menu-control-button>
+      </ReasonedAction>
     </groupable-item>
     <div class="my-1 tool-separator" />
     <reset-views />
@@ -127,9 +141,10 @@ import { computed, defineComponent, ref, watch } from 'vue';
 import { onKeyDown } from '@vueuse/core';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { useToolStore, isToolAllowedFor } from '@/src/store/tools';
+import { useToolStore, getToolUnavailableReason } from '@/src/store/tools';
 import { useEffectiveView } from '@/src/composables/useEffectiveView';
 import { toRef } from 'vue';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
@@ -147,6 +162,7 @@ import { useViewStore } from '@/src/store/views';
 export default defineComponent({
   components: {
     ControlButton,
+    ReasonedAction,
     MenuControlButton,
     ItemGroup,
     GroupableItem,
@@ -172,13 +188,25 @@ export default defineComponent({
     const isObliqueLayout = computed(
       () => activeEffective.value?.kind === 'oblique'
     );
-    const isCineActive = computed(() => activeEffective.value?.kind === 'cine');
-    const isDisallowedOnCine = (tool: Tools) =>
-      isCineActive.value && !isToolAllowedFor(tool, activeEffective.value);
-    const paintUnavailableReason = computed(
-      () => toolStore.paintUnavailableReason
-    );
-
+    const obliqueUnavailableTools = new Set([
+      Tools.Crosshairs,
+      Tools.Paint,
+      Tools.Rectangle,
+      Tools.Polygon,
+      Tools.Ruler,
+      Tools.Crop,
+    ]);
+    const toolUnavailableReason = (tool: Tools) => {
+      const effective = activeEffective.value;
+      const sharedReason = getToolUnavailableReason(tool, effective);
+      if (sharedReason) return sharedReason;
+      if (noCurrentImage.value) return 'Load an image to use this tool.';
+      if (isObliqueLayout.value && obliqueUnavailableTools.has(tool))
+        return 'This tool is unavailable in an oblique view.';
+      return tool === Tools.Paint
+        ? toolStore.paintUnavailableReason || undefined
+        : undefined;
+    };
     const paintMenu = ref(false);
     const cropMenu = ref(false);
     const windowingMenu = ref(false);
@@ -217,8 +245,7 @@ export default defineComponent({
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
       isObliqueLayout,
-      isDisallowedOnCine,
-      paintUnavailableReason,
+      toolUnavailableReason,
       Tools,
       paintMenu,
       cropMenu,

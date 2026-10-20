@@ -1,8 +1,7 @@
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
-index 7defbee..70178df 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
-@@ -32,11 +32,16 @@ function splitStringOnEnter(inputString) {
+@@ -32,11 +32,16 @@
  }
  function vtkOpenGLImageMapper(publicAPI, model) {
  	model.classHierarchy.push("vtkOpenGLImageMapper");
@@ -21,7 +20,77 @@ index 7defbee..70178df 100644
  			model._labelOutlineThicknessArray,
  			model._labelOutlineOpacity
  		].forEach((coreObject) => renderWindow.unregisterGraphicsResourceUser(coreObject, publicAPI));
-@@ -567,6 +572,11 @@ function vtkOpenGLImageMapper(publicAPI, model) {
+@@ -101,6 +106,8 @@
+ 			"varying vec2 tcoordVCVSOutput;",
+ 			"uniform float cshift0;",
+ 			"uniform float cscale0;",
++			"uniform float clevelHi0;",
++			"uniform float clevelLo0;",
+ 			"uniform float pwfshift0;",
+ 			"uniform float pwfscale0;",
+ 			"uniform sampler2D texture1;",
+@@ -113,6 +120,8 @@
+ 			for (let comp = 1; comp < tNumComp; comp++) tcoordDec = tcoordDec.concat([
+ 				`uniform float cshift${comp};`,
+ 				`uniform float cscale${comp};`,
++				`uniform float clevelHi${comp};`,
++				`uniform float clevelLo${comp};`,
+ 				`uniform float pwfshift${comp};`,
+ 				`uniform float pwfscale${comp};`
+ 			]);
+@@ -199,7 +208,7 @@
+ 				"a"
+ 			];
+ 			let tcoordImpl = ["vec4 tvalue = texture2D(texture1, tcoordVCVSOutput);"];
+-			for (let comp = 0; comp < tNumComp; comp++) tcoordImpl = tcoordImpl.concat([`vec3 tcolor${comp} = mix${comp} * texture2D(colorTexture1, vec2(tvalue.${rgba[comp]} * cscale${comp} + cshift${comp}, height${comp})).rgb;`, `float compWeight${comp} = mix${comp} * texture2D(pwfTexture1, vec2(tvalue.${rgba[comp]} * pwfscale${comp} + pwfshift${comp}, height${comp})).r;`]);
++			for (let comp = 0; comp < tNumComp; comp++) tcoordImpl = tcoordImpl.concat([`vec3 tcolor${comp} = mix${comp} * texture2D(colorTexture1, vec2(clamp(((tvalue.${rgba[comp]} - clevelHi${comp}) - clevelLo${comp}) * cscale${comp} + 0.5, 0.0, 1.0), height${comp})).rgb;`, `float compWeight${comp} = mix${comp} * texture2D(pwfTexture1, vec2(tvalue.${rgba[comp]} * pwfscale${comp} + pwfshift${comp}, height${comp})).r;`]);
+ 			switch (tNumComp) {
+ 				case 1:
+ 					tcoordImpl = tcoordImpl.concat(["gl_FragData[0] = vec4(tcolor0.rgb, opacity);"]);
+@@ -223,7 +232,7 @@
+                   vec3 centerPosIS = fragCoordToIndexSpace(gl_FragCoord);
+                   float centerValue = texture2D(texture1, getSliceCoords(centerPosIS, sliceAxis)).r;
+                   bool pixelOnBorder = false;
+-                  vec3 tColor = texture2D(colorTexture1, vec2(centerValue * cscale0 + cshift0, 0.5)).rgb;
++                  vec3 tColor = texture2D(colorTexture1, vec2(clamp(((centerValue - clevelHi0) - clevelLo0) * cscale0 + 0.5, 0.0, 1.0), 0.5)).rgb;
+                   float scalarOpacity = texture2D(pwfTexture1, vec2(centerValue * pwfscale0 + pwfshift0, 0.5)).r;
+                   float opacityToUse = scalarOpacity * opacity;
+                   int segmentIndex = int(centerValue * 255.0);
+@@ -264,7 +273,7 @@
+                   }
+                 #else
+                   float intensity = texture2D(texture1, tcoordVCVSOutput).r;
+-                  vec3 tcolor = texture2D(colorTexture1, vec2(intensity * cscale0 + cshift0, 0.5)).rgb;
++                  vec3 tcolor = texture2D(colorTexture1, vec2(clamp(((intensity - clevelHi0) - clevelLo0) * cscale0 + 0.5, 0.0, 1.0), 0.5)).rgb;
+                   float scalarOpacity = texture2D(pwfTexture1, vec2(intensity * pwfscale0 + pwfshift0, 0.5)).r;
+                   gl_FragData[0] = vec4(tcolor, scalarOpacity * opacity);
+                 #endif
+@@ -273,7 +282,7 @@
+ 			case 2:
+ 				FSSource = ShaderProgram_default.substitute(FSSource, "//VTK::TCoord::Impl", [
+ 					"vec4 tcolor = texture2D(texture1, tcoordVCVSOutput);",
+-					"float intensity = tcolor.r*cscale0 + cshift0;",
++					"float intensity = clamp(((tcolor.r - clevelHi0) - clevelLo0)*cscale0 + 0.5, 0.0, 1.0);",
+ 					"gl_FragData[0] = vec4(texture2D(colorTexture1, vec2(intensity, 0.5)).rgb, pwfscale0*tcolor.g + pwfshift0);"
+ 				]).result;
+ 				break;
+@@ -408,7 +417,14 @@
+ 			}
+ 			const scale = oglShiftScale.scale / cw;
+ 			const shift = (oglShiftScale.shift - cl) / cw + .5;
+-			cellBO.getProgram().setUniformf(`cshift${i}`, shift);
++			if (cellBO.getProgram().isUniformUsed(`cshift${i}`)) cellBO.getProgram().setUniformf(`cshift${i}`, shift);
++			// Split the center so narrow windows retain sub-ULP level adjustments.
++			if (cellBO.getProgram().isUniformUsed(`clevelHi${i}`)) {
++				const center = (cl - oglShiftScale.shift) / oglShiftScale.scale;
++				const high = Math.fround(center);
++				cellBO.getProgram().setUniformf(`clevelHi${i}`, high);
++				cellBO.getProgram().setUniformf(`clevelLo${i}`, center - high);
++			}
+ 			cellBO.getProgram().setUniformf(`cscale${i}`, scale);
+ 		}
+ 		for (let i = 0; i < numComp; i++) {
+@@ -567,6 +583,11 @@
  		const firstColorTransferFunc = actorProperty.getRGBTransferFunction();
  		const cTex = model._openGLRenderWindow.getGraphicsResourceForObject(firstColorTransferFunc);
  		if (!cTex?.oglObject?.getHandle() || cTex?.hash !== cfunToString) {
@@ -33,7 +102,7 @@ index 7defbee..70178df 100644
  			model.colorTexture = Texture_default.newInstance({ resizable: true });
  			model.colorTexture.setOpenGLRenderWindow(model._openGLRenderWindow);
  			let cWidth = model.renderable.getColorTextureWidth();
-@@ -629,6 +639,11 @@ function vtkOpenGLImageMapper(publicAPI, model) {
+@@ -629,6 +650,11 @@
  		const firstPwFunc = actorProperty.getPiecewiseFunction();
  		const pwfTex = model._openGLRenderWindow.getGraphicsResourceForObject(firstPwFunc);
  		if (!pwfTex?.oglObject?.getHandle() || pwfTex?.hash !== pwfunToString) {
@@ -45,11 +114,19 @@ index 7defbee..70178df 100644
  			let pwfWidth = model.renderable.getOpacityTextureWidth();
  			if (pwfWidth <= 0) pwfWidth = model.context.getParameter(model.context.MAX_TEXTURE_SIZE);
  			const pwfSize = pwfWidth * textureHeight;
+@@ -703,6 +729,8 @@
+ 			const dims = image.getDimensions();
+ 			if (!model.openGLTexture) model.openGLTexture = Texture_default.newInstance({ resizable: true });
+ 			model.openGLTexture.setOpenGLRenderWindow(model._openGLRenderWindow);
++			// Nearest sampling does not require float-linear texture support.
++			model.openGLTexture.enableUseHalfFloat(iType !== InterpolationType.NEAREST || !!model.renderable.getPreferSizeOverAccuracy?.());
+ 			model.openGLTexture.setOglNorm16Ext(model.context.getExtension("EXT_texture_norm16"));
+ 			if (iType === InterpolationType.NEAREST) {
+ 				if (new Set([
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
-index 3563142..111214c 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
-@@ -182,7 +182,7 @@ function vtkOpenGLTexture(publicAPI, model) {
+@@ -182,7 +182,7 @@
  	publicAPI.deactivate = () => {
  		if (model._openGLRenderWindow) model._openGLRenderWindow.deactivateTexture(publicAPI);
  	};
@@ -58,7 +135,7 @@ index 3563142..111214c 100644
  		if (rwin && model.handle) {
  			rwin.activateTexture(publicAPI);
  			rwin.deactivateTexture(publicAPI);
-@@ -863,6 +863,7 @@ function vtkOpenGLTexture(publicAPI, model) {
+@@ -863,6 +863,7 @@
  	publicAPI.enableUseHalfFloat = (use) => {
  		model.enableUseHalfFloat = use;
  	};

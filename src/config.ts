@@ -4,6 +4,7 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
+import RetinalLayersThumbnail from '@/src/assets/samples/Retinal-Layers.png';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -67,6 +68,8 @@ export const getAvailableViews = () => {
       },
     },
   ];
+
+  list.push({ name: 'En face', type: 'EnFace', dataID: null, options: {} });
 
   const byName = list.reduce(
     (acc, view) => ({ ...acc, [view.name]: view }),
@@ -156,6 +159,14 @@ export const SAMPLE_DATA: SampleDataset[] = [
     description: '30-frame echocardiogram with cine playback. (225 KB)',
     url: 'https://raw.githubusercontent.com/pydicom/pydicom/v3.0.1/src/pydicom/data/test_files/examples_ybr_color.dcm',
     image: USCineThumbnail,
+  },
+  {
+    name: 'Retinal OCT layers',
+    filename: 'jhu-retinal-layers.zip',
+    description:
+      'JHU IACL retinal OCT with eight manually delineated tissue layers. (37 MB)',
+    url: 'https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download',
+    image: RetinalLayersThumbnail,
   },
 ];
 

@@ -1,0 +1,138 @@
+import { describe, expect, it } from 'vitest';
+import { projectEnFace } from '@/src/oct/projection';
+import { imageWindowRanges } from '@/src/utils/imageWindowing';
+import {
+  createInvalidPixelMask,
+  createThinRegionMask,
+} from '@/src/oct/projectionMasks';
+import {
+  scalarImageFixture,
+  scalarReferencePixels,
+} from './scalarDisplayFixtures';
+
+function input() {
+  return {
+    volume: {
+      dimensions: [3, 3, 2],
+      spacing: [0.01, 0.004, 0.1],
+      scalars: Float64Array.from([
+        10, 0, 100, 65535, 0, 101, 30, 65535, 65535, 65535, 50, 10, 65535, 60,
+        11, 65535, 70, 12,
+      ]),
+      paddingRanges: [{ firstFrame: 0, lastFrame: 1, min: 65535, max: 65535 }],
+    },
+    axis: 1 as const,
+    method: 'mean' as const,
+    depthStart: 0,
+    depthEnd: 2,
+  };
+}
+
+function mask() {
+  return {
+    dimensions: [3, 3, 2],
+    scalars: Uint8Array.from([
+      1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0,
+    ]),
+  };
+}
+
+describe('Declared OCT padding', () => {
+  it.each([
+    ['mean', [20, 0, 100.5, NaN, 60, 11]],
+    ['max', [30, 0, 101, NaN, 70, 12]],
+    ['sum', [40, 0, 201, NaN, 180, 33]],
+  ] as const)(
+    'excludes padding from %s while preserving measured zeros',
+    (method, expected) => {
+      const result = projectEnFace({ ...input(), method });
+      expect(Array.from(result.values)).toEqual(expected);
+    }
+  );
+
+  it('keeps unknown mask thickness distinct from absent labels and independently of the slab', () => {
+    const request = { ...input(), segmentation: mask() };
+    const full = projectEnFace(request);
+    expect(Array.from(full.thicknessMicrons!)).toEqual([NaN, 8, 4, NaN, 12, 0]);
+    const slab = projectEnFace({ ...request, depthEnd: 0 });
+    expect(slab.thicknessMicrons).toEqual(full.thicknessMicrons);
+    expect(slab.values[0]).toBe(10);
+    expect(request.segmentation.scalars).toEqual(mask().scalars);
+  });
+
+  it('maps a bounded mask into parent coordinates before checking padding', () => {
+    const result = projectEnFace({
+      ...input(),
+      segmentation: {
+        dimensions: [1, 2, 1],
+        extent: [0, 0, 1, 2, 0, 0],
+        scalars: Uint8Array.from([1, 1]),
+      },
+    });
+    expect(Array.from(result.thicknessMicrons!)).toEqual([NaN, 0, 0, 0, 0, 0]);
+  });
+
+  it('uses the source frame of every sample for projections along Z and X', () => {
+    const z = projectEnFace({ ...input(), axis: 2, depthEnd: 1 });
+    expect(Array.from(z.values)).toEqual([10, 25, 55, NaN, 30, 56, 30, 70, 12]);
+    const x = projectEnFace({ ...input(), axis: 0 });
+    expect(Array.from(x.values)).toEqual([110 / 3, 50.5, 30, 30, 35.5, 41]);
+  });
+
+  it('allows inclusive signed ranges that differ between source frames', () => {
+    const request = input();
+    request.volume.scalars = Float64Array.from([
+      -10, -11, -8, -9, 0, 10, 20, 0, 20, 200, 201, 0, 202, 0, 0, 10, 10, 10,
+    ]);
+    request.volume.paddingRanges = [
+      { firstFrame: 0, lastFrame: 0, min: -10, max: -9 },
+      { firstFrame: 1, lastFrame: 1, min: 200, max: 202 },
+    ];
+    const result = projectEnFace(request);
+    expect(Array.from(result.values)).toEqual([
+      20,
+      -11 / 3,
+      22 / 3,
+      10,
+      5,
+      10 / 3,
+    ]);
+  });
+
+  it('rejects an entirely padded slab and malformed or overlapping declarations', () => {
+    const request = input();
+    request.volume.scalars.fill(65535);
+    expect(() => projectEnFace(request)).toThrow(/only padding/);
+    for (const range of [
+      { firstFrame: -1, lastFrame: 1, min: 0, max: 1 },
+      { firstFrame: 0, lastFrame: 2, min: 0, max: 1 },
+      { firstFrame: 0, lastFrame: 1, min: 1, max: 0 },
+      { firstFrame: 0, lastFrame: 1, min: NaN, max: 1 },
+    ]) {
+      expect(() =>
+        projectEnFace({
+          ...input(),
+          volume: { ...input().volume, paddingRanges: [range] },
+        })
+      ).toThrow(/padding/);
+    }
+    const duplicate = input();
+    duplicate.volume.paddingRanges.push({
+      ...duplicate.volume.paddingRanges[0],
+    });
+    expect(() => projectEnFace(duplicate)).toThrow(/overlap/);
+  });
+
+  it('excludes missing pixels from contrast and thin regions while marking their padding', () => {
+    const values = Float32Array.from([NaN, 100, 200]);
+    expect(imageWindowRanges(values)?.ranges.FullRange).toEqual([100, 200]);
+    expect(imageWindowRanges([NaN, NaN, NaN])).toBeNull();
+    const pixels = scalarReferencePixels(values, { width: 200, level: 0 });
+    expect(Array.from(pixels)).toEqual([
+      0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+    ]);
+    const result = scalarImageFixture(values, [4, 0, 4]);
+    expect(Array.from(createThinRegionMask(result, 5))).toEqual([0, 0, 1]);
+    expect(Array.from(createInvalidPixelMask(result))).toEqual([1, 0, 0]);
+  });
+});

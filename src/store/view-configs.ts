@@ -6,6 +6,7 @@ import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
 import useCinePlaybackStore from './view-configs/cine-playback';
+import { useOCTViewStore } from '@/src/oct';
 import { useViewStore } from './views';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 
@@ -20,6 +21,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const viewCameraStore = useViewCameraStore();
   const volumeColoringStore = useVolumeColoringStore();
   const cinePlaybackStore = useCinePlaybackStore();
+  const octViewStore = useOCTViewStore();
   const viewStore = useViewStore();
 
   const removeView = (viewID: string) => {
@@ -29,6 +31,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.removeView(viewID);
     volumeColoringStore.removeView(viewID);
     cinePlaybackStore.removeView(viewID);
+    octViewStore.removeView(viewID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
@@ -38,6 +41,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.removeData(dataID, viewID);
     volumeColoringStore.removeData(dataID, viewID);
     cinePlaybackStore.removeData(dataID, viewID);
+    octViewStore.removeData(dataID, viewID);
   };
 
   const serialize = (stateFile: StateFile) => {
@@ -47,12 +51,14 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.serialize(stateFile);
     volumeColoringStore.serialize(stateFile);
     cinePlaybackStore.serialize(stateFile);
+    octViewStore.serialize(stateFile);
   };
 
   const deserialize = (
     viewID: string,
     config: Record<string, ViewConfig>,
-    dataIDMap: Record<string, string>
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
   ) => {
     // First update the view config map to use the new dataIDs
     const updatedConfig: Record<string, ViewConfig> = {};
@@ -68,17 +74,19 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
     cinePlaybackStore.deserialize(viewID, updatedConfig);
+    octViewStore.deserialize(viewID, updatedConfig, segmentIdMap);
   };
 
   const deserializeAll = (
     manifest: StateFile['manifest'],
-    dataIDMap: Record<string, string>
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
   ) => {
     if (!manifest.viewByID) return;
 
     Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
       if (view.config) {
-        deserialize(viewID, view.config, dataIDMap);
+        deserialize(viewID, view.config, dataIDMap, segmentIdMap);
       }
     });
   };

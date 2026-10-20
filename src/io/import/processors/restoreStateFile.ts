@@ -202,52 +202,64 @@ export const createStateFileRestorer = ({
       (ds) => !(ds.id in stateIDToStoreID)
     );
 
-    Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
-      viewStore.bindViewsToData(stateID, storeID, manifest);
-    });
-
-    const defaultStoreID =
-      (manifest.primarySelection
-        ? stateIDToStoreID[manifest.primarySelection]
-        : undefined) ??
-      (resolvedDatasets.length > 0
-        ? stateIDToStoreID[resolvedDatasets[0].id]
-        : undefined);
-
-    if (defaultStoreID !== undefined) {
-      if (!manifest.viewByID) {
-        viewStore.setDataForAllViews(defaultStoreID);
-      } else {
-        // Resolve-first-then-apply: a view whose saved dataset never resolved
-        // resets to the default assignment (views are reconstructible UI)
-        // rather than staying empty.
-        const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
-        Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
-          if (
-            typeof view.dataID === 'string' &&
-            unresolvedIDs.has(view.dataID)
-          ) {
-            viewStore.setDataForView(viewID, defaultStoreID);
-          }
-        });
-      }
-    }
-
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
-
-    // Registries first: masks and shapes both name a segment, and the
-    // ids they name are minted here.
-    const { segmentIdMap, repeated: repeatedSegments } =
-      useSegmentStore().deserialize(manifest);
-
-    const { skipped: skippedLabelmaps } =
-      await useSegmentationStore().deserialize({
-        manifest,
-        stateFiles,
-        dataIDMap: stateIDToStoreID,
-        segmentIdMap,
-        labelmapSources: planLabelmapSources(manifest).sources,
+    const bindRestoredViews = () => {
+      Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
+        viewStore.bindViewsToData(stateID, storeID, manifest);
       });
+
+      const defaultStoreID =
+        (manifest.primarySelection
+          ? stateIDToStoreID[manifest.primarySelection]
+          : undefined) ??
+        (resolvedDatasets.length > 0
+          ? stateIDToStoreID[resolvedDatasets[0].id]
+          : undefined);
+
+      if (defaultStoreID !== undefined) {
+        if (!manifest.viewByID) {
+          viewStore.setDataForAllViews(defaultStoreID);
+        } else {
+          // Resolve-first-then-apply: a view whose saved dataset never resolved
+          // resets to the default assignment (views are reconstructible UI)
+          // rather than staying empty.
+          const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
+          Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
+            if (
+              typeof view.dataID === 'string' &&
+              unresolvedIDs.has(view.dataID)
+            ) {
+              viewStore.setDataForView(viewID, defaultStoreID);
+            }
+          });
+        }
+      }
+    };
+
+    const prepareViewContent = async () => {
+      // Registries first: masks and shapes both name a segment, and the
+      // ids they name are minted here.
+      const { segmentIdMap, repeated: repeatedSegments } =
+        useSegmentStore().deserialize(manifest);
+
+      const { skipped: skippedLabelmaps } =
+        await useSegmentationStore().deserialize({
+          manifest,
+          stateFiles,
+          dataIDMap: stateIDToStoreID,
+          segmentIdMap,
+          labelmapSources: planLabelmapSources(manifest).sources,
+        });
+
+      useViewConfigStore().deserializeAll(
+        manifest,
+        stateIDToStoreID,
+        segmentIdMap
+      );
+      return { segmentIdMap, repeatedSegments, skippedLabelmaps };
+    };
+    // Imported datasets remain visible if content preparation rejects.
+    const { segmentIdMap, repeatedSegments, skippedLabelmaps } =
+      await prepareViewContent().finally(bindRestoredViews);
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 

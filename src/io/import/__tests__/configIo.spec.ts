@@ -4,12 +4,12 @@ import { configIo, RENAMED_IO_KEYS } from '@/src/io/import/configIo';
 describe.each(RENAMED_IO_KEYS)(
   'configuration alias %s -> %s',
   (legacy, key) => {
-    it.each(['seg', ''])(
+    it.each(['seg', 'mask', ''])(
       'normalizes either spelling of %j to one runtime field',
       (value) => {
         const expected = {
           layerExtension: '',
-          segmentationExtension: '',
+          segmentationExtension: 'seg',
           [key]: value,
         };
         for (const input of [
@@ -44,9 +44,9 @@ describe.each(RENAMED_IO_KEYS)(
   }
 );
 
-it('defaults only the extension when both aliases are omitted', () => {
+it('defaults to seg when both segmentation extension aliases are omitted', () => {
   expect(configIo.parse({})).toEqual({
     layerExtension: '',
-    segmentationExtension: '',
+    segmentationExtension: 'seg',
   });
 });

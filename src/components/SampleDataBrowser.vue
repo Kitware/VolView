@@ -1,11 +1,12 @@
 <script lang="ts">
 import { defineComponent, reactive, computed } from 'vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
+import { displayImportedData } from '@/src/actions/loadUserFiles';
+import { importDataSources } from '@/src/io/import/importDataSources';
 import {
-  convertSuccessResultToDataSelection,
-  importDataSources,
-} from '@/src/io/import/importDataSources';
-import { remoteFileToDataSource } from '@/src/io/import/dataSource';
+  getDataSourceName,
+  remoteFileToDataSource,
+} from '@/src/io/import/dataSource';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { SAMPLE_DATA } from '@/src/config';
 import { useMessageStore } from '@/src/store/messages';
@@ -13,7 +14,6 @@ import { SampleDataset } from '@/src/types';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { fetchFile } from '@/src/utils/fetch';
-import { useViewStore } from '@/src/store/views';
 
 enum ProgressState {
   Pending,
@@ -33,7 +33,6 @@ export default defineComponent({
     ImageListCard,
   },
   setup() {
-    const viewStore = useViewStore();
     const status = reactive<{ progress: Progress }>({
       progress: {},
     });
@@ -89,29 +88,36 @@ export default defineComponent({
         });
         status.progress[sample.name].state = ProgressState.Done;
 
-        const [loadResult] = await importDataSources([
+        const results = await importDataSources([
           remoteFileToDataSource(sampleFile, sample.url),
         ]);
 
-        if (!loadResult) {
+        if (!results.length) {
           throw new Error('Did not receive a load result');
         }
-        if (loadResult.type === 'error') {
-          throw loadResult.error;
+        const errors = results.filter((result) => result.type === 'error');
+        if (errors.length) {
+          throw new AggregateError(
+            errors.map(({ error }) => error),
+            errors
+              .map(
+                ({ dataSource, error }) =>
+                  `${getDataSourceName(dataSource) ?? sample.filename}: ${error.message}`
+              )
+              .join('\n')
+          );
         }
 
-        const selection = convertSuccessResultToDataSelection(loadResult);
+        const selection = displayImportedData(results);
         if (selection) {
           loaded.idToURL[selection] = sample.url;
           loaded.urlToID[sample.url] = selection;
-
           useVolumeColoringStore().setDefaults(selection, {
             transferFunction: {
               preset: sample.defaults?.colorPreset,
             },
           });
         }
-        viewStore.setDataForAllViews(selection);
       } catch (error) {
         status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();

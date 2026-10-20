@@ -39,6 +39,10 @@ To include a reference to the source code of VolView 4.0, please use this DOI:
 
 See the [Contributing.md](CONTRIBUTING.md) document.
 
+## Browser tests
+
+`npm run test:e2e:chrome`, `npm run test:e2e:chrome:skip-build`, and `npm run test:e2e:dev` run Chrome headlessly without opening browser windows. These commands keep headless mode enabled even when `HEADED` is set in the environment.
+
 # Acknowledgements
 
 This work was funded, in part, by the NIH via NIBIB and NIGMS R01EB021396, NIBIB R01EB014955, NCI R01CA220681, and NINDS R42NS086295.

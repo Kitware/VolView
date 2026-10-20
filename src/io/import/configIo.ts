@@ -39,7 +39,7 @@ export const configIo = z
     }) => ({
       ...io,
       segmentationExtension:
-        segmentationExtension ?? segmentGroupExtension ?? '',
+        segmentationExtension ?? segmentGroupExtension ?? 'seg',
       segmentationSaveFormat: segmentationSaveFormat ?? segmentGroupSaveFormat,
     })
   );

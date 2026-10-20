@@ -6,6 +6,7 @@ import { FileReaderMap, ReaderResult } from '.';
 
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
 import { FILE_EXT_TO_MIME } from './mimeTypes';
+import { imageHeaderMetadata } from './imageHeaderMetadata';
 
 export const ITK_IMAGE_MIME_TYPES = Array.from(
   new Set(
@@ -20,15 +21,7 @@ async function itkReader(file: File): Promise<ReaderResult> {
     webWorker: getWorker(),
   });
   const vtkImage = convertItkToVtkImage(image);
-  // The itk→vtk conversion above drops the header metadata map (e.g. a
-  // `.seg.nrrd`'s `Segment{N}_*` fields). itk-wasm surfaces the header fields
-  // as a string map; coerce defensively and return it alongside the image.
-  const meta = (image as { metadata?: Map<string, unknown> }).metadata;
-  if (!(meta instanceof Map) || !meta.size) return { dataObject: vtkImage };
-  const headerMetadata = new Map<string, string>();
-  meta.forEach((value, key) => {
-    headerMetadata.set(key, typeof value === 'string' ? value : String(value));
-  });
+  const headerMetadata = await imageHeaderMetadata(file, image);
   return { dataObject: vtkImage, headerMetadata };
 }
 

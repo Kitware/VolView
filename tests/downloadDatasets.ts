@@ -19,7 +19,10 @@ const sha256 = (data: Buffer) =>
   createHash('sha256').update(data).digest('hex');
 
 async function fetchDataset(dataset: TestDataset) {
-  const url = `${DATASET_RELEASE}/${dataset.name}`;
+  const url =
+    'downloadFromOrigin' in dataset && dataset.downloadFromOrigin
+      ? dataset.origin
+      : `${DATASET_RELEASE}/${dataset.name}`;
   const fail = (reason: string) =>
     new Error(
       `Could not download test dataset ${dataset.name} from ${url}: ${reason}`

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   useWindowingStore,
@@ -10,8 +10,6 @@ import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { storeToRefs } from 'pinia';
-
-const MIN_VALUE = 0.001;
 
 export default defineComponent({
   setup() {
@@ -50,7 +48,6 @@ export default defineComponent({
     type PresetValue = { width: number; level: number };
 
     const wlConfig = computed(() => {
-      // All views will have the same settings, just grab the first
       const viewID = activeView.value;
       const imageID = currentImageID.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();
@@ -62,40 +59,47 @@ export default defineComponent({
     const wlWidth = computed(() => wlConfig.value.width ?? 1);
     const wlLevel = computed(() => wlConfig.value.level ?? 0.5);
 
-    const formatForDisplay = (value: number) => {
-      if (Math.abs(value) < MIN_VALUE) return 0;
-      return Math.round(value * 100) / 100;
+    const manualField = (field: 'width' | 'level') => {
+      const editing = ref(false);
+      // Preserve incomplete decimal and exponent entries until the field loses focus.
+      const draft = ref('');
+      const value = computed({
+        get: () =>
+          editing.value ? draft.value : String(wlConfig.value[field]),
+        set: (text: string) => {
+          draft.value = text;
+          const parsed = Number(text);
+          const imageID = currentImageID.value;
+          const viewID = activeView.value;
+          if (!imageID || !viewID || !text.trim() || !Number.isFinite(parsed))
+            return;
+          windowingStore.updateConfig(
+            viewID,
+            imageID,
+            {
+              width: wlWidth.value,
+              level: wlLevel.value,
+              [field]: parsed,
+            },
+            true
+          );
+        },
+      });
+      return {
+        value,
+        begin: () => {
+          draft.value = String(wlConfig.value[field]);
+          editing.value = true;
+        },
+        end: () => {
+          editing.value = false;
+        },
+      };
     };
-
-    const displayWidth = computed({
-      get: () => formatForDisplay(wlWidth.value),
-      set: (value: number) => {
-        const imageID = currentImageID.value;
-        const viewID = activeView.value;
-        if (!imageID || !viewID || !Number.isFinite(value)) return;
-        windowingStore.updateConfig(
-          viewID,
-          imageID,
-          { width: value, level: wlLevel.value },
-          true
-        );
-      },
-    });
-
-    const displayLevel = computed({
-      get: () => formatForDisplay(wlLevel.value),
-      set: (value: number) => {
-        const imageID = currentImageID.value;
-        const viewID = activeView.value;
-        if (!imageID || !viewID || !Number.isFinite(value)) return;
-        windowingStore.updateConfig(
-          viewID,
-          imageID,
-          { width: wlWidth.value, level: value },
-          true
-        );
-      },
-    });
+    const widthField = manualField('width');
+    const levelField = manualField('level');
+    const displayWidth = widthField.value;
+    const displayLevel = levelField.value;
 
     const wlOptions = computed({
       get() {
@@ -153,6 +157,8 @@ export default defineComponent({
       showCtPresets,
       tags,
       WLAutoRanges,
+      widthField,
+      levelField,
       displayWidth,
       displayLevel,
     };
@@ -206,14 +212,18 @@ export default defineComponent({
       <div class="px-4 pb-3">
         <div class="manual-inputs">
           <v-text-field
-            v-model.number="displayWidth"
+            v-model="displayWidth"
+            @focus="widthField.begin"
+            @blur="widthField.end"
             label="Window"
             type="number"
             density="compact"
             hide-details
           />
           <v-text-field
-            v-model.number="displayLevel"
+            v-model="displayLevel"
+            @focus="levelField.begin"
+            @blur="levelField.end"
             label="Level"
             type="number"
             density="compact"

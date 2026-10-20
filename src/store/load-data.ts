@@ -99,7 +99,7 @@ const useLoadDataStore = defineStore('loadData', () => {
   const { startLoading, stopLoading, setError, isLoading } =
     useLoadingNotifications();
 
-  const segmentationExtension = ref('');
+  const segmentationExtension = ref('seg');
   const layerExtension = ref('');
 
   return {
