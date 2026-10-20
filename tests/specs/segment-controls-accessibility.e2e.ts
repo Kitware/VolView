@@ -78,7 +78,7 @@ describe('Segment control accessibility', () => {
       'Select the Paint tool to paint, erase or pick a segment'
     );
     await browser.keys('Tab');
-    const parameters = $('.paint-parameters');
+    const parameters = $('[data-testid="paint-parameters"]');
     await expect(parameters).toBeFocused();
     const reason = await tooltipOf(parameters);
     await expect(reason).toBeDisplayed();

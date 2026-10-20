@@ -1,6 +1,14 @@
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { IBrushStencil, IPaintBrush } from './brush';
 
+const ceilScaledDiameter = (size: number, scale: number) => {
+  const diameter = size * scale;
+  const lower = Math.floor(diameter);
+  // Bound the rounding from the spacing division and diameter multiplication.
+  const roundoff = (Number.EPSILON * Math.abs(diameter)) / (1 - Number.EPSILON);
+  return diameter - lower <= roundoff ? lower : Math.ceil(diameter);
+};
+
 // Adapted from http://members.chello.at/easyfilter/bresenham.html
 function rasterizeEllipse(xdiam: number, ydiam: number) {
   const buffer = new Uint8Array(xdiam * ydiam);
@@ -81,8 +89,8 @@ export default class EllipsePaintBrush implements IPaintBrush {
 
   private recomputeStencil() {
     const scaledSize = [
-      Math.ceil(this.size * this.scale[0]),
-      Math.ceil(this.size * this.scale[1]),
+      ceilScaledDiameter(this.size, this.scale[0]),
+      ceilScaledDiameter(this.size, this.scale[1]),
     ] as Vector2;
     this.cachedStencil = {
       size: scaledSize,
