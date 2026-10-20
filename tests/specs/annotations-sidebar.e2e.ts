@@ -104,6 +104,7 @@ describe('Annotations sidebar', () => {
 
     await volViewPage.selectTool('mdi-ruler');
     await openAnnotationSegments();
+    await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Segment 1']);
     expect(await selectedSegmentName()).toEqual('Segment 1');
 
