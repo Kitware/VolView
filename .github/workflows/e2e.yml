@@ -35,12 +35,9 @@ jobs:
           path: .tmp/datasets
           key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
           restore-keys: e2e-datasets-
-      - name: Install xvfb (linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install xvfb
       - name: Run E2E on chrome (linux)
         if: matrix.os == 'ubuntu-latest'
-        run: xvfb-run --server-args="-screen 0, 1400x1000x24" --auto-servernum npm run test:e2e:chrome
+        run: env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY npm run test:e2e:chrome
       - name: Set screen resolution (windows)
         if: matrix.os == 'windows-latest'
         run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
