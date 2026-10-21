@@ -1,6 +1,7 @@
 import { config as sharedConfig, TEMP_DIR } from './wdio.shared.conf';
 
 const IS_CI = !!(process.env.CI || process.env.GITHUB_ACTIONS);
+const IS_LINUX_CI = IS_CI && process.platform === 'linux';
 
 // Chrome arguments for CI environments
 const chromeArgs: string[] = [];
@@ -13,12 +14,21 @@ if (IS_CI) {
   );
 }
 
+if (IS_LINUX_CI) {
+  chromeArgs.push(
+    '--headless=new',
+    '--use-gl=angle',
+    '--use-angle=swiftshader-webgl'
+  );
+}
+
 if (!IS_CI && !process.env.HEADED) {
   chromeArgs.push('--headless=new', '--enable-unsafe-swiftshader');
 }
 
 export const config = {
   ...sharedConfig,
+  ...(IS_LINUX_CI ? { autoXvfb: false } : {}),
   capabilities: [
     {
       browserName: 'chrome',
