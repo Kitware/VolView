@@ -11,8 +11,10 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { visualizer } from 'rollup-plugin-visualizer';
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import replace from '@rollup/plugin-replace';
+import VtkColorPresets from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps.json.js';
 
 import { BASE_URL } from './tests/e2ePorts';
+import { LAYER_PRESET_OPTIONS } from './src/vtk/LayerColorPresets';
 
 function resolveNodeModulePath(moduleName: string) {
   const require = createRequire(import.meta.url);
@@ -31,6 +33,9 @@ function resolvePath(...args: string[]) {
 }
 
 const PLACEHOLDER_VERSION = '0.0.0';
+const sliceColorPresets = VtkColorPresets.filter(({ Name }: { Name: string }) =>
+  LAYER_PRESET_OPTIONS.some(({ value }) => value === Name)
+);
 
 function getPackageInfo() {
   const mainPkgPath = path.resolve(__dirname, 'package.json');
@@ -177,8 +182,8 @@ export default defineConfig({
       load(id) {
         if (id.includes('@kitware/vtk.js')) {
           if (id.includes('ColorMaps.json.js')) {
-            // We don't use the built-in colormaps
-            return 'export default [];';
+            // Bundle only the built-in palettes used by 2D overlays.
+            return `export default ${JSON.stringify(sliceColorPresets)};`;
           }
 
           // We don't use these classes
