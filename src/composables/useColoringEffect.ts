@@ -26,7 +26,7 @@ type ApplyColoringParams = {
   ofun: vtkPiecewiseFunction;
 };
 
-export function applyColoring({
+function applyColoring({
   props: { colorFunction, opacityFunction },
   cfun,
   ofun,
@@ -42,6 +42,13 @@ export function applyColoring({
     cfun.setMappingRange(...colorFunction.mappingRange);
   }
 
+  applyOpacityFunction(opacityFunction, ofun);
+}
+
+export function applyOpacityFunction(
+  opacityFunction: OpacityFunction,
+  ofun: vtkPiecewiseFunction
+) {
   const { mappingRange } = opacityFunction;
   if (!isZeroWidthRange(opacityFunction.mappingRange)) {
     ofun.setRange(...opacityFunction.mappingRange);

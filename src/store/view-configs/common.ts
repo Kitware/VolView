@@ -20,6 +20,11 @@ const serializeViewConfig = <
   const views = Object.values(viewByID);
 
   views.forEach((view) => {
+    const savedConfigs = view.config ?? {};
+    Object.entries(savedConfigs).forEach(([dataID, config]) => {
+      delete config[viewConfigStateKey];
+      if (!Object.keys(config).length) delete savedConfigs[dataID];
+    });
     dataIDs.forEach((dataID) => {
       const viewConfig = viewConfigs[view.id]?.[dataID];
       if (viewConfig !== undefined) {

@@ -1,19 +1,25 @@
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import type { Vector2 } from '@kitware/vtk.js/types';
-import { MaybeRef, unref, computed } from 'vue';
+import { MaybeRef, unref, computed, inject, InjectionKey } from 'vue';
 import { useImageStatsStore } from '@/src/store/image-stats';
+
+export const WindowingViewContext: InjectionKey<MaybeRef<string>> = Symbol(
+  'WindowingViewContext'
+);
 
 export function useWindowingConfig(
   viewID: MaybeRef<string>,
   imageID: MaybeRef<Maybe<string>>
 ) {
+  const windowingViewID = inject(WindowingViewContext, viewID);
   const store = useWindowingStore();
   const imageStatsStore = useImageStatsStore();
+
   const config = computed(() => {
     const imageIdVal = unref(imageID);
     if (!imageIdVal) return undefined;
-    const viewIdVal = unref(viewID);
+    const viewIdVal = unref(windowingViewID);
     if (!viewIdVal) return undefined;
     return store.getConfig(viewIdVal, imageIdVal);
   });
@@ -28,7 +34,12 @@ export function useWindowingConfig(
       set: (val) => {
         const imageIdVal = unref(imageID);
         if (!imageIdVal || val == null) return;
-        store.updateConfig(unref(viewID), imageIdVal, { [prop]: val }, true);
+        store.updateConfig(
+          unref(windowingViewID),
+          imageIdVal,
+          { [prop]: val },
+          true
+        );
       },
     });
   };
@@ -43,6 +54,7 @@ export function useWindowingConfig(
   });
 
   return {
+    viewID: computed(() => unref(windowingViewID)),
     config,
     width: generateComputed('width'),
     level: generateComputed('level'),

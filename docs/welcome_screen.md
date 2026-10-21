@@ -16,7 +16,7 @@ Lists the ruler and other measures that have been made on the currently loaded d
 
 ### Rendering
 
-Controls for the 3D cinematic volume rendering.
+Controls for 3D cinematic rendering and 2D image layers. See [Rendering](./rendering.md) for details.
 
 ## Load / Save State
 

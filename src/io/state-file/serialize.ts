@@ -247,6 +247,7 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
   // is assembled from the parsed pieces, so nothing is validated (or
   // deep-copied) twice.
   const optionalRoots = [
+    'layerDisplay',
     'tools',
     'segments',
     'selectedSegment',

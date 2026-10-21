@@ -175,13 +175,8 @@ export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   MR: 'CT-Coronary-Arteries-2',
   US: 'US-Fetal',
 };
-export const DEFAULT_PRESET = 'CT-AAA';
 
-export const LAYER_PRESET_BY_MODALITY: Record<string, string> = {
-  ...DEFAULT_PRESET_BY_MODALITY,
-  PT: '2hot-opaque',
-};
-export const LAYER_PRESET_DEFAULT = '2hot-opaque';
+export const DEFAULT_PRESET = 'CT-AAA';
 
 // Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {
