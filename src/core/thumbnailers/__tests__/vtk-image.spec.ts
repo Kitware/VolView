@@ -1,16 +1,21 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { ThumbnailSlice } from '..';
 import { createVTKImageThumbnailer } from '../vtk-image';
 
-// workaround to get ImageData in the global scope
-/*
-global.ImageData = document
-  .createElement('canvas')
-  .getContext('2d')
-  ?.createImageData(1, 1).constructor as any;
-*/
+// Happy DOM has no canvas context or ImageData. Pixel generation only needs
+// an RGBA buffer; canvas drawing and JPEG encoding are outside these cases.
+class PixelBuffer {
+  readonly data: Uint8ClampedArray;
+
+  constructor(
+    public width: number,
+    public height: number
+  ) {
+    this.data = new Uint8ClampedArray(width * height * 4);
+  }
+}
 
 // creates a 3x3x3 image
 function createImageData() {
@@ -30,7 +35,19 @@ function i2o(x: number, y: number, z: number) {
   return z * 9 + y * 3 + x;
 }
 
-describe.skip('VTK Image Thumbnailer', () => {
+describe('VTK Image Thumbnailer', () => {
+  beforeEach(() => {
+    vi.stubGlobal('ImageData', PixelBuffer);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      {} as CanvasRenderingContext2D
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   const SLICE_POSITION_WORDS = ['first', 'middle', 'last'];
   const SLICE_POSITIONS = [
     ThumbnailSlice.First,
@@ -45,19 +62,27 @@ describe.skip('VTK Image Thumbnailer', () => {
 
       it(`should thumbnail the ${sliceWord} slice on axis ${axis}`, () => {
         const { imageData, scalars } = createImageData();
-        const thumbnailer = createVTKImageThumbnailer();
+        try {
+          const thumbnailer = createVTKImageThumbnailer();
+          const point: [number, number, number] = [0, 1, 2];
+          point[axis] = slice;
+          scalars[i2o(...point)] = 255;
 
-        const point: [number, number, number] = [1, 1, 1];
-        point[axis] = slice;
-        scalars[i2o(...point)] = 255;
-
-        const im = thumbnailer.generate(
-          imageData,
-          axis as 0 | 1 | 2,
-          thumbSlice
-        );
-        // each pixel is rgba
-        expect(im.data[4 * 4]).to.equal(255);
+          const im = thumbnailer.generate(
+            imageData,
+            axis as 0 | 1 | 2,
+            thumbSlice
+          );
+          const markerPixel = [7, 6, 3][axis];
+          const expected = Array.from({ length: 9 }, (_, pixel) =>
+            pixel === markerPixel ? [255, 255, 255, 255] : [0, 0, 0, 255]
+          ).flat();
+          expect([im.width, im.height]).toEqual([3, 3]);
+          expect(Array.from(im.data)).toEqual(expected);
+        } finally {
+          imageData.getPointData().getScalars().delete();
+          imageData.delete();
+        }
       });
     }
   }

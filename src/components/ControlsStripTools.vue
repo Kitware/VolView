@@ -9,15 +9,29 @@
       v-slot:default="{ active, toggle }"
       :value="Tools.WindowLevel"
     >
-      <menu-control-button
-        icon="mdi-circle-half-full"
-        :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
-        :active="active"
-        :disabled="noCurrentImage"
-        @click="toggle"
+      <v-tooltip
+        :text="windowingUnavailableReason"
+        :disabled="!windowingUnavailableReason"
+        location="right"
       >
-        <window-level-controls />
-      </menu-control-button>
+        <template #activator="{ props: tooltipProps }">
+          <span
+            v-bind="tooltipProps"
+            :tabindex="windowingUnavailableReason ? 0 : undefined"
+            data-testid="windowing-tool"
+          >
+            <menu-control-button
+              icon="mdi-circle-half-full"
+              :name="`Window & Level [${nameToShortcut['Window & Level']}]`"
+              :active="active"
+              :disabled="!!windowingUnavailableReason"
+              @click="toggle"
+            >
+              <window-level-controls />
+            </menu-control-button>
+          </span>
+        </template>
+      </v-tooltip>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Pan">
       <control-button
@@ -143,6 +157,7 @@ import {
 } from '@/src/composables/useKeyboardShortcuts';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useViewStore } from '@/src/store/views';
+import { isCineImage } from '@/src/core/cine/isCineImage';
 
 export default defineComponent({
   components: {
@@ -158,9 +173,19 @@ export default defineComponent({
     const toolStore = useToolStore();
     const viewStore = useViewStore();
 
-    const { currentImageID } = useCurrentImage();
+    const { currentImageID, currentImageData } = useCurrentImage();
     const noCurrentImage = computed(() => !currentImageID.value);
     const currentTool = computed(() => toolStore.currentTool);
+    const windowingUnavailableReason = computed(() => {
+      if (!currentImageID.value) return 'Load an image to adjust window/level.';
+      const scalars = currentImageData.value?.getPointData().getScalars();
+      if (!scalars) return 'The image must finish loading first.';
+      if (isCineImage(currentImageID.value))
+        return 'Cine images already contain display-encoded pixels.';
+      if (scalars.getNumberOfComponents() !== 1)
+        return 'Window/level editing requires a single-component image.';
+      return '';
+    });
 
     const activeViewRef = toRef(viewStore, 'activeView');
     const activeEffective = useEffectiveView(
@@ -216,6 +241,7 @@ export default defineComponent({
       currentTool,
       setCurrentTool: toolStore.setCurrentTool,
       noCurrentImage,
+      windowingUnavailableReason,
       isObliqueLayout,
       isDisallowedOnCine,
       paintUnavailableReason,

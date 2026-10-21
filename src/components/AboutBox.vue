@@ -166,36 +166,79 @@
       NIBIB R01EB014955, NCI R01CA220681, and NINDS R42NS086295
       <br />
       <br />
-      Sample data provided by the following sources:
-      <ul>
+      <h2 class="mt-2">Sample Data Sources</h2>
+      <v-divider class="mb-2" />
+      <ul class="sample-data-sources">
         <li>
-          PROSTATEx Challenge Data: Geert Litjens, Oscar Debats, Jelle Barentsz,
-          Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge data",
-          The Cancer Imaging Archive (2017). DOI: 10.7937/K9TCIA.2017.MURS5CL
-          (<a
+          <strong>CTA Head and Neck:</strong> Sample distributed through
+          <a
             rel="noopener noreferrer"
             target="_blank"
-            href="https://wiki.cancerimagingarchive.net/pages/viewpage.action?pageId=23691656"
-            >TCIA</a
-          >)
+            href="https://data.kitware.com/#item/6347159711dab81428208e24"
+            >Kitware Data</a
+          >.
         </li>
         <li>
-          MRA Head and Neck: Test case 98890234 from the "Patient Contributed
-          Image Repository" (<a
+          <strong>MRA Head and Neck:</strong> Test case 98890234 from the
+          Patient Contributed Image Repository (<a
             rel="noopener noreferrer"
             target="_blank"
             href="http://www.pcir.org/researchers/98890234_20030505_MR.html"
             >PCIR.org</a
-          >)
+          >).
         </li>
         <li>
-          3D ultrasound of a fetus: Sample data from
+          <strong>MRI PROSTATEx:</strong> Geert Litjens, Oscar Debats, Jelle
+          Barentsz, Nico Karssemeijer, and Henkjan Huisman. "ProstateX Challenge
+          data", The Cancer Imaging Archive (2017). (<a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://doi.org/10.7937/K9TCIA.2017.MURS5CL"
+            >DOI: 10.7937/K9TCIA.2017.MURS5CL</a
+          >).
+        </li>
+        <li>
+          <strong>3D US Fetus:</strong> Sample data from
           <a
             rel="noopener noreferrer"
             target="_blank"
             href="http://tomovision.com"
-            >tomovision.com</a
-          >
+            >Tomovision</a
+          >.
+        </li>
+        <li>
+          <strong>Ultrasound Cine:</strong>
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://github.com/pydicom/pydicom/blob/v3.0.1/src/pydicom/data/test_files/examples_ybr_color.dcm"
+            >pydicom v3.0.1 example data</a
+          >, derived from color3d_jpeg_baseline.dcm with fewer frames and
+          rescaled pixels. See the
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://github.com/pydicom/pydicom/blob/v3.0.1/src/pydicom/data/test_files/README.txt"
+            >source and data notices</a
+          >.
+        </li>
+        <li>
+          <strong>PET/CT Chest:</strong> Li, P., Wang, S., Li, T., Lu, J.,
+          HuangFu, Y., and Wang, D. (2020). "A Large-Scale CT and PET/CT Dataset
+          for Lung Cancer Diagnosis (Lung-PET-CT-Dx)." The Cancer Imaging
+          Archive.
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://doi.org/10.7937/TCIA.2020.NNC2-0461"
+            >DOI: 10.7937/TCIA.2020.NNC2-0461</a
+          >.
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://creativecommons.org/licenses/by/4.0/"
+            >CC BY 4.0</a
+          >. Ten original DICOM instances selected from each series.
         </li>
       </ul>
     </v-card-text>
@@ -207,6 +250,10 @@
   width: fit-content;
   margin: 0 auto;
   text-transform: uppercase;
+}
+
+.sample-data-sources li + li {
+  margin-top: 12px;
 }
 </style>
 

@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { resolveBaseColorPreset } from '@/src/vtk/LayerColorPresets';
 import { markRaw, reactive, ref } from 'vue';
 import { createEventHook } from '@vueuse/core';
 import {
@@ -11,7 +12,7 @@ import { Maybe } from '@/src/types';
 import { WL_AUTO_DEFAULT } from '@/src/constants';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
-import { ViewConfig } from '@/src/io/state-file/schema';
+import { StateFile, ViewConfig } from '@/src/io/state-file/schema';
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
@@ -26,8 +27,15 @@ const minMaxToWidthLevel = (min: number, max: number) => ({
   level: (max + min) / 2,
 });
 
+const withAppearanceDefaults = (config: WindowLevelConfig) => ({
+  ...config,
+  preset: resolveBaseColorPreset(config.preset),
+  visibility: config.visibility ?? true,
+});
+
 export const defaultWindowLevelConfig = () =>
   ({
+    visibility: true,
     width: 1,
     level: 0.5,
     auto: WL_AUTO_DEFAULT,
@@ -75,12 +83,13 @@ export const useWindowingStore = defineStore('windowing', () => {
   };
 
   const getConfig = (viewID: string, dataID: string): WindowLevelConfig => {
-    const internalConfig =
+    const internalConfig = withAppearanceDefaults(
       getDoubleKeyRecord(configs, viewID, dataID) ??
-      computeDefaultConfig(dataID);
+        computeDefaultConfig(dataID)
+    );
 
     if (!internalConfig.useAuto) {
-      return { ...internalConfig };
+      return internalConfig;
     }
 
     const autoKey = internalConfig.auto;
@@ -92,7 +101,7 @@ export const useWindowingStore = defineStore('windowing', () => {
         ...minMaxToWidthLevel(min, max),
       };
     }
-    return { ...internalConfig };
+    return internalConfig;
   };
 
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
@@ -105,7 +114,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     userTriggered = false
   ) => {
     const currentInternalConfig = getInternalConfig(viewID, dataID);
-    const defaults = defaultWindowLevelConfig();
+    const defaults = computeDefaultConfig(dataID);
 
     let effectiveUseAuto = currentInternalConfig?.useAuto ?? defaults.useAuto;
     let widthLevelPatchOnSwitchingFromAuto;
@@ -169,7 +178,20 @@ export const useWindowingStore = defineStore('windowing', () => {
     }
   };
 
-  const serialize = createViewConfigSerializer(configs, 'window');
+  const serialize = (stateFile: StateFile) => {
+    const savedConfigs = Object.fromEntries(
+      Object.entries(configs).map(([viewID, viewConfigs]) => [
+        viewID,
+        Object.fromEntries(
+          Object.entries(viewConfigs).map(([dataID, config]) => [
+            dataID,
+            withAppearanceDefaults(config),
+          ])
+        ),
+      ])
+    );
+    createViewConfigSerializer(savedConfigs, 'window')(stateFile);
+  };
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {

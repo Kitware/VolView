@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import { computed, defineComponent, ref } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import {
   useWindowingStore,
@@ -11,15 +11,20 @@ import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { storeToRefs } from 'pinia';
 
-const MIN_VALUE = 0.001;
-
 export default defineComponent({
-  setup() {
+  props: {
+    viewId: String,
+    imageId: String,
+  },
+  emits: ['change'],
+  setup(props, { emit }) {
     const { currentImageID } = useCurrentImage();
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
     const { activeView } = storeToRefs(viewStore);
+    const targetViewID = computed(() => props.viewId ?? activeView.value);
+    const targetImageID = computed(() => props.imageId ?? currentImageID.value);
 
     function parseLabel(text: string) {
       return text.replace(/([A-Z])/g, ' $1').trim();
@@ -28,8 +33,8 @@ export default defineComponent({
     // --- CT Preset Options --- //
 
     const modality = computed(() => {
-      if (currentImageID.value && isDicomImage(currentImageID.value)) {
-        const volKey = currentImageID.value;
+      if (targetImageID.value && isDicomImage(targetImageID.value)) {
+        const volKey = targetImageID.value;
         const { Modality } = dicomStore.volumeInfo[volKey];
         return Modality;
       }
@@ -38,7 +43,7 @@ export default defineComponent({
 
     const ctTags = ['ct', 'ctprotocol'];
     const showCtPresets = computed(() => {
-      if (currentImageID.value && !isDicomImage(currentImageID.value)) {
+      if (targetImageID.value && !isDicomImage(targetImageID.value)) {
         return true;
       }
       return modality.value && ctTags.includes(modality.value.toLowerCase());
@@ -50,9 +55,8 @@ export default defineComponent({
     type PresetValue = { width: number; level: number };
 
     const wlConfig = computed(() => {
-      // All views will have the same settings, just grab the first
-      const viewID = activeView.value;
-      const imageID = currentImageID.value;
+      const viewID = targetViewID.value;
+      const imageID = targetImageID.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();
       return (
         windowingStore.getConfig(viewID, imageID) ?? defaultWindowLevelConfig()
@@ -62,16 +66,17 @@ export default defineComponent({
     const wlWidth = computed(() => wlConfig.value.width ?? 1);
     const wlLevel = computed(() => wlConfig.value.level ?? 0.5);
 
-    const formatForDisplay = (value: number) => {
-      if (Math.abs(value) < MIN_VALUE) return 0;
-      return Math.round(value * 100) / 100;
-    };
+    const widthFocused = ref(false);
+    const levelFocused = ref(false);
+
+    const formatForDisplay = (value: number) => Number(value.toPrecision(4));
 
     const displayWidth = computed({
-      get: () => formatForDisplay(wlWidth.value),
+      get: () =>
+        widthFocused.value ? wlWidth.value : formatForDisplay(wlWidth.value),
       set: (value: number) => {
-        const imageID = currentImageID.value;
-        const viewID = activeView.value;
+        const imageID = targetImageID.value;
+        const viewID = targetViewID.value;
         if (!imageID || !viewID || !Number.isFinite(value)) return;
         windowingStore.updateConfig(
           viewID,
@@ -79,14 +84,16 @@ export default defineComponent({
           { width: value, level: wlLevel.value },
           true
         );
+        emit('change');
       },
     });
 
     const displayLevel = computed({
-      get: () => formatForDisplay(wlLevel.value),
+      get: () =>
+        levelFocused.value ? wlLevel.value : formatForDisplay(wlLevel.value),
       set: (value: number) => {
-        const imageID = currentImageID.value;
-        const viewID = activeView.value;
+        const imageID = targetImageID.value;
+        const viewID = targetViewID.value;
         if (!imageID || !viewID || !Number.isFinite(value)) return;
         windowingStore.updateConfig(
           viewID,
@@ -94,6 +101,7 @@ export default defineComponent({
           { width: wlWidth.value, level: value },
           true
         );
+        emit('change');
       },
     });
 
@@ -107,8 +115,8 @@ export default defineComponent({
         return { width: wlWidth.value, level: wlLevel.value };
       },
       set(selection: AutoRangeKey | PresetValue) {
-        const imageID = currentImageID.value;
-        const viewID = activeView.value;
+        const imageID = targetImageID.value;
+        const viewID = targetViewID.value;
         if (!imageID || !viewID) {
           return;
         }
@@ -139,8 +147,8 @@ export default defineComponent({
 
     // --- Tag WL Options --- //
     const tags = computed(() => {
-      if (currentImageID.value && isDicomImage(currentImageID.value)) {
-        const volKey = currentImageID.value;
+      if (targetImageID.value && isDicomImage(targetImageID.value)) {
+        const volKey = targetImageID.value;
         return getWindowLevels(dicomStore.volumeInfo[volKey]);
       }
       return [];
@@ -155,6 +163,8 @@ export default defineComponent({
       WLAutoRanges,
       displayWidth,
       displayLevel,
+      widthFocused,
+      levelFocused,
     };
   },
 });
@@ -173,6 +183,7 @@ export default defineComponent({
               :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
               :value="value"
               density="compact"
+              @click="$emit('change')"
             />
           </div>
         </template>
@@ -186,6 +197,7 @@ export default defineComponent({
               :label="parseLabel(name)"
               :value="wl"
               density="compact"
+              @click="$emit('change')"
             />
           </div>
         </template>
@@ -198,6 +210,7 @@ export default defineComponent({
             :label="parseLabel(key)"
             :value="key"
             density="compact"
+            @click="$emit('change')"
           />
         </div>
       </v-radio-group>
@@ -207,15 +220,19 @@ export default defineComponent({
         <div class="manual-inputs">
           <v-text-field
             v-model.number="displayWidth"
+            v-model:focused="widthFocused"
             label="Window"
             type="number"
+            variant="underlined"
             density="compact"
             hide-details
           />
           <v-text-field
             v-model.number="displayLevel"
+            v-model:focused="levelFocused"
             label="Level"
             type="number"
+            variant="underlined"
             density="compact"
             hide-details
           />

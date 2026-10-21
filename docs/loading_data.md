@@ -6,10 +6,6 @@ The most straightfoward way to load files into VolView is to drag-and-drop them 
 
 VolView can load multiple DICOM files, folders containing multiple DICOM files, or zipped files containing multiple DICOM files. It also supports loading Nifti, NRRD, MHA, and 20+ other file formats thanks to the extensive I/O capabilities of ITK and itk.wasm, but care must be taken when loading non-DICOM data as the orientation of the data in those files cannot be assured.
 
-## Sample Data
-
-VolView includes links to a variety of sample data. Clicking on those thumbnails in the Data tab will download that data from Kitware data.kitware.com website into your local machine.
-
 ## DICOMWeb
 
 VolView lists and downloads DICOM files served by a DICOMWeb service. The host address of the DICOMWeb service is configurable by:
@@ -64,7 +60,7 @@ To layer images:
 
 1. Load the base image.
 1. On the Data tab, click the Add Layer button on the upper layer dataset.
-1. Under the Rendering tab, an opacity slider changes the transparency of the upper layer.
+1. Under the Rendering tab, open Layers to adjust the overlay color map, display range, opacity, and transparent background.
 
 ![Add Layer](./assets/add-layer.jpg)
 

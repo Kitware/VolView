@@ -13,7 +13,7 @@ if (IS_CI) {
   );
 }
 
-if (!IS_CI && !process.env.HEADED) {
+if (!process.env.HEADED) {
   chromeArgs.push('--headless=new', '--enable-unsafe-swiftshader');
 }
 

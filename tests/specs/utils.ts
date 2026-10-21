@@ -2,9 +2,134 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import JSZip from 'jszip';
+import { PNG } from 'pngjs';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import type { TestDataset } from '../datasets';
+
+export async function captureViewPixels(
+  selector: string,
+  inset: number,
+  fileName: string
+) {
+  const screenshot = PNG.sync.read(
+    await browser.saveScreenshot(path.join(TEMP_DIR, fileName))
+  );
+  const geometry = await browser.execute(
+    (viewSelector) => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+      views: Array.from(document.querySelectorAll(viewSelector)).map((view) => {
+        const rect = view.getBoundingClientRect();
+        return {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        };
+      }),
+    }),
+    selector
+  );
+  const scaleX = screenshot.width / geometry.width;
+  const scaleY = screenshot.height / geometry.height;
+  return geometry.views.map((rect) => {
+    const x = Math.trunc((rect.x + inset) * scaleX);
+    const y = Math.trunc((rect.y + inset) * scaleY);
+    const width = Math.trunc((rect.width - 2 * inset) * scaleX);
+    const height = Math.trunc((rect.height - 2 * inset) * scaleY);
+    if (
+      width <= 0 ||
+      height <= 0 ||
+      x < 0 ||
+      y < 0 ||
+      x + width > screenshot.width ||
+      y + height > screenshot.height
+    )
+      throw new Error(
+        `Expected a nonempty view crop inside the screenshot: ${selector}`
+      );
+    const data = Buffer.alloc(width * height * 4);
+    for (let row = 0; row < height; row++) {
+      const source = ((y + row) * screenshot.width + x) * 4;
+      screenshot.data.copy(data, row * width * 4, source, source + width * 4);
+    }
+    return { width, data };
+  });
+}
+
+export async function capture2DViewPixels(inset: number, fileName: string) {
+  const views = await captureViewPixels(
+    '[data-testid~="vtk-two-view"]',
+    inset,
+    fileName
+  );
+  return views.map(({ width, data }) => ({
+    width,
+    data: Array.from(data),
+  }));
+}
+
+export async function capture2DViewScreenshotMetrics(fileName: string) {
+  const views = await captureViewPixels(
+    '[data-testid~="vtk-two-view"]',
+    40,
+    fileName
+  );
+  return views.map(({ data }) => {
+    let colored = 0;
+    let blue = 0;
+    let checksum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const red = data[i];
+      const green = data[i + 1];
+      const blueChannel = data[i + 2];
+      if (
+        Math.max(red, green, blueChannel) - Math.min(red, green, blueChannel) >
+        40
+      )
+        colored++;
+      if (blueChannel > red + 40 && blueChannel > green + 40) blue++;
+      checksum += red + 3 * green + 7 * blueChannel;
+    }
+    return { colored, blue, checksum };
+  });
+}
+
+export async function waitForModuleTransitions() {
+  await browser.waitUntil(
+    () =>
+      browser.execute(() => {
+        const container = document.getElementById('module-container')!;
+        const transitioning = container.querySelector(
+          '[class*="-enter-active"], [class*="-leave-active"]'
+        );
+        const animating = container
+          .getAnimations({ subtree: true })
+          .some(
+            (animation) =>
+              animation.playState === 'running' &&
+              Number.isFinite(animation.effect?.getComputedTiming().endTime)
+          );
+        return !transitioning && !animating;
+      }),
+    {
+      timeoutMsg: 'Expected the module panels to finish moving',
+    }
+  );
+}
+
+export async function selectLayout(
+  name: string,
+  count2D: number,
+  has3D: boolean
+) {
+  await volViewPage.layoutButton.click();
+  const option = $(`.v-list-item-title=${name}`);
+  await option.waitForClickable();
+  await option.click();
+  await volViewPage.waitForViewCounts(count2D, has3D);
+}
 
 export function writeMetaImage(
   fileName: string,

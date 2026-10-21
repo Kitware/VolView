@@ -19,7 +19,7 @@ VolView accepts DICOM data in a vareity of formats:
 - Selections of files: a selection of multiple DICOM files
 - Zipped collections: containing a folder or selection of DICOM files
 
-From the Data tab (default tab when VolView is started) you can drag-and-drop DICOM data in any of the above formats or you can click to bring up a file browser and select your DICOM data. You can also select one of the sample DICOM collections listed, and it will be downloaded onto your machine from [https://data.kitware.com](https://data.kitware.com/#collection/586fef9f8d777f05f44a5c86/folder/634713cf11dab81428208e1e).
+From the Data tab (default tab when VolView is started) you can drag-and-drop DICOM data in any of the above formats or you can click to bring up a file browser and select your DICOM data. You can also select a sample dataset in the Data tab to download and open it.
 
 [**_Watch the video!_**](https://youtu.be/4PvZd7yTzf0)
 

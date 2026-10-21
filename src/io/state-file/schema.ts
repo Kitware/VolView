@@ -1,3 +1,4 @@
+import { DEFAULT_LAYER_PRESET } from '@/src/vtk/LayerColorPresets';
 import JSZip from 'jszip';
 import { z } from 'zod';
 import type { Vector3 } from '@kitware/vtk.js/types';
@@ -20,6 +21,7 @@ import type {
   SliceConfig,
   WindowLevelConfig,
   LayersConfig,
+  LayerDisplayConfig,
   VolumeColorConfig,
   CinePlaybackViewConfig,
 } from '@/src/store/view-configs/types';
@@ -139,6 +141,8 @@ const Vector3 = z.tuple([
 type AutoRangeKeys = keyof typeof WLAutoRanges;
 const WindowLevelConfig = z
   .object({
+    preset: z.string().default('Grayscale'),
+    visibility: z.boolean().default(true),
     width: z.number().optional(),
     level: z.number().optional(),
     auto: z.string() as z.ZodType<AutoRangeKeys>,
@@ -260,12 +264,23 @@ const BlendConfig = z.object({
   visibility: z.boolean(),
 }) satisfies z.ZodType<BlendConfig>;
 
+const LayerColorTransferFunction = ColorTransferFunction.extend({
+  preset: z.string().default(DEFAULT_LAYER_PRESET),
+});
+
 const LayersConfig = z.object({
   colorBy: ColorBy,
-  transferFunction: ColorTransferFunction,
+  transferFunction: LayerColorTransferFunction,
   opacityFunction: OpacityFunction,
   blendConfig: BlendConfig,
+  transparentBackground: z.boolean().default(true),
 }) satisfies z.ZodType<LayersConfig>;
+
+const LayerDisplayConfig = LayerColorTransferFunction.extend({
+  opacity: z.number(),
+  visibility: z.boolean().default(true),
+  transparentBackground: z.boolean().default(true),
+}) satisfies z.ZodType<LayerDisplayConfig>;
 
 const CinePlaybackViewConfig = z.object({
   frame: z.number(),
@@ -517,6 +532,7 @@ export const ManifestSchema = z.object({
   layout: Layout.optional(),
   layoutSlots: z.array(z.string()).optional(),
   parentToLayers: ParentToLayers.optional(),
+  layerDisplay: z.record(z.string(), LayerDisplayConfig).optional(),
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
