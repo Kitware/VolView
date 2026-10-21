@@ -197,6 +197,24 @@
             >tomovision.com</a
           >
         </li>
+        <li>
+          <strong>PET/CT Chest:</strong> Li, P., Wang, S., Li, T., Lu, J.,
+          HuangFu, Y., and Wang, D. (2020). "A Large-Scale CT and PET/CT Dataset
+          for Lung Cancer Diagnosis (Lung-PET-CT-Dx)." The Cancer Imaging
+          Archive.
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://doi.org/10.7937/TCIA.2020.NNC2-0461"
+            >DOI: 10.7937/TCIA.2020.NNC2-0461</a
+          >.
+          <a
+            rel="noopener noreferrer"
+            target="_blank"
+            href="https://creativecommons.org/licenses/by/4.0/"
+            >CC BY 4.0</a
+          >. Ten original DICOM instances selected from each series.
+        </li>
       </ul>
     </v-card-text>
   </v-card>

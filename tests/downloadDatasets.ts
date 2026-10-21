@@ -2,11 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import {
-  DATASET_RELEASE,
-  TEST_DATASETS,
-  type TestDataset,
-} from './datasets.ts';
+import { TEST_DATASETS, type TestDataset } from './datasets.ts';
 import { projectRoot } from './e2eTestUtils.ts';
 
 // Node built-ins only, so CI can warm the dataset cache by running this file
@@ -19,7 +15,7 @@ const sha256 = (data: Buffer) =>
   createHash('sha256').update(data).digest('hex');
 
 async function fetchDataset(dataset: TestDataset) {
-  const url = `${DATASET_RELEASE}/${dataset.name}`;
+  const { url } = dataset;
   const fail = (reason: string) =>
     new Error(
       `Could not download test dataset ${dataset.name} from ${url}: ${reason}`

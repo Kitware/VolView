@@ -4,6 +4,8 @@ import MRAHeadThumbnail from '@/src/assets/samples/MRA-Head_and_Neck.jpg';
 import CTAHeadThumbnail from '@/src/assets/samples/CTA-Head_and_Neck.jpg';
 import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
+import { PET_CT_URLS } from './samples/petCT';
+import PETCTChestThumbnail from '@/src/assets/samples/PET-CT-Chest.png';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -156,6 +158,12 @@ export const SAMPLE_DATA: SampleDataset[] = [
     description: '30-frame echocardiogram with cine playback. (225 KB)',
     url: 'https://raw.githubusercontent.com/pydicom/pydicom/v3.0.1/src/pydicom/data/test_files/examples_ybr_color.dcm',
     image: USCineThumbnail,
+  },
+  {
+    name: 'PET/CT Chest',
+    description: 'PET layered over chest CT. 6 MB',
+    urls: PET_CT_URLS,
+    image: PETCTChestThumbnail,
   },
 ];
 
