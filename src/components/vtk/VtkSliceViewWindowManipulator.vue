@@ -48,14 +48,16 @@ const { instance: rangeManipulator } = useVtkInteractionManipulator(
 );
 
 const wlConfig = useWindowingConfig(viewId, imageId);
+
 useResetViewsEvents().onClick(() => {
-  useWindowingStore().resetConfig(imageId.value, viewId.value);
+  useWindowingStore().resetConfig(wlConfig.viewID.value, imageId.value);
 });
 
 const computeStep = (range: Vector2) => {
   const diff = range[1] - range[0] || 1;
   return Math.min(diff, 1) / 256;
 };
+
 const wlStep = computed(() => computeStep(wlConfig.range.value));
 
 const horiz = useMouseRangeManipulatorListener(

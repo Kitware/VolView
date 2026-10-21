@@ -206,7 +206,9 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function addView(viewInit: ViewInfoInit) {
-    const id = idStore.nextId();
+    let id = idStore.nextId();
+    // Restored views retain their saved IDs without advancing the ID generator.
+    while (id in viewByID) id = idStore.nextId();
 
     const view = {
       id,

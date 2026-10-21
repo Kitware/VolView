@@ -21,6 +21,7 @@ const tags: Tag[] = [
   { name: 'SeriesDescription', tag: '0008|103e' },
   { name: 'WindowLevel', tag: '0028|1050' },
   { name: 'WindowWidth', tag: '0028|1051' },
+  { name: 'VOILUTFunction', tag: '0028|1056' },
   { name: 'Rows', tag: '0028|0010' },
   { name: 'Columns', tag: '0028|0011' },
   { name: 'BitsAllocated', tag: '0028|0100' },

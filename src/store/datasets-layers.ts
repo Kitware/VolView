@@ -6,6 +6,8 @@ import { Maybe } from '@/src/types';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { NO_NAME } from '@/src/constants';
+import { getLayerId } from '@/src/utils/layers';
+import { useLayerColoringStore } from './view-configs/layers';
 import { useErrorMessage } from '../composables/useErrorMessage';
 import { Manifest, StateFile } from '../io/state-file/schema';
 import { untilLoaded } from '../composables/untilLoaded';
@@ -19,18 +21,10 @@ export const useLayersStore = defineStore('layer', () => {
   const imageCacheStore = useImageCacheStore();
 
   const parentToLayers = reactive<Record<string, Layer[]>>({});
+  const pendingLayers = new Map<string, Promise<string | undefined>>();
 
-  async function _addLayer(parent: DataSelection, source: DataSelection) {
-    if (!parent) {
-      throw new Error('Tried to addLayer without parent data selection');
-    }
-
-    const id = `${parent}::${source}` as string;
-    parentToLayers[parent] = [
-      ...(parentToLayers[parent] ?? []),
-      { selection: source, id } as Layer,
-    ];
-
+  async function buildLayerImage(parent: DataSelection, layer: Layer) {
+    const { selection: source, id } = layer;
     // ensureSameSpace need final image array to resample, so wait for all chunks
     await untilLoaded(source);
 
@@ -51,7 +45,6 @@ export const useLayersStore = defineStore('layer', () => {
         sourceImage.getBounds()
       )
     ) {
-      deleteLayer(parent, source);
       throw new Error(
         'Image bounds do not intersect, so no overlap in physical space'
       );
@@ -59,28 +52,41 @@ export const useLayersStore = defineStore('layer', () => {
 
     const image = await ensureSameSpace(parentImage, sourceImage);
     // Deleted while resampling: caching the image now would leave it unowned.
-    if (!parentToLayers[parent]?.some((layer) => layer.id === id))
-      return undefined;
+    if (!parentToLayers[parent]?.includes(layer)) return undefined;
 
     const name = imageCacheStore.getImageMetadata(source)?.name ?? NO_NAME;
     imageCacheStore.addVTKImageData(image, name, { id });
     return id;
   }
 
+  async function _addLayer(parent: DataSelection, source: DataSelection) {
+    if (!parent) {
+      throw new Error('Tried to addLayer without parent data selection');
+    }
+
+    const id = getLayerId(parent, source);
+    const pending = pendingLayers.get(id);
+    if (pending) return pending;
+    if (parentToLayers[parent]?.some((layer) => layer.id === id)) return id;
+
+    const layer = reactive({ selection: source, id });
+    parentToLayers[parent] = [...(parentToLayers[parent] ?? []), layer];
+    const task = buildLayerImage(parent, layer);
+    pendingLayers.set(id, task);
+    try {
+      return await task;
+    } catch (error) {
+      if (parentToLayers[parent]?.includes(layer)) deleteLayer(parent, source);
+      throw error;
+    } finally {
+      if (pendingLayers.get(id) === task) pendingLayers.delete(id);
+    }
+  }
+
   async function addLayer(parent: DataSelection, source: DataSelection) {
-    return useErrorMessage('Failed to build layer', async () => {
-      try {
-        return await _addLayer(parent, source);
-      } catch (error) {
-        // remove failed layer from parent's layer list
-        const layers = parentToLayers[parent];
-        if (layers)
-          parentToLayers[parent] = layers.filter(
-            ({ selection }) => selection !== source
-          );
-        throw error;
-      }
-    });
+    return useErrorMessage('Failed to build layer', () =>
+      _addLayer(parent, source)
+    );
   }
 
   function deleteLayer(parent: DataSelection, source: DataSelection) {
@@ -93,9 +99,13 @@ export const useLayersStore = defineStore('layer', () => {
     const layerToDelete = layers.find(({ selection }) => selection === source);
     if (!layerToDelete) return;
 
-    parentToLayers[parent] = layers.filter((layer) => layer !== layerToDelete);
+    parentToLayers[parent] = layers.filter(
+      (layer) => layer.id !== layerToDelete.id
+    );
 
+    pendingLayers.delete(layerToDelete.id);
     imageCacheStore.removeImage(layerToDelete.id);
+    useLayerColoringStore().removeData(layerToDelete.id);
   }
 
   function getLayers(key: Maybe<DataSelection>) {
