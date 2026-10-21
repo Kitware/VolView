@@ -270,6 +270,26 @@ export type DataSourceImporter = (
   sources: DataSource[]
 ) => Promise<ImportDataSourcesResult[]>;
 
+export function showImportedData(results: ImportResult[]) {
+  const loadDataStore = useLoadDataStore();
+
+  const primaryDataSource = findBaseDataSource(
+    results,
+    loadDataStore.segmentationExtension,
+    loadDataStore.layerExtension
+  );
+  if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
+
+  useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
+  autoLayerDicoms(primaryDataSource, results);
+  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
+  loadSegmentations(
+    primaryDataSource,
+    results,
+    loadDataStore.segmentationExtension
+  );
+}
+
 type LoadDataSourcesOutcome = {
   datasetIds: string[];
   hadErrors: boolean;
@@ -305,27 +325,7 @@ function loadDataSourcesWithOutcome(
       .every((view) => !view.dataID);
 
     if (succeeded.length && shouldShowData) {
-      const primaryDataSource = findBaseDataSource(
-        succeeded,
-        loadDataStore.segmentationExtension,
-        loadDataStore.layerExtension
-      );
-
-      if (isVolumeResult(primaryDataSource)) {
-        const selection = toDataSelection(primaryDataSource);
-        viewStore.setDataForAllViews(selection);
-        autoLayerDicoms(primaryDataSource, succeeded);
-        autoLayerByName(
-          primaryDataSource,
-          succeeded,
-          loadDataStore.layerExtension
-        );
-        loadSegmentations(
-          primaryDataSource,
-          succeeded,
-          loadDataStore.segmentationExtension
-        );
-      } // else must be primaryDataSource.type === 'model', which are not dealt with here yet
+      showImportedData(succeeded);
     }
 
     // Every error importDataSources returns is unreported by contract
@@ -410,7 +410,10 @@ export async function loadUserPromptedFiles() {
   return loadFiles(files);
 }
 
-function urlsToDataSources(urls: string[], names: string[] = []): DataSource[] {
+export function urlsToDataSources(
+  urls: string[],
+  names: string[] = []
+): DataSource[] {
   return urls.map((url, idx) => {
     const defaultName =
       basename(parseUrl(url, window.location.href).pathname) || url;

@@ -227,6 +227,8 @@ export default class DicomChunkImage
   }
 
   startLoad() {
+    if (this.chunkStatus.every((status) => status === ChunkStatus.Loaded))
+      return;
     this.chunks.forEach((chunk) => {
       chunk.loadData();
     });
@@ -250,12 +252,17 @@ export default class DicomChunkImage
   }
 
   private async addChunksInOrder(chunks: Chunk[]) {
-    this.unregisterChunkListeners();
-
     const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
     const newChunks = chunks.filter(
       (chunk) => !existingIds.has(getChunkId(chunk))
     );
+    if (
+      !newChunks.length &&
+      this.chunkStatus.every((status) => status === ChunkStatus.Loaded)
+    )
+      return;
+
+    this.unregisterChunkListeners();
     newChunks.forEach((chunk) => {
       this.chunks.push(chunk);
     });

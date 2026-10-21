@@ -13,19 +13,19 @@ import { SampleDataset } from '@/src/types';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { fetchFile } from '@/src/utils/fetch';
-import { useViewStore } from '@/src/store/views';
+import {
+  showImportedData,
+  urlsToDataSources,
+} from '@/src/actions/loadUserFiles';
 
-enum ProgressState {
-  Pending,
-  Error,
-  Done,
-}
+async function getSampleDataSources(
+  sample: SampleDataset,
+  progress: (percent: number) => void
+) {
+  if ('urls' in sample) return urlsToDataSources(sample.urls);
 
-interface Progress {
-  [name: string]: {
-    state: ProgressState;
-    progress: number;
-  };
+  const file = await fetchFile(sample.url, sample.filename, { progress });
+  return [remoteFileToDataSource(file, sample.url)];
 }
 
 export default defineComponent({
@@ -33,24 +33,25 @@ export default defineComponent({
     ImageListCard,
   },
   setup() {
-    const viewStore = useViewStore();
-    const status = reactive<{ progress: Progress }>({
+    const status = reactive<{ progress: Record<string, number> }>({
       progress: {},
     });
-    // URL -> data ID
+
     const loaded = reactive<{
-      urlToID: Record<string, string>;
-      idToURL: Record<string, string>;
+      nameToIDs: Record<string, string[]>;
+      idToName: Record<string, string>;
     }>({
-      urlToID: {},
-      idToURL: {},
+      nameToIDs: {},
+      idToName: {},
     });
 
     const clearLoadedStatus = (id: string) => {
-      const url = loaded.idToURL[id];
-      if (url) {
-        delete loaded.idToURL[id];
-        delete loaded.urlToID[url];
+      const name = loaded.idToName[id];
+      if (name) {
+        loaded.nameToIDs[name].forEach((memberID) => {
+          delete loaded.idToName[memberID];
+        });
+        delete loaded.nameToIDs[name];
       }
     };
 
@@ -75,45 +76,40 @@ export default defineComponent({
     });
 
     async function downloadSample(sample: SampleDataset) {
+      if (sample.name in status.progress) return;
       const progress = (percent: number) => {
-        status.progress[sample.name] = {
-          state: ProgressState.Pending,
-          progress: percent * 100,
-        };
+        status.progress[sample.name] = percent * 100;
       };
       try {
         progress(Infinity);
-
-        const sampleFile = await fetchFile(sample.url, sample.filename, {
-          progress,
+        const files = await getSampleDataSources(sample, progress);
+        const loadResults = await importDataSources(files);
+        const errors = loadResults.flatMap((result) =>
+          result.type === 'error' ? [result.error] : []
+        );
+        if (errors.length) {
+          throw new Error(errors.map((error) => error.message).join('\n'));
+        }
+        const selections = loadResults.flatMap((result) => {
+          const id = convertSuccessResultToDataSelection(result);
+          return id ? [id] : [];
         });
-        status.progress[sample.name].state = ProgressState.Done;
-
-        const [loadResult] = await importDataSources([
-          remoteFileToDataSource(sampleFile, sample.url),
-        ]);
-
-        if (!loadResult) {
+        if (!selections.length)
           throw new Error('Did not receive a load result');
-        }
-        if (loadResult.type === 'error') {
-          throw loadResult.error;
-        }
 
-        const selection = convertSuccessResultToDataSelection(loadResult);
-        if (selection) {
-          loaded.idToURL[selection] = sample.url;
-          loaded.urlToID[sample.url] = selection;
-
-          useVolumeColoringStore().setDefaults(selection, {
-            transferFunction: {
-              preset: sample.defaults?.colorPreset,
-            },
+        if (sample.defaults?.colorPreset) {
+          selections.forEach((selection) => {
+            useVolumeColoringStore().setDefaults(selection, {
+              transferFunction: { preset: sample.defaults?.colorPreset },
+            });
           });
         }
-        viewStore.setDataForAllViews(selection);
+        showImportedData(loadResults);
+        loaded.nameToIDs[sample.name] = selections;
+        selections.forEach((id) => {
+          loaded.idToName[id] = sample.name;
+        });
       } catch (error) {
-        status.progress[sample.name].state = ProgressState.Error;
         const messageStore = useMessageStore();
         messageStore.addError('Failed to load sample data', {
           error: error as Error,
@@ -125,20 +121,16 @@ export default defineComponent({
 
     const samples = computed(() =>
       SAMPLE_DATA.map((sample) => {
-        const isDone =
-          status.progress[sample.name]?.state === ProgressState.Done;
-        const isError =
-          status.progress[sample.name]?.state === ProgressState.Error;
-        const isLoaded = !!loaded.urlToID[sample.url];
-        const progress =
-          isDone || isLoaded
+        const isDownloading = sample.name in status.progress;
+        const isLoaded = !!loaded.nameToIDs[sample.name];
+        const progress = isDownloading
+          ? Math.floor(status.progress[sample.name])
+          : isLoaded
             ? 100
-            : Math.floor(status.progress[sample.name]?.progress);
+            : 0;
         return {
           ...sample,
-          isDownloading: sample.name in status.progress,
-          isDone,
-          isError,
+          isDownloading,
           isLoaded,
           indeterminate: progress === Infinity,
           progress,
@@ -158,7 +150,9 @@ export default defineComponent({
   <div data-testid="samples-list">
     <image-list-card
       v-for="sample in samples"
-      :disabled="sample.isDownloading || sample.isLoaded"
+      :disabled="
+        sample.isDownloading || (sample.isLoaded && !('urls' in sample))
+      "
       :key="sample.name"
       :html-title="sample.name"
       :image-url="sample.image"
@@ -175,14 +169,15 @@ export default defineComponent({
           <v-progress-circular
             class="sample-progress"
             color="white"
-            :indeterminate="sample.indeterminate && !sample.isDone"
+            :indeterminate="sample.indeterminate"
             :model-value="sample.progress"
           >
-            <v-icon v-if="sample.isDone || sample.isLoaded" small color="white">
+            <v-icon
+              v-if="sample.isLoaded && !sample.isDownloading"
+              small
+              color="white"
+            >
               mdi-check
-            </v-icon>
-            <v-icon v-else-if="sample.isError" small color="white">
-              mdi-alert-circle
             </v-icon>
             <span
               v-else-if="!sample.indeterminate"
