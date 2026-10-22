@@ -42,7 +42,7 @@ function getPreset(id: string) {
   return LAYER_PRESET_DEFAULT;
 }
 
-export const defaultLayersConfig = (): LayersConfig => ({
+const defaultLayersConfig = (): LayersConfig => ({
   colorBy: {
     arrayName: '',
     location: 'pointData',

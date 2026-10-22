@@ -69,4 +69,3 @@ const GroupedPresets = [
 ];
 
 export const PresetNameList = GroupedPresets.flatMap((group) => group.presets);
-export default GroupedPresets;

@@ -32,7 +32,6 @@ import type {
   OpacityGaussians,
   OpacityPoints,
   OpacityNodes,
-  ColoringConfig,
   CVRConfig,
   BlendConfig,
 } from '@/src/types/views';
@@ -227,12 +226,6 @@ const ColorTransferFunction = z.object({
   preset: z.string(),
   mappingRange: z.tuple([z.number(), z.number()]),
 }) satisfies z.ZodType<ColorTransferFunction>;
-
-const ColoringConfig = z.object({
-  colorBy: ColorBy,
-  transferFunction: ColorTransferFunction,
-  opacityFunction: OpacityFunction,
-}) satisfies z.ZodType<ColoringConfig>;
 
 const CVRConfig = z.object({
   enabled: z.boolean(),

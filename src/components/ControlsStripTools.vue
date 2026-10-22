@@ -123,8 +123,7 @@
 </template>
 
 <script lang="ts">
-import { computed, defineComponent, ref, watch } from 'vue';
-import { onKeyDown } from '@vueuse/core';
+import { computed, defineComponent, watch } from 'vue';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
@@ -179,16 +178,6 @@ export default defineComponent({
       () => toolStore.paintUnavailableReason
     );
 
-    const paintMenu = ref(false);
-    const cropMenu = ref(false);
-    const windowingMenu = ref(false);
-
-    onKeyDown('Escape', () => {
-      paintMenu.value = false;
-      cropMenu.value = false;
-      windowingMenu.value = false;
-    });
-
     const enableTempCrosshairs = useActionHeld('temporaryCrosshairs');
     watch(enableTempCrosshairs, (enable) => {
       if (enable) toolStore.activateTemporaryCrosshairs();
@@ -220,9 +209,6 @@ export default defineComponent({
       isDisallowedOnCine,
       paintUnavailableReason,
       Tools,
-      paintMenu,
-      cropMenu,
-      windowingMenu,
       nameToShortcut,
     };
   },
@@ -237,19 +223,10 @@ export default defineComponent({
 </style>
 
 <style scoped>
-.menu-more {
-  position: absolute;
-  right: -10%;
-}
-
 .tool-separator {
   width: 75%;
   height: 1px;
   border: none;
   border-top: 1px solid rgba(var(--v-theme-on-surface), 0.3);
-}
-
-.popup-menu {
-  max-width: 400px; /* a little less than v-navigation-drawer in App.vue */
 }
 </style>

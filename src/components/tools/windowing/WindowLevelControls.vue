@@ -54,9 +54,7 @@ export default defineComponent({
       const viewID = activeView.value;
       const imageID = currentImageID.value;
       if (!imageID || !viewID) return defaultWindowLevelConfig();
-      return (
-        windowingStore.getConfig(viewID, imageID) ?? defaultWindowLevelConfig()
-      );
+      return windowingStore.getConfig(viewID, imageID);
     });
 
     const wlWidth = computed(() => wlConfig.value.width ?? 1);
