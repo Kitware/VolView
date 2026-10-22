@@ -1514,6 +1514,37 @@ describe('Providers store — re-discovered job history: slim observability adop
     expect(store.jobResultsApplied.size).toBe(0);
   });
 
+  it.each([
+    [
+      'throws synchronously',
+      () => {
+        throw new Error('History unavailable');
+      },
+    ],
+    ['rejects', () => Promise.reject(new Error('History unavailable'))],
+  ] as const)(
+    'loads adopted results when job detail %s',
+    async (_, readDetail) => {
+      const provider = makeProvider({
+        listJobHistory: vi.fn().mockResolvedValue({
+          jobs: [handle({ state: 'success' })],
+          nextCursor: null,
+        }),
+        getJobHistoryDetail: vi.fn(readDetail),
+        getResults: vi.fn().mockResolvedValue(resultsBundle(sampleResults)),
+      });
+      const store = arrange(provider);
+
+      await store.adoptJobHistory();
+      await store.loadJobResults(ref('jr'));
+
+      expect(store.jobResults.get(keyFor('jr'))).toEqual(sampleResults);
+      expect(
+        store.submittedContexts.get(keyFor('jr'))?.activeDatasetId
+      ).toBeUndefined();
+    }
+  );
+
   it('a job that settles between listing and the first poll completes once', async () => {
     const provider = makeProvider({
       listJobHistory: vi.fn().mockResolvedValue({

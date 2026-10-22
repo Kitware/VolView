@@ -35,9 +35,6 @@ export const MAX_POLL_RETRIES = 4;
 export const MAX_POLL_BACKOFF_MS = 30000;
 export const MAX_JOB_HISTORY_PAGES = 1000;
 
-const completionReady = (status: ProcessingJobStatus): boolean =>
-  isTerminalJobState(status.state);
-
 type PollErrorKind =
   | 'transient'
   | 'permanent'
@@ -476,14 +473,16 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     jobId: string
   ): Promise<string | undefined> {
     // History is best-effort; results can still open as standalone datasets.
-    const detail = await provider
-      .getJobHistoryDetail(jobId)
-      .catch(() => undefined);
-    const uris = selectParentImageUris(
-      detail?.parameters ?? {},
-      detail?.referenceImageParameter
-    );
-    return uris === undefined ? undefined : datasetIdForUris(uris);
+    try {
+      const detail = await provider.getJobHistoryDetail(jobId);
+      const uris = selectParentImageUris(
+        detail?.parameters ?? {},
+        detail?.referenceImageParameter
+      );
+      return uris === undefined ? undefined : datasetIdForUris(uris);
+    } catch {
+      return undefined;
+    }
   }
 
   // Rebuild an adopted job's missing parent id so a labelmap result attaches
@@ -625,7 +624,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     if (!isCurrent(key, gen)) return;
     pollRetries.delete(key);
     recordJob(provider.config.id, status);
-    if (completionReady(status)) {
+    if (isTerminalJobState(status.state)) {
       stopPolling(key);
       await fireCompletion(provider, status);
       return;
@@ -660,7 +659,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
         ? { ...jobRef.status, jobId }
         : { jobId, state: 'pending', resultState: 'waiting' };
       recordJob(providerId, initialStatus);
-      if (completionReady(initialStatus)) {
+      if (isTerminalJobState(initialStatus.state)) {
         await fireCompletion(provider, initialStatus);
         return jobId;
       }
@@ -902,7 +901,7 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     }
     if (!isCurrent(key, gen)) return;
     recordJob(providerId, status);
-    if (completionReady(status)) {
+    if (isTerminalJobState(status.state)) {
       await fireCompletion(provider, status);
       return;
     }
