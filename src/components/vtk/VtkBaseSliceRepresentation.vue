@@ -44,7 +44,10 @@ const components = computed(
     mapperInput.value?.getPointData().getScalars()?.getNumberOfComponents() ?? 0
 );
 
-const sliceRep = useSliceRepresentation(view, mapperInput);
+const sliceRep = useSliceRepresentation(
+  { ...view, renderer: view.imageRenderer },
+  mapperInput
+);
 
 watchEffect(() => {
   sliceRep.actor.setVisibility(wlConfig.config.value?.visibility ?? true);
