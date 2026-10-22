@@ -19,6 +19,9 @@
         "type": "string"
       },
       "additionalProperties": {}
+    },
+    "referenceImageParameter": {
+      "type": "string"
     }
   },
   "required": [

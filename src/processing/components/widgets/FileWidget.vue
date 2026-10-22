@@ -43,6 +43,7 @@ const props = defineProps<{
   binding?: SourceRefBindingState;
   boundName?: string;
   boundType?: BoundSourceRefType;
+  imageIndex?: number;
   warning?: string;
 }>();
 
@@ -80,7 +81,15 @@ const kind = computed(() => {
       ? props.param.accepts[0]
       : undefined;
   const type = props.boundType ?? declared;
-  return (type ? KINDS[type] : undefined) ?? IMAGE_KIND;
+  const declaredKind = type ? KINDS[type] : undefined;
+  if (declaredKind) return declaredKind;
+  return props.imageIndex && props.imageIndex > 0
+    ? {
+        ...IMAGE_KIND,
+        caption: `Image layer ${props.imageIndex}`,
+        noun: 'layer' as const,
+      }
+    : IMAGE_KIND;
 });
 
 const OPTIONAL_UNBOUND_STATES = new Set<SourceRefBindingState>([
@@ -88,6 +97,7 @@ const OPTIONAL_UNBOUND_STATES = new Set<SourceRefBindingState>([
   'no-segmentation',
   'no-annotations',
   'no-reference-input',
+  'no-layer',
 ]);
 
 // Missing optional inputs are an intentional task state, not an instruction

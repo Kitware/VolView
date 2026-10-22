@@ -10,6 +10,7 @@ import { planSegmentationInput } from '@/src/processing/segmentationInput';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { segmentationHasContent } from '@/src/segmentation/model';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -65,6 +66,7 @@ export function useInputStaging(write = writeSegmentation) {
   const { currentImageID } = useCurrentImage('global');
   const imageCache = useImageCacheStore();
   const datasetStore = useDatasetStore();
+  const layersStore = useLayersStore();
   const segmentationStore = useSegmentationStore();
 
   const activeDataSource = () =>
@@ -138,9 +140,19 @@ export function useInputStaging(write = writeSegmentation) {
     // segments all leave such a record behind.
     return {
       activeDataSource: activeDataSource(),
+      activeImageName: activeImageName(),
       segmentationId:
         record && segmentationHasContent(record) ? record.id : undefined,
       hasFinishedAnnotations: finishedAnnotationCount.value > 0,
+      imageLayers: layersStore
+        .getLayers(currentImageId)
+        .map(({ selection }) => ({
+          dataSource: datasetStore.getDataSource(selection),
+          name:
+            imageCache.getImageMetadata(selection)?.name ??
+            getDataSourceName(datasetStore.getDataSource(selection)) ??
+            undefined,
+        })),
     };
   };
 

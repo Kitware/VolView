@@ -11,6 +11,7 @@ import {
   type ImageBindingResult,
   type SourceRefBindingState,
   type SourceRefField,
+  type ImageLayerInput,
 } from '@/src/processing/engine/mintInput';
 import {
   bindLabelmapInputs,
@@ -37,10 +38,12 @@ export type SourceRefBindings = {
 
 export type SourceRefBindingContext = {
   activeDataSource: DataSource | undefined;
+  activeImageName?: string;
   // The current image's segmentation, when it holds a mask.
   segmentationId: string | undefined;
   // Whether the active image carries at least one finished annotation tool.
   hasFinishedAnnotations: boolean;
+  imageLayers?: readonly ImageLayerInput[];
 };
 
 const BOUND_TYPES = new Set<string>([
@@ -76,7 +79,7 @@ export const bindSourceRefs = (
   const fields = model.fields.filter(
     (field): field is SourceRefField => field.kind === 'sourceRef'
   );
-  // All supported source references share the current image provenance.
+  // Segmentations and annotations share the current image's provenance.
   const imageValue = fields.some((field) => acceptedTypes(field).length > 0)
     ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
     : null;
@@ -116,7 +119,8 @@ export const bindSourceRefs = (
   const image = bindMintedImageInputs(
     modelForType(model, types, TYPE_TAG_IMAGE),
     context.activeDataSource,
-    imageValue
+    imageValue,
+    { activeName: context.activeImageName, layers: context.imageLayers }
   );
   // The segmentation's reference image is the active image.
   const labelmap = bindLabelmapInputs(

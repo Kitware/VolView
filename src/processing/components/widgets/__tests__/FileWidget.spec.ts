@@ -135,3 +135,38 @@ describe('FileWidget segmentation inputs', () => {
     }
   );
 });
+
+describe('FileWidget ordered image inputs', () => {
+  it('labels a layer slot and shows its bound volume name', () => {
+    const wrapper = mountLabelmap(labelmapParam({ accepts: ['image'] }), {
+      binding: 'bound',
+      imageIndex: 2,
+      boundName: 'Perfusion volume',
+    });
+
+    expect(wrapper.get('.key-text').text()).toBe('Image layer 2');
+    expect(wrapper.get('.input-value').text()).toBe('Perfusion volume');
+  });
+
+  it.each([false, true])(
+    'renders an absent layer with required=%s',
+    (required) => {
+      const wrapper = mountLabelmap(
+        labelmapParam({ accepts: ['image'], required }),
+        {
+          binding: 'no-layer',
+          imageIndex: 1,
+        }
+      );
+
+      expect(wrapper.get('.input-value').text()).toBe(
+        required
+          ? 'Attach another image layer to the active dataset first.'
+          : 'Not provided'
+      );
+      expect(wrapper.get('.input-value').classes().includes('text-error')).toBe(
+        required
+      );
+    }
+  );
+});

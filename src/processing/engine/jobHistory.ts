@@ -27,13 +27,18 @@ function isImageInputValue(v: unknown): v is { type: string; uris: string[] } {
   return parsed.success && !STAGED_INPUT_TYPES.has(parsed.data.type);
 }
 
-// Anything but exactly one image input is ambiguous; never guess a parent to
-// attach results to.
+// A saved parameter name identifies the reference independently of JSON key
+// order. Older jobs without it are unambiguous only with one image input.
 export const selectParentImageUris = (
-  parameters: JobHistoryDetail['parameters']
+  parameters: JobHistoryDetail['parameters'],
+  referenceImageParameter?: string
 ): string[] | undefined => {
-  const imageInputs = Object.values(parameters ?? {}).filter(isImageInputValue);
-  return imageInputs.length === 1 ? imageInputs[0].uris : undefined;
+  if (referenceImageParameter !== undefined) {
+    const value = parameters?.[referenceImageParameter];
+    return isImageInputValue(value) ? value.uris : undefined;
+  }
+  const images = Object.values(parameters ?? {}).filter(isImageInputValue);
+  return images.length === 1 ? images[0].uris : undefined;
 };
 
 // Rows key on (providerId, jobId) because two providers may share a raw jobId.

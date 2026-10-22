@@ -344,6 +344,7 @@ export const jobHistoryDetailSchema = z.object({
   jobId: pathSegmentIdSchema,
   log: z.array(z.string()),
   parameters: z.record(z.string(), z.unknown()),
+  referenceImageParameter: z.string().optional(),
 });
 
 export type JobHistoryDetail = z.infer<typeof jobHistoryDetailSchema>;
