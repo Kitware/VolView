@@ -7,14 +7,15 @@ import {
 } from '@/src/types/views';
 import { WLAutoRanges } from '@/src/constants';
 
-export interface CameraConfig {
+export type CameraConfig = {
+  autoFit?: boolean;
   parallelScale?: number;
   position?: Vector3;
   focalPoint?: Vector3;
   directionOfProjection?: Vector3;
   viewUp?: Vector3;
   syncState?: boolean;
-}
+};
 
 export interface SliceConfig {
   slice: number;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { effectScope, type EffectScope } from 'vue';
+import { effectScope, ref, type EffectScope } from 'vue';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
 import { useAutoFitState } from '@/src/composables/useAutoFitState';
 
@@ -16,13 +16,13 @@ describe('useAutoFitState', () => {
 
   it('starts with auto-fit enabled', () => {
     const camera = vtkCamera.newInstance();
-    const autoFit = run(() => useAutoFitState(camera));
+    const autoFit = run(() => useAutoFitState(camera, ref(true)));
     expect(autoFit.autoFit.value).toBe(true);
   });
 
   it('keeps auto-fit enabled through programmatic camera changes outside a pointer interaction', () => {
     const camera = vtkCamera.newInstance();
-    const autoFit = run(() => useAutoFitState(camera));
+    const autoFit = run(() => useAutoFitState(camera, ref(true)));
 
     // Initial programmatic fit, as resetCamera() does on image load.
     autoFit.withPaused(() => {
@@ -39,7 +39,7 @@ describe('useAutoFitState', () => {
 
   it('disables auto-fit when the user manipulates the camera during a pointer interaction', () => {
     const camera = vtkCamera.newInstance();
-    const autoFit = run(() => useAutoFitState(camera));
+    const autoFit = run(() => useAutoFitState(camera, ref(true)));
 
     autoFit.resume(); // pointerdown
     camera.setParallelScale(42); // user zoom/pan modifies the camera

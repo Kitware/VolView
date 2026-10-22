@@ -173,6 +173,7 @@ const SliceConfig = z.object({
 }) satisfies z.ZodType<SliceConfig>;
 
 const CameraConfig = z.object({
+  autoFit: z.boolean().optional(),
   parallelScale: z.number().optional(),
   position: Vector3.optional(),
   focalPoint: Vector3.optional(),

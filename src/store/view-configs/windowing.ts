@@ -192,6 +192,7 @@ export const useWindowingStore = defineStore('windowing', () => {
   return {
     runtimeConfigWindowLevel,
     getConfig,
+    getInternalConfig,
     updateConfig,
     resetConfig,
     removeView,
