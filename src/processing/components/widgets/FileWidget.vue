@@ -2,8 +2,15 @@
   <div class="file-widget">
     <div class="input-key text-caption text-medium-emphasis">
       <v-icon size="16">{{ kind.icon }}</v-icon>
-      <span class="key-text">
-        {{ kind.caption }}{{ param.required ? '' : ' (optional)' }}
+      <span>
+        <span class="key-text">
+          {{ fieldLabel(param) }}{{ param.required ? '' : ' (optional)' }}
+        </span>
+        <span
+          v-if="fieldLabel(param) !== kind.caption"
+          class="source-caption"
+          >{{ kind.caption }}</span
+        >
       </span>
     </div>
     <div
@@ -30,6 +37,7 @@
 import { computed } from 'vue';
 import type { VolViewTaskParameter, InputValue } from '@/backend-contract';
 import { TYPE_TAG_ANNOTATIONS, TYPE_TAG_LABELMAP } from '@/backend-contract';
+import { fieldLabel } from '@/src/processing/engine/formModel';
 import {
   bindingStateMessage,
   type SourceRefBindingState,
@@ -126,19 +134,28 @@ const boundDisplayName = computed(() =>
 <style scoped>
 .file-widget {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(50%) minmax(0, 1fr);
   column-gap: 20px;
   align-items: start;
   padding: 2px 0;
 }
 .input-key {
   display: flex;
-  align-items: center;
+  min-width: 0;
+  align-items: flex-start;
   gap: 6px;
   line-height: 20px;
 }
 .input-key :deep(.v-icon) {
   flex: 0 0 auto;
+}
+.input-key > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.key-text,
+.source-caption {
+  display: block;
 }
 .input-value {
   min-width: 0;

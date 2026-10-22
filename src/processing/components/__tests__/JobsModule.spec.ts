@@ -596,6 +596,33 @@ describe('JobsModule segmentation staging', () => {
     form: Awaited<ReturnType<typeof mountImageReport>>['form']
   ) => form.findAll('.file-widget .value-text').map((value) => value.text());
 
+  it('shows declared image roles beside their bound datasets before submission', async () => {
+    await seatVolume('follow-up', 'Follow-up volume');
+    await useLayersStore().addLayer('image-1', 'follow-up');
+    const spec = orderedImageSpec();
+    spec.parameters = spec.parameters.map((parameter, index) => ({
+      ...(parameter as object),
+      ...(index < 2
+        ? { title: index === 0 ? 'Fixed image' : 'Moving image' }
+        : {}),
+    }));
+    const { p, form } = await mountImageReport(spec);
+    const inputs = form.findAll('.file-widget');
+
+    expect(inputNames(form)).toEqual([
+      'image.nrrd',
+      'Follow-up volume',
+      'Not provided',
+    ]);
+    expect(inputs[0].text()).toContain('Fixed image');
+    expect(inputs[1].text()).toContain('Moving image');
+    expect(inputs[2].text()).toContain('detailScan');
+    expect(inputs[0].text()).toContain('Active dataset');
+    expect(inputs[1].text()).toContain('Image layer 1');
+    expect(inputs[1].text()).toContain('(optional)');
+    expect(p.runTask).not.toHaveBeenCalled();
+  });
+
   it('binds each image parameter to one complete volume in base and layer order', async () => {
     pinia = activateAppPinia();
     const referenceScan = await seatVolume('image-1', 'CT volume', 3);
