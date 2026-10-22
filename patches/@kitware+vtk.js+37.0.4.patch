@@ -45,6 +45,18 @@ index 7defbee..70178df 100644
  			let pwfWidth = model.renderable.getOpacityTextureWidth();
  			if (pwfWidth <= 0) pwfWidth = model.context.getParameter(model.context.MAX_TEXTURE_SIZE);
  			const pwfSize = pwfWidth * textureHeight;
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
+@@ -95,7 +95,7 @@ function vtkOpenGLRenderer(publicAPI, model) {
+ 	publicAPI.clear = () => {
+ 		let clearMask = 0;
+ 		const gl = model.context;
+-		if (!model.renderable.getTransparent()) {
++		if (!model.renderable.getTransparent() || model.selector) {
+ 			const background = model.renderable.getBackgroundByReference();
+ 			gl.clearColor(background[0], background[1], background[2], background[3]);
+ 			clearMask |= gl.COLOR_BUFFER_BIT;
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
 index 3563142..111214c 100644
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js

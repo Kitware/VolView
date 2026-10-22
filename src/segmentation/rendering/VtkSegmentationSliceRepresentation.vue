@@ -127,8 +127,7 @@ sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
 // needed for vtk.js >= 23.0.0
 sliceRep.property.setUseLookupTableScalarRange(true);
 
-// Segments are coplanar with the base image, so they draw at an offset that
-// lifts them off it. The offset is the same for every segment.
+// Use one depth offset for every mask within the segmentation renderer.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
 sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
   ...SEGMENT_COINCIDENT_OFFSET

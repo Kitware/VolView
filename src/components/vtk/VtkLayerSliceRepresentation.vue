@@ -54,8 +54,11 @@ const nativeColor = computed(
   () => componentCount.value === 3 || componentCount.value === 4
 );
 
-const sliceRep = useSliceRepresentation(view, imageData);
-// Keep overlays in the same compositing pass as segments at every opacity.
+const sliceRep = useSliceRepresentation(
+  { ...view, renderer: view.imageRenderer },
+  imageData
+);
+// Per-pixel transparency applies even at full layer opacity.
 sliceRep.actor.setForceTranslucent(true);
 
 const ownedColorTransferFunction = vtkColorTransferFunction.newInstance();
@@ -110,7 +113,7 @@ watchEffect(() => {
   view.requestRender();
 });
 
-// set slice ordering to be in front of the segmentations
+// Lift image overlays off the coplanar base image.
 sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
 sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(-2, -2);
 

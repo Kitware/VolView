@@ -47,7 +47,9 @@ const { metadata: imageMetadata } = useImage(imageID);
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
 const scope = effectScope(true);
-const view = scope.run(() => useVtkView(vtkContainerRef))!;
+const view = scope.run(() =>
+  useVtkView(vtkContainerRef, { separateImageLayer: true })
+)!;
 
 onUnmounted(() => {
   scope.stop();
@@ -61,6 +63,8 @@ const { interactorStyle } = useVtkInteractorStyle(
   vtkInteractorStyleManipulator,
   view
 );
+// Camera manipulators fit clipping to image bounds; widgets pick the upper layer.
+interactorStyle.setFocusedRenderer(view.imageRenderer);
 
 // bind slice and window configs
 // resizeToFit camera controls

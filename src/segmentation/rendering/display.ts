@@ -4,17 +4,14 @@ import type { ResolvedLabelmapSegment } from '@/src/segmentation/model';
  * Actor opacity for a segment's slice representation. Per-segment and
  * per-segmentation opacity live in the transfer functions, so the actor itself
  * carries none. It must stay below 1: vtk.js puts an image slice in the opaque
- * render pass at an opacity of 1, which restacks it against the base image and
- * the sibling segment actors.
+ * render pass at an opacity of 1, which restacks it against sibling segments.
  */
 export const SEGMENT_ACTOR_OPACITY = 0.9999;
 
 /**
- * The coincident-topology polygon offset every mask draws at, which lifts it
- * off the coplanar base image. It is the same for all of them: a segment actor
- * is translucent, so vtk.js draws it in the order-independent translucent pass
- * with depth writes off, and a per-segment offset would change nothing about
- * how two segments blend where they overlap.
+ * All masks use the same depth offset within the segmentation renderer.
+ * Translucent segments blend in the order-independent pass with depth writes
+ * off, so per-segment offsets would not order overlapping segments.
  */
 export const SEGMENT_COINCIDENT_OFFSET = [-4, -4] as const;
 

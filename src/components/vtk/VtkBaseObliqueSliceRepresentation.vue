@@ -42,7 +42,10 @@ const components = computed(
     imageData.value?.getPointData().getScalars()?.getNumberOfComponents() ?? 0
 );
 
-const sliceRep = useResliceRepresentation(view, imageData);
+const sliceRep = useResliceRepresentation(
+  { ...view, renderer: view.imageRenderer },
+  imageData
+);
 
 watchImmediate(
   [() => wlConfig.config.value?.visibility ?? true, imageData],

@@ -18,6 +18,7 @@ export interface RequestRenderOptions {
 export interface View {
   renderWindow: vtkRenderWindow;
   renderer: vtkRenderer;
+  imageRenderer: vtkRenderer;
   interactor: vtkRenderWindowInteractor;
   renderWindowView: vtkOpenGLRenderWindow;
   widgetManager: vtkWidgetManager;
