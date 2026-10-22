@@ -202,7 +202,7 @@ describe('image binding auto-binds the active dataset', () => {
     expect(bindings.issues).toHaveLength(1);
   });
 
-  it('fails closed (ambiguous) when more than one image param is present', () => {
+  it('binds the base and reports a missing required layer independently', () => {
     const model: TaskFormModel = {
       id: 'task',
       title: 'Task',
@@ -216,10 +216,14 @@ describe('image binding auto-binds the active dataset', () => {
       model,
       context(remoteFile('/api/x/scan.nrrd', 'scan.nrrd'))
     );
-    expect(bindings.states.ct).toBe('ambiguous');
-    expect(bindings.states.pet).toBe('ambiguous');
-    expect(bindings.image.values).toEqual({ ct: null, pet: null });
+    expect(bindings.states.ct).toBe('bound');
+    expect(bindings.states.pet).toBe('no-layer');
+    expect(bindings.image.values).toEqual({
+      ct: { type: 'image', format: 'nrrd', uris: ['/api/x/scan.nrrd'] },
+      pet: null,
+    });
     expect(bindings.issues).toHaveLength(1);
+    expect(bindings.issues[0].parameter).toBe('pet');
   });
 
   it('is a no-op when the task has no image input', () => {

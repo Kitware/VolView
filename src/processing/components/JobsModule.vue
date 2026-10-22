@@ -136,7 +136,10 @@ import {
   type TaskFormModel,
   type FormValidationIssue,
 } from '@/src/processing/engine/formModel';
-import { type SourceRefBindingState } from '@/src/processing/engine/mintInput';
+import {
+  mintInputValue,
+  type SourceRefBindingState,
+} from '@/src/processing/engine/mintInput';
 import {
   bindSourceRefs,
   type BoundSourceRefType,
@@ -510,6 +513,7 @@ function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
     labelmapNames,
     types: bindings.types,
     imageName: activeImageName(),
+    imageNames: bindings.image.names ?? {},
     annotationCount: finishedAnnotationCount.value,
   };
 }
@@ -583,6 +587,9 @@ watchDebounced(
       // Placing the first (or removing the last) tool flips the annotations
       // binding, so the form must revalidate.
       annotationCount: finishedAnnotationCount.value,
+      imageLayers: sourceRefContext().imageLayers?.map(({ dataSource }) =>
+        mintInputValue(dataSource)
+      ),
     };
   },
   () => {

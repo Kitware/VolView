@@ -31,6 +31,7 @@
           :binding="sourceRefStates?.[field.id]"
           :bound-name="sourceRefNames?.[field.id]"
           :bound-type="sourceRefTypes?.[field.id]"
+          :image-index="imageInputIndices[field.id]"
           :warning="sourceRefWarnings?.[field.id]"
           @update:model-value="(v: ProcessingValue) => update(field.id, v)"
         />
@@ -96,6 +97,7 @@ import {
 } from '@/src/processing/engine/formModel';
 import type { SourceRefBindingState } from '@/src/processing/engine/mintInput';
 import type { BoundSourceRefType } from '@/src/processing/engine/sourceRefs';
+import { TYPE_TAG_IMAGE } from '@/backend-contract';
 
 import BooleanWidget from './widgets/BooleanWidget.vue';
 import NumberWidget from './widgets/NumberWidget.vue';
@@ -164,6 +166,20 @@ const parameterFields = computed(() =>
 
 const inputFields = computed(() =>
   props.model.fields.filter((f) => f.kind === 'sourceRef')
+);
+
+const imageInputIndices = computed(() =>
+  Object.fromEntries(
+    inputFields.value
+      .filter(
+        (field) =>
+          props.sourceRefTypes?.[field.id] === TYPE_TAG_IMAGE ||
+          (!props.sourceRefTypes?.[field.id] &&
+            field.accepts.length === 1 &&
+            field.accepts[0] === TYPE_TAG_IMAGE)
+      )
+      .map((field, index) => [field.id, index])
+  )
 );
 
 function widgetFor(kind: FormField['kind']) {

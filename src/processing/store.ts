@@ -475,13 +475,14 @@ export const useProcessingJobsStore = defineStore('processingJobs', () => {
     provider: ProcessingProvider,
     jobId: string
   ): Promise<string | undefined> {
-    let detail: JobHistoryDetail | undefined;
-    try {
-      detail = await provider.getJobHistoryDetail(jobId);
-    } catch {
-      return undefined; // best-effort: the open-as-dataset fallback still works
-    }
-    const uris = selectParentImageUris(detail?.parameters);
+    // History is best-effort; results can still open as standalone datasets.
+    const detail = await provider
+      .getJobHistoryDetail(jobId)
+      .catch(() => undefined);
+    const uris = selectParentImageUris(
+      detail?.parameters ?? {},
+      detail?.referenceImageParameter
+    );
     return uris === undefined ? undefined : datasetIdForUris(uris);
   }
 

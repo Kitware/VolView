@@ -19,6 +19,7 @@ export type JobDisplayContext = {
   labelmapNames: Record<string, string>;
   types: Record<string, BoundSourceRefType>;
   imageName: string | undefined;
+  imageNames: Record<string, string>;
   annotationCount: number;
 };
 
@@ -36,7 +37,7 @@ const boundSourceRefName = (
   const type = ctx.types[parameterId];
   if (type === TYPE_TAG_LABELMAP) return ctx.labelmapNames[parameterId];
   if (type === TYPE_TAG_ANNOTATIONS) return boundAnnotationsName(ctx);
-  return ctx.imageName;
+  return ctx.imageNames[parameterId];
 };
 
 export const buildSourceRefNames = (
@@ -58,13 +59,7 @@ export const formatProcessingValue = (
   value: ProcessingValue
 ): string => {
   if (field.kind === 'sourceRef') {
-    // A bound labelmap param always names its segmentation, so the fallback is
-    // the optional param that bound nothing.
-    const fallback =
-      ctx.types[field.id] === TYPE_TAG_LABELMAP
-        ? 'not provided'
-        : 'active dataset';
-    return boundSourceRefName(ctx, field.id) ?? fallback;
+    return boundSourceRefName(ctx, field.id) ?? 'not provided';
   }
   if (field.kind === 'bounds') {
     return Array.isArray(value) && value.length > 0

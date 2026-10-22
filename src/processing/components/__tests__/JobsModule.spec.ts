@@ -46,10 +46,13 @@ import TaskPicker from '@/src/processing/components/TaskPicker.vue';
 import TaskForm from '@/src/processing/components/TaskForm.vue';
 import { useProcessingJobsStore } from '@/src/processing/store';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useLayersStore } from '@/src/store/datasets-layers';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import {
+  activateAppPinia,
   seedVoxel,
+  seatImage,
   mintSegment,
   selectSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -110,6 +113,11 @@ const mountJobsModule = (pinia: ReturnType<typeof createPinia>) =>
         'v-select': true,
         TaskForm: false,
         FileWidget: false,
+        ReasonedAction: false,
+        'v-btn': {
+          props: ['disabled'],
+          template: '<button :disabled="disabled"><slot /></button>',
+        },
         'v-expansion-panels': slotStub,
         'v-expansion-panel': slotStub,
         'v-expansion-panel-title': slotStub,
@@ -529,6 +537,248 @@ describe('JobsModule segmentation staging', () => {
     await flushPromises();
     return { provider: p, submitSpy };
   };
+
+  const orderedImageSpec = (requiredLayer = false): TaskSpecEnvelope => ({
+    ...envelope('seg', 'Image report'),
+    parameters: [
+      {
+        kind: 'sourceRef',
+        id: 'referenceScan',
+        accepts: ['image'],
+        required: true,
+      },
+      {
+        kind: 'sourceRef',
+        id: 'auxiliaryScan',
+        accepts: ['image'],
+        required: requiredLayer,
+      },
+      { kind: 'sourceRef', id: 'detailScan', accepts: ['image'] },
+    ],
+  });
+
+  const seatVolume = async (id: string, name: string, slices = 2) => {
+    await seatImage(id, { name, dimensions: [2, 2, 2] });
+    const uris = Array.from(
+      { length: slices },
+      (_, index) => `girder://file/${id}-${index + 1}`
+    );
+    useDatasetStore().addDataSources([
+      {
+        dataID: id,
+        dataSource: {
+          type: 'collection',
+          sources: uris.map((uri, index) => ({
+            type: 'uri' as const,
+            uri,
+            name: `${index + 1}.dcm`,
+          })),
+        },
+      },
+    ]);
+    return { type: 'image', uris };
+  };
+
+  const mountImageReport = async (spec = orderedImageSpec()) => {
+    const p = stagingProvider(spec);
+    p.getJob = vi.fn(async (jobId: string) => ({
+      jobId,
+      state: 'cancelled' as const,
+      resultState: 'unavailable' as const,
+    }));
+    registerFake(useProcessingJobsStore(), p);
+    const wrapper = mount();
+    await flushPromises();
+    return { p, wrapper, form: wrapper.findComponent(TaskForm) };
+  };
+
+  const inputNames = (
+    form: Awaited<ReturnType<typeof mountImageReport>>['form']
+  ) => form.findAll('.file-widget .value-text').map((value) => value.text());
+
+  it('binds each image parameter to one complete volume in base and layer order', async () => {
+    pinia = activateAppPinia();
+    const referenceScan = await seatVolume('image-1', 'CT volume', 3);
+    useViewStore().setDataForAllViews('image-1');
+    const auxiliaryScan = await seatVolume('pet-1', 'PET volume', 2);
+    const detailScan = await seatVolume('mr-1', 'MR volume', 4);
+    await seatVolume('unrelated', 'Unattached volume');
+    const layers = useLayersStore();
+    await layers.addLayer('image-1', 'pet-1');
+    await layers.addLayer('image-1', 'mr-1');
+    const { p, form } = await mountImageReport();
+
+    expect(inputNames(form)).toEqual(['CT volume', 'PET volume', 'MR volume']);
+    expect(form.get('button').attributes('disabled')).toBeUndefined();
+    form.vm.$emit(
+      'update:values',
+      Object.fromEntries(Object.entries(form.props('values')).reverse())
+    );
+    await flushPromises();
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(p.runTask).toHaveBeenCalledWith('seg', {
+      referenceScan,
+      auxiliaryScan,
+      detailScan,
+    });
+  });
+
+  it('submits missing optional layers as null and excludes unrelated loaded volumes', async () => {
+    await seatVolume('unrelated-pet', 'Unattached PET volume');
+    const { p, form } = await mountImageReport();
+
+    expect(inputNames(form)).toEqual([
+      'image.nrrd',
+      'Not provided',
+      'Not provided',
+    ]);
+    expect(form.get('button').attributes('disabled')).toBeUndefined();
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(p.runTask).toHaveBeenCalledWith('seg', {
+      referenceScan: {
+        type: 'image',
+        format: 'nrrd',
+        uris: ['girder://file/image-1'],
+      },
+      auxiliaryScan: null,
+      detailScan: null,
+    });
+  });
+
+  it('blocks submission when a required layer input is missing', async () => {
+    const { p, form } = await mountImageReport(orderedImageSpec(true));
+
+    expect(inputNames(form)[1]).not.toBe('Not provided');
+    expect(form.get('button').attributes('disabled')).toBeDefined();
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(p.runTask).not.toHaveBeenCalled();
+  });
+
+  it('shifts attached layers and clears stale values after removal', async () => {
+    await seatVolume('pet-1', 'PET volume');
+    const remainingLayer = await seatVolume('mr-1', 'MR volume');
+    const layers = useLayersStore();
+    await layers.addLayer('image-1', 'pet-1');
+    await layers.addLayer('image-1', 'mr-1');
+    const { p, form } = await mountImageReport();
+    expect(inputNames(form)).toEqual(['image.nrrd', 'PET volume', 'MR volume']);
+
+    layers.deleteLayer('image-1', 'pet-1');
+    await afterDebounce();
+    expect(inputNames(form)).toEqual([
+      'image.nrrd',
+      'MR volume',
+      'Not provided',
+    ]);
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(p.runTask).toHaveBeenLastCalledWith(
+      'seg',
+      expect.objectContaining({
+        auxiliaryScan: remainingLayer,
+        detailScan: null,
+      })
+    );
+
+    layers.deleteLayer('image-1', 'mr-1');
+    await afterDebounce();
+    expect(inputNames(form)).toEqual([
+      'image.nrrd',
+      'Not provided',
+      'Not provided',
+    ]);
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(p.runTask).toHaveBeenLastCalledWith(
+      'seg',
+      expect.objectContaining({ auxiliaryScan: null, detailScan: null })
+    );
+  });
+
+  it('clears previous layer values when the active base volume changes', async () => {
+    await seatVolume('pet-1', 'PET volume');
+    const referenceScan = await seatVolume('image-2', 'Second CT volume', 3);
+    await useLayersStore().addLayer('image-1', 'pet-1');
+    const { p, form } = await mountImageReport();
+    expect(inputNames(form)).toEqual([
+      'image.nrrd',
+      'PET volume',
+      'Not provided',
+    ]);
+
+    useViewStore().setDataForAllViews('image-2');
+    await afterDebounce();
+    expect(inputNames(form)).toEqual([
+      'Second CT volume',
+      'Not provided',
+      'Not provided',
+    ]);
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(p.runTask).toHaveBeenCalledWith('seg', {
+      referenceScan,
+      auxiliaryScan: null,
+      detailScan: null,
+    });
+  });
+
+  it('stages segmentation and annotations against the base when image inputs also bind layers', async () => {
+    pinia = activateAppPinia();
+    const referenceScan = await seatVolume('image-1', 'CT volume.nrrd', 3);
+    useViewStore().setDataForAllViews('image-1');
+    const auxiliaryScan = await seatVolume('pet-1', 'PET volume');
+    const detailScan = await seatVolume('mr-1', 'MR volume');
+    const layers = useLayersStore();
+    await layers.addLayer('image-1', 'pet-1');
+    await layers.addLayer('image-1', 'mr-1');
+    seedSegmentation('Tumor');
+    finishRuler();
+    const spec = orderedImageSpec();
+    spec.parameters.splice(1, 0, {
+      kind: 'sourceRef',
+      id: 'regions',
+      accepts: ['labelmap'],
+      required: true,
+    });
+    spec.parameters.splice(3, 0, {
+      kind: 'sourceRef',
+      id: 'measurements',
+      accepts: ['annotations'],
+      required: true,
+    });
+    const { p, form } = await mountImageReport(spec);
+
+    expect(form.get('button').attributes('disabled')).toBeUndefined();
+    await form.get('button').trigger('click');
+    await flushPromises();
+    expect(
+      p.stageInput.mock.calls.map(([request]) => request.descriptor)
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'labelmap',
+          referenceImage: referenceScan,
+        }),
+        expect.objectContaining({
+          type: 'annotations',
+          referenceImage: referenceScan,
+        }),
+      ])
+    );
+    expect(p.runTask).toHaveBeenCalledWith('seg', {
+      referenceScan,
+      auxiliaryScan,
+      detailScan,
+      regions: { type: 'labelmap', uris: ['girder://staged/Tumor.seg.nrrd'] },
+      measurements: {
+        type: 'annotations',
+        uris: ['girder://staged/CT volume.annotations.json'],
+      },
+    });
+  });
 
   it('stages the image’s segmentation for a multiple param', async () => {
     seedSegmentation('Tumor');

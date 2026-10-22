@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   filterJobHistory,
   selectJobHistoryRows,
+  selectParentImageUris,
   type JobHistoryFilters,
 } from '@/src/processing/engine/jobHistory';
 import type { JobHistorySummary } from '@/backend-contract';
@@ -30,6 +31,52 @@ const filter = (
   jobs: JobHistorySummary[],
   overrides: Partial<JobHistoryFilters>
 ) => filterJobHistory(jobs, overrides);
+
+describe('job history reference image', () => {
+  const parameters = {
+    absentLayer: null,
+    inputPETVolume: { type: 'image', uris: ['/pet/1.dcm', '/pet/2.dcm'] },
+    inputTools: { type: 'annotations', uris: ['/tools.json'] },
+    inputVolume: { type: 'image', uris: ['/ct/2.dcm', '/ct/1.dcm'] },
+  };
+
+  it('selects the recorded reference with all DICOM slices regardless of key order', () => {
+    expect(selectParentImageUris(parameters, 'inputVolume')).toEqual([
+      '/ct/2.dcm',
+      '/ct/1.dcm',
+    ]);
+  });
+
+  it.each(['missing', 'absentLayer', 'inputTools'])(
+    'does not fall back to another image when reference %s is unavailable',
+    (reference) => {
+      expect(selectParentImageUris(parameters, reference)).toBeUndefined();
+    }
+  );
+
+  it('does not guess a reference for old jobs with multiple images', () => {
+    expect(selectParentImageUris(parameters)).toBeUndefined();
+  });
+
+  it('recovers an old job with exactly one image input', () => {
+    expect(
+      selectParentImageUris({
+        ...parameters,
+        inputPETVolume: null,
+      })
+    ).toEqual(['/ct/2.dcm', '/ct/1.dcm']);
+  });
+
+  it('does not select a staged resource when no image input was supplied', () => {
+    expect(
+      selectParentImageUris({
+        inputVolume: null,
+        inputLabelmap: { type: 'labelmap', uris: ['/mask.seg.nrrd'] },
+        inputTools: { type: 'annotations', uris: ['/tools.json'] },
+      })
+    ).toBeUndefined();
+  });
+});
 
 describe('job history filters', () => {
   const jobs = [
