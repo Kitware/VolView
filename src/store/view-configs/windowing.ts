@@ -120,14 +120,12 @@ export const useWindowingStore = defineStore('windowing', () => {
       patch.useAuto === undefined
     ) {
       effectiveUseAuto = false;
-      if (!effectiveUseAuto) {
-        // patch may be only width or level so ensure we have both in the end
-        const config = getConfig(viewID, dataID);
-        widthLevelPatchOnSwitchingFromAuto = {
-          width: config.width,
-          level: config.level,
-        };
-      }
+      // patch may be only width or level so ensure we have both in the end
+      const config = getConfig(viewID, dataID);
+      widthLevelPatchOnSwitchingFromAuto = {
+        width: config.width,
+        level: config.level,
+      };
     }
 
     // Ensure we always have required fields from defaults

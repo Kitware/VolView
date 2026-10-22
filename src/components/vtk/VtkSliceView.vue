@@ -108,7 +108,6 @@ watchImmediate(
 usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
-  if (!imageMetadata.value) return;
   if (
     viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
     disableCameraAutoReset.value
