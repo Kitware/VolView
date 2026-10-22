@@ -52,15 +52,17 @@ export function useSyncWindowing() {
     // no sync if no data
     if (!dataID) return;
 
-    // if the config already exists, safe to assume that windowing
-    // is correct
-    const config = windowingStore.getConfig(viewID, dataID);
-    if ('width' in config && 'level' in config) return;
+    if (windowingStore.getInternalConfig(viewID, dataID)) return;
 
     // find another view with the dataset and sync the config
     const sourceView = viewStore
       .getAllViews()
-      .find((view) => view.dataID === dataID);
+      .find(
+        (view) =>
+          view.id !== viewID &&
+          view.dataID === dataID &&
+          windowingStore.getInternalConfig(view.id, dataID)
+      );
     if (!sourceView) return;
 
     const sourceConfig = windowingStore.getConfig(sourceView.id, dataID);

@@ -6,6 +6,7 @@ import * as path from 'path';
 import { TEMP_DIR } from '@/wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
+  capture2DViewPixels,
   capture2DViewScreenshotMetrics,
   selectLayout,
   openVolViewPage,
@@ -501,8 +502,21 @@ describe('Overlay display controls', () => {
     await $('header').moveTo();
     await browser.waitUntil(
       async () => {
-        const pixels = await captureViewPixels();
-        return pixels.length === 1 && pixels[0].colored < 100;
+        const pixels = await capture2DViewPixels(
+          40,
+          'base-without-overlay.png'
+        );
+        if (pixels.length !== 1) return false;
+        let colored = 0;
+        let brightGrayscale = 0;
+        const { data } = pixels[0];
+        for (let i = 0; i < data.length; i += 4) {
+          const maximum = Math.max(data[i], data[i + 1], data[i + 2]);
+          const minimum = Math.min(data[i], data[i + 1], data[i + 2]);
+          if (maximum - minimum > 40) colored++;
+          if (maximum - minimum < 5 && minimum > 32) brightGrayscale++;
+        }
+        return colored < 100 && brightGrayscale > 1000;
       },
       {
         timeoutMsg:

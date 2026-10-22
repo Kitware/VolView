@@ -105,6 +105,7 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
 
         if (syncState) {
           updateConfig(viewID, imageID, {
+            autoFit: config?.autoFit,
             position: config?.position,
             focalPoint: config?.focalPoint,
             parallelScale: config?.parallelScale,
