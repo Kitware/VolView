@@ -4,7 +4,7 @@ import { useLocalStorage } from '@vueuse/core';
 import { defineStore } from 'pinia';
 import { App, ref, watch } from 'vue';
 
-const { VITE_SENTRY_DSN } = import.meta.env;
+const { VITE_SENTRY_DSN, VITE_SENTRY_ENVIRONMENT } = import.meta.env;
 
 export const LOCAL_STORAGE_KEY = 'error-reporting-off';
 
@@ -16,6 +16,7 @@ export const init = (app: App<Element>) => {
     Sentry.init({
       app,
       dsn: VITE_SENTRY_DSN,
+      environment: VITE_SENTRY_ENVIRONMENT || undefined,
     });
 
   try {
