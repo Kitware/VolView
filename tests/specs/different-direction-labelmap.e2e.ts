@@ -1,5 +1,6 @@
 import { PROSTATE_610_LABELMAP_MANIFEST } from './configTestUtils';
 import { writeManifestToFile } from './utils';
+import { moveTo } from './annotationTestUtils';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   openAnnotationSegments,
@@ -7,6 +8,8 @@ import {
   waitForNamedSegments,
   waitForSegmentContent,
 } from './segmentationTestUtils';
+
+const MAX_MISMATCH_PERCENT = 0.01;
 
 /**
  * Regression test for labelmap with different direction matrix than parent image.
@@ -73,18 +76,22 @@ describe('Labelmap with different direction matrix', () => {
       .up()
       .perform();
 
+    await moveTo(10, 10);
     await browser.waitUntil(
       async () => {
         const result = await browser.checkElement(
           coronalView,
-          'different_direction_labelmap_paint_coronal'
+          'different_direction_labelmap_paint_coronal',
+          {
+            rawMisMatchPercentage: true,
+            saveAboveTolerance: MAX_MISMATCH_PERCENT,
+          }
         );
-        return (result as number) < 5;
+        return (result as number) <= MAX_MISMATCH_PERCENT;
       },
       {
         timeout: 10000,
-        timeoutMsg:
-          'Paint stroke on coronal view with misaligned labelmap should match baseline',
+        timeoutMsg: `Painted coronal view with misaligned labelmap should match its baseline within ${MAX_MISMATCH_PERCENT}%`,
         interval: 1000,
       }
     );

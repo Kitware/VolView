@@ -120,6 +120,7 @@ async function openDisplayFixture({
   mappingRange = [-2.75, 100.25],
   opacity = 0.5,
   transparentBackground = false,
+  singleSlice = false,
 } = {}) {
   const display = { preset, mappingRange, opacity, transparentBackground };
   const base = writeMetaImage('display-base.mha');
@@ -128,6 +129,25 @@ async function openDisplayFixture({
   await writeManifestToFile(
     {
       ...layeredImageManifest(base, overlay),
+      ...(singleSlice
+        ? {
+            layout: {
+              direction: 'row',
+              items: [{ type: 'slot', slotIndex: 0 }],
+            },
+            layoutSlots: ['axial'],
+            activeView: 'axial',
+            viewByID: {
+              axial: {
+                id: 'axial',
+                type: '2D',
+                name: 'Axial',
+                dataID: 'base',
+                options: { orientation: 'Axial' },
+              },
+            },
+          }
+        : {}),
       layerDisplay: {
         'base::overlay': display,
       },
@@ -149,18 +169,20 @@ async function openDisplayFixture({
     async () => {
       const pixels = await captureViewPixels();
       return (
-        pixels.length === 3 && pixels.every(({ colored }) => colored > 1000)
+        pixels.length === (singleSlice ? 1 : 3) &&
+        pixels.every(({ colored }) => colored > 1000)
       );
     },
-    { timeoutMsg: 'Expected the overlay to render in all three 2D views' }
+    { timeoutMsg: 'Expected the overlay to render in every 2D view' }
   );
 }
 
-async function openEditedDisplayFixture() {
+async function openEditedDisplayFixture(singleSlice = false) {
   await openDisplayFixture({
     preset: 'DICOM Hot Iron',
     mappingRange: [0, 255],
     opacity: 0.6,
+    singleSlice,
   });
   const select = $('[data-testid="layer-colormap"]');
   await select.scrollIntoView({ block: 'center', behavior: 'instant' });
@@ -185,18 +207,32 @@ async function openEditedDisplayFixture() {
     async () => {
       const pixels = await captureViewPixels();
       return (
-        pixels.length === 3 &&
+        pixels.length === (singleSlice ? 1 : 3) &&
         pixels.every(({ colored, blue }) => colored > 1000 && blue > 0)
       );
     },
     {
-      timeoutMsg: 'Expected the edited Cool to Warm palette in all three views',
+      timeoutMsg: 'Expected the edited Cool to Warm palette in every 2D view',
     }
   );
   const baseWindowing = await windowingLabels();
   expect(baseWindowing.every(Boolean)).toBe(true);
   const appliedPixels = await captureViewPixels();
   return { baseWindowing, appliedPixels };
+}
+
+async function convertSlicesToVolumes() {
+  const views = await volViewPage.getViews2D();
+  const count = await views.length;
+  expect(count).toBeGreaterThan(0);
+  for (let remaining = count - 1; remaining >= 0; remaining--) {
+    const view = (await volViewPage.getViews2D())[0];
+    await view.$('.view-type-select').click();
+    const volume = $('[role="option"]*=Volume');
+    await volume.waitForClickable();
+    await volume.click();
+    await volViewPage.waitForViewCounts(remaining, true);
+  }
 }
 
 describe('Overlay display controls', () => {
@@ -536,24 +572,26 @@ describe('Overlay display controls', () => {
     await expectRenderedPixels(appliedPixels);
   });
 
-  it('restores global appearance after converting every 2D view and saving a 3D-only session', async () => {
+  it('restores global appearance after converting every 2D view', async () => {
     const { baseWindowing, appliedPixels } = await openEditedDisplayFixture();
-    for (let remaining = 2; remaining >= 0; remaining--) {
-      const view = (await volViewPage.getViews2D())[0];
-      await view.$('.view-type-select').click();
-      const volume = $('[role="option"]*=Volume');
-      await volume.waitForClickable();
-      await volume.click();
-      await volViewPage.waitForViewCounts(remaining, true);
-    }
-    await selectLayout('3D Only', 0, true);
+    await convertSlicesToVolumes();
+    await selectLayout('Four Up', 3, true);
+    await expectDisplaySettings('-2.75', '100.25', '100.3');
+    expect(await windowingLabels()).toEqual(baseWindowing);
+    await expectRenderedPixels(appliedPixels);
+  });
+
+  it('restores global appearance from a session saved after removing the last 2D view', async () => {
+    const { baseWindowing, appliedPixels } =
+      await openEditedDisplayFixture(true);
+    await convertSlicesToVolumes();
     const saved = await volViewPage.saveSession();
     await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
     await openVolViewPage(saved);
     await volViewPage.waitForViewCounts(0, true);
     await openLayerDisplayControls();
     await expect($('[data-testid="layer-range-min"] input')).toBeEnabled();
-    await selectLayout('Four Up', 3, true);
+    await selectLayout('Axial Only', 1, false);
     await expectDisplaySettings('-2.75', '100.25', '100.3');
     expect(await windowingLabels()).toEqual(baseWindowing);
     await expectRenderedPixels(appliedPixels);
