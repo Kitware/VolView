@@ -3,7 +3,11 @@ import {
   openLayerDisplayControls,
 } from './layerDisplayTestUtils';
 import * as path from 'path';
-import { TEMP_DIR } from '@/wdio.shared.conf';
+import {
+  applyTestViewport,
+  CONTENT_VIEWPORT,
+  TEMP_DIR,
+} from '@/wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   capture2DViewPixels,
@@ -236,6 +240,14 @@ async function convertSlicesToVolumes() {
 }
 
 describe('Overlay display controls', () => {
+  // Capture and compare at a compact viewport to limit volume rendering work.
+  before(async () => {
+    await browser.setViewport({ ...CONTENT_VIEWPORT, height: 400 });
+  });
+  after(async () => {
+    await applyTestViewport(browser);
+  });
+
   for (const { title, preset } of [
     { title: 'missing', preset: undefined },
     { title: 'unknown', preset: 'Unknown palette' },
@@ -610,7 +622,15 @@ describe('Overlay display controls', () => {
     });
     await restoredTransparent.click();
     await expect(restoredTransparent).toBeChecked();
+    const tooltipId =
+      await restoredTransparent.getAttribute('aria-describedby');
+    expect(tooltipId).toBeTruthy();
+    await restoredTransparent.execute((input) => input.blur());
     await $('header').moveTo();
+    await $(`[id="${tooltipId}"] .v-overlay__content`).waitForDisplayed({
+      reverse: true,
+      opacityProperty: false,
+    });
     let transparentPixels = await captureViewPixels();
     await browser.waitUntil(
       async () => {

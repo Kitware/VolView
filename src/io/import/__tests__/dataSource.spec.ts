@@ -3,7 +3,7 @@ import {
   getDataSourceName,
   isRemoteDataSource,
 } from '@/src/io/import/dataSource';
-import { Chunk } from '@/src/core/streaming/chunk';
+import { Chunk } from '@/packages/dicom/core';
 
 describe('isRemoteDatasource', () => {
   it('should work', () => {

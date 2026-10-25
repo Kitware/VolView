@@ -72,6 +72,70 @@ class VolViewPage extends Page {
     );
   }
 
+  get volumeCards() {
+    return $$('.volume-card');
+  }
+
+  /** Slice counts of the volume cards, ascending. Each label carries "[N]". */
+  async getVolumeCardSliceCounts() {
+    const cards = [...(await this.volumeCards)];
+    const labels = await Promise.all(cards.map((card) => card.getText()));
+    return labels
+      .map((label) => Number(label.match(/\[(\d+)\]/)?.[1]))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+  }
+
+  async waitForVolumeCardSliceCounts(expected: number[], timeout = 30000) {
+    await browser.waitUntil(
+      async () => {
+        const counts = await this.getVolumeCardSliceCounts();
+        return (
+          counts.length === expected.length &&
+          counts.every((count, index) => count === expected[index])
+        );
+      },
+      {
+        timeout,
+        timeoutMsg: `expected volume cards holding ${expected.join(
+          ', '
+        )} slices`,
+      }
+    );
+  }
+
+  /**
+   * Deletes the volume of the card at `index` of `getVolumeCardSliceCounts`,
+   * which orders by slice count rather than by the order the cards render in.
+   */
+  async deleteVolumeCard(index: number) {
+    const counts = await this.getVolumeCardSliceCounts();
+    const cards = [...(await this.volumeCards)];
+    const labelled = await Promise.all(
+      cards.map(async (card) => ({
+        card,
+        count: Number((await card.getText()).match(/\[(\d+)\]/)?.[1]),
+      }))
+    );
+    const target = labelled.find(({ count }) => count === counts[index]);
+    if (!target) throw new Error(`no volume card holding ${counts[index]}`);
+
+    const menu = target.card.$('button[data-testid="dataset-menu-button"]');
+    await menu.waitForClickable();
+    await menu.click();
+
+    const remove = await browser.waitUntil(
+      async () => {
+        const items = [...(await $$('.v-overlay-container .v-list-item'))];
+        const texts = await Promise.all(items.map((item) => item.getText()));
+        return items[texts.findIndex((text) => text.trim() === 'Delete')];
+      },
+      { timeoutMsg: 'expected a Delete item in the dataset menu' }
+    );
+    await remove.waitForClickable();
+    await remove.click();
+  }
+
   get notifications() {
     return $('#notifications');
   }
@@ -297,10 +361,8 @@ class VolViewPage extends Page {
     return $$('div[data-testid="layer-opacity-slider"]');
   }
 
-  async getVolumeRenderingSection() {
-    const pwfEditor = await $('div.pwf-editor');
-    const exists = await pwfEditor.isExisting();
-    return exists ? pwfEditor : null;
+  getVolumeRenderingSection() {
+    return $('div.pwf-editor');
   }
 
   async getView3D() {

@@ -1,5 +1,0 @@
-*
-!*.cpp
-!*.hpp
-!emscripten-build/
-!emscripten-build/dicom*

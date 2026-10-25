@@ -44,7 +44,9 @@ async function openAxialSample() {
   await volViewPage.open();
   await selectLayout('Axial Only', 1, false);
   const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-  await sample.scrollIntoView();
+  await sample.execute((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
   await sample.waitForClickable();
   await sample.click();
   await volViewPage.waitForViews();
@@ -149,25 +151,28 @@ async function editPetColors(
   };
 }
 
+async function showSampleData() {
+  await $('[data-testid="module-tab-Data"]').click();
+  await waitForModuleTransitions();
+  const samplesSection = $('.v-expansion-panel-title*=Sample Data');
+  if ((await samplesSection.getAttribute('aria-expanded')) !== 'true') {
+    await samplesSection.click();
+    await expect(samplesSection).toHaveAttribute('aria-expanded', 'true');
+    await waitForModuleTransitions();
+  }
+}
+
 async function reopenSample(
   expected: Awaited<ReturnType<typeof captureAxialPixels>>,
   range: string[],
   preset = 'DICOM Hot Iron'
 ) {
-  await $('[data-testid="module-tab-Data"]').click();
-  await waitForModuleTransitions();
-  const samplesSection = $('.v-expansion-panel-title*=Sample Data');
-  if ((await samplesSection.getAttribute('aria-expanded')) === 'true') {
-    await samplesSection.click();
-    await expect(samplesSection).toHaveAttribute('aria-expanded', 'false');
-    await waitForModuleTransitions();
-  }
-  await samplesSection.click();
-  await expect(samplesSection).toHaveAttribute('aria-expanded', 'true');
+  await showSampleData();
   const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
   await sample.waitForExist();
-  await waitForModuleTransitions();
-  await sample.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await sample.execute((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
   await browser.saveScreenshot(path.join(TEMP_DIR, 'pet-ct-sample-reload.png'));
   await sample.waitForClickable();
   await sample.click();
@@ -310,16 +315,11 @@ describe('PET/CT sample', () => {
     await volViewPage.open();
     await selectLayout('Four Up', 3, true);
     for (let loading = 0; loading < 2; loading++) {
-      await $('[data-testid="module-tab-Data"]').click();
-      await waitForModuleTransitions();
-      const samplesSection = $('.v-expansion-panel-title*=Sample Data');
-      if ((await samplesSection.getAttribute('aria-expanded')) !== 'true') {
-        await samplesSection.click();
-        await expect(samplesSection).toHaveAttribute('aria-expanded', 'true');
-        await waitForModuleTransitions();
-      }
+      await showSampleData();
       const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-      await sample.scrollIntoView({ block: 'center', behavior: 'instant' });
+      await sample.execute((element) =>
+        element.scrollIntoView({ block: 'center', behavior: 'instant' })
+      );
       await sample.waitForClickable();
       await sample.click();
       await expect($('[data-testid~="vtk-two-view"]')).toHaveText(
