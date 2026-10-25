@@ -1,14 +1,17 @@
 import { Chunk } from '@/src/core/streaming/chunk';
 import { Maybe } from '@/src/types';
 import { NAME_TO_TAG } from '@/src/core/dicomTags';
+import {
+  readGeometryFacts,
+  sliceNormalOf,
+} from '@/src/core/dicom/instanceFacts';
+import { reconstructVolume } from '@/src/core/dicom/reconstructVolume';
+import { getChunkMetadata } from '@/src/utils/dicom/dicomChunks';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
-import { mat3, vec3 } from 'gl-matrix';
+import { mat3 } from 'gl-matrix';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 
-const ImagePositionPatientTag = NAME_TO_TAG.get('ImagePositionPatient')!;
-const ImageOrientationPatientTag = NAME_TO_TAG.get('ImageOrientationPatient')!;
-const PixelSpacingTag = NAME_TO_TAG.get('PixelSpacing')!;
 const SpacingBetweenSlicesTag = NAME_TO_TAG.get('SpacingBetweenSlices')!;
 const RowsTag = NAME_TO_TAG.get('Rows')!;
 const ColumnsTag = NAME_TO_TAG.get('Columns')!;
@@ -18,11 +21,6 @@ const SamplesPerPixelTag = NAME_TO_TAG.get('SamplesPerPixel')!;
 const RescaleIntercept = NAME_TO_TAG.get('RescaleIntercept')!;
 const RescaleSlope = NAME_TO_TAG.get('RescaleSlope')!;
 const NumberOfFrames = NAME_TO_TAG.get('NumberOfFrames')!;
-
-function toVec(s: Maybe<string>): number[] | null {
-  if (!s?.length) return null;
-  return s.split('\\').map((a) => Number(a)) as number[];
-}
 
 function isPositiveFiniteNumber(value: number) {
   return Number.isFinite(value) && value > 0;
@@ -138,12 +136,15 @@ function numberOr(value: Maybe<string>, fallback: number) {
  * default: BitsStored is Type 1, so a conforming instance always carries one.
  */
 export function getPixelFormat(metadata: Maybe<Iterable<[string, string]>>) {
-  const meta = new Map(metadata ?? []);
+  // Four lookups scan the header rather than copying it: every chunk of a
+  // volume comes through here on every allocation.
+  const entries = Array.isArray(metadata) ? metadata : [...(metadata ?? [])];
+  const valueOf = (tag: string) => entries.find(([name]) => name === tag)?.[1];
   return {
-    bitsStored: numberOr(meta.get(BitsStoredTag), 0),
-    pixelRepresentation: numberOr(meta.get(PixelRepresentationTag), 0),
-    rescaleSlope: numberOr(meta.get(RescaleSlope), 1),
-    rescaleIntercept: numberOr(meta.get(RescaleIntercept), 0),
+    bitsStored: numberOr(valueOf(BitsStoredTag), 0),
+    pixelRepresentation: numberOr(valueOf(PixelRepresentationTag), 0),
+    rescaleSlope: numberOr(valueOf(RescaleSlope), 1),
+    rescaleIntercept: numberOr(valueOf(RescaleIntercept), 0),
   };
 }
 
@@ -205,16 +206,20 @@ export function getVolumeBufferType(formats: PixelFormat[]) {
   return getTypedArrayForDataRange(min, max);
 }
 
-export function allocateImageFromChunks(sortedChunks: Chunk[]) {
+export function allocateImageFromChunks(
+  sortedChunks: Chunk[],
+  orientation: number[] | null
+) {
   if (sortedChunks.length === 0) {
     throw new Error('Cannot allocate an image from zero chunks');
   }
 
   // use the first chunk as the source of metadata
-  const meta = new Map(sortedChunks[0].metadata!);
-  const imagePositionPatient = toVec(meta.get(ImagePositionPatientTag));
-  const imageOrientationPatient = toVec(meta.get(ImageOrientationPatientTag));
-  const pixelSpacing = toVec(meta.get(PixelSpacingTag));
+  const meta = getChunkMetadata(sortedChunks[0]);
+  const geometry = sortedChunks.map((chunk) =>
+    readGeometryFacts(chunk.metadata ?? [])
+  );
+  const { position, pixelSpacing } = geometry[0];
   const spacingBetweenSlices = Number(meta.get(SpacingBetweenSlicesTag));
   const rows = Number(meta.get(RowsTag) ?? 0);
   const columns = Number(meta.get(ColumnsTag) ?? 0);
@@ -245,46 +250,32 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
     rows * columns * slices * samplesPerPixel
   );
 
+  const normal = sliceNormalOf(orientation);
+  const reconstruction = reconstructVolume(geometry, normal);
+
   const image = vtkImageData.newInstance();
   image.setExtent([0, columns - 1, 0, rows - 1, 0, slices - 1]);
 
-  if (imagePositionPatient) {
-    image.setOrigin(imagePositionPatient as Vector3);
-  }
+  if (position) image.setOrigin(position as Vector3);
 
-  const spacing: Vector3 = [1, 1, 1];
-  if (
-    pixelSpacing &&
-    pixelSpacing.length >= 2 &&
-    isPositiveFiniteNumber(pixelSpacing[0]) &&
-    isPositiveFiniteNumber(pixelSpacing[1])
-  ) {
-    spacing[0] = pixelSpacing[1];
-    spacing[1] = pixelSpacing[0];
-  }
+  // DICOM writes PixelSpacing as row then column; vtk wants x then y.
+  const spacing: Vector3 = pixelSpacing
+    ? [pixelSpacing[1], pixelSpacing[0], 1]
+    : [1, 1, 1];
 
-  if (imagePositionPatient && sortedChunks.length > 1) {
-    const lastMeta = new Map(sortedChunks[sortedChunks.length - 1].metadata);
-    const lastIPP = toVec(lastMeta.get(ImagePositionPatientTag));
-    if (lastIPP) {
-      // assumption: uniform Z spacing
-      const zVec = vec3.create();
-      vec3.sub(zVec, lastIPP as vec3, imagePositionPatient as vec3);
-      spacing[2] = vec3.len(zVec) / (slices - 1) || 1;
-    }
-  } else if (slices === 1 && isPositiveFiniteNumber(spacingBetweenSlices)) {
+  // A stack steps by what its positions say, a lattice's own spacing or, for
+  // an irregular stack the planner warns about, a step the series does hold.
+  // Anything whose positions say nothing takes the step the header declares.
+  const sliceSpacing = reconstruction.sliceSpacing ?? 0;
+  if (isPositiveFiniteNumber(sliceSpacing)) {
+    spacing[2] = sliceSpacing;
+  } else if (isPositiveFiniteNumber(spacingBetweenSlices)) {
     spacing[2] = spacingBetweenSlices;
   }
   image.setSpacing(spacing);
 
-  if (imageOrientationPatient) {
-    const zDir = vec3.create() as Vector3;
-    vec3.cross(
-      zDir,
-      imageOrientationPatient.slice(0, 3) as vec3,
-      imageOrientationPatient.slice(3, 6) as vec3
-    );
-    image.setDirection([...imageOrientationPatient, ...zDir] as mat3);
+  if (orientation && normal) {
+    image.setDirection([...orientation, ...normal] as mat3);
   }
 
   const dataArray = vtkDataArray.newInstance({

@@ -1,10 +1,9 @@
 import {
   readDicomSegmentation,
   ReadOverlappingSegmentationMeta,
-  readVolumeSlice,
-  splitAndSort as splitAndSortChunks,
 } from '@/src/io/dicom';
-import { Chunk, waitForChunkState } from '@/src/core/streaming/chunk';
+import { Chunk } from '@/src/core/streaming/chunk';
+import { getChunkTag } from '@/src/utils/dicom/dicomChunks';
 import {
   Image,
   JsonCompatible,
@@ -16,7 +15,7 @@ import {
   getBufferValueRange,
   samplesAreIntegral,
   valuesFitBuffer,
-} from '@/src/utils/allocateImageFromChunks';
+} from '@/src/utils/dicom/allocateImageFromChunks';
 import { TypedArray } from '@kitware/vtk.js/types';
 import { Tags } from '@/src/core/dicomTags';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -37,60 +36,75 @@ import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 import { isUsableSpacing } from '@/src/utils/imageSpace';
 import { surfaceWarning } from '@/src/store/messages';
+import {
+  encodeThumbnailToUri,
+  sliceToThumbnail,
+  type ThumbnailSlice,
+} from '@/src/core/streaming/dicomThumbnail';
 
 const { fastComputeRange } = vtkDataArray;
 
 const DATA_RANGE_KEY = 'pixel-data-range';
 
-function getChunkId(chunk: Chunk) {
-  const metadata = Object.fromEntries(chunk.metadata!);
-  const SOPInstanceUID = metadata[Tags.SOPInstanceUID];
-  return SOPInstanceUID;
-}
-
-// Assume itkImage type is Uint8Array
-function itkImageToURI(itkImage: Image) {
-  const [width, height] = itkImage.size;
-  const im = new ImageData(width, height);
-  const arr32 = new Uint32Array(im.data.buffer);
-  const itkBuf = itkImage.data;
-  if (!itkBuf) {
-    return '';
-  }
-
-  for (let i = 0; i < itkBuf.length; i += 1) {
-    const byte = itkBuf[i] as number;
-    // ABGR order
-
-    arr32[i] = (255 << 24) | (byte << 16) | (byte << 8) | byte;
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.putImageData(im, 0, 0);
-    return canvas.toDataURL('image/png');
-  }
-  return '';
-}
-
-async function dicomSliceToImageUri(blob: Blob) {
-  const file = new File([blob], 'file.dcm');
-  const itkImage = await readVolumeSlice(file, true);
-  return itkImageToURI(itkImage);
-}
+const getChunkId = (chunk: Chunk) => getChunkTag(chunk, Tags.SOPInstanceUID);
 
 function readDicomImage(file: File) {
   return readItkImage(file, { webWorker: getWorker() });
 }
 
+// A scan, not a map of the header: this runs once per decoded chunk.
+const modalityOf = (chunks: Chunk[]) =>
+  chunks.length > 0
+    ? (getChunkTag(chunks[0], Tags.Modality)?.trim() ?? null)
+    : null;
+
+/**
+ * The chunk once its bytes are in, or the error that means they never will
+ * be. A chunk that errored settles back to holding metadata only, so waiting
+ * on the loaded state alone would wait forever.
+ */
+const loadedChunk = (chunk: Chunk) =>
+  new Promise<Chunk>((resolve, reject) => {
+    if (chunk.state === ChunkState.Loaded) {
+      resolve(chunk);
+      return;
+    }
+    const stopWatching = chunk.watchForState(ChunkState.Loaded, () => {
+      stopListening();
+      resolve(chunk);
+    });
+    const stopListening = () => {
+      stopWatching();
+      stopOnError();
+    };
+    const stopOnError = chunk.addEventListener('error', (err) => {
+      stopListening();
+      reject(ensureError(err));
+    });
+  });
+
+const sameChunkOrder = (first: Chunk[], second: Chunk[]) =>
+  first.length === second.length &&
+  first.every((chunk, index) => chunk === second[index]);
+
+function initialChunkStatus(chunk: Chunk) {
+  switch (chunk.state) {
+    case ChunkState.Init:
+    case ChunkState.MetaLoading:
+    case ChunkState.MetaOnly:
+      return ChunkStatus.NotLoaded;
+    case ChunkState.DataLoading:
+      return ChunkStatus.Loading;
+    // Loaded pixels belong to the previous allocation.
+    case ChunkState.Loaded:
+      return ChunkStatus.Loading;
+    default:
+      throw new Error('Chunk is in an invalid state');
+  }
+}
+
 export interface DicomChunkImageInit {
-  splitAndSort: (
-    chunks: Chunk[],
-    mapToBlob: (chunk: Chunk, index: number) => Blob
-  ) => Promise<Record<string, Chunk[]>>;
+  encodeThumbnail: (slice: ThumbnailSlice) => string;
   readDicomImage: (file: File) => Promise<{
     image: Pick<Image, 'size' | 'data'> & {
       imageType: Pick<Image['imageType'], 'components'>;
@@ -136,16 +150,20 @@ export default class DicomChunkImage
   extends BaseProgressiveImage
   implements ChunkImage
 {
-  private splitAndSort: DicomChunkImageInit['splitAndSort'];
+  private encodeThumbnail: DicomChunkImageInit['encodeThumbnail'];
   private readDicomImage: DicomChunkImageInit['readDicomImage'];
   private warn: DicomChunkImageInit['warn'];
   protected chunks: Chunk[];
+  private orientation: number[] | null = null;
   private chunkListeners: Array<() => void>;
-  private thumbnailCache: WeakMap<Chunk, Promise<string>>;
   private events: Emitter<ChunkImageEvents>;
   private chunkStatus: ChunkStatus[];
   private allocationGeneration: number;
-  private chunkAdditionQueue: Promise<void>;
+  private chunkUpdateQueue: Promise<void>;
+  private disposed: boolean;
+  // One thumbnail per membership: the browser asks again whenever the volume
+  // list changes, and each ask before the slot is decoded costs a decode.
+  private thumbnail: Promise<string | null> | null;
 
   public segBuildInfo:
     | (JsonCompatible & ReadOverlappingSegmentationMeta)
@@ -154,7 +172,7 @@ export default class DicomChunkImage
   constructor(init: Partial<DicomChunkImageInit> = {}) {
     super();
 
-    this.splitAndSort = init.splitAndSort ?? splitAndSortChunks;
+    this.encodeThumbnail = init.encodeThumbnail ?? encodeThumbnailToUri;
     this.readDicomImage = init.readDicomImage ?? readDicomImage;
     this.warn = init.warn ?? surfaceWarning;
 
@@ -166,10 +184,11 @@ export default class DicomChunkImage
     this.chunks = [];
     this.chunkListeners = [];
     this.chunkStatus = [];
-    this.thumbnailCache = new WeakMap();
     this.events = mitt();
     this.allocationGeneration = 0;
-    this.chunkAdditionQueue = Promise.resolve();
+    this.chunkUpdateQueue = Promise.resolve();
+    this.disposed = false;
+    this.thumbnail = null;
     this.segBuildInfo = null;
 
     this.addEventListener('loading', (loading) => {
@@ -182,8 +201,7 @@ export default class DicomChunkImage
   }
 
   getModality() {
-    const meta = Object.fromEntries(this.getDicomMetadata() ?? []);
-    return meta[Tags.Modality]?.trim() ?? null;
+    return modalityOf(this.chunks);
   }
 
   getChunkStatuses(): Array<ChunkStatus> {
@@ -195,6 +213,10 @@ export default class DicomChunkImage
       throw RangeError('chunkNum is out of bounds');
     }
     return this.chunks[chunkNum].metadata;
+  }
+
+  getOrientation() {
+    return this.orientation?.slice() ?? null;
   }
 
   getChunks() {
@@ -216,6 +238,7 @@ export default class DicomChunkImage
   }
 
   dispose() {
+    this.disposed = true;
     this.allocationGeneration += 1;
     super.dispose();
     this.unregisterChunkListeners();
@@ -223,16 +246,15 @@ export default class DicomChunkImage
     this.chunks.length = 0;
     this.vtkImageData.value.delete();
     this.chunkStatus = [];
-    this.thumbnailCache = new WeakMap();
   }
 
   startLoad() {
-    if (this.chunkStatus.every((status) => status === ChunkStatus.Loaded))
-      return;
     this.chunks.forEach((chunk) => {
       chunk.loadData();
     });
-    this.events.emit('loading', true);
+    // An image whose every slot is already settled has nothing to load, and
+    // nothing later would report it done.
+    this.events.emit('loading', !this.isSettled());
   }
 
   stopLoad() {
@@ -242,89 +264,138 @@ export default class DicomChunkImage
     this.events.emit('loading', false);
   }
 
-  addChunks(chunks: Chunk[]) {
-    const chunksToAdd = chunks.slice();
-    const addition = this.chunkAdditionQueue.then(() =>
-      this.addChunksInOrder(chunksToAdd)
+  /**
+   * Replaces this image's membership and order. Grouping and ordering belong
+   * to the collection planner, so the chunks are taken exactly as given.
+   */
+  setChunks(chunks: Chunk[], orientation: number[] | null) {
+    const ordered = chunks.slice();
+    const axes = orientation?.slice() ?? null;
+    const update = this.chunkUpdateQueue.then(() =>
+      this.applyChunks(ordered, axes)
     );
-    this.chunkAdditionQueue = addition.catch(() => {});
-    return addition;
+    this.chunkUpdateQueue = update.catch(() => {});
+    return update;
   }
 
-  private async addChunksInOrder(chunks: Chunk[]) {
-    const existingIds = new Set(this.chunks.map((chunk) => getChunkId(chunk)));
-    const newChunks = chunks.filter(
-      (chunk) => !existingIds.has(getChunkId(chunk))
-    );
+  private async applyChunks(chunks: Chunk[], orientation: number[] | null) {
+    // A replan that only relabels the collection re-supplies the same
+    // members; reallocating would blank every loaded slice for nothing.
     if (
-      !newChunks.length &&
-      this.chunkStatus.every((status) => status === ChunkStatus.Loaded)
+      orientation?.join() === this.orientation?.join() &&
+      sameChunkOrder(chunks, this.chunks)
     )
       return;
 
-    this.unregisterChunkListeners();
-    newChunks.forEach((chunk) => {
-      this.chunks.push(chunk);
-    });
-
+    // Nothing changes while the metadata the allocation needs is still coming,
+    // and a disposed image must not come back to life afterwards.
+    if (this.disposed) return;
     await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
-    const chunksByVolume = await this.splitAndSort(
-      this.chunks,
-      (chunk) => chunk.metaBlob!
-    );
-    const volumes = Object.values(chunksByVolume);
-    if (volumes.length !== 1)
-      throw new Error('Did not get just a single volume!');
+    if (this.disposed) return;
+
+    // Everything that can throw runs before the first mutation, so a
+    // membership this image cannot hold leaves it exactly as it was.
+    const status = chunks.map(initialChunkStatus);
+    const allocated =
+      modalityOf(chunks) === 'SEG'
+        ? null
+        : allocateImageFromChunks(chunks, orientation);
+
+    this.unregisterChunkListeners();
 
     // Invalidate decodes targeting the previous buffer and chunk order.
     this.allocationGeneration += 1;
-    this.chunks = volumes[0];
-
-    this.chunkStatus = this.chunks.map((chunk) => {
-      switch (chunk.state) {
-        case ChunkState.Init:
-        case ChunkState.MetaLoading:
-        case ChunkState.MetaOnly:
-          return ChunkStatus.NotLoaded;
-        case ChunkState.DataLoading:
-          return ChunkStatus.Loading;
-        // Loaded pixels belong to the previous allocation.
-        case ChunkState.Loaded:
-          return ChunkStatus.Loading;
-        default:
-          throw new Error('Chunk is in an invalid state');
-      }
-    });
+    this.chunks = chunks;
+    this.orientation = orientation;
+    this.chunkStatus = status;
+    this.thumbnail = null;
     this.onChunksUpdated();
 
-    if (this.getModality() !== 'SEG') {
-      this.reallocateImage();
+    if (allocated) {
+      const previous = this.vtkImageData.value;
+      this.vtkImageData.value = allocated;
+      previous.delete();
+      this.applyUltrasoundSpacing();
     }
 
     this.registerChunkListeners();
     this.processLoadedChunks();
 
     // Update data range with already loaded chunks after reallocating image
-    if (this.getModality() !== 'SEG') {
+    if (allocated) {
       this.updateDataRangeFromChunks();
     }
   }
 
   getThumbnail(): Promise<string | null> {
+    // A failure is not kept: the next ask tries again.
+    this.thumbnail ??= this.readThumbnail().catch((err) => {
+      this.thumbnail = null;
+      throw err;
+    });
+    return this.thumbnail;
+  }
+
+  private async readThumbnail(): Promise<string | null> {
     const middle = Math.floor(this.chunks.length / 2);
     const chunk = this.chunks[middle];
+    if (!chunk) return null;
 
-    if (!this.thumbnailCache.has(chunk)) {
-      // FIXME(fli): if chunk changes, the old promise is not cancelled
-      this.thumbnailCache.set(
-        chunk,
-        waitForChunkState(chunk, ChunkState.Loaded).then((ch) => {
-          if (!ch.dataBlob) throw new Error('No chunk data');
-          return dicomSliceToImageUri(ch.dataBlob);
-        })
-      );
-    }
-    return this.thumbnailCache.get(chunk)!;
+    const slice =
+      this.chunkStatus[middle] === ChunkStatus.Loaded
+        ? this.sliceFromBuffer(middle)
+        : await this.sliceFromChunk(chunk);
+
+    return this.encodeThumbnail(slice);
+  }
+
+  private sliceFromBuffer(index: number) {
+    const scalars = this.vtkImageData.value.getPointData().getScalars();
+    const components = scalars.getNumberOfComponents();
+    const [width, height] = this.vtkImageData.value.getDimensions();
+    const samplesPerSlice = width * height * components;
+    const data = scalars.getData() as TypedArray;
+
+    return sliceToThumbnail({
+      data: data.subarray(
+        index * samplesPerSlice,
+        (index + 1) * samplesPerSlice
+      ),
+      width,
+      height,
+      components,
+      // The thumbnail reads component 0, so it windows on that component's
+      // range, not the multi-component vector magnitude range.
+      range: scalars.getRange(0) as [number, number],
+    });
+  }
+
+  // Before a chunk's slot holds pixels, its own bytes are the only source.
+  private async sliceFromChunk(chunk: Chunk) {
+    const loaded = await loadedChunk(chunk);
+    if (!loaded.dataBlob) throw new Error('No chunk data');
+
+    const { image } = await this.readDicomImage(
+      new File([loaded.dataBlob], 'thumbnail.dcm')
+    );
+    if (!image.data) throw new Error('No data read from chunk');
+
+    const [width, height] = image.size;
+    const components = image.imageType.components;
+    const data = image.data as unknown as ArrayLike<number>;
+    const { min, max } = fastComputeRange(
+      data as unknown as number[],
+      0,
+      components
+    );
+
+    return sliceToThumbnail({
+      data,
+      width,
+      height,
+      components,
+      range: [min, max],
+    });
   }
 
   // Reallocation clears the buffer, so restore every available slice.
@@ -366,15 +437,6 @@ export default class DicomChunkImage
     while (this.chunkListeners.length) {
       this.chunkListeners.pop()!();
     }
-  }
-
-  private reallocateImage() {
-    // Allocation can throw, and the cache keeps this image either way, so the
-    // old buffer is only safe to release once its replacement exists.
-    const previous = this.vtkImageData.value;
-    this.vtkImageData.value = allocateImageFromChunks(this.chunks);
-    previous.delete();
-    this.applyUltrasoundSpacing();
   }
 
   private applyUltrasoundSpacing() {

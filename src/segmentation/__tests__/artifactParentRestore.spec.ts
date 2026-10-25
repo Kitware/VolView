@@ -112,7 +112,6 @@ const pendingImage = async (id = 'parent') => {
   await chunk.loadMeta();
   await chunk.loadData();
   const image = new DicomChunkImage({
-    splitAndSort: async (chunks) => ({ volume: chunks }),
     readDicomImage: async () => {
       started.resolve();
       await decoded.promise;
@@ -127,7 +126,7 @@ const pendingImage = async (id = 'parent') => {
       };
     },
   });
-  await image.addChunks([chunk]);
+  await image.setChunks([chunk], [1, 0, 0, 0, 1, 0]);
   cache().addProgressiveImage(image, { id });
   await started.promise;
   expect(image.loading.value).toBe(true);

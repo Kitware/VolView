@@ -10,7 +10,7 @@ import {
   getVolumeBufferType,
   samplesAreIntegral,
   valuesFitBuffer,
-} from '@/src/utils/allocateImageFromChunks';
+} from '@/src/utils/dicom/allocateImageFromChunks';
 import { describe, it, expect } from 'vitest';
 
 function chunk(overrides: Record<string, string> = {}) {
@@ -343,15 +343,18 @@ describe('samplesAreIntegral', () => {
 
 describe('allocateImageFromChunks', () => {
   it('allocates for the modality range of every chunk', () => {
-    const image = allocateImageFromChunks([
-      positionedChunk(0),
-      positionedChunk(1, {
-        [Tags.BitsStored]: '16',
-        [Tags.PixelRepresentation]: '0',
-        [Tags.RescaleSlope]: PUBLIC_DSC_SLOPE,
-        [Tags.RescaleIntercept]: '0',
-      }),
-    ]);
+    const image = allocateImageFromChunks(
+      [
+        positionedChunk(0),
+        positionedChunk(1, {
+          [Tags.BitsStored]: '16',
+          [Tags.PixelRepresentation]: '0',
+          [Tags.RescaleSlope]: PUBLIC_DSC_SLOPE,
+          [Tags.RescaleIntercept]: '0',
+        }),
+      ],
+      [1, 0, 0, 0, 1, 0]
+    );
     const data = image.getPointData().getScalars().getData();
 
     expect(data).toBeInstanceOf(Float64Array);
@@ -359,26 +362,127 @@ describe('allocateImageFromChunks', () => {
   });
 
   it('matches ITK spacing order for single-slice images with SpacingBetweenSlices', () => {
-    const image = allocateImageFromChunks([
-      chunk({
-        [Tags.PixelSpacing]: '2.5\\0.75',
-        [Tags.SpacingBetweenSlices]: '7.25',
-      }),
-    ]);
+    const image = allocateImageFromChunks(
+      [
+        chunk({
+          [Tags.PixelSpacing]: '2.5\\0.75',
+          [Tags.SpacingBetweenSlices]: '7.25',
+        }),
+      ],
+      [1, 0, 0, 0, 1, 0]
+    );
 
     expect(Array.from(image.getSpacing())).toEqual([0.75, 2.5, 7.25]);
   });
 
-  it('keeps deriving multi-slice Z spacing from ImagePositionPatient distance', () => {
-    const image = allocateImageFromChunks([
-      positionedChunk(0, {
-        [Tags.PixelSpacing]: '2.5\\0.75',
-        [Tags.SpacingBetweenSlices]: '19',
-      }),
-      positionedChunk(9),
-      positionedChunk(18),
-    ]);
+  it('takes the multi-slice Z spacing from an even stack of positions', () => {
+    const image = allocateImageFromChunks(
+      [
+        positionedChunk(0, {
+          [Tags.PixelSpacing]: '2.5\\0.75',
+          [Tags.SpacingBetweenSlices]: '19',
+        }),
+        positionedChunk(9),
+        positionedChunk(18),
+      ],
+      [1, 0, 0, 0, 1, 0]
+    );
 
     expect(Array.from(image.getSpacing())).toEqual([0.75, 2.5, 9]);
+  });
+
+  // Two 4mm runs with a hole between them, as the bilateral sagittal slabs of
+  // idcSeriesFixtures.ts are. Endpoint distance over slice count would call
+  // that a 17.33mm lattice, which describes neither run.
+  it('does not fit an irregular stack to a lattice its slices never sit on', () => {
+    const image = allocateImageFromChunks(
+      [0, 4, 8, 48, 52].map((z) => positionedChunk(z)),
+      [1, 0, 0, 0, 1, 0]
+    );
+
+    expect(image.getSpacing()[2]).toBeCloseTo(4, 12);
+  });
+
+  it('orients the image along the validated slice normal', () => {
+    const image = allocateImageFromChunks(
+      [chunk({ [Tags.ImageOrientationPatient]: '0\\1\\0\\0\\0\\-1' })],
+      [0, 1, 0, 0, 0, -1]
+    );
+
+    expect(Array.from(image.getDirection())).toEqual([
+      0, 1, 0, 0, 0, -1, -1, 0, 0,
+    ]);
+  });
+
+  it('keeps the identity direction for an orientation that spans no plane', () => {
+    const image = allocateImageFromChunks(
+      [chunk({ [Tags.ImageOrientationPatient]: '1\\0\\0\\1\\0\\0' })],
+      null
+    );
+
+    expect(Array.from(image.getDirection())).toEqual([
+      1, 0, 0, 0, 1, 0, 0, 0, 1,
+    ]);
+  });
+
+  it('leaves the Z spacing alone when no position can be read', () => {
+    const image = allocateImageFromChunks(
+      [
+        chunk({ [Tags.ImagePositionPatient]: '' }),
+        chunk({ [Tags.ImagePositionPatient]: '' }),
+      ],
+      [1, 0, 0, 0, 1, 0]
+    );
+
+    expect(image.getSpacing()[2]).toBe(1);
+  });
+
+  it('takes the declared SpacingBetweenSlices when no position can be read', () => {
+    const image = allocateImageFromChunks(
+      [
+        chunk({
+          [Tags.ImagePositionPatient]: '',
+          [Tags.SpacingBetweenSlices]: '2.5',
+        }),
+        chunk({ [Tags.ImagePositionPatient]: '' }),
+      ],
+      [1, 0, 0, 0, 1, 0]
+    );
+
+    expect(image.getSpacing()[2]).toBe(2.5);
+  });
+
+  it('takes the declared SpacingBetweenSlices for a multi-frame instance', () => {
+    const image = allocateImageFromChunks(
+      [
+        chunk({
+          [Tags.NumberOfFrames]: '4',
+          [Tags.SpacingBetweenSlices]: '1.5',
+        }),
+      ],
+      [1, 0, 0, 0, 1, 0]
+    );
+
+    expect(Array.from(image.getDimensions())).toEqual([4, 3, 4]);
+    expect(image.getSpacing()[2]).toBe(1.5);
+  });
+
+  // A tilted gantry leans every slice plane sideways of the last, so no lattice
+  // holds them; the extent the table stepped over is kept all the same.
+  it('steps a tilted gantry stack by the distance its slices advance', () => {
+    const theta = Math.PI / 9;
+    const tilted = [1, 0, 0, 0, Math.cos(theta), Math.sin(theta)];
+
+    const image = allocateImageFromChunks(
+      [0, 3, 6, 9].map((z) =>
+        positionedChunk(z, {
+          [Tags.ImageOrientationPatient]: tilted.join('\\'),
+        })
+      ),
+      tilted
+    );
+
+    expect(image.getSpacing()[2]).toBeCloseTo(3, 12);
+    expect(image.getDirection()[5]).toBeCloseTo(Math.sin(theta), 12);
   });
 });

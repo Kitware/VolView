@@ -21,6 +21,7 @@ import {
   parseUrl,
 } from '@/src/core/dicom-web-api';
 import { useViewStore } from '@/src/store/views';
+import { isLoadableResult } from '@/src/io/import/common';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 
@@ -186,15 +187,26 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         throw new Error('Could not fetch series');
       }
 
-      const [loadResult] = await importDataSources(files.map(fileToDataSource));
-      if (!loadResult) {
+      const results = await importDataSources(files.map(fileToDataSource));
+      if (results.length === 0) {
         throw new Error('Did not receive a load result');
       }
-      if (loadResult.type === 'error') {
-        throw loadResult.error;
-      }
+      const failed = results.find((result) => result.type === 'error');
+      if (failed) throw failed.error;
 
-      const selection = convertSuccessResultToDataSelection(loadResult);
+      // A series holding overlapping acquisitions loads as several volumes;
+      // show the one with the most slices rather than whichever import
+      // happened to finish first.
+      const dicomStore = useDICOMStore();
+      const sliceCount = (result: (typeof results)[number]) =>
+        isLoadableResult(result)
+          ? (dicomStore.volumeInfo[result.dataID]?.NumberOfSlices ?? -1)
+          : -1;
+      const primaryResult = results.reduce((best, result) =>
+        sliceCount(result) > sliceCount(best) ? result : best
+      );
+
+      const selection = convertSuccessResultToDataSelection(primaryResult);
       useViewStore().setDataForAllViews(selection);
       volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
@@ -287,17 +299,23 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   loadedDicoms.$onAction(({ name, args, after }) => {
     if (name !== 'deleteVolume') return;
 
+    const [loadedVolumeKey] = args;
+    const seriesInstanceUID =
+      loadedDicoms.volumeInfo[loadedVolumeKey]?.SeriesInstanceUID;
+
     after(() => {
-      const [loadedVolumeKey] = args;
-      const volumeKey = Object.keys(volumes.value).find((key) =>
-        loadedVolumeKey.startsWith(key)
+      if (!seriesInstanceUID || !(seriesInstanceUID in volumes.value)) return;
+      // A split series loads as several volumes with one Series Instance UID;
+      // only mark the series remote when the last of them is deleted.
+      const stillLoaded = Object.values(loadedDicoms.volumeInfo).some(
+        (info) => info.SeriesInstanceUID === seriesInstanceUID
       );
-      if (volumeKey)
-        volumes.value[volumeKey] = {
-          ...volumes.value[volumeKey],
-          state: 'Remote',
-          loaded: 0,
-        };
+      if (stillLoaded) return;
+      volumes.value[seriesInstanceUID] = {
+        ...volumes.value[seriesInstanceUID],
+        state: 'Remote',
+        loaded: 0,
+      };
     });
   });
 
