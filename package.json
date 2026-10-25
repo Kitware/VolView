@@ -81,7 +81,7 @@
     "file-saver": "^2.0.5",
     "gl-matrix": "3.4.3",
     "globals": "^16.2.0",
-    "happy-dom": "^20.8.9",
+    "happy-dom": "^21.0.4",
     "itk-wasm": "^1.0.0-b.199",
     "jscpd": "5.1.2",
     "jszip": "3.10.1",
