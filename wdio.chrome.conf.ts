@@ -15,15 +15,12 @@ if (IS_CI) {
 }
 
 if (IS_LINUX_CI) {
-  chromeArgs.push(
-    '--headless=new',
-    '--use-gl=angle',
-    '--use-angle=swiftshader-webgl'
-  );
+  chromeArgs.push('--use-gl=angle', '--use-angle=swiftshader-webgl');
 }
 
-if (!IS_CI && !process.env.HEADED) {
-  chromeArgs.push('--headless=new', '--enable-unsafe-swiftshader');
+if (IS_CI || !process.env.HEADED) {
+  chromeArgs.push('--headless=new');
+  if (!IS_CI) chromeArgs.push('--enable-unsafe-swiftshader');
 }
 
 export const config = {

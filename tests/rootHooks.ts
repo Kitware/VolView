@@ -2,6 +2,8 @@
 // trouble a spec would otherwise sail past: a page that reaches the internet,
 // or a WebGL error.
 
+import { captureFailureScreenshot } from '../wdio.shared.conf';
+
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 const NETWORK_PROTOCOLS = ['http:', 'https:', 'ws:', 'wss:'];
 
@@ -61,9 +63,15 @@ export const mochaHooks = {
     await subscribe();
   },
 
-  afterEach() {
+  async afterEach(this: Mocha.Context) {
     const requested = externalRequests.splice(0);
     const failed = webglErrors.splice(0);
+    if (requested.length || failed.length) {
+      // Root-hook plugins bypass WebdriverIO's afterHook callback.
+      await captureFailureScreenshot(
+        `root-afterEach-${this.currentTest?.fullTitle() ?? 'unknown test'}`
+      );
+    }
     if (requested.length) {
       throw new Error(
         `The page requested non-local URLs:\n${requested.join('\n')}`

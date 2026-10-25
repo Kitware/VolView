@@ -5,9 +5,9 @@ import {
   nudgeTo,
   pressAtPointer,
   setupTest,
-  teleportTo,
   waitForCircleCount,
 } from './annotationTestUtils';
+import { writeMetaImage } from './utils';
 
 // BoundingRectangle.vue draws this around the selected annotation
 const getSelectionRectCount = async (axialView: ChainablePromiseElement) => {
@@ -45,8 +45,8 @@ const hoverAndSelect = async (
     }
   );
 
-const setupSelectedRectangle = async () => {
-  const context = await setupTest();
+const setupSelectedRectangle = async (fileName?: string) => {
+  const context = await setupTest(fileName);
   const { axialView, centerX, centerY } = context;
   await AppPage.selectTool('mdi-vector-square');
   await clickAt(centerX - 80, centerY - 80);
@@ -61,7 +61,7 @@ const setupSelectedRectangle = async () => {
     );
   const before = await bounds();
   await hoverAndSelect(axialView, centerX - 80, centerY - 80);
-  return { ...context, bounds, before };
+  return { ...context, shape, bounds, before };
 };
 
 describe('Selection picks at the press position', () => {
@@ -70,25 +70,25 @@ describe('Selection picks at the press position', () => {
     expect(await AppPage.getNotificationsCount()).toBe(0);
   });
 
-  it('does not select an annotation the pointer left without a tracked move', async () => {
-    const { axialView, centerX, centerY, bounds, before } =
-      await setupSelectedRectangle();
+  it('deselects after changing slices without moving the pointer', async () => {
+    const { axialView, shape, bounds, before } = await setupSelectedRectangle(
+      writeMetaImage('selection-at-press.mha')
+    );
 
-    // Empty image area, well clear of both handles and the rectangle outline
-    await teleportTo(centerX + 140, centerY - 140);
+    await AppPage.advanceSliceAndWait();
+    await expect(shape.parentElement()).toHaveStyle({ display: 'none' });
     await pressAtPointer();
+    await browser.keys('ArrowUp');
+    await expect(shape.parentElement()).not.toHaveStyle({ display: 'none' });
 
     await waitForSelectionRectCount(
       axialView,
       0,
-      'Pressing on empty space should deselect, not act on the pick left behind at the handle'
+      'Pressing on an empty slice should deselect the annotation on the previous slice'
     );
     expect(await bounds()).toEqual(before);
   });
 
-  // Control for the case above: same annotation, same press position, only the
-  // move onto empty space is one the widget manager tracks. Deselecting here
-  // shows the press does reach the view and that nothing is pickable there.
   it('deselects when the move onto empty space is tracked', async () => {
     const { axialView, centerX, centerY, bounds, before } =
       await setupSelectedRectangle();
@@ -143,13 +143,18 @@ describe('Selection picks at the press position', () => {
         2,
         'Dragging should keep the same annotation'
       );
-      expect(Number(await firstHandle.getAttribute('cx'))).toBeCloseTo(
-        Number(start[0]) + 35,
-        0
-      );
-      expect(Number(await firstHandle.getAttribute('cy'))).toBeCloseTo(
-        Number(start[1]) + 20,
-        0
+      const expected = [Number(start[0]) + 35, Number(start[1]) + 20];
+      await browser.waitUntil(
+        async () => {
+          const coordinates = await Promise.all(
+            ['cx', 'cy'].map((axis) => firstHandle.getAttribute(axis))
+          );
+          return coordinates.every(
+            (coordinate, index) =>
+              Math.abs(Number(coordinate) - expected[index]) < 0.5
+          );
+        },
+        { timeoutMsg: `Expected the dragged handle at ${expected.join(', ')}` }
       );
     });
   }

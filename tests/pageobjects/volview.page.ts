@@ -451,10 +451,13 @@ class VolViewPage extends Page {
     timeout = DOWNLOAD_TIMEOUT
   ) {
     await browser.waitUntil(
-      async () => {
-        const loadingIndicator = await view.$('.loading-indicator');
-        return !(await loadingIndicator.isDisplayed());
-      },
+      () =>
+        view.execute((element) => {
+          const container = element.closest(
+            '[data-testid="two-view-container"]'
+          );
+          return !!container && !container.querySelector('.loading-indicator');
+        }),
       {
         timeout,
         timeoutMsg: 'Expected loading indicator to disappear',
