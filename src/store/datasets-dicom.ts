@@ -1,6 +1,8 @@
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
+import type { Reconstruction } from '@/packages/dicom/core';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
-import { Chunk } from '@/src/core/streaming/chunk';
+import { Chunk } from '@/packages/dicom/core';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
@@ -10,9 +12,9 @@ import {
   groupChunksBySeries,
   type CollectionUpdate,
   type DicomCollectionRegistry,
-} from '@/src/core/dicom/collectionRegistry';
+} from '@/packages/dicom/core';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { isUltrasoundMultiframeSopClass, Tags } from '@/src/core/dicomTags';
+import { isUltrasoundMultiframeSopClass, Tags } from '@/packages/dicom/core';
 import { useMessageStore } from '@/src/store/messages';
 import { ensureError, removeFromArray } from '../utils';
 
@@ -109,7 +111,7 @@ export function isCineChunkGroup(chunks: Chunk[]): boolean {
   if (chunks.length !== 1) return false;
   const meta = chunks[0].metadata;
   if (!meta) return false;
-  const lookup = Object.fromEntries(meta);
+  const lookup = Object.fromEntries(dicomDatasetToTags(meta));
   const sopClass = lookup[Tags.SOPClassUID] ?? '';
   const numberOfFrames = parseInt(
     (lookup[Tags.NumberOfFrames] ?? '0').trim(),
@@ -194,7 +196,7 @@ const inSeriesTransaction = <T>(
 // injected image, so the capability check names the method it calls.
 type ChunkVolume = Pick<
   DicomChunkImage,
-  'setChunks' | 'getChunks' | 'getOrientation'
+  'setChunks' | 'getChunks' | 'getOrientation' | 'getReconstruction'
 >;
 
 const canHoldChunks = (
@@ -277,6 +279,7 @@ type Candidate =
       // failure can put it back.
       previous: Chunk[];
       previousOrientation: number[] | null;
+      previousReconstruction: Reconstruction | null;
       // Whether the batch changed the membership at all; a relabel or a
       // second drop of the same folder does not.
       changed: boolean;
@@ -307,7 +310,11 @@ const undoGrowth = (candidates: Candidate[]) => {
     candidates.map((candidate) =>
       candidate.kind === 'grow' && imageById[candidate.id] === candidate.image
         ? candidate.image
-            .setChunks(candidate.previous, candidate.previousOrientation)
+            .setChunks(
+              candidate.previous,
+              candidate.previousOrientation,
+              candidate.previousReconstruction ?? undefined
+            )
             .catch((err) => {
               console.error('Failed to restore DICOM volume membership', err);
             })
@@ -329,7 +336,7 @@ const volumeRecord = ({
 }: CollectionUpdate): DatabaseRecord => {
   const metaPairs = members[0].metadata;
   if (!metaPairs) throw new Error('Metadata not ready');
-  const metadata = Object.fromEntries(metaPairs);
+  const metadata = Object.fromEntries(dicomDatasetToTags(metaPairs));
   return {
     patient: {
       PatientID: metadata[Tags.PatientID],
@@ -432,7 +439,7 @@ async function prepareVolume(
   const {
     id,
     members,
-    collection: { orientation },
+    collection: { orientation, reconstruction },
   } = update;
   const cachedImage = useImageCacheStore().imageById[id];
   if (cachedImage && !canHoldChunks(cachedImage)) {
@@ -448,7 +455,8 @@ async function prepareVolume(
   if (cachedImage) {
     const previous = cachedImage.getChunks();
     const previousOrientation = cachedImage.getOrientation();
-    await cachedImage.setChunks(members, orientation);
+    const previousReconstruction = cachedImage.getReconstruction();
+    await cachedImage.setChunks(members, orientation, reconstruction);
     const changed =
       previousOrientation?.join() !== orientation?.join() ||
       previous.length !== members.length ||
@@ -459,13 +467,14 @@ async function prepareVolume(
       image: cachedImage,
       previous,
       previousOrientation,
+      previousReconstruction,
       changed,
       record,
     };
   }
 
   const image = deps.track(deps.createChunkImage());
-  await image.setChunks(members, orientation);
+  await image.setChunks(members, orientation, reconstruction);
   return { kind: 'add', id, image, record };
 }
 
@@ -627,6 +636,9 @@ export const useDICOMStore = defineStore('dicom', {
           };
           onCommitted(committed);
           return committed;
+        }).then((committed) => {
+          this.releaseUnregisteredChunks(batch);
+          return committed;
         })
       );
 
@@ -654,6 +666,14 @@ export const useDICOMStore = defineStore('dicom', {
         ),
         dissolved: results.flatMap(({ dissolved }) => dissolved),
       };
+    },
+
+    releaseUnregisteredChunks(chunks: Chunk[]) {
+      const { registry } = sessionFor(this);
+      // Provenance keeps header identity after an unused source releases bytes.
+      chunks.forEach((chunk) => {
+        if (chunk instanceof Chunk && !registry.has(chunk)) chunk.dispose();
+      });
     },
 
     _updateDatabase(
@@ -691,7 +711,11 @@ export const useDICOMStore = defineStore('dicom', {
     deleteVolume(volumeKey: string) {
       // Releases the chunks the registry pinned for this collection, so a
       // removed volume stops holding its DICOM bytes.
-      sessionFor(this).registry.forget(volumeKey);
+      sessionFor(this)
+        .registry.forget(volumeKey)
+        .forEach((chunk) => {
+          if (chunk instanceof Chunk) chunk.dispose();
+        });
 
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];

@@ -1,19 +1,15 @@
+import { datasetFromTags } from '@/tests/dicomDataset';
+import { getChunkTag } from '@/packages/dicom/core';
 import { describe, it, expect, vi } from 'vitest';
-import { Chunk } from '@/src/core/streaming/chunk';
-import { ChunkState } from '@/src/core/streaming/chunkStateMachine';
-import { Tags } from '@/src/core/dicomTags';
+import { Chunk } from '@/packages/dicom/core';
+import { ChunkState } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core';
 import DicomChunkImage, {
   DicomChunkImageInit,
 } from '@/src/core/streaming/dicomChunkImage';
-import {
-  sliceToThumbnail,
-  type ThumbnailSlice,
-} from '@/src/core/streaming/dicomThumbnail';
-import { ChunkStatus } from '@/src/core/streaming/chunkImage';
-import {
-  US_UNIT_CENTIMETERS,
-  UltrasoundRegions,
-} from '@/src/core/streaming/dicom/ultrasoundRegion';
+import { sliceToThumbnail, type ThumbnailSlice } from '@/packages/dicom/vtk';
+import { ChunkStatus } from '@/packages/dicom/vtk';
+import { US_UNIT_CENTIMETERS, UltrasoundRegions } from '@/packages/dicom/core';
 
 const AXIAL = [1, 0, 0, 0, 1, 0];
 const ROWS = 2;
@@ -38,7 +34,7 @@ function metadataFor(z: number, overrides: Record<string, string> = {}) {
     if (existing) existing[1] = value;
     else metadata.push([tag, value]);
   });
-  return metadata;
+  return datasetFromTags(metadata);
 }
 
 // The slice's z position is also its pixel value, so the decoded contents of a
@@ -94,8 +90,7 @@ function makeGatedChunk(z: number) {
 }
 
 function zOf(chunk: Chunk) {
-  const meta = Object.fromEntries(chunk.metadata!);
-  return Number(meta[Tags.ImagePositionPatient].split('\\')[2]);
+  return Number(getChunkTag(chunk, Tags.ImagePositionPatient)!.split('\\')[2]);
 }
 
 const frameOf = (value: number) => ({

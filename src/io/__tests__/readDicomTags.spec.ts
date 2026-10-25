@@ -1,6 +1,7 @@
+import { datasetFromTags } from '@/tests/dicomDataset';
 import { describe, expect, it } from 'vitest';
-import { Tags } from '@/src/core/dicomTags';
-import { readInstanceFacts } from '@/src/core/dicom/instanceFacts';
+import { Tags } from '@/packages/dicom/core';
+import { readInstanceFacts } from '@/packages/dicom/core';
 import { readDicomTags } from '@/src/io/readDicomTags';
 import {
   buildSlice,
@@ -373,7 +374,7 @@ describe('readDicomTags specific character set', () => {
     );
     expect(valueOf(tags, Tags.ImagePositionPatient)).toBe('1.5\\-2\\3');
     expect(valueOf(tags, Tags.PixelSpacing)).toBe('0.5\\0.75');
-    expect(readInstanceFacts(tags)).toMatchObject({
+    expect(readInstanceFacts(datasetFromTags(tags))).toMatchObject({
       orientation: [1, 0, 0, 0, -1, 0],
       position: [1.5, -2, 3],
       pixelSpacing: [0.5, 0.75],

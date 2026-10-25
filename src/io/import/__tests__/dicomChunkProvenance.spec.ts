@@ -1,8 +1,10 @@
+import { datasetFromTags } from '@/tests/dicomDataset';
+import { getChunkTag } from '@/packages/dicom/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { Tags } from '@/src/core/dicomTags';
+import type { Chunk } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import type { ChunkSource, DataSource } from '@/src/io/import/dataSource';
 import { uriToDataSource } from '@/src/io/import/dataSource';
@@ -17,7 +19,9 @@ import type { ImportChunksResult } from '@/src/store/datasets-dicom';
 const chunkSourceFor = (sop: string) => {
   const source: DataSource = {
     type: 'chunk',
-    chunk: { metadata: [[Tags.SOPInstanceUID, sop]] } as unknown as Chunk,
+    chunk: {
+      metadata: datasetFromTags([[Tags.SOPInstanceUID, sop]]),
+    } as unknown as Chunk,
     mime: FILE_EXT_TO_MIME.dcm,
     parent: uriToDataSource(
       `https://ex/series/${sop}.dcm`,
@@ -32,7 +36,7 @@ const collectedSops = (dataSource: DataSource | undefined) => {
   if (dataSource?.type !== 'collection') throw new Error('Expected collection');
   return dataSource.sources.map((src) => {
     if (src.type !== 'chunk') throw new Error('Expected a chunk source');
-    return Object.fromEntries(src.chunk.metadata!)[Tags.SOPInstanceUID];
+    return getChunkTag(src.chunk, Tags.SOPInstanceUID);
   });
 };
 

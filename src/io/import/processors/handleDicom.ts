@@ -1,10 +1,6 @@
+import { getChunkTag } from '@/packages/dicom/core';
+import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { Skip } from '@/src/utils/evaluateChain';
-import { blobFetcher } from '@/src/core/streaming/blobFetcher';
-import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
-import { Chunk } from '@/src/core/streaming/chunk';
-import { DicomDataLoader } from '@/src/core/streaming/dicom/dicomDataLoader';
-import { DicomMetaLoader } from '@/src/core/streaming/dicom/dicomMetaLoader';
-import { getRequestPool } from '@/src/core/streaming/requestPool';
 import {
   ImportHandler,
   asIntermediateResult,
@@ -13,12 +9,12 @@ import {
 import { DataSource, getDataSourceName } from '@/src/io/import/dataSource';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { getErrorDetail } from '@/src/utils';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import {
   IMPLICIT_VR_LITTLE_ENDIAN,
   type DicomLayout,
-} from '@/src/io/dicomLayout';
+} from '@/packages/dicom/core';
 import { Maybe } from '@/src/types';
 
 // A folder of files that all depart from Part 10 the same way would raise one
@@ -53,20 +49,15 @@ const reportLayout = (name: Maybe<string>, layout: Maybe<DicomLayout>) => {
   );
 };
 
-const dicomFetcher = (dataSource: DataSource) => {
+const dicomSource = (dataSource: DataSource) => {
   if (
     dataSource.type === 'file' &&
     dataSource.fileType === FILE_EXT_TO_MIME.dcm
   )
-    return blobFetcher(dataSource.file);
+    return dataSource.file;
 
   if (dataSource.type === 'uri' && dataSource.mime === FILE_EXT_TO_MIME.dcm)
-    return (
-      dataSource.fetcher ??
-      new CachedStreamFetcher(dataSource.uri, {
-        fetch: (...args) => getRequestPool().fetch(...args),
-      })
-    );
+    return dataSource.fetcher ?? dataSource.uri;
 
   return null;
 };
@@ -75,20 +66,18 @@ const dicomFetcher = (dataSource: DataSource) => {
  * Reads a DICOM source's header and hands it on as a chunk to import later.
  */
 const handleDicom: ImportHandler = async (dataSource) => {
-  const fetcher = dicomFetcher(dataSource);
-  if (!fetcher) return Skip;
+  const source = dicomSource(dataSource);
+  if (!source) return Skip;
 
   const name = getDataSourceName(dataSource);
-  const metaLoader = new DicomMetaLoader(fetcher);
-  const chunk = new Chunk({
-    metaLoader,
-    dataLoader: new DicomDataLoader(fetcher),
-  });
+  const { loader } = useDicomRuntimeStore();
+  const chunk = loader.createChunk(source);
 
   try {
     await chunk.loadMeta();
-    reportLayout(name, metaLoader.fileLayout);
+    reportLayout(name, chunk.fileLayout);
   } catch (error) {
+    loader.release(chunk);
     const detail = getErrorDetail(
       error,
       'the file could not be parsed as valid DICOM (check browser console for details)'
@@ -98,20 +87,25 @@ const handleDicom: ImportHandler = async (dataSource) => {
     });
   }
 
-  const modality = new Map(chunk.metadata ?? []).get(Tags.Modality)?.trim();
+  const modality = getChunkTag(chunk, Tags.Modality)?.trim();
   if (modality?.startsWith('RT')) {
     useMessageStore().addWarning(
       `DICOM ${modality} modality is not supported. File ${name} will be skipped.`
     );
+    loader.release(chunk);
     return asOkayResult(dataSource);
   }
+
+  // The chunk owns the transport cache; provenance only needs the URI or file.
+  const parent = { ...dataSource };
+  if (parent.type === 'uri') delete parent.fetcher;
 
   return asIntermediateResult([
     {
       type: 'chunk',
       chunk,
       mime: FILE_EXT_TO_MIME.dcm,
-      parent: dataSource,
+      parent,
     },
   ]);
 };

@@ -24,7 +24,7 @@ import {
   decodeJpegFrame,
   decodeNativeFrame,
 } from './frameCache';
-import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
+import { unitToMm } from '@/packages/dicom/core';
 
 function pickPixelSpacing(header: CineHeader): [number, number] {
   for (const r of header.regions) {

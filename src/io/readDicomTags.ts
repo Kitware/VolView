@@ -1,10 +1,11 @@
-import { binaryString, hex4 } from '@/src/io/dcmjsParser';
-import { VALUE_DELIMITER } from '@/src/io/dicomCharacterSet';
+import { binaryString, hex4 } from '@/packages/dicom/core';
+import { VALUE_DELIMITER } from '@/packages/dicom/core';
 import {
   DicomElement,
+  DicomDataset,
   isPrivateElement,
   readDicomDataset,
-} from '@/src/io/dicomDataset';
+} from '@/packages/dicom/core';
 
 const SPECIFIC_CHARACTER_SET = '00080005';
 
@@ -86,6 +87,13 @@ const reportedByItk = (element: DicomElement) =>
  */
 export function readDicomTags(bytes: Uint8Array): Array<[string, string]> {
   const dataset = readDicomDataset(bytes);
+  return dicomDatasetToTags(dataset);
+}
+
+/** Projects structured metadata for VolView consumers of GDCM-shaped strings. */
+export function dicomDatasetToTags(
+  dataset: DicomDataset
+): Array<[string, string]> {
   const pairs = dataset.elements
     .filter(reportedByItk)
     .map((element): [string, string] => [

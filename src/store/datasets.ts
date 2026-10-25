@@ -9,9 +9,9 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useModelStore } from '@/src/store/datasets-models';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { Tags } from '@/src/core/dicomTags';
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { getChunkTag } from '@/src/utils/dicom/dicomChunks';
+import { Tags } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core';
+import { getChunkTag } from '@/packages/dicom/core';
 
 export const DataType = {
   Image: 'Image',

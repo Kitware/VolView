@@ -1,7 +1,13 @@
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { Tags } from '@/src/core/dicomTags';
+import { datasetFromTags } from '@/tests/dicomDataset';
 import {
-  allocateImageFromChunks,
+  readGeometryFacts,
+  reconstructVolume,
+  sliceNormalOf,
+} from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core';
+import {
+  allocateImageFromChunks as allocatePlannedImage,
   getPixelFormat,
   getRescaledValueRange,
   getBufferValueRange,
@@ -10,7 +16,7 @@ import {
   getVolumeBufferType,
   samplesAreIntegral,
   valuesFitBuffer,
-} from '@/src/utils/dicom/allocateImageFromChunks';
+} from '@/packages/dicom/vtk';
 import { describe, it, expect } from 'vitest';
 
 function chunk(overrides: Record<string, string> = {}) {
@@ -26,7 +32,7 @@ function chunk(overrides: Record<string, string> = {}) {
     ...overrides,
   };
   return {
-    metadata: Object.entries(metadata),
+    metadata: datasetFromTags(Object.entries(metadata)),
   } as unknown as Chunk;
 }
 
@@ -51,7 +57,7 @@ describe('getTypedArrayForDataRange', () => {
 // Builds a format from exactly the tags given, with no defaults filled in, so
 // each test states the whole instance it is describing.
 function format(tags: Record<string, string>) {
-  return getPixelFormat(Object.entries(tags));
+  return getPixelFormat(datasetFromTags(Object.entries(tags)));
 }
 
 const UNSIGNED_16 = format({
@@ -486,3 +492,14 @@ describe('allocateImageFromChunks', () => {
     expect(image.getDirection()[5]).toBeCloseTo(Math.sin(theta), 12);
   });
 });
+
+function allocateImageFromChunks(
+  chunks: Chunk[],
+  orientation: number[] | null
+) {
+  const reconstruction = reconstructVolume(
+    chunks.map((item) => readGeometryFacts(item.metadata!)),
+    sliceNormalOf(orientation)
+  );
+  return allocatePlannedImage(chunks, orientation, reconstruction);
+}

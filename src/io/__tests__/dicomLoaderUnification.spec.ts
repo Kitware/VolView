@@ -27,7 +27,9 @@ describe('one DICOM meta loader', () => {
     expect(exists('src/core/streaming/dicom/dicomFileMetaLoader.ts')).toBe(
       false
     );
-    expect(exists('src/core/streaming/dicom/dicomMetaLoader.ts')).toBe(true);
+    expect(
+      exists('packages/dicom/core/streaming/dicom/dicomMetaLoader.ts')
+    ).toBe(true);
   });
 
   it('drops the fake Pixel Data element', () => {
@@ -48,11 +50,12 @@ describe('the JS reader is the only DICOM tag reader', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('keeps src/io/readDicomTags.ts as the reader every loader uses', () => {
+  it('keeps flat tag projection in VolView and structured reading in core', () => {
     expect(exists('src/io/readDicomTags.ts')).toBe(true);
-    expect(read('src/core/streaming/dicom/dicomMetaLoader.ts')).toMatch(
-      /@\/src\/io\/readDicomTags/
-    );
+    expect(read('src/io/readDicomTags.ts')).toMatch(/dicomDatasetToTags/);
+    expect(
+      read('packages/dicom/core/streaming/dicom/dicomMetaLoader.ts')
+    ).toMatch(/readDicomDataset/);
   });
 });
 

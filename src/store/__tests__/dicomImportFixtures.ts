@@ -1,8 +1,11 @@
+import { datasetFromTags } from '@/tests/dicomDataset';
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
+import { getChunkTag, type Reconstruction } from '@/packages/dicom/core';
 import { ref } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { SOP_CLASS_ULTRASOUND_MULTIFRAME, Tags } from '@/src/core/dicomTags';
+import { SOP_CLASS_ULTRASOUND_MULTIFRAME, Tags } from '@/packages/dicom/core';
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
-import type { Chunk } from '@/src/core/streaming/chunk';
+import type { Chunk } from '@/packages/dicom/core';
 import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 
 export const SERIES_UID = '1.2.826.0.1.3680043.9.7';
@@ -56,7 +59,7 @@ export function chunkFor({
     [Tags.InstanceNumber, String(z + 1)],
     ...Object.entries(tags),
   ] as Array<[string, string]>;
-  return { metadata } as unknown as Chunk;
+  return { metadata: datasetFromTags(metadata) } as unknown as Chunk;
 }
 
 export type FakeImageHooks = {
@@ -70,6 +73,12 @@ export type FakeImageHooks = {
 /** Records what the DICOM store asks a chunk volume to hold. */
 export class FakeChunkImage {
   orientation: number[] | null = null;
+
+  reconstruction: Reconstruction | null = null;
+
+  getReconstruction() {
+    return this.reconstruction;
+  }
 
   getOrientation() {
     return this.orientation;
@@ -94,10 +103,15 @@ export class FakeChunkImage {
     private readonly hooks: FakeImageHooks = {}
   ) {}
 
-  async setChunks(chunks: Chunk[], orientation: number[] | null) {
+  async setChunks(
+    chunks: Chunk[],
+    orientation: number[] | null,
+    reconstruction: Reconstruction | null = null
+  ) {
     await this.hooks.onPrepare?.(this.index, chunks);
     this.setChunksCalls.push(chunks);
     this.orientation = orientation;
+    this.reconstruction = reconstruction;
   }
 
   getImageMetadata() {
@@ -109,7 +123,7 @@ export class FakeChunkImage {
   }
 
   getDicomMetadata() {
-    return this.setChunksCalls.at(-1)![0].metadata;
+    return dicomDatasetToTags(this.setChunksCalls.at(-1)![0].metadata!);
   }
 
   getChunks() {
@@ -156,8 +170,7 @@ export function imageFactory(hooks: FakeImageHooks = {}) {
   return { created, createChunkImage };
 }
 
-export const sopOf = (chunk: Chunk) =>
-  Object.fromEntries(chunk.metadata!)[Tags.SOPInstanceUID];
+export const sopOf = (chunk: Chunk) => getChunkTag(chunk, Tags.SOPInstanceUID);
 
 /** Lets every pending microtask and timer callback run. */
 export const flush = () =>
@@ -190,7 +203,7 @@ export function cineChunkFor(sop: string, series = SERIES_UID) {
     [Tags.SamplesPerPixel, '1'],
   ] as Array<[string, string]>;
   return {
-    metadata,
+    metadata: datasetFromTags(metadata),
     dataBlob: new Blob([new Uint8Array(8)]),
     loadData: () => Promise.resolve(),
   } as unknown as Chunk;

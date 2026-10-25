@@ -1,3 +1,4 @@
+import { datasetFromTags } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
@@ -5,10 +6,10 @@ import { flushPromises } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { Chunk } from '@/src/core/streaming/chunk';
+import { Chunk } from '@/packages/dicom/core';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { type LabelmapIO } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';
@@ -102,7 +103,7 @@ const pendingImage = async (id = 'parent') => {
   ] as Array<[string, string]>;
   const chunk = new Chunk({
     metaLoader: {
-      meta,
+      meta: datasetFromTags(meta),
       load: () => {},
       stop: () => {},
     },

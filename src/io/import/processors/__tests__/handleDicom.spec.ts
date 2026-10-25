@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { Tags } from '@/src/core/dicomTags';
+import { Tags, getChunkTag, readDicomDataset } from '@/packages/dicom/core';
 import type { DataSource } from '@/src/io/import/dataSource';
 import { fileToDataSource } from '@/src/io/import/dataSource';
 import handleDicom from '@/src/io/import/processors/handleDicom';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
-import { readDicomTags } from '@/src/io/readDicomTags';
 import { Skip } from '@/src/utils/evaluateChain';
 import { useMessageStore } from '@/src/store/messages';
 import { stripFileMeta, stripPreamble } from '@/tests/specs/syntheticDicom';
@@ -15,7 +14,7 @@ import {
   dicomFile,
   syntheticSlice,
   withoutPixelData,
-} from '@/src/core/streaming/dicom/__tests__/dicomSourceFixtures';
+} from '@/tests/dicomSourceFixtures';
 
 const REGION = { physicalDeltaX: 0.0625, physicalDeltaY: 0.125 };
 
@@ -55,7 +54,7 @@ describe('handleDicom', () => {
     const chunkSource = chunkOf(await handleDicom(source(bytes)));
 
     expect(chunkSource.mime).toBe(FILE_EXT_TO_MIME.dcm);
-    expect(chunkSource.chunk.metadata).toEqual(readDicomTags(bytes));
+    expect(chunkSource.chunk.metadata).toEqual(readDicomDataset(bytes));
   });
 
   it.each(kinds)(
@@ -67,7 +66,7 @@ describe('handleDicom', () => {
         await handleDicom(source(stripPreamble(bytes), 'bare.dcm'))
       );
 
-      expect(chunkSource.chunk.metadata).toEqual(readDicomTags(bytes));
+      expect(chunkSource.chunk.metadata).toEqual(readDicomDataset(bytes));
       expect(useMessageStore().messages).toHaveLength(0);
     }
   );
@@ -79,8 +78,8 @@ describe('handleDicom', () => {
     const first = chunkOf(await handleDicom(fileSource(bare, 'first.dcm')));
     const second = chunkOf(await handleDicom(fileSource(bare, 'second.dcm')));
 
-    expect(first.chunk.metadata).toEqual(readDicomTags(bytes));
-    expect(second.chunk.metadata).toEqual(readDicomTags(bytes));
+    expect(first.chunk.metadata).toEqual(readDicomDataset(bytes));
+    expect(second.chunk.metadata).toEqual(readDicomDataset(bytes));
     const { messages } = useMessageStore();
     expect(messages).toHaveLength(1);
     expect(messages[0].title).toContain('no file meta information');
@@ -95,6 +94,7 @@ describe('handleDicom', () => {
     const fromUri = chunkOf(await handleDicom(uriSource(bytes)));
 
     expect(fromFile.chunk.metadata).toEqual(fromUri.chunk.metadata);
+    expect(fromUri.parent).not.toHaveProperty('fetcher');
   });
 
   it.each(kinds)(
@@ -154,9 +154,7 @@ describe('handleDicom', () => {
 
     const chunkSource = chunkOf(await handleDicom(fileSource(bytes)));
 
-    expect(Object.fromEntries(chunkSource.chunk.metadata!)[Tags.Modality]).toBe(
-      'RG'
-    );
+    expect(getChunkTag(chunkSource.chunk, Tags.Modality)).toBe('RG');
     expect(useMessageStore().messages).toHaveLength(0);
   });
 

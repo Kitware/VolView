@@ -42,7 +42,7 @@ import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import { ensureError, partition } from '@/src/utils';
-import { Chunk } from '@/src/core/streaming/chunk';
+import { Chunk } from '@/packages/dicom/core';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   PartialImportError,
@@ -217,18 +217,24 @@ export async function importDicomChunkSources(
       onCommitted: publish,
       removeDissolved,
     }
-  ).catch((err) => {
-    if (!(err instanceof PartialImportError)) throw err;
-    // The series that committed published themselves, so they are reported
-    // beside the failure rather than lost with it.
-    throw new PartialDicomImportError(
-      ensureError(err.cause),
-      loadables,
-      err.failed
-        .map((chunk) => chunkToDataSource.get(chunk))
-        .filter((src): src is ChunkSource => src !== undefined)
-    );
-  });
+  )
+    .catch((err) => {
+      if (!(err instanceof PartialImportError)) throw err;
+      // The series that committed published themselves, so they are reported
+      // beside the failure rather than lost with it.
+      throw new PartialDicomImportError(
+        ensureError(err.cause),
+        loadables,
+        err.failed
+          .map((chunk) => chunkToDataSource.get(chunk))
+          .filter((src): src is ChunkSource => src !== undefined)
+      );
+    })
+    .finally(() => {
+      useDICOMStore().releaseUnregisteredChunks(
+        sources.map((src) => src.chunk)
+      );
+    });
 
   return loadables;
 }

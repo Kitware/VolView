@@ -1,6 +1,6 @@
 import { Skip } from '@/src/utils/evaluateChain';
-import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
-import { getRequestPool } from '@/src/core/streaming/requestPool';
+import { CachedStreamFetcher } from '@/packages/dicom/core';
+import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { canFetchUrl } from '@/src/utils/fetch';
 import { extractFilenameFromContentDisposition } from '@/src/utils/parseContentDispositionHeader';
@@ -16,7 +16,7 @@ const openUriStream: ImportHandler = async (dataSource, context) => {
   }
 
   const fetcher = new CachedStreamFetcher(dataSource.uri, {
-    fetch: (...args) => getRequestPool().fetch(...args),
+    fetch: useDicomRuntimeStore().loader.fetch,
   });
 
   await fetcher.connect();

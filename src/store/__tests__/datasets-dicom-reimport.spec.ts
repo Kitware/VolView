@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/src/core/streaming/chunk';
+import type { Chunk } from '@/packages/dicom/core';
 import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
   useDICOMStore,
   type ImportChunksResult,
 } from '@/src/store/datasets-dicom';
-import { mergingChunks } from '@/src/core/dicom/__tests__/orientationFixtures';
+import { mergingChunks } from '@/tests/dicomOrientationFixtures';
 import {
   chunkFor,
   imageFactory,

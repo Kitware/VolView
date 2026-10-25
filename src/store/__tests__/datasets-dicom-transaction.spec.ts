@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/src/core/streaming/chunk';
+import type { Chunk } from '@/packages/dicom/core';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import type { ChunkSource, DataSource } from '@/src/io/import/dataSource';
 import { uriToDataSource } from '@/src/io/import/dataSource';
@@ -15,7 +15,7 @@ import {
   useDICOMStore,
   type ImportChunksResult,
 } from '@/src/store/datasets-dicom';
-import { tilt } from '@/src/core/dicom/__tests__/orientationFixtures';
+import { tilt } from '@/tests/dicomOrientationFixtures';
 import {
   cineHeader,
   cineParseResult,

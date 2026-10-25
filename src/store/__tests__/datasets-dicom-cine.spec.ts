@@ -1,13 +1,15 @@
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
+import { datasetFromTags } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/src/core/streaming/chunk';
+import type { Chunk } from '@/packages/dicom/core';
 import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import {
   SOP_CLASS_ULTRASOUND_MULTIFRAME,
   SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED,
   Tags,
-} from '@/src/core/dicomTags';
+} from '@/packages/dicom/core';
 import type {
   CineHeader,
   CineParseResult,
@@ -23,6 +25,10 @@ import {
 class FakeChunkImage {
   orientation: number[] | null = null;
 
+  getReconstruction() {
+    return null;
+  }
+
   getOrientation() {
     return this.orientation;
   }
@@ -37,7 +43,7 @@ class FakeChunkImage {
   }
 
   getDicomMetadata() {
-    return this.chunks[0].metadata;
+    return dicomDatasetToTags(this.chunks[0].metadata!);
   }
 
   getChunks() {
@@ -135,7 +141,7 @@ function parseResult(header: CineHeader): CineParseResult {
 
 function chunk(meta = metadata()) {
   return {
-    metadata: meta,
+    metadata: datasetFromTags(meta),
     dataBlob: new Blob([new Uint8Array([2])]),
     loadData: vi.fn().mockResolvedValue(undefined),
   } as unknown as Chunk;
