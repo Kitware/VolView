@@ -48,7 +48,10 @@ const { metadata: imageMetadata } = useImage(imageID);
 // the renderer before the renderer is deleted.
 const scope = effectScope(true);
 const view = scope.run(() =>
-  useVtkView(vtkContainerRef, { separateImageLayer: true })
+  useVtkView(vtkContainerRef, {
+    separateImageLayer: true,
+    clippingBounds: computed(() => imageMetadata.value.worldBounds),
+  })
 )!;
 
 onUnmounted(() => {
