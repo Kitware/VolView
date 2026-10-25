@@ -3,6 +3,8 @@ import { PROSTATEX_DATASET } from '../datasets';
 import { openUrls } from './utils';
 import { moveTo } from './annotationTestUtils';
 
+const MAX_MISMATCH_PERCENT = 0.01;
+
 describe('Paint tool rendering', () => {
   it('should not black out axial view after painting', async () => {
     await openUrls([PROSTATEX_DATASET]);
@@ -34,22 +36,6 @@ describe('Paint tool rendering', () => {
         .perform();
     }
 
-    await browser.waitUntil(
-      async () => {
-        const result = await browser.checkElement(
-          axialView,
-          'paint_tool_axial_view_after_stroke'
-        );
-        return (result as number) < 5;
-      },
-      {
-        timeout: 10000,
-        timeoutMsg:
-          'Axial view should not go black after painting with paint tool',
-        interval: 1000,
-      }
-    );
-
     const canvasImage = () =>
       browser.execute(
         (element) => (element as HTMLCanvasElement).toDataURL(),
@@ -61,6 +47,28 @@ describe('Paint tool rendering', () => {
       timeoutMsg: 'Brush preview should disappear when leaving the view',
     });
     const withoutPreview = await canvasImage();
+    const annotations = await axialView.$('.view-annotations');
+
+    await browser.waitUntil(
+      async () => {
+        const result = await browser.checkElement(
+          axialView,
+          'paint_tool_axial_view_after_stroke',
+          {
+            biDiOrigin: 'viewport',
+            removeElements: [annotations],
+            rawMisMatchPercentage: true,
+            saveAboveTolerance: MAX_MISMATCH_PERCENT,
+          }
+        );
+        return (result as number) <= MAX_MISMATCH_PERCENT;
+      },
+      {
+        timeout: 10000,
+        timeoutMsg: `Painted axial view should match its baseline within ${MAX_MISMATCH_PERCENT}%`,
+        interval: 1000,
+      }
+    );
 
     await moveTo(centerX - 60, centerY);
     await browser.waitUntil(

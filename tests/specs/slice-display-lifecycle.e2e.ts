@@ -24,8 +24,8 @@ const captureSlicePixels = () =>
   captureViewPixels('[data-testid~="vtk-two-view"]', 40, 'slice-lifecycle.png');
 const obliqueSlices =
   '.oblique-grid > .d-flex:not(:nth-child(2)) [data-testid="vtk-view"]';
-const captureOblique = () =>
-  captureViewPixels(obliqueSlices, 40, 'slice-lifecycle-oblique.png');
+const captureOblique = (fileName = 'slice-lifecycle-oblique.png') =>
+  captureViewPixels(obliqueSlices, 40, fileName);
 
 const coloredPixelCount = (data: Buffer) =>
   data.filter(
@@ -305,10 +305,14 @@ describe('Slice display lifecycle', () => {
             pixels.every(({ data }) => coloredPixelCount(data) > 1000)
           );
         });
-        const baseImages = await captureOblique();
+        const baseImages = await captureOblique(
+          `slice-lifecycle-oblique-before-${cycle}.png`
+        );
         await toggleVisibility('base-image');
         await browser.waitUntil(async () => {
-          const pixels = await captureOblique();
+          const pixels = await captureOblique(
+            `slice-lifecycle-oblique-hidden-${cycle}.png`
+          );
           return (
             pixels.length === 3 &&
             pixels.every(
@@ -319,15 +323,23 @@ describe('Slice display lifecycle', () => {
           );
         });
         await toggleVisibility('base-image');
-        await browser.waitUntil(async () => {
-          const pixels = await captureOblique();
-          return (
-            pixels.length === 3 &&
-            pixels.every(({ data }, index) =>
-              data.equals(baseImages[index].data)
-            )
-          );
-        });
+        await browser.waitUntil(
+          async () => {
+            const pixels = await captureOblique(
+              `slice-lifecycle-oblique-restored-${cycle}.png`
+            );
+            return (
+              pixels.length === 3 &&
+              pixels.every(({ data }, index) =>
+                data.equals(baseImages[index].data)
+              )
+            );
+          },
+          {
+            timeoutMsg:
+              'Expected restored oblique slices to match their visible appearance',
+          }
+        );
         await selectLayout('Four Up', 3, true);
         await expectSlicesMatch(fourUp);
       }
