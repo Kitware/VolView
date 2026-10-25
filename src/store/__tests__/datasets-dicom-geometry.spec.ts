@@ -32,7 +32,7 @@ async function slice(
     tags: { [Tags.BitsStored]: '8', [Tags.PixelSpacing]: pixelSpacing },
   });
   const chunk = new Chunk({
-    metaLoader: { meta: metadata, metaBlob: null, load() {}, stop() {} },
+    metaLoader: { meta: metadata, load() {}, stop() {} },
     dataLoader: { data: new Blob([String(index)]), load() {}, stop() {} },
   });
   await chunk.loadMeta();

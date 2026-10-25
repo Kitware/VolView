@@ -18,7 +18,7 @@ import {
   findStateFileLeaves,
   getDataSourceName,
 } from '@/src/io/import/dataSource';
-import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
+import handleDicom from '@/src/io/import/processors/handleDicom';
 import extractArchive from '@/src/io/import/processors/extractArchive';
 import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
 import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
@@ -38,7 +38,6 @@ import {
 import updateUriType from '@/src/io/import/processors/updateUriType';
 import openUriStream from '@/src/io/import/processors/openUriStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
-import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
@@ -317,13 +316,13 @@ async function importDataSourcesWithPolicy(
     handleAmazonS3,
 
     // stream handling
-    handleDicomStream,
+    // before downloadStream and extractArchive: a DICOM source reads its own
+    // header, whether it is a file or a uri
+    handleDicom,
     downloadStream,
 
     extractArchive,
     extractArchiveTarget,
-    // should be before importSingleFile, since DICOM is more specific
-    handleDicomFile, // collect DICOM files to import later
     importSingleFile,
     // catch any unhandled resource
     unhandledResource,

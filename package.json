@@ -70,6 +70,7 @@
     "core-js": "3.47.0",
     "cors": "^2.8.5",
     "cross-env": "^10.1.0",
+    "dcmjs": "^0.52.0",
     "dicom-parser": "^1.8.21",
     "dicomweb-client-typed": "^0.8.6",
     "eslint": "^9.39.1",

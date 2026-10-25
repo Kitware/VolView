@@ -103,7 +103,6 @@ const pendingImage = async (id = 'parent') => {
   const chunk = new Chunk({
     metaLoader: {
       meta,
-      metaBlob: new Blob(['meta']),
       load: () => {},
       stop: () => {},
     },

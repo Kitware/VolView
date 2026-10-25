@@ -1,7 +1,4 @@
-import {
-  readDicomTags,
-  readImageDicomFileSeriesWorkerFunction,
-} from '@itk-wasm/dicom';
+import { readImageDicomFileSeriesWorkerFunction } from '@itk-wasm/dicom';
 import { readImage } from '@itk-wasm/image-io';
 import { WorkerPool, createWebWorker, setDefaultWebWorker } from 'itk-wasm';
 
@@ -41,11 +38,6 @@ export async function initItkWorker() {
   await Promise.all([ensureWorker(), ensureDicomSeriesWorkerPool()]);
 
   // preload
-  try {
-    await readDicomTags(new File([], 'a.dcm'));
-  } catch {
-    // ignore
-  }
   try {
     await readImage(new File([], 'a.dcm'));
   } catch {

@@ -82,10 +82,6 @@ export class Chunk {
     return this.metaLoader.meta;
   }
 
-  get metaBlob() {
-    return this.metaLoader.metaBlob;
-  }
-
   get ultrasoundRegions() {
     return this.metaLoader.ultrasoundRegions;
   }

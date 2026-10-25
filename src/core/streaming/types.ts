@@ -17,7 +17,6 @@ interface Loader {
  */
 export interface MetaLoader extends Loader {
   meta: Maybe<Array<[string, string]>>;
-  metaBlob: Maybe<Blob>;
   ultrasoundRegions?: UltrasoundRegions;
 }
 
@@ -36,14 +35,19 @@ export interface FetcherInit {
 }
 
 /**
- * A fetcher that caches an incoming stream.
+ * A source of bytes that can be streamed from the start or taken whole.
  */
 export interface Fetcher {
   connect(): Promise<void>;
   getStream(): ReadableStream<Uint8Array>;
   blob(): Promise<Blob>;
   close(): void;
-  cachedChunks: Uint8Array<ArrayBuffer>[];
+  /**
+   * What the streams have delivered so far, kept by a fetcher whose source
+   * has to be cached to be read again. A fetcher over addressable bytes keeps
+   * none.
+   */
+  cachedChunks?: Uint8Array<ArrayBuffer>[];
   connected: boolean;
   size: number;
   contentType?: string;

@@ -136,7 +136,6 @@ function parseResult(header: CineHeader): CineParseResult {
 function chunk(meta = metadata()) {
   return {
     metadata: meta,
-    metaBlob: new Blob([new Uint8Array([1])]),
     dataBlob: new Blob([new Uint8Array([2])]),
     loadData: vi.fn().mockResolvedValue(undefined),
   } as unknown as Chunk;

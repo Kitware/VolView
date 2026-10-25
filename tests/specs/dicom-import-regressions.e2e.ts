@@ -1,5 +1,12 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { buildSyntheticDicom, newUid } from './syntheticDicom';
+import {
+  buildSyntheticDicom,
+  newUid,
+  rawElement,
+  sequenceItem,
+  toImplicitVr,
+  undefinedLengthUnknown,
+} from './syntheticDicom';
 import {
   waitForFirstCachedImageSpacing,
   waitForFirstCompleteCachedImageScalars,
@@ -60,6 +67,34 @@ describe('Local DICOM import regressions', () => {
     );
     expect(await waitForFirstCachedImageSpacing()).toEqual([1, 1, 5]);
     await volViewPage.waitForVolumeCardSliceCounts([121]);
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('loads pixels from a file containing an undefined-length private UN sequence', async () => {
+    const content = toImplicitVr(
+      rawElement(0x0043, 0x1030, 'LO', new TextEncoder().encode('VALUE '))
+    );
+    await dropFiles([
+      buildSyntheticDicom({
+        studyUid: newUid(),
+        seriesUid: newUid(),
+        sopUid: newUid(),
+        instanceNumber: 1,
+        imageOrientationPatient: AXIAL,
+        imagePositionPatient: [0, 0, 0],
+        rows: 4,
+        cols: 4,
+        pixelValue: 123,
+        extraElements: [
+          rawElement(0x0043, 0x0010, 'LO', new TextEncoder().encode('TEST')),
+          undefinedLengthUnknown(0x0043, 0x1029, sequenceItem(content)),
+        ],
+      }),
+    ]);
+
+    const { values } = await waitForFirstCompleteCachedImageScalars();
+    expect(values).toEqual(Array(16).fill(123));
+    await volViewPage.waitForVolumeCardSliceCounts([1]);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

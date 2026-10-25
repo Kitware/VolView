@@ -1,41 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { execSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-
-const repoRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../..'
-);
-
-const fromRoot = (...parts: string[]) => path.join(repoRoot, ...parts);
-const read = (...parts: string[]) =>
-  fs.readFileSync(fromRoot(...parts), 'utf-8');
-const exists = (...parts: string[]) => fs.existsSync(fromRoot(...parts));
-
-const SKIP_DIRS = new Set(['node_modules', '__tests__', 'emscripten-build']);
-
-const walk = (dir: string): string[] =>
-  fs.existsSync(dir)
-    ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-        if (SKIP_DIRS.has(entry.name)) return [];
-        const full = path.join(dir, entry.name);
-        return entry.isDirectory() ? walk(full) : [full];
-      })
-    : [];
-
-const relative = (file: string) => path.relative(repoRoot, file);
-
-const sourceFiles = walk(fromRoot('src')).filter((file) =>
-  /\.(ts|js|vue)$/.test(file)
-);
-
-const sourcesMatching = (pattern: RegExp) =>
-  sourceFiles
-    .filter((file) => pattern.test(fs.readFileSync(file, 'utf-8')))
-    .map(relative)
-    .sort();
+import {
+  exists,
+  fromRoot,
+  read,
+  relative,
+  repoRoot,
+  sourcesMatching,
+  walk,
+} from './sourceTree';
 
 const pkg = JSON.parse(read('package.json'));
 
@@ -154,13 +128,6 @@ describe('no dangling reference to the deleted wrappers in src/', () => {
   it('leaves no splitAndSort or readVolumeSlice caller', () => {
     expect(sourcesMatching(/\bsplitAndSort\b/)).toEqual([]);
     expect(sourcesMatching(/\breadVolumeSlice\b/)).toEqual([]);
-  });
-
-  it('keeps a local readTags closure in both DICOM import processors, and nowhere else', () => {
-    expect(sourcesMatching(/\breadTags\b/)).toEqual([
-      'src/io/import/processors/handleDicomFile.ts',
-      'src/io/import/processors/handleDicomStream.ts',
-    ]);
   });
 
   it('leaves no runTask under src/io/', () => {
