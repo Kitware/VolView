@@ -128,6 +128,7 @@ export async function selectLayout(
   const option = $(`.v-list-item-title=${name}`);
   await option.waitForClickable();
   await option.click();
+  await option.waitForDisplayed({ reverse: true });
   await volViewPage.waitForViewCounts(count2D, has3D);
 }
 
