@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'vite';
 
-const root = fileURLToPath(new URL('../../..', import.meta.url));
+const root = resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 const packageRoot = resolve(root, 'packages/dicom');
 const fixture = resolve(root, 'tests/fixtures/dicom-consumer');
 const require = createRequire(import.meta.url);

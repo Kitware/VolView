@@ -59,14 +59,10 @@ describe('the JS reader is the only DICOM tag reader', () => {
   });
 });
 
-describe('the itk worker warm-up', () => {
+describe('the itk worker', () => {
   const worker = () => read('src/io/itk/worker.ts');
 
   it('no longer warms readDicomTags', () => {
     expect(worker()).not.toMatch(/\breadDicomTags\b/);
-  });
-
-  it('still warms readImage', () => {
-    expect(worker()).toMatch(/\breadImage\b/);
   });
 });

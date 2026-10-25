@@ -49,7 +49,8 @@ const { image } = await loader.readDicomImage(
 
 The default metadata worker URL is relative to the module and is emitted by
 Vite. `metadataWorkerFactory` supplies a worker when a consumer uses another
-asset layout. `fetch` supports authentication and other request policies;
+asset layout. Serve `pipelineWorkerUrl` from the same origin as the application.
+`fetch` supports authentication and other request policies;
 `requestConcurrency` and `metadataConcurrency` bound their respective pools.
 A supplied `decoder` replaces the owned ITK decoder and owns its own resources.
 Metadata-only use needs no pixel decoder or WASM assets.
@@ -109,7 +110,9 @@ volume.startLoad();
 ```
 
 The collection carries reconstruction classification, reason, spacing and member
-slots. The default `preserve-order` policy retains the existing approximate
+slots. Supplied slots must start at zero because the first chunk anchors the
+image origin; gaps such as `[0, 2]` are allowed.
+The default `preserve-order` policy retains the existing approximate
 spacing for irregular geometry. Use `reject` to refuse that fallback. Neither
 policy resamples a scan. Multiple files containing multi-frame data, Node
 support and plugin registration are outside this package's current scope.

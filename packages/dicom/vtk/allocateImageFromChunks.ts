@@ -266,10 +266,10 @@ function assertSliceSlots(slots: number[], count: number) {
     slots.length !== count ||
     new Set(slots).size !== count ||
     slots.some((slot) => !Number.isSafeInteger(slot) || slot < 0) ||
-    (count === 1 && slots[0] !== 0)
+    (count > 0 && slots[0] !== 0)
   )
     throw new Error(
-      'Reconstruction must map each chunk to one distinct nonnegative slice slot'
+      'Reconstruction must map each chunk to one distinct nonnegative slice slot, starting at zero'
     );
 }
 

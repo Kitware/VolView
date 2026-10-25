@@ -103,6 +103,39 @@ describe('vtk DICOM consumer', () => {
     image.dispose();
   });
 
+  it('rejects a nonzero first slice slot before replacing an existing image', async () => {
+    const chunk = await loadedChunk(1);
+    const chunks = await Promise.all([loadedChunk(10), loadedChunk(20)]);
+    const image = new VtkDicomImage({ readDicomImage: read });
+    const done = completed(image);
+    await image.setChunks([chunk], AXIAL);
+    await done;
+    const original = image.getVtkImageData();
+
+    await expect(
+      image.setChunks(chunks, AXIAL, {
+        kind: 'regular',
+        sliceSpacing: 10,
+        slots: [1, 2],
+      })
+    ).rejects.toThrow('slice slot');
+
+    expect(image.getVtkImageData()).toBe(original);
+    expect(original.getOrigin()).toEqual([0, 0, 1]);
+    expect(pixels(image)).toEqual([1]);
+
+    const updated = completed(image);
+    await image.setChunks(chunks, AXIAL, {
+      kind: 'regular',
+      sliceSpacing: 10,
+      slots: [0, 1],
+    });
+    await updated;
+    expect(image.getVtkImageData().getOrigin()).toEqual([0, 0, 10]);
+    expect(pixels(image)).toEqual([10, 20]);
+    image.dispose();
+  });
+
   it('restarts decoding after cancellation and ignores the cancelled result', async () => {
     const chunk = await loadedChunk(1);
     const first = deferred<ReturnType<typeof decoded>>();
