@@ -37,10 +37,8 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useCroppingEffect } from '@/src/composables/useCroppingEffect';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useEventListener } from '@vueuse/core';
-import {
-  ChunkImage,
-  type ChunkLoadedInfo,
-} from '@/src/core/streaming/chunkImage';
+import type { ChunkImage } from '@/src/core/streaming/chunkImage';
+import type { ChunkLoadedInfo } from '@/packages/dicom/vtk';
 
 interface Props {
   viewId: string;

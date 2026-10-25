@@ -1,4 +1,4 @@
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 
 /**
  * The tags one synthetic instance carries, in the order the DICOM store reads

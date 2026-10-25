@@ -1,0 +1,38 @@
+{
+  "name": "@volview/dicom",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "core",
+    "vtk"
+  ],
+  "exports": {
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./vtk": {
+      "types": "./dist/vtk/index.d.ts",
+      "import": "./dist/vtk.js"
+    },
+    "./assets/*": "./dist/assets/*"
+  },
+  "dependencies": {
+    "@itk-wasm/image-io": "1.6.1",
+    "comlink": "^4.4.2",
+    "dcmjs": "^0.52.0",
+    "gl-matrix": "3.4.3",
+    "itk-wasm": "^1.0.0-b.199",
+    "mitt": "^3.0.1"
+  },
+  "peerDependencies": {
+    "@kitware/vtk.js": "^38.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@kitware/vtk.js": {
+      "optional": true
+    }
+  }
+}

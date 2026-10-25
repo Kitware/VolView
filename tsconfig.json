@@ -26,6 +26,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@volview/dicom/core": [
+        "./packages/dicom/core/index.ts"
+      ],
+      "@volview/dicom/vtk": [
+        "./packages/dicom/vtk/index.ts"
       ]
     },
     "lib": [
@@ -43,10 +49,12 @@
     "backend-contract/**/*.ts",
     "test/**/*.ts",
     "tests/**/*.ts",
-    "tests/**/*.tsx"
+    "tests/**/*.tsx",
+    "packages/dicom/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "packages/dicom/dist"
   ],
   "ts-node": {
     "esm": true,
