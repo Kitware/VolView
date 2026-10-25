@@ -561,7 +561,7 @@ describe('Overlay display controls', () => {
     );
     await selectLayout('3D Only', 0, true);
     await opacity.execute((element) => element.focus());
-    await browser.keys(Array.from({ length: 50 }, () => 'ArrowRight'));
+    await browser.keys(Array.from({ length: 5 }, () => 'PageUp'));
     await expectDisplaySettings('-2.75', '100.25', '100.3');
     expect(
       await $$('.mapping-range-editor input').map((input) => input.getValue())

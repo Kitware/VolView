@@ -91,26 +91,6 @@ async function waitForSeriesToSettle() {
   );
 }
 
-// The badge only says "at least one error so far", so a count read as soon as
-// it appears can miss a failure still on its way. Wait for it to hold steady.
-async function waitForNotificationCountToSettle() {
-  let previous = await volViewPage.getNotificationsCount();
-  await browser.waitUntil(
-    async () => {
-      await browser.pause(500);
-      const current = await volViewPage.getNotificationsCount();
-      const held = current === previous;
-      previous = current;
-      return held;
-    },
-    {
-      timeout: 30000,
-      timeoutMsg: 'expected the notification count to stop changing',
-    }
-  );
-  return previous;
-}
-
 async function readErrorDetails() {
   await volViewPage.notifications.click();
 
@@ -132,7 +112,7 @@ async function loadAndReadRejection(manifestName: string) {
   await volViewPage.open(`?urls=[tmp/${manifestName}]`);
   await volViewPage.waitForNotification();
   await waitForSeriesToSettle();
-  const errorCount = await waitForNotificationCountToSettle();
+  const errorCount = await volViewPage.getNotificationsCount();
   const text = await readErrorDetails();
   return { text, errorCount };
 }

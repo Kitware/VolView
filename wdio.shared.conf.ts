@@ -30,6 +30,23 @@ export const TEMP_DIR = path.resolve(ROOT, TMP, 'runs', String(TEST_PORT));
 const FIXTURES_DIR = 'tests/fixtures/';
 export const FIXTURES = path.resolve(ROOT, FIXTURES_DIR);
 
+let failureScreenshotCount = 0;
+
+export async function captureFailureScreenshot(title: string) {
+  try {
+    const name = title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, 150);
+    failureScreenshotCount += 1;
+    await browser.saveScreenshot(
+      path.join(
+        TEMP_DIR,
+        `failure-${process.pid}-${failureScreenshotCount}-${name}.png`
+      )
+    );
+  } catch (error) {
+    console.warn('Could not capture the failure screenshot:', error);
+  }
+}
+
 // The static server and the browser's download directory both point into
 // TEMP_DIR, and Windows refuses to unlink a file while a handle is open, so give
 // their teardown a moment to catch up.
@@ -152,7 +169,15 @@ export const config: Options.Testrunner = {
     'cleanuptotal',
   ],
   framework: 'mocha',
-  reporters: ['spec', 'html-nice'],
+  reporters: [
+    'spec',
+    [
+      'html-nice',
+      {
+        outputDir: `${path.relative(ROOT, path.join(TEMP_DIR, 'reports'))}${path.sep}`,
+      },
+    ],
+  ],
   mochaOpts: {
     ui: 'bdd',
     timeout: 90_000,
@@ -198,6 +223,20 @@ export const config: Options.Testrunner = {
     browser: any
   ) {
     await applyTestViewport(browser);
+  },
+
+  async afterTest(test, _context, { error }) {
+    if (error) {
+      await captureFailureScreenshot(`test-${test.parent}-${test.title}`);
+    }
+  },
+
+  async afterHook(hook, _context, { error }, hookName) {
+    if (error) {
+      await captureFailureScreenshot(
+        `hook-${hookName}-${hook.parent}-${hook.title}`
+      );
+    }
   },
 
   async afterCommand(commandName: string) {

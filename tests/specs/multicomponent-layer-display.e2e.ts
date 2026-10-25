@@ -233,10 +233,16 @@ describe('Multicomponent image display controls', () => {
           '[data-testid="layer-opacity-slider"] [role="slider"]'
         );
         await opacity.execute((element) => element.focus());
-        await browser.keys(Array.from({ length: 50 }, () => 'ArrowLeft'));
+        await browser.keys(Array.from({ length: 5 }, () => 'PageDown'));
         await expect(opacity).toHaveAttribute('aria-valuenow', '0.5');
         await expectImagePixels(colors(0.5));
-        await browser.keys(Array.from({ length: 50 }, () => 'ArrowLeft'));
+        if (!rgba && type === 'unsigned char') {
+          await browser.keys('ArrowLeft');
+          await expect(opacity).toHaveAttribute('aria-valuenow', '0.49');
+          await browser.keys('ArrowRight');
+          await expect(opacity).toHaveAttribute('aria-valuenow', '0.5');
+        }
+        await browser.keys('Home');
         await expect(opacity).toHaveAttribute('aria-valuenow', '0');
         await expectImagePixels(
           [[128, 128, 128]],
@@ -244,7 +250,7 @@ describe('Multicomponent image display controls', () => {
           '[data-testid~="vtk-two-view"]',
           foregroundColors
         );
-        await browser.keys(Array.from({ length: 50 }, () => 'ArrowRight'));
+        await browser.keys(Array.from({ length: 5 }, () => 'PageUp'));
         await expect(opacity).toHaveAttribute('aria-valuenow', '0.5');
         await expectImagePixels(colors(0.5));
 

@@ -36,10 +36,6 @@ const expectDirectSegmentDownload = async (
   typedName: string,
   expectedStem: string
 ) => {
-  await openUrls([PROSTATEX_DATASET]);
-  await openAnnotationSegments();
-  await paintOnViewedImage();
-
   await volViewPage.clickSaveSegmentsButton();
 
   const input = await volViewPage.saveSegmentsFilenameInput;
@@ -51,28 +47,11 @@ const expectDirectSegmentDownload = async (
   await confirm.click();
 
   await waitForFileExists(downloadedPath, SAVE_TIMEOUT);
+  await confirm.waitForDisplayed({ reverse: true });
 };
 
 describe('Segment download', () => {
-  it('sanitizes invalid characters for direct segment downloads', async () => {
-    await expectDirectSegmentDownload(
-      'Liver: left/right*?',
-      'Liver left right'
-    );
-  });
-
-  it('sanitizes reserved Windows names for direct segment downloads', async () => {
-    await expectDirectSegmentDownload('CON', 'CON_');
-  });
-
-  it('preserves valid names for direct segment downloads', async () => {
-    await expectDirectSegmentDownload(
-      'Prostate Segmentation',
-      'Prostate Segmentation'
-    );
-  });
-
-  it('names the download after the viewed image by default', async () => {
+  it('uses the image name by default and sanitizes custom download names', async () => {
     await openUrls([PROSTATEX_DATASET]);
     await openAnnotationSegments();
     await paintOnViewedImage();
@@ -89,5 +68,16 @@ describe('Segment download', () => {
     await confirm.click();
 
     await waitForFileExists(downloadedPath, SAVE_TIMEOUT);
+    await confirm.waitForDisplayed({ reverse: true });
+
+    await expectDirectSegmentDownload(
+      'Liver: left/right*?',
+      'Liver left right'
+    );
+    await expectDirectSegmentDownload('CON', 'CON_');
+    await expectDirectSegmentDownload(
+      'Prostate Segmentation',
+      'Prostate Segmentation'
+    );
   });
 });
