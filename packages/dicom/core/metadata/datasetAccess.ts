@@ -21,9 +21,8 @@ export function getDatasetTag(
   dataset: DicomDataset | null | undefined,
   tag: string
 ) {
-  const element = dataset?.elements.find(
-    (entry) => entry.tag === canonicalTag(tag)
-  );
+  const requestedTag = canonicalTag(tag);
+  const element = dataset?.elements.find((entry) => entry.tag === requestedTag);
   return element ? getElementText(element) : undefined;
 }
 

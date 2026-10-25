@@ -306,6 +306,7 @@ export type SyntheticSliceOptions = {
   spacingBetweenSlices?: number;
   sliceThickness?: number;
   modality?: string;
+  sopClassUid?: string;
   patientName?: string;
   patientId?: string;
   seriesNumber?: number;
@@ -346,6 +347,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     spacingBetweenSlices,
     sliceThickness = 1,
     modality = 'MR',
+    sopClassUid = SOP_CLASS_MR,
     patientName = 'TEST',
     patientId = 'TEST001',
     seriesNumber = 1,
@@ -368,7 +370,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     ...(specificCharacterSet == null
       ? []
       : [cs(0x0008, 0x0005, specificCharacterSet)]),
-    ui(0x0008, 0x0016, SOP_CLASS_MR),
+    ui(0x0008, 0x0016, sopClassUid),
     ui(0x0008, 0x0018, sopUid),
     da(0x0008, 0x0020, studyDate),
     da(0x0008, 0x0021, studyDate),
@@ -440,7 +442,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
 
   const fileMetaBody = combine(
     elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
-    ui(0x0002, 0x0002, SOP_CLASS_MR),
+    ui(0x0002, 0x0002, sopClassUid),
     ui(0x0002, 0x0003, sopUid),
     ui(0x0002, 0x0010, implicitVr ? TS_IMPLICIT_VR_LE : TS_EXPLICIT_VR_LE)
   );
@@ -510,6 +512,7 @@ export function buildSyntheticCineDicom(
     da(0x0008, 0x0020, studyDate),
     da(0x0008, 0x0021, studyDate),
     cs(0x0008, 0x0060, 'US'),
+    lo(0x0008, 0x103e, 'Synthetic cine'),
     pn(0x0010, 0x0010, patientName),
     lo(0x0010, 0x0020, patientId),
     da(0x0010, 0x0030, '19700101'),
@@ -518,7 +521,6 @@ export function buildSyntheticCineDicom(
     ui(0x0020, 0x000e, seriesUid),
     sh(0x0020, 0x0010, '1'),
     is(0x0020, 0x0011, String(seriesNumber)),
-    lo(0x0008, 0x103e, 'Synthetic cine'),
     us(0x0028, 0x0002, 1),
     cs(0x0028, 0x0004, 'MONOCHROME2'),
     is(0x0028, 0x0008, String(numberOfFrames)),

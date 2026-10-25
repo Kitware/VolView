@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,10 @@ export async function startDicomConsumerFixtures(bytes) {
     for (const kind of ['core', 'vtk']) {
       const outDir = resolve(directory, kind);
       await buildConsumer(kind, outDir);
+      const pipelineWorker = await readFile(
+        resolve(outDir, 'assets/itk-wasm-pipeline.min.worker.js')
+      );
+      let workerRequests = 0;
       const server = await preview({
         configFile: false,
         root,
@@ -30,6 +34,19 @@ export async function startDicomConsumerFixtures(bytes) {
           {
             name: 'synthetic-dicom-source',
             configurePreviewServer(instance) {
+              instance.middlewares.use(
+                '/recovering-worker.js',
+                (_request, response) => {
+                  response.setHeader('Cache-Control', 'no-store');
+                  response.setHeader('Content-Type', 'text/javascript');
+                  if (workerRequests++ === 0) {
+                    response.statusCode = 503;
+                    response.end('temporary worker script failure');
+                  } else {
+                    response.end(pipelineWorker);
+                  }
+                }
+              );
               instance.middlewares.use('/fixture.dcm', (request, response) => {
                 const match = /^bytes=(\d+)-/.exec(request.headers.range ?? '');
                 const start = match ? Number(match[1]) : 0;

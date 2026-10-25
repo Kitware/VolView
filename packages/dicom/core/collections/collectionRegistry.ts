@@ -10,6 +10,8 @@ import {
   type CommittedCollection,
 } from './assignCollectionIds';
 import { readInstanceFacts, seriesKeyOf } from './instanceFacts';
+import { getDatasetTag } from '../metadata/datasetAccess';
+import { Tags } from '../metadata/dicomTags';
 
 export type CollectionUpdate = {
   id: string;
@@ -30,8 +32,10 @@ export type RegistrationResult = {
   removed: string[];
   // Undoes this batch's registration for the named series, so a failed import
   // does not pin its chunks. Collections forgotten since the batch was planned
-  // stay forgotten. Assumes the caller registered nothing since.
-  rollback: (seriesKeys: Iterable<string>) => void;
+  // stay forgotten. Returns their restored members for the owner to release,
+  // leaving the failed batch's chunks with its caller. Assumes the caller
+  // registered nothing since.
+  rollback: (seriesKeys: Iterable<string>) => Chunk[];
   // Whether a collection of the series was forgotten since the batch was
   // planned, so a commit would bring back what the user removed.
   changedSince: (seriesKey: string) => boolean;
@@ -320,9 +324,9 @@ export function createDicomCollectionRegistry(): DicomCollectionRegistry {
     };
 
     const rollback = (seriesKeys: Iterable<string>) =>
-      [...new Set(seriesKeys)].forEach((seriesKey) => {
+      [...new Set(seriesKeys)].flatMap((seriesKey) => {
         const snapshot = snapshots.get(seriesKey);
-        if (!snapshot) return;
+        if (!snapshot) return [];
         const { entry } = snapshot;
         entry.instances = snapshot.instances;
         entry.committed = snapshot.committed;
@@ -331,7 +335,7 @@ export function createDicomCollectionRegistry(): DicomCollectionRegistry {
         const forgotten = entry.forgotten.slice(snapshot.forgotten);
         entry.forgotten.length = snapshot.forgotten;
         series.set(seriesKey, entry);
-        forgotten.forEach((id) => forgetFrom(entry, seriesKey, id));
+        return forgotten.flatMap((id) => forgetFrom(entry, seriesKey, id));
       });
 
     const results = await Promise.all(planned);
@@ -350,9 +354,12 @@ export function createDicomCollectionRegistry(): DicomCollectionRegistry {
   };
 
   const has = (chunk: Chunk) => {
-    if (!chunk.metadata) return false;
-    const { seriesKey, instance } = readChunk(chunk);
-    return series.get(seriesKey)?.instances.get(instance.key)?.chunk === chunk;
+    const { metadata } = chunk;
+    if (!metadata) return false;
+    const key = getDatasetTag(metadata, Tags.SOPInstanceUID)?.trim() || chunk;
+    return (
+      series.get(seriesKeyOf(metadata))?.instances.get(key)?.chunk === chunk
+    );
   };
 
   return { register, forget, has };

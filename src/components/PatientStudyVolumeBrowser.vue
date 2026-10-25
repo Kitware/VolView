@@ -95,51 +95,75 @@ export default defineComponent({
     const thumbnailCache = reactive<Record<string, Thumbnail>>({});
 
     watch(
-      volumeKeys,
-      (keys) => {
-        keys.forEach(async (key) => {
-          const cacheKey = dicomCacheKey(key);
-          if (cacheKey in thumbnailCache) {
-            return;
-          }
+      () =>
+        volumeKeys.value.map((key) => ({
+          key,
+          image: imageCacheStore.imageById[key],
+          info: dicomStore.volumeInfo[key],
+        })),
+      (entries, previousEntries, onCleanup) => {
+        let active = true;
+        onCleanup(() => {
+          active = false;
+        });
+        const previousByKey = new Map(
+          previousEntries?.map((entry) => [entry.key, entry])
+        );
 
-          const image = imageCacheStore.imageById[key];
-          if (!image) return;
+        entries
+          .filter(({ key, image, info }) => {
+            const cacheKey = dicomCacheKey(key);
+            const previous = previousByKey.get(key);
+            if (previous?.image !== image || previous?.info !== info) {
+              delete thumbnailCache[cacheKey];
+            }
+            return image && info && !(cacheKey in thumbnailCache);
+          })
+          .forEach(async ({ key, image, info }) => {
+            const cacheKey = dicomCacheKey(key);
 
-          try {
-            const thumb = await image.getThumbnail();
-            if (thumb) {
-              thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
-            } else {
+            const isCurrent = () =>
+              active &&
+              volumeKeys.value.includes(key) &&
+              imageCacheStore.imageById[key] === image &&
+              dicomStore.volumeInfo[key] === info;
+
+            try {
+              const thumb = await image.getThumbnail();
+              if (!isCurrent()) return;
+              if (thumb) {
+                thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
+              } else {
+                thumbnailCache[cacheKey] = {
+                  kind: 'text',
+                  value: info.Modality,
+                };
+              }
+            } catch (err) {
+              if (!isCurrent()) return;
+              if (err instanceof Error && err.name !== 'AbortError') {
+                const messageStore = useMessageStore();
+                messageStore.addError('Failed to generate thumbnails', {
+                  error: err,
+                  details: `${err}. More details can be found in the developer's console.`,
+                });
+              }
               thumbnailCache[cacheKey] = {
                 kind: 'text',
-                value: dicomStore.volumeInfo[key].Modality,
+                value: info.Modality,
               };
             }
-          } catch (err) {
-            if (err instanceof Error) {
-              const messageStore = useMessageStore();
-              messageStore.addError('Failed to generate thumbnails', {
-                error: err,
-                details: `${err}. More details can be found in the developer's console.`,
-              });
-            }
-            thumbnailCache[cacheKey] = {
-              kind: 'text',
-              value: dicomStore.volumeInfo[key].Modality,
-            };
-          }
-        });
+          });
 
         // deletion case
-        const lookup = new Set(keys.map((key) => dicomCacheKey(key)));
+        const lookup = new Set(entries.map(({ key }) => dicomCacheKey(key)));
         Object.keys(thumbnailCache).forEach((key) => {
           if (!lookup.has(key)) {
             delete thumbnailCache[key];
           }
         });
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     // --- selection --- //

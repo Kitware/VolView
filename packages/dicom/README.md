@@ -74,6 +74,11 @@ borrows it. The collection registry borrows chunks and preserves the first
 registration of an instance. Its rollback and forget operations do not dispose
 chunks. `registry.forget(id)` returns members that are no longer registered so
 the owner can release them after removing their consumers.
+A registration's `rollback(seriesKeys)` keeps deleted collections forgotten.
+When it replays a deletion against restored membership, it returns the removed
+members for the owner to release. Restore surviving consumers before releasing
+those members, checking `registry.has(chunk)` before disposal. New sources from
+the failed batch remain with the caller for retry.
 
 Each decoded pixel array belongs to the caller. The vtk consumer copies pixels
 into its own allocation, validates dimensions and representable values, and

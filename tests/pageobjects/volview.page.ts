@@ -361,10 +361,8 @@ class VolViewPage extends Page {
     return $$('div[data-testid="layer-opacity-slider"]');
   }
 
-  async getVolumeRenderingSection() {
-    const pwfEditor = await $('div.pwf-editor');
-    const exists = await pwfEditor.isExisting();
-    return exists ? pwfEditor : null;
+  getVolumeRenderingSection() {
+    return $('div.pwf-editor');
   }
 
   async getView3D() {

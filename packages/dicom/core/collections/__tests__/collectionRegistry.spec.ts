@@ -15,7 +15,7 @@ const OTHER_SERIES_UID = '1.2.826.0.1.3680043.9.8';
 
 type SliceOptions = {
   sop?: string | null;
-  series?: string;
+  series?: string | null;
   z?: number | null;
   rows?: string;
   orientation?: string;
@@ -40,7 +40,6 @@ function chunkFor(options: SliceOptions = {}) {
   const entries: Array<[string, string]> = [
     [Tags.StudyInstanceUID, '1.2.826.0.1.3680043.9.1'],
     [Tags.PatientID, 'patient-1'],
-    [Tags.SeriesInstanceUID, series],
     [Tags.SeriesNumber, '1'],
     [Tags.Modality, 'MR'],
     [Tags.Rows, rows],
@@ -48,6 +47,7 @@ function chunkFor(options: SliceOptions = {}) {
     [Tags.SamplesPerPixel, '1'],
     [Tags.ImageOrientationPatient, orientation],
   ];
+  if (series !== null) entries.push([Tags.SeriesInstanceUID, series]);
   if (sop !== null) entries.push([Tags.SOPInstanceUID, sop]);
   if (z !== null) entries.push([Tags.ImagePositionPatient, `0\\0\\${z}`]);
   if (instanceNumber !== null)
@@ -195,6 +195,29 @@ describe('DICOM collection registry', () => {
     // The batch's own chunk still reports back, so its provenance can merge.
     expect(update.provenance).toEqual([resupplied]);
   });
+
+  it.each([
+    { sop: '  a  ', series: `  ${SERIES_UID}  ` },
+    { sop: null, series: SERIES_UID },
+    { sop: null, series: null },
+    { sop: '', series: SERIES_UID },
+    { sop: '   ', series: '' },
+    { sop: 'a', series: '   ' },
+  ])(
+    'recognizes only the canonical member for identity %j',
+    async (identity) => {
+      const registry = createDicomCollectionRegistry();
+      const original = chunkFor(identity);
+      const duplicate = chunkFor(identity);
+
+      const { updates } = await registry.register([original]);
+
+      expect(registry.has(original)).toBe(true);
+      expect(registry.has(duplicate)).toBe(false);
+      registry.forget(updates[0].id);
+      expect(registry.has(original)).toBe(false);
+    }
+  );
 
   it('counts one chunk once however often a batch repeats it', async () => {
     const registry = createDicomCollectionRegistry();

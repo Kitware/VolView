@@ -39,7 +39,20 @@ export function createDicomDecoder(assets: DicomAssets) {
   let worker: Worker | null = null;
   let disposed = false;
   let queue = Promise.resolve();
+  let rejectActive: ((reason: unknown) => void) | undefined;
   const pending = new Set<(reason: unknown) => void>();
+  const resetWorker = (reason: unknown) => {
+    if (worker) {
+      worker.removeEventListener('error', onError);
+      worker.removeEventListener('messageerror', onMessageError);
+      worker.terminate();
+      worker = null;
+    }
+    rejectActive?.(reason);
+  };
+  const onError = () => resetWorker(new Error('DICOM decoder worker failed'));
+  const onMessageError = () =>
+    resetWorker(new Error('DICOM decoder worker message failed'));
   const assertActive = () => {
     if (disposed)
       throw new DOMException('DICOM decoder disposed', 'AbortError');
@@ -55,28 +68,55 @@ export function createDicomDecoder(assets: DicomAssets) {
         assertActive();
         const data = new Uint8Array(await file.arrayBuffer());
         assertActive();
-        worker ??= new Worker(assets.pipelineWorkerUrl, { type: 'module' });
-        const result = await runPipeline(
-          'gdcm-read-image',
-          [file.name, '0', '1', '--memory-io'],
-          [
-            { type: InterfaceTypes.JsonCompatible },
-            { type: InterfaceTypes.Image },
-          ],
-          [
-            {
-              type: InterfaceTypes.BinaryFile,
-              data: { path: file.name, data },
-            },
-          ],
-          {
-            webWorker: worker,
-            pipelineWorkerUrl: assets.pipelineWorkerUrl,
-            pipelineBaseUrl: assets.imageIOUrl,
-          }
-        );
-        assertActive();
-        return decodedImage(result);
+        if (!worker) {
+          worker = new Worker(assets.pipelineWorkerUrl, { type: 'module' });
+          const ownedWorker = worker;
+          const addEventListener = worker.addEventListener.bind(worker);
+          // ITK attaches its message listener asynchronously, after creation.
+          worker.addEventListener = (
+            ...args: Parameters<Worker['addEventListener']>
+          ) => {
+            if (worker !== ownedWorker)
+              throw new DOMException(
+                'DICOM decoder worker stopped',
+                'AbortError'
+              );
+            addEventListener(...args);
+          };
+          worker.addEventListener('error', onError);
+          worker.addEventListener('messageerror', onMessageError);
+        }
+        const failed = new Promise<never>((_, rejectFailure) => {
+          rejectActive = rejectFailure;
+        });
+        try {
+          const result = await Promise.race([
+            runPipeline(
+              'gdcm-read-image',
+              [file.name, '0', '1', '--memory-io'],
+              [
+                { type: InterfaceTypes.JsonCompatible },
+                { type: InterfaceTypes.Image },
+              ],
+              [
+                {
+                  type: InterfaceTypes.BinaryFile,
+                  data: { path: file.name, data },
+                },
+              ],
+              {
+                webWorker: worker,
+                pipelineWorkerUrl: assets.pipelineWorkerUrl,
+                pipelineBaseUrl: assets.imageIOUrl,
+              }
+            ),
+            failed,
+          ]);
+          assertActive();
+          return decodedImage(result);
+        } finally {
+          rejectActive = undefined;
+        }
       });
       queue = operation.then(
         () => {},
@@ -85,13 +125,12 @@ export function createDicomDecoder(assets: DicomAssets) {
       operation.then(resolve, reject).finally(() => pending.delete(reject));
     });
   const dispose = () => {
+    if (disposed) return;
     disposed = true;
-    pending.forEach((reject) =>
-      reject(new DOMException('DICOM decoder disposed', 'AbortError'))
-    );
+    const reason = new DOMException('DICOM decoder disposed', 'AbortError');
+    resetWorker(reason);
+    pending.forEach((reject) => reject(reason));
     pending.clear();
-    worker?.terminate();
-    worker = null;
   };
   return { decode, dispose };
 }

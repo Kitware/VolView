@@ -2,21 +2,24 @@ import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 import type { Reconstruction } from '@/packages/dicom/core';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
-import { Chunk } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
 import { parseCineDicom } from '@/src/core/cine/parseCineDicom';
 import {
-  createDicomCollectionRegistry,
   groupChunksBySeries,
   type CollectionUpdate,
-  type DicomCollectionRegistry,
 } from '@/packages/dicom/core';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import { isUltrasoundMultiframeSopClass, Tags } from '@/packages/dicom/core';
 import { useMessageStore } from '@/src/store/messages';
 import { ensureError, removeFromArray } from '../utils';
+import {
+  inSeriesTransaction,
+  releaseUnregistered,
+  sessionFor,
+} from './dicom-import-session';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -145,51 +148,6 @@ export const getWindowLevels = (info: VolumeInfo) => {
     return [];
   }
   return widths.map((width, i) => ({ width, level: levels[i] }));
-};
-
-// One import session per store instance, so a fresh pinia replans from nothing
-// and the chunks the registry holds stay outside reactive state.
-type ImportSession = {
-  registry: DicomCollectionRegistry;
-  // Series key to the transaction the next import of that series waits on.
-  lanes: Map<string, Promise<unknown>>;
-};
-
-const sessions = new WeakMap<object, ImportSession>();
-
-const sessionFor = (store: object) => {
-  const existing = sessions.get(store);
-  if (existing) return existing;
-  const created: ImportSession = {
-    registry: createDicomCollectionRegistry(),
-    lanes: new Map(),
-  };
-  sessions.set(store, created);
-  return created;
-};
-
-// Planning, preparing and committing one series must not interleave: a later
-// replan can dissolve an ID an earlier call is still inserting, which would
-// resurrect the dead volume. Lanes are per series, so one stuck import blocks
-// only the series it names.
-const inSeriesTransaction = <T>(
-  store: object,
-  seriesKey: string,
-  run: () => Promise<T>
-) => {
-  const { lanes } = sessionFor(store);
-  const transaction = (lanes.get(seriesKey) ?? Promise.resolve()).then(run);
-  // A lane outlives every import it sequences, so it keeps the outcome and not
-  // the result: holding the last batch's chunks would pin its DICOM bytes for
-  // the store's lifetime, past the point the user removed the volume.
-  lanes.set(
-    seriesKey,
-    transaction.then(
-      () => {},
-      () => {}
-    )
-  );
-  return transaction;
 };
 
 // A chunk volume, as this store uses it. An instanceof would refuse an
@@ -582,11 +540,11 @@ export const useDICOMStore = defineStore('dicom', {
           this.deleteVolume(id);
           useImageCacheStore().removeImage(id);
         });
-      const { registry } = sessionFor(this);
+      const { registry, preparing } = sessionFor(this);
 
       const batches = [...groupChunksBySeries(chunks)];
       const perSeries = batches.map(([seriesKey, batch]) =>
-        inSeriesTransaction(this, seriesKey, async () => {
+        inSeriesTransaction(this, seriesKey, batch, async () => {
           const { updates, removed, rollback, changedSince } =
             await registry.register(batch);
 
@@ -614,11 +572,17 @@ export const useDICOMStore = defineStore('dicom', {
           if (failure || removedMeanwhile) {
             // Every candidate has settled, so nothing is still writing to the
             // images this puts back before the lane releases.
-            await undoGrowth(candidates);
-            release();
-            // A failure must not pin its chunks, or a corrected re-import
-            // keeps receiving the one that failed.
-            rollback([seriesKey]);
+            try {
+              await undoGrowth(candidates);
+            } finally {
+              try {
+                release();
+              } finally {
+                // Failed incoming chunks remain available to their caller;
+                // only replayed user deletions release previous ownership.
+                this.releaseUnregisteredChunks(rollback([seriesKey]));
+              }
+            }
             throw failure
               ? failure.reason
               : new Error(
@@ -626,6 +590,7 @@ export const useDICOMStore = defineStore('dicom', {
                 );
           }
 
+          preparing.delete(seriesKey);
           commitPlan(this, candidates, removed, removeDissolved);
 
           const committed = {
@@ -669,11 +634,7 @@ export const useDICOMStore = defineStore('dicom', {
     },
 
     releaseUnregisteredChunks(chunks: Chunk[]) {
-      const { registry } = sessionFor(this);
-      // Provenance keeps header identity after an unused source releases bytes.
-      chunks.forEach((chunk) => {
-        if (chunk instanceof Chunk && !registry.has(chunk)) chunk.dispose();
-      });
+      releaseUnregistered(sessionFor(this).registry, chunks);
     },
 
     _updateDatabase(
@@ -709,13 +670,17 @@ export const useDICOMStore = defineStore('dicom', {
     // You should probably call datasetStore.remove instead as this does not
     // remove files/images/layers associated with the volume
     deleteVolume(volumeKey: string) {
-      // Releases the chunks the registry pinned for this collection, so a
-      // removed volume stops holding its DICOM bytes.
-      sessionFor(this)
-        .registry.forget(volumeKey)
-        .forEach((chunk) => {
-          if (chunk instanceof Chunk) chunk.dispose();
-        });
+      const { registry, preparing } = sessionFor(this);
+      // Tentative members can still belong to another visible collection.
+      // Rollback returns the deleted collection's original members once all
+      // surviving images have restored their ownership.
+      groupChunksBySeries(registry.forget(volumeKey)).forEach(
+        (chunks, seriesKey) => {
+          const deferred = preparing.get(seriesKey);
+          if (deferred) chunks.forEach((chunk) => deferred.add(chunk));
+          else this.releaseUnregisteredChunks(chunks);
+        }
+      );
 
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
