@@ -6,7 +6,7 @@ function getReferrer(request: Request) {
   if (!referrer) return undefined;
   try {
     const url = new URL(referrer);
-    return `${url.origin}${url.pathname}`;
+    return `${url.protocol}//${url.host}${url.pathname}`;
   } catch {
     return undefined;
   }
@@ -46,8 +46,6 @@ async function countVisit(
       console.error(`GoatCounter request rejected (HTTP ${response.status}).`);
     } else if (response.headers.has('X-Goatcounter-Filter')) {
       console.info('GoatCounter visit filtered (HTTP 202).');
-    } else {
-      console.info('GoatCounter visit accepted (HTTP 202).');
     }
   } catch {
     // Errors and response bodies may contain visitor data or credentials.
