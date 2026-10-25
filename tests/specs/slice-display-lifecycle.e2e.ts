@@ -38,13 +38,13 @@ const coloredPixelCount = (data: Buffer) =>
 
 async function selectGrid(index: number, count: number) {
   await volViewPage.layoutButton.click();
-  await $('.v-menu.v-overlay--active .v-overlay__content').waitForStable();
-  const cell = $$('.v-menu.v-overlay--active .grid-cell')[index].$(
-    '.grid-cell-box'
-  );
+  const cell = $(`.v-menu .grid-cell:nth-child(${index + 1}) .grid-cell-box`);
+  await cell.waitForDisplayed();
+  await cell.waitForStable();
   await cell.moveTo();
   await cell.waitForClickable();
   await cell.click();
+  await cell.waitForDisplayed({ reverse: true });
   await expect($$('.grid-item')).toBeElementsArrayOfSize(count);
 }
 
