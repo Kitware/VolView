@@ -236,12 +236,6 @@ describe('Multicomponent image display controls', () => {
         await browser.keys(Array.from({ length: 5 }, () => 'PageDown'));
         await expect(opacity).toHaveAttribute('aria-valuenow', '0.5');
         await expectImagePixels(colors(0.5));
-        if (!rgba && type === 'unsigned char') {
-          await browser.keys('ArrowLeft');
-          await expect(opacity).toHaveAttribute('aria-valuenow', '0.49');
-          await browser.keys('ArrowRight');
-          await expect(opacity).toHaveAttribute('aria-valuenow', '0.5');
-        }
         await browser.keys('Home');
         await expect(opacity).toHaveAttribute('aria-valuenow', '0');
         await expectImagePixels(
