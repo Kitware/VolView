@@ -66,10 +66,9 @@ const useResliceCursorStore = defineStore('resliceCursor', () => {
   const resliceCursor = vtkResliceCursorWidget.newInstance({
     scaleInPixels: true,
     rotationHandlePosition: 0.75,
-  }) as vtkResliceCursorWidget;
+  });
 
-  const widgetState =
-    resliceCursor.getWidgetState() as vtkResliceCursorWidgetState;
+  const widgetState = resliceCursor.getWidgetState();
 
   useResliceInit(resliceCursor, widgetState);
 

@@ -79,7 +79,7 @@ export function reorientLabelImage(target: vtkImageData, source: vtkImageData) {
   filter.setInterpolationMode(InterpolationMode.NEAREST);
   try {
     filter.setInputData(source);
-    return filter.getOutputData() as vtkImageData;
+    return filter.getOutputData<vtkImageData>();
   } finally {
     filter.delete();
   }

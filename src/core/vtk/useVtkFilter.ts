@@ -26,7 +26,7 @@ export function useVtkFilter<T extends vtkAlgorithm & vtkObject>(
     if (!(port in cache)) {
       cache[port] = computedWithControl(mtime, () => {
         if (!filter.getInputData(port)) return null;
-        return filter.getOutputData(port) as D;
+        return filter.getOutputData<D>(port);
       });
     }
     return cache[port] as ComputedRef<D>;

@@ -3,7 +3,6 @@ import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupT
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import { getPresetByName } from '@/src/types/color-map-preset';
-import type { Vector3 } from '@kitware/vtk.js/types';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';
@@ -112,8 +111,8 @@ export function useVolumeThumbnailing(
       );
 
       thumbnailer.resetCameraWithOrientation(
-        cameraDirVec.value as Vector3,
-        cameraUpVec.value as Vector3
+        cameraDirVec.value,
+        cameraUpVec.value
       );
 
       const renWin = thumbnailer.scene.getRenderWindow();

@@ -554,34 +554,31 @@ export default class DicomChunkImage
     this.assertSingleFramePerFile(result.image.size[2], where);
 
     const scalars = this.vtkImageData.value.getPointData().getScalars();
-    const pixelData = scalars.getData() as TypedArray;
+    const pixelData = scalars.getData();
     const componentCount = scalars.getNumberOfComponents();
 
     const dims = this.vtkImageData.value.getDimensions();
 
     this.assertChunkFitsSlot(result.image, { dims, componentCount }, where);
 
+    const chunkData = result.image.data as TypedArray;
     const chunkDataRange: Array<[number, number]> = [];
     for (let comp = 0; comp < componentCount; comp++) {
-      const { min, max } = fastComputeRange(
-        result.image.data as unknown as number[],
-        comp,
-        componentCount
-      );
+      const { min, max } = fastComputeRange(chunkData, comp, componentCount);
       chunkDataRange.push([min, max]);
     }
 
     const chunkMin = Math.min(...chunkDataRange.map(([min]) => min));
     const chunkMax = Math.max(...chunkDataRange.map(([, max]) => max));
     assertSamplesRepresentable(
-      result.image.data as unknown as ArrayLike<number>,
+      chunkData,
       { min: chunkMin, max: chunkMax },
       pixelData,
       where
     );
 
     const offset = dims[0] * dims[1] * componentCount * sliceIndex;
-    pixelData.set(result.image.data as TypedArray, offset);
+    pixelData.set(chunkData, offset);
 
     const rangeAlreadyInitialized = this.chunkStatus.some(
       (status) => status === ChunkStatus.Loaded

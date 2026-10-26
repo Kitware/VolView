@@ -1,7 +1,6 @@
 <script lang="ts">
 import vtkRulerWidget, {
   InteractionState,
-  vtkRulerViewWidget,
   vtkRulerWidgetState,
 } from '@/src/vtk/RulerWidget';
 import {
@@ -79,9 +78,7 @@ export default defineComponent({
       id: toolId.value,
       isPlaced: !isPlacing.value,
     });
-    const widget = view.widgetManager.addWidget(
-      widgetFactory
-    ) as vtkRulerViewWidget;
+    const widget = view.widgetManager.addWidget(widgetFactory)!;
 
     onUnmounted(() => {
       view.widgetManager.removeWidget(widget);

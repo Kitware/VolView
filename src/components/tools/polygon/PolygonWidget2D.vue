@@ -22,9 +22,7 @@ import {
 } from '@/src/composables/annotationTool';
 import { getCSSCoordinatesFromEvent } from '@/src/utils/vtk-helpers';
 import { usePolygonStore as useStore } from '@/src/store/tools/polygons';
-import vtkWidgetFactory, {
-  vtkPolygonViewWidget as WidgetView,
-} from '@/src/vtk/PolygonWidget';
+import vtkWidgetFactory from '@/src/vtk/PolygonWidget';
 import { Maybe } from '@/src/types';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { ToolID } from '@/src/types/annotation-tool';
@@ -76,7 +74,7 @@ export default defineComponent({
     const widgetFactory = vtkWidgetFactory.newInstance({
       id: toolId.value,
     });
-    const widget = view.widgetManager.addWidget(widgetFactory) as WidgetView;
+    const widget = view.widgetManager.addWidget(widgetFactory)!;
 
     onUnmounted(() => {
       view.widgetManager.removeWidget(widget);

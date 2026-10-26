@@ -75,8 +75,7 @@ function changedGrayPixels(before: Pixels, after: Pixels) {
     if (
       gray(before.data) &&
       gray(after.data) &&
-      before.data[index] > 20 &&
-      after.data[index] > 20 &&
+      (before.data[index] > 20 || after.data[index] > 20) &&
       Math.abs(before.data[index] - after.data[index]) > 5
     )
       count++;
