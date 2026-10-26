@@ -3,6 +3,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
 import { compareImageIndexGrids } from '@/src/utils/imageSpace';
 import { shallowCopyImageData } from '@/src/utils/vtk-helpers';
+import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { runWasm } from './itkWasmUtils';
 import { reorientLabelImage } from './reorientLabelImage';
 
@@ -46,5 +47,5 @@ export async function ensureSameSpace(
     vtkITKHelper.convertVtkToItkImage(resampleCandidate),
     label
   );
-  return vtkITKHelper.convertItkToVtkImage(itkImage);
+  return convertItkToVtkImage(itkImage);
 }

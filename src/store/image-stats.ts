@@ -55,7 +55,7 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
   }
 
   const { min, max } = getAllComponentRange(scalars);
-  const scalarData = scalars.getData() as number[];
+  const scalarData = scalars.getData();
   const worker = new Worker(
     new URL('@/src/utils/histogram.worker.ts', import.meta.url),
     { type: 'module' }

@@ -48,9 +48,9 @@ export function useVTKMultiWorldToDisplay(
   const displayCoords = ref<Vector2[]>([]);
   const view = computed(
     () =>
-      unref(renderer)
-        ?.getRenderWindow()
-        ?.getViews()?.[0] as vtkOpenGLRenderWindow
+      unref(renderer)?.getRenderWindow()?.getViews()?.[0] as unknown as
+        | vtkOpenGLRenderWindow
+        | undefined
   );
   const container = useVTKViewContainer(view);
 

@@ -1,4 +1,4 @@
-import { convertItkToVtkImage } from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { readImage, extensionToImageIo } from '@itk-wasm/image-io';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { getWorker } from '@/src/io/itk/worker';

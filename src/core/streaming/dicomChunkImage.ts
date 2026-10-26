@@ -33,7 +33,7 @@ import {
 } from '@/src/core/progressiveImage';
 import { ensureError } from '@/src/utils';
 import { computed } from 'vue';
-import vtkITKHelper from '@kitware/vtk.js/Common/DataModel/ITKHelper';
+import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 import { isUsableSpacing } from '@/src/utils/imageSpace';
 import { surfaceWarning } from '@/src/store/messages';
@@ -474,7 +474,7 @@ export default class DicomChunkImage
     );
     if (generation !== this.allocationGeneration) return;
 
-    const image = vtkITKHelper.convertItkToVtkImage(results.outputImage);
+    const image = convertItkToVtkImage(results.outputImage);
     this.vtkImageData.value.delete();
     this.vtkImageData.value = image;
 

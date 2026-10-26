@@ -6,7 +6,7 @@ export type VTKEventHandler = (ev?: any) => any;
 export type VTKEventListener = (
   handler: VTKEventHandler,
   priority?: number
-) => vtkSubscription;
+) => vtkSubscription | null;
 export type OnVTKEventOptions = {
   priority?: number;
 };

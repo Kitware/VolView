@@ -145,10 +145,15 @@ watchEffect(() => {
 // setup plane origin/normal
 const planeOrigin = vtkFieldRef(resliceCursorState, {
   get: () => resliceCursorState.getCenter(),
-  set: (v) => resliceCursor.setCenter(v),
+  set: (v) => {
+    resliceCursor.setCenter(v);
+    return true;
+  },
 });
 const planes = vtkFieldRef(resliceCursorState, 'planes');
-const planeNormal = computed(() => planes.value[widgetViewType.value].normal);
+// The reslice cursor is created with the default X/Y/Z planes, so the entry
+// for this view's type is always present.
+const planeNormal = computed(() => planes.value[widgetViewType.value]!.normal);
 
 // slicing domain/range
 
