@@ -38,7 +38,7 @@ export function useWebGLRenderWindow(
 
     renderWindowView.setContainer(el);
     onCleanup(() => {
-      renderWindowView.setContainer(null as unknown as HTMLElement);
+      renderWindowView.setContainer(null);
     });
   });
 

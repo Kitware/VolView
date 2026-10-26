@@ -17,7 +17,6 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useViewStore } from '@/src/store/views';
-import { vtkPaintViewWidget } from '@/src/vtk/PaintWidget';
 import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
@@ -66,9 +65,7 @@ export default defineComponent({
       () => imageMetadata.value.lpsOrientation[viewAxis.value]
     );
 
-    const widget = view.widgetManager.addWidget(
-      widgetFactory
-    ) as vtkPaintViewWidget;
+    const widget = view.widgetManager.addWidget(widgetFactory)!;
     widget.setPickable(false);
 
     // --- widget representation config --- //

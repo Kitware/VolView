@@ -13,7 +13,6 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import { LPSAxisDir } from '@/src/types/lps';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
@@ -46,9 +45,7 @@ export default defineComponent({
 
     const crosshairsStore = useCrosshairsToolStore();
     const factory = crosshairsStore.getWidgetFactory();
-    const widget = view.widgetManager.addWidget(
-      factory
-    ) as vtkCrosshairsViewWidget;
+    const widget = view.widgetManager.addWidget(factory)!;
 
     onUnmounted(() => {
       view.widgetManager.removeWidget(factory);

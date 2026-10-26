@@ -66,7 +66,7 @@ function generateThumbnail(
   whichSlice = ThumbnailSlice.Middle
 ) {
   const scalars = imageData.getPointData().getScalars();
-  const data = scalars.getData() as TypedArray;
+  const data = scalars.getData();
   const components = scalars.getNumberOfComponents();
   const [scaleMin, scaleMax] = scalars.getRange(0);
   const dims = imageData.getDimensions();

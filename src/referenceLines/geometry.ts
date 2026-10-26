@@ -107,35 +107,26 @@ export function computeReferenceLine(
   peer: SlicePlane,
   metadata: ImageMetadata
 ): ReferenceLine | null {
-  // vtk.js types `intersectWithPlane` with the `intersectWithLine` result
-  // shape; the plane-plane overload actually returns the two line points.
   const { intersection, l0, l1 } = vtkPlane.intersectWithPlane(
     host.origin,
     host.normal,
     peer.origin,
     peer.normal
-  ) as unknown as { intersection: boolean; l0: Vector3; l1: Vector3 };
+  );
   if (!intersection) return null;
 
   const { worldToIndex, indexToWorld, dimensions } = metadata;
 
   // Clip in index space, where the image box is axis-aligned regardless of the
   // image's direction matrix.
-  const indexPoint = vec3.transformMat4(
-    vec3.create(),
-    l0 as vec3,
-    worldToIndex
-  );
+  const indexPoint = vec3.transformMat4(vec3.create(), l0, worldToIndex);
   // A direction is a vector, so it takes only the linear part of the transform.
   // `l1 - l0` is the cross product of the unit normals, whose magnitude is
   // sin(angle); it is normalized first because for nearly parallel planes that
   // is small enough to vanish against a world coordinate in float32.
   const indexDirection = vec3.transformMat3(
     vec3.create(),
-    vec3.normalize(
-      vec3.create(),
-      vec3.subtract(vec3.create(), l1 as vec3, l0 as vec3)
-    ),
+    vec3.normalize(vec3.create(), vec3.subtract(vec3.create(), l1, l0)),
     mat3.fromMat4(mat3.create(), worldToIndex)
   );
 

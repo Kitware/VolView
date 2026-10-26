@@ -39,7 +39,7 @@ workerHandler.registerHandler(async (data: ReaderWorkerInput) => {
     const ds = await readFile(file, readerClass, asBinary);
     return {
       status: 'success',
-      obj: ds.getState(),
+      obj: ds.getState({ preserveTypedArrays: true }),
     };
   } catch (error) {
     return {

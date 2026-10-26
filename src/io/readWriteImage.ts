@@ -75,7 +75,7 @@ export const writeSegmentation = (
   const metadata = maybeBuildSegNrrdMetadata(
     format,
     segments,
-    image.getDimensions() as [number, number, number]
+    image.getDimensions()
   );
   return writeImage(format, image, metadata);
 };

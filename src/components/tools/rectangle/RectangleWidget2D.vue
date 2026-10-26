@@ -17,7 +17,6 @@ import { LPSAxisDir } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import vtkRectangleWidget, {
-  vtkRectangleViewWidget,
   InteractionState,
 } from '@/src/vtk/RectangleWidget';
 import RectangleSVG2D from '@/src/components/tools/rectangle/RectangleSVG2D.vue';
@@ -37,7 +36,6 @@ import { toolRenderSlice } from '@/src/core/annotations/locator';
 
 const useStore = useRectangleStore;
 const vtkWidgetFactory = vtkRectangleWidget;
-type WidgetView = vtkRectangleViewWidget;
 const SVG2DComponent = RectangleSVG2D;
 
 export default defineComponent({
@@ -84,7 +82,7 @@ export default defineComponent({
       isPlaced: !isPlacing.value,
     });
 
-    const widget = view.widgetManager.addWidget(widgetFactory) as WidgetView;
+    const widget = view.widgetManager.addWidget(widgetFactory)!;
 
     onUnmounted(() => {
       view.widgetManager.removeWidget(widget);

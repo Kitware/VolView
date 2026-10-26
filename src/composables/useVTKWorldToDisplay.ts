@@ -69,7 +69,7 @@ export function useVTKMultiWorldToDisplay(
         disp[0] / devicePixelRatio,
         disp[1] / devicePixelRatio,
       ] as Vector2;
-    }) as Vector2[];
+    });
   };
 
   const camera = computed(() => unref(renderer)?.getActiveCamera());

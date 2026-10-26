@@ -109,7 +109,7 @@ export function createVolumeThumbnailer(size: number) {
       }
     },
     resetCameraWithOrientation(direction: Vector3, up: Vector3) {
-      const image = mapper.getInputData() as vtkImageData | null;
+      const image = mapper.getInputData<vtkImageData | null>();
       if (image) {
         const camera = renderer.getActiveCamera();
         const bounds = image.getBounds();

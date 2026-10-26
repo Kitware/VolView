@@ -42,7 +42,7 @@ const outline = outlineFilter.getOutputData<vtkPolyData>(0);
 const slicePlane = vtkPlane.newInstance();
 onScopeDispose(() => slicePlane.delete());
 const cutterFilter = useVtkFilter(vtkCutter, outline);
-(cutterFilter.filter as any).setCutFunction(slicePlane);
+cutterFilter.filter.setCutFunction(slicePlane);
 
 // representation
 const rep = useVtkRepresentation({

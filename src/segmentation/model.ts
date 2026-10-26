@@ -76,7 +76,7 @@ export type LabelmapSegment = {
 /** A descriptor projected off a segment, every appearance field resolved. */
 export type ResolvedLabelmapSegment = Required<LabelmapSegment>;
 
-/** vtk declares getData() as number[] | TypedArray; mask storage is typed. */
+/** Mask storage uses one Uint8 value per voxel. */
 export const maskScalars = (mask: vtkLabelMap) =>
   mask.getPointData().getScalars().getData() as Uint8Array;
 

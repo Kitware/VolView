@@ -6,10 +6,7 @@ import { LPSCroppingPlanes } from '@/src/types/crop';
 import { arrayEquals } from '@/src/utils';
 import { getAxisBounds, LPSAxes } from '@/src/utils/lps';
 import type { Bounds } from '@kitware/vtk.js/types';
-import vtkImageCroppingWidget, {
-  ImageCroppingWidgetState,
-  vtkImageCroppingViewWidget,
-} from '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget';
+import vtkImageCroppingWidget from '@kitware/vtk.js/Widgets/Widgets3D/ImageCroppingWidget';
 import {
   computed,
   DeepReadonly,
@@ -64,15 +61,13 @@ export default defineComponent({
     });
 
     const factory = vtkImageCroppingWidget.newInstance();
-    const state = factory.getWidgetState() as ImageCroppingWidgetState;
+    const state = factory.getWidgetState();
 
     factory.setEdgeHandlesEnabled(false);
     factory.setFaceHandlesEnabled(true);
     factory.setCornerHandlesEnabled(true);
 
-    const widget = widgetManager.addWidget(
-      factory
-    ) as vtkImageCroppingViewWidget;
+    const widget = widgetManager.addWidget(factory)!;
 
     // update representation to not be as 3D
     widget.getRepresentations().forEach((rep) => {
@@ -83,7 +78,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       widgetManager.removeWidget(factory);
-      (factory as unknown as { delete(): void }).delete();
+      factory.delete();
     });
 
     const { metadata: imageMetadata } = useImage(imageId);

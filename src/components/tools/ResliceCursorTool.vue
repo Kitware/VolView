@@ -44,7 +44,7 @@ onViewMounted(view.renderWindowView, () => {
   widget.value = view.widgetManager.addWidget(
     resliceCursor,
     vtkViewType.value
-  ) as vtkResliceCursorWidgetDefaultInstance;
+  )!;
 
   widget.value.setKeepOrthogonality(true);
   // reset mouse cursor styles
