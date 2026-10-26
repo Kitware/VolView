@@ -10,6 +10,7 @@ import { getWorker } from '@/src/io/itk/worker';
 import type { LabelmapSegment } from '@/src/segmentation/model';
 import { maybeBuildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { repairUnusableSpacing } from '@/src/utils/imageSpace';
+import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 
 export type ReadImageResult = {
   image: vtkImageData;
@@ -36,7 +37,7 @@ export const readImage = async (file: File): Promise<ReadImageResult> => {
   }
 
   const { image } = await readImageItk(file, { webWorker: getWorker() });
-  const vtkImage = vtkITKHelper.convertItkToVtkImage(image);
+  const vtkImage = convertItkToVtkImage(image);
   repairUnusableSpacing(vtkImage);
   return {
     image: vtkImage,

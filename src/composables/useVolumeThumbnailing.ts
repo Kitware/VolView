@@ -2,7 +2,7 @@ import { onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
+import { getPresetByName } from '@/src/types/color-map-preset';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
@@ -23,9 +23,9 @@ function resetOpacityFunction(
   // reset pwf proxy range
   pwfProxy.setDataRange(...dataRange);
 
-  const preset = vtkColorMaps.getPresetByName(presetName);
-  if (preset.OpacityPoints) {
-    const OpacityPoints = preset.OpacityPoints as number[];
+  const preset = getPresetByName(presetName);
+  if (preset?.OpacityPoints) {
+    const OpacityPoints = preset.OpacityPoints;
     const points = [];
     for (let i = 0; i < OpacityPoints.length; i += 2) {
       points.push([OpacityPoints[i], OpacityPoints[i + 1]]);

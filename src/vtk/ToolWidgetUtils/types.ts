@@ -2,7 +2,9 @@ import { VTKEventHandler } from '@/src/composables/onVTKEvent';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { ToolID } from '@/src/types/annotation-tool';
 import vtkAbstractWidget from '@kitware/vtk.js/Widgets/Core/AbstractWidget';
-import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
+import vtkWidgetState, {
+  type IWidgetStateInitialValues,
+} from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
 import { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import type { Vector2, Vector3 } from '@kitware/vtk.js/types';
@@ -27,9 +29,9 @@ export interface vtkAnnotationWidgetState extends vtkWidgetState {
   getToolType(): AnnotationToolType;
 }
 
-export interface IAnnotationToolWidgetInitialValues {
+export type IAnnotationToolWidgetInitialValues = IWidgetStateInitialValues & {
   id: ToolID;
-}
+};
 
 export interface vtkAnnotationToolWidget extends vtkAbstractWidget {
   setManipulator(manipulator: vtkPlaneManipulator): boolean;

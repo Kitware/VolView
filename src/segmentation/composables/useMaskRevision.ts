@@ -32,7 +32,7 @@ export function useMaskRevision(imageId: () => Maybe<string>) {
           revision.value += 1;
         })
       );
-    onCleanup(() => subscriptions.forEach((entry) => entry.unsubscribe()));
+    onCleanup(() => subscriptions.forEach((entry) => entry?.unsubscribe()));
   });
 
   return revision;

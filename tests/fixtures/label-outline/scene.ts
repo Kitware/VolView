@@ -30,7 +30,7 @@ document.body.appendChild(container);
 view.setContainer(container);
 view.setSize(200, 200);
 const params = new URLSearchParams(location.search);
-const axis = Number(params.get('axis') ?? 2);
+const axis = Number(params.get('axis') ?? 2) as 0 | 1 | 2;
 const scanEdge = params.has('scanEdge');
 const parent = vtkImageData.newInstance();
 const dimensions: [number, number, number] = [10, 10, 10];

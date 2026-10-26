@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { computed, inject, ref, toRefs } from 'vue';
-import {
-  vtkResliceCursorViewWidget,
-  ResliceCursorWidgetState,
-} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget';
+import type {
+  vtkResliceCursorWidgetDefaultInstance,
+  ResliceCursorLineHandleState,
+} from '@kitware/vtk.js/Widgets/Widgets3D/ResliceCursorWidget/behavior';
+import { vtkColor3MixinState } from '@kitware/vtk.js/Widgets/Core/StateBuilder/color3Mixin';
+import { vtkScale1MixinState } from '@kitware/vtk.js/Widgets/Core/StateBuilder/scale1Mixin';
+
+// The reslice cursor builds its sphere handles from the color3/scale1 mixins
+// and its line handles from the color3/scale3 mixins.
+type SphereHandleState = vtkColor3MixinState & vtkScale1MixinState;
+
+// Per-axis label queries mix line handles (scale3) with rotation handles
+// (scale1), so only the color3 mixin is common to every result.
+type ColoredHandleState = vtkColor3MixinState;
 import { OBLIQUE_OUTLINE_COLORS } from '@/src/constants';
 import { getLPSAxisFromDir, getVTKViewTypeFromLPSAxis } from '@/src/utils/lps';
 import { LPSAxisDir } from '@/src/types/lps';
@@ -27,14 +37,14 @@ if (!view) throw new Error('No vtk view');
 const resliceCursorStore = useResliceCursorStore();
 const { resliceCursor, resliceCursorState } = resliceCursorStore;
 
-const widget = ref<vtkResliceCursorViewWidget>();
+const widget = ref<vtkResliceCursorWidgetDefaultInstance>();
 const vtkViewType = computed(() => getVTKViewTypeFromLPSAxis(viewAxis.value));
 
 onViewMounted(view.renderWindowView, () => {
   widget.value = view.widgetManager.addWidget(
     resliceCursor,
     vtkViewType.value
-  ) as vtkResliceCursorViewWidget;
+  ) as vtkResliceCursorWidgetDefaultInstance;
 
   widget.value.setKeepOrthogonality(true);
   // reset mouse cursor styles
@@ -45,13 +55,13 @@ onViewMounted(view.renderWindowView, () => {
   });
 
   resliceCursorState.getStatesWithLabel('sphere').forEach((handle) => {
-    const h = handle as ResliceCursorWidgetState;
+    const h = handle as SphereHandleState;
     h.setScale1(10);
     h.setOpacity(128);
   });
 
   resliceCursorState.getStatesWithLabel('line').forEach((handle) => {
-    const h = handle as ResliceCursorWidgetState;
+    const h = handle as ResliceCursorLineHandleState;
     h.setScale3(1, 1, 1);
     h.setOpacity(100);
   });
@@ -61,7 +71,7 @@ onViewMounted(view.renderWindowView, () => {
     ...resliceCursorState.getStatesWithLabel('XinY'),
   ];
   xLines.forEach((handle) => {
-    const h = handle as ResliceCursorWidgetState;
+    const h = handle as ColoredHandleState;
     h.setColor3(OBLIQUE_OUTLINE_COLORS[InitViewIDs.ObliqueSagittal]);
   });
 
@@ -70,7 +80,7 @@ onViewMounted(view.renderWindowView, () => {
     ...resliceCursorState.getStatesWithLabel('YinX'),
   ];
   yLines.forEach((handle) => {
-    const h = handle as ResliceCursorWidgetState;
+    const h = handle as ColoredHandleState;
     h.setColor3(OBLIQUE_OUTLINE_COLORS[InitViewIDs.ObliqueCoronal]);
   });
 
@@ -79,7 +89,7 @@ onViewMounted(view.renderWindowView, () => {
     ...resliceCursorState.getStatesWithLabel('ZinY'),
   ];
   zLines.forEach((handle) => {
-    const h = handle as ResliceCursorWidgetState;
+    const h = handle as ColoredHandleState;
     h.setColor3(OBLIQUE_OUTLINE_COLORS[InitViewIDs.ObliqueAxial]);
   });
 
