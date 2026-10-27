@@ -4,6 +4,9 @@ import {
   type Image,
   type TypedArray,
 } from 'itk-wasm';
+import type { DicomDataset } from '../metadata/dicomDataset';
+import { assertUniformModalityRescale } from '../metadata/modalityRescale';
+import { createMetadataReader } from './metadataReader';
 
 export type DecodedDicomImage = {
   size: number[];
@@ -11,7 +14,9 @@ export type DecodedDicomImage = {
   imageType: { components: number };
 };
 export type DicomDecoder = (
-  file: File
+  file: File,
+  /** When supplied, this header must describe the same file. */
+  metadata?: DicomDataset
 ) => Promise<{ image: DecodedDicomImage }>;
 export type DicomAssets = { pipelineWorkerUrl: string; imageIOUrl: string };
 
@@ -35,7 +40,12 @@ function decodedImage(result: Awaited<ReturnType<typeof runPipeline>>) {
 }
 
 /** Reuses the GDCM image-io pipeline with explicit assets and one owned worker. */
-export function createDicomDecoder(assets: DicomAssets) {
+export function createDicomDecoder(
+  assets: DicomAssets,
+  readMetadata?: ReturnType<typeof createMetadataReader>['read']
+) {
+  const ownedMetadata = readMetadata ? null : createMetadataReader();
+  const read = readMetadata ?? ownedMetadata!.read;
   let worker: Worker | null = null;
   let disposed = false;
   let queue = Promise.resolve();
@@ -57,7 +67,7 @@ export function createDicomDecoder(assets: DicomAssets) {
     if (disposed)
       throw new DOMException('DICOM decoder disposed', 'AbortError');
   };
-  const decode: DicomDecoder = (file) =>
+  const decode: DicomDecoder = (file, metadata) =>
     new Promise((resolve, reject) => {
       if (disposed) {
         reject(new DOMException('DICOM decoder disposed', 'AbortError'));
@@ -68,6 +78,9 @@ export function createDicomDecoder(assets: DicomAssets) {
         assertActive();
         const data = new Uint8Array(await file.arrayBuffer());
         assertActive();
+        const header = metadata ?? (await read(data));
+        assertActive();
+        assertUniformModalityRescale(header);
         if (!worker) {
           worker = new Worker(assets.pipelineWorkerUrl, { type: 'module' });
           const ownedWorker = worker;
@@ -129,6 +142,7 @@ export function createDicomDecoder(assets: DicomAssets) {
     disposed = true;
     const reason = new DOMException('DICOM decoder disposed', 'AbortError');
     resetWorker(reason);
+    ownedMetadata?.dispose();
     pending.forEach((reject) => reject(reason));
     pending.clear();
   };

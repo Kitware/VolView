@@ -1,12 +1,14 @@
+import { multiframeGeometry } from './multiframeGeometry';
 import type { InstanceFacts } from './planDicomCollections';
 import { Tags } from '../metadata/dicomTags';
 import type { DicomDataset } from '../metadata/dicomDataset';
-import { getDatasetTag } from '../metadata/datasetAccess';
+import { getFrameTag } from '../metadata/functionalGroups';
+import { trimDicomPadding } from '../utils';
 
 // readDicomTags hands back DICOM's own byte padding, so a value that is only
 // padding is absent rather than an empty string.
 const textOf = (metadata: DicomDataset, tag: string) => {
-  const value = getDatasetTag(metadata, tag)?.trim() ?? '';
+  const value = trimDicomPadding(getFrameTag(metadata, tag) ?? '');
   return value.length > 0 ? value : null;
 };
 
@@ -28,10 +30,16 @@ const numberOf = (metadata: DicomDataset, tag: string) => {
 
 // A blank component is absent, not zero: Number('') is 0, which would turn
 // '1\\3' into the readable position [1, 0, 3].
-const vectorOf = (metadata: DicomDataset, tag: string, length: number) => {
-  const text = textOf(metadata, tag);
+const vectorOf = (
+  metadata: DicomDataset,
+  tag: string,
+  length: number,
+  frameIndex = 0
+) => {
+  const raw = getFrameTag(metadata, tag, frameIndex);
+  const text = raw === undefined ? null : trimDicomPadding(raw);
   if (text === null) return null;
-  const parts = text.split('\\').map((part) => part.trim());
+  const parts = text.split('\\').map(trimDicomPadding);
   const values = parts.map(Number);
   return parts.length === length &&
     parts.every((part) => part.length > 0) &&
@@ -74,8 +82,13 @@ const unitize = (axis: number[]) => {
  * spanning a plane. A degenerate or skewed basis has no slice normal, so
  * nothing can be projected on it.
  */
-const orientationOf = (metadata: DicomDataset) => {
-  const cosines = vectorOf(metadata, Tags.ImageOrientationPatient, 6);
+const orientationOf = (metadata: DicomDataset, frameIndex: number) => {
+  const cosines = vectorOf(
+    metadata,
+    Tags.ImageOrientationPatient,
+    6,
+    frameIndex
+  );
   if (cosines === null) return null;
 
   const row = unitize(cosines.slice(0, 3));
@@ -104,8 +117,8 @@ export const projectOnNormal = (
 ) => (normal === null || position === null ? null : dot(normal, position));
 
 // A pixel spacing of zero or less places no sample anywhere.
-const pixelSpacingOf = (metadata: DicomDataset) => {
-  const spacing = vectorOf(metadata, Tags.PixelSpacing, 2);
+const pixelSpacingOf = (metadata: DicomDataset, frameIndex: number) => {
+  const spacing = vectorOf(metadata, Tags.PixelSpacing, 2, frameIndex);
   return spacing !== null && spacing.every((value) => value > 0)
     ? spacing
     : null;
@@ -116,19 +129,24 @@ const pixelSpacingOf = (metadata: DicomDataset) => {
  * Reading it costs three tag lookups rather than the twenty a full fact read
  * takes, which a volume of two thousand slices notices.
  */
-export function readGeometryFacts(metadata: DicomDataset) {
+export function readGeometryFacts(metadata: DicomDataset, frameIndex = 0) {
   return {
-    orientation: orientationOf(metadata),
-    position: vectorOf(metadata, Tags.ImagePositionPatient, 3),
-    pixelSpacing: pixelSpacingOf(metadata),
+    orientation: orientationOf(metadata, frameIndex),
+    position: vectorOf(metadata, Tags.ImagePositionPatient, 3, frameIndex),
+    pixelSpacing: pixelSpacingOf(metadata, frameIndex),
   };
 }
 
 /** Reads the planner's plain facts out of one instance's tag values. */
 export function readInstanceFacts(metadata: DicomDataset): InstanceFacts {
   const { orientation, position, pixelSpacing } = readGeometryFacts(metadata);
+  const frames = multiframeGeometry(
+    metadata,
+    numberOf(metadata, Tags.NumberOfFrames) ?? 1
+  );
 
   return {
+    ...(frames ? { frameReconstruction: frames.reconstruction } : {}),
     sopInstanceUid: textOf(metadata, Tags.SOPInstanceUID),
     seriesInstanceUid: textOf(metadata, Tags.SeriesInstanceUID),
     seriesNumber: numericTextOf(metadata, Tags.SeriesNumber),

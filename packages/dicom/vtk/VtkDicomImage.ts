@@ -2,8 +2,8 @@ import {
   Chunk,
   ChunkState,
   getChunkTag,
-  readGeometryFacts,
-  reconstructVolume,
+  readInstanceFacts,
+  reconstructInstances,
   sliceNormalOf,
   type Reconstruction,
 } from '../core/index';
@@ -278,12 +278,11 @@ export class VtkDicomImage {
     if (this.disposed) return;
 
     const status = chunks.map(initialChunkStatus);
-    const reconstruction =
-      supplied ??
-      reconstructVolume(
-        chunks.map((chunk) => readGeometryFacts(chunk.metadata!)),
-        sliceNormalOf(orientation)
-      );
+    const reconstruction = reconstructInstances(
+      chunks.map((chunk) => readInstanceFacts(chunk.metadata!)),
+      sliceNormalOf(orientation),
+      supplied
+    );
     const allocated =
       modalityOf(chunks) === 'SEG'
         ? null
@@ -460,7 +459,8 @@ export class VtkDicomImage {
 
     const chunkId = chunk.metadata ? getChunkId(chunk) : `index-${chunkIndex}`;
     const result = await this.readDicomImage(
-      new File([chunk.dataBlob], `file-${chunkIndex}.dcm`)
+      new File([chunk.dataBlob], `file-${chunkIndex}.dcm`),
+      chunk.metadata ?? undefined
     );
 
     if (!result.image.data)
@@ -476,7 +476,7 @@ export class VtkDicomImage {
     assertSingleFramePerFile(result.image.size[2], this.chunks.length, where);
 
     const scalars = this.image.getPointData().getScalars();
-    const pixelData = scalars.getData() as TypedArray;
+    const pixelData = scalars.getData();
     const componentCount = scalars.getNumberOfComponents();
 
     const dims = this.image.getDimensions();
@@ -487,20 +487,17 @@ export class VtkDicomImage {
       where
     );
 
+    const chunkData = result.image.data as TypedArray;
     const chunkDataRange: Array<[number, number]> = [];
     for (let comp = 0; comp < componentCount; comp++) {
-      const { min, max } = fastComputeRange(
-        result.image.data as unknown as number[],
-        comp,
-        componentCount
-      );
+      const { min, max } = fastComputeRange(chunkData, comp, componentCount);
       chunkDataRange.push([min, max]);
     }
 
     const chunkMin = Math.min(...chunkDataRange.map(([min]) => min));
     const chunkMax = Math.max(...chunkDataRange.map(([, max]) => max));
     assertSamplesRepresentable(
-      result.image.data as unknown as ArrayLike<number>,
+      chunkData,
       { min: chunkMin, max: chunkMax },
       pixelData,
       where
@@ -508,7 +505,7 @@ export class VtkDicomImage {
 
     const slot = this.reconstruction!.slots[sliceIndex];
     const offset = dims[0] * dims[1] * componentCount * slot;
-    pixelData.set(result.image.data as TypedArray, offset);
+    pixelData.set(chunkData, offset);
 
     const rangeAlreadyInitialized = this.chunkStatus.some(
       (status) => status === ChunkStatus.Loaded

@@ -5,7 +5,7 @@ import { projectOnNormal, sliceNormalOf } from './instanceFacts';
 export type ReconstructionMember = Pick<
   InstanceFacts,
   'orientation' | 'position' | 'pixelSpacing'
->;
+> & { frameReconstruction?: Reconstruction };
 
 export type IrregularReason =
   | 'unreadable-geometry'
@@ -196,4 +196,17 @@ export function reconstructVolume(
   return fault === null
     ? lattice(along as number[])
     : irregular(fault, positionStep(members), members.length);
+}
+
+/** Instance slots index source chunks even when one source contains many frames. */
+export function reconstructInstances(
+  members: ReconstructionMember[],
+  normal?: number[] | null,
+  supplied?: Reconstruction
+): Reconstruction {
+  const framePlan =
+    members.length === 1 ? members[0].frameReconstruction : undefined;
+  return framePlan
+    ? { ...framePlan, slots: [0] }
+    : (supplied ?? reconstructVolume(members, normal));
 }

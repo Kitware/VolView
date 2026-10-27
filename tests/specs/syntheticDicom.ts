@@ -302,6 +302,10 @@ export type SyntheticSliceOptions = {
   // Stored value written to every sample. Signed values are written as two's
   // complement, so they pair with pixelRepresentation 1.
   pixelValue?: number;
+  // One constant sample value per frame; writes NumberOfFrames when supplied.
+  framePixelValues?: readonly number[];
+  // Enhanced images carry these attributes in Functional Groups instead.
+  rootGeometry?: boolean;
   pixelSpacing?: readonly [number, number];
   spacingBetweenSlices?: number;
   sliceThickness?: number;
@@ -343,6 +347,8 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     rescaleSlope,
     rescaleIntercept,
     pixelValue = 0,
+    framePixelValues,
+    rootGeometry = true,
     pixelSpacing = [1, 1] as const,
     spacingBetweenSlices,
     sliceThickness = 1,
@@ -365,6 +371,14 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       `bitsAllocated must be 8 or 16, got ${bitsAllocated}. Other widths would need a pixel data VR this helper does not emit.`
     );
   }
+
+  const pixels = combine(
+    ...(framePixelValues ?? [pixelValue]).map((value) =>
+      bitsAllocated === 8
+        ? frameBytes8(rows * cols, value)
+        : frameBytes16(rows * cols, value)
+    )
+  );
 
   const explicitDataset = combine(
     ...(specificCharacterSet == null
@@ -407,23 +421,32 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       ? []
       : [is(0x0020, 0x0012, String(acquisitionNumber))]),
     is(0x0020, 0x0013, String(instanceNumber)),
-    ds(
-      0x0020,
-      0x0032,
-      imagePositionPatient === null
-        ? ''
-        : imagePositionPatient.map((n) => n.toString()).join('\\')
-    ),
-    ds(
-      0x0020,
-      0x0037,
-      imageOrientationPatient.map((n) => n.toString()).join('\\')
-    ),
+    ...(rootGeometry
+      ? [
+          ds(
+            0x0020,
+            0x0032,
+            imagePositionPatient === null
+              ? ''
+              : imagePositionPatient.map((n) => n.toString()).join('\\')
+          ),
+          ds(
+            0x0020,
+            0x0037,
+            imageOrientationPatient.map((n) => n.toString()).join('\\')
+          ),
+        ]
+      : []),
     us(0x0028, 0x0002, 1),
     cs(0x0028, 0x0004, 'MONOCHROME2'),
+    ...(framePixelValues
+      ? [is(0x0028, 0x0008, String(framePixelValues.length))]
+      : []),
     us(0x0028, 0x0010, rows),
     us(0x0028, 0x0011, cols),
-    ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\')),
+    ...(rootGeometry
+      ? [ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\'))]
+      : []),
     us(0x0028, 0x0100, bitsAllocated),
     us(0x0028, 0x0101, bitsStored),
     us(0x0028, 0x0102, highBit),
@@ -433,9 +456,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       : [ds(0x0028, 0x1052, String(rescaleIntercept))]),
     ...(rescaleSlope == null ? [] : [ds(0x0028, 0x1053, String(rescaleSlope))]),
     ...extraElements,
-    bitsAllocated === 8
-      ? elemLong(0x7fe0, 0x0010, 'OB', frameBytes8(rows * cols, pixelValue))
-      : elemLong(0x7fe0, 0x0010, 'OW', frameBytes16(rows * cols, pixelValue))
+    elemLong(0x7fe0, 0x0010, bitsAllocated === 8 ? 'OB' : 'OW', pixels)
   );
 
   const dataset = implicitVr ? toImplicitVr(explicitDataset) : explicitDataset;

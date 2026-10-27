@@ -30,7 +30,7 @@ export function createDicomLoader(options: DicomLoaderOptions = {}) {
   const metadata = createMetadataReader(options);
   const decoder =
     options.assets && !options.decoder
-      ? createDicomDecoder(options.assets)
+      ? createDicomDecoder(options.assets, metadata.read)
       : null;
   const chunks = new Set<Chunk>();
   const sources = new WeakSet<Fetcher>();
@@ -64,7 +64,7 @@ export function createDicomLoader(options: DicomLoaderOptions = {}) {
     chunks.add(chunk);
     return chunk;
   };
-  const readDicomImage: DicomDecoder = (file) =>
+  const readDicomImage: DicomDecoder = (file, header) =>
     new Promise((resolve, reject) => {
       try {
         assertActive();
@@ -79,7 +79,7 @@ export function createDicomLoader(options: DicomLoaderOptions = {}) {
       }
       pending.add(reject);
       Promise.resolve()
-        .then(() => decode(file))
+        .then(() => decode(file, header))
         .then((result) => {
           assertActive();
           resolve(result);

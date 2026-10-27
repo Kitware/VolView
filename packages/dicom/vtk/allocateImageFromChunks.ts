@@ -6,7 +6,12 @@ import {
   readGeometryFacts,
   sliceNormalOf,
   type Reconstruction,
+  multiframeGeometry,
 } from '../core/index';
+import { getFrameTag } from '../core/metadata/functionalGroups';
+import { trimDicomPadding } from '../core/utils';
+import { nmGeometry } from './nmGeometry';
+import { readModalityRescale } from '../core/metadata/modalityRescale';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { Vector3 } from '@kitware/vtk.js/types';
 import { mat3 } from 'gl-matrix';
@@ -18,8 +23,6 @@ const ColumnsTag = '00280011';
 const BitsStoredTag = '00280101';
 const PixelRepresentationTag = '00280103';
 const SamplesPerPixelTag = '00280002';
-const RescaleIntercept = '00281052';
-const RescaleSlope = '00281053';
 const NumberOfFrames = '00280008';
 
 function isPositiveFiniteNumber(value: number) {
@@ -123,7 +126,7 @@ export function getTypedArrayForDataRange(min: number, max: number) {
 }
 
 function numberOr(value: string | undefined, fallback: number) {
-  const text = value?.trim();
+  const text = trimDicomPadding(value ?? '');
   if (!text) return fallback;
   const num = Number(text);
   return Number.isFinite(num) ? num : fallback;
@@ -135,14 +138,15 @@ function numberOr(value: string | undefined, fallback: number) {
  * A bitsStored of 0 means the tag was absent or unparseable. It is not a DICOM
  * default: BitsStored is Type 1, so a conforming instance always carries one.
  */
-export function getPixelFormat(metadata: DicomDataset | null | undefined) {
-  const valueOf = (tag: string) =>
-    metadata ? getDatasetTag(metadata, tag) : undefined;
+export function getPixelFormat(
+  metadata: DicomDataset | null | undefined,
+  frameIndex = 0
+) {
+  const valueOf = (tag: string) => getFrameTag(metadata, tag, frameIndex);
   return {
     bitsStored: numberOr(valueOf(BitsStoredTag), 0),
     pixelRepresentation: numberOr(valueOf(PixelRepresentationTag), 0),
-    rescaleSlope: numberOr(valueOf(RescaleSlope), 1),
-    rescaleIntercept: numberOr(valueOf(RescaleIntercept), 0),
+    ...readModalityRescale(metadata, frameIndex),
   };
 }
 
@@ -202,6 +206,14 @@ export function getVolumeBufferType(formats: PixelFormat[]) {
   return getTypedArrayForDataRange(min, max);
 }
 
+function instancePixelFormats(chunk: Chunk) {
+  const formats = Array.from(
+    { length: numberOr(getDatasetTag(chunk.metadata, NumberOfFrames), 1) },
+    (_, index) => getPixelFormat(chunk.metadata, index)
+  );
+  return formats;
+}
+
 export function allocateImageFromChunks(
   sortedChunks: Chunk[],
   orientation: number[] | null,
@@ -212,26 +224,25 @@ export function allocateImageFromChunks(
     throw new Error('Cannot allocate an image from zero chunks');
   }
 
-  if (reconstruction.kind === 'irregular' && irregularGeometry === 'reject')
-    throw new Error(
-      `Cannot allocate irregular DICOM geometry: ${reconstruction.reason}`
-    );
+  assertRegularGeometry(reconstruction, irregularGeometry);
   assertSliceSlots(reconstruction.slots, sortedChunks.length);
   const { rows, columns, slices, samplesPerPixel } = allocationShape(
     sortedChunks,
     reconstruction
   );
-  const { position, pixelSpacing } = readGeometryFacts(
-    sortedChunks[0].metadata!
+  const geometry = allocationGeometry(
+    sortedChunks,
+    orientation,
+    reconstruction,
+    irregularGeometry
   );
+  const { position, pixelSpacing, direction } = geometry;
   const TypedArrayCtor = getVolumeBufferType(
-    sortedChunks.map((chunk) => getPixelFormat(chunk.metadata))
+    sortedChunks.flatMap(instancePixelFormats)
   );
   const pixelData = new TypedArrayCtor(
     rows * columns * slices * samplesPerPixel
   );
-
-  const normal = sliceNormalOf(orientation);
 
   const image = vtkImageData.newInstance();
   image.setExtent([0, columns - 1, 0, rows - 1, 0, slices - 1]);
@@ -239,12 +250,10 @@ export function allocateImageFromChunks(
   if (position) image.setOrigin(position as Vector3);
 
   image.setSpacing(
-    allocationSpacing(sortedChunks[0], pixelSpacing, reconstruction)
+    allocationSpacing(sortedChunks[0], pixelSpacing, geometry.reconstruction)
   );
 
-  if (orientation && normal) {
-    image.setDirection([...orientation, ...normal] as mat3);
-  }
+  if (direction) image.setDirection(direction as mat3);
 
   const dataArray = vtkDataArray.newInstance({
     numberOfComponents: samplesPerPixel,
@@ -261,6 +270,43 @@ export function allocateImageFromChunks(
 /** Preserve acquisition order and its fallback spacing, or require a regular lattice. */
 export type IrregularGeometryPolicy = 'preserve-order' | 'reject';
 
+function assertRegularGeometry(
+  reconstruction: Reconstruction,
+  policy: IrregularGeometryPolicy
+) {
+  if (reconstruction.kind === 'irregular' && policy === 'reject')
+    throw new Error(
+      `Cannot allocate irregular DICOM geometry: ${reconstruction.reason}`
+    );
+}
+
+const instanceGeometry = (metadata: DicomDataset, count: number) =>
+  nmGeometry(metadata) ?? multiframeGeometry(metadata, count);
+
+function allocationGeometry(
+  chunks: Chunk[],
+  orientation: number[] | null,
+  reconstruction: Reconstruction,
+  policy: IrregularGeometryPolicy
+) {
+  const metadata = chunks[0].metadata!;
+  const count = numberOr(getDatasetTag(metadata, NumberOfFrames), 1);
+  const frames = chunks.length === 1 ? instanceGeometry(metadata, count) : null;
+  const geometry = frames ?? readGeometryFacts(metadata);
+  const plan = frames?.reconstruction ?? reconstruction;
+  assertRegularGeometry(plan, policy);
+  const effectiveOrientation = orientation ?? geometry.orientation;
+  const normal = frames?.direction ?? sliceNormalOf(effectiveOrientation);
+  return {
+    ...geometry,
+    reconstruction: plan,
+    direction:
+      effectiveOrientation && normal
+        ? [...effectiveOrientation, ...normal]
+        : null,
+  };
+}
+
 function assertSliceSlots(slots: number[], count: number) {
   if (
     slots.length !== count ||
@@ -275,15 +321,15 @@ function assertSliceSlots(slots: number[], count: number) {
 
 function allocationShape(chunks: Chunk[], reconstruction: Reconstruction) {
   const valueOf = (tag: string) => getChunkTag(chunks[0], tag);
-  const numberOfFrames = Number(valueOf(NumberOfFrames) ?? 1);
+  const numberOfFrames = numberOr(valueOf(NumberOfFrames), 1);
   if (numberOfFrames > 1 && chunks.length > 1)
     throw new Error(
       'First chunk in a group of chunks (size > 1) is a multi-frame chunk'
     );
   return {
-    rows: Number(valueOf(RowsTag) ?? 0),
-    columns: Number(valueOf(ColumnsTag) ?? 0),
-    samplesPerPixel: Number(valueOf(SamplesPerPixelTag) ?? 1),
+    rows: numberOr(valueOf(RowsTag), 0),
+    columns: numberOr(valueOf(ColumnsTag), 0),
+    samplesPerPixel: numberOr(valueOf(SamplesPerPixelTag), 1),
     slices:
       chunks.length > 1
         ? Math.max(...reconstruction.slots) + 1
@@ -301,7 +347,10 @@ function allocationSpacing(
     ? [pixelSpacing[1], pixelSpacing[0], 1]
     : [1, 1, 1];
   const sliceSpacing = reconstruction.sliceSpacing ?? 0;
-  const declaredSpacing = Number(getChunkTag(chunk, SpacingBetweenSlicesTag));
+  const declaredSpacing = numberOr(
+    getFrameTag(chunk.metadata, SpacingBetweenSlicesTag),
+    0
+  );
   // The plan retains the irregular stack's own fallback step. A single
   // instance has no inter-instance step and uses its declared spacing.
   if (isPositiveFiniteNumber(sliceSpacing)) spacing[2] = sliceSpacing;

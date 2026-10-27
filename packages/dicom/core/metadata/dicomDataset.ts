@@ -5,7 +5,7 @@ import {
   parseDicomElements,
   toBytes,
 } from './dcmjsParser';
-import { concatBytes } from '../utils';
+import { concatBytes, trimDicomPadding } from '../utils';
 import {
   CHARSET_VRS,
   characterSetDecoder,
@@ -112,7 +112,7 @@ const isBytes = (value: ParsedValue): value is Uint8Array =>
   value instanceof Uint8Array;
 
 const decimalOf = (text: string) => {
-  const trimmed = text.trim();
+  const trimmed = trimDicomPadding(text);
   const value = Number(trimmed);
   return trimmed.length > 0 && Number.isFinite(value) ? value : null;
 };

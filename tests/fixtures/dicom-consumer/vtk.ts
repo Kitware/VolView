@@ -2,31 +2,13 @@ import '@kitware/vtk.js/Rendering/Profiles/Volume';
 import vtkGenericRenderWindow from '@kitware/vtk.js/Rendering/Misc/GenericRenderWindow';
 import vtkImageMapper from '@kitware/vtk.js/Rendering/Core/ImageMapper';
 import vtkImageSlice from '@kitware/vtk.js/Rendering/Core/ImageSlice';
-import { createDicomCollectionRegistry } from '@volview/dicom/core';
-import { VtkDicomImage } from '@volview/dicom/vtk';
-import { describeMetadata, failed, loadChunk, loader, report } from './shared';
+import { describeMetadata, failed, loadChunk, report } from './shared';
+import { loadVolume } from './loadVolume';
 
 async function run() {
   const chunk = await loadChunk();
   describeMetadata(chunk);
-  const registry = createDicomCollectionRegistry();
-  const {
-    updates: [{ collection, members }],
-  } = await registry.register([chunk]);
-  const image = new VtkDicomImage({ readDicomImage: loader.readDicomImage });
-  const finished = new Promise<void>((resolve, reject) => {
-    image.addEventListener('status', (status) => {
-      if (status === 'complete') resolve();
-    });
-    image.addEventListener('error', reject);
-  });
-  await image.setChunks(
-    members,
-    collection.orientation,
-    collection.reconstruction
-  );
-  image.startLoad();
-  await finished;
+  const image = await loadVolume(chunk);
 
   const data = image.getVtkImageData();
   report('dimensions', data.getDimensions().join(', '));

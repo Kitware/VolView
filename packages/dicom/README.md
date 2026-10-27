@@ -112,6 +112,26 @@ volume.startLoad();
 The collection carries reconstruction classification, reason, spacing and member
 slots. Supplied slots must start at zero because the first chunk anchors the
 image origin; gaps such as `[0, 2]` are allowed.
+
+Enhanced instances read image geometry and modality transforms from their
+specific shared and per-frame functional groups. Regular spatial frames retain
+their stored pixel order, including acquisitions whose frame direction opposes
+the row/column cross product. Single-detector reconstructed NM stacks use their
+detector patient geometry and signed slice spacing. Gated NM requires temporal
+assembly and is rejected by the vtk consumer.
+
+The default GDCM decoder applies one modality transform to the entire instance
+and rejects differing per-frame slopes or intercepts. Injected decoders may
+support those transforms. Decoding accepts optional already-parsed metadata
+that must describe the same file; otherwise the default decoder reads the
+header before decoding. Separate single-frame files may have different transforms.
+
+OCT shared in-plane spacing is preserved. Calibrated placement between B-scans
+requires a matching ophthalmic localizer and remains unsupported. Optical slice
+thickness does not define B-scan separation. Vendor-specific ultrasound volume
+calibration, RT dose semantics and floating-point parametric maps also require
+dedicated import support.
+
 The default `preserve-order` policy retains the existing approximate
 spacing for irregular geometry. Use `reject` to refuse that fallback. Neither
 policy resamples a scan. Multiple files containing multi-frame data, Node
@@ -130,3 +150,19 @@ serves those standalone production bundles, generates its DICOM in memory, and
 checks Blob/HTTP metadata, calibrated pixel values and vtk geometry through
 rendered page output. It also checks the vtk image's rendered screenshot. The
 normal headless browser configuration applies.
+
+`tests/specs/dicom-volume-corpus.e2e.ts` exercises pinned public CT, MR and SPECT
+files through both File and HTTP sources, plus numeric-padding fixtures. It
+checks dimensions, physical geometry, explicit unsupported-topology errors and
+the hash of every calibrated voxel through rendered consumer output. It also
+imports enhanced CT and both SPECT volumes in VolView's UI. Public URLs, input
+checksums, independently decoded pixel hashes and provenance are recorded in
+`tests/dicomVolumeCorpus.json`; downloads use the existing ignored dataset cache.
+
+`tests/specs/dicom-volume-composition.e2e.ts` composes downloaded classic CT/PET
+series and two MR acquisitions sharing one Series UID. It checks every
+collection's ordered SOP membership, complete calibrated voxel hash and
+physical geometry after shuffled batch and incremental File/HTTP imports.
+`tests/dicomCompositionCorpus.json` records the pinned inputs and independent
+expectations. The optional `compositionReference.py` beside the consumer
+fixtures reproduces those expectations using pydicom and NumPy from the cache.

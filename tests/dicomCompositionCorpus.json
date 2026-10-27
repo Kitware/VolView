@@ -1,0 +1,1129 @@
+{
+  "referenceDecoder": {
+    "pydicom": "3.0.2",
+    "numpy": "2.4.6",
+    "jpegLossless": "pylibjpeg-libjpeg2.5.0"
+  },
+  "pixelHashEncoding": "SHA256 of calibrated Float64 little-endian samples, C order [slice,row,column], planes sorted by ascending patient-space projection",
+  "geometryToleranceMm": 0.0001,
+  "datasets": [
+    {
+      "name": "PET-CT-PT-01.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.125971577518855152164687925479",
+      "sha256": "082cc2a92409d26dcd465ca37dcb55182f526fa94f0d66299c93196f0dd2b130"
+    },
+    {
+      "name": "PET-CT-PT-02.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.164470072637482892742730606415",
+      "sha256": "7fc5a40cc7645c64c91df14008e27c8f20f6b613af8f888125d72c6ae6f153d6"
+    },
+    {
+      "name": "PET-CT-PT-03.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.645656839545863315258382059304",
+      "sha256": "b4922f66ed2d02e1783c32d23e3bd8aa73cc30f648784de91316890c1a8faaf6"
+    },
+    {
+      "name": "PET-CT-PT-04.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.171033599854331402388163035916",
+      "sha256": "ae96aa74535276c86e9e6f06be540b446f349d58e376cd6812832bbb183fed0b"
+    },
+    {
+      "name": "PET-CT-PT-05.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.757229251338810950547930294076",
+      "sha256": "71d7ea70e1527dcaac130ec4794748710961d0d18b11dc8a0dda3d96c7e1ddea"
+    },
+    {
+      "name": "PET-CT-PT-06.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.290313076131916328810257384513",
+      "sha256": "4c9f3fac5d2710d72c46ed63f97aed8052245380967efa3f1f4ce72aeb488fa7"
+    },
+    {
+      "name": "PET-CT-PT-07.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.167034157012705076112347098246",
+      "sha256": "c5398c842bb35f7c7b7d77398d2246003b4565474961c622820545ab1a42d7dc"
+    },
+    {
+      "name": "PET-CT-PT-08.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.305525101475115108798705213666",
+      "sha256": "65115e0a3335074976e2178e52e5036bfe4201d3b315a79f733cb470729c220d"
+    },
+    {
+      "name": "PET-CT-PT-09.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.180547818912813778100247492512",
+      "sha256": "8e0316240d5e8cc3c7e0913b4abb892be1be5879b5cc3f0379a205fd286ca17b"
+    },
+    {
+      "name": "PET-CT-PT-10.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.190211187176681563808826571096",
+      "sha256": "fb424c9c3670d0f0374361ecb16bf342e27cdfcf8be0aead1e4629ea7a2e7928"
+    },
+    {
+      "name": "PET-CT-CT-01.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.330442471593744252750634668562",
+      "sha256": "262fc85a0a05c57ec96451baf8a1b64f3287d5d6efdf5e4d9e67983e20e59fe2"
+    },
+    {
+      "name": "PET-CT-CT-02.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.787146087385319992976365569088",
+      "sha256": "c348f6f8d899ce9e02a4b2fc3f93743491df1a04c99f65c1c77ab1c8baec8cb7"
+    },
+    {
+      "name": "PET-CT-CT-03.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.754367593034585495537680981967",
+      "sha256": "4935a37d77059028d175a38c515e52beb2e90d0971c9b495ab956433c8e7fa18"
+    },
+    {
+      "name": "PET-CT-CT-04.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.268694914226381205284654198517",
+      "sha256": "27cff9c1bd6d1fc6543bb8d2a009e232c4f39b6aa333b9d3ce39d7cdeddf0cc3"
+    },
+    {
+      "name": "PET-CT-CT-05.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.273002091516249828143197374115",
+      "sha256": "038be9136459b5d9d5dbd44b7d35394012a0415f5ed09b2ba46ca34aef1c1f96"
+    },
+    {
+      "name": "PET-CT-CT-06.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.251520880093056497198942071424",
+      "sha256": "feceb609cda89e382459a1c6884e5737e5f00b378de19c33e3f9838474f418bd"
+    },
+    {
+      "name": "PET-CT-CT-07.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.254151550624375545322457061626",
+      "sha256": "a416fb025436c0d0bcdedb9e36b51a4ac744ac332b83ce8c94da7b459188e39b"
+    },
+    {
+      "name": "PET-CT-CT-08.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.477776731601464757864806040291",
+      "sha256": "6b8db167b9ddbf9194d9935b94092668d2b7eb6c576dce5cc3f96046046fb6fc"
+    },
+    {
+      "name": "PET-CT-CT-09.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.831869199671510110705249657284",
+      "sha256": "31df0464f111f0cccd1cba25f2e014f88375de44bc0ba7ead844a015508f5f43"
+    },
+    {
+      "name": "PET-CT-CT-10.dcm",
+      "url": "https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.243468898389109491372438016818",
+      "sha256": "c2470a67fd601d7e36130bebd51e8e71b9f6fad9832ea6b79f504309f2fee984"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-e154bee1-f613-4c7d-b03b-b1e9e55f63d9.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/e154bee1-f613-4c7d-b03b-b1e9e55f63d9.dcm",
+      "sha256": "e4c5393292e39cb48f52faf27dda06f3f820500a17f598e3d60a9d1989586492",
+      "bytes": 17222,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.175422070467069899872257220126620012644",
+      "acquisitionNumber": 1,
+      "spatialIndex": 0,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-1d00e686-4959-4caa-82ea-232a9c3a8d01.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/1d00e686-4959-4caa-82ea-232a9c3a8d01.dcm",
+      "sha256": "37aafc35348c751a5d906d177a1b204954c8433c93fa745a950516f00945c196",
+      "bytes": 17282,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.74828307994170137574374080356928369364",
+      "acquisitionNumber": 1,
+      "spatialIndex": 1,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-71840b5a-927b-48d8-bfc2-80da50789b61.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/71840b5a-927b-48d8-bfc2-80da50789b61.dcm",
+      "sha256": "d868e37ba73219537aaa7dc063c22faf70cd5eb115542c904e53b42024f06925",
+      "bytes": 17506,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.18246013024174158390277563280188834034",
+      "acquisitionNumber": 1,
+      "spatialIndex": 2,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-f02cdf7f-1ec5-4e3d-9e17-ac03a8238e1a.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/f02cdf7f-1ec5-4e3d-9e17-ac03a8238e1a.dcm",
+      "sha256": "9300c63434e6fc385f780248eac5e37934b84d4134bb464a2517227ba0166fab",
+      "bytes": 17520,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.87589025663324541812773758238195829559",
+      "acquisitionNumber": 1,
+      "spatialIndex": 3,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-0b58d48d-ad5e-4047-a48e-70fa8df73fcc.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/0b58d48d-ad5e-4047-a48e-70fa8df73fcc.dcm",
+      "sha256": "2a9f2ef3afc4264ecf8e793de3fdc8cdeda1183065bd6665e589d4d0d3cfcd01",
+      "bytes": 17642,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.265416146372149318162024061181114373847",
+      "acquisitionNumber": 1,
+      "spatialIndex": 4,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-908f1ae9-91d7-4478-8abf-65be08c63fe2.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/908f1ae9-91d7-4478-8abf-65be08c63fe2.dcm",
+      "sha256": "e4536a8c4b53745c9a2a629822a04b690c01ac4b341d45acda48b4c75ad77624",
+      "bytes": 17874,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.95895646951134769097166684863822992",
+      "acquisitionNumber": 1,
+      "spatialIndex": 5,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-7b3e57c4-3ce8-4320-aff6-bf8a9e3d75c9.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/7b3e57c4-3ce8-4320-aff6-bf8a9e3d75c9.dcm",
+      "sha256": "5193025b6a2f18e0856ed1387b5880b53fb54d2c8e4c7a6931f5e7025607fa10",
+      "bytes": 18188,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.216717631237343833964306094926050249278",
+      "acquisitionNumber": 1,
+      "spatialIndex": 6,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-35ee5eb7-b1f9-47fe-b77d-72eb8b05d06b.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/35ee5eb7-b1f9-47fe-b77d-72eb8b05d06b.dcm",
+      "sha256": "2f887dbf48234d42ae8b8f3f21098c55ca7ad3c6900756064bd9bfc6668c45ed",
+      "bytes": 18536,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.11246558375985292032717579163105937938",
+      "acquisitionNumber": 1,
+      "spatialIndex": 7,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-6360529b-0de9-4d56-9785-5bbbc14392e7.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/6360529b-0de9-4d56-9785-5bbbc14392e7.dcm",
+      "sha256": "0ac6fba5bc3478214b7ee30547392a623fc35ef0b9542b26730476011e031286",
+      "bytes": 18696,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.284065435769955657314770925744007917501",
+      "acquisitionNumber": 1,
+      "spatialIndex": 8,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-3fcd9e8b-e062-49d3-8ed5-cdeced610b11.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/3fcd9e8b-e062-49d3-8ed5-cdeced610b11.dcm",
+      "sha256": "8ea05e97c52b6969667c5d46570c69686a9e5f20937b1957ca1ec82ac1493b95",
+      "bytes": 18668,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.136729336478045227230023809227263752689",
+      "acquisitionNumber": 1,
+      "spatialIndex": 9,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-52a88286-f3f9-4a9d-b8f8-f7abe8e40d59.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/52a88286-f3f9-4a9d-b8f8-f7abe8e40d59.dcm",
+      "sha256": "0e2e846a410cc24dcffaeaa04524ca564e010ed8eeacd6cbabfdcc34982af54f",
+      "bytes": 18600,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.9546374682728595323438495350056808095",
+      "acquisitionNumber": 1,
+      "spatialIndex": 10,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-86275346-584e-492b-829c-d197dc477ef0.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/86275346-584e-492b-829c-d197dc477ef0.dcm",
+      "sha256": "21195015775cafbae8d702c83193cd055d5ed9268814381611ee305c492cb9dc",
+      "bytes": 18484,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.39011493149661743539155371466940683065",
+      "acquisitionNumber": 1,
+      "spatialIndex": 11,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-20d18bba-64aa-4c56-a853-25669575299d.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/20d18bba-64aa-4c56-a853-25669575299d.dcm",
+      "sha256": "ed6e1d3198cc05fc3400f017a60f34eaf9b974c6a59aea2bc83420800fb3814f",
+      "bytes": 18436,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.26525129033124267904381337952873368912",
+      "acquisitionNumber": 1,
+      "spatialIndex": 12,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-658fcada-2c6f-497c-b5de-6a7298628610.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/658fcada-2c6f-497c-b5de-6a7298628610.dcm",
+      "sha256": "32510f22a3bf88158f190d65424653eaa01f7c4943126e929a273b47c00bfe89",
+      "bytes": 18548,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.310251359228770623293767338778806598673",
+      "acquisitionNumber": 1,
+      "spatialIndex": 13,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-54021f3b-2b11-4f1a-aa96-3cda348d2962.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/54021f3b-2b11-4f1a-aa96-3cda348d2962.dcm",
+      "sha256": "b3d46e7ed754a42990aca6cef94e2d8b35e4878f272dce6883f0e759a0640601",
+      "bytes": 18834,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.55049365537386617744561788609735942581",
+      "acquisitionNumber": 1,
+      "spatialIndex": 14,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-f6af8b49-b857-41bb-bfca-847481dc1a6d.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/f6af8b49-b857-41bb-bfca-847481dc1a6d.dcm",
+      "sha256": "710e527b4c580ff52102cc302efbdd4bfa98149cfd13105cb757e841dcc2cb38",
+      "bytes": 18782,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.164314255039726640018309666632100103489",
+      "acquisitionNumber": 1,
+      "spatialIndex": 15,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-dcfcbbef-3aff-409c-bc4d-17050f57b9b6.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/dcfcbbef-3aff-409c-bc4d-17050f57b9b6.dcm",
+      "sha256": "863118c03075ff7053d4b4e27339b4a7c6c65d167d0de9766460733ef62bbc8b",
+      "bytes": 18766,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.89591371192466041605354161692414601123",
+      "acquisitionNumber": 1,
+      "spatialIndex": 16,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-0cd1bbba-f64a-4c8b-8c52-41de33567004.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/0cd1bbba-f64a-4c8b-8c52-41de33567004.dcm",
+      "sha256": "e1dbdb603cb5a162d704f574f9c3246be4fc55254e67b2d89a807d49f68f0109",
+      "bytes": 18778,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.25551077253562667719265633888997904301",
+      "acquisitionNumber": 1,
+      "spatialIndex": 17,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-7fa53a42-375e-46f0-881f-3bed1640d3ae.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/7fa53a42-375e-46f0-881f-3bed1640d3ae.dcm",
+      "sha256": "07e5f6d6404f7f7321feb791949c2312b6272346746776d42d8a829c92df5935",
+      "bytes": 18676,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.48243253609306306463136916680254474573",
+      "acquisitionNumber": 1,
+      "spatialIndex": 18,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-01-938d0902-0939-491d-98be-8705cd7d0117.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/938d0902-0939-491d-98be-8705cd7d0117.dcm",
+      "sha256": "fd2c1321e25d1a181a5f333c6143f8271d8b890752f4db0b6a1e2eebce158d54",
+      "bytes": 18696,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.9823821695062948400149786107754402093",
+      "acquisitionNumber": 1,
+      "spatialIndex": 19,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-63499c26-d5d0-4c15-bd13-23baf6b73f67.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/63499c26-d5d0-4c15-bd13-23baf6b73f67.dcm",
+      "sha256": "8bc52fcde26f5a9282aeb83b2875f316f7547b6626cae8393314f5ef2936a250",
+      "bytes": 17218,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.95800245628389430547908955664336971166",
+      "acquisitionNumber": 2,
+      "spatialIndex": 0,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-06442f32-ba30-401c-b5d8-c322f1a64ca1.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/06442f32-ba30-401c-b5d8-c322f1a64ca1.dcm",
+      "sha256": "9427c70f70647ffd4bea36cd00474f7813a800193edb22859c88fea0ae5f6457",
+      "bytes": 17256,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.10324730000090874951730116451541894560",
+      "acquisitionNumber": 2,
+      "spatialIndex": 1,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-0294525b-c306-40c1-84b3-bb47f0176218.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/0294525b-c306-40c1-84b3-bb47f0176218.dcm",
+      "sha256": "44c0902bda70abdd86f1b6db3085ff1202ea7d6e61128c1e4d935cb1ae9236d0",
+      "bytes": 17562,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.20871289937842133708603344148131563991",
+      "acquisitionNumber": 2,
+      "spatialIndex": 2,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-b5500532-a246-4069-a61c-13f732029aa1.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/b5500532-a246-4069-a61c-13f732029aa1.dcm",
+      "sha256": "3e2dab57310d504e90e8947fc733d9dab4720841292c8d49d026e4396d4fe73c",
+      "bytes": 17514,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.207601200393842342415867127072398671280",
+      "acquisitionNumber": 2,
+      "spatialIndex": 3,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-795beca3-db51-4f61-a173-38a98578396a.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/795beca3-db51-4f61-a173-38a98578396a.dcm",
+      "sha256": "aa515e195bdcddc50c80a3c3f0d66efbd7999c7999f8711876f693fea3d34e5a",
+      "bytes": 17618,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.5019695074283757761417608292898492579",
+      "acquisitionNumber": 2,
+      "spatialIndex": 4,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-fba460f3-2746-4d34-9a67-2746835b185c.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/fba460f3-2746-4d34-9a67-2746835b185c.dcm",
+      "sha256": "c7cd0eb175bd35ac6e223a132da1fd4156787ddbb3b3fc77d2d22864072e9cbc",
+      "bytes": 17892,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.244710395874376369715943521608533083799",
+      "acquisitionNumber": 2,
+      "spatialIndex": 5,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-41f827f8-f2c9-4d06-b47d-b55e05fc448b.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/41f827f8-f2c9-4d06-b47d-b55e05fc448b.dcm",
+      "sha256": "1c4e2fb11cd395b9136b0c24070069aaa76cfa8de10492a28425fcbe39901c68",
+      "bytes": 18166,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.42613418119216512098730031618859421607",
+      "acquisitionNumber": 2,
+      "spatialIndex": 6,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-42e2e428-da0e-411d-ad7d-322685f3d790.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/42e2e428-da0e-411d-ad7d-322685f3d790.dcm",
+      "sha256": "aa83476067ee5a722f31316b35991d31a070d2797418dfd35c9bfa805c116e99",
+      "bytes": 18532,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.79378288901235501366512113344307439532",
+      "acquisitionNumber": 2,
+      "spatialIndex": 7,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-4c104781-26b3-41ba-bced-c17980117735.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/4c104781-26b3-41ba-bced-c17980117735.dcm",
+      "sha256": "0e811516f53b3610bb8b92c2f7c5a704525a2a6cc625cb4fff32c101d7e7b191",
+      "bytes": 18660,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.96214938527447624723367621124186432575",
+      "acquisitionNumber": 2,
+      "spatialIndex": 8,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-de87bbbb-0008-4ddb-9b04-0d84c6e495ba.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/de87bbbb-0008-4ddb-9b04-0d84c6e495ba.dcm",
+      "sha256": "79a7c77d4c36f7656fb9cc9818fc46f0c6a6e038aafc0b2fa58bc66706959042",
+      "bytes": 18618,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.11477809763946167544868963125148672216",
+      "acquisitionNumber": 2,
+      "spatialIndex": 9,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-88e1577a-db1e-461f-b65f-10771719caa8.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/88e1577a-db1e-461f-b65f-10771719caa8.dcm",
+      "sha256": "00e0319163bc01799d57e3f24437f7f9e4f59a307002eb645027ba242cc7e2c0",
+      "bytes": 18640,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.116677553804498275761354796089763839564",
+      "acquisitionNumber": 2,
+      "spatialIndex": 10,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-20d1aaef-1142-4afc-a489-dcdd6b44023f.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/20d1aaef-1142-4afc-a489-dcdd6b44023f.dcm",
+      "sha256": "504df2390dd65cc8db0b05c59ec8fb61cb09f5856cf8f737d4a43165da69804f",
+      "bytes": 18486,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.124215952865600213334872250839850807271",
+      "acquisitionNumber": 2,
+      "spatialIndex": 11,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-fc889111-82a7-4975-b3c0-c2697ee4ddfb.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/fc889111-82a7-4975-b3c0-c2697ee4ddfb.dcm",
+      "sha256": "1c3bd0f01a25ba51f55be4804831172c83da47dbd71a7a0d3a5bcc10b05cdb76",
+      "bytes": 18476,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.159565847346051610447852872136558610464",
+      "acquisitionNumber": 2,
+      "spatialIndex": 12,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-12a9492b-4d4b-4772-8112-2d3603acae0c.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/12a9492b-4d4b-4772-8112-2d3603acae0c.dcm",
+      "sha256": "e8955849e5f409f8eaa2f7239cbb19f3162445cb2f45718482e85e3f9eeb01d1",
+      "bytes": 18538,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.105236080028506882585509543614990123305",
+      "acquisitionNumber": 2,
+      "spatialIndex": 13,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-bc9c0df3-e75f-4505-9aea-4af6f63bc483.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/bc9c0df3-e75f-4505-9aea-4af6f63bc483.dcm",
+      "sha256": "47e4eba0ac652738ccc51aaadb255ce7ad918320852eaecb75c97619e4ab59e6",
+      "bytes": 18790,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.240658961409259338415298464496856630506",
+      "acquisitionNumber": 2,
+      "spatialIndex": 14,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-758fc031-17a8-4d75-a53c-112b106fbfb5.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/758fc031-17a8-4d75-a53c-112b106fbfb5.dcm",
+      "sha256": "4f1d5a2d88ca416eb8ae2d89e53d1ed10a1ac371a85a682e5b723bf7fd0410bc",
+      "bytes": 18766,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.48057063746393045761305555460588541183",
+      "acquisitionNumber": 2,
+      "spatialIndex": 15,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-f2a46e8a-5002-4ed9-a177-95968edee72d.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/f2a46e8a-5002-4ed9-a177-95968edee72d.dcm",
+      "sha256": "0cdffb90494e1ffee754b3f8a535fb3f5d65a90a386eb9a3972ce3dca7abf7b5",
+      "bytes": 18770,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.277576526130247578770581544443175766465",
+      "acquisitionNumber": 2,
+      "spatialIndex": 16,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-1aa44640-53cc-45c6-8e28-c7fafd94dcef.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/1aa44640-53cc-45c6-8e28-c7fafd94dcef.dcm",
+      "sha256": "2a8d75467e25056f1ee0fa3451306ed1d5a574d014703335e5a0c7f2259e5bdf",
+      "bytes": 18708,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.31016158786533738904377172767810945877",
+      "acquisitionNumber": 2,
+      "spatialIndex": 17,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-76452ba7-528c-4ef7-b5f1-18044ea9bb25.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/76452ba7-528c-4ef7-b5f1-18044ea9bb25.dcm",
+      "sha256": "82b40893ff43190abbc7fd1000631909c40264792863fa9175d40df66cc5948e",
+      "bytes": 18650,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.45552704547405539600621661677355908697",
+      "acquisitionNumber": 2,
+      "spatialIndex": 18,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    },
+    {
+      "name": "dicom-composition-mr-acquisition-02-fdd34427-1293-48c3-afae-4c6765bf6779.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/5660fad0-290f-482f-89a9-47411084c038/fdd34427-1293-48c3-afae-4c6765bf6779.dcm",
+      "sha256": "af9fdbc8a40ba79f89c62cff3e676d6295036a87745e7f8a3fbf1e7779515e5f",
+      "bytes": 18676,
+      "sopInstanceUID": "1.3.6.1.4.1.14519.5.2.1.306307086227517891627472362958678830947",
+      "acquisitionNumber": 2,
+      "spatialIndex": 19,
+      "sourceDOI": "10.7937/tcia.709x-dn49",
+      "license": "CC BY 4.0",
+      "collection": "upenn_gbm"
+    }
+  ],
+  "cases": [
+    {
+      "id": "pet-ct",
+      "volumes": [
+        {
+          "id": "pet-ct-ct-10-slices",
+          "files": [
+            "PET-CT-CT-01.dcm",
+            "PET-CT-CT-02.dcm",
+            "PET-CT-CT-03.dcm",
+            "PET-CT-CT-04.dcm",
+            "PET-CT-CT-05.dcm",
+            "PET-CT-CT-06.dcm",
+            "PET-CT-CT-07.dcm",
+            "PET-CT-CT-08.dcm",
+            "PET-CT-CT-09.dcm",
+            "PET-CT-CT-10.dcm"
+          ],
+          "sopInstanceUIDs": [
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.330442471593744252750634668562",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.787146087385319992976365569088",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.754367593034585495537680981967",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.268694914226381205284654198517",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.273002091516249828143197374115",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.251520880093056497198942071424",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.254151550624375545322457061626",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.477776731601464757864806040291",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.831869199671510110705249657284",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.243468898389109491372438016818"
+          ],
+          "expected": {
+            "dimensions": [
+              512,
+              512,
+              10
+            ],
+            "spacing": [
+              0.9765625,
+              0.9765625,
+              1.0
+            ],
+            "origin": [
+              -249.51171875,
+              -429.51171875,
+              -373.0
+            ],
+            "direction": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              -1024.0,
+              1310.0
+            ],
+            "pixelHash": "2ad22501d69427486583b99b0950b18db4deadccdde5910e5e54214eaed06474",
+            "firstPlanePosition": [
+              -249.51171875,
+              -429.51171875,
+              -373.0
+            ],
+            "lastPlanePosition": [
+              -249.51171875,
+              -429.51171875,
+              -364.0
+            ]
+          },
+          "initial": {
+            "dimensions": [
+              512,
+              512,
+              5
+            ],
+            "spacing": [
+              0.9765625,
+              0.9765625,
+              2.0
+            ],
+            "origin": [
+              -249.51171875,
+              -429.51171875,
+              -373.0
+            ],
+            "direction": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              -1024.0,
+              1310.0
+            ],
+            "pixelHash": "cba4f6107835fa368f6c260f1ed19dd0168afebac0efe03219f9bcc7342c8a77",
+            "firstPlanePosition": [
+              -249.51171875,
+              -429.51171875,
+              -373.0
+            ],
+            "lastPlanePosition": [
+              -249.51171875,
+              -429.51171875,
+              -365.0
+            ]
+          },
+          "provenance": {
+            "collection": "lung_pet_ct_dx",
+            "sourceDOI": "10.7937/tcia.2020.nnc2-0461",
+            "license": "CC BY 4.0",
+            "scope": "Ten contiguous original single-slice instances from the existing pinned test dataset manifest"
+          },
+          "acquisitionNumber": 6
+        },
+        {
+          "id": "pet-ct-pt-10-slices",
+          "files": [
+            "PET-CT-PT-01.dcm",
+            "PET-CT-PT-02.dcm",
+            "PET-CT-PT-03.dcm",
+            "PET-CT-PT-04.dcm",
+            "PET-CT-PT-05.dcm",
+            "PET-CT-PT-06.dcm",
+            "PET-CT-PT-07.dcm",
+            "PET-CT-PT-08.dcm",
+            "PET-CT-PT-09.dcm",
+            "PET-CT-PT-10.dcm"
+          ],
+          "sopInstanceUIDs": [
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.125971577518855152164687925479",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.164470072637482892742730606415",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.645656839545863315258382059304",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.171033599854331402388163035916",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.757229251338810950547930294076",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.290313076131916328810257384513",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.167034157012705076112347098246",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.305525101475115108798705213666",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.180547818912813778100247492512",
+            "1.3.6.1.4.1.14519.5.2.1.6655.2359.190211187176681563808826571096"
+          ],
+          "expected": {
+            "dimensions": [
+              200,
+              200,
+              10
+            ],
+            "spacing": [
+              4.07283,
+              4.07283,
+              3.0
+            ],
+            "origin": [
+              -407.316,
+              -586.743,
+              -383.0
+            ],
+            "direction": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              0.0,
+              21397.832850000003
+            ],
+            "pixelHash": "8cdbd026be43f4a714d13494017ce01576c929d38f08f3f1d929043fd9ee462d",
+            "firstPlanePosition": [
+              -407.316,
+              -586.743,
+              -383.0
+            ],
+            "lastPlanePosition": [
+              -407.316,
+              -586.743,
+              -356.0
+            ]
+          },
+          "initial": {
+            "dimensions": [
+              200,
+              200,
+              5
+            ],
+            "spacing": [
+              4.07283,
+              4.07283,
+              6.0
+            ],
+            "origin": [
+              -407.316,
+              -586.743,
+              -383.0
+            ],
+            "direction": [
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0,
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              0.0,
+              21397.832850000003
+            ],
+            "pixelHash": "317c8e2426fcfff57b45cb19ec4d2b89e0d1750aed4bfdbd534c0ca7f36f56b4",
+            "firstPlanePosition": [
+              -407.316,
+              -586.743,
+              -383.0
+            ],
+            "lastPlanePosition": [
+              -407.316,
+              -586.743,
+              -359.0
+            ]
+          },
+          "provenance": {
+            "collection": "lung_pet_ct_dx",
+            "sourceDOI": "10.7937/tcia.2020.nnc2-0461",
+            "license": "CC BY 4.0",
+            "scope": "Ten contiguous original single-slice instances from the existing pinned test dataset manifest"
+          },
+          "acquisitionNumber": 6001
+        }
+      ]
+    },
+    {
+      "id": "mr-acquisitions",
+      "volumes": [
+        {
+          "id": "idc-mr-acquisition-1",
+          "files": [
+            "dicom-composition-mr-acquisition-01-e154bee1-f613-4c7d-b03b-b1e9e55f63d9.dcm",
+            "dicom-composition-mr-acquisition-01-1d00e686-4959-4caa-82ea-232a9c3a8d01.dcm",
+            "dicom-composition-mr-acquisition-01-71840b5a-927b-48d8-bfc2-80da50789b61.dcm",
+            "dicom-composition-mr-acquisition-01-f02cdf7f-1ec5-4e3d-9e17-ac03a8238e1a.dcm",
+            "dicom-composition-mr-acquisition-01-0b58d48d-ad5e-4047-a48e-70fa8df73fcc.dcm",
+            "dicom-composition-mr-acquisition-01-908f1ae9-91d7-4478-8abf-65be08c63fe2.dcm",
+            "dicom-composition-mr-acquisition-01-7b3e57c4-3ce8-4320-aff6-bf8a9e3d75c9.dcm",
+            "dicom-composition-mr-acquisition-01-35ee5eb7-b1f9-47fe-b77d-72eb8b05d06b.dcm",
+            "dicom-composition-mr-acquisition-01-6360529b-0de9-4d56-9785-5bbbc14392e7.dcm",
+            "dicom-composition-mr-acquisition-01-3fcd9e8b-e062-49d3-8ed5-cdeced610b11.dcm",
+            "dicom-composition-mr-acquisition-01-52a88286-f3f9-4a9d-b8f8-f7abe8e40d59.dcm",
+            "dicom-composition-mr-acquisition-01-86275346-584e-492b-829c-d197dc477ef0.dcm",
+            "dicom-composition-mr-acquisition-01-20d18bba-64aa-4c56-a853-25669575299d.dcm",
+            "dicom-composition-mr-acquisition-01-658fcada-2c6f-497c-b5de-6a7298628610.dcm",
+            "dicom-composition-mr-acquisition-01-54021f3b-2b11-4f1a-aa96-3cda348d2962.dcm",
+            "dicom-composition-mr-acquisition-01-f6af8b49-b857-41bb-bfca-847481dc1a6d.dcm",
+            "dicom-composition-mr-acquisition-01-dcfcbbef-3aff-409c-bc4d-17050f57b9b6.dcm",
+            "dicom-composition-mr-acquisition-01-0cd1bbba-f64a-4c8b-8c52-41de33567004.dcm",
+            "dicom-composition-mr-acquisition-01-7fa53a42-375e-46f0-881f-3bed1640d3ae.dcm",
+            "dicom-composition-mr-acquisition-01-938d0902-0939-491d-98be-8705cd7d0117.dcm"
+          ],
+          "sopInstanceUIDs": [
+            "1.3.6.1.4.1.14519.5.2.1.175422070467069899872257220126620012644",
+            "1.3.6.1.4.1.14519.5.2.1.74828307994170137574374080356928369364",
+            "1.3.6.1.4.1.14519.5.2.1.18246013024174158390277563280188834034",
+            "1.3.6.1.4.1.14519.5.2.1.87589025663324541812773758238195829559",
+            "1.3.6.1.4.1.14519.5.2.1.265416146372149318162024061181114373847",
+            "1.3.6.1.4.1.14519.5.2.1.95895646951134769097166684863822992",
+            "1.3.6.1.4.1.14519.5.2.1.216717631237343833964306094926050249278",
+            "1.3.6.1.4.1.14519.5.2.1.11246558375985292032717579163105937938",
+            "1.3.6.1.4.1.14519.5.2.1.284065435769955657314770925744007917501",
+            "1.3.6.1.4.1.14519.5.2.1.136729336478045227230023809227263752689",
+            "1.3.6.1.4.1.14519.5.2.1.9546374682728595323438495350056808095",
+            "1.3.6.1.4.1.14519.5.2.1.39011493149661743539155371466940683065",
+            "1.3.6.1.4.1.14519.5.2.1.26525129033124267904381337952873368912",
+            "1.3.6.1.4.1.14519.5.2.1.310251359228770623293767338778806598673",
+            "1.3.6.1.4.1.14519.5.2.1.55049365537386617744561788609735942581",
+            "1.3.6.1.4.1.14519.5.2.1.164314255039726640018309666632100103489",
+            "1.3.6.1.4.1.14519.5.2.1.89591371192466041605354161692414601123",
+            "1.3.6.1.4.1.14519.5.2.1.25551077253562667719265633888997904301",
+            "1.3.6.1.4.1.14519.5.2.1.48243253609306306463136916680254474573",
+            "1.3.6.1.4.1.14519.5.2.1.9823821695062948400149786107754402093"
+          ],
+          "expected": {
+            "dimensions": [
+              128,
+              128,
+              20
+            ],
+            "spacing": [
+              1.71875,
+              1.71875,
+              3.0
+            ],
+            "origin": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "direction": [
+              0.9999984769621674,
+              -0.0017453003596999955,
+              0.0,
+              0.0017453003596599956,
+              0.9999984769621676,
+              0.0,
+              -0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              0.0,
+              1634.0
+            ],
+            "pixelHash": "551354c80e038874f8f5f95eaf3840911836ebd3893b40974650064c3b9e0cdd",
+            "firstPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "lastPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              23.570348739624
+            ]
+          },
+          "initial": {
+            "dimensions": [
+              128,
+              128,
+              10
+            ],
+            "spacing": [
+              1.71875,
+              1.71875,
+              6.0
+            ],
+            "origin": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "direction": [
+              0.9999984769621674,
+              -0.0017453003596999955,
+              0.0,
+              0.0017453003596599956,
+              0.9999984769621676,
+              0.0,
+              -0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              0.0,
+              1634.0
+            ],
+            "pixelHash": "5101bcfd36da0f11b3f07c6d77a6dedb6473130339566112edbab228393ad489",
+            "firstPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "lastPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              20.570348739624
+            ]
+          },
+          "provenance": {
+            "collection": "upenn_gbm",
+            "sourceDOI": "10.7937/tcia.709x-dn49",
+            "source": "https://doi.org/10.7937/tcia.709x-dn49",
+            "license": "CC BY 4.0",
+            "crdcSeriesUUID": "5660fad0-290f-482f-89a9-47411084c038",
+            "objectListingSource": "https://idc-open-data.s3.amazonaws.com/?list-type=2&prefix=5660fad0-290f-482f-89a9-47411084c038/",
+            "membershipRule": "Group exact DICOM AcquisitionNumber; sort each group by patient-position projection on normalized row cross column; require regular spacing and no in-plane drift"
+          },
+          "acquisitionNumber": 1
+        },
+        {
+          "id": "idc-mr-acquisition-2",
+          "files": [
+            "dicom-composition-mr-acquisition-02-63499c26-d5d0-4c15-bd13-23baf6b73f67.dcm",
+            "dicom-composition-mr-acquisition-02-06442f32-ba30-401c-b5d8-c322f1a64ca1.dcm",
+            "dicom-composition-mr-acquisition-02-0294525b-c306-40c1-84b3-bb47f0176218.dcm",
+            "dicom-composition-mr-acquisition-02-b5500532-a246-4069-a61c-13f732029aa1.dcm",
+            "dicom-composition-mr-acquisition-02-795beca3-db51-4f61-a173-38a98578396a.dcm",
+            "dicom-composition-mr-acquisition-02-fba460f3-2746-4d34-9a67-2746835b185c.dcm",
+            "dicom-composition-mr-acquisition-02-41f827f8-f2c9-4d06-b47d-b55e05fc448b.dcm",
+            "dicom-composition-mr-acquisition-02-42e2e428-da0e-411d-ad7d-322685f3d790.dcm",
+            "dicom-composition-mr-acquisition-02-4c104781-26b3-41ba-bced-c17980117735.dcm",
+            "dicom-composition-mr-acquisition-02-de87bbbb-0008-4ddb-9b04-0d84c6e495ba.dcm",
+            "dicom-composition-mr-acquisition-02-88e1577a-db1e-461f-b65f-10771719caa8.dcm",
+            "dicom-composition-mr-acquisition-02-20d1aaef-1142-4afc-a489-dcdd6b44023f.dcm",
+            "dicom-composition-mr-acquisition-02-fc889111-82a7-4975-b3c0-c2697ee4ddfb.dcm",
+            "dicom-composition-mr-acquisition-02-12a9492b-4d4b-4772-8112-2d3603acae0c.dcm",
+            "dicom-composition-mr-acquisition-02-bc9c0df3-e75f-4505-9aea-4af6f63bc483.dcm",
+            "dicom-composition-mr-acquisition-02-758fc031-17a8-4d75-a53c-112b106fbfb5.dcm",
+            "dicom-composition-mr-acquisition-02-f2a46e8a-5002-4ed9-a177-95968edee72d.dcm",
+            "dicom-composition-mr-acquisition-02-1aa44640-53cc-45c6-8e28-c7fafd94dcef.dcm",
+            "dicom-composition-mr-acquisition-02-76452ba7-528c-4ef7-b5f1-18044ea9bb25.dcm",
+            "dicom-composition-mr-acquisition-02-fdd34427-1293-48c3-afae-4c6765bf6779.dcm"
+          ],
+          "sopInstanceUIDs": [
+            "1.3.6.1.4.1.14519.5.2.1.95800245628389430547908955664336971166",
+            "1.3.6.1.4.1.14519.5.2.1.10324730000090874951730116451541894560",
+            "1.3.6.1.4.1.14519.5.2.1.20871289937842133708603344148131563991",
+            "1.3.6.1.4.1.14519.5.2.1.207601200393842342415867127072398671280",
+            "1.3.6.1.4.1.14519.5.2.1.5019695074283757761417608292898492579",
+            "1.3.6.1.4.1.14519.5.2.1.244710395874376369715943521608533083799",
+            "1.3.6.1.4.1.14519.5.2.1.42613418119216512098730031618859421607",
+            "1.3.6.1.4.1.14519.5.2.1.79378288901235501366512113344307439532",
+            "1.3.6.1.4.1.14519.5.2.1.96214938527447624723367621124186432575",
+            "1.3.6.1.4.1.14519.5.2.1.11477809763946167544868963125148672216",
+            "1.3.6.1.4.1.14519.5.2.1.116677553804498275761354796089763839564",
+            "1.3.6.1.4.1.14519.5.2.1.124215952865600213334872250839850807271",
+            "1.3.6.1.4.1.14519.5.2.1.159565847346051610447852872136558610464",
+            "1.3.6.1.4.1.14519.5.2.1.105236080028506882585509543614990123305",
+            "1.3.6.1.4.1.14519.5.2.1.240658961409259338415298464496856630506",
+            "1.3.6.1.4.1.14519.5.2.1.48057063746393045761305555460588541183",
+            "1.3.6.1.4.1.14519.5.2.1.277576526130247578770581544443175766465",
+            "1.3.6.1.4.1.14519.5.2.1.31016158786533738904377172767810945877",
+            "1.3.6.1.4.1.14519.5.2.1.45552704547405539600621661677355908697",
+            "1.3.6.1.4.1.14519.5.2.1.306307086227517891627472362958678830947"
+          ],
+          "expected": {
+            "dimensions": [
+              128,
+              128,
+              20
+            ],
+            "spacing": [
+              1.71875,
+              1.71875,
+              3.0
+            ],
+            "origin": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "direction": [
+              0.9999984769621674,
+              -0.0017453003596999955,
+              0.0,
+              0.0017453003596599956,
+              0.9999984769621676,
+              0.0,
+              -0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              0.0,
+              1789.0
+            ],
+            "pixelHash": "3ce6cc25b707b832b0a86832964c58cffea295e99b0fdf56f02b243b7d3de1ad",
+            "firstPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "lastPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              23.570348739624
+            ]
+          },
+          "initial": {
+            "dimensions": [
+              128,
+              128,
+              10
+            ],
+            "spacing": [
+              1.71875,
+              1.71875,
+              6.0
+            ],
+            "origin": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "direction": [
+              0.9999984769621674,
+              -0.0017453003596999955,
+              0.0,
+              0.0017453003596599956,
+              0.9999984769621676,
+              0.0,
+              -0.0,
+              0.0,
+              1.0
+            ],
+            "range": [
+              0.0,
+              1789.0
+            ],
+            "pixelHash": "ed41b3a8545d61f6598b40efb5d7d090eb12a75f24e561e9eff63c2b914e300b",
+            "firstPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              -33.429649353027
+            ],
+            "lastPlanePosition": [
+              -105.23245681323,
+              -147.49348022462,
+              20.570348739624
+            ]
+          },
+          "provenance": {
+            "collection": "upenn_gbm",
+            "sourceDOI": "10.7937/tcia.709x-dn49",
+            "source": "https://doi.org/10.7937/tcia.709x-dn49",
+            "license": "CC BY 4.0",
+            "crdcSeriesUUID": "5660fad0-290f-482f-89a9-47411084c038",
+            "objectListingSource": "https://idc-open-data.s3.amazonaws.com/?list-type=2&prefix=5660fad0-290f-482f-89a9-47411084c038/",
+            "membershipRule": "Group exact DICOM AcquisitionNumber; sort each group by patient-position projection on normalized row cross column; require regular spacing and no in-plane drift"
+          },
+          "acquisitionNumber": 2
+        }
+      ]
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import {
 import { projectOnNormal, sliceNormalOf } from './instanceFacts';
 import {
   IN_PLANE_TOLERANCE_MM,
-  reconstructVolume,
+  reconstructInstances,
   type IrregularReason,
   type Reconstruction,
 } from './reconstructVolume';
@@ -34,6 +34,8 @@ export type InstanceFacts = {
   position: number[] | null;
   projectedPosition: number | null;
   pixelSpacing: number[] | null;
+  /** Intra-instance frame geometry; slots still index source chunks. */
+  frameReconstruction?: Reconstruction;
 
   // Ordering fallback.
   instanceNumber: number | null;
@@ -131,10 +133,22 @@ const RECONSTRUCTION_WARNINGS: Record<IrregularReason, string[]> = {
   'mixed-pixel-spacing': [IRREGULAR_VOLUME_WARNING],
 };
 
-const reconstructionWarnings = (reconstruction: Reconstruction) =>
-  reconstruction.kind === 'regular'
-    ? []
-    : RECONSTRUCTION_WARNINGS[reconstruction.reason];
+export const UNREADABLE_FRAME_GEOMETRY_WARNING =
+  'holds frames whose spatial geometry could not be established. They were ' +
+  'placed one slot apart in stored order, so positions and measurements ' +
+  'along the slice axis may be wrong.';
+
+const reconstructionWarnings = (
+  reconstruction: Reconstruction,
+  intraInstance: boolean
+) => {
+  if (reconstruction.kind === 'regular') return [];
+  if (intraInstance && reconstruction.reason === 'unreadable-geometry')
+    return [UNREADABLE_FRAME_GEOMETRY_WARNING];
+  if (intraInstance && reconstruction.reason === 'repeated-position')
+    return [REPEATED_POSITIONS_WARNING];
+  return RECONSTRUCTION_WARNINGS[reconstruction.reason];
+};
 
 const ANONYMOUS = 'an instance with no SOP Instance UID';
 
@@ -184,6 +198,7 @@ const contentSignature = (instance: InstanceFacts) =>
       instance.position,
       instance.projectedPosition,
       instance.pixelSpacing,
+      instance.frameReconstruction,
       instance.instanceNumber,
     ],
     encodeFact
@@ -504,7 +519,10 @@ export function planDicomCollections(input: PlanInput) {
     )
     .map(({ group, bucket, positionOf, part }) => {
       const ordered = orderMembers(part.members, positionOf);
-      const reconstruction = reconstructVolume(ordered.members, bucket.normal);
+      const reconstruction = reconstructInstances(
+        ordered.members,
+        bucket.normal
+      );
       const key: CollectionKey = {
         seriesKey: input.seriesKey,
         parts: [
@@ -535,7 +553,11 @@ export function planDicomCollections(input: PlanInput) {
         warnings: [
           ...(part.repeatedPositions ? [REPEATED_POSITIONS_WARNING] : []),
           ...(part.unreadablePositions ? [UNREADABLE_POSITION_WARNING] : []),
-          ...reconstructionWarnings(reconstruction),
+          ...reconstructionWarnings(
+            reconstruction,
+            ordered.members.length === 1 &&
+              !!ordered.members[0].frameReconstruction
+          ),
           ...(nonparallel(bucket.orientation, ordered.members)
             ? [NONPARALLEL_SLICES_WARNING]
             : []),

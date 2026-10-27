@@ -1,7 +1,7 @@
 import type { Image } from '@itk-wasm/image-io';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Extent } from '@kitware/vtk.js/types';
-import type { Chunk } from '../core/index';
+import type { Chunk, DicomDataset } from '../core/index';
 import type { IrregularGeometryPolicy } from './allocateImageFromChunks';
 import type { ThumbnailSlice } from './thumbnail';
 
@@ -26,7 +26,10 @@ export type ChunkImageEvents = {
 
 export type VtkDicomImageInit = {
   /** Decoded buffers are borrowed for one write, never retained or transferred. */
-  readDicomImage: (file: File) => Promise<{
+  readDicomImage: (
+    file: File,
+    metadata?: DicomDataset
+  ) => Promise<{
     image: Pick<Image, 'size' | 'data'> & {
       imageType: Pick<Image['imageType'], 'components'>;
     };

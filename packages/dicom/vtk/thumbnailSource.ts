@@ -50,7 +50,7 @@ export function sliceFromBuffer(image: vtkImageData, slot: number) {
   const components = scalars.getNumberOfComponents();
   const [width, height] = image.getDimensions();
   const samplesPerSlice = width * height * components;
-  const data = scalars.getData() as TypedArray;
+  const data = scalars.getData();
 
   return sliceToThumbnail({
     data: data.subarray(slot * samplesPerSlice, (slot + 1) * samplesPerSlice),
@@ -73,19 +73,18 @@ export async function sliceFromChunk(
   if (!loaded.dataBlob) throw new Error('No chunk data');
 
   const { image } = await untilAborted(
-    read(new File([loaded.dataBlob], 'thumbnail.dcm')),
+    read(
+      new File([loaded.dataBlob], 'thumbnail.dcm'),
+      loaded.metadata ?? undefined
+    ),
     signal
   );
   if (!image.data) throw new Error('No data read from chunk');
 
   const [width, height] = image.size;
   const components = image.imageType.components;
-  const data = image.data as unknown as ArrayLike<number>;
-  const { min, max } = fastComputeRange(
-    data as unknown as number[],
-    0,
-    components
-  );
+  const data = image.data as TypedArray;
+  const { min, max } = fastComputeRange(data, 0, components);
 
   return sliceToThumbnail({
     data,

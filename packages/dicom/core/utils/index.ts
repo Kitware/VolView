@@ -1,5 +1,9 @@
 export type Maybe<T> = T | null | undefined;
 export type Awaitable<T> = T | Promise<T>;
+/** Boundary padding accepted by numeric readers, without changing the stored text. */
+export const trimDicomPadding = (value: string) =>
+  value.replace(/^[\s\0]+|[\s\0]+$/g, '');
+
 type PromiseResolveFunction<T> = (value: T) => void;
 type PromiseRejectFunction = (reason?: any) => void;
 export type Deferred<T> = {

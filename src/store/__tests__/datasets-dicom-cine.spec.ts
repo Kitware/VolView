@@ -224,7 +224,7 @@ describe('DICOM store cine routing', () => {
     expect(result.volumes[id]).toEqual([unsupportedCineChunk]);
     expect(useImageCacheStore().imageById[id]).toBe(created[0]);
     expect(store.volumeInfo[id]).toMatchObject({
-      NumberOfSlices: 1,
+      NumberOfSlices: 2,
       VolumeID: id,
       Modality: 'US',
       SeriesInstanceUID: 'series-uid',

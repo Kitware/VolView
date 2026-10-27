@@ -8,7 +8,26 @@ import { buildConsumer } from '../../../packages/dicom/scripts/check-consumers.m
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 
-export async function startDicomConsumerFixtures(bytes) {
+function serveDicom(bytes, request, response) {
+  const match = /^bytes=(\d+)-/.exec(request.headers.range ?? '');
+  const start = match ? Number(match[1]) : 0;
+  response.setHeader('Content-Type', 'application/dicom');
+  response.setHeader('Accept-Ranges', 'bytes');
+  response.setHeader('Content-Length', bytes.length - start);
+  if (match) {
+    response.statusCode = 206;
+    response.setHeader(
+      'Content-Range',
+      `bytes ${start}-${bytes.length - 1}/${bytes.length}`
+    );
+  }
+  response.end(bytes.subarray(start));
+}
+
+export async function startDicomConsumerFixtures(
+  bytes,
+  { kinds = ['core', 'vtk'], fixtures = {} } = {}
+) {
   execFileSync(process.execPath, ['packages/dicom/scripts/build.mjs'], {
     cwd: root,
     stdio: 'inherit',
@@ -18,7 +37,7 @@ export async function startDicomConsumerFixtures(bytes) {
   /** @type {Record<string, string>} */
   const urls = {};
   try {
-    for (const kind of ['core', 'vtk']) {
+    for (const kind of kinds) {
       const outDir = resolve(directory, kind);
       await buildConsumer(kind, outDir);
       const pipelineWorker = await readFile(
@@ -48,19 +67,16 @@ export async function startDicomConsumerFixtures(bytes) {
                 }
               );
               instance.middlewares.use('/fixture.dcm', (request, response) => {
-                const match = /^bytes=(\d+)-/.exec(request.headers.range ?? '');
-                const start = match ? Number(match[1]) : 0;
-                response.setHeader('Content-Type', 'application/dicom');
-                response.setHeader('Accept-Ranges', 'bytes');
-                response.setHeader('Content-Length', bytes.length - start);
-                if (match) {
-                  response.statusCode = 206;
-                  response.setHeader(
-                    'Content-Range',
-                    `bytes ${start}-${bytes.length - 1}/${bytes.length}`
-                  );
+                serveDicom(bytes, request, response);
+              });
+              instance.middlewares.use('/corpus-data', (request, response) => {
+                const name = decodeURIComponent(request.url?.slice(1) ?? '');
+                if (!Object.hasOwn(fixtures, name)) {
+                  response.statusCode = 404;
+                  response.end();
+                  return;
                 }
-                response.end(bytes.subarray(start));
+                serveDicom(fixtures[name], request, response);
               });
             },
           },

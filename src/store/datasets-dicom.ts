@@ -295,6 +295,7 @@ const volumeRecord = ({
   const metaPairs = members[0].metadata;
   if (!metaPairs) throw new Error('Metadata not ready');
   const metadata = Object.fromEntries(dicomDatasetToTags(metaPairs));
+  const frames = parseInt(metadata[Tags.NumberOfFrames] ?? '1', 10);
   return {
     patient: {
       PatientID: metadata[Tags.PatientID],
@@ -311,7 +312,8 @@ const volumeRecord = ({
       StudyDescription: metadata[Tags.StudyDescription],
     },
     volume: {
-      NumberOfSlices: members.length,
+      NumberOfSlices:
+        members.length === 1 && frames > 1 ? frames : members.length,
       VolumeID: id,
       Modality: metadata[Tags.Modality],
       SeriesInstanceUID: metadata[Tags.SeriesInstanceUID],
