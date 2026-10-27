@@ -29,7 +29,7 @@ export interface vtkAnnotationWidgetState extends vtkWidgetState {
   getToolType(): AnnotationToolType;
 }
 
-export type IAnnotationToolWidgetInitialValues = IWidgetStateInitialValues & {
+export type AnnotationToolWidgetInitialValues = IWidgetStateInitialValues & {
   id: ToolID;
 };
 

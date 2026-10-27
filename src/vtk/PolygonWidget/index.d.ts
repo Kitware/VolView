@@ -5,11 +5,11 @@ import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManip
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import {
+  AnnotationToolWidgetInitialValues,
   vtkAnnotationToolWidget,
   vtkAnnotationWidgetPointState,
   vtkAnnotationWidgetState,
 } from '@/src/vtk/ToolWidgetUtils/types';
-import { IAnnotationToolWidgetInitialValues } from '@/src/types/annotation-tool';
 
 export interface vtkPolygonWidgetPointState extends vtkAnnotationWidgetPointState {}
 
@@ -27,7 +27,7 @@ export interface vtkPolygonViewWidget extends vtkAnnotationToolWidget {
   onDraggingEvent(callback: (e: any) => void): vtkSubscription;
 }
 
-export interface IPolygonWidgetInitialValues extends IAnnotationToolWidgetInitialValues {}
+export interface IPolygonWidgetInitialValues extends AnnotationToolWidgetInitialValues {}
 
 export interface vtkPolygonWidget extends vtkAbstractWidgetFactory<vtkPolygonViewWidget> {
   getLength(): number;
