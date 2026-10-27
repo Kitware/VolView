@@ -1,12 +1,12 @@
 import { useAnnotationToolStore } from '@/src/store/tools';
-import { IAnnotationToolWidgetInitialValues } from '@/src/vtk/ToolWidgetUtils/types';
+import { AnnotationToolWidgetInitialValues } from '@/src/vtk/ToolWidgetUtils/types';
 import vtkWidgetState from '@kitware/vtk.js/Widgets/Core/WidgetState';
 import macro from '@kitware/vtk.js/macros';
 
 function extend(
   publicAPI: any,
   model: any,
-  initialValues: IAnnotationToolWidgetInitialValues
+  initialValues: AnnotationToolWidgetInitialValues
 ) {
   vtkWidgetState.extend(publicAPI, model, initialValues);
   macro.get(publicAPI, model, ['id', 'toolType']);
