@@ -386,16 +386,28 @@ export function loadVolumeDataSources(sources: DataSource[]) {
   );
 }
 
+let pendingFileInput: HTMLInputElement | undefined;
+
 export function openFileDialog() {
   return new Promise<File[]>((resolve) => {
+    pendingFileInput?.remove();
     const fileEl = document.createElement('input');
+    pendingFileInput = fileEl;
     fileEl.setAttribute('type', 'file');
     fileEl.setAttribute('multiple', 'multiple');
     fileEl.setAttribute('accept', '*');
-    fileEl.addEventListener('change', () => {
-      const files = [...(fileEl.files ?? [])];
-      resolve(files);
-    });
+    fileEl.hidden = true;
+    fileEl.addEventListener(
+      'change',
+      () => {
+        const files = [...(fileEl.files ?? [])];
+        fileEl.remove();
+        if (pendingFileInput === fileEl) pendingFileInput = undefined;
+        resolve(files);
+      },
+      { once: true }
+    );
+    document.body.appendChild(fileEl);
     fileEl.click();
   });
 }
