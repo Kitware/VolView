@@ -269,7 +269,10 @@ export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
 }
 
 /** Loads a file into the page already open, through the Open files dialog. */
-export async function openThroughDialog(filePath: string) {
+export async function openThroughDialog(
+  filePath: string,
+  beforeSelection?: () => Promise<unknown>
+) {
   await browser.sessionSubscribe({ events: ['input.fileDialogOpened'] });
   const opened = new Promise<{
     context: string;
@@ -278,5 +281,6 @@ export async function openThroughDialog(filePath: string) {
   await $('[data-testid="control-button-Open files"]').click();
   const { context, element } = await opened;
   if (!element) throw new Error('The file dialog opened for no input');
+  await beforeSelection?.();
   await browser.inputSetFiles({ context, element, files: [filePath] });
 }
