@@ -4,6 +4,8 @@ import { useViewWindowingRanges } from '@/src/composables/useViewWindowingRanges
 import { useReferenceLinesStore } from '@/src/referenceLines';
 import { slabWindowRanges } from '@/src/core/slab/windowRanges';
 import { useEnFaceInput } from './useEnFaceInput';
+import { useEnFaceOccupiedDepth } from './useEnFaceOccupiedDepth';
+import VtkEnFaceLabelmapRepresentation from './VtkEnFaceLabelmapRepresentation.vue';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
@@ -22,6 +24,7 @@ import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import EnFaceControlPanel from './EnFaceControlPanel.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
+import EnFaceMeasurementStatus from './EnFaceMeasurementStatus.vue';
 import { useEnFaceViewStore } from './store';
 
 const props = defineProps<{ viewId: string }>();
@@ -71,10 +74,22 @@ const windowingManipulatorProps = computed(() => ({
 const stateMessage = computed(
   () => controls.value.projectionReason || fatalContextError.value
 );
+const {
+  overlay: thinRegions,
+  controls: thicknessControls,
+  measuring,
+  message: measurementMessage,
+} = useEnFaceOccupiedDepth(viewId, {
+  source,
+  slab: specification,
+  geometry,
+  blockedReason: stateMessage,
+});
 const enFaceStore = useEnFaceViewStore();
 const controlState = computed(() => ({
   ...controls.value,
   projectionReason: stateMessage.value,
+  thickness: thicknessControls.value,
 }));
 watch(
   [viewId, currentImageID, controlState],
@@ -89,7 +104,7 @@ watch(
   <div
     class="en-face-viewer"
     tabindex="0"
-    :aria-busy="sourceLoading"
+    :aria-busy="sourceLoading || measuring"
     data-testid="enface-viewer"
   >
     <v-progress-linear
@@ -147,8 +162,10 @@ watch(
         :plane-normal="geometry.planeNormal"
         :preserved-axis="specification.axis"
       />
+      <VtkEnFaceLabelmapRepresentation v-bind="thinRegions" />
     </VtkSliceView>
     <EnFaceStatus :message="stateMessage" :ready="projectionReady" />
+    <EnFaceMeasurementStatus :message="measurementMessage" />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
         <div class="annotation-cell" @click.stop @dblclick.stop>

@@ -27,7 +27,6 @@ import type {
 } from '@/src/store/view-configs/types';
 import type { LPSAxis } from '@/src/types/lps';
 import type { Segment as SegmentModel } from '@/src/segmentation/segment';
-import type { EnFaceViewConfig } from '@/src/enface/store';
 import type {
   ColorBy,
   ColorTransferFunction,
@@ -281,13 +280,6 @@ const CinePlaybackViewConfig = z.object({
   frame: z.number(),
 }) satisfies z.ZodType<CinePlaybackViewConfig>;
 
-const EnFaceViewConfig = z.object({
-  axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
-  method: z.enum(['mean', 'max', 'sum']),
-  depthStart: z.number().int().nonnegative(),
-  depthEnd: z.number().int().nonnegative().nullable(),
-}) satisfies z.ZodType<EnFaceViewConfig>;
-
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
@@ -295,7 +287,17 @@ const ViewConfig = z.object({
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
   cinePlayback: CinePlaybackViewConfig.optional(),
-  enFace: EnFaceViewConfig.optional(),
+  enFace: z
+    .object({
+      axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+      method: z.enum(['mean', 'max', 'sum']),
+      depthStart: z.number().int().nonnegative(),
+      depthEnd: z.number().int().nonnegative().nullable(),
+      highlightThin: z.boolean().default(false),
+      thresholdMicrons: z.number().nonnegative().default(100),
+      segmentId: z.string().nullable().optional(),
+    })
+    .optional(),
 });
 
 export type ViewConfig = z.infer<typeof ViewConfig>;

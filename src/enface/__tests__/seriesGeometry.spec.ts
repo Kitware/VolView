@@ -9,10 +9,13 @@ import { untilLoaded } from '@/src/composables/untilLoaded';
 import { createOCTFixture, readDicomTags } from '@/tests/unit/octFixture';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import { getOccupiedDepthSupport } from '@/src/enface/occupiedDepthSupport';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
+import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
+import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 describe('assembled OCT series through real chunk and file collaborators', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -64,10 +67,25 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     const data = image.getVtkImageData();
     expect(data.getDimensions()).toEqual([2, 2, 3]);
     expect(getEnFaceUnavailableReason(id)).toBeNull();
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
     expect(data.getSpacing()[2]).toBeCloseTo(0.2, 7);
     expect([...data.getPointData().getScalars().getData()]).toEqual([
       1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
     ]);
+    const result = measureOccupiedDepth({
+      dimensions: data.getDimensions(),
+      axis: 1,
+      first: 0,
+      last: 1,
+      mask: {
+        dimensions: data.getDimensions(),
+        extent: [0, 1, 0, 1, 0, 2],
+        values: new Uint8Array(12).fill(1),
+      },
+    });
+    expect(
+      Array.from(result.counts, (count) => count * data.getSpacing()[1] * 1000)
+    ).toEqual(Array(6).fill(20.8));
   });
 
   it.each(['MR', 'CT'])(
@@ -75,6 +93,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     async (modality) => {
       const { id } = await assemble(undefined, undefined, modality);
       expect(getEnFaceUnavailableReason(id)).toBeNull();
+      expect(getOccupiedDepthSupport(id).reason).toBeNull();
     }
   );
 
@@ -84,13 +103,79 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     );
     const { id } = await assemble(positions, undefined, 'MR');
     expect(getEnFaceUnavailableReason(id)).toBeNull();
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
   });
 
-  it('projects the assembled grid for a nonuniform series', async () => {
-    const { id, image } = await assemble([0, 0.1, 0.4]);
-    expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
-    expect(getEnFaceUnavailableReason(id)).toBeNull();
+  it('accepts Float32 position rounding relative to the slice pitch', async () => {
+    const positions = Array.from({ length: 31 }, (_, index) =>
+      Math.fround(-1000 + index * 0.08)
+    );
+    const { id } = await assemble(positions, undefined, 'CT');
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
   });
+
+  it('accepts sub-0.1 mm slice positions printed to four decimal places', async () => {
+    const positions = Array.from({ length: 5 }, (_, index) =>
+      Number((index * 0.023125).toFixed(4))
+    );
+    const { id } = await assemble(positions);
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
+  });
+
+  it('uses uniform file positions when optional slice spacing disagrees', async () => {
+    const { id, image } = await assemble(undefined, (chunks) => {
+      chunks.forEach((chunk) =>
+        chunk.metadata!.push([Tags.SpacingBetweenSlices, '0.3'])
+      );
+    });
+    expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
+  });
+
+  it('accepts orthogonal direction cosines rounded to four decimals', async () => {
+    const { id } = await assemble(undefined, (chunks) => {
+      chunks.forEach((chunk) =>
+        chunk.metadata!.push([
+          Tags.ImageOrientationPatient,
+          '0.9986\\0.0523\\0\\-0.0523\\0.9986\\0',
+        ])
+      );
+    });
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
+  });
+
+  it('does not calibrate in-plane axes when every file omits pixel spacing', async () => {
+    const { id } = await assemble(undefined, (chunks) => {
+      chunks.forEach((chunk) => {
+        const index = chunk.metadata!.findIndex(
+          ([tag]) => tag === Tags.PixelSpacing
+        );
+        chunk.metadata!.splice(index, 1);
+      });
+    });
+    expect(getOccupiedDepthSupport(id).calibratedAxes).toEqual([
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it.each([
+    { positions: [0, 0.1, 0.4] },
+    { positions: [0, 0.2, 0.4003, 0.6, 0.8] },
+  ])(
+    'keeps a nonuniform series projection-only: $positions',
+    async ({ positions }) => {
+      const { id, image, chunks } = await assemble(positions);
+      expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
+      expect(getOccupiedDepthSupport(id).reason).toMatch(/nonuniform/);
+      expect(
+        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      ).toMatch(/nonuniform/);
+    }
+  );
 
   it.each([
     [Tags.OphthalmicVolumetricPropertiesFlag, 'NO', /unsuitable/],
@@ -110,21 +195,24 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     [Tags.PixelSpacing, '0.02\\0.02', /pixel spacing/],
     [Tags.ImageOrientationPatient, '0\\1\\0\\1\\0\\0', /orientation/],
     [Tags.ImageOrientationPatient, '2\\0\\0\\0\\1\\0', /orientation/],
-    [Tags.SpacingBetweenSlices, '0.3', /slice spacing/],
   ])(
-    'projects the loaded grid with inconsistent %s declarations',
-    async (tag, value) => {
-      const { id } = await assemble(undefined, (pending) =>
+    'keeps inconsistent %s geometry projection-only',
+    async (tag, value, reason) => {
+      const { id, chunks } = await assemble(undefined, (pending) =>
         pending[2].metadata!.push([tag, value])
       );
       expect(getEnFaceUnavailableReason(id)).toBeNull();
+      expect(getOccupiedDepthSupport(id).reason).toMatch(reason);
+      expect(
+        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      ).toMatch(reason);
     }
   );
 
   it.each([false, true])(
-    'projects the loaded grid with missing positions: allMissing=%s',
+    'requires complete positions for occupied-depth measurements: allMissing=%s',
     async (allMissing) => {
-      const { id } = await assemble(undefined, (pending) => {
+      const { id, chunks } = await assemble(undefined, (pending) => {
         const selected = allMissing ? pending : [pending[1]];
         selected.forEach((chunk) => {
           const index = chunk.metadata!.findIndex(
@@ -134,13 +222,28 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
         });
       });
       expect(getEnFaceUnavailableReason(id)).toBeNull();
+      expect(getOccupiedDepthSupport(id).reason).toMatch(/incomplete/);
+      expect(
+        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      ).toMatch(/incomplete/);
     }
   );
 
-  it('projects an altered loaded grid', async () => {
-    const { id, image } = await assemble();
+  it('keeps an altered loaded grid projection-only', async () => {
+    const { id, image, chunks } = await assemble();
     const data = image.getVtkImageData();
     data.setSpacing([0.02, 0.0104, 1]);
     expect(getEnFaceUnavailableReason(id)).toBeNull();
+    expect(getOccupiedDepthSupport(id).reason).toMatch(/loaded.*grid/);
+    expect(
+      dicomSeriesGeometry(
+        chunks.map((chunk) => chunk.metadata!),
+        {
+          spacing: data.getSpacing(),
+          direction: data.getDirection(),
+          origin: data.getOrigin(),
+        }
+      ).reason
+    ).toMatch(/loaded.*grid/);
   });
 });

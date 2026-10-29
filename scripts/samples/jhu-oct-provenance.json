@@ -93,7 +93,7 @@
     "axial_spacing_microns": 3.867251332849264,
     "lateral_sampling": "Retain native lateral indices 0,2,...,1022; native index 1023 is omitted. ScaleX is doubled.",
     "slow_sampling": "Linearly resample transformed intensities and unrounded boundaries from per-B-scan physical positions to 49 evenly spaced positions across 6.149238953366875 mm. Native adjacent pitches range from 0.12010203066263614 to 0.13211284885730468 mm.",
-    "axial_sampling": "Native depth samples and ScaleZ are preserved at 3.867251332849264 microns per voxel.",
+    "axial_sampling": "Native depth samples and ScaleZ are preserved; thickness is occupied depth voxels multiplied by 3.867251332849264 microns.",
     "coordinates": "Shared local zero origin, identity direction, and millimetre spacing for image and segmentation. Patient anatomical orientation is not inferred.",
     "intensities": "Nested float32 square roots of source reflectivity before slow-axis interpolation, then nearest-even rounding of 255 times the regularized values to uint8. Stored values range from 0 to 255; divide by 255 for normalized display intensity. This is a display transform, not unmodified linear reflectivity.",
     "missing_reflectivity": "Non-finite or out-of-range native values are missing. A resampled voxel is valid only when every source with nonzero interpolation weight is valid. Missing output intensity is zero.",

@@ -1,4 +1,4 @@
-import type { ChainablePromiseElement } from 'webdriverio';
+import { Key, type ChainablePromiseElement } from 'webdriverio';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
@@ -174,3 +174,21 @@ export const tooltipOf = async (element: ChainablePromiseElement) => {
   expect(id).toBeTruthy();
   return $(`[id="${id}"]`);
 };
+
+export async function setSegmentationDisplaySlider(
+  name: string,
+  value: number
+) {
+  const slider = $(
+    '[data-testid="segment-list"] [role="slider"][aria-label="' + name + '"]'
+  );
+  await slider.scrollIntoView({ block: 'center' });
+  await slider.waitForStable();
+  await slider.click();
+  const step = name === 'Outline Thickness' ? 1 : 0.01;
+  const keys = browser.action('key').down(Key.Home).up(Key.Home);
+  for (let i = 0; i < Math.round(value / step); i++)
+    keys.down(Key.ArrowRight).up(Key.ArrowRight);
+  await keys.perform();
+  await expect(slider).toHaveAttribute('aria-valuenow', String(value));
+}
