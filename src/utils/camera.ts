@@ -107,9 +107,9 @@ export function resizeToFitImage(
   const lookAxis = lpsOrientation[viewDirAxis];
   const upAxis = lpsOrientation[viewUpAxis];
   const dimsWithSpacing: Vector3 = [
-    dimensions[0] * spacing[0],
-    dimensions[1] * spacing[1],
-    dimensions[2] * spacing[2],
+    dimensions[0] * Math.abs(spacing[0]),
+    dimensions[1] * Math.abs(spacing[1]),
+    dimensions[2] * Math.abs(spacing[2]),
   ];
 
   resizeToFit(view, lookAxis, upAxis, dimsWithSpacing);

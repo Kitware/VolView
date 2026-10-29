@@ -31,3 +31,25 @@ export async function openLayerDisplayControls() {
     async () => (await $$('.Vue-Toastification__toast').length) === 0
   );
 }
+
+export async function selectBasePalette(title: string) {
+  const palette = $('[data-testid="base-image-colormap"]');
+  await palette.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await palette.waitForDisplayed();
+  await palette.waitForStable();
+  await palette.waitForClickable();
+  await palette.click();
+  const menu = $('.v-menu.v-overlay--active .v-overlay__content');
+  await menu.waitForDisplayed();
+  await menu.waitForStable();
+  const option = $(`[role="option"]*=${title}`);
+  await option.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  await option.waitForDisplayed();
+  await option.waitForStable();
+  await option.waitForClickable();
+  await option.click();
+  await $('.v-menu.v-overlay--active [role="option"]').waitForDisplayed({
+    reverse: true,
+  });
+  await expect(palette).toHaveText(expect.stringContaining(title));
+}

@@ -4,6 +4,7 @@ import type {
   ViewInfo2D,
   ViewInfo3D,
   ViewInfoOblique,
+  ViewInfoEnFace,
 } from '@/src/types/views';
 import type { Maybe } from '@/src/types';
 import { isCineImage } from '@/src/core/cine/isCineImage';
@@ -19,13 +20,16 @@ export type EffectiveView =
     }
   | { kind: 'volume3D'; viewInfo: ViewInfo3D; renderDataID: string }
   | { kind: 'oblique'; viewInfo: ViewInfoOblique; renderDataID: string }
-  | { kind: 'cine'; viewInfo: ViewInfo; renderDataID: string };
+  | { kind: 'cine'; viewInfo: ViewInfo; renderDataID: string }
+  | { kind: 'enface'; viewInfo: ViewInfoEnFace; renderDataID: string };
 
 export function computeEffectiveView(
   viewInfo: ViewInfo,
   dataID: Maybe<string>
 ): EffectiveView {
   if (!dataID) return { kind: 'empty', viewInfo, renderDataID: null };
+  if (viewInfo.type === 'EnFace')
+    return { kind: 'enface', viewInfo, renderDataID: dataID };
   if (isCineImage(dataID))
     return { kind: 'cine', viewInfo, renderDataID: dataID };
   if (viewInfo.type === '2D') {

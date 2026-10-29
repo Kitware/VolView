@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { selectBasePalette } from './layerDisplayTestUtils';
 import {
   capture2DViewScreenshotMetrics,
   captureViewPixels,
@@ -56,10 +57,13 @@ async function openBase(withOverlay = false) {
   await volViewPage.waitForViews();
   await selectLayout('Four Up', 3, true);
   await volViewPage.renderingModuleTab.click();
+  await waitForModuleTransitions();
   for (const title of ['Color Presets', 'Cinematic Rendering']) {
     const section = $(`.v-expansion-panel-title*=${title}`);
-    if ((await section.getAttribute('aria-expanded')) === 'true')
+    if ((await section.getAttribute('aria-expanded')) === 'true') {
+      await section.waitForClickable();
       await section.click();
+    }
   }
   await waitForModuleTransitions();
   await browser.waitUntil(
@@ -81,8 +85,17 @@ async function expectRange(minimum: number, maximum: number) {
 }
 
 async function setRange(minimum: string, maximum: string) {
-  await setValueVueInput(field('min'), minimum);
-  await setValueVueInput(field('max'), maximum);
+  for (const [endpoint, value] of [
+    ['min', minimum],
+    ['max', maximum],
+  ] as const) {
+    const input = field(endpoint);
+    await input.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await input.waitForDisplayed();
+    await input.waitForStable();
+    await input.waitForClickable();
+    await setValueVueInput(input, value);
+  }
   await browser.keys('Enter');
 }
 
@@ -116,18 +129,6 @@ async function expectRangeMatchesWindowing() {
   const maximum = Number(await field('max').getAttribute('title'));
   await expectRange(minimum, maximum);
   return [minimum, maximum] as const;
-}
-
-async function selectBasePalette(title: string) {
-  const palette = $('[data-testid="base-image-colormap"]');
-  await palette.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await palette.click();
-  await $('.v-menu.v-overlay--active .v-overlay__content').waitForStable();
-  const option = $(`[role="option"]*=${title}`);
-  await option.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-  await option.waitForStable();
-  await option.click();
-  await expect(palette).toHaveText(expect.stringContaining(title));
 }
 
 async function obliqueColors() {
@@ -484,13 +485,13 @@ describe('Base image display range', () => {
 
   it('preserves the base window through layouts and a saved session without changing overlay settings', async () => {
     await openBase(true);
-    const overlayMin = $('[data-testid="layer-range-min"] input');
-    const overlayMax = $('[data-testid="layer-range-max"] input');
-    await expect(overlayMin).toBeEnabled();
+    const overlayMin = () => $('[data-testid="layer-range-min"] input');
+    const overlayMax = () => $('[data-testid="layer-range-max"] input');
+    await expect(overlayMin()).toBeEnabled();
 
     const overlaySettings = async () => ({
-      min: await overlayMin.getAttribute('title'),
-      max: await overlayMax.getAttribute('title'),
+      min: await overlayMin().getAttribute('title'),
+      max: await overlayMax().getAttribute('title'),
       palette: await $('[data-testid="layer-colormap"]').getText(),
       opacity: await $('[data-testid="layer-opacity-slider"] input').getValue(),
       transparent: await $(
@@ -555,7 +556,7 @@ describe('Base image display range', () => {
     await expect(
       $('.v-tooltip.v-overlay--active .v-overlay__content')
     ).toHaveText(
-      'Open a 2D or oblique view showing this image to adjust window/level.'
+      'Open a slice or En face view showing this image to adjust window/level.'
     );
     await selectLayout('Axial Only', 1, false);
     await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
@@ -565,6 +566,7 @@ describe('Base image display range', () => {
     await waitForDownload(join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
     await openVolViewPage(saved);
     await volViewPage.renderingModuleTab.click();
+    await waitForModuleTransitions();
     await field('min').scrollIntoView({ block: 'center', behavior: 'instant' });
     await expectRange(-800, 200);
     await selectLayout('Four Up', 3, true);

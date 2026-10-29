@@ -10,8 +10,11 @@ import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { storeToRefs } from 'pinia';
+import { useEnFaceViewStore } from '@/src/enface/store';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
 export default defineComponent({
+  components: { ReasonedAction },
   props: {
     viewId: String,
     imageId: String,
@@ -22,9 +25,20 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
+    const enFaceStore = useEnFaceViewStore();
     const { activeView } = storeToRefs(viewStore);
     const targetViewID = computed(() => props.viewId ?? activeView.value);
     const targetImageID = computed(() => props.imageId ?? currentImageID.value);
+    const isSumProjection = computed(() => {
+      const viewID = targetViewID.value;
+      const imageID = targetImageID.value;
+      return (
+        !!viewID &&
+        !!imageID &&
+        viewStore.getView(viewID)?.type === 'EnFace' &&
+        enFaceStore.settingsFor(viewID, imageID).method === 'sum'
+      );
+    });
 
     function parseLabel(text: string) {
       return text.replace(/([A-Z])/g, ' $1').trim();
@@ -65,44 +79,59 @@ export default defineComponent({
     const wlWidth = computed(() => wlConfig.value.width ?? 1);
     const wlLevel = computed(() => wlConfig.value.level ?? 0.5);
 
-    const widthFocused = ref(false);
-    const levelFocused = ref(false);
-
-    const formatForDisplay = (value: number) => Number(value.toPrecision(4));
-
-    const displayWidth = computed({
-      get: () =>
-        widthFocused.value ? wlWidth.value : formatForDisplay(wlWidth.value),
-      set: (value: number) => {
-        const imageID = targetImageID.value;
-        const viewID = targetViewID.value;
-        if (!imageID || !viewID || !Number.isFinite(value)) return;
-        windowingStore.updateConfig(
-          viewID,
-          imageID,
-          { width: value, level: wlLevel.value },
-          true
-        );
-        emit('change');
-      },
-    });
-
-    const displayLevel = computed({
-      get: () =>
-        levelFocused.value ? wlLevel.value : formatForDisplay(wlLevel.value),
-      set: (value: number) => {
-        const imageID = targetImageID.value;
-        const viewID = targetViewID.value;
-        if (!imageID || !viewID || !Number.isFinite(value)) return;
-        windowingStore.updateConfig(
-          viewID,
-          imageID,
-          { width: wlWidth.value, level: value },
-          true
-        );
-        emit('change');
-      },
-    });
+    const manualField = (field: 'width' | 'level') => {
+      const currentValue = computed(() =>
+        field === 'width' ? wlWidth.value : wlLevel.value
+      );
+      const editing = ref(false);
+      // Preserve incomplete decimal and exponent entries until the field loses focus.
+      const draft = ref('');
+      const value = computed({
+        get: () =>
+          editing.value
+            ? draft.value
+            : String(Number(currentValue.value.toPrecision(4))),
+        set: (text: string) => {
+          draft.value = text;
+          const parsed = Number(text);
+          const imageID = targetImageID.value;
+          const viewID = targetViewID.value;
+          if (
+            !imageID ||
+            !viewID ||
+            !text.trim() ||
+            !Number.isFinite(parsed) ||
+            (field === 'width' && parsed <= 0)
+          )
+            return;
+          windowingStore.updateConfig(
+            viewID,
+            imageID,
+            {
+              width: wlWidth.value,
+              level: wlLevel.value,
+              [field]: parsed,
+            },
+            true
+          );
+          emit('change');
+        },
+      });
+      return {
+        value,
+        begin: () => {
+          draft.value = String(currentValue.value);
+          editing.value = true;
+        },
+        end: () => {
+          editing.value = false;
+        },
+      };
+    };
+    const widthField = manualField('width');
+    const levelField = manualField('level');
+    const displayWidth = widthField.value;
+    const displayLevel = levelField.value;
 
     const wlOptions = computed({
       get() {
@@ -121,6 +150,7 @@ export default defineComponent({
         }
 
         if (typeof selection === 'object') {
+          if (isSumProjection.value) return;
           windowingStore.updateConfig(
             viewID,
             imageID,
@@ -144,6 +174,14 @@ export default defineComponent({
       },
     });
 
+    function resetContrast() {
+      const viewID = targetViewID.value;
+      const imageID = targetImageID.value;
+      if (!viewID || !imageID) return;
+      windowingStore.resetContrast(viewID, imageID);
+      emit('change');
+    }
+
     // --- Tag WL Options --- //
     const tags = computed(() => {
       if (targetImageID.value && isDicomImage(targetImageID.value)) {
@@ -155,15 +193,29 @@ export default defineComponent({
 
     return {
       parseLabel,
+      resetContrast,
+      resetContrastReason: computed(() => {
+        if (!targetViewID.value) return 'Select a view to reset contrast.';
+        if (!targetImageID.value)
+          return 'Load an image in this view to reset contrast.';
+        return '';
+      }),
+      targetViewID,
+      targetImageID,
       wlOptions,
       WLPresetsCT,
       showCtPresets,
       tags,
+      sourcePresetReason: computed(() =>
+        isSumProjection.value
+          ? 'Source intensity presets do not apply to Sum projections. Use Auto Window/Level or Manual instead.'
+          : ''
+      ),
       WLAutoRanges,
+      widthField,
+      levelField,
       displayWidth,
       displayLevel,
-      widthFocused,
-      levelFocused,
     };
   },
 });
@@ -173,7 +225,12 @@ export default defineComponent({
   <v-card dark>
     <v-card-text class="pa-0">
       <v-radio-group v-model="wlOptions" hide-details>
-        <template v-if="tags.length">
+        <ReasonedAction
+          v-if="tags.length"
+          :reason="sourcePresetReason"
+          block
+          v-slot="{ disabled }"
+        >
           <v-card-subtitle class="py-1">File Specific Presets</v-card-subtitle>
           <div class="px-4 pb-2">
             <v-radio
@@ -181,13 +238,19 @@ export default defineComponent({
               :key="idx"
               :label="`Tag ${idx + 1} [W:${value.width},L:${value.level}]`"
               :value="value"
+              :disabled="disabled"
               density="compact"
               @click="$emit('change')"
             />
           </div>
-        </template>
+        </ReasonedAction>
 
-        <template v-if="showCtPresets">
+        <ReasonedAction
+          v-if="showCtPresets"
+          :reason="sourcePresetReason"
+          block
+          v-slot="{ disabled }"
+        >
           <v-card-subtitle class="pb-1">CT Presets</v-card-subtitle>
           <div class="px-4 pb-2">
             <v-radio
@@ -195,11 +258,12 @@ export default defineComponent({
               :key="name"
               :label="parseLabel(name)"
               :value="wl"
+              :disabled="disabled"
               density="compact"
               @click="$emit('change')"
             />
           </div>
-        </template>
+        </ReasonedAction>
 
         <v-card-subtitle class="pb-1">Auto Window/Level</v-card-subtitle>
         <div class="px-4 pb-2">
@@ -218,8 +282,9 @@ export default defineComponent({
       <div class="px-4 pb-3">
         <div class="manual-inputs">
           <v-text-field
-            v-model.number="displayWidth"
-            v-model:focused="widthFocused"
+            v-model="displayWidth"
+            @focus="widthField.begin"
+            @blur="widthField.end"
             label="Window"
             type="number"
             variant="underlined"
@@ -227,8 +292,9 @@ export default defineComponent({
             hide-details
           />
           <v-text-field
-            v-model.number="displayLevel"
-            v-model:focused="levelFocused"
+            v-model="displayLevel"
+            @focus="levelField.begin"
+            @blur="levelField.end"
             label="Level"
             type="number"
             variant="underlined"
@@ -236,6 +302,25 @@ export default defineComponent({
             hide-details
           />
         </div>
+      </div>
+      <div class="px-4 pb-3">
+        <ReasonedAction
+          :reason="resetContrastReason"
+          tooltip="Restore the default contrast for this view."
+          block
+          v-slot="{ disabled }"
+        >
+          <v-btn
+            block
+            variant="tonal"
+            prepend-icon="mdi-restore"
+            :disabled="disabled"
+            data-testid="reset-contrast"
+            @click="resetContrast"
+          >
+            Reset contrast
+          </v-btn>
+        </ReasonedAction>
       </div>
     </v-card-text>
   </v-card>

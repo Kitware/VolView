@@ -168,6 +168,7 @@ describe('state-file serialization resilience', () => {
       ...manifestWithSelection('dataset-1'),
       activeView: 'view-1',
       isActiveViewMaximized: true,
+      currentLayoutName: 'Four Up',
       layout: {
         direction: 'column',
         items: [{ type: 'slot', slotIndex: 0 }],
@@ -190,6 +191,7 @@ describe('state-file serialization resilience', () => {
     expect(normalized.manifest).not.toHaveProperty('activeView');
     expect(normalized.manifest).not.toHaveProperty('isActiveViewMaximized');
     expect(normalized.manifest).not.toHaveProperty('layout');
+    expect(normalized.manifest).not.toHaveProperty('currentLayoutName');
     expect(normalized.manifest).not.toHaveProperty('layoutSlots');
     expect(normalized.omitted).toContain('view/layout: invalid viewByID state');
   });

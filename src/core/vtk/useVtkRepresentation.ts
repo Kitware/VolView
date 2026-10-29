@@ -43,6 +43,7 @@ export function useVtkRepresentation<
 
     onCleanup(() => {
       renderer.removeActor(actor);
+      view.requestRender();
     });
   });
 

@@ -4,6 +4,7 @@ import { View } from '@/src/core/vtk/types';
 import vtkInteractorStyle from '@kitware/vtk.js/Rendering/Core/InteractorStyle';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
+import type { Ref } from 'vue';
 
 export interface vtkClass {
   newInstance: () => vtkObject;
@@ -24,7 +25,8 @@ export interface VtkViewApi extends View {
   resetCamera(): void;
 }
 
-export interface VtkRenderWindowParentApi {
+export type VtkRenderWindowParentApi = {
   renderWindow: vtkRenderWindow;
   renderWindowView: vtkOpenGLRenderWindow;
-}
+  contextLost: Readonly<Ref<boolean>>;
+};

@@ -4,7 +4,10 @@ import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { useCropStore } from './crop';
-import { useCrosshairsToolStore } from './crosshairs';
+import {
+  getEnFaceCrosshairsUnavailableReason,
+  useCrosshairsToolStore,
+} from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
@@ -14,6 +17,7 @@ import { useToolSelectionStore } from './toolSelection';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import {
   EffectiveView,
   getEffectiveView,
@@ -26,11 +30,39 @@ const CINE_DISALLOWED_TOOLS = new Set([
 ]);
 
 export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
+  if (effective?.viewInfo.type === 'EnFace')
+    return [
+      Tools.Select,
+      Tools.WindowLevel,
+      Tools.Pan,
+      Tools.Zoom,
+      Tools.Crosshairs,
+    ].includes(tool);
   if (effective?.kind === 'cine' && CINE_DISALLOWED_TOOLS.has(tool))
     return false;
   return true;
 }
 
+export function getToolUnavailableReason(
+  tool: Tools,
+  effective: EffectiveView | null
+) {
+  if (!isToolAllowedFor(tool, effective)) {
+    return effective?.viewInfo.type === 'EnFace'
+      ? 'This tool is unavailable on an En face projection. Switch to a slice view to use it.'
+      : 'This tool is unavailable for a cine clip.';
+  }
+  if (effective?.viewInfo.type === 'EnFace' && tool === Tools.Crosshairs) {
+    return getEnFaceCrosshairsUnavailableReason(effective.renderDataID);
+  }
+  if (
+    effective?.viewInfo.type === 'EnFace' &&
+    [Tools.WindowLevel, Tools.Pan, Tools.Zoom].includes(tool)
+  ) {
+    return getEnFaceUnavailableReason(effective.renderDataID);
+  }
+  return null;
+}
 // These tools draw into the selected segment, so picking one up seats a
 // segment: the palette shows the color the next stroke will be before it is
 // made. Seating allocates no voxels.
@@ -116,11 +148,17 @@ function teardownTool(tool: Tools) {
 
 export const useToolStore = defineStore('tool', () => {
   const currentTool = ref(Tools.WindowLevel);
-  const toolBeforeTemporaryCrosshairs = ref<Tools>(currentTool.value);
+  const toolBeforeTemporaryCrosshairs = ref<Tools>();
   const { currentImageID } = useCurrentImage('global');
 
   function setCurrentTool(tool: Tools) {
-    const coerced = coerceForEffective(tool, activeEffectiveView());
+    const effective = activeEffectiveView();
+    const coerced = coerceForEffective(tool, effective);
+    if (coerced === tool && getToolUnavailableReason(tool, effective)) return;
+    applyToolSelection(coerced);
+  }
+
+  function applyToolSelection(coerced: Tools) {
     if (currentTool.value === coerced) {
       return;
     }
@@ -140,33 +178,38 @@ export const useToolStore = defineStore('tool', () => {
     if (!currentImageID.value) return 'Load an image to paint';
     const kind = activeEffectiveView()?.kind;
     if (kind === 'cine') return 'A clip cannot be painted';
+    if (activeEffectiveView()?.viewInfo.type === 'EnFace')
+      return 'Painting is not available on an En face projection';
     if (kind === 'oblique')
       return 'Painting is not available in an oblique view';
     return '';
   });
 
   function activateTemporaryCrosshairs() {
-    if (!isToolAllowedFor(Tools.Crosshairs, activeEffectiveView())) return;
+    if (toolBeforeTemporaryCrosshairs.value !== undefined) return;
+    if (getToolUnavailableReason(Tools.Crosshairs, activeEffectiveView()))
+      return;
     toolBeforeTemporaryCrosshairs.value = currentTool.value;
     setCurrentTool(Tools.Crosshairs);
     useCrosshairsToolStore().setDragging(true);
   }
 
   function deactivateTemporaryCrosshairs() {
+    const previous = toolBeforeTemporaryCrosshairs.value;
+    if (previous === undefined) return;
+    toolBeforeTemporaryCrosshairs.value = undefined;
     useCrosshairsToolStore().setDragging(false);
-    setCurrentTool(toolBeforeTemporaryCrosshairs.value);
+    applyToolSelection(coerceForEffective(previous, activeEffectiveView()));
   }
 
   watch(
-    () => activeEffectiveView()?.kind ?? null,
-    () => {
-      const eff = activeEffectiveView();
-      const coerced = coerceForEffective(currentTool.value, eff);
-      if (coerced !== currentTool.value) {
-        teardownTool(currentTool.value);
-        currentTool.value = coerced;
-      }
-    }
+    () => coerceForEffective(currentTool.value, activeEffectiveView()),
+    (coerced) => {
+      if (coerced === currentTool.value) return;
+      teardownTool(currentTool.value);
+      currentTool.value = coerced;
+    },
+    { immediate: true }
   );
 
   function serialize(state: StateFile) {

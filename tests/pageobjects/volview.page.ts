@@ -48,10 +48,6 @@ class VolViewPage extends Page {
     return $('button[data-testid="control-button-Layouts"]');
   }
 
-  get layoutMenuItems() {
-    return $$('.v-list-item');
-  }
-
   async waitForViews(timeout = DOWNLOAD_TIMEOUT) {
     await browser.waitUntil(
       async () => {
@@ -354,27 +350,70 @@ class VolViewPage extends Page {
     );
   }
 
-  async openLayoutMenu(minOptionCount = 1) {
-    const button = await this.layoutButton;
-    await browser.waitUntil(async () => button.isDisplayed(), {
-      timeout: 5000,
-      timeoutMsg: 'Layout button not displayed',
-      interval: 500,
-    });
-    await button.click();
+  async openMenu(activator: ChainablePromiseElement) {
+    await activator.waitForDisplayed();
+    if ((await activator.getAttribute('aria-expanded')) !== 'true') {
+      await activator.waitForClickable();
+      await activator.click();
+    }
+    await expect(activator).toHaveAttribute('aria-expanded', 'true');
+    const contentId = await activator.getAttribute('aria-controls');
+    if (!contentId) throw new Error('Menu activator has no linked content');
+    const content = $(`[id="${contentId}"] > .v-overlay__content`);
+    await content.waitForDisplayed();
+    await content.waitForStable();
+    return content.getElement();
+  }
 
+  async closeMenu(activator: ChainablePromiseElement) {
+    const contentId = await activator.getAttribute('aria-controls');
+    if ((await activator.getAttribute('aria-expanded')) === 'true') {
+      await activator.waitForClickable();
+      await activator.click();
+    }
+    await expect(activator).toHaveAttribute('aria-expanded', 'false');
+    if (contentId)
+      await $(`[id="${contentId}"] > .v-overlay__content`).waitForDisplayed({
+        reverse: true,
+      });
+  }
+
+  async openSettings() {
+    const selector = '.v-dialog.v-overlay--active .closeable-dialog';
+    if (!(await $(selector).isDisplayed())) {
+      const button = $('button[data-testid="control-button-Settings"]');
+      await button.waitForClickable();
+      await button.click();
+    }
+    const dialog = await $(selector).getElement();
+    await dialog.waitForDisplayed();
+    await expect(dialog.$('.v-card-title')).toHaveText('Settings');
+    await dialog.waitForStable();
+    return dialog;
+  }
+
+  async closeSettings() {
+    const dialog = await $(
+      '.v-dialog.v-overlay--active .closeable-dialog'
+    ).getElement();
+    await expect(dialog.$('.v-card-title')).toHaveText('Settings');
+    const close = dialog.$('button.close-button');
+    await close.waitForClickable();
+    await close.click();
+    await dialog.waitForDisplayed({ reverse: true });
+  }
+
+  async openLayoutMenu(minOptionCount = 1) {
+    const menu = await this.openMenu(this.layoutButton);
     await browser.waitUntil(
-      async () => {
-        const items = await this.layoutMenuItems;
-        const itemCount = await items.length;
-        return itemCount >= minOptionCount;
-      },
+      async () => (await menu.$$('.v-list-item').length) >= minOptionCount,
       {
         timeout: 5000,
         timeoutMsg: `Expected layout menu to show at least ${minOptionCount} layout options`,
         interval: 500,
       }
     );
+    return menu;
   }
 
   async getLayoutOptionTitles() {

@@ -11,6 +11,7 @@ const WEBGL_FAILURES = [
   'Error compiling shader',
   'CONTEXT_LOST_WEBGL',
   "reading 'setContext'",
+  "reading 'oglObject'",
 ];
 
 let subscribedSession = '';

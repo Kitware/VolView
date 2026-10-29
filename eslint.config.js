@@ -311,6 +311,11 @@ export default tseslint.config(
   },
   ...featureBoundaries([
     {
+      dir: 'enface',
+      publicSurface: false,
+      pure: ['src/enface/sliceGeometry.ts'],
+    },
+    {
       dir: 'segmentation',
       pure: [
         'src/segmentation/geometry.ts',

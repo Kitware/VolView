@@ -61,7 +61,9 @@ const windowing = z
   })
   .optional();
 
-const disabledViewTypes = z.array(z.enum(['2D', '3D', 'Oblique'])).optional();
+const disabledViewTypes = z
+  .array(z.enum(['2D', '3D', 'Oblique', 'EnFace']))
+  .optional();
 
 const configInput = z.object({
   layouts,

@@ -13,6 +13,7 @@ export type ScreenSegment = {
  * One drawable piece of a segment, uniquely keyed by its source segment.
  */
 export type SegmentPiece = {
+  id: string;
   key: string;
   x1: number;
   y1: number;
@@ -97,6 +98,7 @@ export function splitSegmentsAtCrossings(
     const emit = (from: number, to: number) => {
       if (to - from <= 0) return;
       pieces.push({
+        id: segment.id,
         key: `${segment.id}:${pieces.length}`,
         x1: segment.x1 + dx * from,
         y1: segment.y1 + dy * from,

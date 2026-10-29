@@ -45,6 +45,8 @@ async function resetRangeDrafts() {
   rangeControl.value?.resetDrafts();
 }
 
+defineExpose({ resetRangeDrafts });
+
 function applyContrastRange(range: [number, number]) {
   emit('update:mappingRange', range);
   contrastOpen.value = false;

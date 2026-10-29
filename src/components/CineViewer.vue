@@ -53,32 +53,7 @@
           :view-direction="VIEW_DIRECTION"
           :view-up="VIEW_UP"
         >
-          <vtk-mouse-interaction-manipulator
-            v-if="currentTool === Tools.Pan"
-            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
-            :manipulator-props="{ button: 1 }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
-            :manipulator-props="{ button: 1, shift: true }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
-            :manipulator-props="{ button: 2 }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            v-if="currentTool === Tools.Zoom"
-            :manipulator-constructor="
-              vtkMouseCameraTrackballZoomToMouseManipulator
-            "
-            :manipulator-props="{ button: 1 }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            :manipulator-constructor="
-              vtkMouseCameraTrackballZoomToMouseManipulator
-            "
-            :manipulator-props="{ button: 3 }"
-          ></vtk-mouse-interaction-manipulator>
+          <vtk-slice-view-navigation />
           <vtk-cine-scrub-manipulator
             :view-id="viewId"
             :image-id="currentImageID"
@@ -126,11 +101,9 @@
 
 <script setup lang="ts">
 import { ref, toRefs, computed } from 'vue';
-import { storeToRefs } from 'pinia';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
-import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
@@ -141,14 +114,12 @@ import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
 import SliceSlider from '@/src/components/SliceSlider.vue';
 import CineViewerOverlay from '@/src/components/CineViewerOverlay.vue';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
+import { useAnnotationToolStore } from '@/src/store/tools';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useCineFrame } from '@/src/composables/useCineFrame';
 import VtkCineScrubManipulator from '@/src/components/vtk/VtkCineScrubManipulator.vue';
 import VtkCineScrubKeyManipulator from '@/src/components/vtk/VtkCineScrubKeyManipulator.vue';
-import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
-import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
-import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
@@ -181,8 +152,6 @@ useResetViewsEvents().onClick(resetCamera);
 
 useWebGLWatchdog(vtkView);
 useViewAnimationListener(vtkView, viewId, '2D');
-
-const { currentTool } = storeToRefs(useToolStore());
 
 const { frame: currentFrame, frameRange } = useCineFrame(
   viewId,

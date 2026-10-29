@@ -68,7 +68,9 @@ const isLockedOrientationView = computed(() =>
       <div class="annotation-cell">
         <div v-if="sliceConfig">
           <span class="slice-label">
-            Slice: {{ slice + 1 }}/{{ sliceRange[1] + 1 }}
+            Slice: {{ slice - sliceRange[0] + 1 }}/{{
+              sliceRange[1] - sliceRange[0] + 1
+            }}
           </span>
         </div>
         <div v-if="wlConfig">

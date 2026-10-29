@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
+import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { releaseOpenGLRenderWindow } from '@/src/core/vtk/releaseRenderWindow';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
@@ -27,11 +28,13 @@ const api = scope.run(() => {
   };
 })!;
 
+const contextLost = useWebGLWatchdog(api);
+
 onUnmounted(() => {
   scope.stop();
 });
 
-provide(VtkRenderWindowParentContext, api);
+provide(VtkRenderWindowParentContext, { ...api, contextLost });
 </script>
 
 <template><slot /></template>

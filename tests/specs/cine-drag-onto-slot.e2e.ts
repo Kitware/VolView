@@ -59,7 +59,7 @@ async function gridItemKind(index: number) {
 }
 
 describe('Drag cine onto a non-2D slot', () => {
-  it('cine renders in the 3D slot; dropping a volume reverts the slot to 3D', async () => {
+  it('dropping cine onto the 3D slot renders cine, and a volume restores 3D', async () => {
     await openUrls([PROSTATEX_DATASET, CINE_US_DATASET]);
     await volViewPage.waitForViews();
     await browser.waitUntil(
@@ -72,30 +72,19 @@ describe('Drag cine onto a non-2D slot', () => {
       timeoutMsg: 'Expected the Four Up layout (4 slots)',
     });
 
-    // Cine auto-binds to every slot on initial load, including the 3D-stored
-    // slot — that's the "data wins over slot type" half of the contract.
+    // Fixture metadata identifies the cine independently of the active pane.
+    expect(
+      await dragCardOntoGridItem('.volume-card[html-title="Post-Stress"]', 3)
+    ).toBe(true);
     await browser.waitUntil(async () => (await gridItemKind(3)) === 'cine', {
       timeout: 10000,
-      timeoutMsg: 'Expected the 3D slot to render as cine after load',
+      timeoutMsg: 'Expected the 3D slot to render cine after the cine drop',
     });
 
-    // Identify the volume card: the one currently NOT mounted to any view.
-    // It's the non-active card in the patient browser. Stamp a unique class
-    // so we can re-query stably.
-    const volumeCardClass = await browser.execute(() => {
-      const cards = Array.from(
-        document.querySelectorAll('.volume-card')
-      ) as HTMLElement[];
-      const volumeCard = cards.find(
-        (c) => !c.classList.contains('volume-card-active')
-      );
-      if (!volumeCard) return null;
-      volumeCard.classList.add('e2e-volume-card');
-      return 'e2e-volume-card';
-    });
-    expect(volumeCardClass).toBe('e2e-volume-card');
-
-    const dropped = await dragCardOntoGridItem('.e2e-volume-card', 3);
+    const dropped = await dragCardOntoGridItem(
+      '.volume-card:not([html-title="Post-Stress"])',
+      3
+    );
     expect(dropped).toBe(true);
 
     // The slot's stored 3D viewInfo was never mutated → swap back to volume.

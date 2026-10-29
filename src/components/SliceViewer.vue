@@ -53,32 +53,7 @@
           :view-direction="viewDirection"
           :view-up="viewUp"
         >
-          <vtk-mouse-interaction-manipulator
-            v-if="currentTool === Tools.Pan"
-            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
-            :manipulator-props="{ button: 1 }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
-            :manipulator-props="{ button: 1, shift: true }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            :manipulator-constructor="vtkMouseCameraTrackballPanManipulator"
-            :manipulator-props="{ button: 2 }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            v-if="currentTool === Tools.Zoom"
-            :manipulator-constructor="
-              vtkMouseCameraTrackballZoomToMouseManipulator
-            "
-            :manipulator-props="{ button: 1 }"
-          ></vtk-mouse-interaction-manipulator>
-          <vtk-mouse-interaction-manipulator
-            :manipulator-constructor="
-              vtkMouseCameraTrackballZoomToMouseManipulator
-            "
-            :manipulator-props="{ button: 3 }"
-          ></vtk-mouse-interaction-manipulator>
+          <vtk-slice-view-navigation />
           <vtk-slice-view-slicing-manipulator
             :view-id="viewId"
             :image-id="currentImageID"
@@ -204,9 +179,7 @@ import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSliceViewSlicingManipulator from '@/src/components/vtk/VtkSliceViewSlicingManipulator.vue';
 import VtkSliceViewSlicingKeyManipulator from '@/src/components/vtk/VtkSliceViewSlicingKeyManipulator.vue';
-import VtkMouseInteractionManipulator from '@/src/components/vtk/VtkMouseInteractionManipulator.vue';
-import vtkMouseCameraTrackballPanManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballPanManipulator';
-import vtkMouseCameraTrackballZoomToMouseManipulator from '@kitware/vtk.js/Interaction/Manipulators/MouseCameraTrackballZoomToMouseManipulator';
+import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useViewStore } from '@/src/store/views';
