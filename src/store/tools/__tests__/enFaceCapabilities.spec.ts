@@ -19,7 +19,7 @@ import {
 } from '@/src/core/views/effectiveView';
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { getEnFaceAvailability } from '@/src/enface';
+import { getEnFaceAvailability } from '@/src/enface/availability';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';

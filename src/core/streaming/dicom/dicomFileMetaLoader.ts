@@ -2,7 +2,7 @@ import { ReadDicomTagsFunction } from '@/src/core/streaming/dicom/dicomMetaLoade
 import { MetaLoader } from '@/src/core/streaming/types';
 import { Maybe } from '@/src/types';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTMetadata } from '@/src/enface';
+import { augmentOCTMetadata } from '@/src/enface/dicomMetadata';
 import {
   parseUltrasoundRegionFromBlob,
   UltrasoundRegions,

@@ -320,6 +320,7 @@ export default tseslint.config(
   ...featureBoundaries([
     {
       dir: 'enface',
+      publicSurface: false,
       pure: [
         'src/enface/sliceGeometry.ts',
         'src/enface/detection.ts',

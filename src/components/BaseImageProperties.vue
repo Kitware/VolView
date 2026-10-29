@@ -3,7 +3,7 @@ import { computed, onScopeDispose, ref } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME } from '@/src/constants';
-import { getEnFaceAvailability } from '@/src/enface';
+import { getEnFaceAvailability } from '@/src/enface/availability';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import '@/src/vtk/ColorMaps';

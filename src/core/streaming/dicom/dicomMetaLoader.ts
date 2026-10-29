@@ -9,7 +9,7 @@ import { Awaitable } from '@vueuse/core';
 import { toAscii } from '@/src/utils';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTMetadata } from '@/src/enface';
+import { augmentOCTMetadata } from '@/src/enface/dicomMetadata';
 import {
   decodeUltrasoundRegion,
   SEQUENCE_OF_ULTRASOUND_REGIONS,

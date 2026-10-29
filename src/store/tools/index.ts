@@ -17,7 +17,7 @@ import { useToolSelectionStore } from './toolSelection';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { getEnFaceAvailability } from '@/src/enface';
+import { getEnFaceAvailability } from '@/src/enface/availability';
 import {
   EffectiveView,
   getEffectiveView,
