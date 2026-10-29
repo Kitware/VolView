@@ -9,7 +9,7 @@ import { defaultEnFaceViewConfig, useEnFaceViewStore } from './store';
 import { getSourceValidity } from '@/src/core/slab/sourceValidity';
 import { deriveSlabGeometry } from '@/src/core/slab/geometry';
 import { get2DOrientationForSourceAxis } from '@/src/utils/getViewingVectors';
-import type { OccupiedDepthInput } from '@/src/segmentation/measurements/occupiedDepth';
+import type { OccupiedDepthRequest } from '@/src/segmentation/measurements/useOccupiedDepth';
 
 export function useEnFaceInput(viewId: MaybeRef<string>) {
   const source = useCurrentImage();
@@ -168,7 +168,7 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
             (sum, value, index) => sum + value * bases[b][index],
             0
           )
-        ) < 1e-5
+        ) < 1e-4
     );
     if (!orthogonal)
       return 'Occupied depth requires an orthogonal source voxel grid.';
@@ -188,17 +188,31 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
     void volumeRevision.value;
     const image = currentImageData.value;
     if (!image) return 0;
-    const basis = image.getIndexToWorld();
-    const offset = settings.value.axis * 4;
-    return (
-      Math.hypot(basis[offset], basis[offset + 1], basis[offset + 2]) * 1000
+    const axis = settings.value.axis;
+    const direction = image.getDirection();
+    const offset = axis * 3;
+    const directionLength = Math.hypot(
+      direction[offset],
+      direction[offset + 1],
+      direction[offset + 2]
     );
+    // DICOM direction cosines describe unit vectors; rounded values retain
+    // their declared spacing. Generic image directions can also carry scale.
+    const scale =
+      availability.value.calibratedAxes?.[axis] &&
+      Math.abs(directionLength - 1) <= (axis === 2 ? 2e-4 : 1e-4)
+        ? 1
+        : directionLength;
+    return Math.abs(image.getSpacing()[axis]) * scale * 1000;
   });
   const highlightEligibilityReason = computed(
     () =>
       segmentationReason.value ||
       availability.value.paddingReason ||
       availability.value.measurementGeometryReason ||
+      (availability.value.calibratedAxes?.[settings.value.axis] === false
+        ? 'The projection axis has no reliable declared voxel spacing; occupied depth is unavailable.'
+        : null) ||
       (!Number.isFinite(micronsPerVoxel.value) || micronsPerVoxel.value <= 0
         ? 'The projection axis has invalid voxel spacing; occupied depth is unavailable.'
         : null)
@@ -264,7 +278,35 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
       extent: [...binding.extent],
     };
   });
-  const measurementRequest = computed((): OccupiedDepthInput | null => {
+  const validityExtent = computed(() => {
+    const mask = measurementMask.value;
+    if (!mask) return '';
+    const extent = [...mask.extent];
+    const offset = settings.value.axis * 2;
+    extent[offset] = Math.max(extent[offset], depthStart.value);
+    extent[offset + 1] = Math.min(extent[offset + 1], depthEnd.value);
+    return JSON.stringify(extent);
+  });
+  const measurementValidity = computed(() => {
+    if (!settings.value.highlightThin || !validityExtent.value)
+      return undefined;
+    void volumeRevision.value;
+    const image = currentImageData.value;
+    return image
+      ? getSourceValidity(
+          image,
+          availability.value.paddingRanges ?? [],
+          JSON.parse(validityExtent.value)
+        )
+      : undefined;
+  });
+  watch(
+    () => settings.value.highlightThin,
+    (enabled) => {
+      if (!enabled) void measurementValidity.value;
+    }
+  );
+  const measurementRequest = computed((): OccupiedDepthRequest | null => {
     if (!settings.value.highlightThin) return null;
     void volumeRevision.value;
     const image = currentImageData.value;
@@ -272,7 +314,14 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
     if (!image || !mask || thicknessReason.value) return null;
     return {
       dimensions: image.getDimensions(),
-      validity: getSourceValidity(image, availability.value.paddingRanges),
+      source: image,
+      segment: settings.value.selectedMaskId!,
+      grid: JSON.stringify([
+        image.getOrigin(),
+        image.getSpacing(),
+        image.getDirection(),
+      ]),
+      validity: measurementValidity.value,
       axis: settings.value.axis,
       first: depthStart.value,
       last: depthEnd.value,

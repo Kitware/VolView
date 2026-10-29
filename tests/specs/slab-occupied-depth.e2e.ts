@@ -39,6 +39,7 @@ const SLIDER =
   PANEL + ' [data-testid="enface-thickness-threshold"] [role="slider"]';
 
 async function expectHighlighted(present: boolean, point = [60, 12]) {
+  await waitForEnFaceReady();
   await browser.waitUntil(
     async () => {
       const pixel = await enFacePixel(point[0], point[1]);
@@ -52,7 +53,10 @@ async function expectHighlighted(present: boolean, point = [60, 12]) {
 
 async function threshold(value: number) {
   await expandEnFaceSection('thickness');
-  await setValueVueInput($(INPUT), String(value));
+  const input = $(INPUT);
+  await input.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await input.waitForClickable();
+  await setValueVueInput(input, String(value));
 }
 
 async function openGappedMask(twoViews = false) {
@@ -235,6 +239,7 @@ describe('Selected-slab occupied depth', () => {
     await expect(brush).toHaveAttribute('aria-valuenow', maximumBrushSize);
     await volViewPage.paintStrokeOnView(source);
     await browser.action('pointer').move({ x: 10, y: 10 }).perform();
+    await waitForEnFaceReady();
     await browser.waitUntil(
       async () => {
         const [r, g] = await pixel();

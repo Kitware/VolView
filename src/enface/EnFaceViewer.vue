@@ -58,15 +58,37 @@ const highlightAppearance = useThinRegionAppearance(
 const {
   accepted: measurement,
   computing: measuring,
+  stale: measurementStale,
   error: measurementError,
-} = useOccupiedDepth(measurementRequest);
+} = useOccupiedDepth(
+  measurementRequest,
+  undefined,
+  computed(() => settings.value.highlightThin)
+);
 const highlightReason = computed(
   () =>
     controls.value.thicknessReason ||
     highlightAppearance.value?.reason ||
     measurementError.value ||
-    (measuring.value ? 'Measuring occupied depth in the selected slab…' : null)
+    (measuring.value && !measurement.value
+      ? 'Measuring thickness in the selected slab…'
+      : null)
 );
+const measurementMessage = computed(() => {
+  if (!settings.value.highlightThin) return null;
+  if (highlightReason.value) return highlightReason.value;
+  if (measuring.value)
+    return measurementStale.value
+      ? 'Updating thickness; showing the previous result.'
+      : 'Measuring thickness in the selected slab…';
+  const unknown = measurement.value?.known.reduce(
+    (count, known) => count + Number(!known),
+    0
+  );
+  return unknown
+    ? `${unknown} occupied ${unknown === 1 ? 'column cannot' : 'columns cannot'} be measured because the segment overlaps missing source data. These columns are excluded from highlighting.`
+    : null;
+});
 const thresholdMaximum = computed(() =>
   thicknessSliderMaximum(measurement.value, micronsPerVoxel.value)
 );
@@ -153,7 +175,7 @@ watch(
   <div
     class="en-face-viewer"
     tabindex="0"
-    :aria-busy="sourceLoading"
+    :aria-busy="sourceLoading || measuring"
     data-testid="enface-viewer"
   >
     <v-progress-linear
@@ -215,7 +237,11 @@ watch(
         :appearance="labelmapAppearance"
       />
     </VtkSliceView>
-    <EnFaceStatus :message="stateMessage" :ready="projectionReady" />
+    <EnFaceStatus
+      :message="stateMessage"
+      :ready="projectionReady"
+      :measurement-message="measurementMessage"
+    />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
         <div class="annotation-cell" @click.stop @dblclick.stop>

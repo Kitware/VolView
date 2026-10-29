@@ -1,4 +1,5 @@
 import { isPresentThicknessBelow } from '@/src/enface/thickness';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import type { OccupiedDepthResult } from '@/src/segmentation/measurements/occupiedDepth';
 
 export const createThinRegionMask = (
@@ -12,7 +13,7 @@ export const createThinRegionMask = (
       result.known[index] &&
       isPresentThicknessBelow(result.counts[index] * micronsPerVoxel, threshold)
     )
-      pixels[index] = 1;
+      pixels[index] = SEGMENT_VALUE;
   }
   return pixels;
 };

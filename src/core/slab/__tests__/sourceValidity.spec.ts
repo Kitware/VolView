@@ -22,7 +22,10 @@ function source() {
 
 const padding = [{ firstFrame: 1, lastFrame: 1, min: -1, max: 1 }];
 
-function measured(image: vtkImageData, validity: Uint8Array | undefined) {
+function measured(
+  image: vtkImageData,
+  validity: ReturnType<typeof getSourceValidity>
+) {
   return measureOccupiedDepth({
     dimensions: image.getDimensions(),
     axis: 1,
@@ -40,7 +43,7 @@ function measured(image: vtkImageData, validity: Uint8Array | undefined) {
 describe('declared padding support for occupied-depth measurement', () => {
   it('leaves every unmarked source voxel valid without allocating a support array', () => {
     const { image } = source();
-    const validity = getSourceValidity(image);
+    const validity = getSourceValidity(image, [], image.getExtent());
     expect(validity).toBeUndefined();
     const result = measured(image, validity);
     expect(Array.from(result.counts)).toEqual([3, 3, 3, 3]);
@@ -49,22 +52,55 @@ describe('declared padding support for occupied-depth measurement', () => {
 
   it('applies inclusive padding only in its declared frames and keeps genuine zero data', () => {
     const { image } = source();
-    const result = measured(image, getSourceValidity(image, padding));
+    const result = measured(
+      image,
+      getSourceValidity(image, padding, image.getExtent())
+    );
     expect(Array.from(result.counts)).toEqual([3, 3, 0, 0]);
     expect(Array.from(result.known)).toEqual([1, 1, 0, 0]);
   });
 
+  it('allocates only the selected crop and maps its source support back to displayed columns', () => {
+    const { image } = source();
+    const validity = getSourceValidity(image, padding, [0, 1, 1, 1, 1, 1]);
+    expect(Array.from(validity!.values)).toEqual([0, 1]);
+    const result = measureOccupiedDepth({
+      dimensions: image.getDimensions(),
+      axis: 1,
+      first: 1,
+      last: 1,
+      validity,
+      mask: {
+        values: new Uint8Array(4).fill(1),
+        dimensions: [2, 2, 1],
+        extent: [0, 1, 1, 2, 1, 1],
+      },
+    });
+    expect(Array.from(result.counts)).toEqual([0, 0, 0, 1]);
+    expect(Array.from(result.known)).toEqual([1, 1, 0, 1]);
+    expect(
+      getSourceValidity(image, padding, [0, 1, 3, 2, 1, 1])
+    ).toBeUndefined();
+  });
+
   it('refreshes support after source values or padding declarations change', () => {
     const { image, scalars, values } = source();
-    getSourceValidity(image, padding);
+    getSourceValidity(image, padding, image.getExtent());
     values.set([2, 2, 2], 6);
     scalars.modified();
-    const edited = measured(image, getSourceValidity(image, padding));
+    const edited = measured(
+      image,
+      getSourceValidity(image, padding, image.getExtent())
+    );
     expect(Array.from(edited.counts)).toEqual([3, 3, 3, 3]);
     expect(Array.from(edited.known)).toEqual([1, 1, 1, 1]);
     const redeclared = measured(
       image,
-      getSourceValidity(image, [{ ...padding[0], min: 2, max: 2 }])
+      getSourceValidity(
+        image,
+        [{ ...padding[0], min: 2, max: 2 }],
+        image.getExtent()
+      )
     );
     expect(Array.from(redeclared.known)).toEqual([1, 1, 0, 0]);
   });

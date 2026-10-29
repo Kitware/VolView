@@ -1,7 +1,12 @@
-export const numbersMatch = (a: number, b: number) =>
-  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-5;
-export const coordinatesMatch = (a: ArrayLike<number>, b: ArrayLike<number>) =>
-  a.length === b.length && Array.from(a).every((n, i) => numbersMatch(n, b[i]));
+export const numbersMatch = (a: number, b: number, tolerance = 1e-5) =>
+  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
+export const coordinatesMatch = (
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  tolerance = 1e-5
+) =>
+  a.length === b.length &&
+  Array.from(a).every((n, i) => numbersMatch(n, b[i], tolerance));
 const dot = (a: readonly number[], b: readonly number[]) =>
   a.reduce((sum, n, i) => sum + n * b[i], 0);
 
@@ -11,9 +16,9 @@ export function imageDirection(basis: number[] | null | undefined) {
   const row = basis.slice(0, 3);
   const column = basis.slice(3);
   if (
-    !numbersMatch(Math.hypot(...row), 1) ||
-    !numbersMatch(Math.hypot(...column), 1) ||
-    !numbersMatch(dot(row, column), 0)
+    !numbersMatch(Math.hypot(...row), 1, 1e-4) ||
+    !numbersMatch(Math.hypot(...column), 1, 1e-4) ||
+    !numbersMatch(dot(row, column), 0, 1e-4)
   )
     return null;
   return [
@@ -36,6 +41,8 @@ export function frameGridGeometry(positions: number[][], direction?: number[]) {
     .at(-1)!
     .map((n, axis) => (n - positions[0][axis]) / (positions.length - 1));
   const distance = Math.hypot(...step);
+  // Allow coordinate rounding within 0.1% of one slice pitch.
+  const tolerance = Math.max(1e-5, distance * 1e-3);
   if (distance <= 1e-5)
     return {
       reason: 'Repeated DICOM slice locations need spatial reconstruction.',
@@ -44,7 +51,8 @@ export function frameGridGeometry(positions: number[][], direction?: number[]) {
     direction &&
     !coordinatesMatch(
       step,
-      direction.slice(6).map((n) => n * distance)
+      direction.slice(6).map((n) => n * distance),
+      tolerance
     )
   )
     return {
@@ -56,7 +64,8 @@ export function frameGridGeometry(positions: number[][], direction?: number[]) {
       (position, i) =>
         !coordinatesMatch(
           position,
-          positions[0].map((n, axis) => n + i * step[axis])
+          positions[0].map((n, axis) => n + i * step[axis]),
+          tolerance
         )
     )
   )

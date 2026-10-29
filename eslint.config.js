@@ -325,6 +325,7 @@ export default tseslint.config(
         'src/segmentation/geometry.ts',
         'src/segmentation/measurements/occupiedDepth.ts',
         'src/segmentation/measurements/occupiedDepth.worker.ts',
+        'src/segmentation/measurements/occupiedDepthHandler.ts',
         'src/segmentation/color.ts',
         'src/segmentation/model.ts',
         'src/segmentation/segment.ts',

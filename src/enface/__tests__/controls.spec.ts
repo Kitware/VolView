@@ -79,9 +79,6 @@ describe('En face rendering controls', () => {
       false
     );
     expect(
-      wrapper.find('[data-testid="enface-segmentation-group"]').exists()
-    ).toBe(false);
-    expect(
       wrapper.get('[data-testid="enface-projection-method"] input').element
     ).toBeDefined();
     expect(
@@ -347,15 +344,13 @@ describe('En face rendering controls', () => {
       '[data-testid="enface-segmentation-segment"] input'
     );
     await toggle.setValue(false);
-    expect(segment.attributes('disabled')).toBeDefined();
+    expect(segment.attributes('disabled')).toBeUndefined();
     const segmentAction = wrapper
       .findAllComponents(ReasonedAction)
       .find((action) =>
         action.find('[data-testid="enface-segmentation-segment"]').exists()
       );
-    expect(segmentAction?.props('reason')).toBe(
-      'Enable thin-region highlighting to choose a segment.'
-    );
+    expect(segmentAction?.props('reason')).toBeUndefined();
     await wrapper.setProps({
       thicknessReason: 'The selected segment is hidden.',
     });

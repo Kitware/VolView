@@ -258,6 +258,7 @@ describe('Projection camera persistence', () => {
       '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
     );
     await threshold.scrollIntoView();
+    await threshold.waitForClickable();
     await setValueVueInput(threshold, '6500');
     await browser.waitUntil(
       async () => (await enFaceAppearance()).coloredPixels > 100,

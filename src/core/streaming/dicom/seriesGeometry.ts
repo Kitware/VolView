@@ -49,21 +49,6 @@ function seriesPositions(tags: Map<string, string>[]) {
   return positions.every((position) => position !== null) ? positions : null;
 }
 
-function sliceSpacingReason(tags: Map<string, string>[], distance: number) {
-  if (
-    tags.some((entry) => {
-      const declared = Number(entry.get(Tags.SpacingBetweenSlices));
-      return (
-        Number.isFinite(declared) &&
-        declared > 0 &&
-        !numbersMatch(declared, distance)
-      );
-    })
-  )
-    return 'The DICOM slice spacing disagrees with its file positions; spatial reconstruction is required.';
-  return null;
-}
-
 function loadedGridReason(
   grid: Grid | undefined,
   direction: number[],
@@ -108,10 +93,37 @@ function seriesGeometry(tags: Map<string, string>[], grid?: Grid) {
   const geometry = frameGridGeometry(positions, direction);
   if (geometry.reason) return geometry;
   const distance = geometry.distance!;
-  const reason =
-    sliceSpacingReason(tags, distance) ||
-    loadedGridReason(grid, direction, positions[0], distance);
+  const reason = loadedGridReason(grid, direction, positions[0], distance);
   return { reason, distance };
+}
+
+function declaredPixelSpacing(tags: Map<string, string>, component: number) {
+  const spacing = tags.get(Tags.PixelSpacing)?.split('\\').map(Number);
+  const value = spacing?.length === 2 ? spacing[component] : NaN;
+  return Number.isFinite(value) && value! > 0 ? value : NaN;
+}
+
+function calibratedAxes(
+  tags: Map<string, string>[],
+  grid: Grid | undefined,
+  distance: number | undefined
+) {
+  const declared = [
+    declaredPixelSpacing(tags[0], 1),
+    declaredPixelSpacing(tags[0], 0),
+    tags.length > 1 ? distance : Number(tags[0].get(Tags.SpacingBetweenSlices)),
+  ];
+  return declared.map((spacing, axis) => {
+    if (!spacing || !Number.isFinite(spacing) || spacing <= 0) return false;
+    if (grid && !numbersMatch(Math.abs(grid.spacing[axis]), spacing))
+      return false;
+    return (
+      axis === 2 ||
+      tags.every((entry) =>
+        numbersMatch(declaredPixelSpacing(entry, 1 - axis), spacing)
+      )
+    );
+  });
 }
 
 /** Validate source slice arrangement against the loaded grid. */
@@ -119,9 +131,20 @@ export function dicomSeriesGeometry(
   metadata: readonly Iterable<[string, string]>[],
   grid?: Grid
 ) {
-  const tags = metadata.map((entry) => new Map(entry));
-  if (!tags.length) return { reason: null };
-  return tags.length > 1
-    ? seriesGeometry(tags, grid)
-    : { reason: tags[0].get(OCT_GEOMETRY_ERROR) ?? null };
+  const tags = metadata.map((entry) =>
+    entry instanceof Map ? entry : new Map(entry)
+  );
+  if (!tags.length)
+    return { reason: null, calibratedAxes: [false, false, false] };
+  const geometry =
+    tags.length > 1
+      ? seriesGeometry(tags, grid)
+      : {
+          reason: tags[0].get(OCT_GEOMETRY_ERROR) ?? null,
+          distance: undefined,
+        };
+  return {
+    ...geometry,
+    calibratedAxes: calibratedAxes(tags, grid, geometry.distance),
+  };
 }

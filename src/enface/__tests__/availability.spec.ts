@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { computed, markRaw, nextTick } from 'vue';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
@@ -9,6 +9,7 @@ import { untilLoaded } from '@/src/composables/untilLoaded';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { Tags } from '@/src/core/dicomTags';
+import { Chunk } from '@/src/core/streaming/chunk';
 
 describe('OCT view availability', () => {
   let emptyImage: DicomChunkImage | undefined;
@@ -22,6 +23,7 @@ describe('OCT view availability', () => {
     emptyImage?.dispose();
     emptyImage = undefined;
     releaseDecode = undefined;
+    vi.restoreAllMocks();
     await nextTick();
   });
 
@@ -167,5 +169,74 @@ describe('OCT view availability', () => {
       paddingReason: expect.stringMatching(/occupied depth is unavailable/i),
       paddingRanges: undefined,
     });
+  });
+
+  it('defers metadata inspection until complete loading and reuses it for an unchanged grid', async () => {
+    const fixture = createOCTFixture({ deferDecode: true });
+    releaseDecode = fixture.releaseDecode;
+    const id = useImageCacheStore().addProgressiveImage(fixture.image);
+    await fixture.chunk.loadMeta();
+    await fixture.image.addChunks([fixture.chunk]);
+    const chunks = vi.spyOn(fixture.image, 'getChunks');
+    expect(getEnFaceAvailability(id).available).toBe(false);
+    expect(chunks).not.toHaveBeenCalled();
+    fixture.image.startLoad();
+    fixture.releaseDecode();
+    await untilLoaded(id);
+    chunks.mockClear();
+    const initial = getEnFaceAvailability(id);
+    const repeated = getEnFaceAvailability(id);
+    expect(initial.available).toBe(true);
+    expect(repeated).toEqual(initial);
+    expect(chunks).toHaveBeenCalledTimes(1);
+    fixture.image.getVtkImageData().setSpacing([1, 1, 1]);
+    expect(getEnFaceAvailability(id).calibratedAxes).toEqual([
+      false,
+      false,
+      false,
+    ]);
+    expect(chunks).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves declared ultrasound-region calibration without PixelSpacing', async () => {
+    const fixture = createOCTFixture();
+    await fixture.chunk.loadMeta();
+    const metadata = fixture.chunk.metadata!.filter(
+      ([tag]) => ![Tags.Modality, Tags.PixelSpacing].includes(tag)
+    );
+    metadata.push([Tags.Modality, 'US']);
+    const blob = fixture.chunk.metaBlob!;
+    const chunk = new Chunk({
+      metaLoader: {
+        meta: metadata,
+        metaBlob: blob,
+        ultrasoundRegions: {
+          regionCount: 1,
+          region: {
+            physicalUnitsXDirection: 3,
+            physicalUnitsYDirection: 3,
+            physicalDeltaX: 0.002,
+            physicalDeltaY: 0.00104,
+          },
+        },
+        load: () => {},
+        stop: () => {},
+      },
+      dataLoader: { data: blob, load: () => {}, stop: () => {} },
+    });
+    fixture.chunk.dispose();
+    const id = useImageCacheStore().addProgressiveImage(fixture.image);
+    await fixture.image.addChunks([chunk]);
+    fixture.image.startLoad();
+    await untilLoaded(id);
+    expect(fixture.image.getVtkImageData().getSpacing()[1]).toBeCloseTo(
+      0.0104,
+      7
+    );
+    expect(getEnFaceAvailability(id).calibratedAxes).toEqual([
+      true,
+      true,
+      true,
+    ]);
   });
 });

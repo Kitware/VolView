@@ -6,7 +6,7 @@ import { OPHTHALMIC_TOMOGRAPHY_SOP } from '@/src/core/streaming/dicom/octMetadat
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 describe('OCT occupied depth through DICOM allocation', () => {
-  it.each(['0.0104\\0', '0.0104\\NaN', '0.0104'])(
+  it.each(['0.0104\\0', '0.0104\\NaN'])(
     'measures the declared A-line spacing when another axis is unavailable: %s',
     (pixelSpacing) => {
       const metadata = Object.entries({

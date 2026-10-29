@@ -24,13 +24,7 @@ watch(
     slabDraft.value = null;
   }
 );
-const segmentReason = computed(
-  () =>
-    props.segmentationReason ||
-    (!props.settings.highlightThin
-      ? 'Enable thin-region highlighting to choose a segment.'
-      : null)
-);
+const segmentReason = computed(() => props.segmentationReason);
 const thresholdReason = computed(
   () =>
     props.thicknessReason ||
@@ -257,7 +251,7 @@ function updateHighlight(highlightThin: boolean | null) {
                     icon="mdi-information-outline"
                     size="x-small"
                     variant="text"
-                    aria-label="About occupied depth"
+                    aria-label="About thickness highlighting"
                     data-testid="enface-thickness-help"
                   />
                 </ReasonedAction>

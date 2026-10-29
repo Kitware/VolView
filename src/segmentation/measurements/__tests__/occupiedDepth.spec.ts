@@ -32,9 +32,12 @@ describe('selected-slab occupied depth', () => {
 
   it('marks only occupied invalid support inside the chosen slab as unknown', () => {
     const input = gappedColumn();
-    input.validity = new Uint8Array(24).fill(1);
-    input.validity[8] = 0;
-    input.validity[2 * 2] = 0;
+    input.validity = {
+      values: new Uint8Array(24).fill(1),
+      extent: [0, 1, 0, 5, 0, 1],
+    };
+    input.validity.values[8] = 0;
+    input.validity.values[2 * 2] = 0;
     const full = measureOccupiedDepth(input);
     expect(Array.from(full.known)).toEqual([0, 1, 1, 1]);
     expect(full.maximumCount).toBe(0);
@@ -105,7 +108,7 @@ describe('selected-slab occupied depth', () => {
         axis,
         first: 0,
         last: [4, 5, 6][axis],
-        validity,
+        validity: { values: validity, extent: [0, 4, 0, 5, 0, 6] },
         mask: {
           values: new Uint8Array(27).fill(1),
           dimensions: [3, 3, 3],
@@ -120,6 +123,36 @@ describe('selected-slab occupied depth', () => {
     }
   );
 
+  it.each([0, 1, 2] as const)(
+    'maps bounded source validity for a cropped slab on axis %i',
+    (axis) => {
+      const extent = [1, 3, 2, 4, 3, 5];
+      const slab = [2, 3, 4][axis];
+      const supportExtent = [...extent];
+      supportExtent[2 * axis] = slab;
+      supportExtent[2 * axis + 1] = slab;
+      const values = new Uint8Array(9).fill(1);
+      values[4] = 0;
+      const field = measureOccupiedDepth({
+        dimensions: [5, 6, 7],
+        axis,
+        first: slab,
+        last: slab,
+        validity: { values, extent: supportExtent },
+        mask: {
+          values: new Uint8Array(27).fill(1),
+          dimensions: [3, 3, 3],
+          extent,
+        },
+      });
+      const missingColumn = [27, 22, 17][axis];
+      expect(field.known[missingColumn]).toBe(0);
+      expect(field.counts.filter((count) => count === 1)).toHaveLength(8);
+      expect(field.known.filter((known) => !known)).toHaveLength(1);
+      expect(field.maximumCount).toBe(1);
+    }
+  );
+
   it('rejects malformed or nonbinary masks instead of treating them as empty', () => {
     const input = gappedColumn();
     input.mask.values[0] = 2;
@@ -128,7 +161,10 @@ describe('selected-slab occupied depth', () => {
       measureOccupiedDepth({ ...gappedColumn(), first: -1 })
     ).toThrow('inclusive source range');
     expect(() =>
-      measureOccupiedDepth({ ...gappedColumn(), validity: new Uint8Array(1) })
+      measureOccupiedDepth({
+        ...gappedColumn(),
+        validity: { values: new Uint8Array(1), extent: [0, 1, 0, 5, 0, 1] },
+      })
     ).toThrow('validity');
   });
 
@@ -148,7 +184,10 @@ describe('selected-slab occupied depth', () => {
     const measure = createOccupiedDepthMeasurer(mask);
     const validity = new Uint8Array(24).fill(1);
     validity[0] = 0;
-    const unknown = measure({ ...slab, validity });
+    const unknown = measure({
+      ...slab,
+      validity: { values: validity, extent: [0, 1, 0, 5, 0, 1] },
+    });
     expect(Array.from(unknown.known)).toEqual([0, 1, 1, 1]);
     expect(unknown.maximumCount).toBe(0);
     expect(measure(slab).maximumCount).toBe(4);
@@ -164,9 +203,12 @@ describe('selected-slab occupied depth', () => {
     expect(() => measure({ ...slab, last: 6 })).toThrow(
       'inclusive source range'
     );
-    expect(() => measure({ ...slab, validity: new Uint8Array(12) })).toThrow(
-      'validity'
-    );
+    expect(() =>
+      measure({
+        ...slab,
+        validity: { values: new Uint8Array(12), extent: [0, 1, 0, 5, 0, 1] },
+      })
+    ).toThrow('validity');
     expect(measure({ ...slab, first: 1, last: 1 }).maximumCount).toBe(1);
   });
 

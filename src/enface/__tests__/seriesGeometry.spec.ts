@@ -125,18 +125,70 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     });
   });
 
-  it('keeps an assembled nonuniform series projection-only', async () => {
-    const { id, image, chunks } = await assemble([0, 0.1, 0.4]);
-    expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-      reason: null,
-      measurementGeometryReason: expect.stringMatching(/nonuniform/),
-    });
-    expect(
-      dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
-    ).toMatch(/nonuniform/);
+  it('accepts Float32 position rounding relative to the slice pitch', async () => {
+    const positions = Array.from({ length: 31 }, (_, index) =>
+      Math.fround(-1000 + index * 0.08)
+    );
+    const { id } = await assemble(positions, undefined, 'CT');
+    expect(getEnFaceAvailability(id).measurementGeometryReason).toBeNull();
   });
+
+  it('uses uniform file positions when optional slice spacing disagrees', async () => {
+    const { id, image } = await assemble(undefined, (chunks) => {
+      chunks.forEach((chunk) =>
+        chunk.metadata!.push([Tags.SpacingBetweenSlices, '0.3'])
+      );
+    });
+    expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
+    expect(getEnFaceAvailability(id).measurementGeometryReason).toBeNull();
+  });
+
+  it('accepts orthogonal direction cosines rounded to four decimals', async () => {
+    const { id } = await assemble(undefined, (chunks) => {
+      chunks.forEach((chunk) =>
+        chunk.metadata!.push([
+          Tags.ImageOrientationPatient,
+          '0.9986\\0.0523\\0\\-0.0523\\0.9986\\0',
+        ])
+      );
+    });
+    expect(getEnFaceAvailability(id).measurementGeometryReason).toBeNull();
+  });
+
+  it('does not calibrate in-plane axes when every file omits pixel spacing', async () => {
+    const { id } = await assemble(undefined, (chunks) => {
+      chunks.forEach((chunk) => {
+        const index = chunk.metadata!.findIndex(
+          ([tag]) => tag === Tags.PixelSpacing
+        );
+        chunk.metadata!.splice(index, 1);
+      });
+    });
+    expect(getEnFaceAvailability(id).calibratedAxes).toEqual([
+      false,
+      false,
+      true,
+    ]);
+  });
+
+  it.each([
+    { positions: [0, 0.1, 0.4] },
+    { positions: [0, 0.2, 0.4003, 0.6, 0.8] },
+  ])(
+    'keeps a nonuniform series projection-only: $positions',
+    async ({ positions }) => {
+      const { id, image, chunks } = await assemble(positions);
+      expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
+      expect(getEnFaceAvailability(id)).toMatchObject({
+        available: true,
+        reason: null,
+        measurementGeometryReason: expect.stringMatching(/nonuniform/),
+      });
+      expect(
+        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      ).toMatch(/nonuniform/);
+    }
+  );
 
   it.each([
     [Tags.OphthalmicVolumetricPropertiesFlag, 'NO', /unsuitable/],
@@ -157,7 +209,6 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     [Tags.PixelSpacing, '0.02\\0.02', /pixel spacing/],
     [Tags.ImageOrientationPatient, '0\\1\\0\\1\\0\\0', /orientation/],
     [Tags.ImageOrientationPatient, '2\\0\\0\\0\\1\\0', /orientation/],
-    [Tags.SpacingBetweenSlices, '0.3', /slice spacing/],
   ])(
     'keeps inconsistent %s geometry projection-only',
     async (tag, value, reason) => {

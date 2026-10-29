@@ -51,7 +51,7 @@ export const WINDOW_TOOL =
 
 export const SLICE_LINE = '[data-testid="enface-slice-lines"] line';
 
-export const STEM = 'oct-fixtures';
+export const STEM = 'oct-fixtures-' + process.pid;
 
 export function stageFixture(name: string) {
   const directory = makeTempDir(STEM);
@@ -226,9 +226,9 @@ export async function openRetina(withMask = false, comparison = false) {
         'OCT test': comparison ? [['axial'], ['enface']] : [['axial']],
       },
     },
-    'oct-config.json'
+    STEM + '.json'
   );
-  await volViewPage.open('?urls=[tmp/oct-config.json,tmp/' + image + ']');
+  await volViewPage.open('?urls=[tmp/' + STEM + '.json,tmp/' + image + ']');
   await volViewPage.waitForViews();
   const spacing = await waitForFirstCachedImageSpacing();
   spacing.forEach((value, axis) =>
