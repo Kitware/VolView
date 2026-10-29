@@ -13,6 +13,7 @@ import { readFile } from '@/src/io/vtk/common';
 import { fileToDataSource } from '@/src/io/import/dataSource';
 import { registerConfigSection } from '@/src/io/import/configJson';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import { useDatasetStore } from '@/src/store/datasets';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useViewStore } from '@/src/store/views';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -46,6 +47,18 @@ const configFile = (name: string, extra = {}) =>
     [JSON.stringify({ segments: { [name]: { color: '#ff0000' } }, ...extra })],
     'config.json'
   );
+const gatedConfig = (name: string) => {
+  const file = configFile(name);
+  const readText = file.text.bind(file);
+  const entered = defer<void>();
+  const gate = defer<void>();
+  vi.spyOn(file, 'text').mockImplementation(async () => {
+    entered.resolve();
+    await gate.promise;
+    return readText();
+  });
+  return { file, entered: entered.promise, release: () => gate.resolve() };
+};
 const badImage = () => new File(['not VTI'], 'broken.vti');
 const vtiMime = FILE_EXT_TO_MIME.vti;
 const stlMime = FILE_EXT_TO_MIME.stl;
@@ -122,6 +135,23 @@ const duringPendingImage = async (check: () => Promise<void>) => {
     await pending;
   }
 };
+const loadContainedFiles = async (
+  container: 'files' | 'collection' | 'archive',
+  files: File[]
+) => {
+  if (container === 'collection')
+    return loadDataSources([
+      { type: 'collection', sources: files.map(fileToDataSource) },
+    ]);
+  if (container === 'archive') {
+    const zip = new JSZip();
+    for (const file of files) zip.file(file.name, await file.text());
+    return loadFiles([
+      new File([await zip.generateAsync({ type: 'arraybuffer' })], 'batch.zip'),
+    ]);
+  }
+  return loadFiles(files);
+};
 
 describe('image segment initialization through public loading', () => {
   it.each(['configured', 'borrowed'] as const)(
@@ -167,15 +197,11 @@ describe('image segment initialization through public loading', () => {
 
   it('keeps a published image reserved for its own unread companion config', async () => {
     await loadFiles([configFile('Liver')]);
-    const config = configFile('Tumor');
-    const readText = config.text.bind(config);
-    const configEntered = defer<void>();
-    const configGate = defer<void>();
-    vi.spyOn(config, 'text').mockImplementation(async () => {
-      configEntered.resolve();
-      await configGate.promise;
-      return readText();
-    });
+    const {
+      file: config,
+      entered: configEntered,
+      release: releaseConfig,
+    } = gatedConfig('Tumor');
     const published = defer<string>();
     const unsubscribe = useImageStore().$onAction(({ name, args, after }) => {
       if (name === 'addVTKImageData' && args[0] === 'owned.vti')
@@ -186,7 +212,7 @@ describe('image segment initialization through public loading', () => {
     const own = loadFiles([imageFile('owned.vti'), config]);
     try {
       const imageId = await published.promise;
-      await configEntered.promise;
+      await configEntered;
       useViewStore().setDataForAllViews(imageId);
       await nextTick();
       const names = picker(imageId);
@@ -195,18 +221,127 @@ describe('image segment initialization through public loading', () => {
       await unrelated;
       await nextTick();
       expect(names()).toEqual([]);
-      configGate.resolve();
+      releaseConfig();
       await own;
       await nextTick();
       expect(names()).toEqual(['Tumor']);
       expect(paintedName(imageId)).toBe('Tumor');
     } finally {
       unsubscribe();
-      configGate.resolve();
+      releaseConfig();
       slowGate.resolve();
       await Promise.all([own, unrelated]);
     }
   });
+});
+
+describe('standalone config destination during asynchronous loading', () => {
+  it.each([
+    'focus changed',
+    'no initial image',
+    'initial image removed',
+  ] as const)(
+    'keeps the destination captured when loading began: %s',
+    async (transition) => {
+      const initial =
+        transition === 'no initial image'
+          ? undefined
+          : (await loadFiles([
+              imageFile('initial.vti'),
+              configFile('Liver'),
+            ]))![0];
+      let unrelated: string | undefined;
+      if (transition === 'focus changed') {
+        [unrelated] = (await loadFiles([
+          imageFile('unrelated.vti'),
+          configFile('Kidney'),
+        ]))!;
+        useViewStore().setDataForAllViews(initial!);
+      }
+
+      const {
+        file: config,
+        entered: configEntered,
+        release: releaseConfig,
+      } = gatedConfig('Tumor');
+      const loading = loadFiles([config]);
+      try {
+        await configEntered;
+        if (transition === 'initial image removed')
+          useDatasetStore().remove(initial!);
+        if (transition !== 'focus changed')
+          unrelated = await openImage('unrelated.vti');
+        useViewStore().setDataForAllViews(unrelated!);
+        await nextTick();
+        const names = picker(unrelated!);
+        const expected =
+          transition === 'focus changed'
+            ? ['Kidney']
+            : transition === 'initial image removed'
+              ? ['Liver']
+              : [];
+        expect(names()).toEqual(expected);
+
+        releaseConfig();
+        await loading;
+        await nextTick();
+        expect(names()).toEqual(expected);
+        if (transition === 'focus changed')
+          expect(picker(initial!)()).toEqual(['Tumor']);
+        if (transition === 'initial image removed')
+          expect(
+            useSegmentStore().segments.imageSets.value[initial!]
+          ).toBeUndefined();
+        expect(
+          useSegmentStore().seedSegmentDefaults.map(({ name }) => name)
+        ).toEqual(['Tumor']);
+      } finally {
+        releaseConfig();
+        await loading;
+      }
+    }
+  );
+
+  it.each(
+    (['files', 'collection', 'archive'] as const).flatMap((container) => [
+      {
+        container,
+        failure: 'recognized config validation',
+        contents: JSON.stringify({ segments: 17 }),
+        expected: ['Tumor'],
+      },
+      {
+        container,
+        failure: 'unrecognized JSON syntax',
+        contents: '{',
+        expected: ['Liver'],
+      },
+    ])
+  )(
+    'keeps standalone config scope with a $failure failure through $container',
+    async ({ container, contents, expected }) => {
+      const [active] = (await loadFiles([
+        imageFile('active.vti'),
+        configFile('Liver'),
+      ]))!;
+      const setError = vi.spyOn(useLoadDataStore(), 'setError');
+      const ids = await loadContainedFiles(container, [
+        configFile('Tumor'),
+        new File([contents], 'invalid-config.json'),
+      ]);
+      await nextTick();
+      expect(ids).toEqual([]);
+      expect(picker(active)()).toEqual(expected);
+      expect(
+        useSegmentStore().seedSegmentDefaults.map(({ name }) => name)
+      ).toEqual(['Tumor']);
+      expect(setError).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          message: expect.stringContaining('invalid-config.json'),
+        })
+      );
+    }
+  );
 });
 
 describe('destination scope when companion data imports fail', () => {
@@ -217,22 +352,10 @@ describe('destination scope when companion data imports fail', () => {
         imageFile('active.vti'),
         configFile('Liver'),
       ]))!;
-      const files = [badImage(), configFile('Tumor')];
-      let ids: string[] | undefined;
-      if (container === 'collection') {
-        ids = await loadDataSources([
-          { type: 'collection', sources: files.map(fileToDataSource) },
-        ]);
-      } else if (container === 'archive') {
-        const zip = new JSZip();
-        for (const file of files) zip.file(file.name, await file.text());
-        ids = await loadFiles([
-          new File(
-            [await zip.generateAsync({ type: 'arraybuffer' })],
-            'batch.zip'
-          ),
-        ]);
-      } else ids = await loadFiles(files);
+      const ids = await loadContainedFiles(container, [
+        badImage(),
+        configFile('Tumor'),
+      ]);
       await nextTick();
       expect(ids).toEqual([]);
       expect(picker(active)()).toEqual(['Liver']);

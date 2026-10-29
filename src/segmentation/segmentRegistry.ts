@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue';
+import { computed, ref, type ComputedRef, type Ref } from 'vue';
 
 import { TOOL_COLORS } from '@/src/config';
 import { useIdStore } from '@/src/store/id';
@@ -26,7 +26,6 @@ export type SegmentSetSnapshot = {
 type SegmentReferenceHolder = {
   has: (segmentId: string) => boolean;
   remove: (segmentId: string) => void;
-  removeMany: (segmentIds: ReadonlySet<string>) => void;
 };
 
 // An unparseable color is left out, so the segment keeps the color it has.
@@ -93,12 +92,20 @@ export const createSegmentRegistry = () => {
     return imageSets.value[imageId];
   };
 
-  const segmentList = (imageId: Maybe<string>) =>
-    imageId
-      ? (imageSets.value[imageId]?.segmentIds ?? []).map(
+  const segmentLists = new Map<string, ComputedRef<Segment[]>>();
+  const segmentList = (imageId: Maybe<string>): Segment[] => {
+    if (!imageId || !imageSets.value[imageId]) return [];
+    let list = segmentLists.get(imageId);
+    if (!list) {
+      list = computed(() =>
+        (imageSets.value[imageId]?.segmentIds ?? []).map(
           (id) => segmentById.value[id]
         )
-      : [];
+      );
+      segmentLists.set(imageId, list);
+    }
+    return list.value;
+  };
 
   const ownerImageId = (id: Maybe<string>) => (id ? owners.get(id) : undefined);
   const belongsToImage = (imageId: Maybe<string>, id: Maybe<string>) =>
@@ -391,14 +398,16 @@ export const createSegmentRegistry = () => {
       segmentList(imageId).map((segment) => ({ ...segment }))
     );
 
+  // Image eviction also notifies each content store, which removes its own
+  // masks and tools by image. Only the segment metadata belongs here.
   const removeImage = (imageId: string) => {
-    const ids = new Set(imageSets.value[imageId]?.segmentIds);
-    if (ids.size) referenceHolders.forEach((holder) => holder.removeMany(ids));
+    const ids = imageSets.value[imageId]?.segmentIds ?? [];
     delete imageSets.value[imageId];
     ids.forEach((id) => {
       owners.delete(id);
       delete segmentById.value[id];
     });
+    segmentLists.delete(imageId);
     indexes.delete(imageId);
     configByImage.delete(imageId);
   };

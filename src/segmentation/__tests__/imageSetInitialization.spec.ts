@@ -13,6 +13,7 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { defer } from '@/src/utils';
 import { Skip } from '@/src/utils/evaluateChain';
 
@@ -36,7 +37,7 @@ describe('image segment initialization boundaries', () => {
     });
     await seatImage('b');
     await seatImage('c');
-    const releaseOuter = store.deferInitialization(['b', 'c']);
+    const releaseOuter = store.deferInitialization(['b', 'b', 'c']);
     const releaseInner = store.deferInitialization(['b', 'c']);
     await showImage('b');
     store.segments.updateSegment(source, {
@@ -46,6 +47,7 @@ describe('image segment initialization boundaries', () => {
     await showImage('c');
     await showImage('a');
     await showImage('b');
+    releaseInner();
     releaseInner();
     expect(names('b')).toEqual([]);
     releaseOuter();
@@ -162,6 +164,55 @@ describe('image segment initialization boundaries', () => {
     expect(names('c')).toEqual([]);
     releaseC();
     expect(names('c')).toEqual(['Liver']);
+  });
+
+  it('does bounded image-cache work when releasing independent destinations', async () => {
+    const store = useSegmentStore();
+    const imageCache = useImageCacheStore();
+    const imageIds = Array.from(
+      { length: 24 },
+      (_, index) => `pending-${index}`
+    );
+    const releases = imageIds.map((imageId) =>
+      store.deferInitialization([imageId])
+    );
+    for (const imageId of imageIds) {
+      await seatImage(imageId);
+      await showImage(imageId);
+    }
+
+    // Count cache reads before publishing a set, independent of lease storage.
+    let cacheReads = 0;
+    imageIds.forEach((imageId) => {
+      const image = imageCache.imageById[imageId];
+      Object.defineProperty(imageCache.imageById, imageId, {
+        configurable: true,
+        get: () => {
+          cacheReads += 1;
+          return image;
+        },
+      });
+    });
+    releases.forEach((release) => release());
+
+    expect(
+      imageIds.every((imageId) => store.segments.imageSets.value[imageId])
+    ).toBe(true);
+    expect(cacheReads).toBeLessThanOrEqual(2 * imageIds.length);
+  });
+
+  it('does not publish a pending set after its image is deleted', async () => {
+    await viewImage('existing');
+    const store = useSegmentStore();
+    store.segments.addSegment('existing', { name: 'Liver' });
+    const release = store.deferInitialization(['incoming']);
+    await viewImage('incoming');
+    useImageCacheStore().removeImage('incoming');
+
+    release();
+
+    expect(store.segments.imageSets.value.incoming).toBeUndefined();
+    expect(names('existing')).toEqual(['Liver']);
   });
 
   it('restores an explicit empty set without borrowing from the current image', async () => {

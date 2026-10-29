@@ -9,8 +9,9 @@ settings. Each segment has at most one mask, allocated only when needed.
 - `segment.ts`, `model.ts`, `geometry.ts`, and `color.ts` define the model and
   calculations. They do not depend on stores or components.
 - `segments.ts` and `segmentRegistry.ts` own image sets, identity, selection and
-  appearance. Stores register mask and shape references for cascading removal.
-  Removing an image deletes its definitions; configured defaults survive.
+  appearance. Stores register mask and shape references for segment deletion.
+  On image eviction each store removes its own image content synchronously, and
+  the registry forgets its definitions. Configured defaults survive.
 - `deleteSegment.ts` guards locked segments before deleting their masks and
   shapes.
 - `store.ts` owns mask identity, attachment, lookup, and lifecycle. Import and

@@ -74,11 +74,16 @@ describe('a configured segment creates nothing', () => {
     await seatAndView('img-2');
 
     expect(typeNames()).toEqual(['Tumor', 'Node']);
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ name }) => name)
+    ).toEqual(['Tumor', 'Node']);
     expect(recordsOf('img-1')).toEqual([]);
     expect(recordsOf('img-2')).toEqual([]);
-    expect(segments().findSegmentByName('img-2', 'Tumor')?.id).not.toBe(
-      segmentIdNamed('Tumor')
-    );
+    const copied = segments().findSegmentByName('img-2', 'Tumor');
+    expect(copied).toBeDefined();
+    expect(copied!.id).not.toBe(segmentIdNamed('Tumor'));
   });
 
   it('takes the configured color and appearance', () => {

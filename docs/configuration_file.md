@@ -175,8 +175,9 @@ appearance overrides but preserves identity, visibility and lock state.
 
 `segments` also updates defaults for future images. Configuration loaded with images
 or a session applies only to those images; standalone configuration applies to the
-active image. With no destination image, including when all image imports fail, only
-defaults change.
+image active when loading starts. Changing the active image while configuration
+loads does not retarget it. With no destination image, including when the original
+image is removed or all image imports fail, only defaults change.
 
 Keys preserve identity across updates. Changing a key matches or creates a segment
 under the new name. Reapplying configuration restores configured names and appearance.

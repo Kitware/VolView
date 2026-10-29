@@ -30,7 +30,9 @@ import {
   completeStateFileRestore,
 } from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
-import handleConfig from '@/src/io/import/processors/handleConfig';
+import handleConfig, {
+  InvalidConfigError,
+} from '@/src/io/import/processors/handleConfig';
 import {
   applyPreStateConfig,
   applyPostStateConfig,
@@ -48,6 +50,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { useViewStore } from '@/src/store/views';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -72,7 +75,8 @@ function isSelectable(result: ImportResult): result is LoadableVolumeResult {
 const applyConfigsPostState = (
   results: Array<ConfigResult>,
   loadables: readonly LoadableResult[],
-  hasDataResources: boolean
+  hasDataResources: boolean,
+  standaloneImageIds: string[]
 ): (ConfigResult | ErrorResult)[] => {
   const imageIds = loadables
     .filter((result) => result.dataType === 'image')
@@ -82,7 +86,7 @@ const applyConfigsPostState = (
       applyPostStateConfig(
         result.config,
         undefined,
-        hasDataResources ? imageIds : undefined
+        hasDataResources ? imageIds : standaloneImageIds
       );
       return result;
     } catch (err) {
@@ -152,7 +156,10 @@ export type ImportServices = RestoreProcessors & {
 };
 
 const hasDataIntent = (result: ImportResult) => {
-  if (result.type === 'config')
+  if (
+    result.type === 'config' ||
+    (result.type === 'error' && result.error instanceof InvalidConfigError)
+  )
     return findStateFileLeaves(result.dataSource).length > 0;
   if (result.type !== 'intermediate') return true;
   return (
@@ -172,7 +179,8 @@ export const appRestoreProcessors = (): RestoreProcessors => ({
 async function importDataSourcesWithPolicy(
   dataSources: DataSource[],
   policy: ImportPolicy,
-  services: ImportServices
+  services: ImportServices,
+  standaloneImageIds: string[]
 ): Promise<ImportDataSourcesResult[]> {
   const cleanupHandlers: Array<() => void> = [];
   const onCleanup = (fn: () => void) => {
@@ -187,7 +195,12 @@ async function importDataSourcesWithPolicy(
     onCleanup,
     onImageImported: services.onImageImported,
     importDataSources: (sources: DataSource[]) =>
-      importDataSourcesWithPolicy(sources, policy, services),
+      importDataSourcesWithPolicy(
+        sources,
+        policy,
+        services,
+        standaloneImageIds
+      ),
   };
 
   // State files first: a manifest's top-level `segments` is also a config key.
@@ -355,7 +368,8 @@ async function importDataSourcesWithPolicy(
     ...applyConfigsPostState(
       configResults,
       loadableResults,
-      observedResults.some(hasDataIntent)
+      observedResults.some(hasDataIntent),
+      standaloneImageIds
     )
   );
 
@@ -380,14 +394,24 @@ function importWithInitialization(
   policy: ImportPolicy,
   services: ImportServices
 ) {
+  const viewStore = useViewStore();
+  const initiatingImageId = viewStore.getView(viewStore.activeView)?.dataID;
+  // Standalone config belongs to the initiating image, even if focus changes
+  // while reading it. An explicit empty target updates only future defaults.
+  const standaloneImageIds = initiatingImageId ? [initiatingImageId] : [];
   return useSegmentStore().withDeferredImageInitialization((reserveImage) =>
-    importDataSourcesWithPolicy(dataSources, policy, {
-      ...services,
-      onImageImported: (imageId) => {
-        reserveImage(imageId);
-        services.onImageImported?.(imageId);
+    importDataSourcesWithPolicy(
+      dataSources,
+      policy,
+      {
+        ...services,
+        onImageImported: (imageId) => {
+          reserveImage(imageId);
+          services.onImageImported?.(imageId);
+        },
       },
-    })
+      standaloneImageIds
+    )
   );
 }
 

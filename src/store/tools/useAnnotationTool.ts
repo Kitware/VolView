@@ -258,18 +258,12 @@ export const useAnnotationTool = <
       .filter((id) => referencesSegment(id, segmentId))
       .forEach((id) => removeTool(id));
 
-  const removeToolsOfSegments = (segmentIds: ReadonlySet<string>) => {
-    if (!segmentIds.size) return;
-    removeToolsWhere((tool) => !tool.placing && segmentIds.has(tool.segmentId));
-  };
-
   const hasToolsOfSegment = (segmentId: string) =>
     toolIDs.value.some((id) => referencesSegment(id, segmentId));
 
   registry.declareReferences(manifestKey, {
     has: hasToolsOfSegment,
     remove: removeToolsOfSegment,
-    removeMany: removeToolsOfSegments,
   });
 
   return {

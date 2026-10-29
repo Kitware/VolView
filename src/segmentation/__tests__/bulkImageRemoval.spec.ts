@@ -4,17 +4,24 @@ import JSZip from 'jszip';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import {
+  activateAppPinia,
   manifestForImages,
   makeLabelmap,
   markedVoxels,
   seatImage,
   seedVoxel,
   showImage,
+  viewImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
+import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
+import { maskScalars } from '@/src/segmentation/model';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useImageStatsStore } from '@/src/store/image-stats';
+import { usePolygonStore } from '@/src/store/tools/polygons';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import { AnnotationToolType } from '@/src/store/tools/types';
@@ -98,15 +105,21 @@ describe('bulk image segment removal', () => {
     expect(cancelPreview).not.toHaveBeenCalled();
   });
 
-  it('removes finished content synchronously while keeping a placing stub and cached-image settings until image eviction', async () => {
+  it('evicts masks and finished, placing and unnamed tools synchronously while preserving the other image', async () => {
     const { registry, rulers } = await copiedCatalog(2);
     const masks = useSegmentationStore();
     const aSegments = registry.segmentList('a');
     const b = registry.segmentList('b')[0].id;
-    const finishedA = aSegments.map(({ id }) =>
-      rulers.addRuler(ruler('a', id))
-    );
-    const stubA = rulers.addRuler(ruler('a', aSegments[0].id, true));
+    const shapeStores = [rulers, useRectangleStore(), usePolygonStore()];
+    const tools = shapeStores.map((store) => ({
+      store,
+      removed: [
+        ...aSegments.map(({ id }) => store.addTool(ruler('a', id))),
+        store.addTool(ruler('a', aSegments[0].id, true)),
+        store.addTool(ruler('a', '')),
+      ],
+      retained: store.addTool(ruler('b', b)),
+    }));
     const aMasks = aSegments.map(({ id }) => masks.resolveEditTarget('a', id));
     aMasks.forEach((id, index) => seedVoxel(id, [index, 0, 0]));
     const bMask = masks.resolveEditTarget('b', b);
@@ -120,33 +133,57 @@ describe('bulk image segment removal', () => {
       outlineThickness: 4,
     });
     const selection = useToolSelectionStore();
-    selection.addSelection(finishedA[0], AnnotationToolType.Ruler);
-    selection.addSelection(rulers.rulerIDs[0], AnnotationToolType.Ruler);
-
-    registry.removeImage('a');
-
-    const saved = serializeNow(['a', 'b']);
-    expect(saved.tools?.rulers?.tools).toEqual(originalB);
-    expect(saved.segments).toEqual(registry.segmentList('b'));
-    expect(finishedA.every((id) => !rulers.toolByID[id])).toBe(true);
-    expect(rulers.toolByID[stubA]?.placing).toBe(true);
-    expect(selection.isSelected(finishedA[0])).toBe(false);
-    expect(selection.isSelected(rulers.rulerIDs[0])).toBe(true);
-    expect(aMasks.every((id) => !masks.maskExists(id))).toBe(true);
-    expect(masks.getSegmentationForImage('a')).toBe(segmentationA);
-    expect(segmentationA).toMatchObject({
-      fillOpacity: 0.8,
-      outlineThickness: 4,
-      order: [],
-      masks: {},
-    });
-    expect(markedVoxels(bMask)).toEqual([[1, 1, 0, 1]]);
+    const selectedA = tools[0].removed[0];
+    const selectedB = tools[0].retained;
+    selection.addSelection(selectedA, AnnotationToolType.Ruler);
+    selection.addSelection(selectedB, AnnotationToolType.Ruler);
+    const cancelPreview = vi.fn();
+    useSegmentationEditsStore().hold(cancelPreview);
 
     useImageCacheStore().removeImage('a');
-    expect(rulers.toolByID[stubA]).toBeUndefined();
+
+    const saved = serializeNow(['b']);
+    expect(saved.tools?.rulers?.tools).toEqual(originalB);
+    expect(saved.segments).toEqual(registry.segmentList('b'));
+    tools.forEach(({ store, removed, retained }) => {
+      expect(removed.every((id) => !store.toolByID[id])).toBe(true);
+      expect(store.toolByID[retained]?.segmentId).toBe(b);
+    });
+    expect(selection.isSelected(selectedA)).toBe(false);
+    expect(selection.isSelected(selectedB)).toBe(true);
+    expect(aMasks.every((id) => !masks.maskExists(id))).toBe(true);
     expect(masks.getSegmentationForImage('a')).toBeUndefined();
     expect(rulers.serializeTools().tools).toEqual(originalB);
     expect(markedVoxels(bMask)).toEqual([[1, 1, 0, 1]]);
+    expect(cancelPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back a process preview before eviction removes its mask storage', async () => {
+    activateAppPinia();
+    useImageStatsStore().stats.a = {
+      scalarMin: 0,
+      scalarMax: 0,
+      autoRangeValues: {},
+    };
+    await viewImage('a');
+    const masks = useSegmentationStore();
+    const maskId = masks.resolveEditTarget('a');
+    seedVoxel(maskId, [0, 0, 0]);
+    const image = masks.findMaskBinding(maskId)!.image;
+    const original = maskScalars(image).slice();
+    const process = usePaintProcessStore();
+    await process.startProcess(async ({ scalars, maskExtent }) => ({
+      scalars: new Uint8Array(scalars.length),
+      extent: maskExtent,
+    }));
+    expect(process.processStep).toBe('previewing');
+    expect(maskScalars(image)).not.toEqual(original);
+
+    useImageCacheStore().removeImage('a');
+
+    expect(process.processStep).toBe('start');
+    expect(maskScalars(image)).toEqual(original);
+    expect(masks.maskExists(maskId)).toBe(false);
   });
 
   it('releases every removed mask name without reserving it against another image', async () => {
@@ -167,7 +204,7 @@ describe('bulk image segment removal', () => {
       { name: 'Segment Group 2 for CT' }
     );
 
-    registry.removeImage('a');
+    useImageCacheStore().removeImage('a');
 
     const names = ['First', 'Second'].map((name) => {
       const segmentId = registry.addSegment('b', { name });

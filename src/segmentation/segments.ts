@@ -55,11 +55,11 @@ export const useSegmentStore = defineStore('segments', () => {
   const activeImageId = computed(
     () => viewStore.getView(viewStore.activeView)?.dataID
   );
-  const initializationReservations = new Set<ReadonlySet<string>>();
+  const initializationReservations = new Map<string, number>();
   const pendingSets = new Map<string, SegmentSetSnapshot>();
 
   const initializationDeferred = (imageId: string) =>
-    [...initializationReservations].some((imageIds) => imageIds.has(imageId));
+    initializationReservations.has(imageId);
 
   const defaultSnapshot = (): SegmentSetSnapshot => ({
     segments: seedSegmentDefaults.value.map((segment) => ({
@@ -88,18 +88,27 @@ export const useSegmentStore = defineStore('segments', () => {
   /** Imports install their definitions before a plain image borrows a set. */
   function deferInitialization(imageIds: readonly string[] = []) {
     const reservation = new Set(imageIds);
-    initializationReservations.add(reservation);
+    reservation.forEach((imageId) => {
+      initializationReservations.set(
+        imageId,
+        (initializationReservations.get(imageId) ?? 0) + 1
+      );
+    });
+    let released = false;
     return () => {
-      if (!initializationReservations.delete(reservation)) return;
-      pendingSets.forEach((source, imageId) => {
-        if (!imageCacheStore.imageById[imageId]) {
-          pendingSets.delete(imageId);
-          return;
-        }
-        if (!initializationDeferred(imageId)) {
+      if (released) return;
+      released = true;
+      reservation.forEach((imageId) => {
+        const remaining = initializationReservations.get(imageId)! - 1;
+        if (remaining > 0) initializationReservations.set(imageId, remaining);
+        else initializationReservations.delete(imageId);
+      });
+      reservation.forEach((imageId) => {
+        if (initializationDeferred(imageId)) return;
+        const source = pendingSets.get(imageId);
+        if (source && imageCacheStore.imageById[imageId])
           registry.initializeSet(imageId, source);
-          pendingSets.delete(imageId);
-        }
+        pendingSets.delete(imageId);
       });
     };
   }

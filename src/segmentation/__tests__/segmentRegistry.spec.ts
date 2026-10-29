@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import { computed } from 'vue';
 import {
   maskOn,
   seatSpecImage,
@@ -129,6 +130,35 @@ describe('segment registry', () => {
     expect(registry.orderIndexOf(second)).toBe(1);
   });
 
+  it('reuses an image list across readers and unrelated edits while keeping its contents reactive', () => {
+    const registry = createSegmentRegistry();
+    const first = registry.addSegment('first', { name: 'A' });
+    const other = registry.addSegment('second', { name: 'Other' });
+    const list = computed(() => registry.segmentList('first'));
+    const initial = list.value;
+
+    expect(registry.segmentList('first')).toBe(initial);
+    registry.selectSegment(first);
+    registry.updateSegment(other, { name: 'Unrelated' });
+    registry.mintSegment('second');
+    expect(registry.segmentList('first')).toBe(initial);
+    expect(list.value).toBe(initial);
+
+    registry.updateSegment(first, { name: 'Renamed' });
+    expect(list.value).not.toBe(initial);
+    expect(list.value.map(({ name }) => name)).toEqual(['Renamed']);
+    const next = registry.mintSegment('first', { name: 'B' });
+    expect(list.value.map(({ id }) => id)).toEqual([first, next]);
+    registry.moveSegment(next, first);
+    expect(list.value.map(({ id }) => id)).toEqual([next, first]);
+    registry.deleteSegment(first);
+    expect(list.value.map(({ id }) => id)).toEqual([next]);
+    registry.removeImage('first');
+    expect(list.value).toEqual([]);
+    const replacement = registry.addSegment('first', { name: 'Replacement' });
+    expect(list.value.map(({ id }) => id)).toEqual([replacement]);
+  });
+
   it('keeps the list and the order index in step across a deletion', () => {
     const registry = createSegmentRegistry();
     const ids = ['A', 'B', 'C'].map((name) =>
@@ -222,7 +252,6 @@ describe('segment registry', () => {
     registry.declareReferences('test', {
       has: () => false,
       remove: (segmentId) => removed.push(registry.getSegment(segmentId)?.name),
-      removeMany: () => {},
     });
     const id = registry.addSegment('img-1', { name: 'Tumor' });
 
@@ -339,7 +368,6 @@ describe('segment registry', () => {
     registry.declareReferences('test', {
       has: (segmentId) => segmentId === existing,
       remove: () => {},
-      removeMany: () => {},
     });
 
     const { idMap } = registry.adopt('img-1', [
@@ -684,31 +712,23 @@ describe('image segment sets', () => {
     expect(registry.ownerImageId(first)).toBe('first');
   });
 
-  it('removes only the deleted image and its referenced content', () => {
+  it('forgets only the removed image metadata without invoking per-segment content removal', () => {
     const registry = createSegmentRegistry();
     const first = registry.addSegment('first', { name: 'Tumor' });
     const another = registry.addSegment('first', { name: 'Node' });
     const second = registry.addSegment('second', { name: 'Tumor' });
-    const removed: Array<Array<[string, string | undefined]>> = [];
+    registry.replaceConfigSegments('first', { Configured: {} });
     let individualRemovals = 0;
     registry.declareReferences('content', {
       has: () => true,
       remove: () => {
         individualRemovals += 1;
       },
-      removeMany: (ids) =>
-        removed.push([...ids].map((id) => [id, registry.getSegment(id)?.name])),
     });
 
     registry.removeImage('first');
 
     expect(individualRemovals).toBe(0);
-    expect(removed).toEqual([
-      [
-        [first, 'Tumor'],
-        [another, 'Node'],
-      ],
-    ]);
     expect(registry.imageSets.value.first).toBeUndefined();
     expect(registry.getSegment(first)).toBeUndefined();
     expect(registry.getSegment(another)).toBeUndefined();
@@ -716,6 +736,10 @@ describe('image segment sets', () => {
     expect(registry.getSegment(second)?.name).toBe('Tumor');
     expect(registry.selectedSegmentId('first')).toBeUndefined();
     expect(registry.selectedSegmentId('second')).toBe(second);
+    registry.replaceConfigSegments('first', { Configured: {} });
+    expect(registry.segmentList('first').map(({ name }) => name)).toEqual([
+      'Configured',
+    ]);
     const replacement = registry.addSegment('first');
     expect(registry.getSegment(replacement)?.name).toBe('Segment 1');
   });
