@@ -21,6 +21,11 @@ export function deriveSlabGeometry(
   spec: SlabSpecification
 ) {
   const axes = [0, 1, 2].filter((axis) => axis !== spec.axis);
+  const dimensions = image.getDimensions();
+  const sourceSpacing = image.getSpacing();
+  const width = dimensions[axes[0]];
+  const height = dimensions[axes[1]];
+  const spacing = axes.map((axis) => Math.abs(sourceSpacing[axis]));
   const planeIndex: Vector3 = [0, 0, 0];
   planeIndex[spec.axis] = (spec.first + spec.last) / 2;
   const planeOrigin = image.indexToWorld(planeIndex) as Vector3;
@@ -48,6 +53,9 @@ export function deriveSlabGeometry(
     ...metadataFromVtkImageData(image),
   };
   return {
+    width,
+    height,
+    spacing,
     metadata,
     pixelToWorld,
     planeOrigin,

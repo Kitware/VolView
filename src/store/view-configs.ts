@@ -56,7 +56,8 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const deserialize = (
     viewID: string,
     config: Record<string, ViewConfig>,
-    dataIDMap: Record<string, string>
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
   ) => {
     // First update the view config map to use the new dataIDs
     const updatedConfig: Record<string, ViewConfig> = {};
@@ -72,12 +73,13 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
     cinePlaybackStore.deserialize(viewID, updatedConfig);
-    enFaceViewStore.deserialize(viewID, updatedConfig);
+    enFaceViewStore.deserialize(viewID, updatedConfig, segmentIdMap);
   };
 
   const deserializeAll = (
     manifest: StateFile['manifest'],
-    dataIDMap: Record<string, string>
+    dataIDMap: Record<string, string>,
+    segmentIdMap: Record<string, string> = {}
   ) => {
     // Layer images are rebuilt after view settings are restored.
     const configIDMap = { ...dataIDMap };
@@ -103,7 +105,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
 
     Object.entries(manifest.viewByID ?? {}).forEach(([viewID, view]) => {
       if (view.config) {
-        deserialize(viewID, view.config, configIDMap);
+        deserialize(viewID, view.config, configIDMap, segmentIdMap);
       }
     });
   };

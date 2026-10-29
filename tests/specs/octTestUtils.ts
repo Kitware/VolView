@@ -147,8 +147,9 @@ export const windowedGray = (
   value: number,
   { width, level }: { width: number; level: number }
 ) => Math.round(255 * Math.min(1, Math.max(0, (value - level) / width + 0.5)));
-const PROJECTION_TOGGLE =
-  '.v-overlay--active [data-testid="enface-projection-toggle"]';
+type EnFaceSection = 'projection' | 'thickness';
+const sectionToggle = (section: EnFaceSection) =>
+  '.v-overlay--active [data-testid="enface-' + section + '-toggle"]';
 const enFaceView = async (view?: WebdriverIO.Element) =>
   view ?? $(VIEWER).getElement();
 
@@ -182,8 +183,10 @@ export async function displayedWindow(view: WebdriverIO.Element) {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-export async function expandEnFaceSection() {
-  const toggle = $(PROJECTION_TOGGLE);
+export async function expandEnFaceSection(
+  section: EnFaceSection = 'projection'
+) {
+  const toggle = $(sectionToggle(section));
   await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
   await toggle.waitForClickable();
   if ((await toggle.getAttribute('aria-expanded')) !== 'true')
@@ -223,6 +226,7 @@ export async function selectSetting(
   const option = overlayOption(title);
   await option.waitForClickable();
   await option.click();
+  await option.waitForDisplayed({ reverse: true });
 }
 
 export async function chooseEnFaceProjection(
@@ -234,7 +238,6 @@ export async function chooseEnFaceProjection(
   await volViewPage.closeMenu($(WINDOW_TOOL));
   await openEnFaceProjection(viewer);
   await selectSetting(testId, label);
-  await overlayOption(label).waitForDisplayed({ reverse: true });
   await volViewPage.closeMenu(viewer.$(CONTROLS));
   await $(PANEL).waitForDisplayed({ reverse: true });
 }
@@ -525,9 +528,15 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const controls = viewer.$(CONTROLS);
   const restorePanel =
     (await controls.getAttribute('aria-expanded')) === 'true';
-  const expanded =
-    restorePanel &&
-    (await $(PROJECTION_TOGGLE).getAttribute('aria-expanded')) === 'true';
+  const sections = ['projection', 'thickness'] as const;
+  const expanded = await Promise.all(
+    sections.map(
+      async (section) =>
+        restorePanel &&
+        (await $(sectionToggle(section)).getAttribute('aria-expanded')) ===
+          'true'
+    )
+  );
   await volViewPage.closeMenu(controls);
   if (restorePanel) await panel.waitForDisplayed({ reverse: true });
   await viewer.$(CANVAS).waitForClickable();
@@ -544,13 +553,15 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     const reopened = $(PANEL);
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
-    const toggle = $(PROJECTION_TOGGLE);
-    if (expanded) {
-      await expandEnFaceSection();
-    } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
-      await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
-      await toggle.waitForClickable();
-      await toggle.click();
+    for (const [index, section] of sections.entries()) {
+      const toggle = $(sectionToggle(section));
+      if (expanded[index]) {
+        await expandEnFaceSection(section);
+      } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
+        await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await toggle.waitForClickable();
+        await toggle.click();
+      }
     }
     await reopened.waitForStable();
   }
