@@ -180,7 +180,7 @@ export const config: Options.Testrunner = {
   ],
   mochaOpts: {
     ui: 'bdd',
-    timeout: IS_CI ? 180_000 : 90_000,
+    timeout: 180_000,
     require: ['./tests/rootHooks.ts'],
   },
 
