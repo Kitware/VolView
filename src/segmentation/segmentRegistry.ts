@@ -1,4 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
+import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { TOOL_COLORS } from '@/src/config';
 import { useIdStore } from '@/src/store/id';
@@ -18,10 +19,12 @@ export type ImageSegmentSet = {
   selectedSegmentId?: string;
 };
 
+export type SegmentDefaults = Omit<Segment, 'id'>;
+
 export type SegmentSetSnapshot = {
   segments: SegmentInit[];
   selectedIndex?: number;
-  configured?: Array<Omit<ConfigEntry, 'id'> & { name: string; index: number }>;
+  configured: Array<Omit<ConfigEntry, 'id'> & { name: string; index: number }>;
 };
 
 type ConfigEntry = {
@@ -46,12 +49,59 @@ const fromConfigured = (name: string, configured: ConfiguredSegments[string]) =>
     strokeWidth: configured.strokeWidth,
   });
 
+type Appearance = Pick<
+  Segment,
+  'color' | 'fillOpacity' | 'outlineOpacity' | 'strokeWidth'
+>;
+
 const configuredAppearance = ({
   color,
   fillOpacity,
   outlineOpacity,
   strokeWidth,
-}: Segment) => ({ color, fillOpacity, outlineOpacity, strokeWidth });
+}: Appearance) => ({ color, fillOpacity, outlineOpacity, strokeWidth });
+
+// A config key seats in the palette color at its position in the config.
+const configuredColor = (index: number) =>
+  cssColorToRGBA(TOOL_COLORS[index % TOOL_COLORS.length]);
+
+export const withCopiedColor = <T extends { color: RGBAColor }>(
+  segment: T
+): T => ({ ...segment, color: [...segment.color] as RGBAColor });
+
+/** The definitions a config gives an image that has no earlier set to copy. */
+export const defaultsFromConfig = (
+  configured: ConfiguredSegments
+): SegmentDefaults[] =>
+  Object.entries(configured).map(([name, props], index) => ({
+    name,
+    color: configuredColor(index),
+    visible: true,
+    locked: false,
+    ...fromConfigured(name, props),
+  }));
+
+/** Seeds defaults as config-minted segments, as the config itself would. */
+export const snapshotFromDefaults = (
+  defaults: readonly SegmentDefaults[]
+): SegmentSetSnapshot => ({
+  segments: defaults.map(withCopiedColor),
+  configured: defaults.map(
+    ({ name, color, fillOpacity, outlineOpacity, strokeWidth }, index) => ({
+      name,
+      index,
+      appearance: configuredAppearance({ color: configuredColor(index) }),
+      contribution: cleanUndefined({
+        name,
+        color: [...color],
+        fillOpacity,
+        outlineOpacity,
+        strokeWidth,
+      }),
+      minted: true,
+    })
+  ),
+});
 
 /**
  * Each image owns the segments its paint, rectangles, polygons and rulers
@@ -75,12 +125,15 @@ export const createSegmentRegistry = (
   >;
   const imageSets = ref<Record<string, ImageSegmentSet>>(Object.create(null));
   const owners = new Map<string, string>();
+  // Per-image lookups: names, suffix floors, the color cursor and the config
+  // overlay. They live and go with the image's set.
   const indexes = new Map<
     string,
     {
       idsByName: Map<string, string[]>;
       suffixFloors: Map<string, number>;
       nextColor: () => string;
+      config: Map<string, ConfigEntry>;
     }
   >();
 
@@ -91,6 +144,7 @@ export const createSegmentRegistry = (
         idsByName: new Map(),
         suffixFloors: new Map(),
         nextColor: cycle(TOOL_COLORS),
+        config: new Map(),
       };
       indexes.set(imageId, index);
     }
@@ -303,19 +357,16 @@ export const createSegmentRegistry = (
     return mintSegment(imageId, { ...init, name });
   };
 
-  const snapshot = (imageId: Maybe<string>): SegmentSetSnapshot => {
+  const snapshot = (imageId: string): SegmentSetSnapshot => {
     const segments = segmentList(imageId);
     const indexesById = new Map(segments.map(({ id }, index) => [id, index]));
-    const selectedIndex = segments.findIndex(
-      ({ id }) => id === selectedSegmentId(imageId)
-    );
+    const selectedIndex = indexesById.get(selectedSegmentId(imageId) ?? '');
     return {
-      segments: segments.map((segment) => ({
-        ...omit(segment, ['id']),
-        color: [...segment.color],
-      })),
-      ...(selectedIndex >= 0 ? { selectedIndex } : {}),
-      configured: [...(configByImage.get(imageId ?? '') ?? [])].flatMap(
+      segments: segments.map((segment) =>
+        withCopiedColor(omit(segment, ['id']))
+      ),
+      ...(selectedIndex === undefined ? {} : { selectedIndex }),
+      configured: [...(indexes.get(imageId)?.config ?? [])].flatMap(
         ([name, { id, ...entry }]) => {
           const index = indexesById.get(id);
           return index === undefined
@@ -325,10 +376,7 @@ export const createSegmentRegistry = (
                   ...entry,
                   name,
                   index,
-                  appearance: {
-                    ...entry.appearance,
-                    color: [...entry.appearance.color],
-                  },
+                  appearance: withCopiedColor(entry.appearance),
                   contribution: {
                     ...entry.contribution,
                     ...(entry.contribution.color
@@ -342,10 +390,10 @@ export const createSegmentRegistry = (
     };
   };
 
-  const initializeSet = (imageId: string, source?: SegmentSetSnapshot) => {
-    if (imageSets.value[imageId]) return imageSets.value[imageId];
+  const initializeSet = (imageId: string, source: SegmentSetSnapshot) => {
+    if (imageSets.value[imageId]) return;
     const set = ensureSet(imageId);
-    source?.segments.forEach(({ color, ...segment }) =>
+    source.segments.forEach(({ color, ...segment }) =>
       mintSegment(imageId, {
         ...segment,
         ...(color ? { color: [...color] } : {}),
@@ -353,13 +401,12 @@ export const createSegmentRegistry = (
         locked: false,
       })
     );
-    if (source?.selectedIndex !== undefined)
+    if (source.selectedIndex !== undefined)
       selectSegment(set.segmentIds[source.selectedIndex]);
-    source?.configured?.forEach(({ name, index, ...entry }) => {
+    source.configured.forEach(({ name, index, ...entry }) => {
       const id = set.segmentIds[index];
-      if (id) configEntries(imageId).set(name, { ...entry, id });
+      if (id) indexFor(imageId).config.set(name, { ...entry, id });
     });
-    return set;
   };
 
   // --- config overlay --- //
@@ -367,29 +414,15 @@ export const createSegmentRegistry = (
   // Keep each key's identity and appearance beneath its config contribution.
   // New segments begin with automatic color and default optional appearance;
   // a restored segment begins with its session appearance.
-  const configByImage = new Map<string, Map<string, ConfigEntry>>();
-  const configEntries = (imageId: string) => {
-    let entries = configByImage.get(imageId);
-    if (!entries) {
-      entries = new Map();
-      configByImage.set(imageId, entries);
-    }
-    return entries;
-  };
-
   const overlayConfig = (imageId: string, name: string, entry: ConfigEntry) => {
-    configEntries(imageId).set(name, entry);
+    indexFor(imageId).config.set(name, entry);
     updateSegment(entry.id, { ...entry.appearance, ...entry.contribution });
   };
 
   const seatConfigured = (imageId: string, name: string, index: number) => {
     const matched = findSegmentByName(imageId, name)?.id;
     const id =
-      matched ??
-      mintSegment(imageId, {
-        name,
-        color: cssColorToRGBA(TOOL_COLORS[index % TOOL_COLORS.length]),
-      });
+      matched ?? mintSegment(imageId, { name, color: configuredColor(index) });
     return {
       id,
       appearance: configuredAppearance(getSegment(id)!),
@@ -402,7 +435,7 @@ export const createSegmentRegistry = (
     configured: Maybe<ConfiguredSegments>
   ) => {
     ensureSet(imageId);
-    const entries = configEntries(imageId);
+    const entries = indexFor(imageId).config;
     const next = configured ?? {};
 
     Object.entries(next).forEach(([name, props], index) => {
@@ -444,7 +477,6 @@ export const createSegmentRegistry = (
     });
     segmentLists.delete(imageId);
     indexes.delete(imageId);
-    configByImage.delete(imageId);
   };
 
   // The session's appearance replaces the reused segment's own and a config
@@ -458,7 +490,7 @@ export const createSegmentRegistry = (
       ...init,
     });
     const imageId = ownerImageId(id)!;
-    const held = [...configEntries(imageId)].find(
+    const held = [...indexFor(imageId).config].find(
       ([, entry]) => entry.id === id
     );
     // Now the session's segment as well, so dropping the key must not take it.
@@ -533,7 +565,6 @@ export const createSegmentRegistry = (
 
   return {
     imageSets,
-    ensureSet,
     initializeSet,
     snapshot,
     ownerImageId,

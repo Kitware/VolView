@@ -1,21 +1,23 @@
 import { defineStore } from 'pinia';
-import { computed, markRaw, ref, watch } from 'vue';
+import { markRaw, ref, watch } from 'vue';
 
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
-import { TOOL_COLORS } from '@/src/config';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { ConfiguredSegments } from '@/src/io/import/configSegments';
-import { cssColorToRGBA, tryCssColorToRGBA } from '@/src/segmentation/color';
 import type { Segment } from '@/src/segmentation/segment';
 import {
   createSegmentRegistry,
+  defaultsFromConfig,
+  snapshotFromDefaults,
+  withCopiedColor,
+  type SegmentDefaults,
   type SegmentSetSnapshot,
 } from '@/src/segmentation/segmentRegistry';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useViewStore } from '@/src/store/views';
 import type { Maybe } from '@/src/types';
-import { cleanUndefined, isRecord } from '@/src/utils';
+import { isRecord, partition } from '@/src/utils';
 
 declareManifestRefs('imageSegmentSets', (manifest) =>
   (Array.isArray(manifest.imageSegmentSets)
@@ -48,52 +50,24 @@ declareManifestRefs('imageSegmentSets', (manifest) =>
 
 /** Paint and annotation shapes share definitions within their owning image. */
 export const useSegmentStore = defineStore('segments', () => {
-  const registry = createSegmentRegistry((imageId) => {
-    const source = pendingSets.get(imageId);
-    if (source) {
-      registry.initializeSet(imageId, source);
-      pendingSets.delete(imageId);
-    }
-  });
   const imageCacheStore = useImageCacheStore();
-  const viewStore = useViewStore();
-  const seedSegmentDefaults = ref<Omit<Segment, 'id'>[]>([]);
-  const activeImageId = computed(
-    () => viewStore.getView(viewStore.activeView)?.dataID
-  );
-  const initializationReservations = new Map<string, number>();
   const pendingSets = new Map<string, SegmentSetSnapshot>();
+  const flushPendingSet = (imageId: string) => {
+    const source = pendingSets.get(imageId);
+    pendingSets.delete(imageId);
+    if (source && imageCacheStore.imageById[imageId])
+      registry.initializeSet(imageId, source);
+  };
+  const registry = createSegmentRegistry(flushPendingSet);
+  const seedSegmentDefaults = ref<SegmentDefaults[]>([]);
+  const { currentImageID: activeImageId } = useCurrentImage('global');
+  const initializationReservations = new Map<string, number>();
   let lastImageId: string | undefined;
 
   const initializationDeferred = (imageId: string) =>
     initializationReservations.has(imageId);
 
-  const defaultSnapshot = (): SegmentSetSnapshot => ({
-    segments: seedSegmentDefaults.value.map((segment) => ({
-      ...segment,
-      color: [...segment.color],
-    })),
-    configured: seedSegmentDefaults.value.map(
-      ({ name, color, fillOpacity, outlineOpacity, strokeWidth }, index) => ({
-        name,
-        index,
-        appearance: {
-          color: cssColorToRGBA(TOOL_COLORS[index % TOOL_COLORS.length]),
-          fillOpacity: undefined,
-          outlineOpacity: undefined,
-          strokeWidth: undefined,
-        },
-        contribution: cleanUndefined({
-          name,
-          color: [...color],
-          fillOpacity,
-          outlineOpacity,
-          strokeWidth,
-        }),
-        minted: true,
-      })
-    ),
-  });
+  const defaultSnapshot = () => snapshotFromDefaults(seedSegmentDefaults.value);
 
   watch(
     activeImageId,
@@ -101,21 +75,21 @@ export const useSegmentStore = defineStore('segments', () => {
       if (!imageId || !imageCacheStore.imageById[imageId]) return;
       const previousImageId = lastImageId;
       lastImageId = imageId;
-      if (registry.imageSets.value[imageId]) return;
+      // Pending copies exist only while deferred; the first one stands.
+      if (registry.imageSets.value[imageId] || pendingSets.has(imageId)) return;
       const source =
         previousImageId && registry.imageSets.value[previousImageId]
           ? registry.snapshot(previousImageId)
           : (previousImageId && pendingSets.get(previousImageId)) ||
             defaultSnapshot();
-      if (initializationDeferred(imageId)) {
-        if (!pendingSets.has(imageId)) pendingSets.set(imageId, source);
-      } else registry.initializeSet(imageId, source);
+      if (initializationDeferred(imageId)) pendingSets.set(imageId, source);
+      else registry.initializeSet(imageId, source);
     },
     { immediate: true, flush: 'sync' }
   );
 
   /** Imports install their definitions before a plain image borrows a set. */
-  function deferInitialization(imageIds: readonly string[] = []) {
+  function deferInitialization(imageIds: readonly string[]) {
     const reservation = new Set(imageIds);
     reservation.forEach((imageId) => {
       initializationReservations.set(
@@ -129,15 +103,12 @@ export const useSegmentStore = defineStore('segments', () => {
       released = true;
       reservation.forEach((imageId) => {
         const remaining = initializationReservations.get(imageId)! - 1;
-        if (remaining > 0) initializationReservations.set(imageId, remaining);
-        else initializationReservations.delete(imageId);
-      });
-      reservation.forEach((imageId) => {
-        if (initializationDeferred(imageId)) return;
-        const source = pendingSets.get(imageId);
-        if (source && imageCacheStore.imageById[imageId])
-          registry.initializeSet(imageId, source);
-        pendingSets.delete(imageId);
+        if (remaining > 0) {
+          initializationReservations.set(imageId, remaining);
+        } else {
+          initializationReservations.delete(imageId);
+          flushPendingSet(imageId);
+        }
       });
     };
   }
@@ -165,17 +136,7 @@ export const useSegmentStore = defineStore('segments', () => {
     imageIds?: string[]
   ) {
     if (configured === undefined) return;
-    seedSegmentDefaults.value = Object.entries(configured ?? {}).map(
-      ([name, { color, ...appearance }], index) => ({
-        name,
-        color:
-          (color && tryCssColorToRGBA(color)) ||
-          cssColorToRGBA(TOOL_COLORS[index % TOOL_COLORS.length]),
-        visible: true,
-        locked: false,
-        ...cleanUndefined(appearance),
-      })
-    );
+    seedSegmentDefaults.value = defaultsFromConfig(configured ?? {});
     const targets =
       imageIds ?? (activeImageId.value ? [activeImageId.value] : []);
     targets
@@ -194,12 +155,8 @@ export const useSegmentStore = defineStore('segments', () => {
       segmentIds: [...set.segmentIds],
       selectedSegmentId: registry.selectedSegmentId(imageId),
     }));
-    state.manifest.seedSegmentDefaults = seedSegmentDefaults.value.map(
-      (segment) => ({
-        ...segment,
-        color: [...segment.color],
-      })
-    );
+    state.manifest.seedSegmentDefaults =
+      seedSegmentDefaults.value.map(withCopiedColor);
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
@@ -219,12 +176,11 @@ export const useSegmentStore = defineStore('segments', () => {
       const incoming = [...new Set(set.segmentIds)].flatMap(
         (id) => catalogById.get(id) ?? []
       );
-      const unclaimed = incoming.filter(
-        ({ id }) => !Object.hasOwn(segmentIdMap, id)
+      const [claimed, unclaimed] = partition(
+        ({ id }) => Object.hasOwn(segmentIdMap, id),
+        incoming
       );
-      repeated.push(
-        ...incoming.filter(({ id }) => Object.hasOwn(segmentIdMap, id))
-      );
+      repeated.push(...claimed);
       const legacy = legacyByImage.get(imageId) ?? new Map<string, string>();
       legacyByImage.set(imageId, legacy);
       const distinct = unclaimed.filter(({ id }) => {
@@ -247,12 +203,8 @@ export const useSegmentStore = defineStore('segments', () => {
       );
     });
     if (manifest.seedSegmentDefaults) {
-      seedSegmentDefaults.value = manifest.seedSegmentDefaults.map(
-        (segment) => ({
-          ...segment,
-          color: [...segment.color],
-        })
-      );
+      seedSegmentDefaults.value =
+        manifest.seedSegmentDefaults.map(withCopiedColor);
       const savedImages = new Set(
         (manifest.imageSegmentSets ?? []).map(
           ({ imageId }) => dataIDMap[imageId]

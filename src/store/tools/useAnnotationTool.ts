@@ -1,7 +1,7 @@
 import { Ref, computed, ref } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { Maybe, PartialWithRequired, UnwrapAll } from '@/src/types';
-import { isRecord, removeFromArray } from '@/src/utils';
+import { isRecord, partition, removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
@@ -91,14 +91,20 @@ export const useAnnotationTool = <
 
   const registry = useSegmentStore().segments;
 
-  function addTool(tool: ToolPatch): ToolID {
-    const imageId = tool.imageID ?? '';
-    const segmentId =
-      tool.segmentId ?? registry.selectedSegmentId(imageId) ?? '';
+  const assertOwnSegment = (
+    imageId: Maybe<string>,
+    segmentId: Maybe<string>
+  ) => {
     if (segmentId && !registry.belongsToImage(imageId, segmentId))
       throw new Error(
         'An annotation must use a segment belonging to its image'
       );
+  };
+
+  function addTool(tool: ToolPatch): ToolID {
+    const segmentId =
+      tool.segmentId ?? registry.selectedSegmentId(tool.imageID) ?? '';
+    assertOwnSegment(tool.imageID, segmentId);
     const id = useIdStore().nextId() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
@@ -130,12 +136,10 @@ export const useAnnotationTool = <
   }
 
   function removeToolsWhere(shouldRemove: (tool: Tool) => boolean) {
-    const removed: ToolID[] = [];
-    const retained = toolIDs.value.filter((id) => {
-      if (!shouldRemove(toolByID.value[id])) return true;
-      removed.push(id);
-      return false;
-    });
+    const [removed, retained] = partition(
+      (id) => shouldRemove(toolByID.value[id]),
+      toolIDs.value
+    );
     if (!removed.length) return;
     toolIDs.value = retained;
     const selectionStore = useToolSelectionStore();
@@ -148,14 +152,9 @@ export const useAnnotationTool = <
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
     const next = { ...toolByID.value[id], ...patch, id };
-    if (
-      next.segmentId &&
-      !registry.belongsToImage(next.imageID, next.segmentId) &&
-      (!next.placing || registry.getSegment(next.segmentId))
-    )
-      throw new Error(
-        'An annotation must use a segment belonging to its image'
-      );
+    // A stub being placed may still name a deleted segment; placing resolves it.
+    if (!next.placing || registry.getSegment(next.segmentId))
+      assertOwnSegment(next.imageID, next.segmentId);
     toolByID.value[id] = next;
   }
 
@@ -248,18 +247,16 @@ export const useAnnotationTool = <
   // A tool still being placed is the widget's own stub, not content: taking it
   // with a deleted segment would leave the widget holding a dead id and no way
   // to place anything, and placing re-resolves the segment anyway.
-  const referencesSegment = (id: ToolID, segmentId: string) => {
-    const tool = toolByID.value[id];
-    return tool.segmentId === segmentId && !tool.placing;
-  };
+  const referencesSegment = (tool: Tool, segmentId: string) =>
+    tool.segmentId === segmentId && !tool.placing;
 
   const removeToolsOfSegment = (segmentId: string) =>
-    toolIDs.value
-      .filter((id) => referencesSegment(id, segmentId))
-      .forEach((id) => removeTool(id));
+    removeToolsWhere((tool) => referencesSegment(tool, segmentId));
 
   const hasToolsOfSegment = (segmentId: string) =>
-    toolIDs.value.some((id) => referencesSegment(id, segmentId));
+    toolIDs.value.some((id) =>
+      referencesSegment(toolByID.value[id], segmentId)
+    );
 
   registry.declareReferences(manifestKey, {
     has: hasToolsOfSegment,

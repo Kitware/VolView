@@ -123,6 +123,11 @@ const DISPLAY_CONTROLS = [
 const display = computed(
   () => viewedSegmentation.value ?? DEFAULT_SEGMENTATION_DISPLAY
 );
+const displayDisabledReason = computed(() =>
+  viewingCine.value
+    ? 'A clip has no segmentation to display'
+    : imageUnavailableReason.value
+);
 const openSections = ref(['segments']);
 
 const setDisplay = (patch: SegmentationDisplayPatch) => {
@@ -263,7 +268,7 @@ const {
         <v-expansion-panel-text>
           <div
             class="display-controls"
-            :tabindex="!currentImageID || viewingCine ? 0 : undefined"
+            :tabindex="displayDisabledReason ? 0 : undefined"
           >
             <div
               v-for="control in DISPLAY_CONTROLS"
@@ -281,20 +286,17 @@ const {
                 density="compact"
                 hide-details
                 thumb-label
-                :disabled="!currentImageID || viewingCine"
+                :disabled="!!displayDisabledReason"
                 :model-value="display[control.key]"
                 @update:model-value="setDisplay({ [control.key]: $event })"
               />
             </div>
-            <v-tooltip v-if="viewingCine" location="top" activator="parent">
-              A clip has no segmentation to display
-            </v-tooltip>
             <v-tooltip
-              v-else-if="!currentImageID"
+              v-if="displayDisabledReason"
               location="top"
               activator="parent"
             >
-              {{ imageUnavailableReason }}
+              {{ displayDisabledReason }}
             </v-tooltip>
           </div>
         </v-expansion-panel-text>
