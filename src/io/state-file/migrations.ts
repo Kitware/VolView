@@ -297,6 +297,16 @@ const dropLegacyViewDisplay = (manifest: any, groupIds: string[]) => {
   });
 };
 
+const ANNOTATION_TOOL_KEYS = ['rulers', 'rectangles', 'polygons'];
+
+// Suffixes a candidate until no id in `usedIds` has it, then claims it.
+const uniqueIdAmong = (usedIds: Set<string>) => (candidate: string) => {
+  let id = candidate;
+  for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
+  usedIds.add(id);
+  return id;
+};
+
 // 6.4.0 -> 7.0.0 moves identity off segment groups and tool labels onto
 // segments. JSON only: no voxels are read here, so each group becomes an
 // artifact the loaded restore stage splits into bounded masks, and every
@@ -310,13 +320,7 @@ export const migrate640To700 = (inputManifest: any) => {
   const segments: any[] = [];
 
   // Joined legacy ids can collide, and restore keys a map on them.
-  const usedIds = new Set<string>();
-  const uniqueId = (candidate: string) => {
-    let id = candidate;
-    for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
-    usedIds.add(id);
-    return id;
-  };
+  const uniqueId = uniqueIdAmong(new Set<string>());
 
   const addSegment = (id: string, segment: any) => {
     segments.push({ id, ...segment });
@@ -405,8 +409,6 @@ export const migrate640To700 = (inputManifest: any) => {
     };
   });
 
-  const toolKeys = ['rulers', 'rectangles', 'polygons'];
-
   const nextToolColor = cycle(TOOL_COLORS);
   const nextPaletteColor = () => cssColorToRGBA(nextToolColor());
 
@@ -417,7 +419,7 @@ export const migrate640To700 = (inputManifest: any) => {
     tryCssColorToRGBA(css ?? '') ?? nextPaletteColor();
 
   const labelNames = new Set(
-    toolKeys.flatMap((key) =>
+    ANNOTATION_TOOL_KEYS.flatMap((key) =>
       Object.entries(manifest.tools?.[key]?.labels ?? {}).map(
         ([labelId, label]: [string, any]) => label.labelName || labelId
       )
@@ -493,7 +495,7 @@ export const migrate640To700 = (inputManifest: any) => {
     delete entry.labels;
   };
 
-  toolKeys.forEach(migrateToolLabels);
+  ANNOTATION_TOOL_KEYS.forEach(migrateToolLabels);
 
   const segmentations = [...recordsByParent.entries()].map(
     ([parentImage, records]) => {
@@ -539,20 +541,18 @@ const migrate700To800 = (inputManifest: any) => {
       .filter((source: any) => source.type === 'uri')
       .map((source: any) => ({ id: String(source.id) }));
   const imageIds = [...new Set<string>(datasets.map(({ id }) => id))];
-  const toolKeys = ['rulers', 'rectangles', 'polygons'];
   const referencedIds = [
     ...(manifest.segmentations ?? []).flatMap((segmentation: any) =>
       (segmentation.masks ?? []).map((mask: any) => mask.segmentId)
     ),
-    ...toolKeys.flatMap((key) =>
+    ...ANNOTATION_TOOL_KEYS.flatMap((key) =>
       (manifest.tools?.[key]?.tools ?? []).map((tool: any) => tool.segmentId)
     ),
   ];
   // Missing references must stay missing rather than alias a newly minted id.
-  const usedIds = new Set<string>([
-    ...catalog.map(({ id }) => id),
-    ...referencedIds,
-  ]);
+  const uniqueId = uniqueIdAmong(
+    new Set<string>([...catalog.map(({ id }) => id), ...referencedIds])
+  );
   const idsByImage = new Map<string, Map<string, string>>();
   const segments: any[] = [];
   const imageSegmentSets = imageIds.flatMap((imageId, imageIndex) => {
@@ -562,10 +562,7 @@ const migrate700To800 = (inputManifest: any) => {
     catalog.forEach((segment, segmentIndex) => {
       let id = segmentIds.get(segment.id);
       if (id === undefined) {
-        const candidate = `image-${imageIndex + 1}-segment-${segmentIndex + 1}`;
-        id = candidate;
-        for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
-        usedIds.add(id);
+        id = uniqueId(`image-${imageIndex + 1}-segment-${segmentIndex + 1}`);
         segmentIds.set(segment.id, id);
       }
       // A repeated wire id remains repeated so restore reports the bad row
@@ -597,7 +594,7 @@ const migrate700To800 = (inputManifest: any) => {
       );
     });
   });
-  toolKeys.forEach((key) => {
+  ANNOTATION_TOOL_KEYS.forEach((key) => {
     (manifest.tools?.[key]?.tools ?? []).forEach((tool: any) => {
       if (tool.segmentId !== undefined)
         tool.segmentId = mappedSegmentId(tool.imageID, tool.segmentId);
