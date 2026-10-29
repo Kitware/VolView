@@ -1,8 +1,9 @@
 import * as Comlink from 'comlink';
-import { histogram } from '@/src/utils/histogram';
+import { histogram, piecewiseHistogram } from '@/src/utils/histogram';
 
 export interface HistogramWorker {
   histogram: typeof histogram;
+  piecewiseHistogram: typeof piecewiseHistogram;
 }
 
-Comlink.expose({ histogram });
+Comlink.expose({ histogram, piecewiseHistogram });
