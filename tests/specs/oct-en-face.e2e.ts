@@ -58,7 +58,7 @@ describe('Retinal OCT en-face', () => {
     if (!(await panel.isDisplayed())) await openControls();
     await enableHighlight();
     const inlineHelp = await $(
-      '.v-overlay--active [data-testid="oct-thickness-help"]'
+      '.v-overlay--active [data-testid="enface-thickness-help"]'
     ).execute((button) => {
       const text = button.parentElement?.parentElement?.firstChild;
       if (!text) return false;
@@ -76,12 +76,12 @@ describe('Retinal OCT en-face', () => {
     await $(THRESHOLD).doubleClick();
     await expectBothViews();
     await $(
-      '.v-overlay--active [data-testid="oct-thickness-threshold"] [role="slider"]'
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
     ).doubleClick();
     await expectBothViews();
     await browser.keys('Escape');
     await $(
-      '[data-testid="oct-en-face-viewer"] .view-type-select .v-field'
+      '[data-testid="enface-viewer"] .view-type-select .v-field'
     ).doubleClick();
     await browser.keys('Escape');
     await expectBothViews();
@@ -95,30 +95,30 @@ describe('Retinal OCT en-face', () => {
     expect(compactPanel.height).toBeLessThanOrEqual(560);
     for (const section of ['projection', 'thickness'])
       await expect(
-        $(PANEL).$('[data-testid="oct-' + section + '-toggle"]')
+        $(PANEL).$('[data-testid="enface-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
     await setEnFaceWindow(1000, 500);
     // The standard physical slab has mean 317, maximum 538 and sampled sum 140431.
     await expectProjectionPixel(81);
     await openControls();
     await expandEnFaceSection('projection');
-    await selectSetting('oct-projection-method', 'Maximum');
+    await selectSetting('enface-projection-method', 'Maximum');
     await waitForEnFaceReady();
     await expect(
-      $('.v-overlay--active [data-testid="oct-projection-method"] input')
+      $('.v-overlay--active [data-testid="enface-projection-method"] input')
     ).toHaveValue('Maximum');
     await setEnFaceWindow(1000, 500);
     await expectProjectionPixel(137);
     await openControls();
-    await selectSetting('oct-projection-method', 'Sum');
+    await selectSetting('enface-projection-method', 'Sum');
     await waitForEnFaceReady();
     await expect(
-      $('.v-overlay--active [data-testid="oct-projection-method"] input')
+      $('.v-overlay--active [data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');
     await setEnFaceWindow(200000, 100000);
     await expectProjectionPixel(179);
     await openControls();
-    await selectSetting('oct-projection-method', 'Mean');
+    await selectSetting('enface-projection-method', 'Mean');
     await setEnFaceWindow(1000, 500);
     await openControls();
     await setSlabRange(reference.slab.start, reference.slab.end);
@@ -127,20 +127,20 @@ describe('Retinal OCT en-face', () => {
     await browser.keys('Escape');
     await openControls();
     await expandEnFaceSection('projection');
-    await selectSetting('oct-projection-axis', 'Sagittal');
+    await selectSetting('enface-projection-axis', 'Sagittal');
     await waitForEnFaceReady();
     await expect(
-      $('.v-overlay--active [data-testid="oct-projection-axis"] input')
+      $('.v-overlay--active [data-testid="enface-projection-axis"] input')
     ).toHaveValue('Sagittal');
     await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '127');
     await expandEnFaceSection('thickness');
     await expect(
-      $('.v-overlay--active [data-testid="oct-thin-highlight"] input')
+      $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
     ).toBeDisabled();
     await expect($(THRESHOLD)).toBeDisabled();
     await expect(
-      $('.v-overlay--active [data-testid="oct-segmentation-segment"] input')
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
     ).toBeDisabled();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
@@ -149,7 +149,7 @@ describe('Retinal OCT en-face', () => {
     await openRetina(true);
     await waitForEnFaceReady();
     const labels = $$(
-      '.v-overlay--active [data-testid="oct-slab-range"] .v-slider-thumb__label'
+      '.v-overlay--active [data-testid="enface-slab-range"] .v-slider-thumb__label'
     );
     expect(await labels.length).toBe(2);
     for (const label of await labels) await expect(label).not.toBeDisplayed();
@@ -157,7 +157,7 @@ describe('Retinal OCT en-face', () => {
     await expectProjectionPixel(81);
     await openControls();
     const threshold = $(
-      '.v-overlay--active [data-testid="oct-thickness-threshold"] [role="slider"]'
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
     );
     await enableHighlight();
     await expect($(THRESHOLD)).toBeEnabled();
@@ -305,7 +305,7 @@ describe('Retinal OCT en-face', () => {
     await setEnFaceWindow(1000, 500);
     await expectProjectionPixel(81);
     await openControls();
-    await selectSetting('oct-projection-method', 'Maximum');
+    await selectSetting('enface-projection-method', 'Maximum');
     await browser.keys('Escape');
     await waitForEnFaceReady();
     await setEnFaceWindow(1000, 500);

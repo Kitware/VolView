@@ -2,7 +2,7 @@ import { ReadDicomTagsFunction } from '@/src/core/streaming/dicom/dicomMetaLoade
 import { MetaLoader } from '@/src/core/streaming/types';
 import { Maybe } from '@/src/types';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTMetadata } from '@/src/enface';
+import { augmentDicomMetadata } from '@/src/core/streaming/dicom/dicomMetadata';
 import {
   parseUltrasoundRegionFromBlob,
   UltrasoundRegions,
@@ -30,7 +30,7 @@ export class DicomFileMetaLoader implements MetaLoader {
 
   async load() {
     if (this.tags) return;
-    this.tags = await augmentOCTMetadata(
+    this.tags = await augmentDicomMetadata(
       this.file,
       await this.readDicomTags(this.file)
     );

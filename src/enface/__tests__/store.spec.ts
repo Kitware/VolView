@@ -12,7 +12,7 @@ import { useWindowingStore } from '@/src/store/view-configs/windowing';
 
 beforeEach(() => setActivePinia(createPinia()));
 
-describe('OCT view settings', () => {
+describe('En face view settings', () => {
   it('isolates settings by view and dataset and removes them on deletion', () => {
     const store = useEnFaceViewStore();
     store.configFor('a', 'oct1').method = 'max';
@@ -64,9 +64,9 @@ describe('OCT view settings', () => {
     const parsed = ManifestSchema.parse(state.manifest);
     expect(parsed.viewByID?.view.type).toBe('EnFace');
     const settings = parsed.viewByID!.view.config!;
-    expect(settings.oct.octEnFace?.method).toBe('sum');
-    expect(settings.oct.octEnFace).not.toHaveProperty('selectedMaskId');
-    expect(settings.oct.octEnFace).not.toHaveProperty('windowWidth');
+    expect(settings.oct.enFace?.method).toBe('sum');
+    expect(settings.oct.enFace).not.toHaveProperty('selectedMaskId');
+    expect(settings.oct.enFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
       level: 60,
@@ -89,6 +89,42 @@ describe('OCT view settings', () => {
     });
   });
 
+  it('restores a slab scene saved without occupied-depth settings', () => {
+    const parsed = ManifestSchema.parse({
+      version: '7.0.0',
+      datasets: [],
+      dataSources: [],
+      viewByID: {
+        saved: {
+          id: 'saved',
+          type: 'EnFace',
+          name: 'En face',
+          config: {
+            source: {
+              enFace: { axis: 2, method: 'max', depthStart: 1, depthEnd: 4 },
+            },
+          },
+        },
+      },
+    });
+    useViewConfigStore().deserialize(
+      'restored',
+      parsed.viewByID!.saved.config!,
+      {
+        source: 'loaded',
+      }
+    );
+    expect(useEnFaceViewStore().configFor('restored', 'loaded')).toMatchObject({
+      axis: 2,
+      method: 'max',
+      depthStart: 1,
+      depthEnd: 4,
+      highlightThin: false,
+      thresholdMicrons: 100,
+      selectedMaskId: null,
+    });
+  });
+
   it('restores the chosen segment instead of highlighting the first mask', () => {
     const registry = useSegmentStore().segments;
     const first = registry.addSegment({ name: 'First layer' });
@@ -102,7 +138,7 @@ describe('OCT view settings', () => {
       'view',
       {
         'restored-oct': {
-          octEnFace: {
+          enFace: {
             axis: 1,
             method: 'mean',
             depthStart: 0,
@@ -121,7 +157,7 @@ describe('OCT view settings', () => {
     expect(store.configFor('view', 'restored-oct').highlightThin).toBe(true);
     store.deserialize('view', {
       'restored-oct': {
-        octEnFace: {
+        enFace: {
           axis: 1,
           method: 'mean',
           depthStart: 0,

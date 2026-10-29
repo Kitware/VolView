@@ -5,7 +5,7 @@ import {
   getImageMetadata,
   useCurrentImage,
 } from '../composables/useCurrentImage';
-import { EnFaceControlPanel } from '@/src/enface';
+import EnFaceControlPanel from '@/src/enface/EnFaceControlPanel.vue';
 import VolumeProperties from './VolumeProperties.vue';
 import VolumeRendering from './VolumeRendering.vue';
 import VolumePresets from './VolumePresets.vue';

@@ -9,7 +9,7 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import type { ViewInfo2D } from '@/src/types/views';
 import type { LPSAxis } from '@/src/types/lps';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
-import { useEnFaceViewStore } from '@/src/enface';
+import { useEnFaceViewStore } from '@/src/enface/store';
 
 const SMALL: [number, number, number] = [10, 20, 30];
 const LARGE: [number, number, number] = [40, 50, 60];

@@ -112,7 +112,7 @@ describe('manual En face with real generic image readers', () => {
     const { id, data, headerMetadata } = await load(nrrd(['mm', 'mm', 'mm']));
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
-      isOCT: false,
+
       measurementGeometryReason: null,
     });
     expect(data.getDimensions()).toEqual(dimensions);
@@ -131,7 +131,7 @@ describe('manual En face with real generic image readers', () => {
       const { id, data } = await load(nrrd(units));
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
-        isOCT: false,
+
         measurementGeometryReason: null,
       });
       expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
@@ -208,7 +208,7 @@ describe('manual En face with real generic image readers', () => {
       const { id, data } = await load(nifti(units));
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
-        isOCT: false,
+
         measurementGeometryReason: null,
       });
       const scale =
@@ -244,7 +244,7 @@ describe('manual En face with real generic image readers', () => {
     const { id } = await load(nifti(0));
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
-      isOCT: false,
+
       measurementGeometryReason: null,
     });
   });
@@ -263,7 +263,7 @@ describe('manual En face with real generic image readers', () => {
     const { id, data } = await load(compressed);
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
-      isOCT: false,
+
       measurementGeometryReason: null,
     });
     expect(Array.from(data.getPointData().getScalars().getData())).toEqual(
@@ -279,7 +279,7 @@ describe('manual En face with real generic image readers', () => {
       );
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
-        isOCT: false,
+
         measurementGeometryReason: null,
       });
       expect(data.getDimensions()).toEqual([128, 32, 222]);

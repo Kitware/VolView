@@ -7,7 +7,7 @@ import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
 import useCinePlaybackStore from './view-configs/cine-playback';
-import { useEnFaceViewStore } from '@/src/enface';
+import { useEnFaceViewStore } from '@/src/enface/store';
 import { useViewStore } from './views';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 

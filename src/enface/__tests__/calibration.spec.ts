@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Chunk } from '@/src/core/streaming/chunk';
 import { Tags } from '@/src/core/dicomTags';
 import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
-import { OPHTHALMIC_TOMOGRAPHY_SOP } from '@/src/enface/detection';
+import { OPHTHALMIC_TOMOGRAPHY_SOP } from '@/src/core/streaming/dicom/octMetadataTags';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 describe('OCT occupied depth through DICOM allocation', () => {

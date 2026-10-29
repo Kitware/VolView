@@ -21,8 +21,8 @@ import {
 } from './utils';
 
 const STEM = 'slab-crosshairs';
-const VIEW = '[data-testid="oct-en-face-viewer"]';
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
+const VIEW = '[data-testid="enface-viewer"]';
+const CANVAS = '[data-testid="enface-canvas"]';
 const SOURCE = 'crosshairs-source.nrrd';
 const OTHER = 'crosshairs-other.nrrd';
 const SIZE = [16, 12, 10];
@@ -90,7 +90,7 @@ async function point(x: number, y: number) {
   return browser.execute(
     (imageX, imageY) => {
       const matrix = document
-        .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+        .querySelector<SVGGElement>('[data-testid="enface-slice-lines"] g')!
         .getScreenCTM()!;
       const screen = new DOMPoint(imageX + 0.5, imageY + 0.5).matrixTransform(
         matrix
@@ -122,14 +122,14 @@ async function expectSlices(expected: Record<string, number | null>) {
 }
 
 async function controls() {
-  await $(VIEW).$('[data-testid="oct-en-face-controls"]').click();
+  await $(VIEW).$('[data-testid="enface-controls"]').click();
   await expandEnFaceSection('projection');
 }
 
 function gapWidths() {
   return browser.execute(() => {
     const svg = document.querySelector(
-      '[data-testid="oct-en-face-viewer"] [data-testid="reference-lines"]'
+      '[data-testid="enface-viewer"] [data-testid="reference-lines"]'
     );
     if (!svg) return [];
     const segments = Array.from(svg.querySelectorAll('line')).map((line) => {
@@ -184,7 +184,10 @@ describe('Crosshairs in slab projections', () => {
         axis,
       async () => {
         await scene();
-        await chooseEnFaceProjection('oct-projection-axis', ORIENTATIONS[axis]);
+        await chooseEnFaceProjection(
+          'enface-projection-axis',
+          ORIENTATIONS[axis]
+        );
         await controls();
         const last = 4;
         await setSlabRange(1, last);
@@ -227,7 +230,7 @@ describe('Crosshairs in slab projections', () => {
           '.vtk-container-wrapper [data-testid="reference-lines"] line'
         ),
         document.querySelector(
-          '[data-testid="oct-en-face-viewer"] [data-testid="reference-lines"] line'
+          '[data-testid="enface-viewer"] [data-testid="reference-lines"] line'
         ),
       ].map(
         (line) =>

@@ -23,8 +23,8 @@ import {
   waitForSegmentContent,
 } from './segmentationTestUtils';
 
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+const CANVAS = '[data-testid="enface-canvas"]';
+const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const native = JSON.parse(
   fs.readFileSync(
     path.join(FIXTURES, 'oct', 'heidelberg-reference.json'),
@@ -51,7 +51,7 @@ async function openNativeDicom() {
 }
 
 async function setSlab(start: number, end: number) {
-  await $('[data-testid="oct-en-face-controls"]').click();
+  await $('[data-testid="enface-controls"]').click();
   await $(PANEL).waitForDisplayed();
   await expandEnFaceSection('projection');
   await setSlabRange(start, end);
@@ -148,15 +148,15 @@ describe('Public OCT exports', () => {
     await option('En face').waitForClickable();
     await option('En face').click();
     await waitForEnFaceReady();
-    await $('[data-testid="oct-en-face-controls"]').click();
+    await $('[data-testid="enface-controls"]').click();
     await $(PANEL).waitForDisplayed();
     await $(PANEL).waitForStable();
     for (const section of ['projection', 'thickness'])
       await expect(
-        $('[data-testid="oct-' + section + '-toggle"]')
+        $('[data-testid="enface-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
     await expandEnFaceSection('projection');
-    const axis = $('.v-overlay--active [data-testid="oct-projection-axis"]');
+    const axis = $('.v-overlay--active [data-testid="enface-projection-axis"]');
     await axis.scrollIntoView({ block: 'center' });
     await axis.waitForClickable();
     await axis.click();
@@ -164,13 +164,13 @@ describe('Public OCT exports', () => {
     await option('Coronal').click();
     await expandEnFaceSection('thickness');
     await expect(
-      $('.v-overlay--active [data-testid="oct-segmentation-segment"] input')
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
     ).toBeDisabled();
     await $(
-      '.v-overlay--active [data-testid="oct-thin-highlight"] label'
+      '.v-overlay--active [data-testid="enface-thin-highlight"] label'
     ).click();
     const segment = $(
-      '.v-overlay--active [data-testid="oct-segmentation-segment"]'
+      '.v-overlay--active [data-testid="enface-segmentation-segment"]'
     );
     await segment.scrollIntoView({ block: 'center' });
     await segment.waitForClickable();
@@ -178,27 +178,29 @@ describe('Public OCT exports', () => {
     await option(names[2]).waitForClickable();
     await option(names[2]).click();
     const thresholdSlider = $(
-      '.v-overlay--active [data-testid="oct-thickness-threshold"] [role="slider"]'
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
     );
     await expect(thresholdSlider).toHaveAttribute('aria-valuemax', '58.1');
     await setValueVueInput(
       $(
-        '.v-overlay--active [data-testid="oct-thickness-threshold-input"] input'
+        '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
       ),
       '20'
     );
     await expect(thresholdSlider).toHaveAttribute('aria-valuenow', '20');
-    await $('.v-overlay--active [data-testid="oct-projection-toggle"]').click();
-    await $('.v-overlay--active [data-testid="oct-projection-toggle"]')
+    await $(
+      '.v-overlay--active [data-testid="enface-projection-toggle"]'
+    ).click();
+    await $('.v-overlay--active [data-testid="enface-projection-toggle"]')
       .$('..')
       .$('.v-expansion-panel-text')
       .waitForDisplayed({ reverse: true });
     await expect(
-      $('.v-overlay--active [data-testid="oct-thickness-toggle"]')
+      $('.v-overlay--active [data-testid="enface-thickness-toggle"]')
     ).toHaveAttribute('aria-expanded', 'true');
     await expect(
       $(
-        '.v-overlay--active [data-testid="oct-thickness-threshold-input"] input'
+        '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
       )
     ).toHaveValue('20');
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
@@ -262,9 +264,7 @@ describe('Public OCT exports', () => {
     const beforeImage = await canvasImage(source);
     // Require over 1000 actual pixels with at least one RGB channel above 20.
     expect(beforeImage.visiblePixels).toBeGreaterThan(1000);
-    await $(
-      '[data-testid="oct-en-face-viewer"] .view-type-select .v-field'
-    ).click();
+    await $('[data-testid="enface-viewer"] .view-type-select .v-field').click();
     const axial = $(
       '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Axial"]'
     );

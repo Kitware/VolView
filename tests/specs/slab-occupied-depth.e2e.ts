@@ -33,10 +33,10 @@ import {
 } from './segmentationTestUtils';
 
 const STEM = 'slab-occupied-depth';
-const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
-const INPUT = PANEL + ' [data-testid="oct-thickness-threshold-input"] input';
+const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
+const INPUT = PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
 const SLIDER =
-  PANEL + ' [data-testid="oct-thickness-threshold"] [role="slider"]';
+  PANEL + ' [data-testid="enface-thickness-threshold"] [role="slider"]';
 
 async function expectHighlighted(present: boolean, point = [60, 12]) {
   await browser.waitUntil(
@@ -81,9 +81,9 @@ async function openGappedMask(twoViews = false) {
   const segment = twoViews ? 'Synthetic retinal band' : 'Gapped band';
   await waitForSegmentContent(segment);
   await selectSegment(segment);
-  await $('[data-testid="oct-en-face-controls"]').click();
+  await $('[data-testid="enface-controls"]').click();
   await expandEnFaceSection('thickness');
-  await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+  await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
 }
 
 async function openAxisMask(axis: number) {
@@ -138,12 +138,12 @@ async function openAxisMask(axis: number) {
   await waitForSegmentContent('Directional band');
   await selectSegment('Directional band');
   await chooseEnFaceProjection(
-    'oct-projection-axis',
+    'enface-projection-axis',
     ['Sagittal', 'Coronal', 'Axial'][axis]
   );
-  await $('[data-testid="oct-en-face-controls"]').click();
+  await $('[data-testid="enface-controls"]').click();
   await expandEnFaceSection('thickness');
-  await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+  await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
   return spacing[axis] * 1000;
 }
 
@@ -189,13 +189,13 @@ describe('Selected-slab occupied depth', () => {
     await expect($(INPUT)).toHaveValue('41.7');
     await expectHighlighted(false);
     await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
     await expandEnFaceSection('projection');
     await setSlabRange(100, 105);
     await waitForEnFaceReady();
     await expectHighlighted(false);
     await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
     await expect($(SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
     await expectHighlighted(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
@@ -207,7 +207,7 @@ describe('Selected-slab occupied depth', () => {
     await expect($(SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
     await browser.keys(Key.Escape);
     await $(
-      '.v-overlay--active [data-testid="oct-rendering-panel"]'
+      '.v-overlay--active [data-testid="enface-rendering-panel"]'
     ).waitForDisplayed({
       reverse: true,
     });
@@ -242,7 +242,7 @@ describe('Selected-slab occupied depth', () => {
       },
       { timeoutMsg: 'Expected the thicker painted column to stop qualifying.' }
     );
-    await $('[data-testid="oct-en-face-controls"]').click();
+    await $('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('thickness');
     await browser.waitUntil(
       async () => Number(await $(SLIDER).getAttribute('aria-valuemax')) > 41.7,
@@ -257,27 +257,27 @@ describe('Selected-slab occupied depth', () => {
 
   it('restores different selected segments, slabs, thresholds and enabled states in two panes', async () => {
     await openGappedMask(true);
-    const panes = await $$('[data-testid="oct-en-face-viewer"]').map((view) =>
+    const panes = await $$('[data-testid="enface-viewer"]').map((view) =>
       view.getElement()
     );
     await threshold(31);
     await expandEnFaceSection('projection');
     await setSlabRange(100, 103);
     await browser.keys(Key.Escape);
-    await panes[1].$('[data-testid="oct-en-face-controls"]').click();
+    await panes[1].$('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
     await chooseEnFaceProjection(
-      'oct-segmentation-segment',
+      'enface-segmentation-segment',
       'Alternative synthetic band',
       panes[1]
     );
-    await panes[1].$('[data-testid="oct-en-face-controls"]').click();
+    await panes[1].$('[data-testid="enface-controls"]').click();
     await threshold(60);
     await expandEnFaceSection('projection');
     await setSlabRange(110, 114);
     await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
     await browser.keys(Key.Escape);
     await openSharedAppearance();
     await setSegmentationDisplaySlider('Fill Opacity', 0.5);
@@ -302,10 +302,10 @@ describe('Selected-slab occupied depth', () => {
     await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await browser.waitUntil(
-      async () => (await $$('[data-testid="oct-en-face-viewer"]').length) === 2
+      async () => (await $$('[data-testid="enface-viewer"]').length) === 2
     );
-    const restored = await $$('[data-testid="oct-en-face-viewer"]').map(
-      (view) => view.getElement()
+    const restored = await $$('[data-testid="enface-viewer"]').map((view) =>
+      view.getElement()
     );
     for (const [index, pane] of restored.entries()) {
       await waitForEnFaceReady(pane);
@@ -319,7 +319,7 @@ describe('Selected-slab occupied depth', () => {
             'Expected the saved pane to restore its segmentation appearance.',
         }
       );
-      await pane.$('[data-testid="oct-en-face-controls"]').click();
+      await pane.$('[data-testid="enface-controls"]').click();
       await expandEnFaceSection('projection');
       await expect(slabThumb('start')).toHaveAttribute(
         'aria-valuenow',
@@ -332,13 +332,13 @@ describe('Selected-slab occupied depth', () => {
       await expandEnFaceSection('thickness');
       await expect($(INPUT)).toHaveValue(index ? '60' : '31');
       await expect(
-        $(PANEL).$('[data-testid="oct-segmentation-segment"]')
+        $(PANEL).$('[data-testid="enface-segmentation-segment"]')
       ).toHaveText(
         expect.stringContaining(
           index ? 'Alternative synthetic band' : 'Synthetic retinal band'
         )
       );
-      const enabled = $(PANEL).$('[data-testid="oct-thin-highlight"] input');
+      const enabled = $(PANEL).$('[data-testid="enface-thin-highlight"] input');
       if (index) await expect(enabled).not.toBeSelected();
       else await expect(enabled).toBeSelected();
       await browser.keys(Key.Escape);
@@ -356,9 +356,9 @@ describe('Selected-slab occupied depth', () => {
         )
       ).toHaveAttribute('aria-valuenow', value);
     }
-    await restored[1].$('[data-testid="oct-en-face-controls"]').click();
+    await restored[1].$('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="oct-thin-highlight"] label').click();
+    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
     await browser.waitUntil(
       async () => {
         const [r, g] = await enFacePixel(60, 12, undefined, restored[1]);

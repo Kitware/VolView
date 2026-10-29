@@ -81,7 +81,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
   }
 
   function serialize(stateFile: StateFile) {
-    const saved: DoubleKeyRecord<NonNullable<ViewConfig['octEnFace']>> = {};
+    const saved: DoubleKeyRecord<NonNullable<ViewConfig['enFace']>> = {};
     Object.entries(configs).forEach(([viewID, byDataID]) => {
       saved[viewID] = {};
       Object.entries(byDataID).forEach(([dataID, config]) => {
@@ -102,7 +102,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
         };
       });
     });
-    createViewConfigSerializer(saved, 'octEnFace')(stateFile);
+    createViewConfigSerializer(saved, 'enFace')(stateFile);
   }
 
   function deserialize(
@@ -111,8 +111,8 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     segmentIdMap: Record<string, string> = {}
   ) {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
-      if (viewConfig.octEnFace) {
-        const { segmentId, ...settings } = viewConfig.octEnFace;
+      if (viewConfig.enFace) {
+        const { segmentId, ...settings } = viewConfig.enFace;
         const mappedSegmentId = segmentId ? segmentIdMap[segmentId] : undefined;
         const selectedMaskId =
           segmentationStore.maskFor(dataID, mappedSegmentId)?.id ?? null;

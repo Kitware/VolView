@@ -5,9 +5,12 @@ import { join } from 'node:path';
 import dicomParser from 'dicom-parser';
 import { readImageNode } from '@itk-wasm/image-io';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
-import { augmentOCTMetadata } from '@/src/enface/dicomMetadata';
+import { augmentDicomMetadata } from '@/src/core/streaming/dicom/dicomMetadata';
 import { Tags } from '@/src/core/dicomTags';
-import { OCT_PADDING_ERROR, octPadding } from '@/src/enface/padding';
+import {
+  DICOM_PADDING_ERROR,
+  decodedPaddingRanges,
+} from '@/src/core/streaming/dicom/pixelPadding';
 
 function metadata(overrides: Record<string, string> = {}) {
   return Object.entries({
@@ -65,7 +68,7 @@ async function decodePaddingFile(
   try {
     writeFileSync(path, bytes);
     const image = await readImageNode(path);
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       new Blob([bytes]),
       metadata({
         [Tags.Modality]: 'OPT',
@@ -81,22 +84,22 @@ async function decodePaddingFile(
   }
 }
 
-describe('declared OCT padding in decoded scalar units', () => {
+describe('declared DICOM padding in decoded scalar units', () => {
   it('maps a single-file declaration to every native frame', () => {
-    expect(octPadding([metadata()], 32)).toEqual({
+    expect(decodedPaddingRanges([metadata()], 32)).toEqual({
       ranges: [{ firstFrame: 0, lastFrame: 31, min: 65535, max: 65535 }],
       reason: null,
     });
   });
   it('does not invent a padding declaration for unmarked zeros', () => {
-    expect(octPadding([[[Tags.BitsStored, '16']]], 32)).toEqual({
+    expect(decodedPaddingRanges([[[Tags.BitsStored, '16']]], 32)).toEqual({
       ranges: [],
       reason: null,
     });
   });
   it('accepts inclusive signed ranges and reorders negative-slope decoded bounds', () => {
     expect(
-      octPadding(
+      decodedPaddingRanges(
         [
           metadata({
             [Tags.PixelRepresentation]: '1',
@@ -119,7 +122,7 @@ describe('declared OCT padding in decoded scalar units', () => {
       [Tags.RescaleSlope]: '0.25',
       [Tags.RescaleIntercept]: '-1',
     });
-    const result = octPadding([plain, plain, [], scaled, scaled], 5);
+    const result = decodedPaddingRanges([plain, plain, [], scaled, scaled], 5);
     expect(result.reason).toBeNull();
     expect(result.ranges).toEqual([
       { firstFrame: 0, lastFrame: 1, min: 65535, max: 65535 },
@@ -139,14 +142,14 @@ describe('declared OCT padding in decoded scalar units', () => {
     { [Tags.RescaleIntercept]: 'NaN' },
     { [Tags.RescaleSlope]: '1e308' },
   ])('disables ambiguous or invalid declaration %#', (overrides) => {
-    const result = octPadding([metadata(overrides)], 1);
+    const result = decodedPaddingRanges([metadata(overrides)], 1);
     expect(result.ranges).toEqual([]);
     expect(result.reason).toMatch(/cannot be interpreted/);
   });
   it.each([0, 65535])(
     'checks the remaining non-padding neighbor at a stored-domain limit: %s',
     (value) => {
-      const result = octPadding(
+      const result = decodedPaddingRanges(
         [
           metadata({
             [Tags.PixelPaddingValue]: String(value),
@@ -160,7 +163,7 @@ describe('declared OCT padding in decoded scalar units', () => {
   );
 
   it('rejects a negative transform whose adjacent valid value collapses into padding', () => {
-    const result = octPadding(
+    const result = decodedPaddingRanges(
       [
         metadata({
           [Tags.PixelPaddingValue]: '1',
@@ -174,7 +177,7 @@ describe('declared OCT padding in decoded scalar units', () => {
   });
 
   it('permits a declared interval covering the complete stored domain', () => {
-    const result = octPadding(
+    const result = decodedPaddingRanges(
       [
         metadata({
           [Tags.PixelPaddingValue]: '0',
@@ -192,7 +195,7 @@ describe('declared OCT padding in decoded scalar units', () => {
 
   it('rejects a range limit without a padding value', () => {
     expect(
-      octPadding(
+      decodedPaddingRanges(
         [
           Object.entries({
             [Tags.PixelRepresentation]: '0',
@@ -206,14 +209,17 @@ describe('declared OCT padding in decoded scalar units', () => {
   });
   it('rejects an unsupported transformation even if the text reader omitted the corrupt binary declaration', () => {
     expect(
-      octPadding([[[OCT_PADDING_ERROR, 'Unsupported OCT transformation.']]], 1)
+      decodedPaddingRanges(
+        [[[DICOM_PADDING_ERROR, 'Unsupported OCT transformation.']]],
+        1
+      )
     ).toEqual({
       ranges: [],
       reason: 'Unsupported OCT transformation.',
     });
   });
   it('rejects an ambiguous file-to-frame mapping', () => {
-    expect(octPadding([metadata(), metadata()], 4).reason).toMatch(
+    expect(decodedPaddingRanges([metadata(), metadata()], 4).reason).toMatch(
       /cannot be interpreted/
     );
   });
@@ -226,7 +232,7 @@ describe('padding rescale precision with the actual ITK DICOM decoder', () => {
     { value: 65535, signed: false, slope: 0.25, intercept: -1 },
   ])('matches decoded stored padding exactly: %j', async (settings) => {
     const { image, tags } = await decodePaddingFile(settings);
-    const result = octPadding([tags], 1);
+    const result = decodedPaddingRanges([tags], 1);
     expect(result.reason).toBeNull();
     const expected = settings.value * settings.slope + settings.intercept;
     expect(result.ranges).toEqual([
@@ -248,7 +254,7 @@ describe('padding rescale precision with the actual ITK DICOM decoder', () => {
     expect(image.data).toBeInstanceOf(Float64Array);
     expect((image.data as Float64Array)[0]).toBe(1e20);
     expect((image.data as Float64Array)[1]).toBe(1e20);
-    expect(octPadding([tags], 1)).toEqual({
+    expect(decodedPaddingRanges([tags], 1)).toEqual({
       ranges: [],
       reason: expect.stringMatching(/cannot be interpreted/),
     });

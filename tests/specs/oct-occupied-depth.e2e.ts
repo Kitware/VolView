@@ -70,7 +70,7 @@ describe('Retinal OCT occupied-depth', () => {
     };
     await expectThinColumns();
     const slider = $(
-      '.v-overlay--active [data-testid="oct-thickness-threshold"] [role="slider"]'
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
     );
     await $(THRESHOLD).click();
     await browser.keys('Tab');
@@ -98,13 +98,13 @@ describe('Retinal OCT occupied-depth', () => {
     await expectHighlight(true);
     await expectThinColumns();
     await selectSetting(
-      'oct-segmentation-segment',
+      'enface-segmentation-segment',
       'Alternative synthetic band'
     );
     await expectHighlight(false);
     await setThicknessThreshold(60);
     await expectHighlight(true);
-    await selectSetting('oct-projection-method', 'Maximum');
+    await selectSetting('enface-projection-method', 'Maximum');
     await waitForEnFaceReady();
     await browser.keys('Escape');
     const saved = await volViewPage.saveSession();
@@ -115,17 +115,17 @@ describe('Retinal OCT occupied-depth', () => {
     await openControls();
     await expandEnFaceSection('projection');
     await expect(
-      $('.v-overlay--active [data-testid="oct-projection-method"] input')
+      $('.v-overlay--active [data-testid="enface-projection-method"] input')
     ).toHaveValue('Maximum');
     await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '100');
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '114');
     await expandEnFaceSection('thickness');
     await expect($(THRESHOLD)).toHaveValue('60');
     await expect(
-      $('.v-overlay--active [data-testid="oct-segmentation-segment"]')
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"]')
     ).toHaveText(expect.stringContaining('Alternative synthetic band'));
     await expect(
-      $('.v-overlay--active [data-testid="oct-thin-highlight"] input')
+      $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
     ).toBeSelected();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
@@ -139,7 +139,7 @@ describe('Retinal OCT occupied-depth', () => {
     await selectEnFace();
     await openControls();
     await expandEnFaceSection('projection');
-    await selectSetting('oct-projection-axis', 'Coronal');
+    await selectSetting('enface-projection-axis', 'Coronal');
     await waitForEnFaceReady();
     await browser.keys('Escape');
     await attachMaskThroughDataPanel(stageFixture('synthetic-thickness.nrrd'));
@@ -149,7 +149,7 @@ describe('Retinal OCT occupied-depth', () => {
     await openControls();
     await expandEnFaceSection('thickness');
     await expect(
-      $('.v-overlay--active [data-testid="oct-thin-highlight"] input')
+      $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
     ).toBeEnabled();
     await enableHighlight();
     await setThicknessThreshold(1);
@@ -169,13 +169,13 @@ describe('Retinal OCT occupied-depth', () => {
     await sidebar.waitForDisplayed();
     await toggle.$('..').waitForStable();
     for (const selector of [
-      '[data-testid="oct-thin-highlight"] input',
-      '[data-testid="oct-segmentation-segment"] input',
-      '[data-testid="oct-thickness-threshold-input"] input',
+      '[data-testid="enface-thin-highlight"] input',
+      '[data-testid="enface-segmentation-segment"] input',
+      '[data-testid="enface-thickness-threshold-input"] input',
     ])
       await expect(sidebar.$(selector)).toBeEnabled();
     await expect(
-      sidebar.$('[data-testid="oct-thickness-threshold-input"] input')
+      sidebar.$('[data-testid="enface-thickness-threshold-input"] input')
     ).toHaveValue('31');
     await expectHighlight(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);

@@ -3,9 +3,13 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { isOCTMetadata, octGeometryReason } from '@/src/enface/detection';
-import { octSeriesGeometry } from '@/src/enface/seriesGeometry';
-import { octPadding } from '@/src/enface/padding';
+import { Tags } from '@/src/core/dicomTags';
+import {
+  OCT_GEOMETRY_ERROR,
+  OCT_SCAN_PATTERN,
+} from '@/src/core/streaming/dicom/octMetadataTags';
+import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
+import { decodedPaddingRanges } from '@/src/core/streaming/dicom/pixelPadding';
 
 function gridReason(data: Maybe<vtkImageData>) {
   if (!data || data.getDimensions().some((n) => n < 2)) {
@@ -30,10 +34,16 @@ function loadReason(
   return gridReason(data);
 }
 
-function dicomMetadata(image: Maybe<ProgressiveImage>) {
-  return image instanceof DicomChunkImage && image.getChunks().length
-    ? (image.getDicomMetadata() ?? [])
-    : [];
+function acquisitionMetadataReason(metadata: Iterable<[string, string]>) {
+  const tags = new Map(metadata);
+  if (tags.get(Tags.OphthalmicVolumetricPropertiesFlag)?.trim() === 'NO') {
+    return 'This OCT is marked unsuitable for volumetric processing.';
+  }
+  const pattern = tags.get(OCT_SCAN_PATTERN);
+  if (pattern && !['128279', '128280'].includes(pattern)) {
+    return 'En face projection requires a raster or cube OCT volume. This scan pattern needs spatial reconstruction.';
+  }
+  return tags.get(OCT_GEOMETRY_ERROR) ?? null;
 }
 
 function loadedGrid(data: Maybe<vtkImageData>, loaded: boolean) {
@@ -51,15 +61,17 @@ function dicomGeometry(
   loaded: boolean
 ) {
   const metadata = image.getChunks().map((chunk) => chunk.metadata ?? []);
-  const series = octSeriesGeometry(metadata, loadedGrid(data, loaded));
-  const padding = octPadding(metadata, data?.getDimensions()[2] ?? 0);
+  const series = dicomSeriesGeometry(metadata, loadedGrid(data, loaded));
+  const padding = decodedPaddingRanges(metadata, data?.getDimensions()[2] ?? 0);
   const acquisitionReason = metadata
-    .map(octGeometryReason)
+    .map(acquisitionMetadataReason)
     .find((reason) => reason !== null);
   return {
     reason: acquisitionReason ?? null,
-    paddingReason: padding.reason,
-    measurementGeometryReason: series.reason,
+    paddingReason: padding.reason
+      ? `${padding.reason} Occupied depth is unavailable.`
+      : null,
+    measurementGeometryReason: acquisitionReason ?? series.reason,
     paddingRanges: padding.ranges.length ? padding.ranges : undefined,
   };
 }
@@ -86,15 +98,12 @@ export function getEnFaceAvailability(imageID: Maybe<string>) {
   const loaded = Boolean(image?.isLoaded());
   const loading = Boolean(image?.isLoading());
   const data = cache.getVtkImageData(imageID);
-  const metadata = dicomMetadata(image);
-  const isOCT = isOCTMetadata(metadata);
   const geometry = inputGeometry(image, data, loaded);
   const reason = image
     ? (geometry.reason ?? loadReason(imageID, loaded && !loading, data))
     : 'Load a grayscale 3D volume to use En face.';
   return {
     available: reason === null,
-    isOCT,
     reason,
     paddingReason: geometry.paddingReason,
     measurementGeometryReason: geometry.measurementGeometryReason,

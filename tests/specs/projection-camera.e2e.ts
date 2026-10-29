@@ -29,10 +29,10 @@ import {
   waitForSegmentContent,
 } from './segmentationTestUtils';
 
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
-const CONTROLS = '[data-testid="oct-en-face-controls"]';
-const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+const CANVAS = '[data-testid="enface-canvas"]';
+const VIEWER = '[data-testid="enface-viewer"]';
+const CONTROLS = '[data-testid="enface-controls"]';
+const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const STEM = 'projection-camera';
 const SOURCE_NAME = 'camera-source.nrrd';
 const MASK_NAME = 'camera-mask.nrrd';
@@ -184,8 +184,8 @@ async function releaseMaskAfterReachableProjection() {
   if (boundName.includes(SOURCE_NAME)) {
     await waitForEnFaceReady();
   } else {
-    await expect($('[data-testid="oct-slice-lines"]')).not.toExist();
-    await expect($('[data-testid="oct-projection-status"]')).toHaveText(
+    await expect($('[data-testid="enface-slice-lines"]')).not.toExist();
+    await expect($('[data-testid="enface-projection-status"]')).toHaveText(
       expect.stringContaining('Load a grayscale 3D volume')
     );
   }
@@ -245,17 +245,17 @@ describe('Projection camera persistence', () => {
     await attachRealMask();
     await openControls();
     await expandEnFaceSection('projection');
-    await chooseSetting('oct-projection-axis', 'Sagittal');
+    await chooseSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
     await expandEnFaceSection('thickness');
     const highlight = $(
-      '.v-overlay--active [data-testid="oct-thin-highlight"]'
+      '.v-overlay--active [data-testid="enface-thin-highlight"]'
     );
     await highlight.$('label').click();
-    await chooseSetting('oct-segmentation-segment', SEGMENT_NAME);
+    await chooseSetting('enface-segmentation-segment', SEGMENT_NAME);
     const threshold = $(
-      '.v-overlay--active [data-testid="oct-thickness-threshold-input"] input'
+      '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
     );
     await threshold.scrollIntoView();
     await setValueVueInput(threshold, '6500');
@@ -277,7 +277,7 @@ describe('Projection camera persistence', () => {
     await expectEnFaceProjectionSettings('Sagittal', 10, 100);
     await expandEnFaceSection('thickness');
     await expect(
-      $('.v-overlay--active [data-testid="oct-segmentation-segment"]')
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"]')
     ).toHaveText(expect.stringContaining(SEGMENT_NAME));
     await expect(highlight.$('input')).toBeSelected();
     await expect(threshold).toHaveValue('6500');

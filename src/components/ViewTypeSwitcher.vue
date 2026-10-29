@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getEnFaceAvailability } from '@/src/enface';
+import { getEnFaceAvailability } from '@/src/enface/availability';
 import { getAvailableViews } from '@/src/config';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';

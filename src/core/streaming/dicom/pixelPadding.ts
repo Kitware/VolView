@@ -1,11 +1,16 @@
 import type { DataSet } from 'dicom-parser';
 import { Tags } from '@/src/core/dicomTags';
-import type { SlabPaddingRange } from '@/src/core/slab/types';
+/** Inclusive decoded padding bounds for original DICOM Z frames. */
+export type PixelPaddingRange = {
+  firstFrame: number;
+  lastFrame: number;
+  min: number;
+  max: number;
+};
 
-export const OCT_PADDING_ERROR = 'oct:padding-error';
+export const DICOM_PADDING_ERROR = 'dicom:padding-error';
 const paddingTags = [Tags.PixelPaddingValue, Tags.PixelPaddingRangeLimit];
-const invalid =
-  'Image pixel padding cannot be interpreted reliably; occupied depth is unavailable.';
+const invalid = 'Image pixel padding cannot be interpreted reliably.';
 
 function declaredNumber(
   tags: Map<string, string>,
@@ -84,14 +89,14 @@ function hasPadding(tags: Map<string, string>) {
 }
 
 function paddingForChunk(tags: Map<string, string>) {
-  const error = tags.get(OCT_PADDING_ERROR);
+  const error = tags.get(DICOM_PADDING_ERROR);
   if (error) return { range: null, reason: error };
   if (!hasPadding(tags)) return { range: null, reason: null };
   const range = decodedPadding(tags);
   return { range, reason: range ? null : invalid };
 }
 
-function appendRange(ranges: SlabPaddingRange[], next: SlabPaddingRange) {
+function appendRange(ranges: PixelPaddingRange[], next: PixelPaddingRange) {
   const previous = ranges.at(-1);
   if (
     previous &&
@@ -104,12 +109,12 @@ function appendRange(ranges: SlabPaddingRange[], next: SlabPaddingRange) {
 }
 
 /** Declared stored padding is mapped to the decoded modality scalar domain. */
-export function octPadding(
+export function decodedPaddingRanges(
   metadata: readonly Iterable<[string, string]>[],
   frameCount: number
 ) {
   const declarations = metadata.map((entry) => paddingForChunk(new Map(entry)));
-  const ranges: SlabPaddingRange[] = [];
+  const ranges: PixelPaddingRange[] = [];
   const error = declarations.find(({ reason }) => reason);
   if (error) return { ranges, reason: error.reason };
   if (!declarations.some(({ range }) => range)) return { ranges, reason: null };
@@ -153,7 +158,7 @@ function ambiguousTransform(data: DataSet) {
 }
 
 /** Parse binary signed/unsigned padding tags without relying on text tag readers. */
-export function augmentOCTPadding(data: DataSet, tags: Map<string, string>) {
+export function augmentPixelPadding(data: DataSet, tags: Map<string, string>) {
   const declared = paddingTags.some(
     (tag) => data.elements['x' + tag.replace('|', '')] || tags.has(tag)
   );
@@ -161,12 +166,12 @@ export function augmentOCTPadding(data: DataSet, tags: Map<string, string>) {
   const signed = data.uint16('x00280103') === 1;
   for (const tag of paddingTags) {
     const value = paddingValue(data, tag, signed);
-    if (value === null) tags.set(OCT_PADDING_ERROR, invalid);
+    if (value === null) tags.set(DICOM_PADDING_ERROR, invalid);
     else if (value !== undefined) tags.set(tag, String(value));
   }
   if (ambiguousTransform(data))
     tags.set(
-      OCT_PADDING_ERROR,
-      'This image combines pixel padding with an unsupported modality transformation; occupied depth is unavailable.'
+      DICOM_PADDING_ERROR,
+      'This image combines pixel padding with an unsupported modality transformation.'
     );
 }

@@ -287,14 +287,14 @@ const ViewConfig = z.object({
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
   cinePlayback: CinePlaybackViewConfig.optional(),
-  octEnFace: z
+  enFace: z
     .object({
       axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
       method: z.enum(['mean', 'max', 'sum']),
       depthStart: z.number().int().nonnegative(),
       depthEnd: z.number().int().nonnegative().nullable(),
-      highlightThin: z.boolean(),
-      thresholdMicrons: z.number().nonnegative(),
+      highlightThin: z.boolean().default(false),
+      thresholdMicrons: z.number().nonnegative().default(100),
       segmentId: z.string().nullable().optional(),
     })
     .optional(),

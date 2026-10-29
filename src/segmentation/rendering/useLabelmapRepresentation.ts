@@ -23,9 +23,6 @@ export type LabelmapAppearance = {
 
 type LabelmapRepresentationOptions = {
   axis: MaybeRef<number | undefined>;
-  actorOpacity?: number;
-  forceTranslucent?: boolean;
-  useLabelOutline?: boolean;
 };
 
 /** Renders a borrowed single-plane labelmap with resolved segment appearance. */
@@ -39,7 +36,6 @@ export function useLabelmapRepresentation(
 
   // Let widget fill representations be picked through the segment overlay.
   sliceRep.actor.setPickable(false);
-  sliceRep.actor.setForceTranslucent(options.forceTranslucent ?? false);
 
   const colorTransferFunction = vtkColorTransferFunction.newInstance();
   const opacityFunction = vtkPiecewiseFunction.newInstance();
@@ -50,9 +46,9 @@ export function useLabelmapRepresentation(
     opacityFunction.delete();
   });
   sliceRep.property.setInterpolationType(InterpolationType.NEAREST);
-  sliceRep.property.setOpacity(options.actorOpacity ?? SEGMENT_ACTOR_OPACITY);
+  sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
   sliceRep.property.setUseLookupTableScalarRange(true);
-  sliceRep.property.setUseLabelOutline(options.useLabelOutline ?? true);
+  sliceRep.property.setUseLabelOutline(true);
 
   // All labelmaps use the same depth offset within their renderer.
   sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();

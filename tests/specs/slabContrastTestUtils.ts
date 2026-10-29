@@ -46,7 +46,7 @@ export async function observeProjectionRedraw(view: WebdriverIO.Element) {
       if (root.querySelector('.loading-indicator'))
         history.add('progress indicator');
       rememberMessage(
-        root.querySelector('[data-testid="oct-projection-status"]')
+        root.querySelector('[data-testid="enface-projection-status"]')
           ?.textContent ?? null
       );
       for (const record of records) {

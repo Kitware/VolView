@@ -87,7 +87,7 @@ describe('Retinal OCT import', () => {
     await enableHighlight();
     expect(
       await $(
-        '.v-overlay--active [data-testid="oct-segmentation-segment"]'
+        '.v-overlay--active [data-testid="enface-segmentation-segment"]'
       ).getText()
     ).toContain('Synthetic retinal layer');
     await setThicknessThreshold(31);
@@ -106,7 +106,7 @@ describe('Retinal OCT import', () => {
     await expandEnFaceSection('thickness');
     expect(
       await $(
-        '.v-overlay--active [data-testid="oct-segmentation-segment"]'
+        '.v-overlay--active [data-testid="enface-segmentation-segment"]'
       ).getText()
     ).toContain('Synthetic retinal layer');
     expect(Number(await $(THRESHOLD).getValue())).toBe(31);
@@ -169,11 +169,11 @@ describe('Retinal OCT import', () => {
         await openControls();
         expect(
           await $(
-            '.v-overlay--active [data-testid="oct-projection-toggle"]'
+            '.v-overlay--active [data-testid="enface-projection-toggle"]'
           ).getAttribute('aria-expanded')
         ).toBe('true');
         await expandEnFaceSection('projection');
-        await selectSetting('oct-projection-axis', projectionAxis);
+        await selectSetting('enface-projection-axis', projectionAxis);
         await waitForEnFaceReady();
         const display = await $(CANVAS).getSize();
         expect(display.width).toBeGreaterThan(0);
@@ -197,7 +197,7 @@ describe('Retinal OCT import', () => {
         await expandEnFaceSection('projection');
         expect(
           await $(
-            '.v-overlay--active [data-testid="oct-projection-axis"] input'
+            '.v-overlay--active [data-testid="enface-projection-axis"] input'
           ).getValue()
         ).toBe(projectionAxis);
         await expect(slabThumb('start')).toHaveAttribute(

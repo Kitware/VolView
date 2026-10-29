@@ -9,7 +9,7 @@ import { Awaitable } from '@vueuse/core';
 import { toAscii } from '@/src/utils';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTMetadata } from '@/src/enface';
+import { augmentDicomMetadata } from '@/src/core/streaming/dicom/dicomMetadata';
 import {
   decodeUltrasoundRegion,
   SEQUENCE_OF_ULTRASOUND_REGIONS,
@@ -135,7 +135,7 @@ export class DicomMetaLoader implements MetaLoader {
     }
 
     const metadataFile = new File([validPixelDataBlob], 'file.dcm');
-    this.tags = await augmentOCTMetadata(
+    this.tags = await augmentDicomMetadata(
       metadataFile,
       await this.readDicomTags(metadataFile)
     );

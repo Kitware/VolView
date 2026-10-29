@@ -26,9 +26,9 @@ import {
   writeManifestToFile,
 } from './utils';
 
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+const VIEWER = '[data-testid="enface-viewer"]';
+const CANVAS = '[data-testid="enface-canvas"]';
+const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const STEM = 'slab-projection';
 const SIZE = [8, 7, 6];
 const SPACING = [-0.03, 0.01, 0.06];
@@ -73,7 +73,7 @@ async function openScene(twoProjections = false) {
 
 async function openControls(view: WebdriverIO.Element) {
   await browser.keys('Escape');
-  await view.$('[data-testid="oct-en-face-controls"]').click();
+  await view.$('[data-testid="enface-controls"]').click();
   await $(PANEL).waitForDisplayed();
   await expandEnFaceSection('projection');
 }
@@ -220,7 +220,7 @@ describe('Generic slab projection contracts', () => {
   for (const axis of [0, 1, 2]) {
     it(`uses physical slab sampling and source pixel aspect on axis ${axis}`, async () => {
       const [view] = await openScene();
-      await chooseEnFaceProjection('oct-projection-axis', AXES[axis], view);
+      await chooseEnFaceProjection('enface-projection-axis', AXES[axis], view);
       await magnifyProjection(view);
       const inPlane = [0, 1, 2].filter((candidate) => candidate !== axis);
       const points = [
@@ -228,7 +228,7 @@ describe('Generic slab projection contracts', () => {
         inPlane.map((index) => Math.ceil((SIZE[index] - 1) / 2)),
       ];
       const frame = await view
-        .$('[data-testid="oct-slice-lines"] g')
+        .$('[data-testid="enface-slice-lines"] g')
         .getElement();
       const sampling = await frame.execute((element) => {
         const matrix = (element as unknown as SVGGElement).getScreenCTM()!;
@@ -245,7 +245,7 @@ describe('Generic slab projection contracts', () => {
       );
       const framing = await projectionTransform(view);
       for (const method of ['Mean', 'Maximum', 'Sum']) {
-        await chooseEnFaceProjection('oct-projection-method', method, view);
+        await chooseEnFaceProjection('enface-projection-method', method, view);
         await setWindow(view, 2048, 1024);
         await openControls(view);
         for (const [first, last] of [
@@ -293,12 +293,12 @@ describe('Generic slab projection contracts', () => {
     for (const [index, view] of views.entries()) {
       const setting = configurations[index];
       await chooseEnFaceProjection(
-        'oct-projection-axis',
+        'enface-projection-axis',
         AXES[setting.axis],
         view
       );
       await chooseEnFaceProjection(
-        'oct-projection-method',
+        'enface-projection-method',
         setting.method,
         view
       );
@@ -332,10 +332,10 @@ describe('Generic slab projection contracts', () => {
       await openControls(view);
       const setting = configurations[index];
       await expect(
-        $(PANEL).$('[data-testid="oct-projection-axis"] input')
+        $(PANEL).$('[data-testid="enface-projection-axis"] input')
       ).toHaveValue(AXES[setting.axis]);
       await expect(
-        $(PANEL).$('[data-testid="oct-projection-method"] input')
+        $(PANEL).$('[data-testid="enface-projection-method"] input')
       ).toHaveValue(setting.method);
       await expect(slabThumb('start')).toHaveAttribute(
         'aria-valuenow',
@@ -347,7 +347,11 @@ describe('Generic slab projection contracts', () => {
       );
       await browser.keys('Escape');
     }
-    await chooseEnFaceProjection('oct-projection-method', 'Mean', restored[0]);
+    await chooseEnFaceProjection(
+      'enface-projection-method',
+      'Mean',
+      restored[0]
+    );
     await expectSourceAndPeerUnchanged(
       sourceContrast,
       restored[1],
@@ -366,7 +370,7 @@ describe('Generic slab projection contracts', () => {
     for (const [index, view] of views.entries()) {
       const setting = configurations[index];
       await chooseEnFaceProjection(
-        'oct-projection-axis',
+        'enface-projection-axis',
         AXES[setting.axis],
         view
       );
@@ -415,12 +419,16 @@ describe('Generic slab projection contracts', () => {
     });
     await setWindow(manual, 350, 175);
     const unchanged = await snapshot(manual);
-    await chooseEnFaceProjection('oct-projection-method', 'Maximum', automatic);
+    await chooseEnFaceProjection(
+      'enface-projection-method',
+      'Maximum',
+      automatic
+    );
     await expectAutomaticWindow(automatic, {
       width: 134,
       level: 333,
     });
-    await chooseEnFaceProjection('oct-projection-method', 'Sum', automatic);
+    await chooseEnFaceProjection('enface-projection-method', 'Sum', automatic);
     await expectAutomaticWindow(automatic, {
       width: 1742,
       level: 1750,
@@ -438,7 +446,11 @@ describe('Generic slab projection contracts', () => {
     const restored = await saveAndReopen();
     await expectSnapshot(restored[0], savedAutomatic);
     await expectSnapshot(restored[1], unchanged);
-    await chooseEnFaceProjection('oct-projection-method', 'Mean', restored[0]);
+    await chooseEnFaceProjection(
+      'enface-projection-method',
+      'Mean',
+      restored[0]
+    );
     await expectAutomaticWindow(restored[0], {
       width: 134,
       level: 89,
@@ -466,7 +478,7 @@ describe('Generic slab projection contracts', () => {
     await expectSnapshot(fullRestored[1], unchanged);
     await setWindow(fullRestored[0], 600, 200);
     await chooseEnFaceProjection(
-      'oct-projection-method',
+      'enface-projection-method',
       'Sum',
       fullRestored[0]
     );

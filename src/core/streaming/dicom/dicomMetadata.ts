@@ -1,17 +1,21 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { inflateSync } from 'fflate';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTPadding, OCT_PADDING_ERROR } from '@/src/enface/padding';
-import {
-  octDirection,
-  octGridGeometry,
-  sameVector,
-} from '@/src/enface/seriesGeometry';
 import {
   isOCTMetadata,
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
-} from '@/src/enface/detection';
+} from '@/src/core/streaming/dicom/octMetadataTags';
+
+import {
+  coordinatesMatch,
+  imageDirection,
+  frameGridGeometry,
+} from '@/src/core/streaming/dicom/frameGeometry';
+import {
+  augmentPixelPadding,
+  DICOM_PADDING_ERROR,
+} from '@/src/core/streaming/dicom/pixelPadding';
 
 const SHARED = 'x52009229';
 const PER_FRAME = 'x52009230';
@@ -83,7 +87,7 @@ function frameAttributeMismatch(
   if (!expected) return false;
   return geometry.frames.some((frame) => {
     const value = vector(frameAttribute(frame, sequence, attribute));
-    return value ? !sameVector(value, expected) : false;
+    return value ? !coordinatesMatch(value, expected) : false;
   });
 }
 
@@ -91,10 +95,10 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const positions = geometry.positions.filter((p): p is number[] => !!p);
   if (positions.length > 0 && positions.length !== geometry.positions.length)
     return 'OCT frame positions are incomplete; spatial reconstruction is required.';
-  const direction = octDirection(vector(geometry.orientation));
+  const direction = imageDirection(vector(geometry.orientation));
   if (positions.length > 1 && !direction)
     return 'OCT image orientation is missing; spatial reconstruction is required.';
-  return octGridGeometry(positions, direction ?? undefined).reason;
+  return frameGridGeometry(positions, direction ?? undefined).reason;
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {
@@ -104,7 +108,7 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   )
     return 'OCT frame geometry does not match Number of Frames; spatial reconstruction is required.';
   const orientation = vector(geometry.orientation);
-  if (orientation && !octDirection(orientation))
+  if (orientation && !imageDirection(orientation))
     return 'OCT image orientation is invalid; spatial reconstruction is required.';
   if (frameAttributeMismatch(geometry, MEASURES, 'x00280030', geometry.spacing))
     return 'OCT frames have different pixel spacing; spatial reconstruction is required.';
@@ -152,8 +156,50 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.SpacingBetweenSlices, sliceSpacing);
 }
 
-/** Reads binary DICOM padding and promotes enhanced OCT geometry for the loader. */
-export async function augmentOCTMetadata(
+async function readMetadataHeader(file: Blob) {
+  let length = Math.min(file.size, 64 * 1024);
+  for (;;) {
+    const isCompleteFile = length === file.size;
+    const headerBytes = new Uint8Array(
+      await file.slice(0, length).arrayBuffer()
+    );
+    let needsCompleteFile = false;
+    try {
+      const data = dicomParser.parseDicom(headerBytes, {
+        untilTag: 'x7fe00010',
+        vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
+        inflater: (bytes, position) => {
+          // Do not try to inflate a partial stream. Keep the existing full-file
+          // path for deflated datasets, including trailing NULL padding.
+          if (!isCompleteFile) {
+            needsCompleteFile = true;
+            throw new Error('Deflated DICOM requires the complete dataset');
+          }
+          const inflated = inflateSync(bytes.subarray(position));
+          // The parser requires the Part 10 header to retain metadata offsets.
+          const complete = new Uint8Array(position + inflated.length);
+          complete.set(bytes.subarray(0, position));
+          complete.set(inflated, position);
+          return complete;
+        },
+      });
+      // A successful parse of a prefix can still end between metadata elements.
+      // Only accept it once the complete Pixel Data header has been reached.
+      if (isCompleteFile || data.elements.x7fe00010) return data;
+    } catch (error) {
+      if (isCompleteFile) throw error;
+    }
+    // Bound speculative reads before falling back to the original full-file
+    // parse for unusually large headers or malformed inputs.
+    length =
+      needsCompleteFile || length >= 1024 * 1024
+        ? file.size
+        : Math.min(file.size, length * 4);
+  }
+}
+
+/** Reads binary DICOM padding and promotes enhanced OCT spatial metadata. */
+export async function augmentDicomMetadata(
   file: Blob,
   metadata: Array<[string, string]>
 ) {
@@ -164,29 +210,15 @@ export async function augmentOCTMetadata(
   if (!isOCT && !hasPadding) return metadata;
   const tags = new Map(metadata);
   try {
-    const data = dicomParser.parseDicom(
-      new Uint8Array(await file.arrayBuffer()),
-      {
-        untilTag: 'x7fe00010',
-        vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
-        inflater: (bytes, position) => {
-          const inflated = inflateSync(bytes.subarray(position));
-          // The parser requires the Part 10 header to retain metadata offsets.
-          const complete = new Uint8Array(position + inflated.length);
-          complete.set(bytes.subarray(0, position));
-          complete.set(inflated, position);
-          return complete;
-        },
-      }
-    );
-    augmentOCTPadding(data, tags);
+    const data = await readMetadataHeader(file);
+    augmentPixelPadding(data, tags);
     if (isOCT) promoteOCTGeometry(data, tags);
   } catch {
     tags.set(
-      isOCT ? OCT_GEOMETRY_ERROR : OCT_PADDING_ERROR,
+      isOCT ? OCT_GEOMETRY_ERROR : DICOM_PADDING_ERROR,
       isOCT
-        ? 'OCT spatial metadata could not be read; en face projection is unavailable.'
-        : 'Image pixel padding could not be read; occupied depth is unavailable.'
+        ? 'OCT spatial metadata could not be read.'
+        : 'Image pixel padding could not be read.'
     );
   }
   return [...tags];

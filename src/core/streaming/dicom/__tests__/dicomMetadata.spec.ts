@@ -1,31 +1,37 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
-import { describe, expect, it } from 'vitest';
+import { deflateRawSync } from 'node:zlib';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTMetadata } from '@/src/enface/dicomMetadata';
-import { octPadding, OCT_PADDING_ERROR } from '@/src/enface/padding';
+import { augmentDicomMetadata } from '@/src/core/streaming/dicom/dicomMetadata';
+import {
+  decodedPaddingRanges,
+  DICOM_PADDING_ERROR,
+} from '@/src/core/streaming/dicom/pixelPadding';
+
 import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
   isOCTMetadata,
-  octGeometryReason,
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
   OPHTHALMIC_TOMOGRAPHY_SOP,
   OPHTHALMIC_BSCAN_ANALYSIS_SOP,
   OPHTHALMIC_EN_FACE_SOP,
-} from '@/src/enface/detection';
+} from '@/src/core/streaming/dicom/octMetadataTags';
 
 import reference from '@/tests/fixtures/oct/reference.json';
 import {
   createSyntheticOCT,
   element,
-  sequence,
   enhancedFile,
+  sequence,
 } from '@/tests/fixtures/oct/dicom';
 
 const baseMetadata = (): Array<[string, string]> => [
   [Tags.SOPClassUID, OPHTHALMIC_TOMOGRAPHY_SOP],
   [Tags.Modality, 'OPT'],
 ];
+
+afterEach(() => vi.restoreAllMocks());
 
 const firstItem = (data: DataSet, tag: string) =>
   data.elements[tag].items![0].dataSet!;
@@ -59,9 +65,12 @@ function hide(data: DataSet, tag: string) {
   data.byteArray[start + 1] = 0x77;
 }
 
+const spatialMetadataError = (metadata: Iterable<[string, string]>) =>
+  new Map(metadata).get(OCT_GEOMETRY_ERROR);
+
 async function augmented(bytes = fixtureBytes()) {
   return new Map(
-    await augmentOCTMetadata(new Blob([bytes as BlobPart]), baseMetadata())
+    await augmentDicomMetadata(new Blob([bytes as BlobPart]), baseMetadata())
   );
 }
 
@@ -94,13 +103,65 @@ describe('OCT DICOM activation', () => {
 
   it('preserves metadata and skips parsing non-OCT files', async () => {
     const tags: Array<[string, string]> = [[Tags.Modality, 'CT']];
-    expect(await augmentOCTMetadata(new Blob(['not a DICOM']), tags)).toBe(
+    expect(await augmentDicomMetadata(new Blob(['not a DICOM']), tags)).toBe(
       tags
     );
   });
 });
 
 describe('OCT enhanced spatial metadata', () => {
+  it('reads the header without copying the volume pixels', async () => {
+    const source = fixtureBytes();
+    const expected = await augmented(source);
+    const reads: number[] = [];
+    const arrayBuffer = Blob.prototype.arrayBuffer;
+    vi.spyOn(Blob.prototype, 'arrayBuffer').mockImplementation(function (
+      this: Blob
+    ) {
+      reads.push(this.size);
+      return arrayBuffer.call(this);
+    });
+
+    expect(await augmented(source)).toEqual(expected);
+    expect(reads.reduce((total, bytes) => total + bytes, 0)).toBeLessThan(
+      source.length / 10
+    );
+  });
+
+  it.each([64 * 1024, 2 * 1024 * 1024])(
+    'retains geometry after metadata ending at byte %s',
+    async (end) => {
+      const frames = [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }];
+      const empty = new Uint8Array(
+        await enhancedFile(frames, [
+          element('00111010', 'OB', new Uint8Array()),
+        ]).arrayBuffer()
+      );
+      const start = readDataset(empty).elements.x00111010.dataOffset;
+      const header = enhancedFile(frames, [
+        element('00111010', 'OB', new Uint8Array(end - start)),
+      ]);
+      const file = new Blob([
+        header,
+        element('7fe00010', 'OW', new Uint8Array(2)),
+      ]);
+      expect(new Map(await augmentDicomMetadata(file, baseMetadata()))).toEqual(
+        new Map(
+          await augmentDicomMetadata(enhancedFile(frames), baseMetadata())
+        )
+      );
+    }
+  );
+
+  it('uses the complete deflated stream when it exceeds the header probe', async () => {
+    const source = fixtureBytes();
+    const bytes = deflatedExplicitVR(source, (dataset) =>
+      deflateRawSync(dataset, { level: 0 })
+    );
+    expect(bytes.length).toBeGreaterThan(64 * 1024);
+    expect(await augmented(bytes)).toEqual(await augmented(source));
+  });
+
   it('reads deflated Explicit VR geometry with the required trailing NULL padding', async () => {
     const source = new Uint8Array(
       await enhancedFile([
@@ -126,11 +187,11 @@ describe('OCT enhanced spatial metadata', () => {
     expect(await augmented(bytes)).toEqual(await augmented(source));
   });
 
-  it('disables projection when the deflated dataset is truncated', async () => {
+  it('records unreadable spatial metadata when the deflated dataset is truncated', async () => {
     const bytes = deflatedExplicitVR(fixtureBytes());
-    expect(octGeometryReason(await augmented(bytes.subarray(0, -10)))).toMatch(
-      /could not be read|unavailable/
-    );
+    expect(
+      spatialMetadataError(await augmented(bytes.subarray(0, -10)))
+    ).toMatch(/could not be read/);
   });
 
   it('reads the generated OCT fixture and promotes nested geometry', async () => {
@@ -147,22 +208,24 @@ describe('OCT enhanced spatial metadata', () => {
     expect(tags.get(Tags.ImagePositionPatient)).toBe('0\\0\\0');
     expect(tags.get(Tags.OphthalmicVolumetricPropertiesFlag)).toBe('YES');
     expect(tags.get(OCT_SCAN_PATTERN)).toBe('128280');
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
   });
 
-  it('blocks unsupported scan patterns such as radial scans', async () => {
+  it('preserves declared scan patterns such as radial scans', async () => {
     const bytes = fixtureBytes();
     const data = readDataset(bytes);
     overwrite(firstItem(data, 'x00221618'), 'x00080100', '128282');
     const tags = await augmented(bytes);
     expect(isOCTMetadata(tags)).toBe(true);
-    expect(octGeometryReason(tags)).toMatch(/scan pattern.*reconstruction/);
+    expect(tags.get(OCT_SCAN_PATTERN)).toBe('128282');
   });
 
-  it('blocks volumes explicitly marked unsuitable for volumetric processing', async () => {
+  it('preserves declarations marking a volume unsuitable for volumetric processing', async () => {
     const bytes = fixtureBytes();
     overwrite(readDataset(bytes), 'x00221622', 'NO');
-    expect(octGeometryReason(await augmented(bytes))).toMatch(/unsuitable/);
+    expect(
+      (await augmented(bytes)).get(Tags.OphthalmicVolumetricPropertiesFlag)
+    ).toBe('NO');
   });
 
   it('preserves missing pixel spacing for the loader fallback', async () => {
@@ -174,14 +237,14 @@ describe('OCT enhanced spatial metadata', () => {
     hide(measures, 'x00280030');
     const tags = await augmented(bytes);
     expect(isOCTMetadata(tags)).toBe(true);
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
     expect(tags.has(Tags.PixelSpacing)).toBe(false);
   });
 
   it('rejects a per-frame geometry count that disagrees with NumberOfFrames', async () => {
     const bytes = fixtureBytes();
     overwrite(readDataset(bytes), 'x00280008', '31');
-    expect(octGeometryReason(await augmented(bytes))).toMatch(
+    expect(spatialMetadataError(await augmented(bytes))).toMatch(
       /frame.*count|number.*frames/i
     );
   });
@@ -200,7 +263,7 @@ describe('OCT enhanced spatial metadata', () => {
         'x00200037',
         orientation.join('\\')
       );
-      expect(octGeometryReason(await augmented(bytes))).toMatch(
+      expect(spatialMetadataError(await augmented(bytes))).toMatch(
         /orientation|orthonormal|direction/i
       );
     }
@@ -214,7 +277,7 @@ describe('OCT enhanced spatial metadata', () => {
       const position = firstItem(finalFrame, 'x00209113');
       overwrite(position, 'x00200032', '0.0\\0.0\\5.8225');
       expect(
-        octGeometryReason(
+        spatialMetadataError(
           await augmented(deflated ? deflatedExplicitVR(bytes) : bytes)
         )
       ).toMatch(/nonuniform/);
@@ -230,13 +293,13 @@ describe('OCT enhanced spatial metadata', () => {
       'x00200032',
       '1.0\\0.0\\0.1875'
     );
-    expect(octGeometryReason(await augmented(bytes))).toMatch(
+    expect(spatialMetadataError(await augmented(bytes))).toMatch(
       /image grid|nonuniform positions/
     );
   });
 
   it('derives inter-frame spacing from uniform positions', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2' },
@@ -244,7 +307,7 @@ describe('OCT enhanced spatial metadata', () => {
       ]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
     expect(new Map(tags).get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
 
@@ -258,11 +321,11 @@ describe('OCT enhanced spatial metadata', () => {
     const shared = firstItem(readDataset(bytes), 'x52009229');
     hide(firstItem(shared, 'x00209116'), 'x00200037');
     const tags = await augmented(bytes);
-    expect(octGeometryReason(tags)).toMatch(/orientation.*missing/);
+    expect(spatialMetadataError(tags)).toMatch(/orientation.*missing/);
     expect(tags.has(Tags.SpacingBetweenSlices)).toBe(false);
   });
 
-  it('preserves unpositioned projection without patient orientation', async () => {
+  it('preserves unpositioned frames without patient orientation', async () => {
     const bytes = new Uint8Array(
       await enhancedFile(
         [{}, {}],
@@ -272,63 +335,67 @@ describe('OCT enhanced spatial metadata', () => {
     const shared = firstItem(readDataset(bytes), 'x52009229');
     hide(firstItem(shared, 'x00209116'), 'x00200037');
     const tags = await augmented(bytes);
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
     expect(tags.get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
 
   it('rejects frames with inconsistent pixel spacing', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2', spacing: '0.02\\0.02' },
       ]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/different pixel spacing/);
+    expect(spatialMetadataError(tags)).toMatch(/different pixel spacing/);
   });
 
   it('rejects unequal per-frame slice spacing without positions', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile([{ slowSpacing: '0.2' }, { slowSpacing: '0.3' }]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/slice spacing/);
+    expect(spatialMetadataError(tags)).toMatch(/slice spacing/);
   });
 
   it('rejects nonparallel frames', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2', orientation: '0\\1\\0\\1\\0\\0' },
       ]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/not parallel/);
+    expect(spatialMetadataError(tags)).toMatch(/not parallel/);
   });
 
   it.each([
     [{ position: '0\\0\\0' }, {}],
     [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }, {}],
   ])('rejects partially missing frame positions %#', async (...frames) => {
-    const tags = await augmentOCTMetadata(enhancedFile(frames), baseMetadata());
-    expect(octGeometryReason(tags)).toMatch(/incomplete/);
+    const tags = await augmentDicomMetadata(
+      enhancedFile(frames),
+      baseMetadata()
+    );
+    expect(spatialMetadataError(tags)).toMatch(/incomplete/);
   });
 
   it('rejects repeated B-scans rather than stacking duplicate locations', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile([{ position: '0\\0\\0' }, { position: '0\\0\\0' }]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/Repeated/);
+    expect(spatialMetadataError(tags)).toMatch(/Repeated/);
   });
 
-  it('disables projection when OCT spatial metadata cannot be parsed', async () => {
-    const tags = await augmentOCTMetadata(
+  it('records unreadable spatial metadata when the OCT header cannot be parsed', async () => {
+    const tags = await augmentDicomMetadata(
       new Blob(['corrupt OCT']),
       baseMetadata()
     );
-    expect(new Map(tags).get(OCT_GEOMETRY_ERROR)).toMatch(/could not be read/);
-    expect(octGeometryReason(tags)).toMatch(/unavailable/);
+    expect(spatialMetadataError(tags)).toBe(
+      'OCT spatial metadata could not be read.'
+    );
   });
 });
 
@@ -340,7 +407,7 @@ function paddingElement(tag: string, value: number, signed = false) {
   return element(tag, signed ? 'SS' : 'US', bytes);
 }
 
-describe('OCT padding metadata from actual binary DICOM attributes', () => {
+describe('DICOM padding metadata from actual binary attributes', () => {
   const frames = [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }];
   function declarations(signed = false) {
     return [
@@ -374,10 +441,10 @@ describe('OCT padding metadata from actual binary DICOM attributes', () => {
         return [tag, value];
       }) as Array<[string, string]>;
       metadata.push([Tags.PixelPaddingValue, 'unparsed']);
-      const tags = await augmentOCTMetadata(file, metadata);
+      const tags = await augmentDicomMetadata(file, metadata);
       expect(new Map(tags).get(Tags.PixelPaddingValue)).toBe(String(first));
       expect(new Map(tags).get(Tags.PixelPaddingRangeLimit)).toBe(String(last));
-      expect(octPadding([tags], 2)).toEqual({
+      expect(decodedPaddingRanges([tags], 2)).toEqual({
         ranges: [{ firstFrame: 0, lastFrame: 1, min: first, max: last }],
         reason: null,
       });
@@ -385,22 +452,24 @@ describe('OCT padding metadata from actual binary DICOM attributes', () => {
   );
 
   it('rejects a padding VR that disagrees with signed pixel representation', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile(frames, [
         paddingElement('00280103', 1),
         paddingElement('00280120', 65535),
       ]),
       declarations(true)
     );
-    expect(new Map(tags).get(OCT_PADDING_ERROR)).toMatch(
+    expect(new Map(tags).get(DICOM_PADDING_ERROR)).toMatch(
       /cannot be interpreted/
     );
-    expect(octPadding([tags], 2).reason).toMatch(/cannot be interpreted/);
+    expect(decodedPaddingRanges([tags], 2).reason).toMatch(
+      /cannot be interpreted/
+    );
   });
 
   it('rejects a shared pixel-value transformation whose decoder mapping is not established', async () => {
     const transform = sequence('00289145', [element('00281053', 'DS', '0.25')]);
-    const tags = await augmentOCTMetadata(
+    const tags = await augmentDicomMetadata(
       enhancedFile(
         frames,
         [paddingElement('00280103', 0), paddingElement('00280120', 65535)],
@@ -408,7 +477,7 @@ describe('OCT padding metadata from actual binary DICOM attributes', () => {
       ),
       declarations()
     );
-    expect(octPadding([tags], 2).reason).toMatch(
+    expect(decodedPaddingRanges([tags], 2).reason).toMatch(
       /unsupported modality transformation/
     );
   });
@@ -421,7 +490,7 @@ describe('OCT padding metadata from actual binary DICOM attributes', () => {
         paddingElement('00280120', 65535),
         sequence('00283000', []),
       ]);
-      const tags = await augmentOCTMetadata(
+      const tags = await augmentDicomMetadata(
         deflated
           ? new Blob([
               deflatedExplicitVR(new Uint8Array(await file.arrayBuffer())),
@@ -429,7 +498,7 @@ describe('OCT padding metadata from actual binary DICOM attributes', () => {
           : file,
         declarations()
       );
-      expect(octPadding([tags], 2).reason).toMatch(
+      expect(decodedPaddingRanges([tags], 2).reason).toMatch(
         /unsupported modality transformation/
       );
     }

@@ -18,15 +18,3 @@ export function isOCTMetadata(metadata: Iterable<[string, string]>) {
     tags.get(Tags.Modality)?.trim() === 'OPT'
   );
 }
-
-export function octGeometryReason(metadata: Iterable<[string, string]>) {
-  const tags = new Map(metadata);
-  if (tags.get(Tags.OphthalmicVolumetricPropertiesFlag)?.trim() === 'NO') {
-    return 'This OCT is marked unsuitable for volumetric processing.';
-  }
-  const pattern = tags.get(OCT_SCAN_PATTERN);
-  if (pattern && !['128279', '128280'].includes(pattern)) {
-    return 'En face projection requires a raster or cube OCT volume. This scan pattern needs spatial reconstruction.';
-  }
-  return tags.get(OCT_GEOMETRY_ERROR) ?? null;
-}

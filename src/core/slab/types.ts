@@ -6,11 +6,3 @@ export type SlabSpecification = {
   last: number;
   method: SlabMethod;
 };
-
-/** Inclusive padding bounds in decoded source values and original Z frames. */
-export type SlabPaddingRange = {
-  firstFrame: number;
-  lastFrame: number;
-  min: number;
-  max: number;
-};

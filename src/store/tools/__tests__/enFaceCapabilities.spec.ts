@@ -19,7 +19,7 @@ import {
 } from '@/src/core/views/effectiveView';
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { getEnFaceAvailability } from '@/src/enface';
+import { getEnFaceAvailability } from '@/src/enface/availability';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -231,7 +231,6 @@ describe('activating an En face view', () => {
     await nextTick();
     expect(getEnFaceAvailability(dataID)).toMatchObject({
       available: true,
-      isOCT: false,
     });
     tools.setCurrentTool(Tools.WindowLevel);
     expect(tools.currentTool).toBe(Tools.WindowLevel);

@@ -4,7 +4,6 @@ import eslintPluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
-import noSliderTooltips from './scripts/eslint/no-slider-tooltips.mjs';
 
 // ---------------------------------------------------------------------------
 // Feature layering boundaries.
@@ -222,13 +221,6 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-function-type': 'off',
     },
   },
-  {
-    files: ['src/**/*.vue'],
-    plugins: {
-      volview: { rules: { 'no-slider-tooltips': noSliderTooltips } },
-    },
-    rules: { 'volview/no-slider-tooltips': 'error' },
-  },
   // Node tooling (scripts/checks/, fixture servers). The block above matches
   // only .js/.ts/.vue, so without this eslint reports `process`, `console` and
   // `URL` as undefined in every .mjs file.
@@ -320,14 +312,11 @@ export default tseslint.config(
   ...featureBoundaries([
     {
       dir: 'enface',
+      publicSurface: false,
       pure: [
         'src/enface/thickness.ts',
         'src/enface/sliceGeometry.ts',
         'src/enface/projectionMasks.ts',
-        'src/enface/detection.ts',
-        'src/enface/dicomMetadata.ts',
-        'src/enface/seriesGeometry.ts',
-        'src/enface/padding.ts',
       ],
     },
     {

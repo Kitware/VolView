@@ -12,7 +12,7 @@ import {
 import { makeTempDir, writeManifestToFile } from './utils';
 
 const STEM = 'slab-orientation';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
+const VIEWER = '[data-testid="enface-viewer"]';
 const SOURCE = '[data-testid~="vtk-two-view"] canvas';
 const cosine = Math.cos(Math.PI / 9);
 const sine = Math.sin(Math.PI / 9);
@@ -156,7 +156,7 @@ async function expectMatchingOrientation() {
 }
 
 async function setDepth(depth: number) {
-  await $('[data-testid="oct-en-face-controls"]').click();
+  await $('[data-testid="enface-controls"]').click();
   await expandEnFaceSection('projection');
   await setSlabRange(depth, depth);
   await browser.keys('Escape');
@@ -167,7 +167,10 @@ describe('Slab orientation follows ordinary volume views', () => {
     for (const axis of [0, 1, 2]) {
       it(`matches ${frame.axes[axis]} for ${frame.name} source axis ${axis}`, async () => {
         await stage(axis, frame);
-        await chooseEnFaceProjection('oct-projection-axis', frame.axes[axis]);
+        await chooseEnFaceProjection(
+          'enface-projection-axis',
+          frame.axes[axis]
+        );
         await setEnFaceWindow(220, 130);
         await setDepth(48);
         await expectMatchingOrientation();

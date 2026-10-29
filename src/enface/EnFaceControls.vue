@@ -88,7 +88,7 @@ function updateHighlight(highlightThin: boolean | null) {
     :width="embedded ? '100%' : 300"
     :rounded="embedded ? 0 : 'lg'"
     :flat="embedded"
-    data-testid="oct-rendering-panel"
+    data-testid="enface-rendering-panel"
     @dblclick.stop
   >
     <v-card-title v-if="!embedded" class="controls-title">En face</v-card-title>
@@ -104,7 +104,7 @@ function updateHighlight(highlightThin: boolean | null) {
           <v-expansion-panel-title
             class="section-title"
             :min-height="36"
-            data-testid="oct-projection-toggle"
+            data-testid="enface-projection-toggle"
             >Projection</v-expansion-panel-title
           >
           <v-expansion-panel-text>
@@ -120,7 +120,7 @@ function updateHighlight(highlightThin: boolean | null) {
                 class="mb-3"
                 :disabled="!!projectionReason"
                 aria-label="En face projection method"
-                data-testid="oct-projection-method"
+                data-testid="enface-projection-method"
               />
             </ReasonedAction>
             <ReasonedAction
@@ -139,7 +139,7 @@ function updateHighlight(highlightThin: boolean | null) {
                 class="mb-3"
                 :disabled="!!projectionReason"
                 aria-label="Projection axis"
-                data-testid="oct-projection-axis"
+                data-testid="enface-projection-axis"
               />
             </ReasonedAction>
             <ReasonedAction :reason="projectionReason ?? undefined" block>
@@ -161,7 +161,7 @@ function updateHighlight(highlightThin: boolean | null) {
                 density="compact"
                 hide-details
                 :disabled="!!projectionReason"
-                data-testid="oct-slab-range"
+                data-testid="enface-slab-range"
               >
                 <template #label>
                   <span class="d-inline-flex align-center">
@@ -175,7 +175,7 @@ function updateHighlight(highlightThin: boolean | null) {
                         size="x-small"
                         variant="text"
                         aria-label="About slab range"
-                        data-testid="oct-slab-help"
+                        data-testid="enface-slab-help"
                       />
                     </ReasonedAction>
                   </span>
@@ -188,7 +188,7 @@ function updateHighlight(highlightThin: boolean | null) {
           <v-expansion-panel-title
             class="section-title"
             :min-height="36"
-            data-testid="oct-thickness-toggle"
+            data-testid="enface-thickness-toggle"
             >Thickness highlighting</v-expansion-panel-title
           >
           <v-expansion-panel-text class="thickness-controls">
@@ -201,7 +201,7 @@ function updateHighlight(highlightThin: boolean | null) {
                 hide-details
                 :disabled="!!highlightReason"
                 aria-label="Highlight thin regions"
-                data-testid="oct-thin-highlight"
+                data-testid="enface-thin-highlight"
                 label="Highlight thin regions"
               />
             </ReasonedAction>
@@ -220,7 +220,7 @@ function updateHighlight(highlightThin: boolean | null) {
                 hide-details
                 :disabled="!!segmentReason"
                 aria-label="Thickness segment"
-                data-testid="oct-segmentation-segment"
+                data-testid="enface-segmentation-segment"
               >
                 <template #selection="{ item }">
                   <span class="d-inline-flex align-center overflow-hidden">
@@ -229,7 +229,7 @@ function updateHighlight(highlightThin: boolean | null) {
                       :color="item.raw.color"
                       class="mr-2 flex-shrink-0"
                       aria-hidden="true"
-                      data-testid="oct-segment-color"
+                      data-testid="enface-segment-color"
                     />
                     <span class="text-truncate">{{ item.title }}</span>
                   </span>
@@ -242,7 +242,7 @@ function updateHighlight(highlightThin: boolean | null) {
                         :color="item.raw.color"
                         class="mr-2"
                         aria-hidden="true"
-                        data-testid="oct-segment-option-color"
+                        data-testid="enface-segment-option-color"
                       />
                     </template>
                   </v-list-item>
@@ -258,7 +258,7 @@ function updateHighlight(highlightThin: boolean | null) {
                     size="x-small"
                     variant="text"
                     aria-label="About occupied depth"
-                    data-testid="oct-thickness-help"
+                    data-testid="enface-thickness-help"
                   />
                 </ReasonedAction>
               </span>
@@ -279,7 +279,7 @@ function updateHighlight(highlightThin: boolean | null) {
                   hide-details
                   :disabled="!!thresholdReason"
                   aria-label="Thickness threshold in micrometers"
-                  data-testid="oct-thickness-threshold-input"
+                  data-testid="enface-thickness-threshold-input"
                 />
               </ReasonedAction>
             </div>
@@ -296,7 +296,7 @@ function updateHighlight(highlightThin: boolean | null) {
                 hide-details
                 :disabled="!!thresholdReason"
                 name="Thickness threshold in micrometers"
-                data-testid="oct-thickness-threshold"
+                data-testid="enface-thickness-threshold"
               />
             </ReasonedAction>
           </v-expansion-panel-text>

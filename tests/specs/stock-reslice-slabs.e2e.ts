@@ -28,14 +28,14 @@ import {
 } from './utils';
 
 const STEM = 'stock-reslice-slabs';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
+const VIEWER = '[data-testid="enface-viewer"]';
 const WINDOW = { width: 1000, level: 500 };
 
 type SavedView = {
   type: string;
   config: Record<
     string,
-    { octEnFace?: { depthStart: number; depthEnd: number | null } }
+    { enFace?: { depthStart: number; depthEnd: number | null } }
   >;
 };
 
@@ -43,7 +43,7 @@ const savedSlabs = (manifest: { viewByID: Record<string, SavedView> }) =>
   Object.values(manifest.viewByID)
     .filter((view) => view.type === 'EnFace')
     .flatMap((view) => Object.values(view.config))
-    .flatMap((config) => (config.octEnFace ? [config.octEnFace] : []));
+    .flatMap((config) => (config.enFace ? [config.enFace] : []));
 
 async function saveArchive() {
   const saved = await volViewPage.saveSession();
@@ -130,12 +130,12 @@ describe('Built-in reslice slab rendering', () => {
       const source = await $('[data-testid~="vtk-two-view"]').getElement();
       const sourceWindow = await displayedWindow(source);
       await observeProjectionRedraw(view);
-      await view.$('[data-testid="oct-en-face-controls"]').click();
+      await view.$('[data-testid="enface-controls"]').click();
       await expandEnFaceSection('projection');
       await setSlabRange(scenario.first, scenario.last);
       await browser.keys('Escape');
       for (const [index, method] of ['Mean', 'Maximum', 'Sum'].entries()) {
-        await chooseEnFaceProjection('oct-projection-method', method, view);
+        await chooseEnFaceProjection('enface-projection-method', method, view);
         await setEnFaceWindow(WINDOW.width, WINDOW.level, view);
         await waitForEnFaceReady(view);
         await expectIntensity(scenario.expected[index]);
@@ -161,7 +161,7 @@ describe('Built-in reslice slab rendering', () => {
     await volViewPage.open(`?urls=[tmp/${STEM}/oversized.volview.zip]`);
     await waitForEnFaceReady();
     await expectIntensity(400);
-    await $('[data-testid="oct-en-face-controls"]').click();
+    await $('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('projection');
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '14');
     await browser.keys('Escape');
@@ -169,7 +169,7 @@ describe('Built-in reslice slab rendering', () => {
     expect(savedSlabs(clamped.manifest)).toMatchObject([
       { depthStart: 0, depthEnd: 14 },
     ]);
-    await $('[data-testid="oct-en-face-controls"]').click();
+    await $('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('projection');
     await setSlabRange(10, 14);
     await browser.keys('Escape');

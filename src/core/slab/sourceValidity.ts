@@ -1,5 +1,5 @@
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { SlabPaddingRange } from './types';
+import type { PixelPaddingRange } from '@/src/core/streaming/dicom/pixelPadding';
 
 type CachedValidity = {
   revision: string;
@@ -12,7 +12,7 @@ const sources = new WeakMap<vtkImageData, CachedValidity>();
 /** Source support for measurements; unmarked zero values remain valid. */
 export function getSourceValidity(
   image: vtkImageData,
-  padding: readonly SlabPaddingRange[] = []
+  padding: readonly PixelPaddingRange[] = []
 ) {
   if (!padding.length) return undefined;
   const scalars = image.getPointData().getScalars();

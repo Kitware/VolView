@@ -91,7 +91,7 @@ export async function expectStackedSourceMask() {
     const source = document
       .querySelector('div[data-testid~="vtk-two-view"]')
       ?.closest('.vtk-container-wrapper');
-    const enface = document.querySelector('[data-testid="oct-en-face-viewer"]');
+    const enface = document.querySelector('[data-testid="enface-viewer"]');
     if (!source || !enface)
       throw new Error('The stacked OCT views are missing');
     const top = source.getBoundingClientRect();
@@ -113,14 +113,12 @@ export async function expectStackedSourceMask() {
 
 export async function expectControlsBesideSelector() {
   const bounds = await browser.execute(() => {
-    const viewer = document.querySelector('[data-testid="oct-en-face-viewer"]');
-    const button = viewer?.querySelector(
-      '[data-testid="oct-en-face-controls"]'
-    );
+    const viewer = document.querySelector('[data-testid="enface-viewer"]');
+    const button = viewer?.querySelector('[data-testid="enface-controls"]');
     const selector = viewer?.querySelector('.view-type-select');
     const canvas = viewer?.querySelector('canvas');
     const panel = document.querySelector(
-      '.v-overlay--active [data-testid="oct-rendering-panel"]'
+      '.v-overlay--active [data-testid="enface-rendering-panel"]'
     );
     if (!button || !selector || !canvas || !panel)
       throw new Error('En face controls or image are missing');
@@ -139,8 +137,8 @@ export async function expectControlsBesideSelector() {
   expect(bounds.panelRight).toBeLessThanOrEqual(bounds.viewportWidth);
 }
 
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
+const CANVAS = '[data-testid="enface-canvas"]';
+const VIEWER = '[data-testid="enface-viewer"]';
 const enFaceView = async (view?: WebdriverIO.Element) =>
   view ?? $(VIEWER).getElement();
 
@@ -175,7 +173,7 @@ export async function displayedWindow(view: WebdriverIO.Element) {
 
 export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   const toggle = $(
-    '.v-overlay--active [data-testid="oct-' + section + '-toggle"]'
+    '.v-overlay--active [data-testid="enface-' + section + '-toggle"]'
   );
   await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
   await toggle.waitForClickable();
@@ -186,7 +184,7 @@ export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   await content.waitForDisplayed();
   await content.waitForStable();
   await $(
-    '.v-overlay--active [data-testid="oct-rendering-panel"]'
+    '.v-overlay--active [data-testid="enface-rendering-panel"]'
   ).waitForStable();
 }
 
@@ -197,11 +195,11 @@ export async function chooseEnFaceProjection(
 ) {
   const viewer = await enFaceView(view);
   await browser.keys('Escape');
-  const controls = viewer.$('[data-testid="oct-en-face-controls"]');
+  const controls = viewer.$('[data-testid="enface-controls"]');
   await controls.waitForStable();
   await controls.waitForClickable();
   await controls.click();
-  const panel = $('.v-overlay--active [data-testid="oct-rendering-panel"]');
+  const panel = $('.v-overlay--active [data-testid="enface-rendering-panel"]');
   await panel.waitForDisplayed();
   await expandEnFaceSection('projection');
   const select = panel.$('[data-testid="' + testId + '"]');
@@ -222,7 +220,7 @@ export async function chooseEnFaceProjection(
 
 export const slabThumb = (bound: 'start' | 'end') =>
   $(
-    '.v-overlay--active [data-testid="oct-slab-range"] [role="slider"][aria-label="Slab ' +
+    '.v-overlay--active [data-testid="enface-slab-range"] [role="slider"][aria-label="Slab ' +
       bound +
       '"]'
   );
@@ -234,7 +232,7 @@ export async function expectEnFaceProjectionSettings(
 ) {
   await expandEnFaceSection('projection');
   await expect(
-    $('.v-overlay--active [data-testid="oct-projection-axis"] input')
+    $('.v-overlay--active [data-testid="enface-projection-axis"] input')
   ).toHaveValue(axis);
   await expect(slabThumb('start')).toHaveAttribute(
     'aria-valuenow',
@@ -338,8 +336,8 @@ export async function enFacePixel(
     (element, imageX, imageY, offset) => {
       const canvas = element as HTMLCanvasElement;
       const transform = canvas
-        .closest('[data-testid="oct-en-face-viewer"]')!
-        .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+        .closest('[data-testid="enface-viewer"]')!
+        .querySelector<SVGGElement>('[data-testid="enface-slice-lines"] g')!
         .getScreenCTM()!;
       const center = new DOMPoint(imageX + 0.5, imageY + 0.5).matrixTransform(
         transform
@@ -373,7 +371,7 @@ export async function waitForEnFaceReady(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
   await viewer.$(CANVAS).waitForDisplayed();
   await expect(viewer).toHaveAttribute('aria-busy', 'false');
-  const status = viewer.$('[data-testid="oct-projection-status"]');
+  const status = viewer.$('[data-testid="enface-projection-status"]');
   await browser
     .waitUntil(
       async () =>
@@ -392,15 +390,17 @@ export async function waitForEnFaceReady(view?: WebdriverIO.Element) {
 export async function expectEnFaceUnavailable(reason: string) {
   const viewer = await enFaceView();
   await viewer.waitForDisplayed();
-  await expect(viewer.$('[data-testid="oct-projection-status"]')).toHaveText(
+  await expect(viewer.$('[data-testid="enface-projection-status"]')).toHaveText(
     expect.stringContaining(reason)
   );
   await expect(viewer).toHaveAttribute('aria-busy', 'false');
-  await expect(viewer.$('[data-testid="oct-slice-lines"]')).not.toExist();
+  await expect(viewer.$('[data-testid="enface-slice-lines"]')).not.toExist();
   expect((await enFaceAppearance(viewer)).visiblePixels).toBe(0);
-  await viewer.$('[data-testid="oct-en-face-controls"]').click();
+  await viewer.$('[data-testid="enface-controls"]').click();
   await expandEnFaceSection('projection');
-  const method = $('.v-overlay--active [data-testid="oct-projection-method"]');
+  const method = $(
+    '.v-overlay--active [data-testid="enface-projection-method"]'
+  );
   await expect(method).toBeDisplayed();
   await expect(method.$('input')).toBeDisabled();
   await browser.keys('Escape');
@@ -443,7 +443,7 @@ export async function setEnFaceWindow(
 
 export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  const panel = $('.v-overlay--active [data-testid="oct-rendering-panel"]');
+  const panel = $('.v-overlay--active [data-testid="enface-rendering-panel"]');
   const restorePanel =
     (await panel.isExisting()) && (await panel.isDisplayed());
   const sections = ['projection', 'thickness'] as const;
@@ -452,7 +452,7 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
       async (section) =>
         restorePanel &&
         (await panel
-          .$('[data-testid="oct-' + section + '-toggle"]')
+          .$('[data-testid="enface-' + section + '-toggle"]')
           .getAttribute('aria-expanded')) === 'true'
     )
   );
@@ -472,17 +472,17 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   await browser.keys('Escape');
   await inputs[0].waitForDisplayed({ reverse: true });
   if (restorePanel) {
-    const controls = viewer.$('[data-testid="oct-en-face-controls"]');
+    const controls = viewer.$('[data-testid="enface-controls"]');
     await controls.waitForClickable();
     await controls.click();
     const reopened = $(
-      '.v-overlay--active [data-testid="oct-rendering-panel"]'
+      '.v-overlay--active [data-testid="enface-rendering-panel"]'
     );
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
     for (const [index, section] of sections.entries()) {
       const toggle = $(
-        '.v-overlay--active [data-testid="oct-' + section + '-toggle"]'
+        '.v-overlay--active [data-testid="enface-' + section + '-toggle"]'
       );
       if (expanded[index]) {
         await expandEnFaceSection(section);
@@ -516,7 +516,7 @@ export async function expectEnFaceDisabledInSwitcher(reason: string) {
 export async function projectionTransform(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
   const transform = await viewer
-    .$('[data-testid="oct-slice-lines"] > g')
+    .$('[data-testid="enface-slice-lines"] > g')
     .getAttribute('transform');
   if (!transform) throw new Error('The projection has no image transform');
   return transform.slice(7, -1).split(',').map(Number);

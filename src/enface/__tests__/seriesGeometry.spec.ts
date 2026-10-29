@@ -10,8 +10,11 @@ import { untilLoaded } from '@/src/composables/untilLoaded';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceAvailability } from '@/src/enface/availability';
-import { OCT_GEOMETRY_ERROR, OCT_SCAN_PATTERN } from '@/src/enface/detection';
-import { octSeriesGeometry } from '@/src/enface/seriesGeometry';
+import {
+  OCT_GEOMETRY_ERROR,
+  OCT_SCAN_PATTERN,
+} from '@/src/core/streaming/dicom/octMetadataTags';
+import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 async function readTags(file: File) {
@@ -106,7 +109,6 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       const { id } = await assemble(undefined, undefined, modality);
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
-        isOCT: false,
         measurementGeometryReason: null,
       });
     }
@@ -132,7 +134,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       measurementGeometryReason: expect.stringMatching(/nonuniform/),
     });
     expect(
-      octSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
     ).toMatch(/nonuniform/);
   });
 
@@ -168,7 +170,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
         measurementGeometryReason: expect.stringMatching(reason),
       });
       expect(
-        octSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
       ).toMatch(reason);
     }
   );
@@ -191,7 +193,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
         measurementGeometryReason: expect.stringMatching(/incomplete/),
       });
       expect(
-        octSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
       ).toMatch(/incomplete/);
     }
   );
@@ -206,7 +208,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       measurementGeometryReason: expect.stringMatching(/loaded.*grid/),
     });
     expect(
-      octSeriesGeometry(
+      dicomSeriesGeometry(
         chunks.map((chunk) => chunk.metadata!),
         {
           spacing: data.getSpacing(),

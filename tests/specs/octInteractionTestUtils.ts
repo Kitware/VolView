@@ -36,19 +36,20 @@ export const reference = JSON.parse(
   thinColumns: number;
 };
 
-export const CANVAS = '[data-testid="oct-en-face-canvas"]';
+export const CANVAS = '[data-testid="enface-canvas"]';
 
-export const CONTROLS = '[data-testid="oct-en-face-controls"]';
+export const CONTROLS = '[data-testid="enface-controls"]';
 
-export const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+export const PANEL =
+  '.v-overlay--active [data-testid="enface-rendering-panel"]';
 
 export const THRESHOLD =
-  PANEL + ' [data-testid="oct-thickness-threshold-input"] input';
+  PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
 
 export const WINDOW_TOOL =
   'button[data-testid^="control-button-Window & Level "]';
 
-export const SLICE_LINE = '[data-testid="oct-slice-lines"] line';
+export const SLICE_LINE = '[data-testid="enface-slice-lines"] line';
 
 export const STEM = 'oct-fixtures';
 
@@ -107,11 +108,9 @@ export async function expectProjectionPixel(gray: number, x = 60, y = 12) {
 
 export async function observeSlabProjectionChanges() {
   await browser.execute(() => {
-    const viewer = document.querySelector(
-      '[data-testid="oct-en-face-viewer"]'
-    )!;
+    const viewer = document.querySelector('[data-testid="enface-viewer"]')!;
     const threshold = document.querySelector(
-      '.v-overlay--active [data-testid="oct-thickness-threshold"] [role="slider"]'
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
     )!;
     const changes: string[] = [];
     const observer = new MutationObserver((records) => {
@@ -137,13 +136,13 @@ export async function observeSlabProjectionChanges() {
 export async function enableHighlight() {
   await expandEnFaceSection('thickness');
   const label = $(
-    '.v-overlay--active [data-testid="oct-thin-highlight"] label'
+    '.v-overlay--active [data-testid="enface-thin-highlight"] label'
   );
   await label.scrollIntoView({ block: 'center', inline: 'nearest' });
   await label.waitForClickable();
   if (
     !(await $(
-      '.v-overlay--active [data-testid="oct-thin-highlight"] input'
+      '.v-overlay--active [data-testid="enface-thin-highlight"] input'
     ).isSelected())
   )
     await label.click();

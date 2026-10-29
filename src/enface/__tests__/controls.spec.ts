@@ -63,36 +63,36 @@ describe('En face rendering controls', () => {
     for (const section of ['projection', 'thickness']) {
       expect(
         wrapper
-          .get(`[data-testid="oct-${section}-toggle"]`)
+          .get(`[data-testid="enface-${section}-toggle"]`)
           .attributes('aria-expanded')
       ).toBe('true');
     }
     expect(
-      wrapper.find('[data-testid="oct-segmentation-segment"] input').exists()
+      wrapper.find('[data-testid="enface-segmentation-segment"] input').exists()
     ).toBe(true);
     expect(
       wrapper
-        .find('[data-testid="oct-thickness-threshold-input"] input')
+        .find('[data-testid="enface-thickness-threshold-input"] input')
         .exists()
     ).toBe(true);
-    expect(wrapper.find('[data-testid="oct-window-width"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="enface-window-width"]').exists()).toBe(
       false
     );
     expect(
-      wrapper.find('[data-testid="oct-segmentation-group"]').exists()
+      wrapper.find('[data-testid="enface-segmentation-group"]').exists()
     ).toBe(false);
     expect(
-      wrapper.get('[data-testid="oct-projection-method"] input').element
+      wrapper.get('[data-testid="enface-projection-method"] input').element
     ).toBeDefined();
     expect(
       wrapper
-        .get('[data-testid="oct-thin-highlight"]')
+        .get('[data-testid="enface-thin-highlight"]')
         .element.compareDocumentPosition(
-          wrapper.get('[data-testid="oct-segmentation-segment"]').element
+          wrapper.get('[data-testid="enface-segmentation-segment"]').element
         ) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
-    const projection = wrapper.get('[data-testid="oct-projection-toggle"]');
-    const thickness = wrapper.get('[data-testid="oct-thickness-toggle"]');
+    const projection = wrapper.get('[data-testid="enface-projection-toggle"]');
+    const thickness = wrapper.get('[data-testid="enface-thickness-toggle"]');
     await projection.trigger('click');
     expect(projection.attributes('aria-expanded')).toBe('false');
     expect(thickness.attributes('aria-expanded')).toBe('true');
@@ -110,21 +110,22 @@ describe('En face rendering controls', () => {
       method: 'sum' as const,
     };
     const wrapper = mountControls(saved);
-    const toggle = wrapper.get('[data-testid="oct-projection-toggle"]');
+    const toggle = wrapper.get('[data-testid="enface-projection-toggle"]');
     await toggle.trigger('click');
     expect(toggle.attributes('aria-expanded')).toBe('false');
     await toggle.trigger('click');
     expect(toggle.attributes('aria-expanded')).toBe('true');
-    expect(wrapper.findAll('[data-testid="oct-projection-axis"]')).toHaveLength(
-      1
-    );
     expect(
-      wrapper.get<HTMLInputElement>('[data-testid="oct-projection-axis"] input')
-        .element.value
+      wrapper.findAll('[data-testid="enface-projection-axis"]')
+    ).toHaveLength(1);
+    expect(
+      wrapper.get<HTMLInputElement>(
+        '[data-testid="enface-projection-axis"] input'
+      ).element.value
     ).toBe('Axial');
     expect(
       wrapper.get<HTMLInputElement>(
-        '[data-testid="oct-projection-method"] input'
+        '[data-testid="enface-projection-method"] input'
       ).element.value
     ).toBe('Sum');
     expect(
@@ -138,7 +139,7 @@ describe('En face rendering controls', () => {
 
   it('shows segment colors in the selected segment and its dropdown options', async () => {
     const wrapper = mountControls();
-    const swatch = () => wrapper.get('[data-testid="oct-segment-color"]');
+    const swatch = () => wrapper.get('[data-testid="enface-segment-color"]');
     expect(swatch().attributes('style')).toContain('background-color: #ff0000');
     await wrapper.setProps({
       segments: [
@@ -149,10 +150,10 @@ describe('En face rendering controls', () => {
     });
     expect(swatch().attributes('style')).toContain('background-color: #00ff00');
     expect(
-      wrapper.get('[data-testid="oct-segmentation-segment"]').text()
+      wrapper.get('[data-testid="enface-segmentation-segment"]').text()
     ).toContain('Other layer');
     await wrapper
-      .get('[data-testid="oct-segmentation-segment"] input')
+      .get('[data-testid="enface-segmentation-segment"] input')
       .trigger('keydown', { key: 'Enter' });
     await vi.waitFor(() => {
       const options = document.body.querySelectorAll('[role="option"]');
@@ -164,35 +165,35 @@ describe('En face rendering controls', () => {
         expect(options[index].textContent).toContain(name);
         expect(
           options[index]
-            .querySelector('[data-testid="oct-segment-option-color"]')
+            .querySelector('[data-testid="enface-segment-option-color"]')
             ?.getAttribute('style')
         ).toContain(`background-color: ${color}`);
       }
     });
     expect(
       wrapper
-        .get('[data-testid="oct-thin-highlight"]')
+        .get('[data-testid="enface-thin-highlight"]')
         .find('.color-dot')
         .exists()
     ).toBe(false);
-    expect(wrapper.get('[data-testid="oct-thin-highlight"]').text()).toContain(
-      'Highlight thin regions'
-    );
+    expect(
+      wrapper.get('[data-testid="enface-thin-highlight"]').text()
+    ).toContain('Highlight thin regions');
     await wrapper.setProps({ segments: [] });
-    expect(wrapper.find('[data-testid="oct-segment-color"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="enface-segment-color"]').exists()).toBe(
       false
     );
   });
   it('preserves a decimal micron threshold and ignores a cleared numeric entry', async () => {
     const wrapper = mountControls();
     const input = wrapper.get(
-      '[data-testid="oct-thickness-threshold-input"] input'
+      '[data-testid="enface-thickness-threshold-input"] input'
     );
     await input.setValue('20.8');
     expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: 20.8 });
     expect(
       wrapper
-        .get('[data-testid="oct-thickness-threshold"] [role="slider"]')
+        .get('[data-testid="enface-thickness-threshold"] [role="slider"]')
         .attributes('aria-valuenow')
     ).toBe('20.8');
     const previousCount = wrapper.emitted('patch')!.length;
@@ -203,7 +204,7 @@ describe('En face rendering controls', () => {
   it('keeps the threshold slider range fixed while preserving larger numeric thresholds', async () => {
     const wrapper = mountControls();
     const slider = wrapper.get(
-      '[data-testid="oct-thickness-threshold"] [role="slider"]'
+      '[data-testid="enface-thickness-threshold"] [role="slider"]'
     );
     expect(slider.attributes('aria-label')).toBe(
       'Thickness threshold in micrometers'
@@ -213,7 +214,7 @@ describe('En face rendering controls', () => {
     expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: 100.1 });
     expect(
       wrapper.get<HTMLInputElement>(
-        '[data-testid="oct-thickness-threshold-input"] input'
+        '[data-testid="enface-thickness-threshold-input"] input'
       ).element.value
     ).toBe(slider.attributes('aria-valuenow'));
     for (const [key, expected] of [
@@ -225,7 +226,7 @@ describe('En face rendering controls', () => {
     }
     await wrapper
       .get<HTMLInputElement>(
-        '[data-testid="oct-thickness-threshold-input"] input'
+        '[data-testid="enface-thickness-threshold-input"] input'
       )
       .setValue('750.25');
     expect(lastPatch(wrapper)).toEqual({ thresholdMicrons: 750.25 });
@@ -233,7 +234,7 @@ describe('En face rendering controls', () => {
     expect(slider.attributes('aria-valuenow')).toBe('200');
     expect(
       wrapper.get<HTMLInputElement>(
-        '[data-testid="oct-thickness-threshold-input"] input'
+        '[data-testid="enface-thickness-threshold-input"] input'
       ).element.value
     ).toBe('750.25');
     await wrapper.setProps({ thresholdMaximum: 50 });
@@ -241,7 +242,7 @@ describe('En face rendering controls', () => {
     expect(slider.attributes('aria-valuenow')).toBe('50');
     expect(
       wrapper.get<HTMLInputElement>(
-        '[data-testid="oct-thickness-threshold-input"] input'
+        '[data-testid="enface-thickness-threshold-input"] input'
       ).element.value
     ).toBe('750.25');
   });
@@ -255,16 +256,16 @@ describe('En face rendering controls', () => {
     });
     expect(
       wrapper
-        .get('[data-testid="oct-segmentation-segment"] input')
+        .get('[data-testid="enface-segmentation-segment"] input')
         .attributes('disabled')
     ).toBeUndefined();
     expect(
       wrapper
-        .get('[data-testid="oct-thin-highlight"] input')
+        .get('[data-testid="enface-thin-highlight"] input')
         .attributes('disabled')
     ).toBeDefined();
     const slider = wrapper.get(
-      '[data-testid="oct-thickness-threshold"] [role="slider"]'
+      '[data-testid="enface-thickness-threshold"] [role="slider"]'
     );
     expect(slider.attributes('aria-label')).toBe(
       'Thickness threshold in micrometers'
@@ -275,7 +276,7 @@ describe('En face rendering controls', () => {
     const action = wrapper
       .findAllComponents(ReasonedAction)
       .find((candidate) =>
-        candidate.find('[data-testid="oct-thin-highlight"]').exists()
+        candidate.find('[data-testid="enface-thin-highlight"]').exists()
       );
     expect(action?.props('reason')).toBe(reason);
   });
@@ -283,10 +284,10 @@ describe('En face rendering controls', () => {
   it('explains occupied-mask thickness and its user threshold on keyboard focus', async () => {
     const wrapper = mountControls();
     expect(
-      wrapper.get('[data-testid="oct-segmentation-segment"]').text()
+      wrapper.get('[data-testid="enface-segmentation-segment"]').text()
     ).toContain('Thickness segment');
     const help = wrapper.get<HTMLButtonElement>(
-      '[data-testid="oct-thickness-help"]'
+      '[data-testid="enface-thickness-help"]'
     );
     help.element.focus();
     expect(document.activeElement).toBe(help.element);
@@ -300,9 +301,11 @@ describe('En face rendering controls', () => {
   it('keeps slab help on its information button while leaving the range free of hover tooltips', async () => {
     const wrapper = mountControls();
     await nextTick();
-    const range = wrapper.get('[data-testid="oct-slab-range"]');
+    const range = wrapper.get('[data-testid="enface-slab-range"]');
     expect(range.attributes('aria-describedby')).toBeUndefined();
-    const help = range.get<HTMLButtonElement>('[data-testid="oct-slab-help"]');
+    const help = range.get<HTMLButtonElement>(
+      '[data-testid="enface-slab-help"]'
+    );
     expect(help.attributes('aria-label')).toBe('About slab range');
     help.element.focus();
     await vi.waitFor(() => {
@@ -314,7 +317,7 @@ describe('En face rendering controls', () => {
 
   it('adjusts inclusive slab bounds with two named keyboard-operated thumbs', async () => {
     const wrapper = mountControls({ depthStart: 100, depthEnd: 221 });
-    const range = wrapper.get('[data-testid="oct-slab-range"]');
+    const range = wrapper.get('[data-testid="enface-slab-range"]');
     const start = range.get('[role="slider"][aria-label="Slab start"]');
     const end = range.get('[role="slider"][aria-label="Slab end"]');
     expect(start.attributes('aria-valuenow')).toBe('100');
@@ -339,16 +342,16 @@ describe('En face rendering controls', () => {
 
   it('keeps unavailable thickness controls visible and exposes the reason through their wrapper', async () => {
     const wrapper = mountControls();
-    const toggle = wrapper.get('[data-testid="oct-thin-highlight"] input');
+    const toggle = wrapper.get('[data-testid="enface-thin-highlight"] input');
     const segment = wrapper.get(
-      '[data-testid="oct-segmentation-segment"] input'
+      '[data-testid="enface-segmentation-segment"] input'
     );
     await toggle.setValue(false);
     expect(segment.attributes('disabled')).toBeDefined();
     const segmentAction = wrapper
       .findAllComponents(ReasonedAction)
       .find((action) =>
-        action.find('[data-testid="oct-segmentation-segment"]').exists()
+        action.find('[data-testid="enface-segmentation-segment"]').exists()
       );
     expect(segmentAction?.props('reason')).toBe(
       'Enable thin-region highlighting to choose a segment.'
@@ -368,20 +371,20 @@ describe('En face rendering controls', () => {
     });
     expect(
       wrapper
-        .get('[data-testid="oct-thin-highlight"] input')
+        .get('[data-testid="enface-thin-highlight"] input')
         .attributes('disabled')
     ).toBeDefined();
     expect(
       wrapper
         .get<HTMLInputElement>(
-          '[data-testid="oct-thickness-threshold-input"] input'
+          '[data-testid="enface-thickness-threshold-input"] input'
         )
         .attributes('disabled')
     ).toBeDefined();
     const thresholdAction = wrapper
       .findAllComponents(ReasonedAction)
       .find((action) =>
-        action.find('[data-testid="oct-thickness-threshold-input"]').exists()
+        action.find('[data-testid="enface-thickness-threshold-input"]').exists()
       );
     expect(thresholdAction?.props('reason')).toBe(reason);
     expect(thresholdAction?.attributes('tabindex')).toBe('0');
@@ -448,7 +451,7 @@ describe('thickness control geometry', () => {
       try {
         expect(
           wrapper
-            .get('[data-testid="oct-thin-highlight"] input')
+            .get('[data-testid="enface-thin-highlight"] input')
             .attributes('disabled')
         ).toBeUndefined();
       } finally {
@@ -467,11 +470,11 @@ describe('thickness control geometry', () => {
         await nextTick();
         expect(
           wrapper
-            .get('[data-testid="oct-thin-highlight"] input')
+            .get('[data-testid="enface-thin-highlight"] input')
             .attributes('disabled')
         ).toBeDefined();
         const action = wrapper
-          .get('[data-testid="oct-thin-highlight"]')
+          .get('[data-testid="enface-thin-highlight"]')
           .element.closest<HTMLElement>('[tabindex="0"]');
         expect(action).not.toBeNull();
         action!.focus();

@@ -2,13 +2,17 @@ import SliceViewer from '@/src/components/SliceViewer.vue';
 import VolumeViewer from '@/src/components/VolumeViewer.vue';
 import ObliqueViewer from '@/src/components/ObliqueViewer.vue';
 import CineViewer from '@/src/components/CineViewer.vue';
-import { EnFaceViewer } from '@/src/enface';
+import { defineAsyncComponent } from 'vue';
 import { ViewInfo, ViewType } from '@/src/types/views';
 import { Maybe } from '@/src/types';
 import {
   computeEffectiveView,
   EffectiveView,
 } from '@/src/core/views/effectiveView';
+
+const EnFaceViewer = defineAsyncComponent(
+  () => import('@/src/enface/EnFaceViewer.vue')
+);
 
 type ViewComponent =
   | typeof SliceViewer
