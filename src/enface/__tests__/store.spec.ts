@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
-
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { parseNamedLayouts } from '@/src/utils/layoutParsing';
@@ -11,7 +12,7 @@ import { useWindowingStore } from '@/src/store/view-configs/windowing';
 
 beforeEach(() => setActivePinia(createPinia()));
 
-describe('OCT view settings', () => {
+describe('En face view settings', () => {
   it('isolates settings by view and dataset and removes them on deletion', () => {
     const store = useEnFaceViewStore();
     store.configFor('a', 'oct1').method = 'max';
@@ -32,6 +33,9 @@ describe('OCT view settings', () => {
       axis: 1,
       depthStart: 20,
       depthEnd: 40,
+      thresholdMicrons: 35,
+      highlightThin: true,
+      selectedSegmentId: 'missing-segment',
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -61,6 +65,8 @@ describe('OCT view settings', () => {
     expect(parsed.viewByID?.view.type).toBe('EnFace');
     const settings = parsed.viewByID!.view.config!;
     expect(settings.oct.enFace?.method).toBe('sum');
+    expect(settings.oct.enFace).not.toHaveProperty('selectedMaskId');
+    expect(settings.oct.enFace).not.toHaveProperty('selectedSegmentId');
     expect(settings.oct.enFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
@@ -73,12 +79,97 @@ describe('OCT view settings', () => {
       method: 'sum',
       depthStart: 20,
       depthEnd: 40,
+      thresholdMicrons: 35,
+      highlightThin: false,
     });
+    expect(store.configFor('restored', 'new-oct').selectedSegmentId).toBeNull();
     expect(useWindowingStore().getConfig('restored', 'new-oct')).toMatchObject({
       width: 120,
       level: 60,
       userTriggered: true,
     });
+  });
+
+  it('restores a slab scene saved without occupied-depth settings', () => {
+    const parsed = ManifestSchema.parse({
+      version: '7.0.0',
+      datasets: [],
+      dataSources: [],
+      viewByID: {
+        saved: {
+          id: 'saved',
+          type: 'EnFace',
+          name: 'En face',
+          config: {
+            source: {
+              enFace: { axis: 2, method: 'max', depthStart: 1, depthEnd: 4 },
+            },
+          },
+        },
+      },
+    });
+    useViewConfigStore().deserialize(
+      'restored',
+      parsed.viewByID!.saved.config!,
+      {
+        source: 'loaded',
+      }
+    );
+    expect(useEnFaceViewStore().configFor('restored', 'loaded')).toMatchObject({
+      axis: 2,
+      method: 'max',
+      depthStart: 1,
+      depthEnd: 4,
+      highlightThin: false,
+      thresholdMicrons: 100,
+      selectedSegmentId: null,
+    });
+  });
+
+  it('restores the chosen segment instead of highlighting the first mask', () => {
+    const registry = useSegmentStore().segments;
+    const first = registry.addSegment({ name: 'First layer' });
+    const chosen = registry.addSegment({ name: 'Chosen layer' });
+    const segmentation = useSegmentationStore();
+    const group = segmentation.ensureSegmentationForImage('restored-oct');
+    segmentation.createMask(group.id, first);
+    segmentation.createMask(group.id, chosen);
+    const store = useEnFaceViewStore();
+    store.deserialize(
+      'view',
+      {
+        'restored-oct': {
+          enFace: {
+            axis: 1,
+            method: 'mean',
+            depthStart: 0,
+            depthEnd: null,
+            thresholdMicrons: 35,
+            highlightThin: true,
+            segmentId: 'saved-layer',
+          },
+        },
+      },
+      { 'saved-layer': chosen }
+    );
+    expect(store.configFor('view', 'restored-oct').selectedSegmentId).toBe(
+      chosen
+    );
+    expect(store.configFor('view', 'restored-oct').highlightThin).toBe(true);
+    store.deserialize('view', {
+      'restored-oct': {
+        enFace: {
+          axis: 1,
+          method: 'mean',
+          depthStart: 0,
+          depthEnd: null,
+          thresholdMicrons: 35,
+          highlightThin: true,
+          segmentId: 'missing-layer',
+        },
+      },
+    });
+    expect(store.configFor('view', 'restored-oct').highlightThin).toBe(false);
   });
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {

@@ -313,12 +313,19 @@ export default tseslint.config(
     {
       dir: 'enface',
       publicSurface: false,
-      pure: ['src/enface/sliceGeometry.ts'],
+      pure: [
+        'src/enface/thickness.ts',
+        'src/enface/sliceGeometry.ts',
+        'src/enface/projectionMasks.ts',
+      ],
     },
     {
       dir: 'segmentation',
       pure: [
         'src/segmentation/geometry.ts',
+        'src/segmentation/measurements/occupiedDepth.ts',
+        'src/segmentation/measurements/occupiedDepth.worker.ts',
+        'src/segmentation/measurements/occupiedDepthHandler.ts',
         'src/segmentation/color.ts',
         'src/segmentation/model.ts',
         'src/segmentation/segment.ts',

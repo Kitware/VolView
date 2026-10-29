@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { rangeThumbLabels } from '@/src/utils/rangeThumbLabels';
 import { SLAB_METHODS } from '@/src/core/slab/types';
+import EnFaceThicknessControls from './EnFaceThicknessControls.vue';
 import type { EnFaceViewConfig, EnFaceViewControlState } from './store';
 
 const props = defineProps<
@@ -11,7 +12,7 @@ const props = defineProps<
 const emit = defineEmits<{
   patch: [settings: Partial<EnFaceViewConfig>];
 }>();
-const expandedSections = ref([0]);
+const expandedSections = ref([0, 1]);
 const slabDraft = ref<number[] | null>(null);
 watch(
   () => [
@@ -152,6 +153,12 @@ function updateAxis(axis: number) {
             </ReasonedAction>
           </v-expansion-panel-text>
         </v-expansion-panel>
+        <EnFaceThicknessControls
+          v-bind="thickness"
+          :settings="settings"
+          :embedded="embedded"
+          @patch="emit('patch', $event)"
+        />
       </v-expansion-panels>
     </v-card-text>
   </v-card>

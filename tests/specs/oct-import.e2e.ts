@@ -34,10 +34,14 @@ import {
 } from './segmentationTestUtils';
 import {
   reference,
+  THRESHOLD,
   STEM,
   stageFixture,
+  setThicknessThreshold,
   expectProjectionPixel,
+  enableHighlight,
   dragEnFaceContrast,
+  expectHighlight,
   expectStackedMaskWithoutSidebar,
   expectSliceLine,
   registerOctTestHooks,
@@ -81,17 +85,32 @@ describe('Retinal OCT import', () => {
     await expectStackedMaskWithoutSidebar();
 
     await openEnFaceControls();
+    await enableHighlight();
+    expect(
+      await $(
+        '.v-overlay--active [data-testid="enface-segmentation-segment"]'
+      ).getText()
+    ).toContain('Synthetic retinal layer');
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
     await expectControlsBesideSelector();
     await browser.keys('Escape');
     await dragEnFaceContrast();
     const retainedWindow = await getWindow();
     const retainedSlice = await volViewPage.getFirst2DSlice();
     await selectTwoRowLayout();
-    await waitForEnFaceReady();
+    await expectHighlight(true);
     expect(await getWindow()).toEqual(retainedWindow);
     expect(await volViewPage.getFirst2DSlice()).toBe(retainedSlice);
     await expectSliceLine();
     await openEnFaceControls();
+    await expandEnFaceSection('thickness');
+    expect(
+      await $(
+        '.v-overlay--active [data-testid="enface-segmentation-segment"]'
+      ).getText()
+    ).toContain('Synthetic retinal layer');
+    expect(Number(await $(THRESHOLD).getValue())).toBe(31);
     await browser.keys('Escape');
     await volViewPage.focusFirst2DView();
     const before = await volViewPage.getFirst2DSlice();
@@ -119,7 +138,7 @@ describe('Retinal OCT import', () => {
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await volViewPage.waitForViews();
     await $(CANVAS).waitForDisplayed();
-    await waitForEnFaceReady();
+    await expectHighlight(true);
     await expectSliceLine();
     await expectStackedMaskWithoutSidebar();
     await volViewPage.waitForViewCounts(1, false);
