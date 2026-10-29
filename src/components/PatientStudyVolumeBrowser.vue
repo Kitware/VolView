@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
+import { computed, defineComponent, reactive, ref, toRefs, watch } from 'vue';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
@@ -15,6 +15,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import ImageSpacingDetails from '@/src/components/ImageSpacingDetails.vue';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -33,11 +34,13 @@ export default defineComponent({
     },
   },
   components: {
+    ImageSpacingDetails,
     GroupableItem,
     PersistentOverlay,
     SegmentationConversionProgress,
   },
   setup(props) {
+    const spacingImageID = ref<string | null>(null);
     const { volumeKeys } = toRefs(props);
     const dicomStore = useDICOMStore();
     const datasetStore = useDatasetStore();
@@ -193,6 +196,7 @@ export default defineComponent({
     }
 
     return {
+      spacingImageID,
       selected,
       selectedAll,
       selectedSome,
@@ -336,6 +340,12 @@ export default defineComponent({
                   <v-menu activator="parent">
                     <v-list>
                       <v-list-item
+                        @click="spacingImageID = volume.key"
+                        data-testid="dataset-menu-spacing-item"
+                      >
+                        Image spacing
+                      </v-list-item>
+                      <v-list-item
                         v-if="volume.layerable"
                         @click.stop="volume.layerHandler()"
                         data-testid="dataset-menu-layer-item"
@@ -374,6 +384,7 @@ export default defineComponent({
       </v-col>
     </v-row>
   </v-container>
+  <image-spacing-details v-if="spacingImageID" v-model="spacingImageID" />
 </template>
 
 <style scoped>

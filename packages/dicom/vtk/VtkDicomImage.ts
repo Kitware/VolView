@@ -6,6 +6,7 @@ import {
   reconstructInstances,
   sliceNormalOf,
   type Reconstruction,
+  type SpatialMetadata,
 } from '../core/index';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -73,6 +74,7 @@ export class VtkDicomImage {
   protected chunks: Chunk[];
   private orientation: number[] | null = null;
   private reconstruction: Reconstruction | null = null;
+  private spatialMetadata: SpatialMetadata | undefined;
   private image = vtkImageData.newInstance();
   private loading = false;
   private status: ProgressiveImageStatus = 'incomplete';
@@ -134,9 +136,16 @@ export class VtkDicomImage {
     return this.reconstruction ? structuredClone(this.reconstruction) : null;
   }
 
-  private replaceImage(image: vtkImageData) {
+  getSpatialMetadata() {
+    return this.spatialMetadata
+      ? structuredClone(this.spatialMetadata)
+      : undefined;
+  }
+
+  private replaceImage(image: vtkImageData, spatialMetadata?: SpatialMetadata) {
     const previous = this.image;
     this.image = image;
+    this.spatialMetadata = spatialMetadata;
     this.events.emit('imageChanged', image);
     previous.delete();
   }
@@ -305,8 +314,12 @@ export class VtkDicomImage {
     this.onChunksUpdated();
 
     if (allocated) {
-      applyUltrasoundSpacing(allocated, chunks, this.warn);
-      this.replaceImage(allocated);
+      const spatialMetadata = applyUltrasoundSpacing(
+        allocated,
+        chunks,
+        this.warn
+      );
+      this.replaceImage(allocated.image, spatialMetadata);
     }
 
     this.registerChunkListeners();

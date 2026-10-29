@@ -23,5 +23,10 @@ export function nmGeometry(metadata: DicomDataset) {
     sliceSpacing: nm.sliceSpacing ? Math.abs(nm.sliceSpacing) : null,
     slots: [0],
   };
-  return { ...geometry, direction, reconstruction };
+  return {
+    ...geometry,
+    direction,
+    reconstruction,
+    sliceSpacingSource: 'SpacingBetweenSlices',
+  };
 }

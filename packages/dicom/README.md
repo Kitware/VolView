@@ -137,6 +137,25 @@ spacing for irregular geometry. Use `reject` to refuse that fallback. Neither
 policy resamples a scan. Multiple files containing multi-frame data, Node
 support and plugin registration are outside this package's current scope.
 
+`volume.getSpatialMetadata()` reports the applied spacing in image x/y/z order.
+Each axis records its value, unit (`mm` or `unknown`), source, and whether it was
+declared, derived from positions, or supplied as a display fallback. Reconstruction
+quality and ultrasound region limitations are separate from the unit. These are
+statements about the source and allocation, not independent calibration.
+`allocateImageFromChunks()` returns `{ image, spatialMetadata }`; the volume
+consumer also accounts for ultrasound spacing overrides.
+
+Missing physical spacing is permitted for some DICOM objects, including
+[secondary captures](https://dicom.nema.org/medical/dicom/current/output/chtml/part03/sect_A.8.html).
+Ordinary patient PixelSpacing and ImagePositionPatient use millimeters without
+requiring an additional calibration tag. A fallback value of 1 does not establish
+a millimeter scale. A singleton axis does not establish a distance between slices.
+
+VolView exposes this information through image metadata and the volume menu's
+Image spacing entry. Saved DICOM sessions retain their original sources and
+recompute the report when restored. Measurement values, annotation coordinates
+and their existing unit convention are unchanged.
+
 ## Standalone checks
 
 `npm run dicom:check` builds the package and typechecks and bundles two small

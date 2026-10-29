@@ -7,6 +7,10 @@ import {
   sliceNormalOf,
   type Reconstruction,
   multiframeGeometry,
+  declaredSpacing,
+  physicalSpacing,
+  readPixelSpacing,
+  type SpatialMetadata,
 } from '../core/index';
 import { getFrameTag } from '../core/metadata/functionalGroups';
 import { trimDicomPadding } from '../core/utils';
@@ -236,7 +240,8 @@ export function allocateImageFromChunks(
     reconstruction,
     irregularGeometry
   );
-  const { position, pixelSpacing, direction } = geometry;
+  const { position, direction } = geometry;
+  const spatialMetadata = allocationSpatialMetadata(sortedChunks, geometry);
   const TypedArrayCtor = getVolumeBufferType(
     sortedChunks.flatMap(instancePixelFormats)
   );
@@ -249,9 +254,7 @@ export function allocateImageFromChunks(
 
   if (position) image.setOrigin(position as Vector3);
 
-  image.setSpacing(
-    allocationSpacing(sortedChunks[0], pixelSpacing, geometry.reconstruction)
-  );
+  image.setSpacing(spatialMetadata.axes.map((axis) => axis.value));
 
   if (direction) image.setDirection(direction as mat3);
 
@@ -264,7 +267,7 @@ export function allocateImageFromChunks(
   // Needed for volume rendering to work at start
   dataArray.setRange({ min: 0, max: 255 }, 0);
 
-  return image;
+  return { image, spatialMetadata };
 }
 
 /** Preserve acquisition order and its fallback spacing, or require a regular lattice. */
@@ -283,6 +286,14 @@ function assertRegularGeometry(
 const instanceGeometry = (metadata: DicomDataset, count: number) =>
   nmGeometry(metadata) ?? multiframeGeometry(metadata, count);
 
+function allocationDirection(
+  orientation: number[] | null,
+  frameDirection?: number[] | null
+) {
+  const normal = frameDirection ?? sliceNormalOf(orientation);
+  return orientation && normal ? [...orientation, ...normal] : null;
+}
+
 function allocationGeometry(
   chunks: Chunk[],
   orientation: number[] | null,
@@ -296,14 +307,11 @@ function allocationGeometry(
   const plan = frames?.reconstruction ?? reconstruction;
   assertRegularGeometry(plan, policy);
   const effectiveOrientation = orientation ?? geometry.orientation;
-  const normal = frames?.direction ?? sliceNormalOf(effectiveOrientation);
   return {
     ...geometry,
     reconstruction: plan,
-    direction:
-      effectiveOrientation && normal
-        ? [...effectiveOrientation, ...normal]
-        : null,
+    sliceSpacingSource: frames?.sliceSpacingSource ?? 'ImagePositionPatient',
+    direction: allocationDirection(effectiveOrientation, frames?.direction),
   };
 }
 
@@ -337,24 +345,65 @@ function allocationShape(chunks: Chunk[], reconstruction: Reconstruction) {
   };
 }
 
-function allocationSpacing(
-  chunk: Chunk,
-  pixelSpacing: number[] | null,
-  reconstruction: Reconstruction
-): Vector3 {
-  // DICOM writes PixelSpacing as row then column; vtk wants x then y.
-  const spacing: Vector3 = pixelSpacing
-    ? [pixelSpacing[1], pixelSpacing[0], 1]
-    : [1, 1, 1];
+function allocationNotes(
+  chunks: Chunk[],
+  geometry: ReturnType<typeof allocationGeometry>
+) {
+  const notes = [];
+  if (!geometry.position)
+    notes.push(
+      'Patient position is unavailable; the display uses a zero origin.'
+    );
+  if (!geometry.direction)
+    notes.push(
+      'Patient orientation is unavailable; the display uses default axes.'
+    );
+  if (
+    chunks.length > 1 &&
+    chunks.some((chunk) =>
+      readPixelSpacing(chunk.metadata).some(
+        (axis) => axis.status === 'fallback'
+      )
+    )
+  )
+    notes.push(
+      'Some slices lack usable PixelSpacing; the displayed in-plane grid uses the first slice.'
+    );
+  return notes;
+}
+
+function allocationCalibration(metadata: DicomDataset | null | undefined) {
+  const type = getDatasetTag(metadata, '00280A02')?.trim();
+  const description = getDatasetTag(metadata, '00280A04')?.trim();
+  return type || description ? { calibration: { type, description } } : {};
+}
+
+function allocationSpatialMetadata(
+  chunks: Chunk[],
+  geometry: ReturnType<typeof allocationGeometry>
+): SpatialMetadata {
+  const metadata = chunks[0].metadata;
+  const { reconstruction, sliceSpacingSource } = geometry;
   const sliceSpacing = reconstruction.sliceSpacing ?? 0;
-  const declaredSpacing = numberOr(
-    getFrameTag(chunk.metadata, SpacingBetweenSlicesTag),
-    0
-  );
-  // The plan retains the irregular stack's own fallback step. A single
-  // instance has no inter-instance step and uses its declared spacing.
-  if (isPositiveFiniteNumber(sliceSpacing)) spacing[2] = sliceSpacing;
-  else if (isPositiveFiniteNumber(declaredSpacing))
-    spacing[2] = declaredSpacing;
-  return spacing;
+  const z = isPositiveFiniteNumber(sliceSpacing)
+    ? physicalSpacing(
+        sliceSpacing,
+        sliceSpacingSource,
+        sliceSpacingSource === 'ImagePositionPatient' ? 'derived' : 'declared'
+      )
+    : declaredSpacing(
+        getFrameTag(metadata, SpacingBetweenSlicesTag),
+        'SpacingBetweenSlices'
+      );
+  return {
+    axes: [...readPixelSpacing(metadata), z],
+    reconstruction: {
+      kind: reconstruction.kind,
+      ...(reconstruction.kind === 'irregular'
+        ? { reason: reconstruction.reason }
+        : {}),
+    },
+    notes: allocationNotes(chunks, geometry),
+    ...allocationCalibration(metadata),
+  };
 }

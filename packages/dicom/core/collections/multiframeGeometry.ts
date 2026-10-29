@@ -73,6 +73,7 @@ export function multiframeGeometry(metadata: DicomDataset, count: number) {
   return {
     ...first,
     direction,
+    sliceSpacingSource: 'ImagePositionPatient',
     reconstruction: { ...validated, slots: [0] },
   };
 }

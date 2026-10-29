@@ -501,5 +501,5 @@ function allocateImageFromChunks(
     chunks.map((item) => readGeometryFacts(item.metadata!)),
     sliceNormalOf(orientation)
   );
-  return allocatePlannedImage(chunks, orientation, reconstruction);
+  return allocatePlannedImage(chunks, orientation, reconstruction).image;
 }

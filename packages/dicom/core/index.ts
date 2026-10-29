@@ -3,6 +3,7 @@ export * from './metadata/dicomDataset';
 export * from './metadata/datasetAccess';
 export * from './metadata/dicomTags';
 export * from './metadata/dicomLayout';
+export * from './metadata/spatialMetadata';
 export * from './metadata/dcmjsParser';
 export * from './metadata/dicomCharacterSet';
 export * from './streaming/chunk';

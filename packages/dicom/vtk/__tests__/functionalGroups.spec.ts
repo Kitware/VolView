@@ -66,7 +66,7 @@ const allocate = (
     null,
     { kind: 'regular', sliceSpacing: null, slots: [0] },
     policy
-  );
+  ).image;
 
 const ctShared = () =>
   groups([

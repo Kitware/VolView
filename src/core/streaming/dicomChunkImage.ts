@@ -49,6 +49,7 @@ export default class DicomChunkImage
       () => !this.loading.value && this.status.value === 'complete'
     );
     this.consumer.addEventListener('imageChanged', (image) => {
+      this.spatialMetadata.value = this.consumer.getSpatialMetadata();
       this.vtkImageData.value = image;
     });
     this.consumer.addEventListener('status', (status) => {
