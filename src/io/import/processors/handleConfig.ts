@@ -5,6 +5,10 @@ import { recognizeConfigFile } from '@/src/io/import/configJson';
 import { Skip } from '@/src/utils/evaluateChain';
 import { surfaceWarning } from '@/src/store/messages';
 
+// Validation failed after known section keys identified this as configuration.
+// A JSON syntax/read failure has not established that role.
+export class InvalidConfigError extends Error {}
+
 // Forward-compat: a config that carries unknown top-level keys (e.g. a newer
 // config opened on an older client) still applies its known sections; the
 // unknown keys are stripped during recognition and surfaced here (console +
@@ -52,7 +56,8 @@ const handleConfig: ImportHandler = async (dataSource) => {
     const error = ensureError(err);
     const detail =
       err instanceof ZodError ? z.prettifyError(err) : error.message;
-    throw new Error(`Failed to parse config file: ${detail}`, {
+    const ParseError = err instanceof ZodError ? InvalidConfigError : Error;
+    throw new ParseError(`Failed to parse config file: ${detail}`, {
       cause: error,
     });
   }

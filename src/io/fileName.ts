@@ -35,3 +35,12 @@ export function sanitizeFileStem(name: string, fallback = DEFAULT_FILE_STEM) {
 
   return sanitized || fallback;
 }
+
+/** Resource-fork and Finder bookkeeping paths are not importable datasets. */
+export const isOperatingSystemMetadata = (name: string) =>
+  name
+    .split(/[\\/]/)
+    .some(
+      (part) =>
+        part === '__MACOSX' || part === '.DS_Store' || part.startsWith('._')
+    );

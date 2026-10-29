@@ -122,6 +122,7 @@ export type ImportContext = {
   archiveCache?: ArchiveCache;
   dicomDataSources?: DataSource[];
   onCleanup?: (fn: () => void) => void;
+  onImageImported?: (imageId: string) => void;
   importDataSources?: (
     dataSources: DataSource[]
   ) => Promise<ImportDataSourcesResult[]>;

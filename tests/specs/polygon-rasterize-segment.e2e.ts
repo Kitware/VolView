@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import JSZip from 'jszip';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import AppPage from '../pageobjects/volview.page';
 import type { ChainablePromiseElement } from 'webdriverio';
@@ -27,8 +26,7 @@ import { CINE_US_DATASET } from '../datasets';
 import {
   openUrls,
   openVolViewPage,
-  SESSION_SAVE_TIMEOUT,
-  waitForDownload,
+  readSavedSessionWithoutSelection,
 } from './utils';
 
 const RASTERIZE_ITEM = '.v-list-item-title=Rasterize';
@@ -180,13 +178,7 @@ describe('Polygon rasterize target', () => {
     await lockSegment('Segment 1');
 
     const savedName = await AppPage.saveSession();
-    const savedPath = path.join(TEMP_DIR, savedName);
-    await waitForDownload(savedPath, SESSION_SAVE_TIMEOUT);
-    const zip = await JSZip.loadAsync(fs.readFileSync(savedPath));
-    const manifest = JSON.parse(
-      await zip.file('manifest.json')!.async('string')
-    );
-    delete manifest.selectedSegment;
+    const { zip, manifest } = await readSavedSessionWithoutSelection(savedName);
     delete manifest.tools.polygons.tools[0].segmentId;
     zip.file('manifest.json', JSON.stringify(manifest));
 

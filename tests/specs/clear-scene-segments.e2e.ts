@@ -31,7 +31,8 @@ describe('Clearing the scene', () => {
     expect(await segmentNames()).toEqual(['Tumor', 'Segment 1', 'Segment 2']);
 
     await browser.keys(['Control', '/']);
-    await $('[data-testid="segment-list"]').waitForExist({ reverse: true });
+    await browser.waitUntil(async () => (await segmentNames()).length === 0);
+    await expect($('[data-testid="segment-list"] .create-row')).toBeDisabled();
 
     await openThroughDialog(path.join(TEMP_DIR, image));
     await openAnnotationSegments();

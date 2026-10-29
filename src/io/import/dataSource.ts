@@ -1,6 +1,7 @@
 import { Chunk } from '@/src/core/streaming/chunk';
 import { Fetcher } from '@/src/core/streaming/types';
 import { Maybe } from '@/src/types';
+import { isOperatingSystemMetadata } from '@/src/io/fileName';
 
 /**
  * Represents a URI source with a file name for the downloaded resource.
@@ -176,3 +177,15 @@ export function getDataSourceName(ds: Maybe<DataSource>): Maybe<string> {
 
   return getDataSourceName(ds.parent);
 }
+
+/** Explicit manifest references remain data, even when their paths look hidden. */
+export const isOperatingSystemMetadataSource = (source: DataSource) => {
+  if (findStateFileLeaves(source).length) return false;
+  if (source.type === 'file')
+    return isOperatingSystemMetadata(
+      source.file.webkitRelativePath || source.file.name
+    );
+  if (source.type === 'uri') return isOperatingSystemMetadata(source.name);
+  if (source.type === 'archive') return isOperatingSystemMetadata(source.path);
+  return false;
+};

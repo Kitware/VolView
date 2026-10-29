@@ -490,7 +490,7 @@ describe('JobsModule segmentation staging', () => {
     segmentation.name = name;
     const segment = store.createMask(
       segmentation.id,
-      mintSegment({ name: 'Tumor' })
+      mintSegment('image-1', { name: 'Tumor' })
     );
     // A segmentation with no voxel is no input, so it holds one.
     seedVoxel(segment.id, [1, 1, 1]);
@@ -502,7 +502,7 @@ describe('JobsModule segmentation staging', () => {
     const { segmentationId, maskId } = seedSegmentation('Overlap');
     const second = useSegmentationStore().createMask(
       segmentationId,
-      mintSegment({
+      mintSegment('image-1', {
         name: 'Node',
       })
     );
@@ -911,11 +911,11 @@ describe('JobsModule segmentation staging', () => {
     const segmentation = segmentStore.ensureSegmentationForImage('image-1');
     const first = segmentStore.createMask(
       segmentation.id,
-      mintSegment({ name: 'A' })
+      mintSegment('image-1', { name: 'A' })
     );
     const second = segmentStore.createMask(
       segmentation.id,
-      mintSegment({ name: 'B' })
+      mintSegment('image-1', { name: 'B' })
     );
     seedVoxel(first.id, [0, 0, 0]);
     seedVoxel(second.id, [1, 1, 1]);

@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { basename, dirname } from '@/src/utils/path';
 import { FileEntry } from './types';
+import { isOperatingSystemMetadata } from '@/src/io/fileName';
 
 export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
   const zip = await JSZip.loadAsync(zipFile);
@@ -8,7 +9,11 @@ export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
   const paths: string[] = [];
   zip.forEach((relPath, file) => {
     const fileName = basename(file.name);
-    if (!file.dir && fileName.toLowerCase() !== 'license') {
+    if (
+      !file.dir &&
+      !isOperatingSystemMetadata(relPath) &&
+      fileName.toLowerCase() !== 'license'
+    ) {
       const path = dirname(file.name);
       const fileEntry = zip.file(file.name);
       if (fileEntry) {

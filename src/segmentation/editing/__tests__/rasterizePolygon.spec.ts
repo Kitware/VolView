@@ -155,7 +155,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     voxels.ensureContains([0, 5, 0, 5, 0, 1]);
     voxels.scalars().fill(SEGMENT_VALUE);
     lockSegment(locked, true);
-    const tumor = segments().addSegment({ name: 'Tumor' });
+    const tumor = segments().addSegment('img-1', { name: 'Tumor' });
 
     const result = rasterize(tumor);
 
@@ -256,7 +256,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     expect(useMessageStore().messages.map(({ title }) => title)).toContain(
       'Cannot rasterize into a locked segment'
     );
-    expect(rasterizeTargetDisabledReason(segmentOfMask(maskId))).toBe(
+    expect(rasterizeTargetDisabledReason('img-1', segmentOfMask(maskId))).toBe(
       UNLOCK_REASON
     );
   });
@@ -265,7 +265,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
     const first = addMask('img-1', 'First');
     lockSegment(first, true);
 
-    expect(rasterizeTargetDisabledReason('')).toBe(UNLOCK_REASON);
+    expect(rasterizeTargetDisabledReason('img-1', '')).toBe(UNLOCK_REASON);
     expect(store().getMask(first).representations.labelmap).toBeUndefined();
   });
 
@@ -276,11 +276,11 @@ describe('rasterizing a polygon into a bounded mask', () => {
     segments().deleteSegment(stale);
     lockSegment(fallback, true);
 
-    expect(rasterizeTargetDisabledReason(stale)).toBe(UNLOCK_REASON);
-    expect(rasterizeTargetDisabledReason('')).toBe(UNLOCK_REASON);
+    expect(rasterizeTargetDisabledReason('img-1', stale)).toBe(UNLOCK_REASON);
+    expect(rasterizeTargetDisabledReason('img-1', '')).toBe(UNLOCK_REASON);
 
     lockSegment(fallback, false);
-    expect(rasterizeTargetDisabledReason(stale)).toBe('');
+    expect(rasterizeTargetDisabledReason('img-1', stale)).toBe('');
     expect(rasterize(stale)).toEqual({
       segmentId: segmentOfMask(fallback),
       maskId: fallback,
@@ -289,7 +289,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
   });
 
   it('mints a segment when the polygon names the only one, since deleted', () => {
-    const deleted = segments().addSegment({ name: 'Tumor' });
+    const deleted = segments().addSegment('img-1', { name: 'Tumor' });
     segments().deleteSegment(deleted);
 
     const result = rasterize(deleted);
@@ -346,8 +346,8 @@ describe('rasterizing a polygon into a bounded mask', () => {
   });
 
   it('rasterizes into the segment the polygon names, not the selected one', () => {
-    const tumor = segments().addSegment({ name: 'Tumor' });
-    const node = segments().addSegment({ name: 'Node' });
+    const tumor = segments().addSegment('img-1', { name: 'Tumor' });
+    const node = segments().addSegment('img-1', { name: 'Node' });
     // The user picks another segment between placing the polygon and rasterizing
     // it; the polygon still carries the segment it was drawn with.
     segments().selectSegment(node);
@@ -364,7 +364,7 @@ describe('rasterizing a polygon into a bounded mask', () => {
   });
 
   it('rasterizes into the record its segment already has here', () => {
-    const tumor = segments().addSegment({ name: 'Tumor' });
+    const tumor = segments().addSegment('img-1', { name: 'Tumor' });
 
     const first = rasterize(tumor);
     const second = rasterize(tumor, SQUARE, 1);
@@ -374,13 +374,13 @@ describe('rasterizing a polygon into a bounded mask', () => {
   });
 
   it('leaves the rasterized record for the next paint edit', () => {
-    const tumor = segments().addSegment({ name: 'Tumor' });
+    const tumor = segments().addSegment('img-1', { name: 'Tumor' });
 
     const rasterized = rasterize(tumor).maskId!;
     const painted = store().resolveEditTarget('img-1');
 
     expect(painted).toBe(rasterized);
-    expect(segments().selectedSegmentId.value).toBe(tumor);
+    expect(segments().selectedSegmentId('img-1')).toBe(tumor);
     expect(segmentNamesOf('img-1')).toEqual(['Tumor']);
   });
 });

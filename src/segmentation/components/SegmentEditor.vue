@@ -113,13 +113,13 @@ const onDelete = () => {
           <v-card-actions class="mb-2 px-0">
             <reasoned-action
               :reason="lockedReason"
-              tooltip="Delete from every image"
+              tooltip="Delete from this image"
               v-slot="{ disabled }"
             >
               <v-btn
                 color="error"
                 variant="elevated"
-                aria-label="Delete this segment from every image"
+                aria-label="Delete this segment from this image"
                 @click="onDelete"
                 :disabled="disabled"
               >

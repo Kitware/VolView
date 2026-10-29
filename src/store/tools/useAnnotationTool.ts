@@ -1,14 +1,14 @@
 import { Ref, computed, ref } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { Maybe, PartialWithRequired, UnwrapAll } from '@/src/types';
-import { isRecord, removeFromArray } from '@/src/utils';
+import { isRecord, partition, removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
 import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import type { IToolStore } from '@/src/store/tools/types';
+import type { IToolStore, SkippedTool } from '@/src/store/tools/types';
 import { applyLocator } from '@/src/core/annotations/locator';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -91,7 +91,20 @@ export const useAnnotationTool = <
 
   const registry = useSegmentStore().segments;
 
+  const assertOwnSegment = (
+    imageId: Maybe<string>,
+    segmentId: Maybe<string>
+  ) => {
+    if (segmentId && !registry.belongsToImage(imageId, segmentId))
+      throw new Error(
+        'An annotation must use a segment belonging to its image'
+      );
+  };
+
   function addTool(tool: ToolPatch): ToolID {
+    const segmentId =
+      tool.segmentId ?? registry.selectedSegmentId(tool.imageID) ?? '';
+    assertOwnSegment(tool.imageID, segmentId);
     const id = useIdStore().nextId() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
@@ -100,8 +113,8 @@ export const useAnnotationTool = <
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
       ...toolDefaults(),
-      segmentId: registry.selectedSegmentId.value ?? '',
       ...tool,
+      segmentId,
       id,
     };
 
@@ -122,10 +135,27 @@ export const useAnnotationTool = <
     selectionStore.removeSelection(id);
   }
 
+  function removeToolsWhere(shouldRemove: (tool: Tool) => boolean) {
+    const [removed, retained] = partition(
+      (id) => shouldRemove(toolByID.value[id]),
+      toolIDs.value
+    );
+    if (!removed.length) return;
+    toolIDs.value = retained;
+    const selectionStore = useToolSelectionStore();
+    removed.forEach((id) => {
+      delete toolByID.value[id];
+      selectionStore.removeSelection(id);
+    });
+  }
+
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
-
-    toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
+    const next = { ...toolByID.value[id], ...patch, id };
+    // A stub being placed may still name a deleted segment; placing resolves it.
+    if (!next.placing || registry.getSegment(next.segmentId))
+      assertOwnSegment(next.imageID, next.segmentId);
+    toolByID.value[id] = next;
   }
 
   // Starting an annotation is the gesture that names the segment it delineates:
@@ -134,9 +164,10 @@ export const useAnnotationTool = <
   // placed. Idempotent, since the tool then names a live segment.
   function resolveToolSegment(id: ToolID) {
     const tool = toolByID.value[id];
-    if (!tool || registry.getSegment(tool.segmentId)) return;
+    if (!tool?.imageID || registry.belongsToImage(tool.imageID, tool.segmentId))
+      return;
     updateTool(id, {
-      segmentId: registry.ensureSelectedSegment(),
+      segmentId: registry.ensureSelectedSegment(tool.imageID),
     } as ToolPatch);
   }
 
@@ -153,9 +184,7 @@ export const useAnnotationTool = <
   // backend's intentional fail-closed 400. Mirrors the segmentation cascade.
   onImageDeleted((deletedIDs) => {
     const deleted = new Set(deletedIDs);
-    toolIDs.value
-      .filter((id) => deleted.has(toolByID.value[id].imageID))
-      .forEach((id) => removeTool(id));
+    removeToolsWhere((tool) => deleted.has(tool.imageID));
   });
 
   const { currentImageID } = useCurrentImage('global');
@@ -193,8 +222,9 @@ export const useAnnotationTool = <
     segmentIdMap: Record<string, string> = {}
   ) {
     const imageCache = useImageCacheStore();
+    const skipped: SkippedTool[] = [];
     serialized?.tools
-      .filter(({ imageID, segmentId }) => {
+      .filter(({ imageID, segmentId, name }) => {
         // An image that did not load leaves its annotations with nothing to
         // hang on: they cannot be drawn, and seating them with a missing image
         // would make the next save's whole tools section invalid.
@@ -202,7 +232,14 @@ export const useAnnotationTool = <
         if (!mappedImageId || !imageCache.imageById[mappedImageId])
           return false;
         const mappedId = segmentId && segmentIdMap[segmentId];
-        return !mappedId || registry.getSegment(mappedId);
+        if (mappedId && !registry.belongsToImage(mappedImageId, mappedId)) {
+          skipped.push({
+            name: name ?? manifestKey,
+            reason: 'its segment belongs to another image',
+          });
+          return false;
+        }
+        return true;
       })
       .map(
         ({ imageID, segmentId, ...rest }) =>
@@ -213,23 +250,22 @@ export const useAnnotationTool = <
           }) as ToolPatch
       )
       .forEach((tool) => addTool(tool));
+    return skipped;
   }
 
   // A tool still being placed is the widget's own stub, not content: taking it
   // with a deleted segment would leave the widget holding a dead id and no way
   // to place anything, and placing re-resolves the segment anyway.
-  const referencesSegment = (id: ToolID, segmentId: string) => {
-    const tool = toolByID.value[id];
-    return tool.segmentId === segmentId && !tool.placing;
-  };
+  const referencesSegment = (tool: Tool, segmentId: string) =>
+    tool.segmentId === segmentId && !tool.placing;
 
   const removeToolsOfSegment = (segmentId: string) =>
-    toolIDs.value
-      .filter((id) => referencesSegment(id, segmentId))
-      .forEach((id) => removeTool(id));
+    removeToolsWhere((tool) => referencesSegment(tool, segmentId));
 
   const hasToolsOfSegment = (segmentId: string) =>
-    toolIDs.value.some((id) => referencesSegment(id, segmentId));
+    toolIDs.value.some((id) =>
+      referencesSegment(toolByID.value[id], segmentId)
+    );
 
   registry.declareReferences(manifestKey, {
     has: hasToolsOfSegment,
