@@ -526,6 +526,8 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
       if (!segmentId) return 'its segment is not in the file';
       if (!segmentRegistry.getSegment(segmentId))
         return 'its segment did not restore';
+      if (!segmentRegistry.belongsToImage(imageId, segmentId))
+        return 'its segment belongs to another image';
       if (maskFor(imageId, segmentId))
         return 'the image already has a mask for its segment';
       return undefined;
@@ -606,7 +608,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         const activeIndex = decoded.findIndex(
           (descriptor) => descriptor.value === item.activeValue
         );
-        segmentRegistry.restoreSelection(restored[activeIndex]?.segmentId);
+        segmentRegistry.restoreSelection(
+          parentImageId,
+          restored[activeIndex]?.segmentId
+        );
       } else {
         const segmentation = getSegmentationForImage(parentImageId);
         const targets = item.masks.flatMap(({ maskId, value }) => {

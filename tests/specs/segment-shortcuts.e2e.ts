@@ -1,6 +1,5 @@
 import * as path from 'node:path';
 import fs from 'node:fs';
-import JSZip from 'jszip';
 import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -8,6 +7,7 @@ import { ONE_CT_SLICE_DICOM } from '../datasets';
 import {
   openUrls,
   openVolViewPage,
+  readSavedSessionWithoutSelection,
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
 } from './utils';
@@ -85,11 +85,13 @@ const dragBefore = async (name: string, target: string) => {
 describe('Segment shortcuts and ordering', () => {
   it('cycles forward and backward across segment boundaries for polygon and paint', async () => {
     await volViewPage.open();
-    await expect(volViewPage.samplesList).toBeDisplayed();
+    await openAnnotationSegments();
+    const create = $('[data-testid="segment-list"] .create-row');
+    await expect(create).toBeDisabled();
     await browser.keys('w');
     await browser.keys('q');
-    await expect(volViewPage.samplesList).toBeDisplayed();
-    await expect($('[data-testid="segment-list"]')).not.toExist();
+    await expect(create).toBeDisabled();
+    expect(await segmentNames()).toEqual([]);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
 
     await openUrls([ONE_CT_SLICE_DICOM]);
@@ -117,14 +119,7 @@ describe('Segment shortcuts and ordering', () => {
     await openAnnotationSegments();
     for (let index = 0; index < 3; index++) await addSegment();
     const saved = await volViewPage.saveSession();
-    const savedPath = path.join(TEMP_DIR, saved);
-    await waitForDownload(savedPath, SESSION_SAVE_TIMEOUT);
-    const zip = await JSZip.loadAsync(fs.readFileSync(savedPath));
-    const manifest = JSON.parse(
-      await zip.file('manifest.json')!.async('string')
-    );
-    delete manifest.selectedSegment;
-    zip.file('manifest.json', JSON.stringify(manifest));
+    const { zip } = await readSavedSessionWithoutSelection(saved);
     const name = 'segment-shortcuts-no-selection.volview.zip';
     const filePath = path.join(TEMP_DIR, name);
     fs.writeFileSync(filePath, await zip.generateAsync({ type: 'nodebuffer' }));
@@ -152,6 +147,8 @@ describe('Segment shortcuts and ordering', () => {
       await openUrls([ONE_CT_SLICE_DICOM]);
       await volViewPage.selectTool(icon);
       await openAnnotationSegments();
+      expect(await segmentNames()).toEqual([]);
+      await addSegment();
       await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
       expect(await segmentNames()).toEqual(['Segment 1']);
       await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();

@@ -10,6 +10,7 @@
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(ruler.id, $event)"
+        @placing="onPlacementStarted"
         @placed="onRulerPlaced"
         @widgetHover="onHover(ruler.id, $event)"
       />
@@ -129,6 +130,7 @@ export default defineComponent({
     return {
       rulers: currentRulers,
       placingRulerID: placingTool.id,
+      onPlacementStarted: placingTool.beginPlacement,
       onRulerPlaced,
       contextMenu,
       openContextMenu,

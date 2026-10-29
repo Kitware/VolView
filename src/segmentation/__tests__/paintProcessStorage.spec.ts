@@ -33,7 +33,7 @@ function addBoundSegment(segmentationId: string, name: string) {
   const segmentationStore = useSegmentationStore();
   const segment = segmentationStore.createMask(
     segmentationId,
-    mintSegment({ name })
+    mintSegment('image-1', { name })
   );
   const voxels = segmentationStore.maskVoxels(segment.id);
   voxels.materialize();

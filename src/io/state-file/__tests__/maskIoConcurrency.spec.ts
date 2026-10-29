@@ -138,7 +138,9 @@ describe('mask io concurrency', () => {
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
+    const { segmentIdMap } = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+    });
     const result = await store().deserialize({
       manifest: parsed,
       stateFiles,
@@ -187,7 +189,9 @@ describe('mask io concurrency', () => {
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
+    const { segmentIdMap } = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+    });
     await store().deserialize({
       manifest: parsed,
       stateFiles,
@@ -229,7 +233,8 @@ describe('mask io concurrency', () => {
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(parsed, { 'img-1': 'new-1' })
+        .segmentIdMap,
       io: save.io,
     });
     await nextTick();

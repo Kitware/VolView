@@ -301,7 +301,7 @@ const dropLegacyViewDisplay = (manifest: any, groupIds: string[]) => {
 // segments. JSON only: no voxels are read here, so each group becomes an
 // artifact the loaded restore stage splits into bounded masks, and every
 // binding's extent is a placeholder that stage replaces.
-const migrate640To700 = (inputManifest: any) => {
+export const migrate640To700 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
 
   // Insertion order is the migrated order: groups in manifest order, then per
@@ -526,6 +526,93 @@ const migrate640To700 = (inputManifest: any) => {
   return manifest;
 };
 
+// Every saved image keeps the full catalog the global picker offered, including
+// unused rows. Mask buffers stay in place; only their segment references split.
+const migrate700To800 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  const catalog: any[] = Array.isArray(manifest.segments)
+    ? manifest.segments
+    : [];
+  const datasets: any[] =
+    manifest.datasets ??
+    (manifest.dataSources ?? [])
+      .filter((source: any) => source.type === 'uri')
+      .map((source: any) => ({ id: String(source.id) }));
+  const imageIds = [...new Set<string>(datasets.map(({ id }) => id))];
+  const toolKeys = ['rulers', 'rectangles', 'polygons'];
+  const referencedIds = [
+    ...(manifest.segmentations ?? []).flatMap((segmentation: any) =>
+      (segmentation.masks ?? []).map((mask: any) => mask.segmentId)
+    ),
+    ...toolKeys.flatMap((key) =>
+      (manifest.tools?.[key]?.tools ?? []).map((tool: any) => tool.segmentId)
+    ),
+  ];
+  // Missing references must stay missing rather than alias a newly minted id.
+  const usedIds = new Set<string>([
+    ...catalog.map(({ id }) => id),
+    ...referencedIds,
+  ]);
+  const idsByImage = new Map<string, Map<string, string>>();
+  const segments: any[] = [];
+  const imageSegmentSets = imageIds.map((imageId, imageIndex) => {
+    const segmentIds = new Map<string, string>();
+    idsByImage.set(imageId, segmentIds);
+    catalog.forEach((segment, segmentIndex) => {
+      let id = segmentIds.get(segment.id);
+      if (id === undefined) {
+        const candidate = `image-${imageIndex + 1}-segment-${segmentIndex + 1}`;
+        id = candidate;
+        for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
+        usedIds.add(id);
+        segmentIds.set(segment.id, id);
+      }
+      // A repeated wire id remains repeated so restore reports the bad row
+      // instead of converting it into a second, apparently valid definition.
+      segments.push({
+        ...segment,
+        id,
+        ...(Array.isArray(segment.color) ? { color: [...segment.color] } : {}),
+      });
+    });
+    const selectedSegmentId = segmentIds.get(manifest.selectedSegment);
+    return {
+      imageId,
+      segmentIds: [...segmentIds.values()],
+      ...(selectedSegmentId ? { selectedSegmentId } : {}),
+    };
+  });
+
+  const mappedSegmentId = (imageId: string, segmentId: string) =>
+    idsByImage.get(imageId)?.get(segmentId) ?? segmentId;
+  (manifest.segmentations ?? []).forEach((segmentation: any) => {
+    (segmentation.masks ?? []).forEach((mask: any) => {
+      mask.segmentId = mappedSegmentId(
+        segmentation.parentImage,
+        mask.segmentId
+      );
+    });
+  });
+  toolKeys.forEach((key) => {
+    (manifest.tools?.[key]?.tools ?? []).forEach((tool: any) => {
+      if (tool.segmentId !== undefined)
+        tool.segmentId = mappedSegmentId(tool.imageID, tool.segmentId);
+    });
+  });
+
+  if (imageIds.length === 0 && catalog.length > 0) {
+    manifest.seedSegmentDefaults = catalog.map((segment) =>
+      omit(segment, ['id'])
+    );
+  }
+  if (manifest.segments === undefined || Array.isArray(manifest.segments))
+    manifest.segments = segments;
+  manifest.imageSegmentSets = imageSegmentSets;
+  delete manifest.selectedSegment;
+  manifest.version = '8.0.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   return pipe(
@@ -535,6 +622,7 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
-    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700)
+    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
+    migrateOrPass(['7.0.0'], migrate700To800)
   );
 };

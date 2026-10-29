@@ -151,12 +151,17 @@ This removes the specified view types from the dropdown menu and replaces them i
 
 ## Segments
 
-Paint, rectangles, polygons and rulers share one registry of segments, configured under
-`segments`. Each entry is keyed by name, and every appearance field is optional: an
-omitted one means the app default for a new segment. For an existing session segment,
-omitted fields keep the appearance it had before configuration. Replacing a config entry
-removes its previous appearance overrides, including color, while keeping the segment id,
-visibility and lock state.
+Paint, rectangles, polygons and rulers share segment definitions within each image.
+The `segments` entries supply reusable defaults keyed by name. Every appearance field
+is optional: an omitted field uses the app default for a new segment. For an existing
+segment, omitted fields keep its appearance before configuration. Replacing a config
+entry removes its previous appearance overrides, including color, while keeping its
+identity, visibility and lock state on that image.
+
+Configuration loaded together with images or a session applies to those images.
+Configuration opened separately applies to the active image and updates defaults for
+future images. With no active image, it updates defaults only. Other existing images
+keep their own definitions and appearance.
 
 ```json
 {
@@ -176,7 +181,7 @@ Fields:
   are filled and outlined. The Display sliders in "Annotations" scale them per image.
 - `strokeWidth` sets the line width of the segment's rectangles, polygons and rulers.
 
-Omitting the key leaves the registry alone. An empty record (`{}`) or `null` drops the
+Omitting the key leaves the definitions and defaults alone. An empty record (`{}`) or `null` drops the
 config's entries: a segment the config created is deleted unless a mask or shape
 references it, and any other segment stays with its last configured appearance.
 
@@ -186,8 +191,15 @@ entry to the segment of the new name, adding one if none exists, and drops the o
 as above. Applying a config again restores each key's name and configured appearance,
 undoing a rename made in the app.
 
-Configured segments outlive the images. Removing the last image deletes every other
-segment and keeps these.
+Removing an image deletes its live segment definitions, including configured ones.
+The configuration defaults remain available for future images.
+
+When a new image has no set of its own, it copies the previously active image's names,
+colors, style and ordering once, with new identities and no masks or shapes. These
+copies start visible and unlocked. Configuration supplied with the new load takes
+precedence; retained configuration defaults are used when there is no previous image
+set to copy. Later edits and deletion affect only the owning image. Deleting every
+segment leaves that image empty, including after switching away or saving and restoring.
 
 ### Legacy `labels`
 

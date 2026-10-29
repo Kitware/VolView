@@ -28,7 +28,7 @@ const blue = [0, 0, 255, 255] as [number, number, number, number];
 const red = [255, 0, 0, 255] as [number, number, number, number];
 
 const existingMask = (imageId: string, name: string) => {
-  const segmentId = registry().mintSegment({ name, color: red });
+  const segmentId = registry().mintSegment(imageId, { name, color: red });
   const maskId = store().resolveEditTarget(imageId, segmentId);
   seedVoxel(maskId, [1, 1, 1]);
   return { segmentId, maskId };
@@ -111,7 +111,7 @@ describe('processing segment identity', () => {
     ]);
   });
 
-  it('reuses the declared segment across images and keeps its existing appearance', async () => {
+  it('keeps same-named segments independent across images', async () => {
     const { segmentId } = existingMask('parent-A', 'Tumor');
     registry().updateSegment(segmentId, { visible: false, locked: true });
 
@@ -122,11 +122,17 @@ describe('processing segment identity', () => {
     const saved = await save();
     expect(savedMasks(saved, 'parent-B')).toMatchObject([
       {
+        segment: { name: 'Tumor', color: blue, visible: true, locked: false },
+      },
+    ]);
+    expect(savedMasks(saved, 'parent-B')[0].segmentId).not.toBe(segmentId);
+    expect(savedMasks(saved, 'parent-A')).toMatchObject([
+      {
         segmentId,
         segment: { name: 'Tumor', color: red, visible: false, locked: true },
       },
     ]);
-    expect(saved.manifest.segments).toHaveLength(1);
+    expect(saved.manifest.segments).toHaveLength(2);
   });
 
   it('uses a distinct segment when the declared segment already has a mask on the target', async () => {

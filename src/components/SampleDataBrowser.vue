@@ -104,7 +104,7 @@ export default defineComponent({
             });
           });
         }
-        showImportedData(loadResults);
+        await showImportedData(loadResults);
         loaded.nameToIDs[sample.name] = selections;
         selections.forEach((id) => {
           loaded.idToName[id] = sample.name;

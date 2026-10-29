@@ -92,6 +92,13 @@ export const useAnnotationTool = <
   const registry = useSegmentStore().segments;
 
   function addTool(tool: ToolPatch): ToolID {
+    const imageId = tool.imageID ?? '';
+    const segmentId =
+      tool.segmentId ?? registry.selectedSegmentId(imageId) ?? '';
+    if (segmentId && !registry.belongsToImage(imageId, segmentId))
+      throw new Error(
+        'An annotation must use a segment belonging to its image'
+      );
     const id = useIdStore().nextId() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
@@ -100,8 +107,8 @@ export const useAnnotationTool = <
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
       ...toolDefaults(),
-      segmentId: registry.selectedSegmentId.value ?? '',
       ...tool,
+      segmentId,
       id,
     };
 
@@ -124,8 +131,16 @@ export const useAnnotationTool = <
 
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
-
-    toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
+    const next = { ...toolByID.value[id], ...patch, id };
+    if (
+      next.segmentId &&
+      !registry.belongsToImage(next.imageID, next.segmentId) &&
+      (!next.placing || registry.getSegment(next.segmentId))
+    )
+      throw new Error(
+        'An annotation must use a segment belonging to its image'
+      );
+    toolByID.value[id] = next;
   }
 
   // Starting an annotation is the gesture that names the segment it delineates:
@@ -134,9 +149,10 @@ export const useAnnotationTool = <
   // placed. Idempotent, since the tool then names a live segment.
   function resolveToolSegment(id: ToolID) {
     const tool = toolByID.value[id];
-    if (!tool || registry.getSegment(tool.segmentId)) return;
+    if (!tool?.imageID || registry.belongsToImage(tool.imageID, tool.segmentId))
+      return;
     updateTool(id, {
-      segmentId: registry.ensureSelectedSegment(),
+      segmentId: registry.ensureSelectedSegment(tool.imageID),
     } as ToolPatch);
   }
 
@@ -202,7 +218,7 @@ export const useAnnotationTool = <
         if (!mappedImageId || !imageCache.imageById[mappedImageId])
           return false;
         const mappedId = segmentId && segmentIdMap[segmentId];
-        return !mappedId || registry.getSegment(mappedId);
+        return !mappedId || registry.belongsToImage(mappedImageId, mappedId);
       })
       .map(
         ({ imageID, segmentId, ...rest }) =>

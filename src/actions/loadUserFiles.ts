@@ -9,6 +9,7 @@ import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -233,7 +234,7 @@ function autoLayerByName(
 // Converts other DataSources into segments on the primary image:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
-function loadSegmentations(
+async function loadSegmentations(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>,
   segmentationExtension: string
@@ -259,37 +260,43 @@ function loadSegmentations(
   });
 
   const segmentationStore = useSegmentationStore();
-  [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
-    const loadable = toDataSelection(ds);
-    segmentationStore.startLabelmapConversion(
-      loadable,
-      toDataSelection(primaryDataSource)
-    );
-  });
+  await Promise.all(
+    [...otherSegVolumesInStudy, ...matchingNames].map((ds) =>
+      segmentationStore.startLabelmapConversion(
+        toDataSelection(ds),
+        toDataSelection(primaryDataSource)
+      )
+    )
+  );
 }
 
 export type DataSourceImporter = (
   sources: DataSource[]
 ) => Promise<ImportDataSourcesResult[]>;
 
-export function showImportedData(results: ImportResult[]) {
-  const loadDataStore = useLoadDataStore();
+export async function showImportedData(results: ImportResult[]) {
+  const releaseInitialization = useSegmentStore().deferInitialization();
+  try {
+    const loadDataStore = useLoadDataStore();
 
-  const primaryDataSource = findBaseDataSource(
-    results,
-    loadDataStore.segmentationExtension,
-    loadDataStore.layerExtension
-  );
-  if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
+    const primaryDataSource = findBaseDataSource(
+      results,
+      loadDataStore.segmentationExtension,
+      loadDataStore.layerExtension
+    );
+    if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
 
-  useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
-  autoLayerDicoms(primaryDataSource, results);
-  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
-  loadSegmentations(
-    primaryDataSource,
-    results,
-    loadDataStore.segmentationExtension
-  );
+    useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
+    autoLayerDicoms(primaryDataSource, results);
+    autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
+    await loadSegmentations(
+      primaryDataSource,
+      results,
+      loadDataStore.segmentationExtension
+    );
+  } finally {
+    releaseInitialization();
+  }
 }
 
 type LoadDataSourcesOutcome = {
@@ -327,7 +334,7 @@ function loadDataSourcesWithOutcome(
       .every((view) => !view.dataID);
 
     if (succeeded.length && shouldShowData) {
-      showImportedData(succeeded);
+      await showImportedData(succeeded);
     }
 
     // Every error importDataSources returns is unreported by contract
@@ -361,10 +368,12 @@ function loadDataSourcesWithOutcome(
   ) => {
     const { startLoading, stopLoading } = useLoadDataStore();
     return async function wrapper(...args: Args): Promise<Result> {
+      const releaseInitialization = useSegmentStore().deferInitialization();
       try {
         startLoading();
         return await fn(...args);
       } finally {
+        releaseInitialization();
         stopLoading();
       }
     };

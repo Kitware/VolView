@@ -71,9 +71,11 @@ export default defineComponent({
     // --- widget representation config --- //
 
     const { segments } = useSegmentStore();
+    const pointerInView = ref(false);
     watchEffect(() => {
+      if (!pointerInView.value) return;
       const [r, g, b] = segments.appearanceOf(
-        segments.selectedSegmentId.value
+        segments.selectedSegmentId(imageId.value)
       ).color;
       widgetState.getBrush().setColor3([r, g, b]);
     });
@@ -151,7 +153,6 @@ export default defineComponent({
     // --- visibility --- //
 
     let checkIfPointerInView = false;
-    const pointerInView = ref(false);
     watchEffect(() => {
       if (pointerInView.value && imageId.value) {
         paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);

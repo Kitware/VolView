@@ -199,8 +199,8 @@ export default defineComponent({
       if (isCurrentImageCine.value) {
         return 'Rasterization is not supported for cine images';
       }
-      const { segmentId } = activeToolStore.toolByID[toolId];
-      return rasterizeTargetDisabledReason(segmentId);
+      const { imageID, segmentId } = activeToolStore.toolByID[toolId];
+      return rasterizeTargetDisabledReason(imageID, segmentId);
     }
 
     function rasterize(toolId: ToolID) {

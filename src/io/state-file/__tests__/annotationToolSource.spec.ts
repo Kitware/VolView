@@ -94,7 +94,8 @@ describe('annotation tool source', () => {
   it('migrates a 6.4.0 tool onto a segment and keeps its source-free geometry', () => {
     const old = JSON.stringify({
       version: '6.4.0',
-      dataSources: [],
+      dataSources: [{ id: 1, type: 'uri', uri: '/img-1.nrrd' }],
+      datasets: [{ id: 'img-1', dataSourceId: 1 }],
       tools: { rulers: { tools: [ruler()] } },
     });
     const migrated = migrateManifest(old);

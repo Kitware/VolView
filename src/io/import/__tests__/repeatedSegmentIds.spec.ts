@@ -22,6 +22,7 @@ describe('restoring a manifest whose segments repeat an id', () => {
     await seatImage('parent', { dimensions: [4, 4, 1] });
     const manifest = manifestForImages(['parent'], {
       segments: [segment('s1', 'Liver'), segment('s1', 'Spleen')],
+      imageSegmentSets: [{ imageId: 'parent', segmentIds: ['s1'] }],
     });
 
     const addWarning = vi.fn();

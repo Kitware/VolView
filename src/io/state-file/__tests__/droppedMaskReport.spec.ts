@@ -25,7 +25,7 @@ const buildScene = async () => {
 const restoreTampered = async (
   tamper: (parsed: any) => void,
   segmentIdMapFor: (parsed: any) => Record<string, string> = (parsed) =>
-    useSegmentStore().deserialize(parsed).segmentIdMap,
+    useSegmentStore().deserialize(parsed, { 'img-1': 'new-1' }).segmentIdMap,
   dataIDMap: Record<string, string> = { 'img-1': 'new-1' }
 ) => {
   await buildScene();
@@ -67,6 +67,7 @@ const restoreArtifactMasks = async (order: string[]) => {
         name: id,
         color: [255, 0, 0, 255],
       })),
+      imageSegmentSets: [{ imageId: 'parent', segmentIds: ['s1', 's3'] }],
       segmentations: [
         {
           id: 'wire',
@@ -102,7 +103,8 @@ const restoreArtifactMasks = async (order: string[]) => {
       { archivePath: 'labels.vti', file: new File([], 'labels.vti') },
     ],
     dataIDMap: { parent: 'parent' },
-    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(manifest, { parent: 'parent' })
+      .segmentIdMap,
     io: { read: async () => ({ image: labels }), write: async () => '' },
   });
   return {
@@ -234,7 +236,9 @@ describe('masks dropped during restore', () => {
             ? stateFiles.filter(({ file }) => file !== brokenFile)
             : stateFiles,
         dataIDMap: { 'img-1': 'new-1' },
-        segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+        segmentIdMap: useSegmentStore().deserialize(parsed, {
+          'img-1': 'new-1',
+        }).segmentIdMap,
         io: damagedIO,
       });
       expect(skipped).toEqual([{ name: broken.name, reason }]);

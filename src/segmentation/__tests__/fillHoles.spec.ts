@@ -126,7 +126,7 @@ describe('Fill Holes store', () => {
       segmentationStore.ensureSegmentationForImage(parentImageID);
     const segment = segmentationStore.createMask(
       segmentation.id,
-      mintSegment({
+      mintSegment(parentImageID, {
         name: 'Segment 1',
       })
     );
@@ -311,7 +311,7 @@ describe('Fill Holes store', () => {
       segmentationStore.getSegmentationForImage(parentImageID)!;
     const other = segmentationStore.createMask(
       segmentation.id,
-      mintSegment({
+      mintSegment(parentImageID, {
         name: 'Other',
       })
     );

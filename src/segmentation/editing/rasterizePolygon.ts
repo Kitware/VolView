@@ -22,8 +22,11 @@ import {
   type Extent3D,
 } from '@/src/segmentation/geometry';
 
-export const rasterizeTargetDisabledReason = (segmentId: Maybe<string>) =>
-  useSegmentationStore().editTargetLocked(segmentId)
+export const rasterizeTargetDisabledReason = (
+  imageId: string,
+  segmentId: Maybe<string>
+) =>
+  useSegmentationStore().editTargetLocked(imageId, segmentId)
     ? 'Unlock this segment to rasterize into it'
     : '';
 
@@ -41,7 +44,7 @@ function resolveRasterizeTarget(imageId: string, segmentId: Maybe<string>) {
   // mints the mask record and its segmentation: a refused polygon leaves
   // neither behind. A locked neighbor is a different rule: the fill goes
   // around it, which an aimed `voxelClaim` already honors.
-  if (segmentationStore.editTargetLocked(segmentId)) {
+  if (segmentationStore.editTargetLocked(imageId, segmentId)) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
   }

@@ -47,6 +47,7 @@ import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -69,16 +70,25 @@ function isSelectable(result: ImportResult): result is LoadableVolumeResult {
 }
 
 const applyConfigsPostState = (
-  results: Array<ConfigResult>
-): (ConfigResult | ErrorResult)[] =>
-  results.map((result) => {
+  results: Array<ConfigResult>,
+  loadables: readonly LoadableResult[]
+): (ConfigResult | ErrorResult)[] => {
+  const imageIds = loadables
+    .filter((result) => result.dataType === 'image')
+    .map(({ dataID }) => dataID);
+  return results.map((result) => {
     try {
-      applyPostStateConfig(result.config);
+      applyPostStateConfig(
+        result.config,
+        undefined,
+        imageIds.length ? imageIds : undefined
+      );
       return result;
     } catch (err) {
       return asErrorResult(ensureError(err), result.dataSource);
     }
   });
+};
 
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
 // covers maps to its ONE store id. Many-to-one is the normal shape — a merged
@@ -313,7 +323,7 @@ async function importDataSourcesWithPolicy(
     }
   }
 
-  results.push(...applyConfigsPostState(configResults));
+  results.push(...applyConfigsPostState(configResults, loadableResults));
 
   // A failed state-file leaf is already counted in the restore's consolidated
   // missing-content notice, so this layer owns its reporting: it returns as an
@@ -331,11 +341,20 @@ async function importDataSourcesWithPolicy(
   });
 }
 
-export function importDataSources(
+export async function importDataSources(
   dataSources: DataSource[],
   restore: RestoreProcessors = appRestoreProcessors()
 ): Promise<ImportDataSourcesResult[]> {
-  return importDataSourcesWithPolicy(dataSources, 'application', restore);
+  const releaseInitialization = useSegmentStore().deferInitialization();
+  try {
+    return await importDataSourcesWithPolicy(
+      dataSources,
+      'application',
+      restore
+    );
+  } finally {
+    releaseInitialization();
+  }
 }
 
 export function importVolumeDataSources(

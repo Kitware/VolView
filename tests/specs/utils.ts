@@ -257,6 +257,20 @@ export const waitForFileExists = (filePath: string, timeout: number) =>
 export const waitForDownload = (filePath: string, timeout: number) =>
   waitForFile(filePath, timeout, (stats) => stats.size > 0);
 
+export async function readSavedSessionWithoutSelection(
+  sessionFileName: string
+) {
+  const filePath = path.join(TEMP_DIR, sessionFileName);
+  await waitForDownload(filePath, SESSION_SAVE_TIMEOUT);
+  const zip = await JSZip.loadAsync(fs.readFileSync(filePath));
+  const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+  manifest.imageSegmentSets.forEach((set: { selectedSegmentId?: string }) => {
+    delete set.selectedSegmentId;
+  });
+  zip.file('manifest.json', JSON.stringify(manifest));
+  return { zip, manifest };
+}
+
 export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   const manifest = {
     resources: datasets.map(({ name }) => ({ url: `/tmp/${name}` })),
