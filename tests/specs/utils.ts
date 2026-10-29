@@ -101,15 +101,28 @@ export async function waitForModuleTransitions() {
     () =>
       browser.execute(() => {
         const container = document.getElementById('module-container')!;
-        const transitioning = container.querySelector(
-          '[class*="-enter-active"], [class*="-leave-active"]'
-        );
+        // Hidden modules can animate without moving the visible controls.
+        const movesModule = (element?: Element | null) => {
+          const panel = element?.closest('.module-window-item');
+          return (
+            !panel ||
+            panel === element ||
+            panel.classList.contains('v-window-item--active') ||
+            getComputedStyle(panel).display !== 'none'
+          );
+        };
+        const transitioning = Array.from(
+          container.querySelectorAll(
+            '[class*="-enter-active"], [class*="-leave-active"]'
+          )
+        ).some(movesModule);
         const animating = container
           .getAnimations({ subtree: true })
           .some(
             (animation) =>
               animation.playState === 'running' &&
-              Number.isFinite(animation.effect?.getComputedTiming().endTime)
+              Number.isFinite(animation.effect?.getComputedTiming().endTime) &&
+              movesModule((animation.effect as KeyframeEffect)?.target)
           );
         return !transitioning && !animating;
       }),

@@ -135,9 +135,12 @@ export function setCinematicVolumeShading({
   );
 
   property.setShade(true);
-  property.setUseGradientOpacity(component, !enabled);
-  property.setGradientOpacityMinimumValue(component, 0.0);
   const dataRange = image.getPointData().getScalars().getRange();
+  property.setUseGradientOpacity(
+    component,
+    !enabled && dataRange[1] > dataRange[0]
+  );
+  property.setGradientOpacityMinimumValue(component, 0.0);
   property.setGradientOpacityMaximumValue(
     component,
     (dataRange[1] - dataRange[0]) * 0.01

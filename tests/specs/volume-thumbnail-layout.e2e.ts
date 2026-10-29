@@ -1,15 +1,11 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openConfigAndDataset } from './configTestUtils';
+import { openVolumeRenderingControls } from './volumeRenderingTestUtils';
 
 async function waitForPresetThumbnails() {
-  const title = $('.v-expansion-panel-title*=Color Presets');
-  await title.waitForDisplayed();
-  await title.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await title.waitForClickable();
-  if ((await title.getAttribute('aria-expanded')) !== 'true') {
-    await title.click();
-  }
-  await expect(title).toHaveAttribute('aria-expanded', 'true');
+  await openVolumeRenderingControls();
+  const card = $('[data-testid="volume-preset-Adaptive-Balanced"]');
+  await card.scrollIntoView({ block: 'center', behavior: 'instant' });
 
   await browser.waitUntil(
     () =>
