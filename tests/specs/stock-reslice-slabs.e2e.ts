@@ -14,8 +14,9 @@ import {
   setSlabRange,
   slabThumb,
   waitForEnFaceReady,
+  VIEWER,
 } from './octTestUtils';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import {
   expectNoRedrawInterruption,
   observeProjectionRedraw,
@@ -28,7 +29,6 @@ import {
 } from './utils';
 
 const STEM = 'stock-reslice-slabs';
-const VIEWER = '[data-testid="enface-viewer"]';
 const WINDOW = { width: 1000, level: 500 };
 
 type SavedView = {
@@ -96,11 +96,7 @@ async function expectIntensity(value: number) {
 }
 
 describe('Built-in reslice slab rendering', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   for (const scenario of [
     {

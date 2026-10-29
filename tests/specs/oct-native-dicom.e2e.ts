@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { FIXTURES } from '../../wdio.shared.conf';
 import { JHU_RETINAL_LAYERS, RETINAL_OCT_DICOM } from '../datasets';
 import { volViewPage } from '../pageobjects/volview.page';
-import { writeManifestToFile } from './utils';
+import { useCachedSample, writeManifestToFile, overlayOption } from './utils';
+import native from '../fixtures/oct/heidelberg-reference.json';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
   canvasAppearance,
@@ -16,23 +16,15 @@ import {
   displayedWindow,
   selectEnFace,
   selectTwoRowLayout,
+  CANVAS,
+  PANEL,
+  CONTROLS,
 } from './octTestUtils';
 import {
   openAnnotationSegments,
   segmentNames,
   waitForSegmentContent,
 } from './segmentationTestUtils';
-
-const CANVAS = '[data-testid="enface-canvas"]';
-const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
-const native = JSON.parse(
-  fs.readFileSync(
-    path.join(FIXTURES, 'oct', 'heidelberg-reference.json'),
-    'utf8'
-  )
-) as {
-  spacing: number[];
-};
 
 async function canvasImage(view: WebdriverIO.Element) {
   const source = await view.$('canvas').getElement();
@@ -58,17 +50,7 @@ async function setSlab(start: number, end: number) {
 }
 
 describe('Public OCT exports', () => {
-  before(async () => {
-    await browser.addInitScript(
-      (remote, local) => {
-        const original = window.fetch;
-        window.fetch = (input, init) =>
-          original(input === remote ? local : input, init);
-      },
-      JHU_RETINAL_LAYERS.origin,
-      '/tmp/' + JHU_RETINAL_LAYERS.name
-    );
-  });
+  before(() => useCachedSample(JHU_RETINAL_LAYERS));
 
   it('loads retinal layers from a ZIP URL or sample card and projects the volume on request', async () => {
     const names = [
@@ -138,30 +120,24 @@ describe('Public OCT exports', () => {
       expect(await volViewPage.getNotificationsCount()).toBe(0);
     }
 
-    const option = (title: string) =>
-      $(
-        '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
-          title +
-          '"]'
-      );
     await (await $$('.view-type-select .v-field'))[1].click();
-    await option('En face').waitForClickable();
-    await option('En face').click();
+    await overlayOption('En face').waitForClickable();
+    await overlayOption('En face').click();
     await waitForEnFaceReady();
-    await $('[data-testid="enface-controls"]').click();
+    await $(CONTROLS).click();
     await $(PANEL).waitForDisplayed();
     await $(PANEL).waitForStable();
-    for (const section of ['projection'])
-      await expect(
-        $('[data-testid="enface-' + section + '-toggle"]')
-      ).toHaveAttribute('aria-expanded', 'true');
+    await expect($('[data-testid="enface-projection-toggle"]')).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    );
     await expandEnFaceSection('projection');
     const axis = $('.v-overlay--active [data-testid="enface-projection-axis"]');
     await axis.scrollIntoView({ block: 'center' });
     await axis.waitForClickable();
     await axis.click();
-    await option('Coronal').waitForClickable();
-    await option('Coronal').click();
+    await overlayOption('Coronal').waitForClickable();
+    await overlayOption('Coronal').click();
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
@@ -220,9 +196,7 @@ describe('Public OCT exports', () => {
     // Require over 1000 actual pixels with at least one RGB channel above 20.
     expect(beforeImage.visiblePixels).toBeGreaterThan(1000);
     await $('[data-testid="enface-viewer"] .view-type-select .v-field').click();
-    const axial = $(
-      '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Axial"]'
-    );
+    const axial = overlayOption('Axial');
     await axial.waitForClickable();
     await axial.click();
     await $(CANVAS).waitForExist({ reverse: true });

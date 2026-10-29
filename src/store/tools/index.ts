@@ -17,7 +17,7 @@ import { useToolSelectionStore } from './toolSelection';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import {
   EffectiveView,
   getEffectiveView,
@@ -59,7 +59,7 @@ export function getToolUnavailableReason(
     effective?.viewInfo.type === 'EnFace' &&
     [Tools.WindowLevel, Tools.Pan, Tools.Zoom].includes(tool)
   ) {
-    return getEnFaceAvailability(effective.renderDataID).reason;
+    return getEnFaceUnavailableReason(effective.renderDataID);
   }
   return null;
 }
@@ -197,21 +197,11 @@ export const useToolStore = defineStore('tool', () => {
   }
 
   watch(
-    () => {
-      const effective = activeEffectiveView();
-      return [
-        effective?.kind ?? null,
-        effective?.renderDataID ?? null,
-        getToolUnavailableReason(Tools.WindowLevel, effective),
-      ];
-    },
-    () => {
-      const eff = activeEffectiveView();
-      const coerced = coerceForEffective(currentTool.value, eff);
-      if (coerced !== currentTool.value) {
-        teardownTool(currentTool.value);
-        currentTool.value = coerced;
-      }
+    () => coerceForEffective(currentTool.value, activeEffectiveView()),
+    (coerced) => {
+      if (coerced === currentTool.value) return;
+      teardownTool(currentTool.value);
+      currentTool.value = coerced;
     },
     { immediate: true }
   );

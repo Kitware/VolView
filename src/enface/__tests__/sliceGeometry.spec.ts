@@ -155,19 +155,19 @@ describe('En face visible source slice linking', () => {
       min: 0,
       max: 29,
     });
-    expect(
-      lines.value.find((line) => line.viewId === axial.id)?.y1
-    ).toBeCloseTo(5.5);
+    expect(lines.value.find((line) => line.id === axial.id)?.y1).toBeCloseTo(
+      5.5
+    );
     useViewSliceStore().updateConfig(axial.id, 'oct', { slice: 12 });
-    expect(
-      lines.value.find((line) => line.viewId === axial.id)?.y1
-    ).toBeCloseTo(12.5);
-    expect(lines.value.every((line) => line.viewId !== host.id)).toBe(true);
+    expect(lines.value.find((line) => line.id === axial.id)?.y1).toBeCloseTo(
+      12.5
+    );
+    expect(lines.value.every((line) => line.id !== host.id)).toBe(true);
   });
   it('excludes hidden, removed, and unrelated source views', async () => {
     const { views, host, axial, lines } = await setup();
     views.setDataForView(axial.id, 'other-image');
-    expect(lines.value.some((line) => line.viewId === axial.id)).toBe(false);
+    expect(lines.value.some((line) => line.id === axial.id)).toBe(false);
     views.setActiveView(host.id);
     views.toggleActiveViewMaximized();
     expect(lines.value).toEqual([]);

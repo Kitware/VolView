@@ -13,6 +13,7 @@ import {
   setSlabRange,
   slabThumb,
   waitForEnFaceReady,
+  CANVAS,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -22,7 +23,6 @@ import {
 
 const STEM = 'slab-crosshairs';
 const VIEW = '[data-testid="enface-viewer"]';
-const CANVAS = '[data-testid="enface-canvas"]';
 const SOURCE = 'crosshairs-source.nrrd';
 const OTHER = 'crosshairs-other.nrrd';
 const SIZE = [16, 12, 10];

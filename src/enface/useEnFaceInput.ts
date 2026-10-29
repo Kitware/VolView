@@ -1,8 +1,9 @@
-import { computed, reactive, ref, unref, watch, type MaybeRef } from 'vue';
+import { computed, ref, unref, watch, type MaybeRef } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { getEnFaceAvailability } from './availability';
-import { defaultEnFaceViewConfig, useEnFaceViewStore } from './store';
+import { clampValue } from '@/src/utils';
+import { getEnFaceUnavailableReason } from './availability';
+import { useEnFaceViewStore } from './store';
 import { deriveSlabGeometry } from '@/src/core/slab/geometry';
 import { get2DOrientationForSourceAxis } from '@/src/utils/getViewingVectors';
 
@@ -10,18 +11,14 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
   const source = useCurrentImage();
   const { currentImageID, currentImageData, currentImageMetadata } = source;
   const enFaceStore = useEnFaceViewStore();
-  const emptySettings = reactive(defaultEnFaceViewConfig());
   const settings = computed(() =>
-    currentImageID.value
-      ? enFaceStore.configFor(unref(viewId), currentImageID.value)
-      : emptySettings
+    enFaceStore.settingsFor(unref(viewId), currentImageID.value)
   );
   const volumeRevision = ref(0);
-  const availability = computed(() => {
+  const projectionReason = computed(() => {
     void volumeRevision.value;
-    return getEnFaceAvailability(currentImageID.value);
+    return getEnFaceUnavailableReason(currentImageID.value);
   });
-  const projectionReason = computed(() => availability.value.reason);
   const dimensions = computed(() => {
     void volumeRevision.value;
     return currentImageData.value?.getDimensions() ?? [1, 1, 1];
@@ -42,15 +39,13 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
     }))
   );
   const depthStart = computed(() =>
-    Math.min(depthMaximum.value, Math.max(0, settings.value.depthStart))
+    clampValue(settings.value.depthStart, 0, depthMaximum.value)
   );
   const depthEnd = computed(() =>
-    Math.max(
+    clampValue(
+      settings.value.depthEnd ?? depthMaximum.value,
       depthStart.value,
-      Math.min(
-        depthMaximum.value,
-        settings.value.depthEnd ?? depthMaximum.value
-      )
+      depthMaximum.value
     )
   );
   watch(
@@ -96,14 +91,13 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
       : null;
   });
   const controls = computed(() => ({
-    axisOptions: axisOptions.value,
+    axes: axisOptions.value,
     depthMaximum: depthMaximum.value,
     projectionReason: projectionReason.value,
   }));
   return {
     source,
     orientation,
-    settings,
     controls,
     specification,
     geometry,

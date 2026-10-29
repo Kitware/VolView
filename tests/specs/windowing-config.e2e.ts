@@ -4,6 +4,7 @@ import {
   openVolViewPage,
   writeManifestToFile,
   writeMetaImage,
+  overlayOption,
 } from './utils';
 import { openConfigAndDataset } from './configTestUtils';
 import { ONE_CT_SLICE_DICOM, MINIMAL_DICOM } from '../datasets';
@@ -82,9 +83,7 @@ describe('VolView windowing configuration', () => {
     await sourceCard.waitForDisplayed();
     await otherCard.waitForDisplayed();
     await sourceCard.$('[data-testid="dataset-menu-button"]').click();
-    const showAll = $(
-      '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Show in all views"]'
-    );
+    const showAll = overlayOption('Show in all views');
     await showAll.waitForClickable();
     await showAll.click();
     await browser.keys('Escape');

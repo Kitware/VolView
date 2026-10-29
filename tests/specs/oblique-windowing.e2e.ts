@@ -1,5 +1,5 @@
 import { volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, writeManifestToFile } from './utils';
+import { makeTempDir, writeManifestToFile, overlayOption } from './utils';
 import {
   canvasAppearance,
   displayedWindow,
@@ -32,9 +32,7 @@ describe('Oblique source windowing', () => {
     await volViewPage.waitForViews();
     await volViewPage.waitForViewCounts(3, true);
     await (await $$('.view-type-select .v-field'))[0].click();
-    const option = $(
-      '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Oblique"]'
-    );
+    const option = overlayOption('Oblique');
     await option.waitForClickable();
     await option.click();
 

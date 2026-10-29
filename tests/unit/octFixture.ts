@@ -3,9 +3,27 @@ import { Chunk } from '@/src/core/streaming/chunk';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
 import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
 
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
+
+/** Reads the named VolView tags, standing in for the itk-wasm tag reader. */
+export async function readDicomTags(file: Blob) {
+  const data = dicomParser.parseDicom(
+    new Uint8Array(await file.arrayBuffer()),
+    {
+      untilTag: 'x7fe00010',
+    }
+  );
+  return Object.values(Tags).flatMap((tag): Array<[string, string]> => {
+    const key = toDicomParserKey(tag);
+    const element = data.elements[key];
+    if (!element || element.vr === 'SQ') return [];
+    const value =
+      element.vr === 'US' ? String(data.uint16(key)) : data.string(key);
+    return value === undefined ? [] : [[tag, value]];
+  });
+}
 
 /** Uses synthetic pixels and production chunk/file loaders without a browser WASM worker. */
 export function createOCTFixture(
@@ -24,20 +42,7 @@ export function createOCTFixture(
   }
   const file = new File([bytes], 'synthetic-oct.dcm');
   const chunk = new Chunk({
-    metaLoader: new DicomFileMetaLoader(file, async (input) => {
-      const data = dicomParser.parseDicom(
-        new Uint8Array(await input.arrayBuffer()),
-        { untilTag: 'x7fe00010' }
-      );
-      return Object.values(Tags).flatMap((tag): Array<[string, string]> => {
-        const key = `x${tag.replace('|', '')}`;
-        const element = data.elements[key];
-        if (!element || element.vr === 'SQ') return [];
-        const value =
-          element.vr === 'US' ? String(data.uint16(key)) : data.string(key);
-        return value === undefined ? [] : [[tag, value]];
-      });
-    }),
+    metaLoader: new DicomFileMetaLoader(file, readDicomTags),
     dataLoader: new DicomFileDataLoader(file),
   });
   let releaseDecode = () => {};

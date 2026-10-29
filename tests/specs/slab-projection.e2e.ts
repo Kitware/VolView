@@ -18,6 +18,9 @@ import {
   setEnFaceWindow,
   slabThumb,
   waitForEnFaceReady,
+  CANVAS,
+  VIEWER,
+  PANEL,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -26,9 +29,6 @@ import {
   writeManifestToFile,
 } from './utils';
 
-const VIEWER = '[data-testid="enface-viewer"]';
-const CANVAS = '[data-testid="enface-canvas"]';
-const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const STEM = 'slab-projection';
 const SIZE = [8, 7, 6];
 const SPACING = [-0.03, 0.01, 0.06];

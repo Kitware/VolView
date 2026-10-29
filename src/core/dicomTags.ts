@@ -72,3 +72,6 @@ export const tagToGroupElement = (tag: string): [number, number] => {
   const [group, element] = tag.split('|');
   return [parseInt(group, 16), parseInt(element, 16)];
 };
+
+// Converts an itk-wasm-style "GGGG|EEEE" tag to a dicom-parser element key.
+export const toDicomParserKey = (tag: string) => `x${tag.replace('|', '')}`;

@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, onScopeDispose, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME } from '@/src/constants';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { useViewStore } from '@/src/store/views';
-import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import {
+  sharesSourceWindowing,
+  useWindowingStore,
+} from '@/src/store/view-configs/windowing';
 import '@/src/vtk/ColorMaps';
 import ImageDisplayControls from './ImageDisplayControls.vue';
 import { resolveBaseColorPreset } from '@/src/vtk/LayerColorPresets';
@@ -33,16 +36,15 @@ const displayView = computed(() => {
   );
   return (
     views.find(({ id }) => id === viewStore.activeView) ??
-    views.find(({ type }) => type !== 'EnFace') ??
+    views.find(sharesSourceWindowing) ??
     views[0]
   );
 });
 
-const resets = windowingStore.ContrastResetEvent.on((viewID, dataID) => {
+windowingStore.ContrastResetEvent.on((viewID, dataID) => {
   if (viewID === displayView.value?.id && dataID === props.imageId)
     displayControls.value?.resetRangeDrafts();
 });
-onScopeDispose(resets.off);
 
 const referenceView = computed(
   () =>
@@ -65,7 +67,7 @@ const visibilityUnavailableReason = computed(() => {
   if (!displayView.value)
     return 'Open a slice or En face view showing this image to change visibility.';
   if (displayView.value.type === 'EnFace')
-    return getEnFaceAvailability(props.imageId).reason ?? '';
+    return getEnFaceUnavailableReason(props.imageId) ?? '';
   return '';
 });
 
@@ -116,7 +118,7 @@ const unavailableReason = computed(() => {
   if (!displayView.value)
     return 'Open a slice or En face view showing this image to adjust window/level.';
   if (displayView.value.type === 'EnFace')
-    return getEnFaceAvailability(props.imageId).reason ?? '';
+    return getEnFaceUnavailableReason(props.imageId) ?? '';
   return '';
 });
 

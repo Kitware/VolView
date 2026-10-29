@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
+import { computed } from 'vue';
 import type { Maybe } from '@/src/types';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
-  defaultEnFaceViewConfig,
   useEnFaceViewStore,
   type EnFaceViewConfig,
   type EnFaceViewControlState,
@@ -17,11 +16,8 @@ const props = defineProps<{
 }>();
 const enFaceStore = useEnFaceViewStore();
 const windowing = useWindowingStore();
-const emptySettings = reactive(defaultEnFaceViewConfig());
 const settings = computed(() =>
-  props.dataId
-    ? enFaceStore.configFor(props.viewId, props.dataId)
-    : emptySettings
+  enFaceStore.settingsFor(props.viewId, props.dataId)
 );
 const controlState = computed(() => {
   const state = props.dataId

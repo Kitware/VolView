@@ -1,6 +1,7 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { inflateSync } from 'fflate';
-import { Tags } from '@/src/core/dicomTags';
+import { vec3 } from 'gl-matrix';
+import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
 import {
   isOCTMetadata,
   OCT_GEOMETRY_ERROR,
@@ -11,44 +12,32 @@ const close = (a: number, b: number) =>
   Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-5;
 const coordinatesMatch = (a: ArrayLike<number>, b: ArrayLike<number>) =>
   a.length === b.length && Array.from(a).every((n, i) => close(n, b[i]));
-const dot = (a: readonly number[], b: readonly number[]) =>
-  a.reduce((sum, n, i) => sum + n * b[i], 0);
 
 function imageDirection(basis: number[] | null | undefined) {
   if (!basis || basis.length !== 6 || !basis.every(Number.isFinite))
     return null;
-  const row = basis.slice(0, 3);
-  const column = basis.slice(3);
+  const row = basis.slice(0, 3) as vec3;
+  const column = basis.slice(3) as vec3;
   if (
-    !close(Math.hypot(...row), 1) ||
-    !close(Math.hypot(...column), 1) ||
-    !close(dot(row, column), 0)
+    !close(vec3.length(row), 1) ||
+    !close(vec3.length(column), 1) ||
+    !close(vec3.dot(row, column), 0)
   )
     return null;
-  return [
-    ...basis,
-    row[1] * column[2] - row[2] * column[1],
-    row[2] * column[0] - row[0] * column[2],
-    row[0] * column[1] - row[1] * column[0],
-  ];
+  return [...basis, ...vec3.cross([0, 0, 0], row, column)];
 }
 
 /** Validate equally spaced slices along the positive image normal. */
-function frameGridGeometry(positions: number[][], direction?: number[]) {
+function frameGridError(positions: number[][], direction?: number[]) {
   if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
-    return {
-      reason:
-        'DICOM slice positions are invalid; spatial reconstruction is required.',
-    };
-  if (positions.length < 2) return { reason: null };
+    return 'DICOM slice positions are invalid; spatial reconstruction is required.';
+  if (positions.length < 2) return null;
   const step = positions
     .at(-1)!
     .map((n, axis) => (n - positions[0][axis]) / (positions.length - 1));
   const distance = Math.hypot(...step);
   if (distance <= 1e-5)
-    return {
-      reason: 'Repeated DICOM slice locations need spatial reconstruction.',
-    };
+    return 'Repeated DICOM slice locations need spatial reconstruction.';
   if (
     direction &&
     !coordinatesMatch(
@@ -56,10 +45,7 @@ function frameGridGeometry(positions: number[][], direction?: number[]) {
       direction.slice(6).map((n) => n * distance)
     )
   )
-    return {
-      reason:
-        'DICOM slice positions do not follow the image grid; spatial reconstruction is required.',
-    };
+    return 'DICOM slice positions do not follow the image grid; spatial reconstruction is required.';
   if (
     positions.some(
       (position, i) =>
@@ -69,11 +55,8 @@ function frameGridGeometry(positions: number[][], direction?: number[]) {
         )
     )
   )
-    return {
-      reason:
-        'DICOM slices have nonuniform positions; spatial reconstruction is required.',
-    };
-  return { reason: null, distance };
+    return 'DICOM slices have nonuniform positions; spatial reconstruction is required.';
+  return null;
 }
 
 const SHARED = 'x52009229';
@@ -81,6 +64,10 @@ const PER_FRAME = 'x52009230';
 const MEASURES = 'x00289110';
 const ORIENTATION = 'x00209116';
 const POSITION = 'x00209113';
+const PIXEL_SPACING = toDicomParserKey(Tags.PixelSpacing);
+const SLICE_SPACING = toDicomParserKey(Tags.SpacingBetweenSlices);
+const IMAGE_ORIENTATION = toDicomParserKey(Tags.ImageOrientationPatient);
+const IMAGE_POSITION = toDicomParserKey(Tags.ImagePositionPatient);
 const sequenceTags = new Set([
   SHARED,
   PER_FRAME,
@@ -112,27 +99,22 @@ function frameGeometry(data: DataSet) {
     data.elements[PER_FRAME]?.items?.flatMap((item) =>
       item.dataSet ? [item.dataSet] : []
     ) ?? [];
-  const measure = (tag: string) =>
-    frameAttribute(shared, MEASURES, tag) ??
-    frameAttribute(frames[0], MEASURES, tag) ??
+  // Shared groups take precedence over the first frame, then the top level.
+  const attribute = (sequence: string, tag: string) =>
+    frameAttribute(shared, sequence, tag) ??
+    frameAttribute(frames[0], sequence, tag) ??
     stringValue(data, tag);
-  const orientation =
-    frameAttribute(shared, ORIENTATION, 'x00200037') ??
-    frameAttribute(frames[0], ORIENTATION, 'x00200037') ??
-    stringValue(data, 'x00200037');
-  const spacing = measure('x00280030');
   const positions = frames.map((frame) =>
-    vector(frameAttribute(frame, POSITION, 'x00200032'))
+    vector(frameAttribute(frame, POSITION, IMAGE_POSITION))
   );
-  const origin = positions[0]?.join('\\') ?? stringValue(data, 'x00200032');
   return {
     frames,
-    declaredFrames: data.intString('x00280008'),
-    orientation,
-    spacing,
+    declaredFrames: data.intString(toDicomParserKey(Tags.NumberOfFrames)),
+    orientation: attribute(ORIENTATION, IMAGE_ORIENTATION),
+    spacing: attribute(MEASURES, PIXEL_SPACING),
     positions,
-    origin,
-    sliceSpacing: measure('x00180088'),
+    origin: positions[0]?.join('\\') ?? stringValue(data, IMAGE_POSITION),
+    sliceSpacing: attribute(MEASURES, SLICE_SPACING),
   };
 }
 
@@ -157,7 +139,7 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const direction = imageDirection(vector(geometry.orientation));
   if (positions.length > 1 && !direction)
     return 'OCT image orientation is missing; spatial reconstruction is required.';
-  return frameGridGeometry(positions, direction ?? undefined).reason;
+  return frameGridError(positions, direction ?? undefined);
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {
@@ -169,13 +151,15 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   const orientation = vector(geometry.orientation);
   if (orientation && !imageDirection(orientation))
     return 'OCT image orientation is invalid; spatial reconstruction is required.';
-  if (frameAttributeMismatch(geometry, MEASURES, 'x00280030', geometry.spacing))
+  if (
+    frameAttributeMismatch(geometry, MEASURES, PIXEL_SPACING, geometry.spacing)
+  )
     return 'OCT frames have different pixel spacing; spatial reconstruction is required.';
   if (
     frameAttributeMismatch(
       geometry,
       MEASURES,
-      'x00180088',
+      SLICE_SPACING,
       geometry.sliceSpacing
     )
   )
@@ -184,7 +168,7 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
     frameAttributeMismatch(
       geometry,
       ORIENTATION,
-      'x00200037',
+      IMAGE_ORIENTATION,
       geometry.orientation
     )
   )
@@ -200,7 +184,10 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.PixelSpacing, geometry.spacing);
   set(Tags.ImageOrientationPatient, geometry.orientation);
   set(Tags.ImagePositionPatient, geometry.origin);
-  set(Tags.OphthalmicVolumetricPropertiesFlag, stringValue(data, 'x00221622'));
+  set(
+    Tags.OphthalmicVolumetricPropertiesFlag,
+    stringValue(data, toDicomParserKey(Tags.OphthalmicVolumetricPropertiesFlag))
+  );
   set(OCT_SCAN_PATTERN, stringValue(firstItem(data, 'x00221618'), 'x00080100'));
   const reason = geometryError(geometry);
   set(OCT_GEOMETRY_ERROR, reason ?? undefined);

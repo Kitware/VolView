@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import { projectionGrayscaleDistribution } from './slabSamplingTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { JHU_RETINAL_LAYERS, MRA_HEAD_NECK_DATASET } from '../datasets';
@@ -129,11 +129,7 @@ async function doubleClickImage(point: { x: number; y: number }) {
 }
 
 describe('Projection default contrast', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   before(async () => {
     await useCachedSample(MRA_HEAD_NECK_DATASET);

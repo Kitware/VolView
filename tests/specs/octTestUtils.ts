@@ -3,12 +3,21 @@ import path from 'node:path';
 import { Key } from 'webdriverio';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { openThroughDialog, waitForModuleTransitions } from './utils';
+import {
+  openThroughDialog,
+  waitForModuleTransitions,
+  overlayOption,
+} from './utils';
 import {
   syntheticOCTGrid,
   syntheticOCTVolume,
   syntheticMask,
 } from '../fixtures/oct/volumes';
+import {
+  openAnnotationSegments,
+  selectSegment,
+  waitForSegmentContent,
+} from './segmentationTestUtils';
 
 export function stageGenericOCT(
   directory: string,
@@ -137,17 +146,20 @@ export async function expectControlsBesideSelector() {
   expect(bounds.panelRight).toBeLessThanOrEqual(bounds.viewportWidth);
 }
 
-const CANVAS = '[data-testid="enface-canvas"]';
-const VIEWER = '[data-testid="enface-viewer"]';
+export const CANVAS = '[data-testid="enface-canvas"]';
+export const VIEWER = '[data-testid="enface-viewer"]';
+export const CONTROLS = '[data-testid="enface-controls"]';
+export const PANEL =
+  '.v-overlay--active [data-testid="enface-rendering-panel"]';
+export const WINDOW_TOOL =
+  'button[data-testid^="control-button-Window & Level "]';
 const enFaceView = async (view?: WebdriverIO.Element) =>
   view ?? $(VIEWER).getElement();
 
 export async function selectEnFace(viewIndex = 0) {
   const switcher = (await $$('.view-type-select .v-field'))[viewIndex];
   await switcher.click();
-  const option = $(
-    '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
-  );
+  const option = overlayOption('En face');
   await option.waitForClickable();
   await option.click();
   await $(CANVAS).waitForDisplayed();
@@ -183,9 +195,7 @@ export async function expandEnFaceSection(section: 'projection') {
   const content = toggle.$('..').$('.v-expansion-panel-text');
   await content.waitForDisplayed();
   await content.waitForStable();
-  await $(
-    '.v-overlay--active [data-testid="enface-rendering-panel"]'
-  ).waitForStable();
+  await $(PANEL).waitForStable();
 }
 
 export async function chooseEnFaceProjection(
@@ -195,22 +205,18 @@ export async function chooseEnFaceProjection(
 ) {
   const viewer = await enFaceView(view);
   await browser.keys('Escape');
-  const controls = viewer.$('[data-testid="enface-controls"]');
+  const controls = viewer.$(CONTROLS);
   await controls.waitForStable();
   await controls.waitForClickable();
   await controls.click();
-  const panel = $('.v-overlay--active [data-testid="enface-rendering-panel"]');
+  const panel = $(PANEL);
   await panel.waitForDisplayed();
   await expandEnFaceSection('projection');
   const select = panel.$('[data-testid="' + testId + '"]');
   await select.scrollIntoView({ block: 'center', inline: 'nearest' });
   await select.waitForClickable();
   await select.click();
-  const option = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
-      label +
-      '"]'
-  );
+  const option = overlayOption(label);
   await option.waitForClickable();
   await option.click();
   await option.waitForDisplayed({ reverse: true });
@@ -396,7 +402,7 @@ export async function expectEnFaceUnavailable(reason: string) {
   await expect(viewer).toHaveAttribute('aria-busy', 'false');
   await expect(viewer.$('[data-testid="enface-slice-lines"]')).not.toExist();
   expect((await enFaceAppearance(viewer)).visiblePixels).toBe(0);
-  await viewer.$('[data-testid="enface-controls"]').click();
+  await viewer.$(CONTROLS).click();
   await expandEnFaceSection('projection');
   const method = $(
     '.v-overlay--active [data-testid="enface-projection-method"]'
@@ -410,7 +416,7 @@ export async function openEnFaceWindowInputs(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
   await browser.keys('Escape');
   await viewer.$(CANVAS).click();
-  const tool = $('button[data-testid^="control-button-Window & Level "]');
+  const tool = $(WINDOW_TOOL);
   await tool.waitForClickable();
   await tool.click();
   const inputs = await $$('.v-overlay--active .manual-inputs input');
@@ -443,28 +449,18 @@ export async function setEnFaceWindow(
 
 export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  const panel = $('.v-overlay--active [data-testid="enface-rendering-panel"]');
+  const toggleSelector =
+    '.v-overlay--active [data-testid="enface-projection-toggle"]';
+  const panel = $(PANEL);
   const restorePanel =
     (await panel.isExisting()) && (await panel.isDisplayed());
-  const sections = ['projection'] as const;
-  const expanded = await Promise.all(
-    sections.map(
-      async (section) =>
-        restorePanel &&
-        (await panel
-          .$('[data-testid="enface-' + section + '-toggle"]')
-          .getAttribute('aria-expanded')) === 'true'
-    )
-  );
+  const expanded =
+    restorePanel &&
+    (await $(toggleSelector).getAttribute('aria-expanded')) === 'true';
   await browser.keys('Escape');
   if (restorePanel) await panel.waitForDisplayed({ reverse: true });
   await viewer.$(CANVAS).waitForClickable();
-  await viewer.$(CANVAS).click();
-  const tool = $('button[data-testid^="control-button-Window & Level "]');
-  await tool.waitForClickable();
-  await tool.click();
-  const inputs = $$('.v-overlay--active .manual-inputs input');
-  await inputs[0].waitForDisplayed();
+  const inputs = await openEnFaceWindowInputs(viewer);
   const result = {
     width: Number(await inputs[0].getValue()),
     level: Number(await inputs[1].getValue()),
@@ -472,25 +468,20 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   await browser.keys('Escape');
   await inputs[0].waitForDisplayed({ reverse: true });
   if (restorePanel) {
-    const controls = viewer.$('[data-testid="enface-controls"]');
+    const controls = viewer.$(CONTROLS);
     await controls.waitForClickable();
     await controls.click();
-    const reopened = $(
-      '.v-overlay--active [data-testid="enface-rendering-panel"]'
-    );
+    // Reopening the menu renders a new panel, so look it up again.
+    const reopened = $(PANEL);
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
-    for (const [index, section] of sections.entries()) {
-      const toggle = $(
-        '.v-overlay--active [data-testid="enface-' + section + '-toggle"]'
-      );
-      if (expanded[index]) {
-        await expandEnFaceSection(section);
-      } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
-        await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
-        await toggle.waitForClickable();
-        await toggle.click();
-      }
+    const toggle = $(toggleSelector);
+    if (expanded) {
+      await expandEnFaceSection('projection');
+    } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
+      await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+      await toggle.waitForClickable();
+      await toggle.click();
     }
     await reopened.waitForStable();
   }
@@ -500,9 +491,7 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
 export async function expectEnFaceDisabledInSwitcher(reason: string) {
   const switcher = (await $$('.view-type-select .v-field'))[0];
   await switcher.click();
-  const option = $(
-    '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="En face"]'
-  );
+  const option = overlayOption('En face');
   await option.waitForDisplayed();
   expect(await option.getAttribute('class')).toContain('v-list-item--disabled');
   expect(await option.getText()).toContain('En face');
@@ -546,10 +535,16 @@ export async function attachMaskThroughDataPanel(file: string) {
   await menu.waitForStable();
   await menu.waitForClickable();
   await menu.click();
-  const attach = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Add as segmentation"]'
-  );
+  const attach = overlayOption('Add as segmentation');
   await attach.waitForStable();
   await attach.waitForClickable();
   await attach.click();
+}
+
+/** Attaches a staged mask as a segmentation and selects one of its segments. */
+export async function attachAndSelectMask(file: string, segment: string) {
+  await attachMaskThroughDataPanel(file);
+  await openAnnotationSegments();
+  await waitForSegmentContent(segment);
+  await selectSegment(segment);
 }

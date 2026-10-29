@@ -1,32 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import dicomParser from 'dicom-parser';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
 import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
 import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { createOCTFixture, readDicomTags } from '@/tests/unit/octFixture';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
-
-async function readTags(file: File) {
-  const data = dicomParser.parseDicom(new Uint8Array(await file.arrayBuffer()));
-  return Object.values(Tags).reduce<Array<[string, string]>>((tags, tag) => {
-    const key = 'x' + tag.replace('|', '');
-    const attribute = data.elements[key];
-    if (attribute && attribute.vr !== 'SQ') {
-      const value = attribute.vr === 'US' ? data.uint16(key) : data.string(key);
-      if (value !== undefined) tags.push([tag, String(value)]);
-    }
-    return tags;
-  }, []);
-}
 
 describe('assembled OCT series through real chunk and file collaborators', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -56,7 +42,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       });
       const file = new File([Uint8Array.from(bytes)], 'oct-' + index + '.dcm');
       return new Chunk({
-        metaLoader: new DicomFileMetaLoader(file, readTags),
+        metaLoader: new DicomFileMetaLoader(file, readDicomTags),
         dataLoader: new DicomFileDataLoader(file),
       });
     });
@@ -77,9 +63,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     const { id, image } = await assemble();
     const data = image.getVtkImageData();
     expect(data.getDimensions()).toEqual([2, 2, 3]);
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
     expect(data.getSpacing()[2]).toBeCloseTo(0.2, 7);
     expect([...data.getPointData().getScalars().getData()]).toEqual([
       1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
@@ -90,9 +74,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     'keeps a grayscale %s series available with valid physical geometry',
     async (modality) => {
       const { id } = await assemble(undefined, undefined, modality);
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: true,
-      });
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
     }
   );
 
@@ -101,18 +83,13 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       Math.fround(12.839991640791 + index * 4.3663311)
     );
     const { id } = await assemble(positions, undefined, 'MR');
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
   });
 
   it('projects the assembled grid for a nonuniform series', async () => {
     const { id, image } = await assemble([0, 0.1, 0.4]);
     expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-      reason: null,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
   });
 
   it.each([
@@ -125,8 +102,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       const { id } = await assemble(undefined, (chunks) =>
         chunks[2].metadata!.push([tag, value])
       );
-      expect(getEnFaceAvailability(id).available).toBe(false);
-      expect(getEnFaceAvailability(id).reason).toMatch(reason);
+      expect(getEnFaceUnavailableReason(id)).toMatch(reason);
     }
   );
 
@@ -141,10 +117,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       const { id } = await assemble(undefined, (pending) =>
         pending[2].metadata!.push([tag, value])
       );
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: true,
-        reason: null,
-      });
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
     }
   );
 
@@ -160,10 +133,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
           chunk.metadata!.splice(index, 1);
         });
       });
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: true,
-        reason: null,
-      });
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
     }
   );
 
@@ -171,9 +141,6 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     const { id, image } = await assemble();
     const data = image.getVtkImageData();
     data.setSpacing([0.02, 0.0104, 1]);
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-      reason: null,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
   });
 });

@@ -9,7 +9,7 @@ import { useViewStore } from '@/src/store/views';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -46,7 +46,7 @@ describe('En face contrast toolbar availability', () => {
     'keeps unavailable contrast visible and disabled with the same reason as shortcut coercion for %s',
     async (dataID) => {
       const wrapper = mountToolbar(dataID);
-      const reason = getEnFaceAvailability(dataID).reason;
+      const reason = getEnFaceUnavailableReason(dataID);
       expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
       expect(windowAction(wrapper).props('reason')).toBe(reason);
       expect(windowAction(wrapper).attributes('tabindex')).toBe('0');
@@ -91,7 +91,7 @@ describe('En face contrast toolbar availability', () => {
     const wrapper = mountToolbar('radial');
     expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
     expect(windowAction(wrapper).props('reason')).toBe(
-      getEnFaceAvailability('radial').reason
+      getEnFaceUnavailableReason('radial')
     );
     expect(windowAction(wrapper).props('reason')).toMatch(
       /scan pattern.*reconstruction/

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { getAvailableViews } from '@/src/config';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
@@ -27,7 +27,7 @@ const switcherViews = computed(() =>
 const enFaceReason = computed(() =>
   viewStore.disabledViewTypes.includes('EnFace')
     ? 'The current configuration disables En face views.'
-    : getEnFaceAvailability(imageId.value).reason
+    : getEnFaceUnavailableReason(imageId.value)
 );
 
 const availableViewNames = computed(() =>

@@ -268,6 +268,14 @@ export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   await openVolViewPage(fileName);
 }
 
+/** The item labelled `label` in the open Vuetify menu or select list. */
+export const overlayOption = (label: string) =>
+  $(
+    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
+      label +
+      '"]'
+  );
+
 /** Route a sample's compiled URL to the locally cached fixture. */
 export async function useCachedSample(dataset: {
   origin: string;

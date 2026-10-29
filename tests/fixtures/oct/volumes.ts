@@ -227,22 +227,3 @@ export function syntheticMask(illustrative = false) {
         },
   });
 }
-
-export function gappedSyntheticMask() {
-  const [width, depth, frames] = reference.size;
-  const scalars = new Uint16Array(width * depth * frames);
-  for (let z = 1; z < frames - 1; z++)
-    for (let x = 1; x < width - 1; x++)
-      for (const y of [100, 101, 104, 105])
-        scalars[(z * depth + y) * width + x] = 1;
-  return createNrrdVolume({
-    scalars,
-    dimensions: reference.size,
-    spacing: reference.spacing,
-    metadata: {
-      Segment0_LabelValue: '1',
-      Segment0_Name: 'Gapped band',
-      Segment0_Color: '1 0 0',
-    },
-  });
-}

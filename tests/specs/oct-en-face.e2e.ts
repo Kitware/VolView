@@ -9,6 +9,10 @@ import {
   setEnFaceWindow,
   slabThumb,
   selectEnFace,
+  CANVAS,
+  CONTROLS,
+  PANEL,
+  WINDOW_TOOL,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -24,10 +28,6 @@ import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import {
   reference,
-  CANVAS,
-  CONTROLS,
-  PANEL,
-  WINDOW_TOOL,
   STEM,
   stageFixture,
   openControls,
@@ -68,10 +68,9 @@ describe('Retinal OCT en-face', () => {
     const compactPanel = await $(PANEL).getSize();
     expect(compactPanel.width).toBe(300);
     expect(compactPanel.height).toBeLessThanOrEqual(560);
-    for (const section of ['projection'])
-      await expect(
-        $(PANEL).$('[data-testid="enface-' + section + '-toggle"]')
-      ).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      $(PANEL).$('[data-testid="enface-projection-toggle"]')
+    ).toHaveAttribute('aria-expanded', 'true');
     await setEnFaceWindow(1000, 500);
     // The standard physical slab has mean 317, maximum 538 and sampled sum 140431.
     await expectProjectionPixel(81);

@@ -8,6 +8,7 @@ import {
 } from '@/src/utils/doubleKeyRecord';
 import type { StateFile, ViewConfig } from '@/src/io/state-file/schema';
 import type { SlabAxis, SlabMethod } from '@/src/core/slab/types';
+import type { Maybe } from '@/src/types';
 
 export type EnFaceViewConfig = {
   axis: SlabAxis;
@@ -37,6 +38,11 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     configs[viewID] ??= {};
     configs[viewID][dataID] ??= defaultEnFaceViewConfig();
     return configs[viewID][dataID];
+  }
+
+  /** Controls without a volume show, but never store, the defaults. */
+  function settingsFor(viewID: string, dataID: Maybe<string>) {
+    return dataID ? configFor(viewID, dataID) : defaultEnFaceViewConfig();
   }
 
   function controlStateFor(viewID: string, dataID: string) {
@@ -80,6 +86,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
 
   return {
     configFor,
+    settingsFor,
     controlStateFor,
     setControlState,
     removeView,

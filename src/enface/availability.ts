@@ -44,29 +44,32 @@ function acquisitionMetadataReason(metadata: Iterable<[string, string]>) {
   return tags.get(OCT_GEOMETRY_ERROR) ?? null;
 }
 
-function acquisitionReason(image: Maybe<ProgressiveImage>) {
+// A chunk's tag list is fixed once loaded, so each is scanned at most once.
+const metadataReasons = new WeakMap<object, string | null>();
+
+function acquisitionReason(image: ProgressiveImage) {
   if (!(image instanceof DicomChunkImage)) return null;
-  return (
-    image
-      .getChunks()
-      .map((chunk) => acquisitionMetadataReason(chunk.metadata ?? []))
-      .find((reason) => reason !== null) ?? null
-  );
+  for (const { metadata } of image.getChunks()) {
+    if (!metadata) continue;
+    let reason = metadataReasons.get(metadata);
+    if (reason === undefined) {
+      reason = acquisitionMetadataReason(metadata);
+      metadataReasons.set(metadata, reason);
+    }
+    if (reason !== null) return reason;
+  }
+  return null;
 }
 
-export function getEnFaceAvailability(imageID: Maybe<string>) {
+export function getEnFaceUnavailableReason(imageID: Maybe<string>) {
   const cache = useImageCacheStore();
   const image = cache.imageById[imageID || ''];
   // Track allocation and progress even before raw DICOM chunks arrive.
   const loaded = Boolean(image?.isLoaded());
   const loading = Boolean(image?.isLoading());
   const data = cache.getVtkImageData(imageID);
-  const reason = image
+  return image
     ? (acquisitionReason(image) ??
-      loadReason(imageID, loaded && !loading, data))
+        loadReason(imageID, loaded && !loading, data))
     : 'Load a grayscale 3D volume to use En face.';
-  return {
-    available: reason === null,
-    reason,
-  };
 }

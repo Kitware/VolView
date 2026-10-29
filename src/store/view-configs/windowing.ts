@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { resolveBaseColorPreset } from '@/src/vtk/LayerColorPresets';
 import { markRaw, reactive, ref } from 'vue';
 import { createEventHook } from '@vueuse/core';
+import deepEqual from 'fast-deep-equal';
 import {
   DoubleKeyRecord,
   deleteSecondKey,
@@ -16,6 +17,7 @@ import type { StateFile, ViewConfig } from '@/src/io/state-file/schema';
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+import type { ViewInfo } from '@/src/types/views';
 
 export type WindowingAutoRanges = Record<
   keyof typeof WLAutoRanges,
@@ -31,16 +33,12 @@ const autoRangeKeys = Object.keys(WLAutoRanges) as Array<
   keyof WindowingAutoRanges
 >;
 
-const sameAutoRanges = (
-  left: WindowingAutoRanges | null,
-  right: WindowingAutoRanges | null
-) =>
-  left === right ||
-  (!!left &&
-    !!right &&
-    autoRangeKeys.every(
-      (key) => left[key][0] === right[key][0] && left[key][1] === right[key][1]
-    ));
+/**
+ * En face views window independently: each projection method and slab has
+ * its own intensity distribution.
+ */
+export const sharesSourceWindowing = (view: Maybe<ViewInfo>) =>
+  view != null && view.type !== 'EnFace';
 
 type WindowLevel = {
   width: number;
@@ -170,7 +168,7 @@ export const useWindowingStore = defineStore('windowing', () => {
       throw new Error('Auto window ranges must be finite and ordered');
     if (
       current?.defaultAuto === defaultAuto &&
-      sameAutoRanges(current.ranges, values)
+      deepEqual(current.ranges, values)
     )
       return;
     autoRangeSources[viewID] ??= {};
