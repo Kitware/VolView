@@ -39,8 +39,10 @@ export function stageFixture(name: string) {
 }
 
 export async function openControls() {
-  await $(CONTROLS).waitForClickable();
-  await $(CONTROLS).click();
+  const controls = $(CONTROLS);
+  await controls.waitForStable();
+  await controls.waitForClickable();
+  await controls.click();
   const panel = $(PANEL);
   await panel.waitForDisplayed();
   await panel.waitForStable();

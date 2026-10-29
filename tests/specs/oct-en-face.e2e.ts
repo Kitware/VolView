@@ -52,6 +52,7 @@ describe('Retinal OCT en-face', () => {
     await expectBothViews();
     const panel = $(PANEL);
     if (!(await panel.isDisplayed())) await openControls();
+    await expandEnFaceSection('projection');
     await slabThumb('start').doubleClick();
     await expectBothViews();
     await browser.keys('Escape');

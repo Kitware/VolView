@@ -164,14 +164,18 @@ describe('Projection default contrast', () => {
 
   it('opens the MRA sample Mean projection with visible grayscale contrast', async () => {
     await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
-    await volViewPage.samplesList.$('div[title="MRA Head and Neck"]').click();
+    const sample = volViewPage.samplesList.$('div[title="MRA Head and Neck"]');
+    await sample.waitForClickable();
+    await sample.click();
     await waitForEnFaceReady();
     await expectVisibleContrast(80);
   });
 
   it('opens the non-DICOM retinal Mean projection with visible grayscale contrast', async () => {
     await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
-    await volViewPage.samplesList.$('div[title="Retinal OCT layers"]').click();
+    const sample = volViewPage.samplesList.$('div[title="Retinal OCT layers"]');
+    await sample.waitForClickable();
+    await sample.click();
     await waitForEnFaceReady();
     await expectVisibleContrast(35);
   });
