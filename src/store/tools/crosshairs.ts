@@ -4,7 +4,10 @@ import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
-import { getImageMetadata } from '@/src/composables/useCurrentImage';
+import {
+  getImageData,
+  getImageMetadata,
+} from '@/src/composables/useCurrentImage';
 import {
   computeEffectiveView,
   volume2DViewsOfImage,
@@ -12,6 +15,18 @@ import {
 import { IMAGE_BOX_INFLATION } from '@/src/constants';
 import { clampValue } from '@/src/utils';
 import type { ImageMetadata } from '@/src/types/image';
+import { getEnFaceAvailability } from '@/src/enface';
+import type { Maybe } from '@/src/types';
+
+export function getEnFaceCrosshairsUnavailableReason(imageID: Maybe<string>) {
+  const sourceReason = getEnFaceAvailability(imageID).reason;
+  if (sourceReason) return sourceReason;
+  const extent = getImageData(imageID)?.getExtent();
+  // Source slice configurations address zero-based voxel indices.
+  return extent && [0, 2, 4].some((index) => extent[index] !== 0)
+    ? 'Crosshairs navigation is unavailable for source grids with nonzero starting voxel indices.'
+    : null;
+}
 
 /** The world point in `metadata`'s index space, pulled inside the image box. */
 function clampToImage(worldPosition: Vector3, metadata: ImageMetadata) {
@@ -53,11 +68,23 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
    *
    * All registered views of the image are sliced, not just those in the
    * current layout, so views hidden by a layout switch come back consistent.
+   * A preserved source index axis leaves its peer slices unchanged: a
+   * projection pick selects an in-plane location without choosing depth.
    */
-  function setPosition(worldPosition: Vector3, viewId: string) {
+  function setPosition(
+    worldPosition: Vector3,
+    viewId: string,
+    preservedAxis?: 0 | 1 | 2
+  ) {
     const view = viewStore.getView(viewId);
     const host = view && computeEffectiveView(view, view.dataID);
-    if (host?.kind !== 'volume2D') return;
+    if (host?.kind !== 'volume2D' && host?.kind !== 'enface') return;
+    if (
+      host.kind === 'enface' &&
+      (preservedAxis == null ||
+        getEnFaceCrosshairsUnavailableReason(host.renderDataID))
+    )
+      return;
 
     const imageID = host.renderDataID;
     const metadata = getImageMetadata(imageID);
@@ -66,7 +93,9 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     const { lpsOrientation } = metadata;
     volume2DViewsOfImage(imageID, viewStore.getAllViews()).forEach(
       ({ viewId: peerId, axis }) => {
-        const slice = Math.round(indexPosition[lpsOrientation[axis]]);
+        const sourceAxis = lpsOrientation[axis];
+        if (sourceAxis === preservedAxis) return;
+        const slice = Math.round(indexPosition[sourceAxis]);
         viewSliceStore.updateConfig(peerId, imageID, { slice });
       }
     );

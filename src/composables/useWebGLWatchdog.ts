@@ -4,18 +4,19 @@ import { Messages } from '@/src/constants';
 import { useMessageStore } from '@/src/store/messages';
 import { View } from '@/src/core/vtk/types';
 import { vtkFieldRef } from '@/src/core/vtk/vtkFieldRef';
-import { MaybeRef, computed, unref } from 'vue';
+import { MaybeRef, computed, readonly, ref, unref } from 'vue';
 import { Maybe } from '@/src/types';
 
 const THROTTLE_THRESHOLD = 250; // ms
+type WatchdogView = Pick<View, 'renderWindowView'> &
+  Partial<Pick<View, 'renderer'>>;
 
 /**
  * Collects relevant context for debugging 3D crashes.
  * @returns
  */
-function getVolumeMapperContext(view: View) {
-  const ren = view.renderer;
-  const vol = ren.getVolumes()[0];
+function getVolumeMapperContext(view: WatchdogView) {
+  const vol = view.renderer?.getVolumes()[0];
   if (!vol) return null;
 
   const mapper = vol.getMapper();
@@ -30,7 +31,8 @@ function getVolumeMapperContext(view: View) {
   );
 }
 
-export function useWebGLWatchdog(view: MaybeRef<Maybe<View>>) {
+export function useWebGLWatchdog(view: MaybeRef<Maybe<WatchdogView>>) {
+  const contextLost = ref(false);
   const reportError = useThrottleFn(() => {
     const messageStore = useMessageStore();
     messageStore.addError(Messages.WebGLLost.title, {
@@ -48,5 +50,9 @@ export function useWebGLWatchdog(view: MaybeRef<Maybe<View>>) {
 
   const renWinView = computed(() => unref(view)?.renderWindowView);
   const canvas = vtkFieldRef(renWinView, 'canvas');
-  useEventListener(canvas, 'webglcontextlost', reportError);
+  useEventListener(canvas, 'webglcontextlost', () => {
+    contextLost.value = true;
+    reportError();
+  });
+  return readonly(contextLost);
 }

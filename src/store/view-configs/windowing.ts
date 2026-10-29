@@ -9,13 +9,38 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
-import { WL_AUTO_DEFAULT } from '@/src/constants';
+import { WL_AUTO_DEFAULT, WLAutoRanges } from '@/src/constants';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
-import { ViewConfig } from '@/src/io/state-file/schema';
+import type { StateFile, ViewConfig } from '@/src/io/state-file/schema';
 import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
+
+export type WindowingAutoRanges = Record<
+  keyof typeof WLAutoRanges,
+  readonly [number, number]
+>;
+
+type WindowingAutoSource = {
+  defaultAuto: keyof WindowingAutoRanges;
+  ranges: WindowingAutoRanges | null;
+};
+
+const autoRangeKeys = Object.keys(WLAutoRanges) as Array<
+  keyof WindowingAutoRanges
+>;
+
+const sameAutoRanges = (
+  left: WindowingAutoRanges | null,
+  right: WindowingAutoRanges | null
+) =>
+  left === right ||
+  (!!left &&
+    !!right &&
+    autoRangeKeys.every(
+      (key) => left[key][0] === right[key][0] && left[key][1] === right[key][1]
+    ));
 
 type WindowLevel = {
   width: number;
@@ -49,11 +74,15 @@ export const useWindowingStore = defineStore('windowing', () => {
   >({});
 
   const runtimeConfigWindowLevel = ref<WindowLevel | undefined>();
+  // Derived images can have different intensity units from their source volume.
+  // Keep their small range summaries with the view/data configuration across remounts.
+  const autoRangeSources = reactive<DoubleKeyRecord<WindowingAutoSource>>({});
 
   const imageStatsStore = useImageStatsStore();
   const dicomStore = useDICOMStore();
 
   const WindowingUpdateEvent = markRaw(createEventHook<[string, string]>());
+  const ContrastResetEvent = markRaw(createEventHook<[string, string]>());
 
   const getDicomWindowLevel = (dataID: string) => {
     if (!isDicomImage(dataID)) return undefined;
@@ -68,8 +97,12 @@ export const useWindowingStore = defineStore('windowing', () => {
     return minMaxToWidthLevel(min, max);
   };
 
-  const computeDefaultConfig = (dataID: string) => {
+  const computeDefaultConfig = (viewID: string, dataID: string) => {
     const defaults = defaultWindowLevelConfig();
+    const source = getDoubleKeyRecord(autoRangeSources, viewID, dataID);
+    if (source) {
+      return { ...defaults, auto: source.defaultAuto, useAuto: true };
+    }
 
     const runtimeWL = runtimeConfigWindowLevel.value;
     if (runtimeWL) {
@@ -85,30 +118,85 @@ export const useWindowingStore = defineStore('windowing', () => {
     return { ...defaults, ...statsWL, useAuto: true };
   };
 
-  const getConfig = (viewID: string, dataID: string): WindowLevelConfig => {
-    const internalConfig = withAppearanceDefaults(
-      getDoubleKeyRecord(configs, viewID, dataID) ??
-        computeDefaultConfig(dataID)
-    );
-
+  const resolveConfig = (
+    viewID: string,
+    dataID: string,
+    internalConfig: ReturnType<typeof withAppearanceDefaults>
+  ) => {
     if (!internalConfig.useAuto) {
       return internalConfig;
     }
 
     const autoKey = internalConfig.auto;
-    const autoValues = imageStatsStore.getAutoRangeValues(dataID);
+    const source = getDoubleKeyRecord(autoRangeSources, viewID, dataID);
+    const autoValues = source
+      ? source.ranges
+      : imageStatsStore.getAutoRangeValues(dataID);
     if (autoValues?.[autoKey]) {
       const [min, max] = autoValues[autoKey];
       return {
         ...internalConfig,
         ...minMaxToWidthLevel(min, max),
+        ...(source && min === max ? { width: 1 } : {}),
       };
     }
     return internalConfig;
   };
 
+  const getConfig = (viewID: string, dataID: string) =>
+    resolveConfig(
+      viewID,
+      dataID,
+      withAppearanceDefaults(
+        getDoubleKeyRecord(configs, viewID, dataID) ??
+          computeDefaultConfig(viewID, dataID)
+      )
+    );
+
+  const setAutoRangeValues = (
+    viewID: string,
+    dataID: string,
+    values: WindowingAutoRanges | null,
+    defaultAuto: keyof WindowingAutoRanges = 'FullRange'
+  ) => {
+    const current = getDoubleKeyRecord(autoRangeSources, viewID, dataID);
+    if (
+      values &&
+      !autoRangeKeys.every((key) => {
+        const range = values[key];
+        return range && range.every(Number.isFinite) && range[0] <= range[1];
+      })
+    )
+      throw new Error('Auto window ranges must be finite and ordered');
+    if (
+      current?.defaultAuto === defaultAuto &&
+      sameAutoRanges(current.ranges, values)
+    )
+      return;
+    autoRangeSources[viewID] ??= {};
+    autoRangeSources[viewID][dataID] = {
+      defaultAuto,
+      ranges: values ? { ...values } : null,
+    };
+  };
+
   const getInternalConfig = (viewID: Maybe<string>, dataID: Maybe<string>) =>
     getDoubleKeyRecord(configs, viewID, dataID);
+
+  const getRange = (viewID: string, dataID: string): [number, number] => {
+    const source = getDoubleKeyRecord(autoRangeSources, viewID, dataID);
+    if (source?.ranges) return [...source.ranges.FullRange];
+    if (source) {
+      const config = getConfig(viewID, dataID);
+      const width = config.width ?? 1;
+      const level = config.level ?? 0.5;
+      return [level - width / 2, level + width / 2];
+    }
+    const stats = imageStatsStore.stats[dataID];
+    return stats?.scalarMin != null && stats.scalarMax != null
+      ? [stats.scalarMin, stats.scalarMax]
+      : [0, 1];
+  };
 
   const updateConfig = (
     viewID: string,
@@ -117,7 +205,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     userTriggered = false
   ) => {
     const currentInternalConfig = getInternalConfig(viewID, dataID);
-    const defaults = computeDefaultConfig(dataID);
+    const defaults = computeDefaultConfig(viewID, dataID);
 
     let effectiveUseAuto = currentInternalConfig?.useAuto ?? defaults.useAuto;
     let widthLevelPatchOnSwitchingFromAuto;
@@ -161,8 +249,18 @@ export const useWindowingStore = defineStore('windowing', () => {
     WindowingUpdateEvent.trigger(viewID, dataID);
   };
 
+  const resetContrast = (viewID: string, dataID: string) => {
+    const { width, level, auto, useAuto } = computeDefaultConfig(
+      viewID,
+      dataID
+    );
+    updateConfig(viewID, dataID, { width, level, auto, useAuto }, true);
+    ContrastResetEvent.trigger(viewID, dataID);
+  };
+
   const removeView = (viewID: string) => {
     delete configs[viewID];
+    delete autoRangeSources[viewID];
   };
 
   const resetConfig = (viewID: Maybe<string>, dataID: Maybe<string>) => {
@@ -174,12 +272,37 @@ export const useWindowingStore = defineStore('windowing', () => {
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
       delete configs[viewID]?.[dataID];
+      delete autoRangeSources[viewID]?.[dataID];
     } else {
       deleteSecondKey(configs, dataID);
+      deleteSecondKey(autoRangeSources, dataID);
     }
   };
 
-  const serialize = createViewConfigSerializer(configs, 'window');
+  const materializeConfig = (viewID: string, dataID: string) => {
+    patchDoubleKeyRecord(configs, viewID, dataID, getConfig(viewID, dataID));
+  };
+  const serialize = (stateFile: StateFile) => {
+    const viewIDs = new Set([
+      ...Object.keys(configs),
+      ...Object.keys(autoRangeSources),
+    ]);
+    const effective = Object.fromEntries(
+      [...viewIDs].map((viewID) => {
+        const dataIDs = new Set([
+          ...Object.keys(configs[viewID] ?? {}),
+          ...Object.keys(autoRangeSources[viewID] ?? {}),
+        ]);
+        return [
+          viewID,
+          Object.fromEntries(
+            [...dataIDs].map((dataID) => [dataID, getConfig(viewID, dataID)])
+          ),
+        ];
+      })
+    );
+    createViewConfigSerializer(effective, 'window')(stateFile);
+  };
 
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
@@ -191,14 +314,19 @@ export const useWindowingStore = defineStore('windowing', () => {
 
   return {
     runtimeConfigWindowLevel,
+    setAutoRangeValues,
+    materializeConfig,
     getConfig,
     getInternalConfig,
+    getRange,
     updateConfig,
     resetConfig,
+    resetContrast,
     removeView,
     removeData,
     serialize,
     deserialize,
     WindowingUpdateEvent,
+    ContrastResetEvent,
   };
 });

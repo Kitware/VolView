@@ -14,16 +14,17 @@ function createParent() {
     'WebGL'
   ) as vtkOpenGLRenderWindow;
   renderWindow.addView(renderWindowView);
-  return { renderWindow, renderWindowView };
+  return { renderWindow, renderWindowView, contextLost: ref(false) };
 }
 
 function createRecordingParent(calls: Array<string>) {
-  const { renderWindow, renderWindowView } = createParent();
+  const { renderWindow, renderWindowView, contextLost } = createParent();
   // an uninitialized interactor keeps the parent's renders inert: the test DOM
   // has no WebGL context to traverse
   renderWindow.setInteractor(vtkRenderWindowInteractor.newInstance());
 
   return {
+    contextLost,
     renderWindow: {
       ...renderWindow,
       removeRenderWindow: (child: vtkRenderWindow) => {

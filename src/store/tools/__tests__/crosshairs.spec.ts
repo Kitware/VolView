@@ -9,6 +9,7 @@ import useViewSliceStore from '@/src/store/view-configs/slicing';
 import type { ViewInfo2D } from '@/src/types/views';
 import type { LPSAxis } from '@/src/types/lps';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
+import { useEnFaceViewStore } from '@/src/enface';
 
 const SMALL: [number, number, number] = [10, 20, 30];
 const LARGE: [number, number, number] = [40, 50, 60];
@@ -64,6 +65,65 @@ describe('crosshairs tool store', () => {
 
   const sliceOf = (viewId: string, imageId: string) =>
     useViewSliceStore().getConfig(viewId, imageId)?.slice;
+
+  const projectionWithPeer = () => {
+    const views = useViewStore();
+    views.setLayoutFromGrid([3, 2]);
+    views.replaceView(views.layoutViews[4].id, {
+      type: '2D',
+      name: 'Coronal',
+      dataID: imageA,
+      options: { orientation: 'Coronal' },
+    });
+    const coronalA = views.layoutViews[4].id;
+    useViewSliceStore().updateConfig(coronalA, imageA, {
+      slice: 6,
+      min: 0,
+      max: 19,
+    });
+    views.replaceView(views.layoutViews[5].id, {
+      type: 'EnFace',
+      name: 'En face',
+      dataID: imageA,
+      options: {},
+    });
+    return { projection: views.layoutViews[5].id, coronalA };
+  };
+
+  it.each([0, 1, 2] as const)(
+    'navigates both in-plane axes while preserving source axis %i and slab settings',
+    (preservedAxis) => {
+      const { projection, coronalA } = projectionWithPeer();
+      const settings = useEnFaceViewStore().configFor(projection, imageA);
+      Object.assign(settings, {
+        axis: preservedAxis,
+        depthStart: 1,
+        depthEnd: 5,
+      });
+      const before = { ...settings };
+      useViewStore().setActiveView(coronalB);
+      useViewStore().setLayoutFromGrid([1, 1]);
+
+      useCrosshairsToolStore().setPosition(
+        [2, 8, 17],
+        projection,
+        preservedAxis
+      );
+
+      expect(sliceOf(sagittalA, imageA)).toBe(preservedAxis === 0 ? 3 : 2);
+      expect(sliceOf(coronalA, imageA)).toBe(preservedAxis === 1 ? 6 : 8);
+      expect(sliceOf(axialA, imageA)).toBe(preservedAxis === 2 ? 5 : 17);
+      expect(sliceOf(coronalB, imageB)).toBe(25);
+      expect(settings).toEqual(before);
+    }
+  );
+
+  it('requires an explicit preserved axis when navigating from a projection', () => {
+    const { projection } = projectionWithPeer();
+    useCrosshairsToolStore().setPosition([2, 8, 17], projection);
+    expect(sliceOf(axialA, imageA)).toBe(5);
+    expect(sliceOf(sagittalA, imageA)).toBe(3);
+  });
 
   it('slices every view showing the image the crosshair was moved in', () => {
     useCrosshairsToolStore().setPosition([2, 8, 17], axialA);

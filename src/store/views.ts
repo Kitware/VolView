@@ -96,7 +96,10 @@ function generateLayoutFromGrid(size: [number, number]): Layout {
   };
 }
 
-function needsViewReplacement(existingView: ViewInfo, nextView: ViewInfoInit) {
+export function needsViewReplacement(
+  existingView: ViewInfo,
+  nextView: ViewInfoInit
+) {
   if (existingView.type !== nextView.type) return true;
 
   const existingOptions = existingView.options ?? null;
@@ -357,6 +360,7 @@ export const useViewStore = defineStore('view', () => {
   function serialize(stateFile: StateFile) {
     const { manifest } = stateFile;
     manifest.layout = layout.value;
+    manifest.currentLayoutName = currentLayoutName.value;
     manifest.activeView = activeView.value;
     manifest.isActiveViewMaximized = isActiveViewMaximized.value;
     manifest.layoutSlots = layoutSlots.value;
@@ -365,6 +369,8 @@ export const useViewStore = defineStore('view', () => {
 
   function deserializeLayout(manifest: Manifest) {
     if (manifest.layout) {
+      // Older scenes have unknown selection identity, even for matching panes.
+      currentLayoutName.value = manifest.currentLayoutName;
       setLayout(manifest.layout);
     }
     setActiveView(manifest.activeView);

@@ -5,7 +5,10 @@ import {
   convertSuccessResultToDataSelection,
   importDataSources,
 } from '@/src/io/import/importDataSources';
-import { remoteFileToDataSource } from '@/src/io/import/dataSource';
+import {
+  getDataSourceName,
+  remoteFileToDataSource,
+} from '@/src/io/import/dataSource';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { SAMPLE_DATA } from '@/src/config';
 import { useMessageStore } from '@/src/store/messages';
@@ -84,11 +87,17 @@ export default defineComponent({
         progress(Infinity);
         const files = await getSampleDataSources(sample, progress);
         const loadResults = await importDataSources(files);
-        const errors = loadResults.flatMap((result) =>
-          result.type === 'error' ? [result.error] : []
-        );
+        const errors = loadResults.filter((result) => result.type === 'error');
         if (errors.length) {
-          throw new Error(errors.map((error) => error.message).join('\n'));
+          throw new AggregateError(
+            errors.map(({ error }) => error),
+            errors
+              .map(
+                ({ dataSource, error }) =>
+                  `${getDataSourceName(dataSource) ?? sample.name}: ${error.message}`
+              )
+              .join('\n')
+          );
         }
         const selections = loadResults.flatMap((result) => {
           const id = convertSuccessResultToDataSelection(result);
@@ -156,7 +165,7 @@ export default defineComponent({
       :key="sample.name"
       :html-title="sample.name"
       :image-url="sample.image"
-      :image-size="100"
+      :image-size="64"
       class="mb-1"
       @click="downloadSample(sample)"
     >

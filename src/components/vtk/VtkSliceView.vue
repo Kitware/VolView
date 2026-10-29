@@ -22,12 +22,15 @@ import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
+import type { ImageMetadata } from '@/src/types/image';
 
 type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
+  renderGeometry?: { metadata: ImageMetadata | null; fitKey: string };
+  zoomOnScroll?: boolean;
 };
 
 const props = defineProps<Props>();
@@ -42,7 +45,12 @@ const vtkContainerRef = ref<HTMLElement>();
 const viewCameraStore = useViewCameraStore();
 const { disableCameraAutoReset } = storeToRefs(viewCameraStore);
 
-const { metadata: imageMetadata } = useImage(imageID);
+const { metadata: sourceMetadata } = useImage(imageID);
+const imageMetadata = computed(() =>
+  props.renderGeometry === undefined
+    ? sourceMetadata.value
+    : props.renderGeometry.metadata
+);
 
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
@@ -50,7 +58,7 @@ const scope = effectScope(true);
 const view = scope.run(() =>
   useVtkView(vtkContainerRef, {
     separateImageLayer: true,
-    clippingBounds: computed(() => imageMetadata.value.worldBounds),
+    clippingBounds: computed(() => imageMetadata.value?.worldBounds),
   })
 )!;
 
@@ -87,14 +95,10 @@ const autoFit = useAutoFitState(
 );
 
 function autoFitImage() {
-  if (!autoFit.autoFit.value) return;
+  const metadata = imageMetadata.value;
+  if (!autoFit.autoFit.value || !metadata) return;
   autoFit.withPaused(() => {
-    resizeToFitImage(
-      view,
-      imageMetadata.value,
-      viewDirection.value,
-      viewUp.value
-    );
+    resizeToFitImage(view, metadata, viewDirection.value, viewUp.value);
   });
 }
 
@@ -104,29 +108,40 @@ useResizeObserver(vtkContainerRef, () => {
 });
 
 function resetCamera() {
+  const metadata = imageMetadata.value;
+  if (!metadata) return;
   autoFit.autoFit.value = true;
   autoFit.withPaused(() => {
-    resetCameraToImage(
-      view,
-      imageMetadata.value,
-      viewDirection.value,
-      viewUp.value
-    );
+    resetCameraToImage(view, metadata, viewDirection.value, viewUp.value);
     autoFitImage();
   });
+  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
 }
 
+let previousGeometry: { viewId: string; imageId: Maybe<string>; key?: string };
+const isPreviousImage = (viewId: string, imageId: Maybe<string>) =>
+  previousGeometry?.viewId === viewId && previousGeometry.imageId === imageId;
 watchImmediate(
-  [viewID, imageID, disableCameraAutoReset],
-  ([viewID_, imageID_, noAutoReset]) => {
+  [
+    viewID,
+    imageID,
+    disableCameraAutoReset,
+    imageMetadata,
+    () => props.renderGeometry?.fitKey,
+  ],
+  ([viewID_, imageID_, noAutoReset, metadata, geometryKey]) => {
+    if (!metadata) return;
+    const sameImage = isPreviousImage(viewID_, imageID_);
+    const geometryChanged = sameImage && previousGeometry.key !== geometryKey;
     if (
       imageID_ &&
-      !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
+      (!viewCameraStore.isCameraInitialized(viewID_, imageID_) ||
+        geometryChanged) &&
       !noAutoReset
     ) {
       resetCamera();
-      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
     }
+    previousGeometry = { viewId: viewID_, imageId: imageID_, key: geometryKey };
   }
 );
 
@@ -137,11 +152,13 @@ watchImmediate(
 usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
+  const metadata = imageMetadata.value;
+  if (!metadata) return;
   if (
     viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
     disableCameraAutoReset.value
   ) {
-    view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
+    view.renderer.resetCameraClippingRange(metadata.worldBounds);
   }
 });
 
@@ -171,6 +188,7 @@ function onPointerUp() {
       class="view"
       @pointerdown.capture="onPointerDown"
       @pointerup.capture="onPointerUp"
+      @wheel.capture="zoomOnScroll && (autoFit.autoFit.value = false)"
     />
     <slot></slot>
   </div>

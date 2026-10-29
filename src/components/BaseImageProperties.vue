@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onScopeDispose, ref } from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { isCineImage } from '@/src/core/cine/isCineImage';
 import { NO_NAME } from '@/src/constants';
-import { useImageStatsStore } from '@/src/store/image-stats';
+import { getEnFaceAvailability } from '@/src/enface';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import '@/src/vtk/ColorMaps';
@@ -12,10 +12,10 @@ import { resolveBaseColorPreset } from '@/src/vtk/LayerColorPresets';
 import WindowLevelControls from './tools/windowing/WindowLevelControls.vue';
 
 const props = defineProps<{ imageId: string }>();
+const displayControls = ref<InstanceType<typeof ImageDisplayControls>>();
 const { imageData, metadata } = useImage(computed(() => props.imageId));
 const viewStore = useViewStore();
 const windowingStore = useWindowingStore();
-const statsStore = useImageStatsStore();
 const imageName = computed(() => metadata.value.name ?? NO_NAME);
 const scalars = computed(() => imageData.value?.getPointData().getScalars());
 
@@ -23,17 +23,30 @@ const matchingViews = computed(() =>
   viewStore.visibleViews.filter((view) => view.dataID === props.imageId)
 );
 
-const sliceView = computed(() => {
+const displayView = computed(() => {
   const views = matchingViews.value.filter(
     ({ type }) =>
-      isCineImage(props.imageId) || type === '2D' || type === 'Oblique'
+      isCineImage(props.imageId) ||
+      type === '2D' ||
+      type === 'Oblique' ||
+      type === 'EnFace'
   );
-  return views.find(({ id }) => id === viewStore.activeView) ?? views[0];
+  return (
+    views.find(({ id }) => id === viewStore.activeView) ??
+    views.find(({ type }) => type !== 'EnFace') ??
+    views[0]
+  );
 });
+
+const resets = windowingStore.ContrastResetEvent.on((viewID, dataID) => {
+  if (viewID === displayView.value?.id && dataID === props.imageId)
+    displayControls.value?.resetRangeDrafts();
+});
+onScopeDispose(resets.off);
 
 const referenceView = computed(
   () =>
-    sliceView.value ??
+    displayView.value ??
     matchingViews.value.find(({ id }) => id === viewStore.activeView) ??
     matchingViews.value[0]
 );
@@ -49,15 +62,17 @@ const visibility = computed(() => windowing.value?.visibility ?? true);
 const visibilityUnavailableReason = computed(() => {
   if (!imageData.value || !scalars.value)
     return 'The image must finish loading first.';
-  if (!sliceView.value)
-    return 'Open a 2D or oblique view showing this image to change visibility.';
+  if (!displayView.value)
+    return 'Open a slice or En face view showing this image to change visibility.';
+  if (displayView.value.type === 'EnFace')
+    return getEnFaceAvailability(props.imageId).reason ?? '';
   return '';
 });
 
 function toggleVisibility() {
-  if (visibilityUnavailableReason.value || !sliceView.value) return;
+  if (visibilityUnavailableReason.value || !displayView.value) return;
   windowingStore.updateConfig(
-    sliceView.value.id,
+    displayView.value.id,
     props.imageId,
     { visibility: !visibility.value },
     true
@@ -67,9 +82,9 @@ function toggleVisibility() {
 const preset = computed(() => resolveBaseColorPreset(windowing.value?.preset));
 
 function setPreset(value: string) {
-  if (unavailableReason.value || !sliceView.value) return;
+  if (unavailableReason.value || !displayView.value) return;
   windowingStore.updateConfig(
-    sliceView.value.id,
+    displayView.value.id,
     props.imageId,
     {
       preset: resolveBaseColorPreset(value),
@@ -85,9 +100,10 @@ const mappingRange = computed(() => {
 });
 
 const imageRange = computed(() => {
-  const stats = statsStore.stats[props.imageId];
+  if (displayView.value)
+    return windowingStore.getRange(displayView.value.id, props.imageId);
   const range = scalars.value?.getRange() ?? [0, 1];
-  return [stats?.scalarMin ?? range[0], stats?.scalarMax ?? range[1]] as const;
+  return [range[0], range[1]] as const;
 });
 
 const unavailableReason = computed(() => {
@@ -97,13 +113,15 @@ const unavailableReason = computed(() => {
     return 'Cine images already contain display-encoded pixels.';
   if (scalars.value.getNumberOfComponents() !== 1)
     return 'Window/level editing requires a single-component image.';
-  if (!sliceView.value)
-    return 'Open a 2D or oblique view showing this image to adjust window/level.';
+  if (!displayView.value)
+    return 'Open a slice or En face view showing this image to adjust window/level.';
+  if (displayView.value.type === 'EnFace')
+    return getEnFaceAvailability(props.imageId).reason ?? '';
   return '';
 });
 
 function setRange([min, max]: [number, number]) {
-  const view = sliceView.value;
+  const view = displayView.value;
   const width = max - min;
   const level = min + width / 2;
   if (
@@ -121,7 +139,8 @@ function setRange([min, max]: [number, number]) {
 
 <template>
   <ImageDisplayControls
-    :key="imageId"
+    ref="displayControls"
+    :key="`${imageId}:${displayView?.id ?? ''}`"
     :image-name="imageName"
     :preset="preset"
     :mapping-range="mappingRange"
@@ -144,8 +163,8 @@ function setRange([min, max]: [number, number]) {
     </template>
     <template #contrast="{ resetRangeDrafts }">
       <WindowLevelControls
-        v-if="sliceView"
-        :view-id="sliceView.id"
+        v-if="displayView"
+        :view-id="displayView.id"
         :image-id="imageId"
         @change="resetRangeDrafts"
       />

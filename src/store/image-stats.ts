@@ -12,7 +12,8 @@ import * as Comlink from 'comlink';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useVtkComputed } from '@/src/core/vtk/useVtkComputed';
-import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
+import { WL_HIST_BINS } from '@/src/constants';
+import { histogramWindowRanges } from '@/src/utils/histogram';
 import { HistogramWorker } from '@/src/utils/histogram.worker';
 import { Maybe } from '@/src/types';
 import { useImage } from '@/src/composables/useCurrentImage';
@@ -62,35 +63,13 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
   );
   const remote = Comlink.wrap<HistogramWorker>(worker);
   const hist = await remote
-    .histogram(scalarData, [min, max], WL_HIST_BINS)
+    .histogram(scalarData, [min, max], WL_HIST_BINS, 1)
     .finally(() => {
       remote[Comlink.releaseProxy]();
       worker.terminate();
     });
 
-  const cumulativeHist: number[] = [];
-  hist.reduce((acc, val) => {
-    const currentSum = acc + val;
-    cumulativeHist.push(currentSum);
-    return currentSum;
-  }, 0);
-
-  const width = (max - min + 1) / WL_HIST_BINS;
-  const totalCount = scalarData.length;
-
-  return Object.fromEntries(
-    Object.entries(WLAutoRanges).map(([key, percentage]) => {
-      const lowerBound = percentage * 0.01 * totalCount;
-      const upperBound = (1 - percentage * 0.01) * totalCount;
-
-      const startIdx = cumulativeHist.findIndex((v) => v >= lowerBound);
-      const endIdx = cumulativeHist.findIndex((v) => v >= upperBound);
-
-      const start = Math.max(min, min + width * startIdx);
-      const end = Math.min(max, min + width * (endIdx + 1)); // Adjusted end calculation
-      return [key, [start, end] as [number, number]];
-    })
-  );
+  return histogramWindowRanges(hist, [min, max], 1);
 }
 
 export const useImageStatsStore = defineStore('image-stats', () => {
