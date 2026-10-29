@@ -60,8 +60,8 @@ describe('OCT view settings', () => {
     const parsed = ManifestSchema.parse(state.manifest);
     expect(parsed.viewByID?.view.type).toBe('EnFace');
     const settings = parsed.viewByID!.view.config!;
-    expect(settings.oct.octEnFace?.method).toBe('sum');
-    expect(settings.oct.octEnFace).not.toHaveProperty('windowWidth');
+    expect(settings.oct.enFace?.method).toBe('sum');
+    expect(settings.oct.enFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
       level: 60,

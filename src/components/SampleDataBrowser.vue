@@ -165,7 +165,7 @@ export default defineComponent({
       :key="sample.name"
       :html-title="sample.name"
       :image-url="sample.image"
-      :image-size="64"
+      :image-size="100"
       class="mb-1"
       @click="downloadSample(sample)"
     >

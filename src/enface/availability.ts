@@ -3,7 +3,11 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { isOCTMetadata, octGeometryReason } from '@/src/enface/detection';
+import { Tags } from '@/src/core/dicomTags';
+import {
+  OCT_GEOMETRY_ERROR,
+  OCT_SCAN_PATTERN,
+} from '@/src/core/streaming/dicom/octMetadataTags';
 
 function gridReason(data: Maybe<vtkImageData>) {
   if (!data || data.getDimensions().some((n) => n < 2)) {
@@ -28,10 +32,16 @@ function loadReason(
   return gridReason(data);
 }
 
-function dicomMetadata(image: Maybe<ProgressiveImage>) {
-  return image instanceof DicomChunkImage && image.getChunks().length
-    ? (image.getDicomMetadata() ?? [])
-    : [];
+function acquisitionMetadataReason(metadata: Iterable<[string, string]>) {
+  const tags = new Map(metadata);
+  if (tags.get(Tags.OphthalmicVolumetricPropertiesFlag)?.trim() === 'NO') {
+    return 'This OCT is marked unsuitable for volumetric processing.';
+  }
+  const pattern = tags.get(OCT_SCAN_PATTERN);
+  if (pattern && !['128279', '128280'].includes(pattern)) {
+    return 'En face projection requires a raster or cube OCT volume. This scan pattern needs spatial reconstruction.';
+  }
+  return tags.get(OCT_GEOMETRY_ERROR) ?? null;
 }
 
 function acquisitionReason(image: Maybe<ProgressiveImage>) {
@@ -39,7 +49,7 @@ function acquisitionReason(image: Maybe<ProgressiveImage>) {
   return (
     image
       .getChunks()
-      .map((chunk) => octGeometryReason(chunk.metadata ?? []))
+      .map((chunk) => acquisitionMetadataReason(chunk.metadata ?? []))
       .find((reason) => reason !== null) ?? null
   );
 }
@@ -51,15 +61,12 @@ export function getEnFaceAvailability(imageID: Maybe<string>) {
   const loaded = Boolean(image?.isLoaded());
   const loading = Boolean(image?.isLoading());
   const data = cache.getVtkImageData(imageID);
-  const metadata = dicomMetadata(image);
-  const isOCT = isOCTMetadata(metadata);
   const reason = image
     ? (acquisitionReason(image) ??
       loadReason(imageID, loaded && !loading, data))
     : 'Load a grayscale 3D volume to use En face.';
   return {
     available: reason === null,
-    isOCT,
     reason,
   };
 }

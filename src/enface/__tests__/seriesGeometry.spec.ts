@@ -10,7 +10,10 @@ import { untilLoaded } from '@/src/composables/untilLoaded';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceAvailability } from '@/src/enface/availability';
-import { OCT_GEOMETRY_ERROR, OCT_SCAN_PATTERN } from '@/src/enface/detection';
+import {
+  OCT_GEOMETRY_ERROR,
+  OCT_SCAN_PATTERN,
+} from '@/src/core/streaming/dicom/octMetadataTags';
 
 async function readTags(file: File) {
   const data = dicomParser.parseDicom(new Uint8Array(await file.arrayBuffer()));
@@ -89,7 +92,6 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       const { id } = await assemble(undefined, undefined, modality);
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
-        isOCT: false,
       });
     }
   );

@@ -32,11 +32,11 @@ import {
 } from './utils';
 
 const STEM = 'projection-display-controls';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
+const VIEWER = '[data-testid="enface-viewer"]';
+const CANVAS = '[data-testid="enface-canvas"]';
 const SIDEBAR = '[data-testid="enface-sidebar-controls"]';
 const SECTION = '[data-testid="enface-rendering-section"]';
-const POPUP = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+const POPUP = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const ENFACE_SELECTOR = '[data-testid="enface-view-selector"]';
 const field = (endpoint: 'min' | 'max') =>
   $(`[data-testid="base-image-range-${endpoint}"] input`);
@@ -182,7 +182,7 @@ describe('Projection Layers display controls', () => {
     const automatic = await expectLayersWindow(view);
     expect(automatic.width).toBeLessThan(100);
     await expectProjectionGray(view, automatic);
-    await chooseEnFaceProjection('oct-projection-method', 'Sum', view);
+    await chooseEnFaceProjection('enface-projection-method', 'Sum', view);
     await waitForEnFaceReady(view);
     await expectLayersWindow(view);
     expect(
@@ -192,7 +192,7 @@ describe('Projection Layers display controls', () => {
         )
       )
     ).toBeGreaterThan(2000);
-    await chooseEnFaceProjection('oct-projection-method', 'Mean', view);
+    await chooseEnFaceProjection('enface-projection-method', 'Mean', view);
     await chooseLayersAuto();
     await waitForEnFaceReady(view);
     await mouseWindow(view);
@@ -226,12 +226,12 @@ describe('Projection Layers display controls', () => {
     const sourceWindow = await displayedWindow(source);
     await target.$(CANVAS).click();
     await setLayersRange(70, 210);
-    await chooseEnFaceProjection('oct-projection-method', 'Sum', target);
+    await chooseEnFaceProjection('enface-projection-method', 'Sum', target);
     const automaticSum = await expectLayersWindow(target);
     expect(automaticSum.width).toBeCloseTo(automaticMean.width * 9, 8);
     expect(automaticSum.level).toBeCloseTo(automaticMean.level * 9, 8);
     await expectProjectionGray(target, automaticSum, false, 1551);
-    await chooseEnFaceProjection('oct-projection-method', 'Mean', target);
+    await chooseEnFaceProjection('enface-projection-method', 'Mean', target);
     expect(await expectLayersWindow(target)).toEqual(automaticMean);
     await expectProjectionGray(target, automaticMean);
 
@@ -263,11 +263,11 @@ describe('Projection Layers display controls', () => {
     await $('[data-testid="base-image-visibility"]').click();
     await expectProjectionGray(target, automaticMean, true);
 
-    await chooseEnFaceProjection('oct-projection-method', 'Sum', target);
+    await chooseEnFaceProjection('enface-projection-method', 'Sum', target);
     await setLayersRange(0, 1000);
     await setValueVueInput(field('max'), '-1');
     await expect($('[data-testid="base-image-range-status"]')).toBeDisplayed();
-    await target.$('[data-testid="oct-en-face-controls"]').click();
+    await target.$('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('projection');
     await setSlabRange(1, 3);
     expect(await getEnFaceWindow(target)).toEqual({ width: 1000, level: 500 });
@@ -280,7 +280,7 @@ describe('Projection Layers display controls', () => {
     const slabWindow = await expectLayersWindow(target);
     expect(slabWindow).toEqual({ width: 425, level: 412.5 });
     await expectProjectionGray(target, slabWindow, true, 445);
-    await target.$('[data-testid="oct-en-face-controls"]').click();
+    await target.$('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('projection');
     await setSlabRange(0, 4);
     await browser.keys('Escape');
@@ -346,23 +346,23 @@ describe('Projection Layers display controls', () => {
     await expect($(ENFACE_SELECTOR).$('input')).toHaveValue(
       'En face 1 (source.nrrd)'
     );
-    await chooseSetting(SIDEBAR, 'oct-projection-method', 'Maximum');
+    await chooseSetting(SIDEBAR, 'enface-projection-method', 'Maximum');
     await browser.waitUntil(
       async () => (await enFaceAppearance(target)).image !== meanImage
     );
     expect((await enFaceAppearance(peer)).image).toBe(peerImage);
-    await target.$('[data-testid="oct-en-face-controls"]').click();
+    await target.$('[data-testid="enface-controls"]').click();
     await $(POPUP).waitForDisplayed();
     await expect(
-      $(POPUP).$('[data-testid="oct-projection-method"] input')
+      $(POPUP).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Maximum');
-    await chooseSetting(POPUP, 'oct-projection-axis', 'Axial');
+    await chooseSetting(POPUP, 'enface-projection-axis', 'Axial');
     await expandEnFaceSection('projection');
     await setSlabRange(1, 3);
     await browser.keys('Escape');
     await $(POPUP).waitForDisplayed({ reverse: true });
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-axis"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-axis"] input')
     ).toHaveValue('Axial');
     for (const [bound, value] of [
       ['start', '1'],
@@ -370,7 +370,7 @@ describe('Projection Layers display controls', () => {
     ]) {
       await expect(
         $(SIDEBAR).$(
-          '[data-testid="oct-slab-range"] [role="slider"][aria-label="Slab ' +
+          '[data-testid="enface-slab-range"] [role="slider"][aria-label="Slab ' +
             bound +
             '"]'
         )
@@ -383,12 +383,12 @@ describe('Projection Layers display controls', () => {
       'En face 2 (source.nrrd)'
     );
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-method"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Mean');
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-axis"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-axis"] input')
     ).toHaveValue('Coronal');
-    await chooseSetting(SIDEBAR, 'oct-projection-method', 'Sum');
+    await chooseSetting(SIDEBAR, 'enface-projection-method', 'Sum');
     await waitForEnFaceReady(peer);
     const peerWindow = await getEnFaceWindow(peer);
     const source = await $('div[data-testid~="vtk-two-view"]').getElement();
@@ -399,7 +399,7 @@ describe('Projection Layers display controls', () => {
       'En face 2 (source.nrrd)'
     );
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-method"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');
     expect(await appliedWindow()).toEqual(sourceWindow);
     const peerSumImage = (await enFaceAppearance(peer)).image;
@@ -418,23 +418,23 @@ describe('Projection Layers display controls', () => {
     expect((await enFaceAppearance(peer)).image).toBe(peerSumImage);
     await openSidebar();
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-method"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Maximum');
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-axis"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-axis"] input')
     ).toHaveValue('Axial');
     await peer.$(CANVAS).click();
     await expect($(ENFACE_SELECTOR).$('input')).toHaveValue(
       'En face 2 (source.nrrd)'
     );
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-method"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');
     expect(await appliedWindow()).toEqual(peerWindow);
-    await peer.$('[data-testid="oct-en-face-controls"]').click();
+    await peer.$('[data-testid="enface-controls"]').click();
     await $(POPUP).waitForDisplayed();
     await expect(
-      $(POPUP).$('[data-testid="oct-projection-method"] input')
+      $(POPUP).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');
     await browser.keys('Escape');
     expect(await volViewPage.getNotificationsCount()).toBe(0);
@@ -491,9 +491,9 @@ describe('Projection Layers display controls', () => {
     await expect($(ENFACE_SELECTOR)).not.toExist();
     await expect(field('min')).not.toExist();
     await expect(
-      $(SIDEBAR).$('[data-testid="oct-projection-method"] input')
+      $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toBeEnabled();
-    await chooseSetting(SIDEBAR, 'oct-projection-method', 'Maximum');
+    await chooseSetting(SIDEBAR, 'enface-projection-method', 'Maximum');
     await browser.waitUntil(
       async () => (await enFaceAppearance()).image !== initialImage
     );

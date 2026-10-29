@@ -21,7 +21,7 @@ import {
   writeManifestToFile,
 } from './utils';
 
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
+const CANVAS = '[data-testid="enface-canvas"]';
 const SOURCE = '[data-testid~="vtk-two-view"] canvas';
 const STEM = 'slab-geometry';
 const SIZE = [6, 5, 4];
@@ -174,9 +174,9 @@ describe('Slab geometry and automatic camera fitting', () => {
       let expectedImage = '';
       for (const name of ['zero.vti', 'offset.vti']) {
         await openScene(name);
-        await chooseEnFaceProjection('oct-projection-axis', AXES[axis]);
+        await chooseEnFaceProjection('enface-projection-axis', AXES[axis]);
         await setEnFaceWindow(200, 100);
-        await $('[data-testid="oct-en-face-controls"]').click();
+        await $('[data-testid="enface-controls"]').click();
         await expandEnFaceSection('projection');
         await setSlabRange(1, SIZE[axis] - 2);
         await browser.keys('Escape');
@@ -235,7 +235,7 @@ describe('Slab geometry and automatic camera fitting', () => {
 
   it('keeps automatic fitting through remount, scene restore and later resize', async () => {
     await openScene('wide.nrrd');
-    await $('[data-testid="oct-reset-camera"]').click();
+    await $('[data-testid="enface-reset-camera"]').click();
     await browser.setViewport({ width: 500, height: 720, devicePixelRatio: 1 });
     await $(CANVAS).waitForStable();
     const fitted = await fittedPixels();

@@ -17,8 +17,8 @@ import {
   waitForEnFaceReady,
 } from './octTestUtils';
 
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
+const CANVAS = '[data-testid="enface-canvas"]';
+const VIEWER = '[data-testid="enface-viewer"]';
 const SOURCE = 'div[data-testid~="vtk-two-view"]';
 const WINDOW_TOOL = 'button[data-testid^="control-button-Window & Level "]';
 
@@ -85,12 +85,12 @@ describe('Projection lifecycle', () => {
     const geometry = await projectionTransform();
 
     for (const method of ['Maximum', 'Sum', 'Mean', 'Maximum', 'Mean'])
-      await chooseEnFaceProjection('oct-projection-method', method);
+      await chooseEnFaceProjection('enface-projection-method', method);
     await waitForEnFaceReady();
     expect(await getEnFaceWindow()).toEqual({ width: 192, level: 331 });
     await expectProjectionGray(109);
     await setEnFaceWindow(1000, 500);
-    await $('[data-testid="oct-en-face-controls"]').click();
+    await $('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('projection');
     for (const [first, last] of [
       [10, 50],

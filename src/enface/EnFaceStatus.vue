@@ -10,7 +10,7 @@ defineProps<{
     :class="message ? 'projection-status' : 'd-sr-only'"
     role="status"
     aria-live="polite"
-    data-testid="oct-projection-status"
+    data-testid="enface-projection-status"
   >
     <span>{{ message || (ready ? 'En face projection ready.' : '') }}</span>
   </div>

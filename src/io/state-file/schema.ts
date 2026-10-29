@@ -287,7 +287,7 @@ const ViewConfig = z.object({
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
   cinePlayback: CinePlaybackViewConfig.optional(),
-  octEnFace: z
+  enFace: z
     .object({
       axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
       method: z.enum(['mean', 'max', 'sum']),

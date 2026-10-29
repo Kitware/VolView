@@ -64,7 +64,7 @@ const windowingManipulatorProps = computed(() => ({
 }));
 watchPostEffect(() => {
   const canvas = vtkView.value?.renderWindowView.getCanvas();
-  canvas?.setAttribute('data-testid', 'oct-en-face-canvas');
+  canvas?.setAttribute('data-testid', 'enface-canvas');
   canvas?.setAttribute('aria-label', 'En face projection');
 });
 const sliceLines = useEnFaceSliceLines(viewId, currentImageID, geometry);
@@ -109,7 +109,7 @@ watch(
     class="en-face-viewer"
     tabindex="0"
     :aria-busy="sourceLoading"
-    data-testid="oct-en-face-viewer"
+    data-testid="enface-viewer"
   >
     <v-progress-linear
       v-if="sourceLoading"
@@ -144,7 +144,7 @@ watch(
         <svg
           v-if="projectionReady && referenceLines.visible"
           class="slice-position-lines"
-          data-testid="oct-slice-lines"
+          data-testid="enface-slice-lines"
         >
           <ReferenceLineSegments
             :segments="referenceSegments"
@@ -184,7 +184,7 @@ watch(
               variant="text"
               :disabled="disabled"
               aria-label="Reset Camera"
-              data-testid="oct-reset-camera"
+              data-testid="enface-reset-camera"
               @click="resetCamera"
             >
               <v-icon size="medium" class="py-1 view-control-icon"
@@ -217,7 +217,7 @@ watch(
                 border
                 class="pointer-events-all"
                 aria-label="En face rendering controls"
-                data-testid="oct-en-face-controls"
+                data-testid="enface-controls"
               >
                 <v-icon>mdi-tune</v-icon>
                 <v-tooltip activator="parent" location="top"

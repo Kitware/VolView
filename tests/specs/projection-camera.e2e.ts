@@ -29,10 +29,10 @@ import {
   waitForSegmentContent,
 } from './segmentationTestUtils';
 
-const CANVAS = '[data-testid="oct-en-face-canvas"]';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
-const CONTROLS = '[data-testid="oct-en-face-controls"]';
-const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+const CANVAS = '[data-testid="enface-canvas"]';
+const VIEWER = '[data-testid="enface-viewer"]';
+const CONTROLS = '[data-testid="enface-controls"]';
+const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const STEM = 'projection-camera';
 const SOURCE_NAME = 'camera-source.nrrd';
 const MASK_NAME = 'camera-mask.nrrd';
@@ -184,8 +184,8 @@ async function releaseMaskAfterReachableProjection() {
   if (boundName.includes(SOURCE_NAME)) {
     await waitForEnFaceReady();
   } else {
-    await expect($('[data-testid="oct-slice-lines"]')).not.toExist();
-    await expect($('[data-testid="oct-projection-status"]')).toHaveText(
+    await expect($('[data-testid="enface-slice-lines"]')).not.toExist();
+    await expect($('[data-testid="enface-projection-status"]')).toHaveText(
       expect.stringContaining('Load a grayscale 3D volume')
     );
   }
@@ -245,7 +245,7 @@ describe('Projection camera persistence', () => {
     await attachRealMask();
     await openControls();
     await expandEnFaceSection('projection');
-    await chooseSetting('oct-projection-axis', 'Sagittal');
+    await chooseSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
     const inspected = await panAndZoom();

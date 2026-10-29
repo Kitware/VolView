@@ -45,9 +45,9 @@ function lastPatch(wrapper: ReturnType<typeof mountControls>) {
 describe('En face rendering controls', () => {
   it('starts projection controls expanded and can collapse them', async () => {
     const wrapper = mountControls();
-    const projection = wrapper.get('[data-testid="oct-projection-toggle"]');
+    const projection = wrapper.get('[data-testid="enface-projection-toggle"]');
     expect(projection.attributes('aria-expanded')).toBe('true');
-    expect(wrapper.find('[data-testid="oct-window-width"]').exists()).toBe(
+    expect(wrapper.find('[data-testid="enface-window-width"]').exists()).toBe(
       false
     );
     await projection.trigger('click');
@@ -64,21 +64,22 @@ describe('En face rendering controls', () => {
       method: 'sum' as const,
     };
     const wrapper = mountControls(saved);
-    const toggle = wrapper.get('[data-testid="oct-projection-toggle"]');
+    const toggle = wrapper.get('[data-testid="enface-projection-toggle"]');
     await toggle.trigger('click');
     expect(toggle.attributes('aria-expanded')).toBe('false');
     await toggle.trigger('click');
     expect(toggle.attributes('aria-expanded')).toBe('true');
-    expect(wrapper.findAll('[data-testid="oct-projection-axis"]')).toHaveLength(
-      1
-    );
     expect(
-      wrapper.get<HTMLInputElement>('[data-testid="oct-projection-axis"] input')
-        .element.value
+      wrapper.findAll('[data-testid="enface-projection-axis"]')
+    ).toHaveLength(1);
+    expect(
+      wrapper.get<HTMLInputElement>(
+        '[data-testid="enface-projection-axis"] input'
+      ).element.value
     ).toBe('Axial');
     expect(
       wrapper.get<HTMLInputElement>(
-        '[data-testid="oct-projection-method"] input'
+        '[data-testid="enface-projection-method"] input'
       ).element.value
     ).toBe('Sum');
     expect(
@@ -93,9 +94,11 @@ describe('En face rendering controls', () => {
   it('keeps slab help on its information button while leaving the range free of hover tooltips', async () => {
     const wrapper = mountControls();
     await nextTick();
-    const range = wrapper.get('[data-testid="oct-slab-range"]');
+    const range = wrapper.get('[data-testid="enface-slab-range"]');
     expect(range.attributes('aria-describedby')).toBeUndefined();
-    const help = range.get<HTMLButtonElement>('[data-testid="oct-slab-help"]');
+    const help = range.get<HTMLButtonElement>(
+      '[data-testid="enface-slab-help"]'
+    );
     expect(help.attributes('aria-label')).toBe('About slab range');
     help.element.focus();
     await vi.waitFor(() => {
@@ -107,7 +110,7 @@ describe('En face rendering controls', () => {
 
   it('adjusts inclusive slab bounds with two named keyboard-operated thumbs', async () => {
     const wrapper = mountControls({ depthStart: 100, depthEnd: 221 });
-    const range = wrapper.get('[data-testid="oct-slab-range"]');
+    const range = wrapper.get('[data-testid="enface-slab-range"]');
     const start = range.get('[role="slider"][aria-label="Slab start"]');
     const end = range.get('[role="slider"][aria-label="Slab end"]');
     expect(start.attributes('aria-valuenow')).toBe('100');

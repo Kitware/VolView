@@ -70,7 +70,7 @@ async function expectVisibleContrast(minimumSpread: number) {
 }
 
 async function setProjectionSlab(first: number, last: number) {
-  await $('[data-testid="oct-en-face-controls"]').click();
+  await $('[data-testid="enface-controls"]').click();
   await expandEnFaceSection('projection');
   await setSlabRange(first, last);
   await browser.keys('Escape');
@@ -101,9 +101,7 @@ async function expectAnalyticalPixel(
 
 async function enFaceImageBounds() {
   return browser.execute(() => {
-    const viewport = document.querySelector(
-      '[data-testid="oct-en-face-viewer"]'
-    );
+    const viewport = document.querySelector('[data-testid="enface-viewer"]');
     if (!viewport) throw new Error('The En face image viewport is missing');
     const { left, top, width, height } = viewport.getBoundingClientRect();
     return { left, top, width, height };
@@ -203,7 +201,7 @@ describe('Projection default contrast', () => {
       const initialSpread = distribution.high - distribution.low;
 
       for (const viewCount of [1, 4]) {
-        const canvas = $('[data-testid="oct-en-face-canvas"]');
+        const canvas = $('[data-testid="enface-canvas"]');
         await canvas.waitForStable();
         const bounds = await enFaceImageBounds();
         const point = {
@@ -216,12 +214,12 @@ describe('Projection default contrast', () => {
               ({ x, y }) =>
                 !!document
                   .elementFromPoint(x, y)
-                  ?.closest('[data-testid="oct-en-face-viewer"]'),
+                  ?.closest('[data-testid="enface-viewer"]'),
               point
             ),
           { timeoutMsg: 'The visible En face image must receive pointer input' }
         );
-        const viewport = $('[data-testid="oct-en-face-viewer"]');
+        const viewport = $('[data-testid="enface-viewer"]');
         await viewport.waitForClickable();
         await doubleClickImage(point);
         await browser.waitUntil(
@@ -275,7 +273,7 @@ describe('Projection default contrast', () => {
         `?urls=[tmp/${STEM}.json,tmp/${STEM}/${name}.vti]`
       );
       await waitForEnFaceReady();
-      await chooseEnFaceProjection('oct-projection-method', 'Sum');
+      await chooseEnFaceProjection('enface-projection-method', 'Sum');
       await waitForEnFaceReady();
       // Five samples of each constant-depth ray produce sums 500 and 1000.
       expect(await getEnFaceWindow()).toEqual({ width: 500, level: 750 });
@@ -293,19 +291,19 @@ describe('Projection default contrast', () => {
       1551 / 9,
       await expectAutomaticRange(1110 / 9, 1875 / 9)
     );
-    await chooseEnFaceProjection('oct-projection-method', 'Maximum');
+    await chooseEnFaceProjection('enface-projection-method', 'Maximum');
     await waitForEnFaceReady();
     await expectAnalyticalPixel(549, await expectAutomaticRange(500, 585));
-    await chooseEnFaceProjection('oct-projection-method', 'Sum');
+    await chooseEnFaceProjection('enface-projection-method', 'Sum');
     await waitForEnFaceReady();
     await expectAnalyticalPixel(1551, await expectAutomaticRange(1110, 1875));
-    await chooseEnFaceProjection('oct-projection-method', 'Mean');
+    await chooseEnFaceProjection('enface-projection-method', 'Mean');
     await setProjectionSlab(1, 3);
     await expectAnalyticalPixel(89, await expectAutomaticRange(40, 125));
 
     const manual = { width: 160, level: 80 };
     await setEnFaceWindow(manual.width, manual.level);
-    await chooseEnFaceProjection('oct-projection-method', 'Maximum');
+    await chooseEnFaceProjection('enface-projection-method', 'Maximum');
     await waitForEnFaceReady();
     const automatic = { width: 85, level: 102.5 };
     expect(await getEnFaceWindow()).toEqual(automatic);

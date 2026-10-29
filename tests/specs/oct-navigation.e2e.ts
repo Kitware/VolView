@@ -38,13 +38,13 @@ describe('Retinal OCT navigation', () => {
   it('restores a nondefault projection axis without resetting the saved slab', async () => {
     await openRetina();
     await expandEnFaceSection('projection');
-    await selectSetting('oct-projection-axis', 'Sagittal');
+    await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
-    await selectSetting('oct-projection-method', 'Maximum');
+    await selectSetting('enface-projection-method', 'Maximum');
     await waitForEnFaceReady();
     expect(
       await $(
-        '.v-overlay--active [data-testid="oct-projection-axis"] input'
+        '.v-overlay--active [data-testid="enface-projection-axis"] input'
       ).getValue()
     ).toBe('Sagittal');
     await browser.keys('Escape');
@@ -93,7 +93,7 @@ describe('Retinal OCT navigation', () => {
     await expectProjectionTransform(inspected);
     await expectProjectionPixel(81);
 
-    await $('[data-testid="oct-reset-camera"]').click();
+    await $('[data-testid="enface-reset-camera"]').click();
     await expectProjectionTransform(initial);
     await expectProjectionPixel(81);
     await $('button[data-testid^="control-button-Zoom "]').click();
@@ -120,7 +120,7 @@ describe('Retinal OCT navigation', () => {
     await dragContrast(await $(CANVAS).getElement(), 55, 30);
     await openControls();
     await expandEnFaceSection('projection');
-    await selectSetting('oct-projection-axis', 'Sagittal');
+    await selectSetting('enface-projection-axis', 'Sagittal');
     await waitForEnFaceReady();
     await browser.keys('Escape');
     const renderedCanvas = await $(CANVAS).getElement();
@@ -128,7 +128,7 @@ describe('Retinal OCT navigation', () => {
       (canvas, width, height) => {
         const bounds = canvas.getBoundingClientRect();
         const transform = document
-          .querySelector<SVGGElement>('[data-testid="oct-slice-lines"] g')!
+          .querySelector<SVGGElement>('[data-testid="enface-slice-lines"] g')!
           .getScreenCTM()!;
         const center = new DOMPoint(width / 2, height / 2).matrixTransform(
           transform
@@ -171,7 +171,7 @@ describe('Retinal OCT navigation', () => {
     const viewport = await renderedCanvas.execute((element) => {
       const canvas = element.getBoundingClientRect();
       const view = element
-        .closest('[data-testid="oct-en-face-viewer"]')!
+        .closest('[data-testid="enface-viewer"]')!
         .getBoundingClientRect();
       return {
         widthDifference: Math.abs(canvas.width - view.width),
@@ -310,7 +310,7 @@ describe('Retinal OCT navigation', () => {
       beforeSliderLineY
     );
 
-    const projectionGeometry = $('[data-testid="oct-slice-lines"] > g');
+    const projectionGeometry = $('[data-testid="enface-slice-lines"] > g');
     const beforePan = await projectionGeometry.getAttribute('transform');
     await $('button[data-testid^="control-button-Pan "]').click();
     await dragContrast(await $(CANVAS).getElement(), 55, 30);
@@ -333,10 +333,10 @@ describe('Retinal OCT navigation', () => {
     );
     expect((await enFaceAppearance()).image).not.toBe(beforePixels);
     expect(await getOriginalWindow()).toEqual(originalWindow);
-    expect(await $('[data-testid="oct-window-width"]').isExisting()).toBe(
+    expect(await $('[data-testid="enface-window-width"]').isExisting()).toBe(
       false
     );
-    expect(await $('[data-testid="oct-window-level"]').isExisting()).toBe(
+    expect(await $('[data-testid="enface-window-level"]').isExisting()).toBe(
       false
     );
     // Return to the central retinal B-scan for the comparison screenshot.

@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import { toRefs, inject, computed, ref, shallowRef } from 'vue';
+import {
+  toRefs,
+  watchEffect,
+  inject,
+  computed,
+  ref,
+  shallowRef,
+  onScopeDispose,
+} from 'vue';
 import { useImage } from '@/src/composables/useCurrentImage';
-import { useLabelmapRepresentation } from '@/src/segmentation/rendering/useLabelmapRepresentation';
+import { useSliceRepresentation } from '@/src/core/vtk/useSliceRepresentation';
 import { LPSAxis } from '@/src/types/lps';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { SlicingMode } from '@kitware/vtk.js/Rendering/Core/ImageMapper/Constants';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/ImageProperty/Constants';
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { watchImmediate } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import {
+  SEGMENT_ACTOR_OPACITY,
+  SEGMENT_COINCIDENT_OFFSET,
   segmentFillAlpha,
   segmentOutline,
 } from '@/src/segmentation/rendering/display';
@@ -94,27 +108,84 @@ watchImmediate(
   }
 );
 
-const appearance = computed(() => {
-  const segment = descriptor.value;
-  if (!segment) return null;
+// setup slice rep
+const sliceRep = useSliceRepresentation(view, imageData);
 
+// Let widget fill representations be picked through the segment overlay
+sliceRep.actor.setPickable(false);
+
+const ownedColorTransferFunction = vtkColorTransferFunction.newInstance();
+const ownedOpacityFunction = vtkPiecewiseFunction.newInstance();
+sliceRep.property.setRGBTransferFunction(0, ownedColorTransferFunction);
+sliceRep.property.setScalarOpacity(0, ownedOpacityFunction);
+onScopeDispose(() => {
+  ownedColorTransferFunction.delete();
+  ownedOpacityFunction.delete();
+});
+sliceRep.property.setInterpolationType(InterpolationType.NEAREST);
+sliceRep.property.setOpacity(SEGMENT_ACTOR_OPACITY);
+// needed for vtk.js >= 23.0.0
+sliceRep.property.setUseLookupTableScalarRange(true);
+
+// Use one depth offset for every mask within the segmentation renderer.
+sliceRep.mapper.setResolveCoincidentTopologyToPolygonOffset();
+sliceRep.mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(
+  ...SEGMENT_COINCIDENT_OFFSET
+);
+
+watchEffect(() => {
+  if (ijkAxis.value === undefined) return;
+  sliceRep.mapper.setSlicingMode(
+    [SlicingMode.I, SlicingMode.J, SlicingMode.K][ijkAxis.value]
+  );
+});
+// The render mask holds only the viewed plane.
+sliceRep.mapper.setSlice(0);
+
+// set coloring properties
+const applySegmentColoring = () => {
+  const cfun = sliceRep.property.getRGBTransferFunction(0);
+  const ofun = sliceRep.property.getPiecewiseFunction(0);
+
+  if (!cfun || !ofun) throw new Error('Missing transfer functions');
+
+  cfun.removeAllPoints();
+  ofun.removeAllPoints();
+
+  const segment = descriptor.value;
+  if (!segment) return; // segmentation just deleted
+
+  const [r, g, b] = segment.color;
+  cfun.addRGBPoint(0, 0, 0, 0);
+  ofun.addPoint(0, 0);
+  cfun.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
   const normalAlpha = segmentFillAlpha(segment, display.value.fillOpacity);
   const pulseAlpha = segment.visible ? 0.7 * revealPulse.value : 0;
+  ofun.addPoint(segment.value, Math.max(normalAlpha, pulseAlpha));
+  cfun.addRGBPoint(segment.value + 1, 0, 0, 0);
+  ofun.addPoint(segment.value + 1, 0);
+
+  sliceRep.property.modified();
+};
+
+watchEffect(applySegmentColoring);
+
+const outlineThickness = computed(
+  () => display.value.outlineThickness + 3 * revealPulse.value
+);
+sliceRep.property.setUseLabelOutline(true);
+
+watchEffect(() => {
+  const segment = descriptor.value;
+  if (!segment) return; // segmentation just deleted
+
   const { thicknesses, opacities } = segmentOutline(
     segment,
-    display.value.outlineThickness + 3 * revealPulse.value,
+    outlineThickness.value,
     Math.max(display.value.outlineOpacity, revealPulse.value)
   );
-  return {
-    value: segment.value,
-    color: segment.color,
-    fillOpacity: Math.max(normalAlpha, pulseAlpha),
-    outlineThickness: thicknesses[0],
-    outlineOpacity: opacities[0],
-  };
-});
-const sliceRep = useLabelmapRepresentation(view, imageData, appearance, {
-  axis: ijkAxis,
+  sliceRep.property.setLabelOutlineThickness(thicknesses);
+  sliceRep.property.setLabelOutlineOpacity(opacities);
 });
 
 defineExpose(sliceRep);

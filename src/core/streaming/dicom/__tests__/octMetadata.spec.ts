@@ -2,18 +2,17 @@ import dicomParser, { type DataSet } from 'dicom-parser';
 import { deflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentOCTMetadata } from '@/src/enface/dicomMetadata';
+import { augmentOCTMetadata } from '@/src/core/streaming/dicom/octMetadata';
 
 import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
   isOCTMetadata,
-  octGeometryReason,
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
   OPHTHALMIC_TOMOGRAPHY_SOP,
   OPHTHALMIC_BSCAN_ANALYSIS_SOP,
   OPHTHALMIC_EN_FACE_SOP,
-} from '@/src/enface/detection';
+} from '@/src/core/streaming/dicom/octMetadataTags';
 
 import reference from '@/tests/fixtures/oct/reference.json';
 import {
@@ -60,6 +59,9 @@ function hide(data: DataSet, tag: string) {
   data.byteArray[start] = 0x77;
   data.byteArray[start + 1] = 0x77;
 }
+
+const spatialMetadataError = (metadata: Iterable<[string, string]>) =>
+  new Map(metadata).get(OCT_GEOMETRY_ERROR);
 
 async function augmented(bytes = fixtureBytes()) {
   return new Map(
@@ -178,11 +180,11 @@ describe('OCT enhanced spatial metadata', () => {
     expect(await augmented(bytes)).toEqual(await augmented(source));
   });
 
-  it('disables projection when the deflated dataset is truncated', async () => {
+  it('records unreadable spatial metadata when the deflated dataset is truncated', async () => {
     const bytes = deflatedExplicitVR(fixtureBytes());
-    expect(octGeometryReason(await augmented(bytes.subarray(0, -10)))).toMatch(
-      /could not be read|unavailable/
-    );
+    expect(
+      spatialMetadataError(await augmented(bytes.subarray(0, -10)))
+    ).toMatch(/could not be read/);
   });
 
   it('reads the generated OCT fixture and promotes nested geometry', async () => {
@@ -199,22 +201,24 @@ describe('OCT enhanced spatial metadata', () => {
     expect(tags.get(Tags.ImagePositionPatient)).toBe('0\\0\\0');
     expect(tags.get(Tags.OphthalmicVolumetricPropertiesFlag)).toBe('YES');
     expect(tags.get(OCT_SCAN_PATTERN)).toBe('128280');
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
   });
 
-  it('blocks unsupported scan patterns such as radial scans', async () => {
+  it('preserves declared scan patterns such as radial scans', async () => {
     const bytes = fixtureBytes();
     const data = readDataset(bytes);
     overwrite(firstItem(data, 'x00221618'), 'x00080100', '128282');
     const tags = await augmented(bytes);
     expect(isOCTMetadata(tags)).toBe(true);
-    expect(octGeometryReason(tags)).toMatch(/scan pattern.*reconstruction/);
+    expect(tags.get(OCT_SCAN_PATTERN)).toBe('128282');
   });
 
-  it('blocks volumes explicitly marked unsuitable for volumetric processing', async () => {
+  it('preserves declarations marking a volume unsuitable for volumetric processing', async () => {
     const bytes = fixtureBytes();
     overwrite(readDataset(bytes), 'x00221622', 'NO');
-    expect(octGeometryReason(await augmented(bytes))).toMatch(/unsuitable/);
+    expect(
+      (await augmented(bytes)).get(Tags.OphthalmicVolumetricPropertiesFlag)
+    ).toBe('NO');
   });
 
   it('preserves missing pixel spacing for the loader fallback', async () => {
@@ -226,14 +230,14 @@ describe('OCT enhanced spatial metadata', () => {
     hide(measures, 'x00280030');
     const tags = await augmented(bytes);
     expect(isOCTMetadata(tags)).toBe(true);
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
     expect(tags.has(Tags.PixelSpacing)).toBe(false);
   });
 
   it('rejects a per-frame geometry count that disagrees with NumberOfFrames', async () => {
     const bytes = fixtureBytes();
     overwrite(readDataset(bytes), 'x00280008', '31');
-    expect(octGeometryReason(await augmented(bytes))).toMatch(
+    expect(spatialMetadataError(await augmented(bytes))).toMatch(
       /frame.*count|number.*frames/i
     );
   });
@@ -252,7 +256,7 @@ describe('OCT enhanced spatial metadata', () => {
         'x00200037',
         orientation.join('\\')
       );
-      expect(octGeometryReason(await augmented(bytes))).toMatch(
+      expect(spatialMetadataError(await augmented(bytes))).toMatch(
         /orientation|orthonormal|direction/i
       );
     }
@@ -266,7 +270,7 @@ describe('OCT enhanced spatial metadata', () => {
       const position = firstItem(finalFrame, 'x00209113');
       overwrite(position, 'x00200032', '0.0\\0.0\\5.8225');
       expect(
-        octGeometryReason(
+        spatialMetadataError(
           await augmented(deflated ? deflatedExplicitVR(bytes) : bytes)
         )
       ).toMatch(/nonuniform/);
@@ -282,7 +286,7 @@ describe('OCT enhanced spatial metadata', () => {
       'x00200032',
       '1.0\\0.0\\0.1875'
     );
-    expect(octGeometryReason(await augmented(bytes))).toMatch(
+    expect(spatialMetadataError(await augmented(bytes))).toMatch(
       /image grid|nonuniform positions/
     );
   });
@@ -296,7 +300,7 @@ describe('OCT enhanced spatial metadata', () => {
       ]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
     expect(new Map(tags).get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
 
@@ -310,11 +314,11 @@ describe('OCT enhanced spatial metadata', () => {
     const shared = firstItem(readDataset(bytes), 'x52009229');
     hide(firstItem(shared, 'x00209116'), 'x00200037');
     const tags = await augmented(bytes);
-    expect(octGeometryReason(tags)).toMatch(/orientation.*missing/);
+    expect(spatialMetadataError(tags)).toMatch(/orientation.*missing/);
     expect(tags.has(Tags.SpacingBetweenSlices)).toBe(false);
   });
 
-  it('preserves unpositioned projection without patient orientation', async () => {
+  it('preserves unpositioned frames without patient orientation', async () => {
     const bytes = new Uint8Array(
       await enhancedFile(
         [{}, {}],
@@ -324,7 +328,7 @@ describe('OCT enhanced spatial metadata', () => {
     const shared = firstItem(readDataset(bytes), 'x52009229');
     hide(firstItem(shared, 'x00209116'), 'x00200037');
     const tags = await augmented(bytes);
-    expect(octGeometryReason(tags)).toBeNull();
+    expect(spatialMetadataError(tags)).toBeUndefined();
     expect(tags.get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
 
@@ -336,7 +340,7 @@ describe('OCT enhanced spatial metadata', () => {
       ]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/different pixel spacing/);
+    expect(spatialMetadataError(tags)).toMatch(/different pixel spacing/);
   });
 
   it('rejects unequal per-frame slice spacing without positions', async () => {
@@ -344,7 +348,7 @@ describe('OCT enhanced spatial metadata', () => {
       enhancedFile([{ slowSpacing: '0.2' }, { slowSpacing: '0.3' }]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/slice spacing/);
+    expect(spatialMetadataError(tags)).toMatch(/slice spacing/);
   });
 
   it('rejects nonparallel frames', async () => {
@@ -355,7 +359,7 @@ describe('OCT enhanced spatial metadata', () => {
       ]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/not parallel/);
+    expect(spatialMetadataError(tags)).toMatch(/not parallel/);
   });
 
   it.each([
@@ -363,7 +367,7 @@ describe('OCT enhanced spatial metadata', () => {
     [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }, {}],
   ])('rejects partially missing frame positions %#', async (...frames) => {
     const tags = await augmentOCTMetadata(enhancedFile(frames), baseMetadata());
-    expect(octGeometryReason(tags)).toMatch(/incomplete/);
+    expect(spatialMetadataError(tags)).toMatch(/incomplete/);
   });
 
   it('rejects repeated B-scans rather than stacking duplicate locations', async () => {
@@ -371,15 +375,16 @@ describe('OCT enhanced spatial metadata', () => {
       enhancedFile([{ position: '0\\0\\0' }, { position: '0\\0\\0' }]),
       baseMetadata()
     );
-    expect(octGeometryReason(tags)).toMatch(/Repeated/);
+    expect(spatialMetadataError(tags)).toMatch(/Repeated/);
   });
 
-  it('disables projection when OCT spatial metadata cannot be parsed', async () => {
+  it('records unreadable spatial metadata when the OCT header cannot be parsed', async () => {
     const tags = await augmentOCTMetadata(
       new Blob(['corrupt OCT']),
       baseMetadata()
     );
-    expect(new Map(tags).get(OCT_GEOMETRY_ERROR)).toMatch(/could not be read/);
-    expect(octGeometryReason(tags)).toMatch(/unavailable/);
+    expect(spatialMetadataError(tags)).toBe(
+      'OCT spatial metadata could not be read.'
+    );
   });
 });

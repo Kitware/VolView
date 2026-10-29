@@ -68,13 +68,13 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
   }
 
   function serialize(stateFile: StateFile) {
-    createViewConfigSerializer(configs, 'octEnFace')(stateFile);
+    createViewConfigSerializer(configs, 'enFace')(stateFile);
   }
 
   function deserialize(viewID: string, config: Record<string, ViewConfig>) {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
-      if (viewConfig.octEnFace)
-        Object.assign(configFor(viewID, dataID), viewConfig.octEnFace);
+      if (viewConfig.enFace)
+        Object.assign(configFor(viewID, dataID), viewConfig.enFace);
     });
   }
 

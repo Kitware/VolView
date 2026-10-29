@@ -34,7 +34,7 @@ async function expectVisibleVolume() {
 async function expectMethodChangesImage() {
   await waitForEnFaceReady();
   const meanImage = await expectVisibleVolume();
-  await chooseEnFaceProjection('oct-projection-method', 'Maximum');
+  await chooseEnFaceProjection('enface-projection-method', 'Maximum');
   await waitForEnFaceReady();
   await expectVisibleVolume();
   expect((await enFaceAppearance()).image).not.toBe(meanImage);
@@ -82,9 +82,9 @@ describe('Scalar volume projection inputs', () => {
     await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
     await volViewPage.samplesList.$('div[title="MRA Head and Neck"]').click();
     await waitForEnFaceReady();
-    await chooseEnFaceProjection('oct-projection-axis', 'Axial');
+    await chooseEnFaceProjection('enface-projection-axis', 'Axial');
     await setEnFaceWindow(128, 64);
-    await $('[data-testid="oct-en-face-controls"]').click();
+    await $('[data-testid="enface-controls"]').click();
     await expandEnFaceSection('projection');
     await setSlabRange(10, 60);
     await browser.keys('Escape');
@@ -97,7 +97,7 @@ describe('Scalar volume projection inputs', () => {
     await volViewPage.waitForViews();
     await selectEnFace(3);
     await waitForEnFaceReady();
-    await chooseEnFaceProjection('oct-projection-axis', 'Axial');
+    await chooseEnFaceProjection('enface-projection-axis', 'Axial');
     await setEnFaceWindow(1200, 549);
     await expectMethodChangesImage();
   });

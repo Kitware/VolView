@@ -2,15 +2,79 @@ import dicomParser, { type DataSet } from 'dicom-parser';
 import { inflateSync } from 'fflate';
 import { Tags } from '@/src/core/dicomTags';
 import {
-  octDirection,
-  octGridGeometry,
-  sameVector,
-} from '@/src/enface/seriesGeometry';
-import {
   isOCTMetadata,
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
-} from '@/src/enface/detection';
+} from '@/src/core/streaming/dicom/octMetadataTags';
+
+const close = (a: number, b: number) =>
+  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-5;
+const coordinatesMatch = (a: ArrayLike<number>, b: ArrayLike<number>) =>
+  a.length === b.length && Array.from(a).every((n, i) => close(n, b[i]));
+const dot = (a: readonly number[], b: readonly number[]) =>
+  a.reduce((sum, n, i) => sum + n * b[i], 0);
+
+function imageDirection(basis: number[] | null | undefined) {
+  if (!basis || basis.length !== 6 || !basis.every(Number.isFinite))
+    return null;
+  const row = basis.slice(0, 3);
+  const column = basis.slice(3);
+  if (
+    !close(Math.hypot(...row), 1) ||
+    !close(Math.hypot(...column), 1) ||
+    !close(dot(row, column), 0)
+  )
+    return null;
+  return [
+    ...basis,
+    row[1] * column[2] - row[2] * column[1],
+    row[2] * column[0] - row[0] * column[2],
+    row[0] * column[1] - row[1] * column[0],
+  ];
+}
+
+/** Validate equally spaced slices along the positive image normal. */
+function frameGridGeometry(positions: number[][], direction?: number[]) {
+  if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
+    return {
+      reason:
+        'DICOM slice positions are invalid; spatial reconstruction is required.',
+    };
+  if (positions.length < 2) return { reason: null };
+  const step = positions
+    .at(-1)!
+    .map((n, axis) => (n - positions[0][axis]) / (positions.length - 1));
+  const distance = Math.hypot(...step);
+  if (distance <= 1e-5)
+    return {
+      reason: 'Repeated DICOM slice locations need spatial reconstruction.',
+    };
+  if (
+    direction &&
+    !coordinatesMatch(
+      step,
+      direction.slice(6).map((n) => n * distance)
+    )
+  )
+    return {
+      reason:
+        'DICOM slice positions do not follow the image grid; spatial reconstruction is required.',
+    };
+  if (
+    positions.some(
+      (position, i) =>
+        !coordinatesMatch(
+          position,
+          positions[0].map((n, axis) => n + i * step[axis])
+        )
+    )
+  )
+    return {
+      reason:
+        'DICOM slices have nonuniform positions; spatial reconstruction is required.',
+    };
+  return { reason: null, distance };
+}
 
 const SHARED = 'x52009229';
 const PER_FRAME = 'x52009230';
@@ -82,7 +146,7 @@ function frameAttributeMismatch(
   if (!expected) return false;
   return geometry.frames.some((frame) => {
     const value = vector(frameAttribute(frame, sequence, attribute));
-    return value ? !sameVector(value, expected) : false;
+    return value ? !coordinatesMatch(value, expected) : false;
   });
 }
 
@@ -90,10 +154,10 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const positions = geometry.positions.filter((p): p is number[] => !!p);
   if (positions.length > 0 && positions.length !== geometry.positions.length)
     return 'OCT frame positions are incomplete; spatial reconstruction is required.';
-  const direction = octDirection(vector(geometry.orientation));
+  const direction = imageDirection(vector(geometry.orientation));
   if (positions.length > 1 && !direction)
     return 'OCT image orientation is missing; spatial reconstruction is required.';
-  return octGridGeometry(positions, direction ?? undefined).reason;
+  return frameGridGeometry(positions, direction ?? undefined).reason;
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {
@@ -103,7 +167,7 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   )
     return 'OCT frame geometry does not match Number of Frames; spatial reconstruction is required.';
   const orientation = vector(geometry.orientation);
-  if (orientation && !octDirection(orientation))
+  if (orientation && !imageDirection(orientation))
     return 'OCT image orientation is invalid; spatial reconstruction is required.';
   if (frameAttributeMismatch(geometry, MEASURES, 'x00280030', geometry.spacing))
     return 'OCT frames have different pixel spacing; spatial reconstruction is required.';
@@ -204,10 +268,7 @@ export async function augmentOCTMetadata(
     const data = await readOCTHeader(file);
     promoteOCTGeometry(data, tags);
   } catch {
-    tags.set(
-      OCT_GEOMETRY_ERROR,
-      'OCT spatial metadata could not be read; en face projection is unavailable.'
-    );
+    tags.set(OCT_GEOMETRY_ERROR, 'OCT spatial metadata could not be read.');
   }
   return [...tags];
 }

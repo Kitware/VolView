@@ -30,7 +30,6 @@ describe('OCT view availability', () => {
     useImageCacheStore().imageById.pending = markRaw(emptyImage);
     const availability = getEnFaceAvailability('pending');
     expect(availability.available).toBe(false);
-    expect(availability.isOCT).toBe(false);
     expect(availability.reason).toMatch(/volume/);
   });
 
@@ -44,12 +43,10 @@ describe('OCT view availability', () => {
     releaseDecode = fixture.releaseDecode;
     useImageCacheStore().addProgressiveImage(fixture.image, { id: 'pending' });
     const availability = computed(() => getEnFaceAvailability('pending'));
-    expect(availability.value.isOCT).toBe(false);
     expect(availability.value.available).toBe(false);
     await fixture.chunk.loadMeta();
     await fixture.image.addChunks([fixture.chunk]);
     await nextTick();
-    expect(availability.value.isOCT).toBe(true);
     expect(availability.value.reason).toMatch(/complete volume/);
     fixture.image.startLoad();
     fixture.releaseDecode();
@@ -83,7 +80,6 @@ describe('OCT view availability', () => {
       const id = useImageCacheStore().addVTKImageData(data, 'generic.nrrd');
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: false,
-        isOCT: false,
       });
       expect(getEnFaceAvailability(id).reason).toMatch(reason);
     }
@@ -99,7 +95,6 @@ describe('OCT view availability', () => {
     const id = useImageCacheStore().addVTKImageData(data, 'signed.vti');
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
-      isOCT: false,
     });
     expect(data.getSpacing()).toEqual([-0.03, 0.01, 0.2]);
   });
@@ -124,7 +119,6 @@ describe('OCT view availability', () => {
       await untilLoaded(id);
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
-        isOCT: false,
       });
     }
   );
@@ -149,7 +143,6 @@ describe('OCT view availability', () => {
       await untilLoaded('guarded');
       const availability = getEnFaceAvailability('guarded');
       expect(availability.available).toBe(false);
-      expect(availability.isOCT).toBe(true);
       expect(availability.reason).toMatch(
         kind === 'radial' ? /reconstruction/ : /unsuitable/
       );

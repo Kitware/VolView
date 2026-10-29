@@ -150,11 +150,11 @@ describe('Retinal OCT import', () => {
         await openControls();
         expect(
           await $(
-            '.v-overlay--active [data-testid="oct-projection-toggle"]'
+            '.v-overlay--active [data-testid="enface-projection-toggle"]'
           ).getAttribute('aria-expanded')
         ).toBe('true');
         await expandEnFaceSection('projection');
-        await selectSetting('oct-projection-axis', projectionAxis);
+        await selectSetting('enface-projection-axis', projectionAxis);
         await waitForEnFaceReady();
         const display = await $(CANVAS).getSize();
         expect(display.width).toBeGreaterThan(0);
@@ -178,7 +178,7 @@ describe('Retinal OCT import', () => {
         await expandEnFaceSection('projection');
         expect(
           await $(
-            '.v-overlay--active [data-testid="oct-projection-axis"] input'
+            '.v-overlay--active [data-testid="enface-projection-axis"] input'
           ).getValue()
         ).toBe(projectionAxis);
         await expect(slabThumb('start')).toHaveAttribute(

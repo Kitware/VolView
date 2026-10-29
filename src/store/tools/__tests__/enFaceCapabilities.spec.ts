@@ -231,7 +231,6 @@ describe('activating an En face view', () => {
     await nextTick();
     expect(getEnFaceAvailability(dataID)).toMatchObject({
       available: true,
-      isOCT: false,
     });
     tools.setCurrentTool(Tools.WindowLevel);
     expect(tools.currentTool).toBe(Tools.WindowLevel);

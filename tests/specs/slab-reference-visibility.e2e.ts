@@ -11,14 +11,14 @@ import {
 } from './utils';
 
 const STEM = 'slab-reference-visibility';
-const VIEWER = '[data-testid="oct-en-face-viewer"]';
+const VIEWER = '[data-testid="enface-viewer"]';
 const SOURCE = 'div[data-testid~="vtk-two-view"]';
 const tool = (name: string) =>
   $('button[data-testid^="control-button-' + name + ' "]');
 
 async function expectReferenceLines(visible: boolean) {
   const lines = [
-    $(VIEWER).$('[data-testid="oct-slice-lines"] line'),
+    $(VIEWER).$('[data-testid="enface-slice-lines"] line'),
     $(SOURCE).$('[data-testid="reference-lines"] line'),
   ];
   for (const line of lines) {

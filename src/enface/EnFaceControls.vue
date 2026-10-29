@@ -58,7 +58,7 @@ function updateAxis(axis: number) {
     :width="embedded ? '100%' : 300"
     :rounded="embedded ? 0 : 'lg'"
     :flat="embedded"
-    data-testid="oct-rendering-panel"
+    data-testid="enface-rendering-panel"
     @dblclick.stop
   >
     <v-card-title v-if="!embedded" class="controls-title">En face</v-card-title>
@@ -74,7 +74,7 @@ function updateAxis(axis: number) {
           <v-expansion-panel-title
             class="section-title"
             :min-height="36"
-            data-testid="oct-projection-toggle"
+            data-testid="enface-projection-toggle"
             >Projection</v-expansion-panel-title
           >
           <v-expansion-panel-text>
@@ -90,7 +90,7 @@ function updateAxis(axis: number) {
                 class="mb-3"
                 :disabled="!!projectionReason"
                 aria-label="En face projection method"
-                data-testid="oct-projection-method"
+                data-testid="enface-projection-method"
               />
             </ReasonedAction>
             <ReasonedAction
@@ -109,7 +109,7 @@ function updateAxis(axis: number) {
                 class="mb-3"
                 :disabled="!!projectionReason"
                 aria-label="Projection axis"
-                data-testid="oct-projection-axis"
+                data-testid="enface-projection-axis"
               />
             </ReasonedAction>
             <ReasonedAction :reason="projectionReason ?? undefined" block>
@@ -131,7 +131,7 @@ function updateAxis(axis: number) {
                 density="compact"
                 hide-details
                 :disabled="!!projectionReason"
-                data-testid="oct-slab-range"
+                data-testid="enface-slab-range"
               >
                 <template #label>
                   <span class="d-inline-flex align-center">
@@ -145,7 +145,7 @@ function updateAxis(axis: number) {
                         size="x-small"
                         variant="text"
                         aria-label="About slab range"
-                        data-testid="oct-slab-help"
+                        data-testid="enface-slab-help"
                       />
                     </ReasonedAction>
                   </span>

@@ -30,7 +30,7 @@ export function linearSlabSamples(
 }
 
 export async function projectionGrayscaleDistribution() {
-  const source = await $('[data-testid="oct-en-face-canvas"]').getElement();
+  const source = await $('[data-testid="enface-canvas"]').getElement();
   return source.execute((element) => {
     const canvas = element as HTMLCanvasElement;
     const copy = document.createElement('canvas').getContext('2d')!;

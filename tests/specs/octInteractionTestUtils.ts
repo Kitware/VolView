@@ -34,16 +34,17 @@ export const reference = JSON.parse(
   thinColumns: number;
 };
 
-export const CANVAS = '[data-testid="oct-en-face-canvas"]';
+export const CANVAS = '[data-testid="enface-canvas"]';
 
-export const CONTROLS = '[data-testid="oct-en-face-controls"]';
+export const CONTROLS = '[data-testid="enface-controls"]';
 
-export const PANEL = '.v-overlay--active [data-testid="oct-rendering-panel"]';
+export const PANEL =
+  '.v-overlay--active [data-testid="enface-rendering-panel"]';
 
 export const WINDOW_TOOL =
   'button[data-testid^="control-button-Window & Level "]';
 
-export const SLICE_LINE = '[data-testid="oct-slice-lines"] line';
+export const SLICE_LINE = '[data-testid="enface-slice-lines"] line';
 
 export const STEM = 'oct-fixtures';
 
