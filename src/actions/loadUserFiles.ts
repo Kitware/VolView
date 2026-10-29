@@ -275,18 +275,20 @@ export type DataSourceImporter = (
 ) => Promise<ImportDataSourcesResult[]>;
 
 export async function showImportedData(results: ImportResult[]) {
-  const releaseInitialization = useSegmentStore().deferInitialization();
+  const loadDataStore = useLoadDataStore();
+  const primaryDataSource = findBaseDataSource(
+    results,
+    loadDataStore.segmentationExtension,
+    loadDataStore.layerExtension
+  );
+  if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
+
+  const primarySelection = toDataSelection(primaryDataSource);
+  const releaseInitialization = useSegmentStore().deferInitialization([
+    primarySelection,
+  ]);
   try {
-    const loadDataStore = useLoadDataStore();
-
-    const primaryDataSource = findBaseDataSource(
-      results,
-      loadDataStore.segmentationExtension,
-      loadDataStore.layerExtension
-    );
-    if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
-
-    useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
+    useViewStore().setDataForAllViews(primarySelection);
     autoLayerDicoms(primaryDataSource, results);
     autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
     await loadSegmentations(

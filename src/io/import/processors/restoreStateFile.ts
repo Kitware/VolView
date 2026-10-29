@@ -194,7 +194,9 @@ export const createStateFileRestorer = ({
     missingFiles: Array<{ stateID: string; path: string }> = [],
     failedLeaves: Array<{ stateID: string; name: string }> = []
   ) {
-    const releaseInitialization = useSegmentStore().deferInitialization();
+    const releaseInitialization = useSegmentStore().deferInitialization(
+      Object.values(stateIDToStoreID)
+    );
     try {
       const viewStore = views ?? useViewStore();
       const byId = dataSourcesById(manifest);

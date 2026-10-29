@@ -36,8 +36,8 @@ describe('image segment initialization boundaries', () => {
     });
     await seatImage('b');
     await seatImage('c');
-    const releaseOuter = store.deferInitialization();
-    const releaseInner = store.deferInitialization();
+    const releaseOuter = store.deferInitialization(['b', 'c']);
+    const releaseInner = store.deferInitialization(['b', 'c']);
     await showImage('b');
     store.segments.updateSegment(source, {
       name: 'Later',
@@ -58,6 +58,71 @@ describe('image segment initialization boundaries', () => {
       visible: true,
       locked: false,
     });
+  });
+
+  it('copies an existing image before its first edit during an unrelated load', async () => {
+    await viewImage('a');
+    const store = useSegmentStore();
+    const source = store.segments.addSegment('a', { name: 'Liver' });
+    await seatImage('b');
+    const release = store.deferInitialization();
+
+    await showImage('b');
+
+    expect(names('b')).toEqual(['Liver']);
+    const selected = store.segments.selectedSegmentId('b');
+    expect(selected).toBeDefined();
+    expect(selected).not.toBe(source);
+    const segmentation = useSegmentationStore();
+    const target = segmentation.resolveEditTarget('b');
+    expect(segmentation.getMask(target).segmentId).toBe(selected);
+
+    release();
+
+    expect(names('b')).toEqual(['Liver']);
+    expect(store.segments.selectedSegmentId('b')).toBe(selected);
+    expect(names('a')).toEqual(['Liver']);
+  });
+
+  it('reserves new images until their own imported definitions arrive', async () => {
+    await viewImage('a');
+    const store = useSegmentStore();
+    store.segments.addSegment('a', { name: 'Liver' });
+    const release = store.deferInitialization();
+    await seatImage('incoming');
+
+    await showImage('incoming');
+
+    expect(names('incoming')).toEqual([]);
+    expect(store.segments.imageSets.value.incoming).toBeUndefined();
+    const imported = store.segments.mintSegment('incoming', { name: 'Tumor' });
+    release();
+
+    expect(names('incoming')).toEqual(['Tumor']);
+    expect(store.segments.selectedSegmentId('incoming')).toBe(imported);
+    expect(names('a')).toEqual(['Liver']);
+  });
+
+  it('settles a destination while a different destination remains reserved', async () => {
+    await viewImage('a');
+    const store = useSegmentStore();
+    store.segments.addSegment('a', { name: 'Liver' });
+    await seatImage('b');
+    await seatImage('c');
+    const releaseB = store.deferInitialization(['b']);
+    const releaseC = store.deferInitialization(['c']);
+    await showImage('b');
+    await showImage('a');
+    await showImage('c');
+
+    releaseB();
+
+    expect(names('b')).toEqual(['Liver']);
+    expect(names('c')).toEqual([]);
+    releaseB();
+    expect(names('c')).toEqual([]);
+    releaseC();
+    expect(names('c')).toEqual(['Liver']);
   });
 
   it('restores an explicit empty set without borrowing from the current image', async () => {

@@ -55,8 +55,17 @@ export const useSegmentStore = defineStore('segments', () => {
   const activeImageId = computed(
     () => viewStore.getView(viewStore.activeView)?.dataID
   );
-  let pendingLoads = 0;
+  const initializationReservations = new Set<{
+    knownImages: Set<string>;
+    imageIds: Set<string>;
+  }>();
   const pendingSets = new Map<string, SegmentSetSnapshot>();
+
+  const initializationDeferred = (imageId: string) =>
+    [...initializationReservations].some(
+      ({ knownImages, imageIds }) =>
+        imageIds.has(imageId) || !knownImages.has(imageId)
+    );
 
   const defaultSnapshot = (): SegmentSetSnapshot => ({
     segments: seedSegmentDefaults.value.map((segment) => ({
@@ -75,7 +84,7 @@ export const useSegmentStore = defineStore('segments', () => {
           ? registry.snapshot(previousImageId)
           : (previousImageId && pendingSets.get(previousImageId)) ||
             defaultSnapshot();
-      if (pendingLoads) {
+      if (initializationDeferred(imageId)) {
         if (!pendingSets.has(imageId)) pendingSets.set(imageId, source);
       } else registry.initializeSet(imageId, source);
     },
@@ -83,19 +92,24 @@ export const useSegmentStore = defineStore('segments', () => {
   );
 
   /** Imports install their definitions before a plain image borrows a set. */
-  function deferInitialization() {
-    pendingLoads += 1;
-    let released = false;
+  function deferInitialization(imageIds: readonly string[] = []) {
+    const reservation = {
+      knownImages: new Set(imageCacheStore.imageIds),
+      imageIds: new Set(imageIds),
+    };
+    initializationReservations.add(reservation);
     return () => {
-      if (released) return;
-      released = true;
-      pendingLoads -= 1;
-      if (pendingLoads) return;
+      if (!initializationReservations.delete(reservation)) return;
       pendingSets.forEach((source, imageId) => {
-        if (imageCacheStore.imageById[imageId])
+        if (!imageCacheStore.imageById[imageId]) {
+          pendingSets.delete(imageId);
+          return;
+        }
+        if (!initializationDeferred(imageId)) {
           registry.initializeSet(imageId, source);
+          pendingSets.delete(imageId);
+        }
       });
-      pendingSets.clear();
     };
   }
 
