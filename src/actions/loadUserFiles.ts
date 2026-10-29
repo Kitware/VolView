@@ -135,7 +135,9 @@ function filterMatchingNames(
     .filter(({ name }) => {
       if (!name) return false;
       const hasExtension = isSegmentation(extension, name);
-      const nameMatchesPrimary = name.startsWith(primaryNamePrefix);
+      const nameMatchesPrimary =
+        name.startsWith(primaryNamePrefix) &&
+        /^[._-]/.test(name.slice(primaryNamePrefix.length));
       return hasExtension && nameMatchesPrimary;
     })
     .map(({ importResult }) => importResult);
