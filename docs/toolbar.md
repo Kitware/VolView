@@ -14,19 +14,22 @@ Window / Level, Pan, Zoom, or Crosshairs: Select these options to control the fu
 
 ## 2D Annotations
 
-The "Annotations" tab lists segments shared by paint, rectangles, polygons and rulers.
+The "Annotations" tab lists the current image's segments, shared by paint, rectangles,
+polygons and rulers.
 Select a segment in the list, use `q` and `w` to cycle through segments, or press `1`
 through `0` to select one of the first ten (each row shows its key). Use "New segment"
 to add one, and its color dot or edit button to change its name and appearance. Drag a
 row, or press Alt+Up or Alt+Down, to reorder segments and their keys. The selection
-applies across all four tools and images.
+applies across all four tools on that image. Each image keeps its own definitions,
+order and selection. A new image copies the previous image's definitions once,
+without copying its masks or shapes.
 
 Each segment row has Reveal, Edit, Lock, Hide and Delete buttons. Reveal jumps to the
 segment's mask or shapes on the current image and stays disabled when it has none
 there. A locked segment keeps its voxels when another segment paints over it, and
 cannot be edited or deleted until it is unlocked. Delete removes the segment with its
-masks and shapes from every image. The buttons beside the "Segments" heading lock or
-hide every segment at once and save the current image's segments. Saving writes one
+masks and shapes from the current image. The buttons beside the "Segments" heading
+lock or hide every segment on that image at once and save its segments. Saving writes one
 file, or several bundled into a zip when segments overlap or number more than 65535.
 
 The "Display" section sets Fill Opacity, Outline Opacity and Outline Thickness for the
@@ -95,8 +98,9 @@ New rulers use the selected segment from "Annotations".
 
 ### Segment configuration
 
-If VolView loads a JSON file matching the schema below, segments are added to the
-registry. Paint, rectangles, polygons and rulers all share `segments`. Appearance
+If VolView loads a JSON file matching the schema below, it configures segment
+definitions for the destination images and defaults for future images. Paint,
+rectangles, polygons and rulers share `segments` on each image. Appearance
 fields are optional. See [segment configuration](./configuration_file.md#segments)
 for replacement behavior and how omitted fields use session appearance or defaults.
 

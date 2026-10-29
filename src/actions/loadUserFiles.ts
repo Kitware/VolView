@@ -10,7 +10,7 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { wrapInArray, nonNullable, partition } from '@/src/utils';
+import { wrapInArray, nonNullable, partition, ensureError } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
@@ -32,6 +32,7 @@ import {
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { useViewStore } from '@/src/store/views';
+import { useMessageStore } from '@/src/store/messages';
 
 // higher value priority is preferred for picking a primary selection
 const BASE_MODALITY_TYPES = {
@@ -277,7 +278,7 @@ export type DataSourceImporter = (
   services?: ImportServices
 ) => Promise<ImportDataSourcesResult[]>;
 
-export async function showImportedData(results: ImportResult[]) {
+export function showImportedData(results: ImportResult[]) {
   const loadDataStore = useLoadDataStore();
   const primaryDataSource = findBaseDataSource(
     results,
@@ -294,13 +295,20 @@ export async function showImportedData(results: ImportResult[]) {
     useViewStore().setDataForAllViews(primarySelection);
     autoLayerDicoms(primaryDataSource, results);
     autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
-    await loadSegmentations(
+    void loadSegmentations(
       primaryDataSource,
       results,
       loadDataStore.segmentationExtension
-    );
-  } finally {
+    )
+      .catch((error) =>
+        useMessageStore().addError('Failed to import segmentations', {
+          error: ensureError(error),
+        })
+      )
+      .finally(releaseInitialization);
+  } catch (error) {
     releaseInitialization();
+    throw error;
   }
 }
 
@@ -347,7 +355,7 @@ function loadDataSourcesWithOutcome(
       .every((view) => !view.dataID);
 
     if (succeeded.length && shouldShowData) {
-      await showImportedData(succeeded);
+      showImportedData(succeeded);
     }
 
     // Every error importDataSources returns is unreported by contract

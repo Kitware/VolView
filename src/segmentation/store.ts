@@ -476,8 +476,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * Starts a conversion nobody awaits, and reports its failure. A conversion
-   * outlives the load or the click that started it, and the parent image can
+   * Starts a conversion and reports its failure. A conversion can outlive
+   * the load or the click that started it, and the parent image can
    * be removed while the resample runs, so the rejection needs somewhere to
    * land instead of going unhandled.
    */

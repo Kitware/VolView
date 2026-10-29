@@ -368,6 +368,9 @@ export const ImageSegmentSet = z.object({
   imageId: z.string(),
   segmentIds: z.string().array(),
   selectedSegmentId: z.string().optional(),
+  // Migration-only: datasets can resolve to the same image, whose copies of
+  // each legacy shared definition must resolve to one segment.
+  legacySegmentIds: z.record(z.string(), z.string()).optional(),
 });
 
 export type ImageSegmentSet = z.infer<typeof ImageSegmentSet>;

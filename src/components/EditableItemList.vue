@@ -237,10 +237,17 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
 .create-row {
   opacity: var(--v-medium-emphasis-opacity);
   text-align: left;
+  border-radius: 4px;
+}
+
+.create-row:hover:enabled,
+.create-row:focus-visible {
+  background-color: rgba(var(--v-theme-on-surface), var(--v-hover-opacity));
 }
 
 .create-row:disabled {
   opacity: var(--v-disabled-opacity);
+  pointer-events: none;
 }
 
 .create-icon {

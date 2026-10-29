@@ -133,12 +133,9 @@ describe('7.0.0 image segment ownership migration', () => {
     }
   });
 
-  it('records initialized empty sets and omits an invalid old selection', () => {
+  it('leaves images uninitialized when the legacy catalog is empty', () => {
     const migrated = migrate({ segments: [], selectedSegment: 'missing' });
-    expect(migrated.imageSegmentSets).toEqual([
-      { imageId: 'a', segmentIds: [] },
-      { imageId: 'b', segmentIds: [] },
-    ]);
+    expect(migrated.imageSegmentSets).toEqual([]);
   });
 
   it('preserves repeated ids for restore reporting without changing references', () => {
@@ -195,6 +192,7 @@ describe('7.0.0 image segment ownership migration', () => {
 
   it('leaves an 8.0.0 archive unchanged, including a deliberately empty set', () => {
     const manifest = migrate({ segments: [] });
+    manifest.imageSegmentSets = [{ imageId: 'a', segmentIds: [] }];
     expect(migrateManifest(JSON.stringify(manifest))).toEqual(manifest);
   });
 });

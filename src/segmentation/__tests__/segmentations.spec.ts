@@ -586,7 +586,7 @@ describe('segmentation store', () => {
 
     it('creates a record again when its segment was deleted', async () => {
       const { two } = await seatTwoImages();
-      const tumor = segments().addSegment('img-1', { name: 'Tumor' });
+      const tumor = segments().addSegment('img-2', { name: 'Tumor' });
       const first = store().resolveEditTarget('img-2');
 
       deleteSegmentOf(first);

@@ -14,6 +14,7 @@ import { fileToDataSource } from '@/src/io/import/dataSource';
 import { registerConfigSection } from '@/src/io/import/configJson';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
 import { useDatasetStore } from '@/src/store/datasets';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useViewStore } from '@/src/store/views';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -190,7 +191,8 @@ describe('image segment initialization through public loading', () => {
       const views = useViewStore();
       const imageId = views.getView(views.activeView)!.dataID!;
       expect(ids).toContain(imageId);
-      expect(picker(imageId)()).toEqual(['Tumor']);
+      const names = picker(imageId);
+      await vi.waitFor(() => expect(names()).toEqual(['Tumor']));
       expect(paintedName(imageId)).toBe('Tumor');
     });
   });
@@ -342,6 +344,61 @@ describe('standalone config destination during asynchronous loading', () => {
       );
     }
   );
+});
+
+describe('background labelmap conversion', () => {
+  it('finishes the file load while its segmentation is still streaming', async () => {
+    await loadFiles([configFile('Liver')]);
+    const cache = useImageCacheStore();
+    let streamingId: string | undefined;
+    const unsubscribe = cache.$onAction(({ name, args, after }) => {
+      if (name === 'addVTKImageData' && args[1] === 'stream.seg.vti')
+        after((id) => {
+          streamingId = id;
+          cache.imageById[id].status.value = 'incomplete';
+        });
+    });
+    try {
+      const ids = await loadFiles([
+        imageFile('stream.vti'),
+        imageFile('stream.seg.vti', true),
+      ]);
+      expect(ids).toHaveLength(2);
+      expect(useLoadDataStore().isLoading).toBe(false);
+      const views = useViewStore();
+      const imageId = views.getView(views.activeView)!.dataID!;
+      const names = picker(imageId);
+      expect(names()).toEqual([]);
+      cache.imageById[streamingId!].status.value = 'complete';
+      await vi.waitFor(() => expect(names()).toEqual(['Tumor']));
+      expect(paintedName(imageId)).toBe('Tumor');
+    } finally {
+      unsubscribe();
+      if (streamingId) cache.imageById[streamingId].status.value = 'complete';
+    }
+  });
+});
+
+describe('configuration archives', () => {
+  it('ignores Finder metadata when applying a standalone configuration archive', async () => {
+    const [imageId] = (await loadFiles([
+      imageFile('active.vti'),
+      configFile('Liver'),
+    ]))!;
+    const zip = new JSZip();
+    zip.file('config.json', await configFile('Tumor').text());
+    zip.file('__MACOSX/._config.json', 'AppleDouble metadata');
+    const reportError = vi.spyOn(useLoadDataStore(), 'setError');
+    const ids = await loadFiles([
+      new File(
+        [await zip.generateAsync({ type: 'arraybuffer' })],
+        'config.zip'
+      ),
+    ]);
+    expect(ids).toEqual([]);
+    expect(picker(imageId)()).toEqual(['Tumor']);
+    expect(reportError).not.toHaveBeenCalled();
+  });
 });
 
 describe('destination scope when companion data imports fail', () => {

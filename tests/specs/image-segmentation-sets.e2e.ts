@@ -14,6 +14,7 @@ import {
 import {
   addSegment,
   deleteSegment,
+  dropImageOnView,
   lockSegment,
   openAnnotationSegments,
   renameSegment,
@@ -24,10 +25,17 @@ import {
   selectSegment,
   waitForSegmentContent,
 } from './segmentationTestUtils';
+import {
+  buildSyntheticCineDicom,
+  buildSyntheticDicom,
+  newUid,
+} from './syntheticDicom';
 
 const FIRST = 'segment-owner-a.mha';
 const SECOND = 'segment-owner-b.mha';
 const volumeCards = () => $$('.image-list-card');
+const active2DView = () =>
+  $('.grid-item[style*="mediumseagreen"] [data-testid~="vtk-two-view"]');
 
 const showImage = async (name: string) => {
   await $('button[data-testid="module-tab-Data"]').click();
@@ -43,13 +51,13 @@ const showImage = async (name: string) => {
     )
   );
   await openAnnotationSegments();
-  const views = await volViewPage.getViews2D();
-  await volViewPage.waitForLoadingIndicator(views[0]);
+  await volViewPage.waitForLoadingIndicator(active2DView());
 };
 
 const paint = async () => {
-  const views = await volViewPage.getViews2D();
-  await volViewPage.paintStrokeOnView(views[0]);
+  const view = active2DView();
+  await view.waitForDisplayed();
+  await volViewPage.paintStrokeOnView(view);
 };
 
 const expectSegments = async (names: string[]) => {
@@ -82,6 +90,108 @@ const createSourceDefinitions = async () => {
 };
 
 describe('Image segmentation sets', () => {
+  it('keeps configured definitions independent for two DICOM series and cine imported together', async () => {
+    const folder = 'segment-owner-dicom-batch';
+    const directory = makeTempDir(folder);
+    const studyUid = newUid();
+    const resources: string[] = [];
+    for (const seriesNumber of [101, 202]) {
+      const seriesUid = newUid();
+      for (let slice = 0; slice < 2; slice++) {
+        const filename = `series-${seriesNumber}-${slice}.dcm`;
+        writeFileSync(
+          path.join(directory, filename),
+          buildSyntheticDicom({
+            studyUid,
+            seriesUid,
+            sopUid: newUid(),
+            seriesNumber,
+            instanceNumber: slice + 1,
+            imageOrientationPatient: [1, 0, 0, 0, 1, 0],
+            imagePositionPatient: [0, 0, slice],
+            rows: 16,
+            cols: 16,
+            pixelValue: seriesNumber + slice,
+          })
+        );
+        resources.push(`tmp/${folder}/${filename}`);
+      }
+    }
+    writeFileSync(
+      path.join(directory, 'cine.dcm'),
+      buildSyntheticCineDicom({
+        studyUid,
+        seriesUid: newUid(),
+        sopUid: newUid(),
+        seriesNumber: 303,
+        rows: 16,
+        cols: 16,
+      })
+    );
+    writeFileSync(
+      path.join(directory, 'config.json'),
+      JSON.stringify({ segments: { Tumor: { color: 'red' }, Liver: {} } })
+    );
+    resources.push(`tmp/${folder}/cine.dcm`, `tmp/${folder}/config.json`);
+    await volViewPage.open(`?urls=[${resources.join(',')}]`);
+    await volViewPage.waitForViews();
+    await expect($$('.volume-card')).toBeElementsArrayOfSize(3);
+
+    const showSeries = async (name: string) => {
+      await $('button[data-testid="module-tab-Data"]').click();
+      await waitForModuleTransitions();
+      const titles = await $$('.volume-card .series-desc .text-ellipsis');
+      const names = await titles.map((title) => title.getText());
+      expect(names).toContain(name);
+      const title = titles[names.indexOf(name)];
+      await title.scrollIntoView();
+      await title.waitForClickable();
+      await title.click();
+      await openAnnotationSegments();
+      await expect($('[data-testid="segment-image-name"]')).toHaveText(name);
+    };
+
+    await showSeries('101');
+    await expectSegments(['Tumor', 'Liver']);
+    await renameSegment('Tumor', 'Lesion');
+    await showSeries('202');
+    await expectSegments(['Tumor', 'Liver']);
+    await showSeries('Synthetic cine');
+    await expectSegments(['Tumor', 'Liver']);
+    await expect($('[data-testid~="vtk-cine-view"]')).toBeDisplayed();
+    await showSeries('101');
+    await expectSegments(['Lesion', 'Liver']);
+    expect(await volViewPage.getNotificationsCount()).toEqual(0);
+  });
+
+  it('copies reordered definitions and a nonfirst selection through an empty view', async () => {
+    await openImages();
+    await createSourceDefinitions();
+    await volViewPage.selectTool('mdi-cursor-default');
+    await (await segmentRow('Liver')).$('.reorder-handle').click();
+    await browser.keys(['Alt', 'ArrowUp']);
+    await expectSegments(['Liver', 'Tumor']);
+    expect(await selectedSegmentName()).toEqual('Tumor');
+
+    await volViewPage.layoutButton.click();
+    const gridCell = $('.v-menu .grid-cell:nth-child(6) .grid-cell-box');
+    await gridCell.waitForDisplayed();
+    await gridCell.waitForStable();
+    await gridCell.moveTo();
+    await gridCell.click();
+    await expect($$('.grid-item')).toBeElementsArrayOfSize(6);
+    await expect($$('.grid-item')[4].$('.overlay')).toBeDisplayed();
+    await dropImageOnView(SECOND, 4);
+    await openAnnotationSegments();
+
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(SECOND);
+    await expectSegments(['Liver', 'Tumor']);
+    expect(await selectedSegmentName()).toEqual('Tumor');
+    await expect(
+      (await segmentRow('Tumor')).$('[data-testid="reveal-segment-button"]')
+    ).toBeDisabled();
+  });
+
   it('keeps a failed companion image config off the current image and accepts a standalone config', async () => {
     writeMetaImage(FIRST, { size: 32 });
     await writeManifestToFile(

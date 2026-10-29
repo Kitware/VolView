@@ -538,7 +538,7 @@ const {
 }
 
 .segment-items :deep(.item-row),
-.segment-items :deep(.create-row) {
+.segment-items :deep(.create-row-content) {
   padding-inline: 16px;
 }
 

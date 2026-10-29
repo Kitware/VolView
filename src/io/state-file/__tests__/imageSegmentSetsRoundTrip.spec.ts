@@ -9,6 +9,7 @@ import {
   manifestForImages,
   seatImage,
   serializeToStateFiles,
+  showImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
@@ -144,6 +145,9 @@ describe('image segment set persistence', () => {
       manifest,
       inMemoryArtifactIO()
     );
+    saved.imageSegmentSets.forEach((set: Record<string, unknown>) =>
+      expect(set).not.toHaveProperty('legacySegmentIds')
+    );
     expect(
       saved.imageSegmentSets.find(
         ({ imageId }: { imageId: string }) => imageId === 'image-b'
@@ -183,6 +187,30 @@ describe('image segment set persistence', () => {
         .serializeTools()
         .tools.map(({ imageID }) => imageID)
     ).toEqual(['restored-a']);
+  });
+
+  it('lets an untouched legacy image borrow labels added after restore', async () => {
+    const manifest = ManifestSchema.parse(
+      migrateManifest(
+        JSON.stringify({
+          ...manifestForImages(['a', 'b']),
+          version: '7.0.0',
+          segments: [],
+        })
+      )
+    );
+    await seatImage('image-a');
+    await seatImage('image-b');
+    await completeStateFileRestore(manifest, [], {
+      a: 'image-a',
+      b: 'image-b',
+    });
+    const registry = useSegmentStore().segments;
+    registry.addSegment('image-a', { name: 'Tumor' });
+    await showImage('image-b');
+    expect(registry.segmentList('image-b').map(({ name }) => name)).toEqual([
+      'Tumor',
+    ]);
   });
 
   it('skips a mask that names another image segment without losing valid masks', async () => {

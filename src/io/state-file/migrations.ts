@@ -555,7 +555,8 @@ const migrate700To800 = (inputManifest: any) => {
   ]);
   const idsByImage = new Map<string, Map<string, string>>();
   const segments: any[] = [];
-  const imageSegmentSets = imageIds.map((imageId, imageIndex) => {
+  const imageSegmentSets = imageIds.flatMap((imageId, imageIndex) => {
+    if (catalog.length === 0) return [];
     const segmentIds = new Map<string, string>();
     idsByImage.set(imageId, segmentIds);
     catalog.forEach((segment, segmentIndex) => {
@@ -579,6 +580,9 @@ const migrate700To800 = (inputManifest: any) => {
     return {
       imageId,
       segmentIds: [...segmentIds.values()],
+      legacySegmentIds: Object.fromEntries(
+        [...segmentIds].map(([legacyId, id]) => [id, legacyId])
+      ),
       ...(selectedSegmentId ? { selectedSegmentId } : {}),
     };
   });

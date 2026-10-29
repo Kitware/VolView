@@ -187,6 +187,10 @@ describe('importing a labelmap onto a parent image', () => {
     async (_kind, values) => {
       await seatImage('parent-img', { name: 'CT' });
       await seatImage('healthy-img', { name: 'MR' });
+      const healthySegment = useSegmentStore().segments.addSegment(
+        'healthy-img',
+        { name: 'Surviving label' }
+      );
       await seatImage('child-img', { name: 'Tumor.seg.nrrd', values });
       const decoding = defer<void>();
       const started = defer<void>();
@@ -217,6 +221,11 @@ describe('importing a labelmap onto a parent image', () => {
       await expect(conversion).rejects.toThrow(/no longer loaded/i);
       expect(store().getSegmentationForImage('parent-img')).toBeUndefined();
       expect(useImageCacheStore().imageById['healthy-img']).toBeDefined();
+      expect(
+        useSegmentStore()
+          .segments.segmentList('healthy-img')
+          .map(({ id }) => id)
+      ).toEqual([healthySegment]);
       expect(useSegmentStore().segments.segmentList('parent-img')).toEqual([]);
       expect(boundMasks()).toEqual([]);
     }

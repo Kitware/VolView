@@ -192,6 +192,10 @@ without a previous set, configuration defaults apply. An emptied set stays empty
 through switching and session restore. Removing an image deletes its definitions but
 keeps configuration defaults.
 
+Opening a saved session restores its defaults for future images, replacing any
+configuration defaults already in the app, including when the saved defaults are
+empty. Configuration loaded alongside that session applies afterward.
+
 ### Legacy `labels`
 
 A legacy `labels` section is converted into `segments` at configuration ingestion, with

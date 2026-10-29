@@ -33,16 +33,20 @@ stores or upper feature modules.
 
 ## Editing and persistence
 
-On first activation, an image without a segment set copies the previous image's
+On first activation, an image without a segment set copies the last active image's
 definitions, order and selection, or configured defaults if no previous set exists.
 Copies have fresh identities, start visible and unlocked, and contain no masks or
 shapes. Imports and restore defer initialization only for their destination images
 until their own definitions are installed. Existing sets, including empty ones,
-are never reseeded.
+are never reseeded. An edit during loading initializes the pending copy before
+creating content, so the edit keeps its labels when loading finishes.
 
 Manifest 8.0.0 saves image membership, order, selection and defaults. Migration
 splits older shared catalogs by image without duplicating voxels. Restore preserves
-distinct saved identities even when datasets resolve to the same image.
+distinct saved identities even when datasets resolve to the same image, while
+copies of the same legacy definition resolve to one segment on that image.
+Open saved sessions with a build that supports their manifest version; earlier
+builds cannot preserve the image ownership recorded in 8.0.0.
 
 Process previews temporarily occupy live mask storage. Starting a competing
 edit cancels the preview before writing. Save and export also cancel an

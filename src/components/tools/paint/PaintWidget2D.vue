@@ -174,16 +174,18 @@ export default defineComponent({
     });
 
     // Turn on widget visibility and update stencil if mouse starts within view
+    const enterView = () => {
+      pointerInView.value = true;
+      if (imageId.value) viewStore.setActiveView(viewId.value);
+    };
     const showPreviewOnFirstMove = () => {
       if (!checkIfPointerInView) return;
       checkIfPointerInView = false;
-      pointerInView.value = true;
+      enterView();
     };
     onVTKEvent(view.interactor, 'onMouseMove', showPreviewOnFirstMove);
 
-    onVTKEvent(view.interactor, 'onMouseEnter', () => {
-      pointerInView.value = true;
-    });
+    onVTKEvent(view.interactor, 'onMouseEnter', enterView);
 
     onVTKEvent(view.interactor, 'onMouseLeave', () => {
       pointerInView.value = false;

@@ -153,6 +153,17 @@ describe('masks dropped during restore', () => {
     ]);
   });
 
+  it('distinguishes orphan definitions from segments missing from the file', async () => {
+    const { skipped, masks } = await restoreTampered((parsed) => {
+      delete parsed.imageSegmentSets;
+    });
+    expect(masks).toEqual([]);
+    expect(skipped.map(({ reason }) => reason)).toEqual([
+      'its segment did not restore',
+      'its segment did not restore',
+    ]);
+  });
+
   // A parent image the restore never mapped is as lost as one whose data
   // failed to load, and its masks go the same way: 'we dropped two masks' has
   // to read differently from 'that image had none'.

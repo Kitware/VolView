@@ -624,11 +624,12 @@ describe('image segment sets', () => {
       locked: true,
       strokeWidth: 4,
     });
-    registry.addSegment('first', { name: 'Node' });
+    const node = registry.addSegment('first', { name: 'Node' });
+    registry.moveSegment(node, first);
     registry.selectSegment(first);
 
     registry.initializeSet('second', registry.snapshot('first'));
-    const [copied] = registry.segmentList('second');
+    const [copiedNode, copied] = registry.segmentList('second');
 
     expect(copied).toMatchObject({
       name: 'Tumor',
@@ -638,12 +639,13 @@ describe('image segment sets', () => {
       strokeWidth: 4,
     });
     expect(copied.id).not.toBe(first);
+    expect(namesOf(registry, 'second')).toEqual(['Node', 'Tumor']);
     expect(registry.selectedSegmentId('second')).toBe(copied.id);
     registry.updateSegment(copied.id, { name: 'Lesion', locked: true });
-    registry.moveSegment(copied.id, registry.segmentList('second')[1].id, true);
+    registry.moveSegment(copied.id, copiedNode.id);
     registry.deleteSegment(copied.id);
 
-    expect(namesOf(registry, 'first')).toEqual(['Tumor', 'Node']);
+    expect(namesOf(registry, 'first')).toEqual(['Node', 'Tumor']);
     expect(registry.getSegment(first)?.locked).toBe(true);
     expect(registry.selectedSegmentId('first')).toBe(first);
     expect(namesOf(registry, 'second')).toEqual(['Node']);

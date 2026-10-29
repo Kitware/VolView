@@ -33,4 +33,23 @@ describe('restoring a manifest whose segments repeat an id', () => {
       { details: '- segment: Spleen (repeats the id of an earlier segment)' }
     );
   });
+
+  it.each([undefined, []])(
+    'reports orphan definitions when image memberships are %j',
+    async (imageSegmentSets) => {
+      await seatImage('parent');
+      const manifest = manifestForImages(['parent'], {
+        segments: [segment('orphan', 'Unassigned')],
+        imageSegmentSets,
+      });
+      const addWarning = vi.fn();
+      await createStateFileRestorer({ addWarning })(manifest, [], {
+        parent: 'parent',
+      });
+      expect(addWarning).toHaveBeenCalledExactlyOnceWith(
+        'Some scene content could not be restored',
+        { details: '- segment: Unassigned (is not assigned to an image)' }
+      );
+    }
+  );
 });

@@ -84,6 +84,31 @@ export const selectedSegmentName = () =>
     `${SEGMENT_LIST} .item-row.v-list-item--active .v-list-item-title`
   ).getText();
 
+/** Drops an imported image's card onto a layout slot through its DOM handlers. */
+export const dropImageOnView = async (name: string, slotIndex: number) => {
+  await $('button[data-testid="module-tab-Data"]').click();
+  const card = $(`.image-list-card:has([title="${name}"])`);
+  await card.waitForDisplayed();
+  await browser.execute(
+    (source, destination) => {
+      const transfer = new DataTransfer();
+      const dispatch = (element: HTMLElement, type: string) =>
+        element.dispatchEvent(
+          new DragEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: transfer,
+          })
+        );
+      dispatch(source, 'dragstart');
+      dispatch(destination, 'dragenter');
+      dispatch(destination, 'drop');
+    },
+    await card,
+    await $$('.grid-item')[slotIndex]
+  );
+};
+
 /** Page-coordinate top of the Segments list, for asserting it has not moved. */
 export const segmentListTop = async () =>
   (await $(SEGMENT_LIST).getLocation()).y;

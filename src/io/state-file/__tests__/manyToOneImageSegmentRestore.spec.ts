@@ -210,12 +210,38 @@ describe('saved image sets resolving to one runtime image', () => {
     expectBothContents();
   });
 
+  it('binds legacy masks and shapes from different slices to their shared definition', async () => {
+    const old = { ...incoming(), version: '7.0.0', selectedSegment: 'red' };
+    old.segments = old.segments!.slice(0, 1);
+    old.segmentations = old.segmentations!.slice(0, 1);
+    old.tools!.rulers!.tools[1].segmentId = 'red';
+    const manifest = ManifestSchema.parse(migrateManifest(JSON.stringify(old)));
+    const { skipped, repeated } = await restoreMerged(manifest);
+    const registry = useSegmentStore().segments;
+    expect(registry.segmentList('merged').map(({ name }) => name)).toEqual([
+      'Tumor',
+    ]);
+    const [mask] = useSegmentationStore().imageMasks('merged');
+    expect(
+      useRulerStore()
+        .serializeTools()
+        .tools.map(({ segmentId }) => segmentId)
+    ).toEqual([mask.segmentId, mask.segmentId]);
+    expect(skipped).toEqual([]);
+    expect(repeated).toEqual([]);
+  });
+
   it('preserves distinct legacy global definitions when their images resolve together', async () => {
     const old = { ...incoming(), version: '7.0.0', selectedSegment: 'red' };
     const manifest = ManifestSchema.parse(migrateManifest(JSON.stringify(old)));
     const { skipped, repeated } = await restoreMerged(manifest);
     expect(skipped).toEqual([]);
     expect(repeated).toEqual([]);
+    expect(
+      useSegmentStore()
+        .segments.segmentList('merged')
+        .map(({ name }) => name)
+    ).toEqual(['Tumor', 'Tumor (2)']);
     expectBothContents();
   });
 

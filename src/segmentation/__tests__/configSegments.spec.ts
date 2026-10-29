@@ -410,4 +410,65 @@ describe('configured defaults without an active image', () => {
     expect(segments().appearanceOf(second).cssColor).toBe('#0000ff');
     expect(typeNames()).toEqual(['Tumor', 'Node']);
   });
+
+  it('keeps configured identities when a copied image is renamed and reconfigured', async () => {
+    await seatAndView('img-1');
+    applyConfig(TWO_TYPES);
+    const user = segments().mintSegment('img-1', { name: 'User' });
+    await seatAndView('img-2');
+    const copied = segments().findSegmentByName('img-2', 'Tumor')!.id;
+    segments().updateSegment(copied, { name: 'Lesion' });
+
+    applyConfig(TWO_TYPES);
+
+    expect(segments().findSegmentByName('img-2', 'Tumor')!.id).toBe(copied);
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ name }) => name)
+    ).toEqual(['Tumor', 'Node', 'User']);
+    applyConfig({ segments: {} });
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ name }) => name)
+    ).toEqual(['User']);
+    expect(segments().getSegment(user)?.name).toBe('User');
+    expect(typeNames()).toEqual(['Tumor', 'Node', 'User']);
+  });
+
+  it('can clear defaults that initialized an image before any source image existed', async () => {
+    applyConfig(TWO_TYPES);
+    await seatAndView('img-1');
+
+    applyConfig({ segments: {} });
+
+    expect(typeNames()).toEqual([]);
+  });
+
+  it('resets omitted appearance when configuration initialized an image from defaults', async () => {
+    applyConfig({ segments: { Tumor: { color: 'red', fillOpacity: 0.3 } } });
+    await seatAndView('img-1');
+    const id = segmentIdNamed('Tumor');
+
+    applyConfig({ segments: { Tumor: {} } });
+
+    expect(segments().getSegment(id)?.fillOpacity).toBeUndefined();
+    expect(segments().appearanceOf(id).fillOpacity).toBe(1);
+    expect(segmentIdNamed('Tumor')).toBe(id);
+  });
+
+  it('uses the same automatic configured colors for fresh rows and future defaults', async () => {
+    await seatAndView('img-1');
+    segments().mintSegment('img-1', { name: 'User' });
+    applyConfig({ segments: { First: {}, Second: {} } });
+    const defaults = useSegmentStore().seedSegmentDefaults;
+
+    expect(segments().findSegmentByName('img-1', 'First')!.color).toEqual(
+      defaults[0].color
+    );
+    expect(segments().findSegmentByName('img-1', 'Second')!.color).toEqual(
+      defaults[1].color
+    );
+  });
 });

@@ -12,8 +12,8 @@ import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
 
-// One registry holds the segments every tool draws into, so cycling it is not
-// scoped to a tool: paint takes the selection the same way a polygon does.
+// Each image shares its selection across tools, so cycling applies equally to
+// paint and shape placement on the active image.
 const applySegmentOffset = (offset: number) => () => {
   const { segments } = useSegmentStore();
   const { currentImageID } = useCurrentImage('global');

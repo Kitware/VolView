@@ -243,8 +243,11 @@ export const createStateFileRestorer = ({
 
       // Registries first: masks and shapes both name a segment, and the
       // ids they name are minted here.
-      const { segmentIdMap, repeated: repeatedSegments } =
-        useSegmentStore().deserialize(manifest, stateIDToStoreID);
+      const {
+        segmentIdMap,
+        repeated: repeatedSegments,
+        unassigned,
+      } = useSegmentStore().deserialize(manifest, stateIDToStoreID);
 
       const { skipped: skippedLabelmaps } =
         await useSegmentationStore().deserialize({
@@ -299,6 +302,9 @@ export const createStateFileRestorer = ({
         ...repeatedSegments.map(
           ({ name }) =>
             `- segment: ${name} (repeats the id of an earlier segment)`
+        ),
+        ...unassigned.map(
+          ({ name }) => `- segment: ${name} (is not assigned to an image)`
         ),
       ];
       if (missing.length > 0) {
