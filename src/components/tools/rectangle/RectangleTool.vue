@@ -21,6 +21,7 @@
 </template>
 
 <script lang="ts">
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useToolStore } from '@/src/store/tools';
@@ -73,7 +74,11 @@ export default defineComponent({
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
     const { currentImageID } = useCurrentImage();
-    const isToolActive = computed(() => toolStore.currentTool === toolType);
+    const isToolActive = computed(
+      () =>
+        toolStore.currentTool === toolType &&
+        !useSegmentStore().initializationReason(currentImageID.value)
+    );
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     // --- active tool management --- //

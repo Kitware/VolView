@@ -99,19 +99,20 @@ describe('Annotations sidebar', () => {
     }
   });
 
-  it('selects one segment on ruler activation and uses it for the placement', async () => {
+  it('creates and selects one segment when ruler placement begins', async () => {
     const { centerX, centerY } = await setupTest();
 
     await volViewPage.selectTool('mdi-ruler');
     await openAnnotationSegments();
-    await waitForNamedSegments();
-    expect(await segmentNames()).toEqual(['Segment 1']);
-    expect(await selectedSegmentName()).toEqual('Segment 1');
+    expect(await segmentNames()).toEqual([]);
 
     // vtk.js ignores the first pointer move after an idle period, and the
     // sidebar work above is one, so each end is nudged onto and then pressed.
     await nudgeTo(centerX - 40, centerY);
     await pressAtPointer();
+    await waitForNamedSegments();
+    expect(await segmentNames()).toEqual(['Segment 1']);
+    expect(await selectedSegmentName()).toEqual('Segment 1');
     await nudgeTo(centerX + 40, centerY);
     await pressAtPointer();
 
@@ -216,6 +217,7 @@ describe('Annotations sidebar', () => {
     await setupTest();
     await volViewPage.selectTool('mdi-ruler');
     await openAnnotationSegments();
+    await addSegment();
     await lockSegment('Segment 1');
     const row = await segmentRow('Segment 1');
     const controls = [
@@ -266,6 +268,7 @@ describe('Annotations sidebar', () => {
     await setupTest();
     await volViewPage.selectTool('mdi-ruler');
     await openAnnotationSegments();
+    await addSegment();
     const row = await segmentRow('Segment 1');
     const edit = row.$('[data-testid="edit-segment-button"]');
     const dialog = () => $('div[role="dialog"]');
@@ -344,7 +347,7 @@ describe('Annotations sidebar', () => {
       ['segment-color-button', 'Change color for Lesion'],
       ['reveal-segment-button', 'Reveal slice for Lesion'],
       ['edit-segment-button', 'Edit Lesion'],
-      ['delete-segment-button', 'Delete Lesion from every image'],
+      ['delete-segment-button', 'Delete Lesion from this image'],
       ['save-segments-button', 'Save segments'],
     ];
     for (const [testId, label] of controls) {

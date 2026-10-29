@@ -235,7 +235,7 @@ export const usePlacingAnnotationTool = (
   // The stub follows the selection, so it is drawn in the segment it will join.
   const patch = computed(() => ({
     ...metadata.value,
-    segmentId: selectedSegmentId.value ?? '',
+    segmentId: selectedSegmentId(metadata.value.imageID) ?? '',
   }));
 
   const commit = () => {
@@ -247,6 +247,7 @@ export const usePlacingAnnotationTool = (
 
   const add = () => {
     if (id.value) throw new Error('Placing tool already exists.');
+    if (useSegmentStore().initializationReason(metadata.value.imageID)) return;
     id.value = store.addTool({
       ...patch.value,
       placing: true,
@@ -268,6 +269,7 @@ export const usePlacingAnnotationTool = (
   // The first gesture is what mints, so the shape resolves its segment as
   // placement starts rather than when it lands.
   const beginPlacement = () => {
+    if (useSegmentStore().initializationReason(metadata.value.imageID)) return;
     const id_ = id.value as Maybe<ToolID>;
     if (id_) store.resolveToolSegment(id_);
   };

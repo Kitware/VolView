@@ -9,7 +9,8 @@ import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { wrapInArray, nonNullable, partition } from '@/src/utils';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { wrapInArray, nonNullable, partition, ensureError } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
 import { logError } from '@/src/utils/loggers';
@@ -29,6 +30,7 @@ import {
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { useViewStore } from '@/src/store/views';
+import { useMessageStore } from '@/src/store/messages';
 
 // higher value priority is preferred for picking a primary selection
 const BASE_MODALITY_TYPES = {
@@ -235,7 +237,7 @@ function autoLayerByName(
 // Converts other DataSources into segments on the primary image:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
-function loadSegmentations(
+async function loadSegmentations(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>,
   segmentationExtension: string
@@ -261,13 +263,14 @@ function loadSegmentations(
   });
 
   const segmentationStore = useSegmentationStore();
-  [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
-    const loadable = toDataSelection(ds);
-    segmentationStore.startLabelmapConversion(
-      loadable,
-      toDataSelection(primaryDataSource)
-    );
-  });
+  await Promise.all(
+    [...otherSegVolumesInStudy, ...matchingNames].map((ds) =>
+      segmentationStore.startLabelmapConversion(
+        toDataSelection(ds),
+        toDataSelection(primaryDataSource)
+      )
+    )
+  );
 }
 
 export type DataSourceImporter = (
@@ -276,7 +279,6 @@ export type DataSourceImporter = (
 
 export function showImportedData(results: ImportResult[]) {
   const loadDataStore = useLoadDataStore();
-
   const primaryDataSource = findBaseDataSource(
     results,
     loadDataStore.segmentationExtension,
@@ -284,14 +286,30 @@ export function showImportedData(results: ImportResult[]) {
   );
   if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
 
-  useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
-  autoLayerDicoms(primaryDataSource, results);
-  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
-  loadSegmentations(
-    primaryDataSource,
-    results,
-    loadDataStore.segmentationExtension
-  );
+  const primarySelection = toDataSelection(primaryDataSource);
+  const releaseInitialization = useSegmentStore().deferInitialization([
+    primarySelection,
+  ]);
+  try {
+    useViewStore().setDataForAllViews(primarySelection);
+    autoLayerDicoms(primaryDataSource, results);
+    autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
+    const completed = loadSegmentations(
+      primaryDataSource,
+      results,
+      loadDataStore.segmentationExtension
+    )
+      .catch((error) =>
+        useMessageStore().addError('Failed to import segmentations', {
+          error: ensureError(error),
+        })
+      )
+      .finally(releaseInitialization);
+    return { completed };
+  } catch (error) {
+    releaseInitialization();
+    throw error;
+  }
 }
 
 type LoadDataSourcesOutcome = {
@@ -358,21 +376,8 @@ function loadDataSourcesWithOutcome(
     };
   };
 
-  const wrapWithLoading = <Args extends unknown[], Result>(
-    fn: (...args: Args) => Promise<Result>
-  ) => {
-    const { startLoading, stopLoading } = useLoadDataStore();
-    return async function wrapper(...args: Args): Promise<Result> {
-      try {
-        startLoading();
-        return await fn(...args);
-      } finally {
-        stopLoading();
-      }
-    };
-  };
-
-  return wrapWithLoading(load)();
+  loadDataStore.startLoading();
+  return load().finally(() => loadDataStore.stopLoading());
 }
 
 export function loadDataSources(

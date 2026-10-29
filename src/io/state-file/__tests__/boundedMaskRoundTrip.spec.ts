@@ -142,7 +142,10 @@ async function roundTrip(io: LabelmapIO, tamper?: (manifest: any) => void) {
     manifest: parsed,
     stateFiles: stateFiles,
     dataIDMap: { 'img-1': 'new-1', 'img-2': 'new-2' },
-    segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+      'img-2': 'new-2',
+    }).segmentIdMap,
     io: io,
   });
   await nextTick();
@@ -164,10 +167,7 @@ describe('bounded masks through the state file', () => {
     await roundTrip(inMemoryArtifactIO());
 
     expect(snapshot('new-1')).toEqual(before.first);
-    // The session repeats the name, so the later segment restores numbered.
-    expect(snapshot('new-2')).toEqual([
-      { ...before.second[0], name: 'Tumor (2)' },
-    ]);
+    expect(snapshot('new-2')).toEqual(before.second);
     // Spelled out once, so the equality above cannot pass on two full-extent
     // masks that happen to match each other.
     expect(snapshot('new-1')[0]).toMatchObject({
@@ -200,7 +200,8 @@ describe('bounded masks through the state file', () => {
         manifest: parsed,
         stateFiles: stateFiles,
         dataIDMap: dataIDMap,
-        segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+        segmentIdMap: useSegmentStore().deserialize(parsed, dataIDMap)
+          .segmentIdMap,
         io: io,
       });
     await restore();
@@ -259,7 +260,7 @@ describe('bounded masks through the state file', () => {
           { name: 'Node', ...node },
           { name: 'Planned', ...planned },
           { name: 'Unbound', extent: undefined },
-          { name: 'Tumor (3)', ...tumor },
+          { name: 'Tumor (2)', ...tumor },
           { name: 'Node (2)', ...node },
           { name: 'Planned (2)', ...planned },
           { name: 'Unbound (2)', extent: undefined },
@@ -268,8 +269,8 @@ describe('bounded masks through the state file', () => {
       {
         parent: 'img-2',
         masks: [
+          { name: 'Tumor', ...other },
           { name: 'Tumor (2)', ...other },
-          { name: 'Tumor (4)', ...other },
         ],
       },
     ]);
@@ -299,7 +300,10 @@ describe('bounded masks through the state file', () => {
       manifest: parsed,
       stateFiles: stateFiles,
       dataIDMap: { 'img-1': 'img-1', 'img-2': 'img-2' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(parsed, {
+        'img-1': 'img-1',
+        'img-2': 'img-2',
+      }).segmentIdMap,
       io: io,
     });
     await nextTick();
@@ -349,7 +353,7 @@ describe('bounded masks through the state file', () => {
     ).find((mask) => nameOf(mask) === 'Tumor')!;
     const secondTumor = listMasks(
       store().getSegmentationForImage('new-2')!
-    ).find((mask) => nameOf(mask) === 'Tumor (2)')!;
+    ).find((mask) => nameOf(mask) === 'Tumor')!;
     expect(firstTumor.representations.labelmap).toBeDefined();
     expect(secondTumor.representations.labelmap).toBeDefined();
     expect(markedVoxels(firstTumor.id)).toEqual([

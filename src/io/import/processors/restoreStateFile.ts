@@ -186,8 +186,8 @@ type RestoreServices = {
 export const createStateFileRestorer = ({
   addWarning = (title, options) => useMessageStore().addWarning(title, options),
   views,
-}: RestoreServices = {}) =>
-  async function restoreState(
+}: RestoreServices = {}) => {
+  async function restoreScene(
     manifest: Manifest,
     stateFiles: FileEntry[],
     stateIDToStoreID: Record<string, string>,
@@ -203,8 +203,11 @@ export const createStateFileRestorer = ({
     );
 
     // Registries first: masks and shapes name the segment identities minted here.
-    const { segmentIdMap, repeated: repeatedSegments } =
-      useSegmentStore().deserialize(manifest);
+    const {
+      segmentIdMap,
+      repeated: repeatedSegments,
+      unassigned,
+    } = useSegmentStore().deserialize(manifest, stateIDToStoreID);
 
     // Restore camera and contrast before asynchronous mask decoding.
     useViewConfigStore().deserializeAll(
@@ -252,7 +255,11 @@ export const createStateFileRestorer = ({
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-    useToolStore().deserialize(manifest, segmentIdMap, stateIDToStoreID);
+    const skippedTools = useToolStore().deserialize(
+      manifest,
+      segmentIdMap,
+      stateIDToStoreID
+    );
 
     const missingBases = unresolvedDatasets.map((ds) =>
       summarizeDataSource(
@@ -290,9 +297,17 @@ export const createStateFileRestorer = ({
       ...skippedLabelmaps.map(
         ({ name, reason }) => `- labelmap: ${name} (${reason})`
       ),
-      ...repeatedSegments.map(
-        ({ name }) =>
-          `- segment: ${name} (repeats the id of an earlier segment)`
+      ...skippedTools.map(
+        ({ name, reason }) => `- annotation: ${name} (${reason})`
+      ),
+      ...new Set(
+        repeatedSegments.map(
+          ({ name }) =>
+            `- segment: ${name} (repeats the id of an earlier segment)`
+        )
+      ),
+      ...unassigned.map(
+        ({ name }) => `- segment: ${name} (is not assigned to an image)`
       ),
     ];
     if (missing.length > 0) {
@@ -300,7 +315,22 @@ export const createStateFileRestorer = ({
         details: missing.join('\n'),
       });
     }
+  }
+
+  // Each destination image installs its saved segments before a view can
+  // seed it with a copy.
+  return async function restoreState(...args: Parameters<typeof restoreScene>) {
+    const [, , stateIDToStoreID] = args;
+    const releaseInitialization = useSegmentStore().deferInitialization(
+      Object.values(stateIDToStoreID)
+    );
+    try {
+      await restoreScene(...args);
+    } finally {
+      releaseInitialization();
+    }
   };
+};
 
 export const completeStateFileRestore = createStateFileRestorer();
 

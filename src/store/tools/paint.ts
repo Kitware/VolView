@@ -222,10 +222,11 @@ export const usePaintToolStore = defineStore('paint', () => {
   }
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
+    if (useSegmentStore().initializationReason(imageID)) return;
     // Asked before anything else: cancelling a preview and resolving the target
     // (which mints the mask and its segmentation) are both side effects a
     // refused stroke must not have.
-    if (segmentationStore.editTargetLocked()) return;
+    if (segmentationStore.editTargetLocked(imageID)) return;
 
     const parentImage = useImageCacheStore().getVtkImageData(imageID);
     if (!parentImage) return;

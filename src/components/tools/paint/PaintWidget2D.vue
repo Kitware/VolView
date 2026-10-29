@@ -70,11 +70,18 @@ export default defineComponent({
 
     // --- widget representation config --- //
 
-    const { segments } = useSegmentStore();
+    const segmentStore = useSegmentStore();
+    const { segments } = segmentStore;
+    const editingAvailable = computed(
+      () => !segmentStore.initializationReason(imageId.value)
+    );
+    const pointerInView = ref(false);
     watchEffect(() => {
-      const [r, g, b] = segments.appearanceOf(
-        segments.selectedSegmentId.value
-      ).color;
+      if (!pointerInView.value) return;
+      const segmentId = segments.selectedSegmentId(imageId.value);
+      const [r, g, b] = segmentId
+        ? segments.appearanceOf(segmentId).color
+        : segments.nextSegmentColor(imageId.value);
       widgetState.getBrush().setColor3([r, g, b]);
     });
 
@@ -97,7 +104,7 @@ export default defineComponent({
     // --- interaction --- //
 
     onVTKEvent(widget, 'onStartInteractionEvent', (event) => {
-      if (!imageId.value) return;
+      if (!imageId.value || !editingAvailable.value) return;
       const origin = widgetState.getBrush().getOrigin()!;
       if (event?.sampling) {
         paintStore.selectSegmentAt(vec3.clone(origin), imageId.value);
@@ -113,7 +120,7 @@ export default defineComponent({
     });
 
     onVTKEvent(widget, 'onInteractionEvent', () => {
-      if (!imageId.value) return;
+      if (!imageId.value || !editingAvailable.value) return;
       const origin = widgetState.getBrush().getOrigin()!;
       paintStore.placeStrokePoint(
         vec3.clone(origin),
@@ -151,7 +158,6 @@ export default defineComponent({
     // --- visibility --- //
 
     let checkIfPointerInView = false;
-    const pointerInView = ref(false);
     watchEffect(() => {
       if (pointerInView.value && imageId.value) {
         paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
@@ -160,7 +166,9 @@ export default defineComponent({
     const cursorStyles = view.widgetManager.getCursorStyles();
     watchEffect(() => {
       widget.setSampling(sampling.value);
-      widget.setVisibility(pointerInView.value && !sampling.value);
+      widget.setVisibility(
+        pointerInView.value && !sampling.value && editingAvailable.value
+      );
       const cursor = sampling.value
         ? `url("${eyedropperCursor}") 2 22, crosshair`
         : cursorStyles.default;
@@ -173,23 +181,26 @@ export default defineComponent({
     });
 
     // Turn on widget visibility and update stencil if mouse starts within view
+    const enterView = () => {
+      pointerInView.value = true;
+    };
     const showPreviewOnFirstMove = () => {
       if (!checkIfPointerInView) return;
       checkIfPointerInView = false;
-      pointerInView.value = true;
+      enterView();
     };
     onVTKEvent(view.interactor, 'onMouseMove', showPreviewOnFirstMove);
 
-    onVTKEvent(view.interactor, 'onMouseEnter', () => {
-      pointerInView.value = true;
-    });
+    onVTKEvent(view.interactor, 'onMouseEnter', enterView);
 
     onVTKEvent(view.interactor, 'onMouseLeave', () => {
       pointerInView.value = false;
     });
 
     watchEffect(() => {
-      widget.setEnabled(paintStore.isPaintingModeActive);
+      widget.setEnabled(
+        paintStore.isPaintingModeActive && editingAvailable.value
+      );
     });
 
     // Brush size scroll wheel control with customizable modifier key

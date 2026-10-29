@@ -7,6 +7,7 @@ import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import SegmentationConversionProgress from '@/src/components/SegmentationConversionProgress.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   isRegularImage,
   type DataSelection,
@@ -167,6 +168,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (currentImageID.value) {
+        useSegmentStore().prepareForEdit(currentImageID.value);
         segmentationStore.startLabelmapConversion(key, currentImageID.value);
       }
     }

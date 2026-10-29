@@ -80,7 +80,7 @@ import ControlButton from '@/src/components/ControlButton.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
-import { useToolStore, getToolUnavailableReason } from '@/src/store/tools';
+import { useToolStore } from '@/src/store/tools';
 import { useEffectiveView } from '@/src/composables/useEffectiveView';
 import { toRef } from 'vue';
 import MenuControlButton from '@/src/components/MenuControlButton.vue';
@@ -162,8 +162,7 @@ export default defineComponent({
     const toolUnavailableReason = (tool: Tools) => {
       if (tool === Tools.Paint)
         return toolStore.paintUnavailableReason || undefined;
-      const effective = activeEffective.value;
-      const sharedReason = getToolUnavailableReason(tool, effective);
+      const sharedReason = toolStore.toolUnavailableReason(tool);
       if (sharedReason) return sharedReason;
       if (tool === Tools.WindowLevel && windowingUnavailableReason.value)
         return windowingUnavailableReason.value;

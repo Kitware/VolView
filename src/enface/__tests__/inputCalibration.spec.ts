@@ -48,7 +48,7 @@ async function inputFor(pixelSpacing: string, oblique = false) {
 async function mountInput(id: string) {
   const image = useImageCacheStore().getVtkImageData(id)!;
   const segmentation = useSegmentationStore();
-  const segment = useSegmentStore().segments.addSegment({ name: 'Layer' });
+  const segment = useSegmentStore().segments.addSegment(id, { name: 'Layer' });
   const mask = segmentation.createMask(
     segmentation.ensureSegmentationForImage(id).id,
     segment

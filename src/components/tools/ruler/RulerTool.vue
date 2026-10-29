@@ -10,6 +10,7 @@
         :view-id="viewId"
         :view-direction="viewDirection"
         @contextmenu="openContextMenu(ruler.id, $event)"
+        @placing="onPlacementStarted"
         @placed="onRulerPlaced"
         @widgetHover="onHover(ruler.id, $event)"
       />
@@ -20,6 +21,7 @@
 </template>
 
 <script lang="ts">
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { computed, defineComponent, onUnmounted, PropType, toRefs } from 'vue';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -65,7 +67,11 @@ export default defineComponent({
 
     const { locator, frame, slice } = useViewLocator(viewId, imageId);
 
-    const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
+    const isToolActive = computed(
+      () =>
+        toolStore.currentTool === Tools.Ruler &&
+        !useSegmentStore().initializationReason(imageId.value)
+    );
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
 
     // --- active ruler management --- //
@@ -129,6 +135,7 @@ export default defineComponent({
     return {
       rulers: currentRulers,
       placingRulerID: placingTool.id,
+      onPlacementStarted: placingTool.beginPlacement,
       onRulerPlaced,
       contextMenu,
       openContextMenu,

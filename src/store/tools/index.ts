@@ -11,10 +11,10 @@ import { useRectangleStore } from './rectangles';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 import { useToolSelectionStore } from './toolSelection';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   EffectiveView,
   getEffectiveView,
@@ -54,13 +54,11 @@ export function getToolUnavailableReason(
     return null;
   return getEnFaceUnavailableReason(effective.renderDataID);
 }
-// These tools draw into the selected segment, so picking one up seats a
-// segment: the palette shows the color the next stroke will be before it is
-// made. Seating allocates no voxels.
-const SEGMENT_TOOLS = new Set([
+
+const SEGMENT_EDIT_TOOLS = new Set([
   Tools.Paint,
-  Tools.Rectangle,
   Tools.Ruler,
+  Tools.Rectangle,
   Tools.Polygon,
 ]);
 
@@ -141,8 +139,17 @@ export const useToolStore = defineStore('tool', () => {
   const currentTool = ref(Tools.WindowLevel);
   const toolBeforeTemporaryCrosshairs = ref<Tools>();
   const { currentImageID } = useCurrentImage('global');
+  const segmentEditingUnavailableReason = computed(() =>
+    useSegmentStore().initializationReason(currentImageID.value)
+  );
+  const segmentToolUnavailableReason = (tool: Tools) =>
+    SEGMENT_EDIT_TOOLS.has(tool) ? segmentEditingUnavailableReason.value : '';
+  const toolUnavailableReason = (tool: Tools) =>
+    getToolUnavailableReason(tool, activeEffectiveView()) ||
+    segmentToolUnavailableReason(tool);
 
   function setCurrentTool(tool: Tools) {
+    if (segmentToolUnavailableReason(tool)) return;
     const effective = activeEffectiveView();
     const coerced = coerceForEffective(tool, effective);
     if (coerced === tool && getToolUnavailableReason(tool, effective)) return;
@@ -158,15 +165,13 @@ export const useToolStore = defineStore('tool', () => {
     }
     teardownTool(currentTool.value);
     currentTool.value = coerced;
-    // A shortcut can pick a tool up with no image, where a seat would linger.
-    if (SEGMENT_TOOLS.has(coerced) && currentImageID.value) {
-      useSegmentStore().segments.ensureSelectedSegment();
-    }
   }
 
   // Shared by the toolbar and the Paint hints, so no hint asks for a disabled tool.
   const paintUnavailableReason = computed(() => {
     if (!currentImageID.value) return 'Load an image to paint';
+    if (segmentEditingUnavailableReason.value)
+      return segmentEditingUnavailableReason.value;
     const effective = activeEffectiveView();
     if (effective?.kind === 'cine') return 'A clip cannot be painted';
     if (effective?.viewInfo.type === 'EnFace')
@@ -190,7 +195,12 @@ export const useToolStore = defineStore('tool', () => {
     if (previous === undefined) return;
     toolBeforeTemporaryCrosshairs.value = undefined;
     useCrosshairsToolStore().setDragging(false);
-    applyToolSelection(coerceForEffective(previous, activeEffectiveView()));
+    applyToolSelection(
+      coerceForEffective(
+        segmentToolUnavailableReason(previous) ? Tools.Select : previous,
+        activeEffectiveView()
+      )
+    );
   }
 
   watch(
@@ -222,11 +232,12 @@ export const useToolStore = defineStore('tool', () => {
     segmentIdMap: Record<string, string>,
     dataIDMap: Record<string, string>
   ) {
-    Object.values(ToolStoreMap)
+    const skipped = Object.values(ToolStoreMap)
       .map((useStore) => useStore?.())
       .filter((store): store is IToolStore => !!store)
-      .forEach((store) => {
-        store.deserialize?.(manifest, dataIDMap, segmentIdMap);
+      .flatMap((store) => {
+        const result = store.deserialize?.(manifest, dataIDMap, segmentIdMap);
+        return Array.isArray(result) ? result : [];
       });
 
     if (manifest.tools?.current) {
@@ -235,11 +246,13 @@ export const useToolStore = defineStore('tool', () => {
         activeEffectiveView()
       );
     }
+    return skipped;
   }
 
   return {
     currentTool,
     paintUnavailableReason,
+    toolUnavailableReason,
     setCurrentTool,
     serialize,
     deserialize,
