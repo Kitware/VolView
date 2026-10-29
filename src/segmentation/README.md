@@ -1,19 +1,16 @@
 # Segmentation
 
-Each image owns a set of segment definitions, including their order and selected
-segment. Paint, rectangles, polygons and rulers on that image share identity and
-appearance. A segmentation contains the image's masks and display settings; each
-segment has at most one mask, allocated only when needed.
+Each image owns segment definitions, order and selection, shared by Paint,
+rectangles, polygons and rulers. A segmentation holds its masks and display
+settings. Each segment has at most one mask, allocated only when needed.
 
 ## Module ownership
 
 - `segment.ts`, `model.ts`, `geometry.ts`, and `color.ts` define the model and
   calculations. They do not depend on stores or components.
 - `segments.ts` and `segmentRegistry.ts` own image sets, identity, selection and
-  appearance. Stores holding masks or annotation tools declare their segment
-  references on the registry, which hands them the removal. Removing an image
-  deletes its definitions. Configured seed defaults remain available for future
-  images.
+  appearance. Stores register mask and shape references for cascading removal.
+  Removing an image deletes its definitions; configured defaults survive.
 - `deleteSegment.ts` guards locked segments before deleting their masks and
   shapes.
 - `store.ts` owns mask identity, attachment, lookup, and lifecycle. Import and
@@ -35,18 +32,16 @@ stores or upper feature modules.
 
 ## Editing and persistence
 
-A plain image first selected for editing receives a one-time copy of the previous
-image's definitions, with fresh identities, visible and unlocked, and no masks or
-shapes. Without a previous set it uses configured defaults. Imports and restore
-finish installing their own definitions before automatic copying can run. An
-existing set, including an intentionally empty one, is never populated again.
-Each load reserves only its actual image destinations from publication through
-configuration, restore and display. Unrelated pending loads do not defer an
-image's initialization.
-The version 8 session manifest saves image membership and selection, and migrates
-older shared catalogs into separate identities for each image without copying
-voxel storage. Distinct saved identities remain distinct when several saved
-datasets resolve to the same runtime image, including unused catalog entries.
+On first activation, an image without a segment set copies the previous image's
+definitions, order and selection, or configured defaults if no previous set exists.
+Copies have fresh identities, start visible and unlocked, and contain no masks or
+shapes. Imports and restore defer initialization only for their destination images
+until their own definitions are installed. Existing sets, including empty ones,
+are never reseeded.
+
+Manifest 8.0.0 saves image membership, order, selection and defaults. Migration
+splits older shared catalogs by image without duplicating voxels. Restore preserves
+distinct saved identities even when datasets resolve to the same image.
 
 Process previews temporarily occupy live mask storage. Starting a competing
 edit cancels the preview before writing. Save and export also cancel an
@@ -60,8 +55,8 @@ uses a separate original snapshot. Resolved storage stays with the process
 manager and is checked again after asynchronous computation.
 
 Mask creation refuses missing or foreign-owned segment identities and duplicate
-image/segment pairs. Attachment accepts prepared storage only for an unbound mask. Readers
-must distinguish an existing mask record from allocated voxel storage.
+image/segment pairs. Attachment accepts prepared storage only for an unbound mask.
+Readers must distinguish an existing mask record from allocated voxel storage.
 
 An erase never shrinks a mask's allocation, so an edit that leaves a mask
 holding no voxel deletes that mask when the edit ends: a paint or erase stroke,
@@ -69,24 +64,20 @@ a polygon fill, or an applied process. The segment stays.
 
 ## Ordering and overlap
 
-Each image's segment order controls its sidebar, shortcuts, selection and picking, and on
-export each mask's label value and the file it lands in. It does not control
-what is drawn on top: overlapping segments blend in the slice view, and moving
-one above another leaves the overlap looking the same. Per-image mask order
-preserves insertion and restored file order.
+Each image's segment order controls its sidebar, shortcuts, selection, picking,
+export label values and file grouping. Overlapping segments blend in the slice view
+regardless of order. Mask order preserves insertion and restored file order.
 
 Aimed writes, such as paint and polygon fills, clear unlocked neighbors and
 preserve locked neighbors. With the Paint panel's Allow Overlap switch on, which
 is never saved, aimed writes leave every neighbor alone and may overlap them.
-Processes preserve voxels already held by other segments. Import matches
-segment identities by exact name within the destination image, keeping its
-appearance and locks, unless that segment already has a mask, in which case the
-import takes a new segment with a numbered name. Restore matches within the
-same destination too, joining an existing segment only while it holds no mask or
-shape, and giving it the session's appearance; otherwise the restored segment
-takes a numbered name. Label values
-no listed mask reads bind as import does, except that a migrated group carrying
-display of its own always takes new segments.
+Processes preserve voxels already held by other segments.
+
+Import and restore match exact segment names within the destination image. Import
+reuses a segment without a mask, keeping its appearance and locks. Restore reuses
+one without a mask or shape and applies the saved appearance. When a match cannot
+be reused, a new segment gets a numbered name. Unlisted voxel labels follow import rules;
+migrated groups with their own display settings always create new segments.
 
 ## Labelmap interchange
 

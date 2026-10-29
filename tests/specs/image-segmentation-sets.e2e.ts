@@ -63,8 +63,9 @@ const expectSegments = async (names: string[]) => {
 const openImages = async () => {
   writeMetaImage(FIRST, { size: 32, step: 3 });
   writeMetaImage(SECOND, { size: 32, step: 5 });
-  await volViewPage.open(`?urls=[tmp/${FIRST},tmp/${SECOND}]`);
+  await volViewPage.open(`?urls=[tmp/${FIRST}]`);
   await volViewPage.waitForViews();
+  await openThroughDialog(path.join(TEMP_DIR, SECOND));
   await browser.waitUntil(async () => (await volumeCards().length) === 2);
   await showImage(FIRST);
 };
