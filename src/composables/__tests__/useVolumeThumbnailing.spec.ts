@@ -39,6 +39,7 @@ function createStubThumbnailer(capture?: Promise<string>) {
     opacityFuncProxy: noopProxy,
     colorTransferFuncProxy: noopProxy,
     setInputImage: NOOP,
+    setPreset: NOOP,
     resetCameraWithOrientation: NOOP,
     delete() {
       deleted = true;
@@ -66,8 +67,12 @@ function mountThumbnailing(
 ) {
   const component = defineComponent({
     setup() {
-      useVolumeThumbnailing(64, () => thumbnailer);
-      return () => h('div');
+      const { currentThumbnails } = useVolumeThumbnailing(
+        64,
+        () => thumbnailer
+      );
+      return () =>
+        h('img', { src: currentThumbnails.value['Adaptive-Balanced'] ?? '' });
     },
   });
   return mount(component, {
@@ -135,5 +140,21 @@ describe('useVolumeThumbnailing', () => {
     await flushPromises();
 
     expect(stub.getCaptureCount()).toBeGreaterThan(1);
+  });
+  it('keeps the thumbnail map renderable when a volume finishes loading', async () => {
+    const uri = 'data:image/png;base64,dGh1bWJuYWls';
+    const stub = createStubThumbnailer(Promise.resolve(uri));
+    addImageToCache();
+    const image = useImageCacheStore().imageById[IMAGE_ID];
+    image.loaded.value = false;
+    const wrapper = mountThumbnailing(stub.thumbnailer, ref(IMAGE_ID));
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe('');
+
+    image.loaded.value = true;
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe(uri);
+    wrapper.unmount();
+    await flushPromises();
   });
 });

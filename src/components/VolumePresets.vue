@@ -10,6 +10,10 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { getColorFunctionRangeFromPreset } from '@/src/utils/vtk-helpers';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
+import {
+  getAdaptiveVolumePresetDescription,
+  isAdaptiveVolumePreset,
+} from '@/src/utils/adaptiveVolumePreset';
 
 const THUMBNAIL_SIZE = 80;
 
@@ -30,7 +34,8 @@ export default defineComponent({
     const volumeColoringStore = useVolumeColoringStore();
     const viewId = computed(() => props.viewId);
 
-    const { currentImageID, currentImageData } = useCurrentImage();
+    const { currentImageID, currentImageData, currentImage } =
+      useCurrentImage();
 
     useVolumeColoringInitializer(viewId, currentImageID);
 
@@ -49,6 +54,20 @@ export default defineComponent({
     const selectedPreset = computed(
       () => colorTransferFunctionRef.value?.preset || null
     );
+    const adaptiveUnavailableReason = computed(() => {
+      const image = currentImageData.value;
+      if (!image) return 'Load a grayscale volume to use adaptive presets';
+      if (!currentImage.value?.isLoaded())
+        return 'Wait for the complete volume to load';
+      const scalars = image.getPointData().getScalars();
+      if (scalars.getNumberOfComponents() !== 1)
+        return 'Adaptive presets require a grayscale volume';
+      if (!scalars.getRange().every(Number.isFinite))
+        return 'Adaptive presets require finite intensities';
+      return '';
+    });
+    const presetUnavailableReason = (name: string) =>
+      isAdaptiveVolumePreset(name) ? adaptiveUnavailableReason.value : '';
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
     // the data range, if any
@@ -101,6 +120,8 @@ export default defineComponent({
     };
 
     return {
+      presetUnavailableReason,
+      presetDescription: getAdaptiveVolumePresetDescription,
       thumbnails: currentThumbnails,
       hasCurrentImage,
       preset: selectedPreset,
@@ -133,8 +154,20 @@ export default defineComponent({
             :class="{
               'thumbnail-container': true,
               'bg-blue': active,
+              'opacity-50': !!presetUnavailableReason(preset),
             }"
-            @click="select"
+            :data-testid="`volume-preset-${preset}`"
+            :title="
+              presetUnavailableReason(preset) || presetDescription(preset)
+            "
+            :aria-disabled="!!presetUnavailableReason(preset)"
+            :tabindex="presetUnavailableReason(preset) ? -1 : 0"
+            role="button"
+            @click="!presetUnavailableReason(preset) && select()"
+            @keydown.enter="!presetUnavailableReason(preset) && select()"
+            @keydown.space.prevent="
+              !presetUnavailableReason(preset) && select()
+            "
           >
             <v-img :src="thumbnails[preset] || ''" cover aspect-ratio="1">
               <persistent-overlay class="thumbnail-overlay">

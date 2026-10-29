@@ -77,6 +77,13 @@ function vtkPiecewiseWidget(publicAPI, model) {
   model.opacityPointShift = 0;
   model.opacityValueShift = 0;
 
+  publicAPI.setHistogram = (histogram, dataRange) => {
+    model.histogram = histogram;
+    model.dataRange = dataRange;
+    publicAPI.modified();
+    publicAPI.render();
+  };
+
   publicAPI.setGaussiansMode = () => {
     model.pwMode = Mode.Gaussians;
   };

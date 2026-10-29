@@ -1,46 +1,12 @@
 import { onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import { getPresetByName } from '@/src/types/color-map-preset';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';
 import { useCurrentImage } from './useCurrentImage';
-import {
-  getColorFunctionRangeFromPreset,
-  getOpacityRangeFromPreset,
-} from '../utils/vtk-helpers';
 import { PresetNameList } from '../vtk/ColorMaps';
 import { logError } from '../utils/loggers';
-
-function resetOpacityFunction(
-  pwfProxy: vtkPiecewiseFunctionProxy,
-  dataRange: [number, number],
-  presetName: string
-) {
-  // reset pwf proxy range
-  pwfProxy.setDataRange(...dataRange);
-
-  const preset = getPresetByName(presetName);
-  if (preset?.OpacityPoints) {
-    const OpacityPoints = preset.OpacityPoints;
-    const points = [];
-    for (let i = 0; i < OpacityPoints.length; i += 2) {
-      points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
-    }
-
-    const [xmin, xmax] = dataRange;
-    const width = xmax - xmin;
-    const pointsNormalized = points.map(([x, y]) => [(x - xmin) / width, y]);
-
-    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
-    pwfProxy.setPoints(pointsNormalized);
-  } else {
-    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Gaussians);
-    pwfProxy.setGaussians(vtkPiecewiseFunctionProxy.Defaults.Gaussians);
-  }
-}
+import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePreset';
 
 export function useVolumeThumbnailing(
   thumbnailSize: number,
@@ -50,8 +16,12 @@ export function useVolumeThumbnailing(
   const thumbnailer = createThumbnailer(thumbnailSize);
   const currentThumbnails = ref<Record<string, string>>({});
 
-  const { currentImageMetadata, currentImageID, currentImageData } =
-    useCurrentImage();
+  const {
+    currentImageMetadata,
+    currentImageID,
+    currentImageData,
+    currentImage,
+  } = useCurrentImage();
 
   // same as 3D view
   const { cameraDirVec, cameraUpVec } = useCameraOrientation(
@@ -75,18 +45,17 @@ export function useVolumeThumbnailing(
     interruptSentinel = localSentinel;
 
     thumbnailer.setInputImage(image);
-    const imageDataRange = image.getPointData().getScalars().getRange();
+    const scalars = image.getPointData().getScalars();
+    const adaptiveAvailable =
+      currentImage.value?.isLoaded() &&
+      scalars.getNumberOfComponents() === 1 &&
+      scalars.getRange().every(Number.isFinite);
+    const cycleIsCurrent = () =>
+      interruptSentinel === localSentinel && imageID === currentImageID.value;
 
     async function helper(presetName: string) {
-      // bail if a new thumbnail process has started
-      if (interruptSentinel !== localSentinel) {
-        return;
-      }
-
-      // sanity check; did the current image change
-      if (imageID !== currentImageID.value) {
-        return;
-      }
+      if (!cycleIsCurrent()) return;
+      if (isAdaptiveVolumePreset(presetName) && !adaptiveAvailable) return;
 
       if (!(imageID in thumbnails)) {
         thumbnails[imageID] = {};
@@ -96,19 +65,7 @@ export function useVolumeThumbnailing(
         return;
       }
 
-      const opRange = getOpacityRangeFromPreset(presetName);
-      resetOpacityFunction(
-        thumbnailer.opacityFuncProxy,
-        opRange || imageDataRange,
-        presetName
-      );
-
-      thumbnailer.colorTransferFuncProxy.setMode(LookupTableProxyMode.Preset);
-      thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
-      const ctRange = getColorFunctionRangeFromPreset(presetName);
-      thumbnailer.colorTransferFuncProxy.setDataRange(
-        ...(ctRange || imageDataRange)
-      );
+      thumbnailer.setPreset(presetName);
 
       thumbnailer.resetCameraWithOrientation(
         cameraDirVec.value,
@@ -124,8 +81,7 @@ export function useVolumeThumbnailing(
       });
 
       // the capture spans a render, so the cycle may have been superseded
-      if (interruptSentinel !== localSentinel) return;
-      if (imageID !== currentImageID.value) return;
+      if (!cycleIsCurrent()) return;
 
       if (imageURL) {
         thumbnails[imageID][presetName] = imageURL;
@@ -144,7 +100,7 @@ export function useVolumeThumbnailing(
     thumbnails,
     () => {
       if (currentImageID.value) {
-        currentThumbnails.value = thumbnails[currentImageID.value];
+        currentThumbnails.value = thumbnails[currentImageID.value] ?? {};
       }
     },
     { deep: true }
@@ -160,10 +116,11 @@ export function useVolumeThumbnailing(
 
   // trigger thumbnailing
   watch(
-    currentImageID,
-    (imageID) => {
-      if (imageID) {
-        doThumbnailing(imageID, currentImageData.value!);
+    [currentImageID, currentImageData, () => currentImage.value?.isLoaded()],
+    ([imageID, image], previous) => {
+      if (imageID && image) {
+        if (previous?.[0] === imageID) thumbnails[imageID] = {};
+        doThumbnailing(imageID, image);
       }
     },
     { immediate: true }

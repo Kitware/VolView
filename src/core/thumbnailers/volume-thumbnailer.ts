@@ -13,6 +13,17 @@ import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import { beginContextRelease } from '@/src/core/vtk/releaseRenderWindow';
 import { deleteInteractor } from '@/src/core/vtk/deleteInteractor';
+import { getPresetByName } from '@/src/types/color-map-preset';
+import {
+  getColorFunctionRangeFromPreset,
+  getOpacityRangeFromPreset,
+} from '@/src/utils/vtk-helpers';
+import {
+  ADAPTIVE_VOLUME_LIGHTING,
+  getAdaptiveVolumePreset,
+} from '@/src/utils/adaptiveVolumePreset';
+import { applyOpacityFunction } from '@/src/composables/useColoringEffect';
+import { setCinematicVolumeShading } from '@/src/utils/volumeProperties';
 
 export function createRenderingPipeline() {
   const actor = vtkVolume.newInstance();
@@ -69,6 +80,31 @@ function updateRenderingProperty(
   prop.setSpecularPower(8.0);
 }
 
+function resetOpacityFunction(
+  pwfProxy: vtkPiecewiseFunctionProxy,
+  dataRange: [number, number],
+  presetName: string
+) {
+  pwfProxy.setDataRange(...dataRange);
+  const preset = getPresetByName(presetName);
+  if (preset?.OpacityPoints) {
+    const points = [];
+    const [minimum, maximum] = dataRange;
+    const width = maximum - minimum;
+    for (let i = 0; i < preset.OpacityPoints.length; i += 2) {
+      points.push([
+        (preset.OpacityPoints[i] - minimum) / width,
+        preset.OpacityPoints[i + 1],
+      ]);
+    }
+    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
+    pwfProxy.setPoints(points);
+  } else {
+    pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Gaussians);
+    pwfProxy.setGaussians(vtkPiecewiseFunctionProxy.Defaults.Gaussians);
+  }
+}
+
 export function createVolumeThumbnailer(size: number) {
   const container = document.createElement('div');
   container.style.width = `${size}px`;
@@ -106,6 +142,37 @@ export function createVolumeThumbnailer(size: number) {
         }
       } else {
         renderer.removeVolume(actor);
+      }
+    },
+    setPreset(presetName: string) {
+      const image = mapper.getInputData<vtkImageData | null>();
+      if (!image) return;
+      const dataRange = image.getPointData().getScalars().getRange();
+      const adaptive = getAdaptiveVolumePreset(image, presetName);
+      updateRenderingProperty(actor.getProperty(), mapper, image);
+      colorTransferFuncProxy.setMode(vtkLookupTableProxy.Mode.Preset);
+      colorTransferFuncProxy.setPresetName(presetName);
+      colorTransferFuncProxy.setDataRange(
+        ...(adaptive?.transferFunction.mappingRange ??
+          getColorFunctionRangeFromPreset(presetName) ??
+          dataRange)
+      );
+      if (adaptive) {
+        applyOpacityFunction(adaptive.opacityFunction, pipeline.ofun);
+        setCinematicVolumeShading({
+          enabled: true,
+          image,
+          property: actor.getProperty(),
+          ambient: ADAPTIVE_VOLUME_LIGHTING.ambient,
+          diffuse: ADAPTIVE_VOLUME_LIGHTING.diffuse,
+          specular: ADAPTIVE_VOLUME_LIGHTING.specular,
+        });
+      } else {
+        resetOpacityFunction(
+          opacityFuncProxy,
+          getOpacityRangeFromPreset(presetName) ?? dataRange,
+          presetName
+        );
       }
     },
     resetCameraWithOrientation(direction: Vector3, up: Vector3) {

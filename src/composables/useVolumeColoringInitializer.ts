@@ -13,17 +13,28 @@ export function useVolumeColoringInitializer(
     store.getConfig(unref(viewId), unref(imageId))
   );
 
-  const { imageData } = useImage(imageId);
+  const { imageData, image } = useImage(imageId);
 
   const viewIdRef = computed(() => unref(viewId));
   const imageIdRef = computed(() => unref(imageId));
-  watchImmediate([coloringConfig, viewIdRef, imageIdRef], () => {
-    if (coloringConfig.value) return;
+  watchImmediate(
+    [
+      coloringConfig,
+      viewIdRef,
+      imageIdRef,
+      imageData,
+      () => image.value?.isLoaded(),
+    ],
+    () => {
+      if (coloringConfig.value) return;
 
-    const viewIdVal = unref(viewId);
-    const imageIdVal = unref(imageId);
-    if (!viewIdVal || !imageIdVal || !imageData.value) return;
+      const viewIdVal = unref(viewId);
+      const imageIdVal = unref(imageId);
+      if (!viewIdVal || !imageIdVal || !imageData.value) return;
 
-    store.resetToDefaultColoring(viewIdVal, imageIdVal, imageData.value);
-  });
+      // Default selection uses the complete scalar range, including for DICOM.
+      if (!image.value?.isLoaded()) return;
+      store.resetToDefaultColoring(viewIdVal, imageIdVal, imageData.value);
+    }
+  );
 }

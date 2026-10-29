@@ -59,9 +59,7 @@ const {
   isLoading: isImageStreaming,
   image,
 } = useImage(imageID);
-const coloringConfig = computed(() =>
-  useVolumeColoringStore().getConfig(viewID.value, imageID.value)
-);
+const coloringStore = useVolumeColoringStore();
 
 // setup base image
 const rep = useVolumeRepresentation(view, imageData);
@@ -102,6 +100,14 @@ watch(updatedExtents, (current, old) => {
     ...current.slice(startOffset),
   ]);
   view.requestRender();
+});
+
+// Decoded extents refresh the provisional range without creating saved settings.
+const coloringConfig = computed(() => {
+  void updatedExtents.value;
+  const config = coloringStore.getConfig(viewID.value, imageID.value);
+  if (config) return config;
+  return coloringStore.getProvisionalColoring(imageID.value);
 });
 
 // cinematic volume rendering
