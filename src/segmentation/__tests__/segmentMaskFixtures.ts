@@ -307,6 +307,12 @@ export const makeSpecImage = () => makeImage();
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 
+/** An image's segment names, in its own order. */
+export const segmentNames = (imageId: string) =>
+  useSegmentStore()
+    .segments.segmentList(imageId)
+    .map(({ name }) => name);
+
 export const mintSegment = (imageId: string, init: SegmentInit | string = {}) =>
   useSegmentStore().segments.mintSegment(
     imageId,

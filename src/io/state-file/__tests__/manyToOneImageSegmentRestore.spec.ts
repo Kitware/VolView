@@ -6,6 +6,7 @@ import { migrateManifest } from '@/src/io/state-file/migrations';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import {
   makeLabelmap,
+  manifestForImages,
   markedVoxels,
   seatImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -37,52 +38,48 @@ const definitions = [
 ];
 
 const incoming = () =>
-  ManifestSchema.parse({
-    version: '8.0.0',
-    datasets: [
-      { id: 'a', dataSourceId: 1 },
-      { id: 'b', dataSourceId: 2 },
-    ],
-    dataSources: [
-      { id: 1, type: 'uri', uri: '/a.dcm' },
-      { id: 2, type: 'uri', uri: '/b.dcm' },
-    ],
-    segments: definitions,
-    imageSegmentSets: [
-      { imageId: 'a', segmentIds: ['red'], selectedSegmentId: 'red' },
-      { imageId: 'b', segmentIds: ['green'], selectedSegmentId: 'green' },
-    ],
-    segmentations: ['a', 'b'].map((parentImage, index) => ({
-      id: `seg-${parentImage}`,
-      name: parentImage,
-      parentImage,
-      order: [`mask-${parentImage}`],
-      masks: [
-        {
-          id: `mask-${parentImage}`,
-          segmentId: definitions[index].id,
-          representations: {
-            labelmap: {
-              path: `${parentImage}.vti`,
-              extent: [0, 1, 0, 1, 0, 0],
+  ManifestSchema.parse(
+    manifestForImages(['a', 'b'], {
+      segments: definitions,
+      imageSegmentSets: [
+        { imageId: 'a', segmentIds: ['red'], selectedSegmentId: 'red' },
+        { imageId: 'b', segmentIds: ['green'], selectedSegmentId: 'green' },
+      ],
+      segmentations: ['a', 'b'].map((parentImage, index) => ({
+        id: `seg-${parentImage}`,
+        name: parentImage,
+        parentImage,
+        order: [`mask-${parentImage}`],
+        masks: [
+          {
+            id: `mask-${parentImage}`,
+            segmentId: definitions[index].id,
+            representations: {
+              labelmap: {
+                path: `${parentImage}.vti`,
+                extent: [0, 1, 0, 1, 0, 0],
+              },
             },
           },
+        ],
+      })),
+      tools: {
+        rulers: {
+          tools: ['a', 'b'].map((imageID, index) => ({
+            imageID,
+            segmentId: definitions[index].id,
+            frameOfReference: {
+              planeOrigin: [0, 0, 0],
+              planeNormal: [0, 0, 1],
+            },
+            slice: 0,
+            firstPoint: [0, index, 0],
+            secondPoint: [1, index, 0],
+          })),
         },
-      ],
-    })),
-    tools: {
-      rulers: {
-        tools: ['a', 'b'].map((imageID, index) => ({
-          imageID,
-          segmentId: definitions[index].id,
-          frameOfReference: { planeOrigin: [0, 0, 0], planeNormal: [0, 0, 1] },
-          slice: 0,
-          firstPoint: [0, index, 0],
-          secondPoint: [1, index, 0],
-        })),
       },
-    },
-  });
+    })
+  );
 
 const restoreMerged = async (manifest: Manifest) => {
   await seatImage('merged', { dimensions: [2, 2, 1] });

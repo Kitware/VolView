@@ -1023,6 +1023,24 @@ describe('Reveal Slice on a segment row', () => {
   });
 });
 
+// A Tumor segment on each image, each holding a mask voxel and a ruler.
+const spreadSegment = (imageIDs: string[]) => {
+  const rulers = useRulerStore();
+  return Object.fromEntries(
+    imageIDs.map((imageID) => {
+      const segmentId = segments().addSegment(imageID, { name: 'Tumor' });
+      seedVoxel(maskOn(imageID, segmentId).id, [1, 1, 0]);
+      rulers.addTool({
+        imageID,
+        segmentId,
+        slice: 0,
+        frameOfReference: AXIAL_FRAME_OF_REFERENCE,
+      });
+      return [imageID, segmentId];
+    })
+  );
+};
+
 describe('locked segment editor routes', () => {
   beforeEach(async () => {
     setActivePinia(createPinia());
@@ -1030,22 +1048,6 @@ describe('locked segment editor routes', () => {
     await seatSpecImage('img-2');
     await showImage('img-1');
   });
-
-  const protectedContent = () => {
-    return Object.fromEntries(
-      ['img-1', 'img-2'].map((imageID) => {
-        const segmentId = segments().addSegment(imageID, { name: 'Tumor' });
-        seedVoxel(maskOn(imageID, segmentId).id, [1, 1, 0]);
-        useRulerStore().addTool({
-          imageID,
-          segmentId,
-          slice: 0,
-          frameOfReference: AXIAL_FRAME_OF_REFERENCE,
-        });
-        return [imageID, segmentId];
-      })
-    );
-  };
 
   // The row keeps its name and still reveals what it holds on both images.
   const expectPreserved = async (
@@ -1063,7 +1065,7 @@ describe('locked segment editor routes', () => {
   };
 
   it('disables color, edit and delete consistently and restores editing after unlocking', async () => {
-    const ids = protectedContent();
+    const ids = spreadSegment(['img-1', 'img-2']);
     const segmentId = ids['img-1'];
     segments().updateSegment(segmentId, { locked: true });
     const wrapper = mountList();
@@ -1093,7 +1095,7 @@ describe('locked segment editor routes', () => {
   it.each(['done', 'delete'])(
     'refuses %s if the segment becomes locked while its editor is open',
     async (action) => {
-      const ids = protectedContent();
+      const ids = spreadSegment(['img-1', 'img-2']);
       const segmentId = ids['img-1'];
       const wrapper = mountList();
       await wrapper
@@ -1118,24 +1120,6 @@ describe('deleting a segment without a success notification', () => {
     await seatSpecImage('img-2');
     await showImage('img-1');
   });
-
-  const spreadSegment = (imageIDs: string[], name = 'Tumor') => {
-    const rulers = useRulerStore();
-    return Object.fromEntries(
-      imageIDs.map((imageID) => {
-        const segmentId = segments().addSegment(imageID, { name });
-        const mask = maskOn(imageID, segmentId);
-        seedVoxel(mask.id, [1, 1, 0]);
-        rulers.addTool({
-          imageID,
-          segmentId,
-          slice: 0,
-          frameOfReference: AXIAL_FRAME_OF_REFERENCE,
-        });
-        return [imageID, segmentId];
-      })
-    );
-  };
 
   const deleteRow = async (wrapper: VueWrapper, id: string) => {
     await rowButton(wrapper, id, ['mdi-delete']).trigger('click');

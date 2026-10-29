@@ -8,6 +8,7 @@ import { completeStateFileRestore } from '@/src/io/import/processors/restoreStat
 import {
   manifestForImages,
   seatImage,
+  segmentNames,
   showImage,
   viewImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -18,11 +19,6 @@ import { useViewStore } from '@/src/store/views';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { defer } from '@/src/utils';
 import { Skip } from '@/src/utils/evaluateChain';
-
-const names = (imageId: string) =>
-  useSegmentStore()
-    .segments.segmentList(imageId)
-    .map(({ name }) => name);
 
 describe('image segment initialization boundaries', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -43,7 +39,7 @@ describe('image segment initialization boundaries', () => {
     views.setActiveView(emptyView);
     views.setDataForView(emptyView, 'b');
 
-    expect(names('b')).toEqual(['First', 'Selected']);
+    expect(segmentNames('b')).toEqual(['First', 'Selected']);
     const copied = store.segments.findSegmentByName('b', 'Selected')!;
     expect(store.segments.selectedSegmentId('b')).toBe(copied.id);
     expect(copied.id).not.toBe(selected);
@@ -69,10 +65,10 @@ describe('image segment initialization boundaries', () => {
       }
       release();
 
-      expect(names('b')).toEqual(
+      expect(segmentNames('b')).toEqual(
         action === 'new segment' ? ['Liver', 'New'] : ['Liver']
       );
-      expect(names('a')).toEqual(['Liver']);
+      expect(segmentNames('a')).toEqual(['Liver']);
     }
   );
 
@@ -92,7 +88,9 @@ describe('image segment initialization boundaries', () => {
 
       await completeStateFileRestore(manifest, [], { incoming: 'destination' });
 
-      expect(names('destination')).toEqual(defaults.map(({ name }) => name));
+      expect(segmentNames('destination')).toEqual(
+        defaults.map(({ name }) => name)
+      );
       expect(store.seedSegmentDefaults).toEqual(defaults);
     }
   );
@@ -109,7 +107,7 @@ describe('image segment initialization boundaries', () => {
       { incoming: 'destination' }
     );
 
-    expect(names('destination')).toEqual(['Liver']);
+    expect(segmentNames('destination')).toEqual(['Liver']);
   });
 
   it('keeps the first activation snapshot while nested loads and focus changes finish', async () => {
@@ -135,12 +133,12 @@ describe('image segment initialization boundaries', () => {
     await showImage('b');
     releaseInner();
     releaseInner();
-    expect(names('b')).toEqual([]);
+    expect(segmentNames('b')).toEqual([]);
     releaseOuter();
 
-    expect(names('a')).toEqual(['Later']);
-    expect(names('b')).toEqual(['Initial']);
-    expect(names('c')).toEqual(['Initial']);
+    expect(segmentNames('a')).toEqual(['Later']);
+    expect(segmentNames('b')).toEqual(['Initial']);
+    expect(segmentNames('c')).toEqual(['Initial']);
     expect(store.segments.segmentList('b')[0]).toMatchObject({
       color: [1, 2, 3, 255],
       visible: true,
@@ -157,7 +155,7 @@ describe('image segment initialization boundaries', () => {
 
     await showImage('b');
 
-    expect(names('b')).toEqual(['Liver']);
+    expect(segmentNames('b')).toEqual(['Liver']);
     const selected = store.segments.selectedSegmentId('b');
     expect(selected).toBeDefined();
     expect(selected).not.toBe(source);
@@ -167,9 +165,9 @@ describe('image segment initialization boundaries', () => {
 
     release();
 
-    expect(names('b')).toEqual(['Liver']);
+    expect(segmentNames('b')).toEqual(['Liver']);
     expect(store.segments.selectedSegmentId('b')).toBe(selected);
-    expect(names('a')).toEqual(['Liver']);
+    expect(segmentNames('a')).toEqual(['Liver']);
   });
 
   it('reserves new images until their own imported definitions arrive', async () => {
@@ -183,15 +181,15 @@ describe('image segment initialization boundaries', () => {
         await seatImage('incoming');
         await showImage('incoming');
 
-        expect(names('incoming')).toEqual([]);
+        expect(segmentNames('incoming')).toEqual([]);
         expect(store.segments.imageSets.value.incoming).toBeUndefined();
         return store.segments.mintSegment('incoming', { name: 'Tumor' });
       }
     );
 
-    expect(names('incoming')).toEqual(['Tumor']);
+    expect(segmentNames('incoming')).toEqual(['Tumor']);
     expect(store.segments.selectedSegmentId('incoming')).toBe(imported);
-    expect(names('a')).toEqual(['Liver']);
+    expect(segmentNames('a')).toEqual(['Liver']);
   });
 
   it('initializes a completed image from defaults while another destination is reserved', async () => {
@@ -202,12 +200,12 @@ describe('image segment initialization boundaries', () => {
 
     await viewImage('b');
 
-    expect(names('b')).toEqual(['Liver']);
+    expect(segmentNames('b')).toEqual(['Liver']);
     const target = useSegmentationStore().resolveEditTarget('b');
     const selected = store.segments.selectedSegmentId('b');
     expect(useSegmentationStore().getMask(target).segmentId).toBe(selected);
     release();
-    expect(names('b')).toEqual(['Liver']);
+    expect(segmentNames('b')).toEqual(['Liver']);
   });
 
   it('releases operation destinations when an import fails', async () => {
@@ -221,13 +219,13 @@ describe('image segment initialization boundaries', () => {
         reserveImage('incoming');
         await seatImage('incoming');
         await showImage('incoming');
-        expect(names('incoming')).toEqual([]);
+        expect(segmentNames('incoming')).toEqual([]);
         throw new Error('Import failed');
       })
     ).rejects.toThrow('Import failed');
 
-    expect(names('incoming')).toEqual(['Liver']);
-    expect(names('a')).toEqual(['Liver']);
+    expect(segmentNames('incoming')).toEqual(['Liver']);
+    expect(segmentNames('a')).toEqual(['Liver']);
   });
 
   it('settles a destination while a different destination remains reserved', async () => {
@@ -244,12 +242,12 @@ describe('image segment initialization boundaries', () => {
 
     releaseB();
 
-    expect(names('b')).toEqual(['Liver']);
-    expect(names('c')).toEqual([]);
+    expect(segmentNames('b')).toEqual(['Liver']);
+    expect(segmentNames('c')).toEqual([]);
     releaseB();
-    expect(names('c')).toEqual([]);
+    expect(segmentNames('c')).toEqual([]);
     releaseC();
-    expect(names('c')).toEqual(['Liver']);
+    expect(segmentNames('c')).toEqual(['Liver']);
   });
 
   it('does bounded image-cache work when releasing independent destinations', async () => {
@@ -298,7 +296,7 @@ describe('image segment initialization boundaries', () => {
     release();
 
     expect(store.segments.imageSets.value.incoming).toBeUndefined();
-    expect(names('existing')).toEqual(['Liver']);
+    expect(segmentNames('existing')).toEqual(['Liver']);
   });
 
   it('restores an explicit empty set without borrowing from the current image', async () => {
@@ -311,8 +309,8 @@ describe('image segment initialization boundaries', () => {
       imageSegmentSets: [{ imageId: 'incoming', segmentIds: [] }],
     });
     await completeStateFileRestore(manifest, [], { incoming: 'destination' });
-    expect(names('destination')).toEqual([]);
-    expect(names('existing')).toEqual(['Existing']);
+    expect(segmentNames('destination')).toEqual([]);
+    expect(segmentNames('existing')).toEqual(['Existing']);
     expect(useSegmentStore().segments.imageSets.value.destination).toEqual({
       segmentIds: [],
     });
@@ -347,8 +345,8 @@ describe('image segment initialization boundaries', () => {
     );
 
     await showImage('new-image');
-    expect(names('new-image')).toEqual(['Configured']);
-    expect(names('existing')).toEqual(['Existing']);
+    expect(segmentNames('new-image')).toEqual(['Configured']);
+    expect(segmentNames('existing')).toEqual(['Existing']);
     expect(
       useSegmentStore().seedSegmentDefaults.map(({ name }) => name)
     ).toEqual(['Configured']);
@@ -387,13 +385,13 @@ describe('image segment initialization boundaries', () => {
       ),
     ]);
     await entered.promise;
-    const pendingNames = names('base');
+    const pendingNames = segmentNames('base');
     released.resolve();
-    await vi.waitFor(() => expect(names('base')).toHaveLength(1));
+    await vi.waitFor(() => expect(segmentNames('base')).toHaveLength(1));
     expect(pendingNames).toEqual([]);
-    expect(names('base')).toHaveLength(1);
-    expect(names('base')).not.toContain('Unrelated');
+    expect(segmentNames('base')).toHaveLength(1);
+    expect(segmentNames('base')).not.toContain('Unrelated');
     expect(store.imageMasks('base')).toHaveLength(1);
-    expect(names('existing')).toEqual(['Unrelated']);
+    expect(segmentNames('existing')).toEqual(['Unrelated']);
   });
 });

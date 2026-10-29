@@ -5,7 +5,10 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { ACTION_TO_FUNC } from '@/src/composables/actions';
 import { applyPostStateConfig, config } from '@/src/io/import/configJson';
-import { maskOn } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  maskOn,
+  segmentNames,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useImageStore } from '@/src/store/datasets-images';
@@ -13,10 +16,6 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 
 const segments = () => useSegmentStore().segments;
-const names = (imageId: string) =>
-  segments()
-    .segmentList(imageId)
-    .map(({ name }) => name);
 
 const seatBareImage = (id: string) => {
   useImageStore().addVTKImageData('CT', vtkImageData.newInstance(), { id });
@@ -64,7 +63,7 @@ describe('removing image segment sets', () => {
 
     expect(segments().imageSets.value['img-2']).toBeUndefined();
     expect(segments().getSegment(second)).toBeUndefined();
-    expect(names('img-1')).toEqual(['Tumor']);
+    expect(segmentNames('img-1')).toEqual(['Tumor']);
     expect(segments().getSegment(first)).toBeDefined();
   });
 
@@ -97,6 +96,6 @@ describe('removing image segment sets', () => {
     segments().addSegment('img-2', { name: 'Minted' });
     await nextTick();
 
-    expect(names('img-2')).toEqual(['Restored', 'Minted']);
+    expect(segmentNames('img-2')).toEqual(['Restored', 'Minted']);
   });
 });
