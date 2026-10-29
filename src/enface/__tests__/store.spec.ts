@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
-
+import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { parseNamedLayouts } from '@/src/utils/layoutParsing';
@@ -32,6 +33,9 @@ describe('OCT view settings', () => {
       axis: 1,
       depthStart: 20,
       depthEnd: 40,
+      thresholdMicrons: 35,
+      highlightThin: true,
+      selectedMaskId: 'ephemeral-mask',
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -61,6 +65,7 @@ describe('OCT view settings', () => {
     expect(parsed.viewByID?.view.type).toBe('EnFace');
     const settings = parsed.viewByID!.view.config!;
     expect(settings.oct.octEnFace?.method).toBe('sum');
+    expect(settings.oct.octEnFace).not.toHaveProperty('selectedMaskId');
     expect(settings.oct.octEnFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
@@ -73,12 +78,61 @@ describe('OCT view settings', () => {
       method: 'sum',
       depthStart: 20,
       depthEnd: 40,
+      thresholdMicrons: 35,
+      highlightThin: false,
     });
+    expect(store.configFor('restored', 'new-oct').selectedMaskId).toBeNull();
     expect(useWindowingStore().getConfig('restored', 'new-oct')).toMatchObject({
       width: 120,
       level: 60,
       userTriggered: true,
     });
+  });
+
+  it('restores the chosen segment instead of highlighting the first mask', () => {
+    const registry = useSegmentStore().segments;
+    const first = registry.addSegment({ name: 'First layer' });
+    const chosen = registry.addSegment({ name: 'Chosen layer' });
+    const segmentation = useSegmentationStore();
+    const group = segmentation.ensureSegmentationForImage('restored-oct');
+    segmentation.createMask(group.id, first);
+    const chosenMask = segmentation.createMask(group.id, chosen);
+    const store = useEnFaceViewStore();
+    store.deserialize(
+      'view',
+      {
+        'restored-oct': {
+          octEnFace: {
+            axis: 1,
+            method: 'mean',
+            depthStart: 0,
+            depthEnd: null,
+            thresholdMicrons: 35,
+            highlightThin: true,
+            segmentId: 'saved-layer',
+          },
+        },
+      },
+      { 'saved-layer': chosen }
+    );
+    expect(store.configFor('view', 'restored-oct').selectedMaskId).toBe(
+      chosenMask.id
+    );
+    expect(store.configFor('view', 'restored-oct').highlightThin).toBe(true);
+    store.deserialize('view', {
+      'restored-oct': {
+        octEnFace: {
+          axis: 1,
+          method: 'mean',
+          depthStart: 0,
+          depthEnd: null,
+          thresholdMicrons: 35,
+          highlightThin: true,
+          segmentId: 'missing-layer',
+        },
+      },
+    });
+    expect(store.configFor('view', 'restored-oct').highlightThin).toBe(false);
   });
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {

@@ -31,6 +31,7 @@ describe('OCT view availability', () => {
     const availability = getEnFaceAvailability('pending');
     expect(availability.available).toBe(false);
     expect(availability.isOCT).toBe(false);
+    expect(availability.measurementGeometryReason).toBeNull();
     expect(availability.reason).toMatch(/volume/);
   });
 
@@ -57,6 +58,7 @@ describe('OCT view availability', () => {
     await nextTick();
     expect(availability.value.available).toBe(true);
     expect(availability.value.reason).toBeNull();
+    expect(availability.value.measurementGeometryReason).toBeNull();
     expect(fixture.image.getVtkImageData().getDimensions()).toEqual([
       128, 222, 32,
     ]);
@@ -100,6 +102,7 @@ describe('OCT view availability', () => {
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
       isOCT: false,
+      measurementGeometryReason: null,
     });
     expect(data.getSpacing()).toEqual([-0.03, 0.01, 0.2]);
   });
@@ -125,6 +128,7 @@ describe('OCT view availability', () => {
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         isOCT: false,
+        measurementGeometryReason: null,
       });
     }
   );
@@ -155,4 +159,20 @@ describe('OCT view availability', () => {
       );
     }
   );
+
+  it('keeps the source volume renderable when declared padding cannot be interpreted for measurements', async () => {
+    const fixture = createOCTFixture();
+    const id = useImageCacheStore().addProgressiveImage(fixture.image);
+    await fixture.chunk.loadMeta();
+    fixture.chunk.metadata!.push([Tags.PixelPaddingValue, 'invalid']);
+    await fixture.image.addChunks([fixture.chunk]);
+    fixture.image.startLoad();
+    await untilLoaded(id);
+    expect(getEnFaceAvailability(id)).toMatchObject({
+      available: true,
+      reason: null,
+      paddingReason: expect.stringMatching(/occupied depth is unavailable/),
+      paddingRanges: undefined,
+    });
+  });
 });

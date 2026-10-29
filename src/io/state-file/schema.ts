@@ -293,6 +293,9 @@ const ViewConfig = z.object({
       method: z.enum(['mean', 'max', 'sum']),
       depthStart: z.number().int().nonnegative(),
       depthEnd: z.number().int().nonnegative().nullable(),
+      highlightThin: z.boolean(),
+      thresholdMicrons: z.number().nonnegative(),
+      segmentId: z.string().nullable().optional(),
     })
     .optional(),
 });

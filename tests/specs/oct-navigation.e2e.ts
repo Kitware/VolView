@@ -23,10 +23,13 @@ import {
   WINDOW_TOOL,
   SLICE_LINE,
   openControls,
+  setThicknessThreshold,
   selectSetting,
   expectProjectionPixel,
+  enableHighlight,
   dragEnFaceContrast,
   getOriginalWindow,
+  expectHighlight,
   expectStackedMaskWithoutSidebar,
   openRetina,
   expectSliceLine,
@@ -353,6 +356,12 @@ describe('Retinal OCT navigation', () => {
     // Select before capturing the comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
     await openControls();
+    await enableHighlight();
+    await setThicknessThreshold(31);
+    await expectHighlight(true);
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100
+    );
     await expectSliceLine();
     await expectControlsBesideSelector();
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
@@ -360,7 +369,7 @@ describe('Retinal OCT navigation', () => {
       fs.mkdirSync(captureDirectory, { recursive: true });
       await $('.Vue-Toastification__toast').waitForDisplayed({ reverse: true });
       await browser.saveScreenshot(
-        path.join(captureDirectory, 'retina-en-face-navigation.png')
+        path.join(captureDirectory, 'retina-en-face-thickness.png')
       );
     }
     await browser.keys('Escape');
@@ -375,8 +384,14 @@ describe('Retinal OCT navigation', () => {
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await volViewPage.waitForViews();
     await $(CANVAS).waitForDisplayed();
-    await waitForEnFaceReady();
+    await expectHighlight(true);
     await openControls();
+    await expandEnFaceSection('thickness');
+    expect(
+      await $(
+        '.v-overlay--active [data-testid="oct-segmentation-segment"]'
+      ).getText()
+    ).toContain('Synthetic retinal layer');
     await browser.keys('Escape');
     await expectSliceLine();
     expect(await getWindow()).toEqual(savedWindow);

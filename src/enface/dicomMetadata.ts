@@ -1,6 +1,7 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { inflateSync } from 'fflate';
 import { Tags } from '@/src/core/dicomTags';
+import { augmentOCTPadding, OCT_PADDING_ERROR } from '@/src/enface/padding';
 import {
   octDirection,
   octGridGeometry,
@@ -151,12 +152,16 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.SpacingBetweenSlices, sliceSpacing);
 }
 
-/** Promotes enhanced OCT geometry for the loader. */
+/** Reads binary DICOM padding and promotes enhanced OCT geometry for the loader. */
 export async function augmentOCTMetadata(
   file: Blob,
   metadata: Array<[string, string]>
 ) {
-  if (!isOCTMetadata(metadata)) return metadata;
+  const isOCT = isOCTMetadata(metadata);
+  const hasPadding = metadata.some(([tag]) =>
+    [Tags.PixelPaddingValue, Tags.PixelPaddingRangeLimit].includes(tag)
+  );
+  if (!isOCT && !hasPadding) return metadata;
   const tags = new Map(metadata);
   try {
     const data = dicomParser.parseDicom(
@@ -174,11 +179,14 @@ export async function augmentOCTMetadata(
         },
       }
     );
-    promoteOCTGeometry(data, tags);
+    augmentOCTPadding(data, tags);
+    if (isOCT) promoteOCTGeometry(data, tags);
   } catch {
     tags.set(
-      OCT_GEOMETRY_ERROR,
-      'OCT spatial metadata could not be read; en face projection is unavailable.'
+      isOCT ? OCT_GEOMETRY_ERROR : OCT_PADDING_ERROR,
+      isOCT
+        ? 'OCT spatial metadata could not be read; en face projection is unavailable.'
+        : 'Image pixel padding could not be read; occupied depth is unavailable.'
     );
   }
   return [...tags];

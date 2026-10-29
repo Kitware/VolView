@@ -11,6 +11,8 @@ import { createOCTFixture } from '@/tests/unit/octFixture';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceAvailability } from '@/src/enface/availability';
 import { OCT_GEOMETRY_ERROR, OCT_SCAN_PATTERN } from '@/src/enface/detection';
+import { octSeriesGeometry } from '@/src/enface/seriesGeometry';
+import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 async function readTags(file: File) {
   const data = dicomParser.parseDicom(new Uint8Array(await file.arrayBuffer()));
@@ -76,11 +78,26 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     expect(data.getDimensions()).toEqual([2, 2, 3]);
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
+      measurementGeometryReason: null,
     });
     expect(data.getSpacing()[2]).toBeCloseTo(0.2, 7);
     expect([...data.getPointData().getScalars().getData()]).toEqual([
       1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
     ]);
+    const result = measureOccupiedDepth({
+      dimensions: data.getDimensions(),
+      axis: 1,
+      first: 0,
+      last: 1,
+      mask: {
+        dimensions: data.getDimensions(),
+        extent: [0, 1, 0, 1, 0, 2],
+        values: new Uint8Array(12).fill(1),
+      },
+    });
+    expect(
+      Array.from(result.counts, (count) => count * data.getSpacing()[1] * 1000)
+    ).toEqual(Array(6).fill(20.8));
   });
 
   it.each(['MR', 'CT'])(
@@ -90,6 +107,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         isOCT: false,
+        measurementGeometryReason: null,
       });
     }
   );
@@ -101,16 +119,21 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     const { id } = await assemble(positions, undefined, 'MR');
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
+      measurementGeometryReason: null,
     });
   });
 
-  it('projects the assembled grid for a nonuniform series', async () => {
-    const { id, image } = await assemble([0, 0.1, 0.4]);
+  it('keeps an assembled nonuniform series projection-only', async () => {
+    const { id, image, chunks } = await assemble([0, 0.1, 0.4]);
     expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
       reason: null,
+      measurementGeometryReason: expect.stringMatching(/nonuniform/),
     });
+    expect(
+      octSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+    ).toMatch(/nonuniform/);
   });
 
   it.each([
@@ -134,22 +157,26 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     [Tags.ImageOrientationPatient, '2\\0\\0\\0\\1\\0', /orientation/],
     [Tags.SpacingBetweenSlices, '0.3', /slice spacing/],
   ])(
-    'projects the loaded grid with inconsistent %s declarations',
-    async (tag, value) => {
-      const { id } = await assemble(undefined, (pending) =>
+    'keeps inconsistent %s geometry projection-only',
+    async (tag, value, reason) => {
+      const { id, chunks } = await assemble(undefined, (pending) =>
         pending[2].metadata!.push([tag, value])
       );
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         reason: null,
+        measurementGeometryReason: expect.stringMatching(reason),
       });
+      expect(
+        octSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      ).toMatch(reason);
     }
   );
 
   it.each([false, true])(
-    'projects the loaded grid with missing positions: allMissing=%s',
+    'requires complete positions for occupied-depth measurements: allMissing=%s',
     async (allMissing) => {
-      const { id } = await assemble(undefined, (pending) => {
+      const { id, chunks } = await assemble(undefined, (pending) => {
         const selected = allMissing ? pending : [pending[1]];
         selected.forEach((chunk) => {
           const index = chunk.metadata!.findIndex(
@@ -161,17 +188,32 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         reason: null,
+        measurementGeometryReason: expect.stringMatching(/incomplete/),
       });
+      expect(
+        octSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+      ).toMatch(/incomplete/);
     }
   );
 
-  it('projects an altered loaded grid', async () => {
-    const { id, image } = await assemble();
+  it('keeps an altered loaded grid projection-only', async () => {
+    const { id, image, chunks } = await assemble();
     const data = image.getVtkImageData();
     data.setSpacing([0.02, 0.0104, 1]);
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
       reason: null,
+      measurementGeometryReason: expect.stringMatching(/loaded.*grid/),
     });
+    expect(
+      octSeriesGeometry(
+        chunks.map((chunk) => chunk.metadata!),
+        {
+          spacing: data.getSpacing(),
+          direction: data.getDirection(),
+          origin: data.getOrigin(),
+        }
+      ).reason
+    ).toMatch(/loaded.*grid/);
   });
 });

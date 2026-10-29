@@ -250,7 +250,11 @@ export const createStateFileRestorer = ({
           labelmapSources: planLabelmapSources(manifest).sources,
         });
 
-      useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
+      useViewConfigStore().deserializeAll(
+        manifest,
+        stateIDToStoreID,
+        segmentIdMap
+      );
       return { segmentIdMap, repeatedSegments, skippedLabelmaps };
     };
     // Imported datasets remain visible if content preparation rejects.

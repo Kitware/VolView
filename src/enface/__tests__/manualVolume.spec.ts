@@ -16,6 +16,7 @@ import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { repairUnusableSpacing } from '@/src/utils/imageSpace';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getEnFaceAvailability } from '@/src/enface/availability';
+import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 const samples = Uint16Array.from({ length: 12 }, (_, index) => index);
 const dimensions = [2, 3, 2];
@@ -112,6 +113,7 @@ describe('manual En face with real generic image readers', () => {
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
       isOCT: false,
+      measurementGeometryReason: null,
     });
     expect(data.getDimensions()).toEqual(dimensions);
     expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
@@ -130,6 +132,7 @@ describe('manual En face with real generic image readers', () => {
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         isOCT: false,
+        measurementGeometryReason: null,
       });
       expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
       expect(data.getOrigin()).toEqual([1, 2, 3]);
@@ -152,11 +155,14 @@ describe('manual En face with real generic image readers', () => {
         expect(
           Array.from(vector.data.getPointData().getScalars().getData())
         ).toEqual(Array.from(samples));
+        expect(
+          getEnFaceAvailability(vector.id).measurementGeometryReason
+        ).toBeNull();
       }
     }
   );
 
-  it('loads per-axis NRRD spacing', async () => {
+  it('uses loaded per-axis NRRD spacing for occupied depth', async () => {
     const header = [
       'NRRD0005',
       'type: unsigned short',
@@ -175,7 +181,25 @@ describe('manual En face with real generic image readers', () => {
     expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
+      measurementGeometryReason: null,
     });
+    const measurement = measureOccupiedDepth({
+      dimensions,
+      axis: 1,
+      first: 0,
+      last: 2,
+      mask: {
+        dimensions,
+        extent: [0, 1, 0, 2, 0, 1],
+        values: new Uint8Array(samples.length).fill(1),
+      },
+    });
+    expect(
+      Array.from(
+        measurement.counts,
+        (count) => count * data.getSpacing()[1] * 1000
+      )
+    ).toEqual([30, 30, 30, 30]);
   });
 
   it.each([1, 2, 3, 10])(
@@ -185,6 +209,7 @@ describe('manual En face with real generic image readers', () => {
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         isOCT: false,
+        measurementGeometryReason: null,
       });
       const scale =
         [1, 2, 3].indexOf(units & 7) === 0
@@ -197,6 +222,21 @@ describe('manual En face with real generic image readers', () => {
       expect(Array.from(data.getDirection(), (value) => value || 0)).toEqual([
         -1, 0, 0, 0, -1, 0, 0, 0, 1,
       ]);
+      const measurement = measureOccupiedDepth({
+        dimensions,
+        axis: 1,
+        first: 0,
+        last: 2,
+        mask: {
+          dimensions,
+          extent: [0, 1, 0, 2, 0, 1],
+          values: new Uint8Array(12).fill(1),
+        },
+      });
+      expect(measurement.counts[0] * data.getSpacing()[1] * 1000).toBeCloseTo(
+        Math.fround(0.01) * scale * 1000 * 3,
+        4
+      );
     }
   );
 
@@ -205,12 +245,14 @@ describe('manual En face with real generic image readers', () => {
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
       isOCT: false,
+      measurementGeometryReason: null,
     });
   });
 
   it('uses reader-repaired NIfTI spacing consistently with the loaded image', async () => {
-    const { data } = await load(nifti(2, [0.03, 0, 0.2], 0));
+    const { id, data } = await load(nifti(2, [0.03, 0, 0.2], 0));
     expect(data.getSpacing()[1]).toBeGreaterThan(0);
+    expect(getEnFaceAvailability(id).measurementGeometryReason).toBeNull();
   });
   it('loads gzip NIfTI with its decoded sampling', async () => {
     const uncompressed = nifti(2);
@@ -222,6 +264,7 @@ describe('manual En face with real generic image readers', () => {
     expect(getEnFaceAvailability(id)).toMatchObject({
       available: true,
       isOCT: false,
+      measurementGeometryReason: null,
     });
     expect(Array.from(data.getPointData().getScalars().getData())).toEqual(
       Array.from(samples)
@@ -237,6 +280,7 @@ describe('manual En face with real generic image readers', () => {
       expect(getEnFaceAvailability(id)).toMatchObject({
         available: true,
         isOCT: false,
+        measurementGeometryReason: null,
       });
       expect(data.getDimensions()).toEqual([128, 32, 222]);
       expect(Array.from(data.getDirection(), (value) => value || 0)).toEqual([

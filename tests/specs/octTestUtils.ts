@@ -173,7 +173,7 @@ export async function displayedWindow(view: WebdriverIO.Element) {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-export async function expandEnFaceSection(section: 'projection') {
+export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   const toggle = $(
     '.v-overlay--active [data-testid="oct-' + section + '-toggle"]'
   );
@@ -446,7 +446,7 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const panel = $('.v-overlay--active [data-testid="oct-rendering-panel"]');
   const restorePanel =
     (await panel.isExisting()) && (await panel.isDisplayed());
-  const sections = ['projection'] as const;
+  const sections = ['projection', 'thickness'] as const;
   const expanded = await Promise.all(
     sections.map(
       async (section) =>

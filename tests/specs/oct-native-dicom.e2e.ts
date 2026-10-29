@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { FIXTURES } from '../../wdio.shared.conf';
 import { JHU_RETINAL_LAYERS, RETINAL_OCT_DICOM } from '../datasets';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { writeManifestToFile } from './utils';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import {
@@ -70,7 +70,7 @@ describe('Public OCT exports', () => {
     );
   });
 
-  it('loads retinal layers from a ZIP URL or sample card and projects the volume on request', async () => {
+  it('loads retinal layers from a ZIP URL or sample card and projects a layer on request', async () => {
     const names = [
       'Retinal nerve fiber layer (RNFL)',
       'Ganglion cell and inner plexiform layers (GCL+IPL)',
@@ -151,7 +151,7 @@ describe('Public OCT exports', () => {
     await $('[data-testid="oct-en-face-controls"]').click();
     await $(PANEL).waitForDisplayed();
     await $(PANEL).waitForStable();
-    for (const section of ['projection'])
+    for (const section of ['projection', 'thickness'])
       await expect(
         $('[data-testid="oct-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
@@ -162,6 +162,45 @@ describe('Public OCT exports', () => {
     await axis.click();
     await option('Coronal').waitForClickable();
     await option('Coronal').click();
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('.v-overlay--active [data-testid="oct-segmentation-segment"] input')
+    ).toBeDisabled();
+    await $(
+      '.v-overlay--active [data-testid="oct-thin-highlight"] label'
+    ).click();
+    const segment = $(
+      '.v-overlay--active [data-testid="oct-segmentation-segment"]'
+    );
+    await segment.scrollIntoView({ block: 'center' });
+    await segment.waitForClickable();
+    await segment.click();
+    await option(names[2]).waitForClickable();
+    await option(names[2]).click();
+    const thresholdSlider = $(
+      '.v-overlay--active [data-testid="oct-thickness-threshold"] [role="slider"]'
+    );
+    await expect(thresholdSlider).toHaveAttribute('aria-valuemax', '58.1');
+    await setValueVueInput(
+      $(
+        '.v-overlay--active [data-testid="oct-thickness-threshold-input"] input'
+      ),
+      '20'
+    );
+    await expect(thresholdSlider).toHaveAttribute('aria-valuenow', '20');
+    await $('.v-overlay--active [data-testid="oct-projection-toggle"]').click();
+    await $('.v-overlay--active [data-testid="oct-projection-toggle"]')
+      .$('..')
+      .$('.v-expansion-panel-text')
+      .waitForDisplayed({ reverse: true });
+    await expect(
+      $('.v-overlay--active [data-testid="oct-thickness-toggle"]')
+    ).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      $(
+        '.v-overlay--active [data-testid="oct-thickness-threshold-input"] input'
+      )
+    ).toHaveValue('20');
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
@@ -170,7 +209,11 @@ describe('Public OCT exports', () => {
       );
     }
     await browser.keys('Escape');
-    await waitForEnFaceReady();
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the enface labelmap to be visible' }
+    );
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   it('keeps source contrast and pixels when replacing an independently windowed projection', async () => {

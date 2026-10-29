@@ -4,6 +4,8 @@ import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import { isOCTMetadata, octGeometryReason } from '@/src/enface/detection';
+import { octSeriesGeometry } from '@/src/enface/seriesGeometry';
+import { octPadding } from '@/src/enface/padding';
 
 function gridReason(data: Maybe<vtkImageData>) {
   if (!data || data.getDimensions().some((n) => n < 2)) {
@@ -34,14 +36,47 @@ function dicomMetadata(image: Maybe<ProgressiveImage>) {
     : [];
 }
 
-function acquisitionReason(image: Maybe<ProgressiveImage>) {
-  if (!(image instanceof DicomChunkImage)) return null;
-  return (
-    image
-      .getChunks()
-      .map((chunk) => octGeometryReason(chunk.metadata ?? []))
-      .find((reason) => reason !== null) ?? null
-  );
+function loadedGrid(data: Maybe<vtkImageData>, loaded: boolean) {
+  if (!loaded || !data) return undefined;
+  return {
+    spacing: data.getSpacing(),
+    direction: data.getDirection(),
+    origin: data.getOrigin(),
+  };
+}
+
+function dicomGeometry(
+  image: DicomChunkImage,
+  data: Maybe<vtkImageData>,
+  loaded: boolean
+) {
+  const metadata = image.getChunks().map((chunk) => chunk.metadata ?? []);
+  const series = octSeriesGeometry(metadata, loadedGrid(data, loaded));
+  const padding = octPadding(metadata, data?.getDimensions()[2] ?? 0);
+  const acquisitionReason = metadata
+    .map(octGeometryReason)
+    .find((reason) => reason !== null);
+  return {
+    reason: acquisitionReason ?? null,
+    paddingReason: padding.reason,
+    measurementGeometryReason: series.reason,
+    paddingRanges: padding.ranges.length ? padding.ranges : undefined,
+  };
+}
+
+function inputGeometry(
+  image: Maybe<ProgressiveImage>,
+  data: Maybe<vtkImageData>,
+  loaded: boolean
+) {
+  if (image instanceof DicomChunkImage)
+    return dicomGeometry(image, data, loaded);
+  return {
+    reason: null,
+    paddingReason: null,
+    measurementGeometryReason: null,
+    paddingRanges: undefined,
+  };
 }
 
 export function getEnFaceAvailability(imageID: Maybe<string>) {
@@ -53,13 +88,16 @@ export function getEnFaceAvailability(imageID: Maybe<string>) {
   const data = cache.getVtkImageData(imageID);
   const metadata = dicomMetadata(image);
   const isOCT = isOCTMetadata(metadata);
+  const geometry = inputGeometry(image, data, loaded);
   const reason = image
-    ? (acquisitionReason(image) ??
-      loadReason(imageID, loaded && !loading, data))
+    ? (geometry.reason ?? loadReason(imageID, loaded && !loading, data))
     : 'Load a grayscale 3D volume to use En face.';
   return {
     available: reason === null,
     isOCT,
     reason,
+    paddingReason: geometry.paddingReason,
+    measurementGeometryReason: geometry.measurementGeometryReason,
+    paddingRanges: geometry.paddingRanges,
   };
 }

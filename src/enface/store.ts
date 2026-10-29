@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import { reactive } from 'vue';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
 import {
@@ -14,12 +15,20 @@ export type EnFaceViewConfig = {
   method: SlabMethod;
   depthStart: number;
   depthEnd: number | null;
+  highlightThin: boolean;
+  thresholdMicrons: number;
+  selectedMaskId: string | null;
 };
 
 export type EnFaceViewControlState = {
   axes: { title: string; value: number }[];
   depthMaximum: number;
+  thresholdMaximum: number;
   projectionReason: string | null;
+  segmentationReason: string | null;
+  highlightReason: string | null;
+  thicknessReason: string | null;
+  segments: { value: string; title: string; color?: string }[];
 };
 
 export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
@@ -27,11 +36,15 @@ export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
   method: 'mean',
   depthStart: 0,
   depthEnd: null,
+  highlightThin: false,
+  thresholdMicrons: 100,
+  selectedMaskId: null,
 });
 
 export const useEnFaceViewStore = defineStore('enface-view', () => {
   const configs = reactive<DoubleKeyRecord<EnFaceViewConfig>>({});
   const controlStates = reactive<DoubleKeyRecord<EnFaceViewControlState>>({});
+  const segmentationStore = useSegmentationStore();
 
   function configFor(viewID: string, dataID: string) {
     configs[viewID] ??= {};
@@ -68,13 +81,46 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
   }
 
   function serialize(stateFile: StateFile) {
-    createViewConfigSerializer(configs, 'octEnFace')(stateFile);
+    const saved: DoubleKeyRecord<NonNullable<ViewConfig['octEnFace']>> = {};
+    Object.entries(configs).forEach(([viewID, byDataID]) => {
+      saved[viewID] = {};
+      Object.entries(byDataID).forEach(([dataID, config]) => {
+        const selectedMask =
+          config.selectedMaskId &&
+          segmentationStore.maskExists(config.selectedMaskId)
+            ? segmentationStore.getMask(config.selectedMaskId)
+            : undefined;
+        const segmentId = selectedMask?.segmentId ?? null;
+        saved[viewID][dataID] = {
+          axis: config.axis,
+          method: config.method,
+          depthStart: config.depthStart,
+          depthEnd: config.depthEnd,
+          highlightThin: config.highlightThin && !!segmentId,
+          segmentId,
+          thresholdMicrons: config.thresholdMicrons,
+        };
+      });
+    });
+    createViewConfigSerializer(saved, 'octEnFace')(stateFile);
   }
 
-  function deserialize(viewID: string, config: Record<string, ViewConfig>) {
+  function deserialize(
+    viewID: string,
+    config: Record<string, ViewConfig>,
+    segmentIdMap: Record<string, string> = {}
+  ) {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
-      if (viewConfig.octEnFace)
-        Object.assign(configFor(viewID, dataID), viewConfig.octEnFace);
+      if (viewConfig.octEnFace) {
+        const { segmentId, ...settings } = viewConfig.octEnFace;
+        const mappedSegmentId = segmentId ? segmentIdMap[segmentId] : undefined;
+        const selectedMaskId =
+          segmentationStore.maskFor(dataID, mappedSegmentId)?.id ?? null;
+        Object.assign(configFor(viewID, dataID), settings, {
+          selectedMaskId,
+          highlightThin: settings.highlightThin && !!selectedMaskId,
+        });
+      }
     });
   }
 
