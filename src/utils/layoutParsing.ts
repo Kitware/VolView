@@ -8,6 +8,7 @@ const viewString = z.enum([
   'sagittal',
   'volume',
   'oblique',
+  'enface',
 ]);
 
 const view2D = z.object({
@@ -32,7 +33,12 @@ const viewOblique = z.object({
   name: z.string().optional(),
 });
 
-const viewSpec = z.union([viewString, view2D, view3D, viewOblique]);
+const viewEnFace = z.object({
+  type: z.literal('EnFace'),
+  name: z.string().optional(),
+});
+
+const viewSpec = z.union([viewString, view2D, view3D, viewOblique, viewEnFace]);
 
 type LayoutConfigItemType =
   | z.infer<typeof viewSpec>
@@ -97,11 +103,21 @@ const stringToViewInfoInit = (str: ViewString): ViewInfoInit => {
         dataID: null,
         options: { viewDirection: 'Posterior', viewUp: 'Superior' },
       };
+    case 'enface':
+      return { name: 'En face', type: 'EnFace', dataID: null, options: {} };
     case 'oblique':
       return { name: 'Oblique', type: 'Oblique', dataID: null, options: {} };
     default:
       throw new Error(`Unknown view string: ${str}`);
   }
+};
+
+const viewSpecName = (spec: Exclude<ViewSpec, string>) => {
+  if (spec.type === '2D') return spec.name ?? spec.orientation;
+  return (
+    spec.name ??
+    { '3D': 'Volume', EnFace: 'En face', Oblique: 'Oblique' }[spec.type]
+  );
 };
 
 const viewSpecToViewInfoInit = (spec: ViewSpec): ViewInfoInit => {
@@ -111,7 +127,7 @@ const viewSpecToViewInfoInit = (spec: ViewSpec): ViewInfoInit => {
 
   if (spec.type === '2D') {
     return {
-      name: spec.name ?? spec.orientation,
+      name: viewSpecName(spec),
       type: '2D',
       dataID: null,
       options: { orientation: spec.orientation },
@@ -120,7 +136,7 @@ const viewSpecToViewInfoInit = (spec: ViewSpec): ViewInfoInit => {
 
   if (spec.type === '3D') {
     return {
-      name: spec.name ?? 'Volume',
+      name: viewSpecName(spec),
       type: '3D',
       dataID: null,
       options: {
@@ -130,9 +146,18 @@ const viewSpecToViewInfoInit = (spec: ViewSpec): ViewInfoInit => {
     };
   }
 
+  if (spec.type === 'EnFace') {
+    return {
+      name: viewSpecName(spec),
+      type: 'EnFace',
+      dataID: null,
+      options: {},
+    };
+  }
+
   if (spec.type === 'Oblique') {
     return {
-      name: spec.name ?? 'Oblique',
+      name: viewSpecName(spec),
       type: 'Oblique',
       dataID: null,
       options: {},

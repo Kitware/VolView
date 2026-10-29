@@ -28,6 +28,14 @@ function isPositiveFiniteNumber(value: number) {
   return Number.isFinite(value) && value > 0;
 }
 
+function getInPlaneSpacing(value: Maybe<string>): [number, number] {
+  const [row = 1, column = row] = toVec(value) ?? [];
+  return [
+    isPositiveFiniteNumber(column) ? column : 1,
+    isPositiveFiniteNumber(row) ? row : 1,
+  ];
+}
+
 function getBitStorageSize(num: number, signed: boolean) {
   const addSignedBit = signed ? 1 : 0;
   const val = num < 0 ? -num : num + 1; // range shift for log2
@@ -214,7 +222,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   const meta = new Map(sortedChunks[0].metadata!);
   const imagePositionPatient = toVec(meta.get(ImagePositionPatientTag));
   const imageOrientationPatient = toVec(meta.get(ImageOrientationPatientTag));
-  const pixelSpacing = toVec(meta.get(PixelSpacingTag));
+  const pixelSpacing = getInPlaneSpacing(meta.get(PixelSpacingTag));
   const spacingBetweenSlices = Number(meta.get(SpacingBetweenSlicesTag));
   const rows = Number(meta.get(RowsTag) ?? 0);
   const columns = Number(meta.get(ColumnsTag) ?? 0);
@@ -252,16 +260,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
     image.setOrigin(imagePositionPatient as Vector3);
   }
 
-  const spacing: Vector3 = [1, 1, 1];
-  if (
-    pixelSpacing &&
-    pixelSpacing.length >= 2 &&
-    isPositiveFiniteNumber(pixelSpacing[0]) &&
-    isPositiveFiniteNumber(pixelSpacing[1])
-  ) {
-    spacing[0] = pixelSpacing[1];
-    spacing[1] = pixelSpacing[0];
-  }
+  const spacing: Vector3 = [...pixelSpacing, 1];
 
   if (imagePositionPatient && sortedChunks.length > 1) {
     const lastMeta = new Map(sortedChunks[sortedChunks.length - 1].metadata);
@@ -272,7 +271,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
       vec3.sub(zVec, lastIPP as vec3, imagePositionPatient as vec3);
       spacing[2] = vec3.len(zVec) / (slices - 1) || 1;
     }
-  } else if (slices === 1 && isPositiveFiniteNumber(spacingBetweenSlices)) {
+  } else if (isPositiveFiniteNumber(spacingBetweenSlices)) {
     spacing[2] = spacingBetweenSlices;
   }
   image.setSpacing(spacing);

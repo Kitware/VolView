@@ -246,9 +246,12 @@ export const config: Options.Testrunner = {
         if (!(console.error as any).__patched) {
           const originalError = console.error;
           console.error = (...args: any[]) => {
-            const stringArgs = args.map((arg) =>
-              arg instanceof Error ? `${arg.name}: ${arg.message}` : arg
-            );
+            const stringArgs = args.map((arg) => {
+              const error = arg instanceof ErrorEvent ? arg.error : arg;
+              return error instanceof Error
+                ? (error.stack ?? `${error.name}: ${error.message}`)
+                : arg;
+            });
             originalError.apply(console, stringArgs);
           };
           (console.error as any).__patched = true;

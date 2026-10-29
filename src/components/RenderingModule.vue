@@ -1,20 +1,55 @@
 <script lang="ts">
-import { computed, defineComponent, ref, unref } from 'vue';
+import { computed, defineComponent, ref, unref, watch } from 'vue';
 import { useViewStore } from '@/src/store/views';
-import { useCurrentImage } from '../composables/useCurrentImage';
+import {
+  getImageMetadata,
+  useCurrentImage,
+} from '../composables/useCurrentImage';
+import EnFaceControlPanel from '@/src/enface/EnFaceControlPanel.vue';
 import VolumeProperties from './VolumeProperties.vue';
 import VolumeRendering from './VolumeRendering.vue';
 import VolumePresets from './VolumePresets.vue';
 import LayerList from './LayerList.vue';
 
 export default defineComponent({
-  components: { VolumeRendering, VolumePresets, VolumeProperties, LayerList },
+  components: {
+    VolumeRendering,
+    VolumePresets,
+    VolumeProperties,
+    LayerList,
+    EnFaceControlPanel,
+  },
   setup() {
     // Use global current image - this gets the first loaded image when no view is selected
     const { currentImageData, currentImage, currentImageID } =
       useCurrentImage('global');
 
     const viewStore = useViewStore();
+    const enFaceViews = computed(() =>
+      viewStore.visibleViews.filter((view) => view.type === 'EnFace')
+    );
+    const lastEnFaceId = ref<string>();
+    watch(
+      () => viewStore.activeView,
+      (id) => {
+        if (id && viewStore.getView(id)?.type === 'EnFace')
+          lastEnFaceId.value = id;
+      },
+      { immediate: true }
+    );
+    const enFaceView = computed(
+      () =>
+        enFaceViews.value.find((view) => view.id === viewStore.activeView) ??
+        enFaceViews.value.find((view) => view.id === lastEnFaceId.value) ??
+        enFaceViews.value[0]
+    );
+    const enFaceChoices = computed(() =>
+      enFaceViews.value.map((view, index) => ({
+        title: `En face ${index + 1} (${getImageMetadata(view.dataID).name})`,
+        value: view.id,
+      }))
+    );
+    const selectEnFace = (id: string) => viewStore.setActiveView(id);
 
     // Get 3D view ID - prefer active view if it's 3D and shows current image,
     // otherwise find any 3D view showing current image
@@ -42,7 +77,7 @@ export default defineComponent({
       () => hasCurrentImage.value && !!view3DId.value
     );
 
-    const panels = ref<string[]>(['volume', 'layers']);
+    const panels = ref<string[]>(['volume', 'layers', 'enface']);
     const volumePanels = ref<string[]>(['properties']);
 
     return {
@@ -52,6 +87,9 @@ export default defineComponent({
       isImageLoading,
       canShow3DControls,
       view3DId,
+      enFaceView,
+      enFaceChoices,
+      selectEnFace,
     };
   },
 });
@@ -59,9 +97,9 @@ export default defineComponent({
 
 <template>
   <div class="mx-2 mt-1">
-    <template v-if="hasCurrentImage">
+    <template v-if="hasCurrentImage || enFaceView">
       <div
-        v-if="!canShow3DControls"
+        v-if="hasCurrentImage && !canShow3DControls"
         class="pt-4 text-body-2 text-center text-medium-emphasis"
       >
         Create a 3D view to access volume rendering controls
@@ -109,13 +147,43 @@ export default defineComponent({
           </v-expansion-panel-text>
         </v-expansion-panel>
 
-        <v-expansion-panel value="layers">
+        <v-expansion-panel v-if="hasCurrentImage" value="layers">
           <v-expansion-panel-title>
             <v-icon class="flex-grow-0 mr-4">mdi-layers</v-icon>
             Layers
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <layer-list />
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+        <v-expansion-panel
+          v-if="enFaceView"
+          value="enface"
+          data-testid="enface-rendering-section"
+        >
+          <v-expansion-panel-title data-testid="enface-rendering-toggle">
+            <v-icon class="flex-grow-0 mr-4">mdi-tune</v-icon>
+            En face
+          </v-expansion-panel-title>
+          <v-expansion-panel-text eager>
+            <v-select
+              v-if="enFaceChoices.length > 1"
+              :model-value="enFaceView.id"
+              :items="enFaceChoices"
+              @update:model-value="selectEnFace"
+              label="View"
+              density="compact"
+              hide-details
+              class="mb-4"
+              data-testid="enface-view-selector"
+            />
+            <EnFaceControlPanel
+              :key="`${enFaceView.id}:${enFaceView.dataID ?? ''}`"
+              :view-id="enFaceView.id"
+              :data-id="enFaceView.dataID"
+              embedded
+              data-testid="enface-sidebar-controls"
+            />
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>

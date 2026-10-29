@@ -1,94 +1,31 @@
-<script lang="ts">
-import {
-  defineComponent,
-  PropType,
-  toRefs,
-  watchEffect,
-  computed,
-  inject,
-  onUnmounted,
-  onMounted,
-} from 'vue';
-import vtkPlaneManipulator from '@kitware/vtk.js/Widgets/Manipulators/PlaneManipulator';
-import { LPSAxisDir } from '@/src/types/lps';
+<script setup lang="ts">
+import { toRefs, watchEffect } from 'vue';
+import type { LPSAxisDir } from '@/src/types/lps';
+import type { Maybe } from '@/src/types';
 import { useImage } from '@/src/composables/useCurrentImage';
-import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
-import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
-import { Maybe } from '@/src/types';
-import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSliceInfo } from '@/src/composables/useSliceInfo';
-import { onVTKEvent } from '@/src/composables/onVTKEvent';
+import { updatePlaneManipulatorFor2DView } from '@/src/utils/manipulators';
+import { useCrosshairsWidget } from './useCrosshairsWidget';
 
-export default defineComponent({
-  name: 'CrosshairsWidget2D',
-  props: {
-    viewId: {
-      type: String,
-      required: true,
-    },
-    viewDirection: {
-      type: String as PropType<LPSAxisDir>,
-      required: true,
-    },
-    imageId: String as PropType<Maybe<string>>,
-  },
-  setup(props) {
-    const { viewDirection, imageId, viewId } = toRefs(props);
-
-    const view = inject(VtkViewContext);
-    if (!view) throw new Error('No VtkView');
-
-    const sliceInfo = useSliceInfo(viewId, imageId);
-    const slice = computed(() => {
-      return sliceInfo.value?.slice;
-    });
-
-    const crosshairsStore = useCrosshairsToolStore();
-    const factory = crosshairsStore.getWidgetFactory();
-    const widget = view.widgetManager.addWidget(factory)!;
-
-    onUnmounted(() => {
-      view.widgetManager.removeWidget(factory);
-    });
-
-    // --- interaction --- //
-
-    // Only the widget the drag happened in fires this, which is what tells the
-    // store which image the picked point belongs to.
-    const handle = factory.getWidgetState().getHandle();
-    onVTKEvent(widget, 'onInteractionEvent', () => {
-      const origin = handle.getOrigin();
-      if (origin) crosshairsStore.setPosition(origin, viewId.value);
-    });
-
-    // --- manipulator --- //
-
-    const manipulator = vtkPlaneManipulator.newInstance();
-    widget.setManipulator(manipulator);
-    onUnmounted(() => manipulator.delete());
-
-    const { metadata: imageMetadata } = useImage(imageId);
-    watchEffect(() => {
-      if (slice.value == null) return;
-      updatePlaneManipulatorFor2DView(
-        manipulator,
-        viewDirection.value,
-        slice.value,
-        imageMetadata.value
-      );
-    });
-
-    // --- visibility --- //
-
-    widget.setVisibility(true);
-
-    // --- focus and rendering --- //
-
-    onMounted(() => {
-      view.widgetManager.renderWidgets();
-    });
-
-    return () => null;
-  },
+const props = defineProps<{
+  viewId: string;
+  viewDirection: LPSAxisDir;
+  imageId?: Maybe<string>;
+}>();
+const { viewId, imageId } = toRefs(props);
+const manipulator = useCrosshairsWidget(viewId);
+const sliceInfo = useSliceInfo(viewId, imageId);
+const { metadata } = useImage(imageId);
+watchEffect(() => {
+  const slice = sliceInfo.value?.slice;
+  if (slice == null) return;
+  updatePlaneManipulatorFor2DView(
+    manipulator,
+    props.viewDirection,
+    slice,
+    metadata.value
+  );
 });
 </script>
+
+<template><slot /></template>

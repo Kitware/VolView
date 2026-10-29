@@ -89,7 +89,7 @@ export function useWidgetManager(renderer: vtkRenderer) {
 
 type VtkViewOptions = {
   separateImageLayer?: boolean;
-  clippingBounds?: MaybeRef<Bounds>;
+  clippingBounds?: MaybeRef<Bounds | undefined>;
 };
 
 export function useVtkView(

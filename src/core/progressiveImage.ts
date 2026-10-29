@@ -3,7 +3,8 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { ImageMetadata } from '@/src/types/image';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { mat3, mat4, vec3 } from 'gl-matrix';
-import { defaultLPSDirections, getLPSDirections } from '@/src/utils/lps';
+import { defaultLPSDirections } from '@/src/utils/lps';
+import { metadataFromVtkImageData } from '@/src/utils/imageMetadata';
 import { Bounds } from '@kitware/vtk.js/types';
 import { watchImmediate } from '@vueuse/core';
 import { NO_NAME } from '@/src/constants';
@@ -66,21 +67,6 @@ export const defaultImageMetadata = (): ImageMetadata => ({
   worldToIndex: mat4.create(),
   indexToWorld: mat4.create(),
 });
-
-function metadataFromVtkImageData(
-  imageData: vtkImageData
-): Omit<ImageMetadata, 'name'> {
-  return {
-    dimensions: imageData.getDimensions(),
-    spacing: imageData.getSpacing(),
-    origin: imageData.getOrigin(),
-    orientation: imageData.getDirection(),
-    lpsOrientation: getLPSDirections(imageData.getDirection()),
-    worldBounds: imageData.getBounds(),
-    worldToIndex: imageData.getWorldToIndex(),
-    indexToWorld: imageData.getIndexToWorld(),
-  };
-}
 
 export function reactiveVtkImageMetadata(
   imageData: Ref<vtkImageData>,

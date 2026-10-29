@@ -27,6 +27,7 @@ import type {
 } from '@/src/store/view-configs/types';
 import type { LPSAxis } from '@/src/types/lps';
 import type { Segment as SegmentModel } from '@/src/segmentation/segment';
+import type { EnFaceViewConfig } from '@/src/enface/store';
 import type {
   ColorBy,
   ColorTransferFunction,
@@ -280,6 +281,13 @@ const CinePlaybackViewConfig = z.object({
   frame: z.number(),
 }) satisfies z.ZodType<CinePlaybackViewConfig>;
 
+const EnFaceViewConfig = z.object({
+  axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  method: z.enum(['mean', 'max', 'sum']),
+  depthStart: z.number().int().nonnegative(),
+  depthEnd: z.number().int().nonnegative().nullable(),
+}) satisfies z.ZodType<EnFaceViewConfig>;
+
 const ViewConfig = z.object({
   window: WindowLevelConfig.optional(),
   slice: SliceConfig.optional(),
@@ -287,6 +295,7 @@ const ViewConfig = z.object({
   camera: CameraConfig.optional(),
   volumeColorConfig: VolumeColorConfig.optional(),
   cinePlayback: CinePlaybackViewConfig.optional(),
+  enFace: EnFaceViewConfig.optional(),
 });
 
 export type ViewConfig = z.infer<typeof ViewConfig>;
@@ -294,7 +303,12 @@ export type ViewConfig = z.infer<typeof ViewConfig>;
 const View = z.object({
   id: z.string(),
   name: z.string(),
-  type: z.union([z.literal('2D'), z.literal('3D'), z.literal('Oblique')]),
+  type: z.union([
+    z.literal('2D'),
+    z.literal('3D'),
+    z.literal('Oblique'),
+    z.literal('EnFace'),
+  ]),
   dataID: z.string().optional().nullable(),
   options: z.record(z.string(), z.string()).optional(),
   config: z.record(z.string(), ViewConfig).optional(),
@@ -524,6 +538,7 @@ export const ManifestSchema = z.object({
   viewByID: z.record(z.string(), View).optional(),
   primarySelection: z.string().optional(),
   layout: Layout.optional(),
+  currentLayoutName: z.string().nullable().optional(),
   layoutSlots: z.array(z.string()).optional(),
   parentToLayers: ParentToLayers.optional(),
   layerDisplay: z.record(z.string(), LayerDisplayConfig).optional(),
