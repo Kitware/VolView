@@ -11,6 +11,7 @@ import {
   ImportDataSourcesResult,
   asIntermediateResult,
   StateFileSetupResult,
+  isVolumeResult,
 } from '@/src/io/import/common';
 import {
   DataSource,
@@ -50,7 +51,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useViewStore } from '@/src/store/views';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -74,26 +75,16 @@ function isSelectable(result: ImportResult): result is LoadableVolumeResult {
 
 const applyConfigsPostState = (
   results: Array<ConfigResult>,
-  loadables: readonly LoadableResult[],
-  hasDataResources: boolean,
-  standaloneImageIds: string[]
-): (ConfigResult | ErrorResult)[] => {
-  const imageIds = loadables
-    .filter((result) => result.dataType === 'image')
-    .map(({ dataID }) => dataID);
-  return results.map((result) => {
+  imageIds: string[]
+): (ConfigResult | ErrorResult)[] =>
+  results.map((result) => {
     try {
-      applyPostStateConfig(
-        result.config,
-        undefined,
-        hasDataResources ? imageIds : standaloneImageIds
-      );
+      applyPostStateConfig(result.config, undefined, imageIds);
       return result;
     } catch (err) {
       return asErrorResult(ensureError(err), result.dataSource);
     }
   });
-};
 
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
 // covers maps to its ONE store id. Many-to-one is the normal shape — a merged
@@ -170,6 +161,17 @@ const hasDataIntent = (result: ImportResult) => {
     )
   );
 };
+
+// Config that arrives with data configures the loaded images; config alone
+// configures the image whose view started the import.
+const configTargetImageIds = (
+  observed: readonly ImportResult[],
+  loadables: readonly LoadableResult[],
+  standaloneImageIds: string[]
+) =>
+  observed.some(hasDataIntent)
+    ? loadables.filter(isVolumeResult).map(({ dataID }) => dataID)
+    : standaloneImageIds;
 
 export const appRestoreProcessors = (): RestoreProcessors => ({
   restoreStateFile,
@@ -367,9 +369,7 @@ async function importDataSourcesWithPolicy(
   results.push(
     ...applyConfigsPostState(
       configResults,
-      loadableResults,
-      observedResults.some(hasDataIntent),
-      standaloneImageIds
+      configTargetImageIds(observedResults, loadableResults, standaloneImageIds)
     )
   );
 
@@ -392,10 +392,9 @@ async function importDataSourcesWithPolicy(
 function importWithInitialization(
   dataSources: DataSource[],
   policy: ImportPolicy,
-  services: ImportServices
+  services: Partial<ImportServices>
 ) {
-  const viewStore = useViewStore();
-  const initiatingImageId = viewStore.getView(viewStore.activeView)?.dataID;
+  const initiatingImageId = useCurrentImage('global').currentImageID.value;
   // Standalone config belongs to the initiating image, even if focus changes
   // while reading it. An explicit empty target updates only future defaults.
   const standaloneImageIds = initiatingImageId ? [initiatingImageId] : [];
@@ -404,6 +403,7 @@ function importWithInitialization(
       dataSources,
       policy,
       {
+        ...appRestoreProcessors(),
         ...services,
         onImageImported: (imageId) => {
           reserveImage(imageId);
@@ -417,14 +417,14 @@ function importWithInitialization(
 
 export function importDataSources(
   dataSources: DataSource[],
-  services: ImportServices = appRestoreProcessors()
+  services: Partial<ImportServices> = {}
 ): Promise<ImportDataSourcesResult[]> {
   return importWithInitialization(dataSources, 'application', services);
 }
 
 export function importVolumeDataSources(
   dataSources: DataSource[],
-  services: ImportServices = appRestoreProcessors()
+  services: Partial<ImportServices> = {}
 ): Promise<ImportDataSourcesResult[]> {
   return importWithInitialization(dataSources, 'volume-data', services);
 }

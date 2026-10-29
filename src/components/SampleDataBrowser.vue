@@ -2,7 +2,6 @@
 import { defineComponent, reactive, computed } from 'vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import {
-  appRestoreProcessors,
   convertSuccessResultToDataSelection,
   importDataSources,
 } from '@/src/io/import/importDataSources';
@@ -35,7 +34,6 @@ async function importSampleData(files: DataSource[], sample: SampleDataset) {
   return useSegmentStore().withDeferredImageInitialization(
     async (reserveImage) => {
       const loadResults = await importDataSources(files, {
-        ...appRestoreProcessors(),
         onImageImported: reserveImage,
       });
       const errors = loadResults.flatMap((result) =>
@@ -57,7 +55,7 @@ async function importSampleData(files: DataSource[], sample: SampleDataset) {
           });
         });
       }
-      await showImportedData(loadResults);
+      showImportedData(loadResults);
       return selections;
     }
   );

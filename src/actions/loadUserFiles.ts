@@ -18,7 +18,6 @@ import {
   importDataSources,
   importVolumeDataSources,
   toDataSelection,
-  appRestoreProcessors,
   type ImportServices,
 } from '@/src/io/import/importDataSources';
 import {
@@ -275,7 +274,7 @@ async function loadSegmentations(
 
 export type DataSourceImporter = (
   sources: DataSource[],
-  services?: ImportServices
+  services?: Partial<ImportServices>
 ) => Promise<ImportDataSourcesResult[]>;
 
 export function showImportedData(results: ImportResult[]) {
@@ -329,10 +328,7 @@ function loadDataSourcesWithOutcome(
     let results: ImportDataSourcesResult[];
     try {
       results = (
-        await importer(sources, {
-          ...appRestoreProcessors(),
-          onImageImported: reserveImage,
-        })
+        await importer(sources, { onImageImported: reserveImage })
       ).filter((result) =>
         // only look at data and error results
         ['data', 'error'].includes(result.type)
@@ -341,9 +337,6 @@ function loadDataSourcesWithOutcome(
       loadDataStore.setError(error as Error);
       return { datasetIds: [], hadErrors: true, completed: false };
     }
-    results
-      .filter(isVolumeResult)
-      .forEach(({ dataID }) => reserveImage(dataID));
 
     const [succeeded, errored] = partition(
       (result) => result.type !== 'error',
