@@ -40,9 +40,13 @@ image's definitions, with fresh identities, visible and unlocked, and no masks o
 shapes. Without a previous set it uses configured defaults. Imports and restore
 finish installing their own definitions before automatic copying can run. An
 existing set, including an intentionally empty one, is never populated again.
+Each load reserves only its actual image destinations from publication through
+configuration, restore and display. Unrelated pending loads do not defer an
+image's initialization.
 The version 8 session manifest saves image membership and selection, and migrates
 older shared catalogs into separate identities for each image without copying
-voxel storage.
+voxel storage. Distinct saved identities remain distinct when several saved
+datasets resolve to the same runtime image, including unused catalog entries.
 
 Process previews temporarily occupy live mask storage. Starting a competing
 edit cancels the preview before writing. Save and export also cancel an

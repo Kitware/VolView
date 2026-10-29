@@ -13,7 +13,7 @@ import { repairUnusableSpacing } from '@/src/utils/imageSpace';
  * @param dataSource
  * @returns
  */
-const importSingleFile: ImportHandler = async (dataSource) => {
+const importSingleFile: ImportHandler = async (dataSource, context) => {
   if (dataSource.type !== 'file') {
     return Skip;
   }
@@ -39,6 +39,7 @@ const importSingleFile: ImportHandler = async (dataSource) => {
       image,
       { headerMetadata }
     );
+    context?.onImageImported?.(dataID);
 
     return asLoadableResult(dataID, dataSource, 'image');
   }

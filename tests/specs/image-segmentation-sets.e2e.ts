@@ -1,12 +1,15 @@
 import path from 'node:path';
+import { writeFileSync } from 'node:fs';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   openThroughDialog,
+  makeTempDir,
   SESSION_SAVE_TIMEOUT,
   waitForDownload,
   waitForModuleTransitions,
   writeMetaImage,
+  writeManifestToFile,
 } from './utils';
 import {
   addSegment,
@@ -78,6 +81,46 @@ const createSourceDefinitions = async () => {
 };
 
 describe('Image segmentation sets', () => {
+  it('keeps a failed companion image config off the current image and accepts a standalone config', async () => {
+    writeMetaImage(FIRST, { size: 32 });
+    await writeManifestToFile(
+      { segments: { Liver: { color: '#ff0000' } } },
+      'segment-owner-initial.json'
+    );
+    await volViewPage.open(
+      `?urls=[tmp/${FIRST},tmp/segment-owner-initial.json]`
+    );
+    await volViewPage.waitForViews();
+    await openAnnotationSegments();
+    await expectSegments(['Liver']);
+
+    const directory = makeTempDir('segment-owner-failed-import');
+    writeFileSync(path.join(directory, 'broken.vti'), 'not VTI');
+    writeFileSync(
+      path.join(directory, 'companion.json'),
+      JSON.stringify({ segments: { Tumor: { color: '#00ff00' } } })
+    );
+    const manifest = await writeManifestToFile(
+      {
+        resources: [
+          { url: '/tmp/segment-owner-failed-import/broken.vti' },
+          { url: '/tmp/segment-owner-failed-import/companion.json' },
+        ],
+      },
+      'segment-owner-failed-resources.json'
+    );
+    await openThroughDialog(manifest);
+    await volViewPage.waitForNotification();
+    await expectSegments(['Liver']);
+
+    const standalone = await writeManifestToFile(
+      { segments: { Standalone: { color: '#0000ff' } } },
+      'segment-owner-standalone.json'
+    );
+    await openThroughDialog(standalone);
+    await expectSegments(['Standalone']);
+  });
+
   it('copies definitions once and keeps edits and deletion on their image', async () => {
     await openImages();
     await createSourceDefinitions();

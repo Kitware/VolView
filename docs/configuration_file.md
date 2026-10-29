@@ -162,6 +162,8 @@ Configuration loaded together with images or a session applies to those images.
 Configuration opened separately applies to the active image and updates defaults for
 future images. With no active image, it updates defaults only. Other existing images
 keep their own definitions and appearance.
+If all images in a load fail, its configuration still updates reusable defaults
+without changing the active image's definitions.
 
 ```json
 {

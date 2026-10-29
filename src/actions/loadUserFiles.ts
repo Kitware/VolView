@@ -18,6 +18,8 @@ import {
   importDataSources,
   importVolumeDataSources,
   toDataSelection,
+  appRestoreProcessors,
+  type ImportServices,
 } from '@/src/io/import/importDataSources';
 import {
   ErrorResult,
@@ -271,7 +273,8 @@ async function loadSegmentations(
 }
 
 export type DataSourceImporter = (
-  sources: DataSource[]
+  sources: DataSource[],
+  services?: ImportServices
 ) => Promise<ImportDataSourcesResult[]>;
 
 export async function showImportedData(results: ImportResult[]) {
@@ -314,10 +317,15 @@ function loadDataSourcesWithOutcome(
   const loadDataStore = useLoadDataStore();
   const viewStore = useViewStore();
 
-  const load = async () => {
+  const load = async (reserveImage: (imageId: string) => void) => {
     let results: ImportDataSourcesResult[];
     try {
-      results = (await importer(sources)).filter((result) =>
+      results = (
+        await importer(sources, {
+          ...appRestoreProcessors(),
+          onImageImported: reserveImage,
+        })
+      ).filter((result) =>
         // only look at data and error results
         ['data', 'error'].includes(result.type)
       );
@@ -325,6 +333,9 @@ function loadDataSourcesWithOutcome(
       loadDataStore.setError(error as Error);
       return { datasetIds: [], hadErrors: true, completed: false };
     }
+    results
+      .filter(isVolumeResult)
+      .forEach(({ dataID }) => reserveImage(dataID));
 
     const [succeeded, errored] = partition(
       (result) => result.type !== 'error',
@@ -365,23 +376,10 @@ function loadDataSourcesWithOutcome(
     };
   };
 
-  const wrapWithLoading = <Args extends unknown[], Result>(
-    fn: (...args: Args) => Promise<Result>
-  ) => {
-    const { startLoading, stopLoading } = useLoadDataStore();
-    return async function wrapper(...args: Args): Promise<Result> {
-      const releaseInitialization = useSegmentStore().deferInitialization();
-      try {
-        startLoading();
-        return await fn(...args);
-      } finally {
-        releaseInitialization();
-        stopLoading();
-      }
-    };
-  };
-
-  return wrapWithLoading(load)();
+  loadDataStore.startLoading();
+  return useSegmentStore()
+    .withDeferredImageInitialization(load)
+    .finally(() => loadDataStore.stopLoading());
 }
 
 export function loadDataSources(

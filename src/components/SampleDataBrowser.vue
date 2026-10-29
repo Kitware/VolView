@@ -2,6 +2,7 @@
 import { defineComponent, reactive, computed } from 'vue';
 import ImageListCard from '@/src/components/ImageListCard.vue';
 import {
+  appRestoreProcessors,
   convertSuccessResultToDataSelection,
   importDataSources,
 } from '@/src/io/import/importDataSources';
@@ -13,6 +14,8 @@ import { SampleDataset } from '@/src/types';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { fetchFile } from '@/src/utils/fetch';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import type { DataSource } from '@/src/io/import/dataSource';
 import {
   showImportedData,
   urlsToDataSources,
@@ -26,6 +29,38 @@ async function getSampleDataSources(
 
   const file = await fetchFile(sample.url, sample.filename, { progress });
   return [remoteFileToDataSource(file, sample.url)];
+}
+
+async function importSampleData(files: DataSource[], sample: SampleDataset) {
+  return useSegmentStore().withDeferredImageInitialization(
+    async (reserveImage) => {
+      const loadResults = await importDataSources(files, {
+        ...appRestoreProcessors(),
+        onImageImported: reserveImage,
+      });
+      const errors = loadResults.flatMap((result) =>
+        result.type === 'error' ? [result.error] : []
+      );
+      if (errors.length) {
+        throw new Error(errors.map((error) => error.message).join('\n'));
+      }
+      const selections = loadResults.flatMap((result) => {
+        const id = convertSuccessResultToDataSelection(result);
+        return id ? [id] : [];
+      });
+      if (!selections.length) throw new Error('Did not receive a load result');
+
+      if (sample.defaults?.colorPreset) {
+        selections.forEach((selection) => {
+          useVolumeColoringStore().setDefaults(selection, {
+            transferFunction: { preset: sample.defaults?.colorPreset },
+          });
+        });
+      }
+      await showImportedData(loadResults);
+      return selections;
+    }
+  );
 }
 
 export default defineComponent({
@@ -83,28 +118,7 @@ export default defineComponent({
       try {
         progress(Infinity);
         const files = await getSampleDataSources(sample, progress);
-        const loadResults = await importDataSources(files);
-        const errors = loadResults.flatMap((result) =>
-          result.type === 'error' ? [result.error] : []
-        );
-        if (errors.length) {
-          throw new Error(errors.map((error) => error.message).join('\n'));
-        }
-        const selections = loadResults.flatMap((result) => {
-          const id = convertSuccessResultToDataSelection(result);
-          return id ? [id] : [];
-        });
-        if (!selections.length)
-          throw new Error('Did not receive a load result');
-
-        if (sample.defaults?.colorPreset) {
-          selections.forEach((selection) => {
-            useVolumeColoringStore().setDefaults(selection, {
-              transferFunction: { preset: sample.defaults?.colorPreset },
-            });
-          });
-        }
-        await showImportedData(loadResults);
+        const selections = await importSampleData(files, sample);
         loaded.nameToIDs[sample.name] = selections;
         selections.forEach((id) => {
           loaded.idToName[id] = sample.name;

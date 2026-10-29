@@ -26,6 +26,7 @@ export type SegmentSetSnapshot = {
 type SegmentReferenceHolder = {
   has: (segmentId: string) => boolean;
   remove: (segmentId: string) => void;
+  removeMany: (segmentIds: ReadonlySet<string>) => void;
 };
 
 // An unparseable color is left out, so the segment keeps the color it has.
@@ -391,8 +392,13 @@ export const createSegmentRegistry = () => {
     );
 
   const removeImage = (imageId: string) => {
-    [...(imageSets.value[imageId]?.segmentIds ?? [])].forEach(deleteSegment);
+    const ids = new Set(imageSets.value[imageId]?.segmentIds);
+    if (ids.size) referenceHolders.forEach((holder) => holder.removeMany(ids));
     delete imageSets.value[imageId];
+    ids.forEach((id) => {
+      owners.delete(id);
+      delete segmentById.value[id];
+    });
     indexes.delete(imageId);
     configByImage.delete(imageId);
   };
@@ -427,9 +433,14 @@ export const createSegmentRegistry = () => {
    * its name on this image when that one holds no mask or shape, restoring its
    * own appearance onto it; otherwise it is minted under a unique name, so
    * content already here keeps its segment. `repeated` lists the entries left
-   * unseated because an earlier one claimed their id.
+   * unseated because an earlier one claimed their id. Shared `claimedTargets`
+   * keep distinct identities when several saved sets resolve to one image.
    */
-  const adopt = (imageId: string, incoming: Maybe<Segment[]>) => {
+  const adopt = (
+    imageId: string,
+    incoming: Maybe<Segment[]>,
+    claimedTargets = new Set<string>()
+  ) => {
     ensureSet(imageId);
     // Prototype-free: a file's ids are its own, so an id spelling an
     // Object.prototype key ('constructor', 'toString') must not read as
@@ -437,11 +448,11 @@ export const createSegmentRegistry = () => {
     // miss when it looks the id up in the returned map.
     const idMap: Record<string, string> = Object.create(null);
     const repeated: Segment[] = [];
-    // Seated by this call, so no later entry of the same name can join it.
-    const seated = new Set<string>();
     const reusable = (name: string) => {
       const existing = findSegmentByName(imageId, name)?.id;
-      return existing && !seated.has(existing) && !hasReferences(existing)
+      return existing &&
+        !claimedTargets.has(existing) &&
+        !hasReferences(existing)
         ? existing
         : undefined;
     };
@@ -461,7 +472,7 @@ export const createSegmentRegistry = () => {
             ...init,
             name: uniqueName(imageId, init.name),
           });
-      seated.add(target);
+      claimedTargets.add(target);
       idMap[id] = target;
     });
     return { idMap, repeated };

@@ -65,7 +65,7 @@ describe('image segment initialization boundaries', () => {
     const store = useSegmentStore();
     const source = store.segments.addSegment('a', { name: 'Liver' });
     await seatImage('b');
-    const release = store.deferInitialization();
+    const release = store.deferInitialization(['c']);
 
     await showImage('b');
 
@@ -88,18 +88,57 @@ describe('image segment initialization boundaries', () => {
     await viewImage('a');
     const store = useSegmentStore();
     store.segments.addSegment('a', { name: 'Liver' });
-    const release = store.deferInitialization();
-    await seatImage('incoming');
+    const imported = await store.withDeferredImageInitialization(
+      async (reserveImage) => {
+        reserveImage('incoming');
+        reserveImage('incoming');
+        await seatImage('incoming');
+        await showImage('incoming');
 
-    await showImage('incoming');
-
-    expect(names('incoming')).toEqual([]);
-    expect(store.segments.imageSets.value.incoming).toBeUndefined();
-    const imported = store.segments.mintSegment('incoming', { name: 'Tumor' });
-    release();
+        expect(names('incoming')).toEqual([]);
+        expect(store.segments.imageSets.value.incoming).toBeUndefined();
+        return store.segments.mintSegment('incoming', { name: 'Tumor' });
+      }
+    );
 
     expect(names('incoming')).toEqual(['Tumor']);
     expect(store.segments.selectedSegmentId('incoming')).toBe(imported);
+    expect(names('a')).toEqual(['Liver']);
+  });
+
+  it('initializes a completed image from defaults while another destination is reserved', async () => {
+    const store = useSegmentStore();
+    store.replaceConfigSegments({ Liver: { color: '#ff0000' } });
+    const release = store.deferInitialization(['c']);
+    await seatImage('c');
+
+    await viewImage('b');
+
+    expect(names('b')).toEqual(['Liver']);
+    const target = useSegmentationStore().resolveEditTarget('b');
+    const selected = store.segments.selectedSegmentId('b');
+    expect(useSegmentationStore().getMask(target).segmentId).toBe(selected);
+    release();
+    expect(names('b')).toEqual(['Liver']);
+  });
+
+  it('releases operation destinations when an import fails', async () => {
+    await viewImage('a');
+    const store = useSegmentStore();
+    store.segments.addSegment('a', { name: 'Liver' });
+
+    await expect(
+      store.withDeferredImageInitialization(async (reserveImage) => {
+        reserveImage('incoming');
+        reserveImage('incoming');
+        await seatImage('incoming');
+        await showImage('incoming');
+        expect(names('incoming')).toEqual([]);
+        throw new Error('Import failed');
+      })
+    ).rejects.toThrow('Import failed');
+
+    expect(names('incoming')).toEqual(['Liver']);
     expect(names('a')).toEqual(['Liver']);
   });
 

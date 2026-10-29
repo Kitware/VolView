@@ -14,6 +14,14 @@ import {
   yieldsFor,
 } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import type { DataSource } from '@/src/io/import/dataSource';
+
+const restoredImageSource: DataSource = {
+  type: 'file',
+  file: new File(['{}'], 'restored-image.json'),
+  fileType: 'application/json',
+  stateFileLeaf: { stateID: 'image' },
+};
 
 const sessionFile = () =>
   new File(['{}'], 'session.volview.json', { type: 'application/json' });
@@ -31,9 +39,7 @@ const configFile = () =>
     { type: 'application/json' }
   );
 
-const RESTORED_MANIFEST = {
-  version: '8.0.0',
-  dataSources: [],
+const RESTORED_MANIFEST = manifestForImages(['image'], {
   imageSegmentSets: [{ imageId: 'image', segmentIds: ['wire-restored'] }],
   segments: [
     {
@@ -44,19 +50,27 @@ const RESTORED_MANIFEST = {
       locked: false,
     },
   ],
-};
+});
 
-const setup = yieldsFor((source) =>
-  source.type === 'file' && source.file.name === 'session.volview.json'
+const setup = yieldsFor((source) => {
+  if (source === restoredImageSource) {
+    return {
+      type: 'data',
+      dataID: 'image',
+      dataType: 'image',
+      dataSource: source,
+    };
+  }
+  return source.type === 'file' && source.file.name === 'session.volview.json'
     ? {
         type: 'stateFileSetup',
-        dataSources: [],
+        dataSources: [restoredImageSource],
         manifest: RESTORED_MANIFEST,
         stateFiles: [],
         missingFiles: [],
       }
-    : Skip
-);
+    : Skip;
+});
 
 describe('post-state segment config', () => {
   beforeEach(async () => {

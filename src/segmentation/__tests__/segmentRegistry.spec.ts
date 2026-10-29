@@ -222,6 +222,7 @@ describe('segment registry', () => {
     registry.declareReferences('test', {
       has: () => false,
       remove: (segmentId) => removed.push(registry.getSegment(segmentId)?.name),
+      removeMany: () => {},
     });
     const id = registry.addSegment('img-1', { name: 'Tumor' });
 
@@ -338,6 +339,7 @@ describe('segment registry', () => {
     registry.declareReferences('test', {
       has: (segmentId) => segmentId === existing,
       remove: () => {},
+      removeMany: () => {},
     });
 
     const { idMap } = registry.adopt('img-1', [
@@ -411,6 +413,34 @@ describe('segment registry', () => {
 
     expect(idMap.a).not.toBe(idMap.b);
     expect(namesOf(registry)).toEqual(['Tumor', 'Tumor (2)']);
+  });
+
+  it('keeps distinct identities across adoption calls in one restore', () => {
+    const registry = createSegmentRegistry();
+    registry.replaceConfigSegments('img-1', { Tumor: { color: '#0000ff' } });
+    const configured = registry.findSegmentByName('img-1', 'Tumor')!.id;
+    const claimed = new Set<string>();
+    const first = registry.adopt(
+      'img-1',
+      [{ ...savedSegment('first'), color: [255, 0, 0, 255] }],
+      claimed
+    );
+
+    const second = registry.adopt(
+      'img-1',
+      [{ ...savedSegment('second'), color: [0, 255, 0, 255] }],
+      claimed
+    );
+
+    expect(first.idMap.first).toBe(configured);
+    expect(second.idMap.second).not.toBe(configured);
+    expect(namesOf(registry)).toEqual(['Tumor', 'Tumor (2)']);
+    expect(registry.getSegment(configured)?.color).toEqual([0, 0, 255, 255]);
+    expect(registry.getSegment(second.idMap.second)?.color).toEqual([
+      0, 255, 0, 255,
+    ]);
+    registry.replaceConfigSegments('img-1', { Tumor: {} });
+    expect(registry.getSegment(configured)?.color).toEqual([255, 0, 0, 255]);
   });
 
   it('restores onto an empty configured segment beneath the config', () => {
@@ -657,20 +687,37 @@ describe('image segment sets', () => {
   it('removes only the deleted image and its referenced content', () => {
     const registry = createSegmentRegistry();
     const first = registry.addSegment('first', { name: 'Tumor' });
+    const another = registry.addSegment('first', { name: 'Node' });
     const second = registry.addSegment('second', { name: 'Tumor' });
-    const removed: string[] = [];
+    const removed: Array<Array<[string, string | undefined]>> = [];
+    let individualRemovals = 0;
     registry.declareReferences('content', {
       has: () => true,
-      remove: (id) => removed.push(id),
+      remove: () => {
+        individualRemovals += 1;
+      },
+      removeMany: (ids) =>
+        removed.push([...ids].map((id) => [id, registry.getSegment(id)?.name])),
     });
 
     registry.removeImage('first');
 
-    expect(removed).toEqual([first]);
+    expect(individualRemovals).toBe(0);
+    expect(removed).toEqual([
+      [
+        [first, 'Tumor'],
+        [another, 'Node'],
+      ],
+    ]);
     expect(registry.imageSets.value.first).toBeUndefined();
     expect(registry.getSegment(first)).toBeUndefined();
+    expect(registry.getSegment(another)).toBeUndefined();
     expect(registry.ownerImageId(first)).toBeUndefined();
     expect(registry.getSegment(second)?.name).toBe('Tumor');
+    expect(registry.selectedSegmentId('first')).toBeUndefined();
+    expect(registry.selectedSegmentId('second')).toBe(second);
+    const replacement = registry.addSegment('first');
+    expect(registry.getSegment(replacement)?.name).toBe('Segment 1');
   });
 
   it('reads absent image context without initializing anything', () => {

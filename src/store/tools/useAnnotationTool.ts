@@ -129,6 +129,22 @@ export const useAnnotationTool = <
     selectionStore.removeSelection(id);
   }
 
+  function removeToolsWhere(shouldRemove: (tool: Tool) => boolean) {
+    const removed: ToolID[] = [];
+    const retained = toolIDs.value.filter((id) => {
+      if (!shouldRemove(toolByID.value[id])) return true;
+      removed.push(id);
+      return false;
+    });
+    if (!removed.length) return;
+    toolIDs.value = retained;
+    const selectionStore = useToolSelectionStore();
+    removed.forEach((id) => {
+      delete toolByID.value[id];
+      selectionStore.removeSelection(id);
+    });
+  }
+
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
     const next = { ...toolByID.value[id], ...patch, id };
@@ -169,9 +185,7 @@ export const useAnnotationTool = <
   // backend's intentional fail-closed 400. Mirrors the segmentation cascade.
   onImageDeleted((deletedIDs) => {
     const deleted = new Set(deletedIDs);
-    toolIDs.value
-      .filter((id) => deleted.has(toolByID.value[id].imageID))
-      .forEach((id) => removeTool(id));
+    removeToolsWhere((tool) => deleted.has(tool.imageID));
   });
 
   const { currentImageID } = useCurrentImage('global');
@@ -244,12 +258,18 @@ export const useAnnotationTool = <
       .filter((id) => referencesSegment(id, segmentId))
       .forEach((id) => removeTool(id));
 
+  const removeToolsOfSegments = (segmentIds: ReadonlySet<string>) => {
+    if (!segmentIds.size) return;
+    removeToolsWhere((tool) => !tool.placing && segmentIds.has(tool.segmentId));
+  };
+
   const hasToolsOfSegment = (segmentId: string) =>
     toolIDs.value.some((id) => referencesSegment(id, segmentId));
 
   registry.declareReferences(manifestKey, {
     has: hasToolsOfSegment,
     remove: removeToolsOfSegment,
+    removeMany: removeToolsOfSegments,
   });
 
   return {

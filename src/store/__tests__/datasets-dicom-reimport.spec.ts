@@ -5,6 +5,7 @@ import type { Chunk } from '@/src/core/streaming/chunk';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { instanceTags } from '@/src/store/__tests__/dicomTagFixtures';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { defer } from '@/src/utils';
 
 const mocks = vi.hoisted(() => {
   const chunkImages: MockDicomChunkImage[] = [];
@@ -98,10 +99,29 @@ describe('DICOM store incremental import', () => {
 
     const store = useDICOMStore();
     await store.importChunks([first]);
-    await store.importChunks([second]);
+    const [image] = mocks.chunkImages;
+    const entered = defer<void>();
+    const release = defer<void>();
+    const addChunks = image.addChunks.bind(image);
+    const pendingAdd = vi
+      .spyOn(image, 'addChunks')
+      .mockImplementation(async (chunks) => {
+        entered.resolve();
+        await release.promise;
+        return addChunks(chunks);
+      });
+    const onImageImported = vi.fn();
+    const importing = store.importChunks([second], onImageImported);
+    await entered.promise;
+    try {
+      expect(onImageImported).toHaveBeenCalledExactlyOnceWith('volume-1');
+    } finally {
+      release.resolve();
+      await importing;
+      pendingAdd.mockRestore();
+    }
 
     expect(mocks.chunkImages).toHaveLength(1);
-    const [image] = mocks.chunkImages;
     expect(image.additions).toEqual([[first], [first, second]]);
     expect(image.startLoadCount).toBe(2);
     expect(useImageCacheStore().imageById['volume-1']).toBe(image);

@@ -683,10 +683,40 @@ export const useSegmentationStore = defineStore('segmentation', () => {
       return maskId ? [segmentation.masks[maskId]] : [];
     });
 
+  function removeMasksOfSegments(segmentIds: ReadonlySet<string>) {
+    if (!segmentIds.size) return;
+    const targets = Object.values(segmentations).flatMap((segmentation) => {
+      const maskIds = Object.values(segmentation.masks)
+        .filter((mask) => segmentIds.has(mask.segmentId))
+        .map(({ id }) => id);
+      return maskIds.length
+        ? [{ segmentationId: segmentation.id, maskIds }]
+        : [];
+    });
+    if (!targets.length) return;
+    edits.beforeEdit();
+    targets.forEach(({ segmentationId, maskIds }) => {
+      const segmentation = segmentations[segmentationId];
+      if (!segmentation) return;
+      const removed = new Set(maskIds);
+      const index = maskIdsBySegment.get(segmentationId);
+      segmentation.order = segmentation.order.filter((id) => !removed.has(id));
+      maskIds.forEach((maskId) => {
+        const mask = segmentation.masks[maskId];
+        if (!mask) return;
+        delete segmentation.masks[maskId];
+        if (index?.get(mask.segmentId) === maskId) index.delete(mask.segmentId);
+        if (mask.representations.labelmap)
+          releaseMaskName(mask.representations.labelmap.name);
+      });
+    });
+  }
+
   segmentRegistry.declareReferences('labelmaps', {
     has: (segmentId) => masksOfSegment(segmentId).length > 0,
     remove: (segmentId) =>
       masksOfSegment(segmentId).forEach((mask) => deleteMask(mask.id)),
+    removeMany: removeMasksOfSegments,
   });
 
   // --- render sync --- //

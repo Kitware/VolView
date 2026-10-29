@@ -55,17 +55,11 @@ export const useSegmentStore = defineStore('segments', () => {
   const activeImageId = computed(
     () => viewStore.getView(viewStore.activeView)?.dataID
   );
-  const initializationReservations = new Set<{
-    knownImages: Set<string>;
-    imageIds: Set<string>;
-  }>();
+  const initializationReservations = new Set<ReadonlySet<string>>();
   const pendingSets = new Map<string, SegmentSetSnapshot>();
 
   const initializationDeferred = (imageId: string) =>
-    [...initializationReservations].some(
-      ({ knownImages, imageIds }) =>
-        imageIds.has(imageId) || !knownImages.has(imageId)
-    );
+    [...initializationReservations].some((imageIds) => imageIds.has(imageId));
 
   const defaultSnapshot = (): SegmentSetSnapshot => ({
     segments: seedSegmentDefaults.value.map((segment) => ({
@@ -93,10 +87,7 @@ export const useSegmentStore = defineStore('segments', () => {
 
   /** Imports install their definitions before a plain image borrows a set. */
   function deferInitialization(imageIds: readonly string[] = []) {
-    const reservation = {
-      knownImages: new Set(imageCacheStore.imageIds),
-      imageIds: new Set(imageIds),
-    };
+    const reservation = new Set(imageIds);
     initializationReservations.add(reservation);
     return () => {
       if (!initializationReservations.delete(reservation)) return;
@@ -111,6 +102,24 @@ export const useSegmentStore = defineStore('segments', () => {
         }
       });
     };
+  }
+
+  async function withDeferredImageInitialization<T>(
+    operation: (reserveImage: (imageId: string) => void) => T | Promise<T>
+  ): Promise<T> {
+    const releases = new Map<string, () => void>();
+    let active = true;
+    const reserveImage = (imageId: string) => {
+      if (active && !releases.has(imageId))
+        releases.set(imageId, deferInitialization([imageId]));
+    };
+    try {
+      return await operation(reserveImage);
+    } finally {
+      active = false;
+      releases.forEach((release) => release());
+      releases.clear();
+    }
   }
 
   function replaceConfigSegments(
@@ -158,6 +167,7 @@ export const useSegmentStore = defineStore('segments', () => {
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
     const segmentIdMap: Record<string, string> = Object.create(null);
     const repeated: Segment[] = [];
+    const claimedTargets = new Set<string>();
     const catalogById = new Map<string, Segment[]>();
     for (const segment of manifest.segments ?? []) {
       const entries = catalogById.get(segment.id);
@@ -176,7 +186,7 @@ export const useSegmentStore = defineStore('segments', () => {
       repeated.push(
         ...incoming.filter(({ id }) => Object.hasOwn(segmentIdMap, id))
       );
-      const adopted = registry.adopt(imageId, unclaimed);
+      const adopted = registry.adopt(imageId, unclaimed, claimedTargets);
       Object.assign(segmentIdMap, adopted.idMap);
       repeated.push(...adopted.repeated);
       registry.restoreSelection(
@@ -205,6 +215,7 @@ export const useSegmentStore = defineStore('segments', () => {
     segments: markRaw(registry),
     seedSegmentDefaults,
     deferInitialization,
+    withDeferredImageInitialization,
     replaceConfigSegments,
     serialize,
     deserialize,
