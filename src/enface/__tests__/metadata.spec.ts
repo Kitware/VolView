@@ -1,5 +1,6 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
-import { describe, expect, it } from 'vitest';
+import { deflateRawSync } from 'node:zlib';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
 import { augmentOCTMetadata } from '@/src/enface/dicomMetadata';
 
@@ -25,6 +26,8 @@ const baseMetadata = (): Array<[string, string]> => [
   [Tags.SOPClassUID, OPHTHALMIC_TOMOGRAPHY_SOP],
   [Tags.Modality, 'OPT'],
 ];
+
+afterEach(() => vi.restoreAllMocks());
 
 const firstItem = (data: DataSet, tag: string) =>
   data.elements[tag].items![0].dataSet!;
@@ -100,6 +103,56 @@ describe('OCT DICOM activation', () => {
 });
 
 describe('OCT enhanced spatial metadata', () => {
+  it('reads the header without copying the volume pixels', async () => {
+    const source = fixtureBytes();
+    const expected = await augmented(source);
+    const reads: number[] = [];
+    const arrayBuffer = Blob.prototype.arrayBuffer;
+    vi.spyOn(Blob.prototype, 'arrayBuffer').mockImplementation(function (
+      this: Blob
+    ) {
+      reads.push(this.size);
+      return arrayBuffer.call(this);
+    });
+
+    expect(await augmented(source)).toEqual(expected);
+    expect(reads.reduce((total, bytes) => total + bytes, 0)).toBeLessThan(
+      source.length / 10
+    );
+  });
+
+  it.each([64 * 1024, 2 * 1024 * 1024])(
+    'retains geometry after metadata ending at byte %s',
+    async (end) => {
+      const frames = [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }];
+      const empty = new Uint8Array(
+        await enhancedFile(frames, [
+          element('00111010', 'OB', new Uint8Array()),
+        ]).arrayBuffer()
+      );
+      const start = readDataset(empty).elements.x00111010.dataOffset;
+      const header = enhancedFile(frames, [
+        element('00111010', 'OB', new Uint8Array(end - start)),
+      ]);
+      const file = new Blob([
+        header,
+        element('7fe00010', 'OW', new Uint8Array(2)),
+      ]);
+      expect(new Map(await augmentOCTMetadata(file, baseMetadata()))).toEqual(
+        new Map(await augmentOCTMetadata(enhancedFile(frames), baseMetadata()))
+      );
+    }
+  );
+
+  it('uses the complete deflated stream when it exceeds the header probe', async () => {
+    const source = fixtureBytes();
+    const bytes = deflatedExplicitVR(source, (dataset) =>
+      deflateRawSync(dataset, { level: 0 })
+    );
+    expect(bytes.length).toBeGreaterThan(64 * 1024);
+    expect(await augmented(bytes)).toEqual(await augmented(source));
+  });
+
   it('reads deflated Explicit VR geometry with the required trailing NULL padding', async () => {
     const source = new Uint8Array(
       await enhancedFile([

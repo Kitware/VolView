@@ -151,6 +151,48 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.SpacingBetweenSlices, sliceSpacing);
 }
 
+async function readOCTHeader(file: Blob) {
+  let length = Math.min(file.size, 64 * 1024);
+  for (;;) {
+    const isCompleteFile = length === file.size;
+    const headerBytes = new Uint8Array(
+      await file.slice(0, length).arrayBuffer()
+    );
+    let needsCompleteFile = false;
+    try {
+      const data = dicomParser.parseDicom(headerBytes, {
+        untilTag: 'x7fe00010',
+        vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
+        inflater: (bytes, position) => {
+          // Do not try to inflate a partial stream. Keep the existing full-file
+          // path for deflated datasets, including trailing NULL padding.
+          if (!isCompleteFile) {
+            needsCompleteFile = true;
+            throw new Error('Deflated OCT requires the complete dataset');
+          }
+          const inflated = inflateSync(bytes.subarray(position));
+          // The parser requires the Part 10 header to retain metadata offsets.
+          const complete = new Uint8Array(position + inflated.length);
+          complete.set(bytes.subarray(0, position));
+          complete.set(inflated, position);
+          return complete;
+        },
+      });
+      // A successful parse of a prefix can still end between metadata elements.
+      // Only accept it once the complete Pixel Data header has been reached.
+      if (isCompleteFile || data.elements.x7fe00010) return data;
+    } catch (error) {
+      if (isCompleteFile) throw error;
+    }
+    // Bound speculative reads before falling back to the original full-file
+    // parse for unusually large headers or malformed inputs.
+    length =
+      needsCompleteFile || length >= 1024 * 1024
+        ? file.size
+        : Math.min(file.size, length * 4);
+  }
+}
+
 /** Promotes enhanced OCT geometry for the loader. */
 export async function augmentOCTMetadata(
   file: Blob,
@@ -159,21 +201,7 @@ export async function augmentOCTMetadata(
   if (!isOCTMetadata(metadata)) return metadata;
   const tags = new Map(metadata);
   try {
-    const data = dicomParser.parseDicom(
-      new Uint8Array(await file.arrayBuffer()),
-      {
-        untilTag: 'x7fe00010',
-        vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
-        inflater: (bytes, position) => {
-          const inflated = inflateSync(bytes.subarray(position));
-          // The parser requires the Part 10 header to retain metadata offsets.
-          const complete = new Uint8Array(position + inflated.length);
-          complete.set(bytes.subarray(0, position));
-          complete.set(inflated, position);
-          return complete;
-        },
-      }
-    );
+    const data = await readOCTHeader(file);
     promoteOCTGeometry(data, tags);
   } catch {
     tags.set(
