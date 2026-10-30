@@ -14,7 +14,8 @@ export function useEnFaceOccupiedDepth(
   viewId: MaybeRef<string>,
   projection: OccupiedDepthProjection & {
     geometry: MaybeRef<SlabGeometry | null>;
-  }
+  },
+  createWorker?: () => Worker
 ) {
   const { geometry, blockedReason } = projection;
   const input = useOccupiedDepthInput(viewId, projection);
@@ -29,7 +30,7 @@ export function useEnFaceOccupiedDepth(
     error,
   } = useOccupiedDepth(
     input.request,
-    undefined,
+    createWorker,
     computed(() => settings.value.highlightThin)
   );
   const thicknessReason = computed(

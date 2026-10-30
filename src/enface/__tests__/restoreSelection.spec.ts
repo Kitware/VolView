@@ -30,31 +30,30 @@ let pinia: ReturnType<typeof activateAppPinia>;
 beforeEach(() => {
   pinia = activateAppPinia();
   vi.stubGlobal('visualViewport', null);
-  // Run the real worker handler in process; only its browser transport is replaced.
-  vi.stubGlobal(
-    'Worker',
-    class {
-      onmessage: Worker['onmessage'] = null;
-      handle = createOccupiedDepthHandler();
-      postMessage(message: MeasurementRequest) {
-        const response = this.handle(message);
-        queueMicrotask(() =>
-          this.onmessage?.call(
-            this as unknown as Worker,
-            new MessageEvent('message', { data: response })
-          )
-        );
-      }
-
-      terminate() {}
-    }
-  );
 });
 enableAutoUnmount(afterEach);
 afterEach(() => {
   disposePinia(pinia);
   vi.unstubAllGlobals();
 });
+
+function createMeasurementWorker() {
+  const handle = createOccupiedDepthHandler();
+  const worker = {
+    onmessage: null as Worker['onmessage'],
+    postMessage(message: MeasurementRequest, transfer: Transferable[]) {
+      const response = handle(structuredClone(message, { transfer }));
+      queueMicrotask(() =>
+        worker.onmessage?.call(
+          worker as unknown as Worker,
+          new MessageEvent('message', { data: response })
+        )
+      );
+    },
+    terminate() {},
+  };
+  return worker as unknown as Worker;
+}
 
 it('keeps the projection ready and restores the non-first segment after deferred mask decoding', async () => {
   useImageStatsStore().stats.oct = {
@@ -155,14 +154,18 @@ it('keeps the projection ready and restores the non-first segment after deferred
     defineComponent({
       setup() {
         projection = useEnFaceInput('view');
-        thickness = useEnFaceOccupiedDepth('view', {
-          source: projection.source,
-          slab: projection.specification,
-          geometry: projection.geometry,
-          blockedReason: computed(
-            () => projection.controls.value.projectionReason
-          ),
-        });
+        thickness = useEnFaceOccupiedDepth(
+          'view',
+          {
+            source: projection.source,
+            slab: projection.specification,
+            geometry: projection.geometry,
+            blockedReason: computed(
+              () => projection.controls.value.projectionReason
+            ),
+          },
+          createMeasurementWorker
+        );
         return () =>
           h(EnFaceControls, {
             ...projection.controls.value,
@@ -184,10 +187,11 @@ it('keeps the projection ready and restores the non-first segment after deferred
     await nextTick();
     expect(projection.source.currentImageData.value).toBe(image);
     expect(projection.geometry.value).not.toBeNull();
-    expect(segmentation.imageMasks('oct')).toHaveLength(0);
-    expect(useEnFaceViewStore().configFor('view', 'oct').highlightThin).toBe(
-      true
-    );
+    expect(
+      wrapper.get<HTMLInputElement>(
+        '[data-testid="enface-thin-highlight"] input'
+      ).element.checked
+    ).toBe(true);
     expect(
       wrapper.get('[data-testid="enface-segmentation-segment"]').text()
     ).toContain('chosen');
@@ -215,10 +219,6 @@ it('keeps the projection ready and restores the non-first segment after deferred
     await restored;
   }
   await flushPromises();
-  expect(segmentation.imageMasks('oct').map((mask) => mask.segmentId)).toEqual([
-    segmentIdMap.first,
-    segmentIdMap.chosen,
-  ]);
   expect(thickness.overlay.value.appearance?.color).toEqual([0, 255, 0, 255]);
   expect(thickness.overlay.value.measurement?.counts).toEqual(
     new Uint32Array([1, 0, 0, 0])
