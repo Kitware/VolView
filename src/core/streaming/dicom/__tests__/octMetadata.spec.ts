@@ -3,6 +3,8 @@ import { deflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
 import { augmentOCTMetadata } from '@/src/core/streaming/dicom/octMetadata';
+import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
+import type { Chunk } from '@/src/core/streaming/chunk';
 
 import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
@@ -19,6 +21,7 @@ import {
   createSyntheticOCT,
   element,
   enhancedFile,
+  sequence,
 } from '@/tests/fixtures/oct/dicom';
 
 const baseMetadata = (): Array<[string, string]> => [
@@ -187,6 +190,19 @@ describe('OCT enhanced spatial metadata', () => {
     ).toMatch(/could not be read/);
   });
 
+  it.each([
+    { preamble: 0x20, groupLength: true },
+    { preamble: 0xff, groupLength: true },
+    { preamble: 0, groupLength: false },
+  ])('reads deflated geometry with %j', async ({ preamble, groupLength }) => {
+    const source = fixtureBytes();
+    let bytes = deflatedExplicitVR(source);
+    bytes.fill(preamble, 0, 128);
+    if (!groupLength)
+      bytes = Buffer.concat([bytes.subarray(0, 132), bytes.subarray(144)]);
+    expect(await augmented(bytes)).toEqual(await augmented(source));
+  });
+
   it('reads the generated OCT fixture and promotes nested geometry', async () => {
     const tags = await augmented();
     const pixelSpacing = tags.get(Tags.PixelSpacing)!.split('\\').map(Number);
@@ -211,6 +227,65 @@ describe('OCT enhanced spatial metadata', () => {
     const tags = await augmented(bytes);
     expect(isOCTMetadata(tags)).toBe(true);
     expect(tags.get(OCT_SCAN_PATTERN)).toBe('128282');
+  });
+
+  it.each(['128280', '128282'])(
+    'reads B-scan analysis scan pattern %s from its acquisition parameters',
+    async (pattern) => {
+      const file = enhancedFile(
+        [{}, {}],
+        [
+          element('00180088', 'DS', '0.2'),
+          sequence('00221640', [
+            sequence('00221618', [element('00080100', 'SH', pattern)]),
+          ]),
+        ]
+      );
+      const tags = new Map(
+        await augmentOCTMetadata(file, [
+          [Tags.SOPClassUID, OPHTHALMIC_BSCAN_ANALYSIS_SOP],
+        ])
+      );
+      expect(tags.get(OCT_SCAN_PATTERN)).toBe(pattern);
+    }
+  );
+
+  it('reads nested acquisition scan patterns with implicit VR', async () => {
+    const implicit = (encoded: Uint8Array) =>
+      Buffer.concat([encoded.subarray(0, 4), encoded.subarray(8)]);
+    const attribute = (tag: string, value: string) =>
+      implicit(element(tag, 'OB', value));
+    const file = new Blob([
+      Buffer.alloc(128),
+      Buffer.from('DICM'),
+      element('00020010', 'UI', '1.2.840.10008.1.2'),
+      attribute('00280008', '2'),
+      attribute('00180088', '0.2'),
+      implicit(
+        sequence('00221640', [
+          implicit(sequence('00221618', [attribute('00080100', '128282')])),
+        ])
+      ),
+    ]);
+    const tags = new Map(
+      await augmentOCTMetadata(file, [
+        [Tags.SOPClassUID, OPHTHALMIC_BSCAN_ANALYSIS_SOP],
+      ])
+    );
+    expect(tags.get(OCT_SCAN_PATTERN)).toBe('128282');
+  });
+
+  it('marks multiple acquisition patterns as requiring reconstruction', async () => {
+    const raster = sequence('00221618', [element('00080100', 'SH', '128280')]);
+    const file = enhancedFile(
+      [{}, {}],
+      [element('00180088', 'DS', '0.2'), sequence('00221640', [raster, raster])]
+    );
+    expect(
+      new Map(await augmentOCTMetadata(file, baseMetadata())).get(
+        OCT_SCAN_PATTERN
+      )
+    ).toBe('multiple');
   });
 
   it('preserves declarations marking a volume unsuitable for volumetric processing', async () => {
@@ -261,6 +336,45 @@ describe('OCT enhanced spatial metadata', () => {
       );
     }
   );
+
+  it.each(['position', 'orientation', 'nonunit orientation'])(
+    'preserves top-level geometry when enhanced %s is invalid',
+    async (kind) => {
+      const bytes = fixtureBytes();
+      const data = readDataset(bytes);
+      if (kind === 'position') {
+        overwrite(
+          firstItem(firstItem(data, 'x52009230'), 'x00209113'),
+          'x00200032',
+          '0\\0'
+        );
+      } else {
+        overwrite(
+          firstItem(firstItem(data, 'x52009229'), 'x00209116'),
+          'x00200037',
+          kind === 'orientation' ? '1\\0\\0\\0\\1' : '2\\0\\0\\0\\.5\\0'
+        );
+      }
+      const metadata: Array<[string, string]> = [
+        ...baseMetadata(),
+        [Tags.Rows, '2'],
+        [Tags.Columns, '2'],
+        [Tags.NumberOfFrames, '2'],
+        [Tags.BitsStored, '16'],
+        [Tags.PixelRepresentation, '0'],
+        [Tags.ImagePositionPatient, '9\\8\\7'],
+        [Tags.ImageOrientationPatient, '1\\0\\0\\0\\1\\0'],
+      ];
+      const tags = new Map(
+        await augmentOCTMetadata(new Blob([bytes]), metadata)
+      );
+      expect(spatialMetadataError(tags)).toBeTruthy();
+      const image = allocateImageFromChunks([{ metadata: [...tags] } as Chunk]);
+      expect(image.getOrigin()).toEqual([9, 8, 7]);
+      expect(image.getDirection()).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+      image.delete();
+    }
+  );
   it.each([false, true])(
     'rejects nonuniform B-scan positions with deflate=%s',
     async (deflated) => {
@@ -303,6 +417,58 @@ describe('OCT enhanced spatial metadata', () => {
     expect(spatialMetadataError(tags)).toBeUndefined();
     expect(new Map(tags).get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
+
+  it('accepts positions rounded to four decimal places', async () => {
+    const tags = await augmentOCTMetadata(
+      enhancedFile(
+        Array.from({ length: 49 }, (_, i) => ({
+          position: `0\\0\\${(i * 0.12306585).toFixed(4)}`,
+        }))
+      ),
+      baseMetadata()
+    );
+    expect(spatialMetadataError(tags)).toBeUndefined();
+  });
+
+  it('accepts rounded orthogonal direction cosines', async () => {
+    const bytes = fixtureBytes();
+    overwrite(
+      firstItem(firstItem(readDataset(bytes), 'x52009229'), 'x00209116'),
+      'x00200037',
+      '.8660\\.5\\0\\-.5\\.8660\\0'
+    );
+    expect(spatialMetadataError(await augmented(bytes))).toBeUndefined();
+  });
+
+  it('does not promote geometry for frames stored against the positive normal', async () => {
+    const tags = new Map(
+      await augmentOCTMetadata(
+        enhancedFile([
+          { position: '0\\0\\0.4' },
+          { position: '0\\0\\0.2' },
+          { position: '0\\0\\0' },
+        ]),
+        baseMetadata()
+      )
+    );
+    expect(spatialMetadataError(tags)).toMatch(/image grid/);
+    expect(tags.has(Tags.ImagePositionPatient)).toBe(false);
+    expect(tags.has(Tags.ImageOrientationPatient)).toBe(false);
+    expect(tags.has(Tags.SpacingBetweenSlices)).toBe(false);
+  });
+
+  it.each([undefined, '0'])(
+    'marks unpositioned multiframe OCT with slice spacing %s unavailable',
+    async (spacing) => {
+      const file = enhancedFile(
+        [{}, {}, {}],
+        spacing === undefined ? [] : [element('00180088', 'DS', spacing)]
+      );
+      const tags = new Map(await augmentOCTMetadata(file, baseMetadata()));
+      expect(spatialMetadataError(tags)).toMatch(/slice spacing.*unavailable/);
+      expect(tags.get(Tags.PixelSpacing)).toBe('0.01\\0.02');
+    }
+  );
 
   it('requires orientation before deriving spacing from positioned frames', async () => {
     const bytes = new Uint8Array(

@@ -8,20 +8,30 @@ import {
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
 
-const close = (a: number, b: number) =>
-  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-5;
-const coordinatesMatch = (a: ArrayLike<number>, b: ArrayLike<number>) =>
-  a.length === b.length && Array.from(a).every((n, i) => close(n, b[i]));
+const close = (a: number, b: number, tolerance = 1e-5) =>
+  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
+const coordinatesMatch = (
+  a: ArrayLike<number>,
+  b: ArrayLike<number>,
+  tolerance = 1e-5
+) =>
+  a.length === b.length &&
+  Array.from(a).every((n, i) => close(n, b[i], tolerance));
+const finiteVector = (
+  value: number[] | null | undefined,
+  length: number
+): value is number[] =>
+  value?.length === length && value.every(Number.isFinite);
+const positiveNumber = (value: number) => Number.isFinite(value) && value > 0;
 
 function imageDirection(basis: number[] | null | undefined) {
-  if (!basis || basis.length !== 6 || !basis.every(Number.isFinite))
-    return null;
+  if (!finiteVector(basis, 6)) return null;
   const row = basis.slice(0, 3) as vec3;
   const column = basis.slice(3) as vec3;
   if (
-    !close(vec3.length(row), 1) ||
-    !close(vec3.length(column), 1) ||
-    !close(vec3.dot(row, column), 0)
+    !close(vec3.length(row), 1, 1e-4) ||
+    !close(vec3.length(column), 1, 1e-4) ||
+    !close(vec3.dot(row, column), 0, 1e-4)
   )
     return null;
   return [...basis, ...vec3.cross([0, 0, 0], row, column)];
@@ -36,13 +46,16 @@ function frameGridError(positions: number[][], direction?: number[]) {
     .at(-1)!
     .map((n, axis) => (n - positions[0][axis]) / (positions.length - 1));
   const distance = Math.hypot(...step);
+  // Patient positions may be printed to four decimal places in millimetres.
+  const tolerance = Math.max(1e-4, distance * 1e-3);
   if (distance <= 1e-5)
     return 'Repeated DICOM slice locations need spatial reconstruction.';
   if (
     direction &&
     !coordinatesMatch(
       step,
-      direction.slice(6).map((n) => n * distance)
+      direction.slice(6).map((n) => n * distance),
+      tolerance
     )
   )
     return 'DICOM slice positions do not follow the image grid; spatial reconstruction is required.';
@@ -51,7 +64,8 @@ function frameGridError(positions: number[][], direction?: number[]) {
       (position, i) =>
         !coordinatesMatch(
           position,
-          positions[0].map((n, axis) => n + i * step[axis])
+          positions[0].map((n, axis) => n + i * step[axis]),
+          tolerance
         )
     )
   )
@@ -64,6 +78,8 @@ const PER_FRAME = 'x52009230';
 const MEASURES = 'x00289110';
 const ORIENTATION = 'x00209116';
 const POSITION = 'x00209113';
+const SCAN_PATTERN = 'x00221618';
+const ACQUISITION_PARAMETERS = 'x00221640';
 const PIXEL_SPACING = toDicomParserKey(Tags.PixelSpacing);
 const SLICE_SPACING = toDicomParserKey(Tags.SpacingBetweenSlices);
 const IMAGE_ORIENTATION = toDicomParserKey(Tags.ImageOrientationPatient);
@@ -74,7 +90,8 @@ const sequenceTags = new Set([
   MEASURES,
   ORIENTATION,
   POSITION,
-  'x00221618',
+  SCAN_PATTERN,
+  ACQUISITION_PARAMETERS,
   'x00283000',
   'x00289145',
 ]);
@@ -128,7 +145,13 @@ function frameAttributeMismatch(
   if (!expected) return false;
   return geometry.frames.some((frame) => {
     const value = vector(frameAttribute(frame, sequence, attribute));
-    return value ? !coordinatesMatch(value, expected) : false;
+    return value
+      ? !coordinatesMatch(
+          value,
+          expected,
+          sequence === ORIENTATION ? 1e-4 : 1e-5
+        )
+      : false;
   });
 }
 
@@ -139,6 +162,12 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const direction = imageDirection(vector(geometry.orientation));
   if (positions.length > 1 && !direction)
     return 'OCT image orientation is missing; spatial reconstruction is required.';
+  if (
+    positions.length < 2 &&
+    (geometry.declaredFrames ?? 0) > 1 &&
+    !positiveNumber(Number(geometry.sliceSpacing))
+  )
+    return 'OCT slice spacing is unavailable; spatial reconstruction is required.';
   return frameGridError(positions, direction ?? undefined);
 }
 
@@ -151,6 +180,9 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   const orientation = vector(geometry.orientation);
   if (orientation && !imageDirection(orientation))
     return 'OCT image orientation is invalid; spatial reconstruction is required.';
+  const origin = vector(geometry.origin);
+  if (origin && !finiteVector(origin, 3))
+    return 'DICOM slice positions are invalid; spatial reconstruction is required.';
   if (
     frameAttributeMismatch(geometry, MEASURES, PIXEL_SPACING, geometry.spacing)
   )
@@ -176,24 +208,42 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   return positionError(geometry);
 }
 
+function scanPattern(data: DataSet) {
+  const acquisitions =
+    data.elements[ACQUISITION_PARAMETERS]?.items?.flatMap((item) =>
+      item.dataSet ? [item.dataSet] : []
+    ) ?? [];
+  const patterns = [data, ...acquisitions].flatMap(
+    (dataset) =>
+      dataset.elements[SCAN_PATTERN]?.items?.flatMap((item) => {
+        const code = stringValue(item.dataSet, 'x00080100');
+        return code ? [code] : [];
+      }) ?? []
+  );
+  return acquisitions.length > 1 || new Set(patterns).size > 1
+    ? 'multiple'
+    : patterns[0];
+}
+
 function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   const geometry = frameGeometry(data);
   const set = (tag: string, value: string | undefined) => {
     if (value) tags.set(tag, value);
   };
   set(Tags.PixelSpacing, geometry.spacing);
-  set(Tags.ImageOrientationPatient, geometry.orientation);
-  set(Tags.ImagePositionPatient, geometry.origin);
   set(
     Tags.OphthalmicVolumetricPropertiesFlag,
     stringValue(data, toDicomParserKey(Tags.OphthalmicVolumetricPropertiesFlag))
   );
-  set(OCT_SCAN_PATTERN, stringValue(firstItem(data, 'x00221618'), 'x00080100'));
+  set(OCT_SCAN_PATTERN, scanPattern(data));
   const reason = geometryError(geometry);
   set(OCT_GEOMETRY_ERROR, reason ?? undefined);
+  if (reason) return;
+  set(Tags.ImageOrientationPatient, geometry.orientation);
+  set(Tags.ImagePositionPatient, geometry.origin);
   const positions = geometry.positions;
   let sliceSpacing = geometry.sliceSpacing;
-  if (!reason && positions[0] && positions[1]) {
+  if (positions[0] && positions[1]) {
     sliceSpacing = String(
       Math.hypot(...positions.at(-1)!.map((n, i) => n - positions[0]![i])) /
         (positions.length - 1)
@@ -215,17 +265,20 @@ async function readOCTHeader(file: Blob) {
         untilTag: 'x7fe00010',
         vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
         inflater: (bytes, position) => {
-          // Do not try to inflate a partial stream. Keep the existing full-file
-          // path for deflated datasets, including trailing NULL padding.
+          // Inflate only the complete stream, including trailing NULL padding.
           if (!isCompleteFile) {
             needsCompleteFile = true;
             throw new Error('Deflated OCT requires the complete dataset');
           }
           const inflated = inflateSync(bytes.subarray(position));
-          // The parser requires the Part 10 header to retain metadata offsets.
           const complete = new Uint8Array(position + inflated.length);
           complete.set(bytes.subarray(0, position));
           complete.set(inflated, position);
+          // The inflater resumes at zero. Skip the Part 10 header as one OB
+          // element while retaining the file-meta offsets in the same buffer.
+          complete.fill(0, 0, 12);
+          complete.set([0x4f, 0x42], 4);
+          new DataView(complete.buffer).setUint32(8, position - 12, true);
           return complete;
         },
       });
@@ -235,8 +288,8 @@ async function readOCTHeader(file: Blob) {
     } catch (error) {
       if (isCompleteFile) throw error;
     }
-    // Bound speculative reads before falling back to the original full-file
-    // parse for unusually large headers or malformed inputs.
+    // Cap prefix growth at 1 MiB, then read the complete file for large headers
+    // or malformed input.
     length =
       needsCompleteFile || length >= 1024 * 1024
         ? file.size
