@@ -16,6 +16,8 @@ import ResetViews from '@/src/components/tools/ResetViews.vue';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { useViewStore } from '@/src/store/views';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useEnFaceViewStore } from '@/src/enface/store';
 import { useViewWindowingRanges } from '@/src/composables/useViewWindowingRanges';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -322,6 +324,66 @@ describe('En face windowing with normal view controls', () => {
     expect(widths[0]).toBeGreaterThan(widths[1]);
     expect(widths[1]).toBeGreaterThan(widths[2]);
     expect(widths[2]).toBeGreaterThan(widths[3]);
+  });
+
+  it.each([false, true])(
+    'hides source-unit presets only for Sum projections with DICOM=%s',
+    async (dicom) => {
+      const views = useViewStore();
+      views.replaceView(views.layoutViews[0].id, {
+        type: 'EnFace',
+        name: 'En face',
+        dataID: 'image',
+        options: {},
+      });
+      const viewID = views.layoutViews[0].id;
+      if (dicom) {
+        useDICOMStore().volumeInfo.image = {
+          NumberOfSlices: 3,
+          VolumeID: 'image',
+          Modality: 'CT',
+          SeriesInstanceUID: 'image',
+          SeriesNumber: '1',
+          SeriesDescription: 'CT',
+          WindowLevel: '400',
+          WindowWidth: '1000',
+        };
+      }
+      const settings = useEnFaceViewStore().configFor(viewID, 'image');
+      const controls = mount(WindowLevelControls, {
+        props: { viewId: viewID, imageId: 'image' },
+        global: { plugins: [createVuetify()] },
+      });
+      for (const method of ['mean', 'sum', 'max'] as const) {
+        settings.method = method;
+        await nextTick();
+        expect(controls.text().includes('CT Presets')).toBe(method !== 'sum');
+        expect(controls.text().includes('File Specific Presets')).toBe(
+          dicom && method !== 'sum'
+        );
+        expect(controls.text()).toContain('Auto Window/Level');
+        expect(controls.text()).toContain('Manual');
+      }
+    }
+  );
+
+  it('keeps the last valid window while a nonpositive manual width is edited', async () => {
+    const store = useWindowingStore();
+    store.updateConfig('view', 'image', { width: 40, level: 20 });
+    const controls = mount(WindowLevelControls, {
+      props: { viewId: 'view', imageId: 'image' },
+      global: { plugins: [createVuetify()] },
+    });
+    const width = controls.findAll('input[type="number"]')[0];
+    await width.trigger('focus');
+    for (const value of ['0', '-1']) {
+      await width.setValue(value);
+      expect(store.getConfig('view', 'image').width).toBe(40);
+      expect(controls.emitted('change')).toBeUndefined();
+    }
+    await width.setValue('2.5');
+    expect(store.getConfig('view', 'image').width).toBe(2.5);
+    expect(controls.emitted('change')).toHaveLength(1);
   });
 });
 

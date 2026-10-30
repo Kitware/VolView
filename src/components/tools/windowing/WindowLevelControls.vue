@@ -10,6 +10,7 @@ import { WLAutoRanges, WLPresetsCT } from '@/src/constants';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { storeToRefs } from 'pinia';
+import { useEnFaceViewStore } from '@/src/enface/store';
 
 export default defineComponent({
   props: {
@@ -22,9 +23,20 @@ export default defineComponent({
     const windowingStore = useWindowingStore();
     const viewStore = useViewStore();
     const dicomStore = useDICOMStore();
+    const enFaceStore = useEnFaceViewStore();
     const { activeView } = storeToRefs(viewStore);
     const targetViewID = computed(() => props.viewId ?? activeView.value);
     const targetImageID = computed(() => props.imageId ?? currentImageID.value);
+    const isSumProjection = computed(() => {
+      const viewID = targetViewID.value;
+      const imageID = targetImageID.value;
+      return (
+        !!viewID &&
+        !!imageID &&
+        viewStore.getView(viewID)?.type === 'EnFace' &&
+        enFaceStore.settingsFor(viewID, imageID).method === 'sum'
+      );
+    });
 
     function parseLabel(text: string) {
       return text.replace(/([A-Z])/g, ' $1').trim();
@@ -44,6 +56,7 @@ export default defineComponent({
     const ctTags = ['ct', 'ctprotocol'];
 
     const showCtPresets = computed(() => {
+      if (isSumProjection.value) return false;
       if (targetImageID.value && !isDicomImage(targetImageID.value)) {
         return true;
       }
@@ -77,7 +90,13 @@ export default defineComponent({
           const parsed = Number(text);
           const imageID = targetImageID.value;
           const viewID = targetViewID.value;
-          if (!imageID || !viewID || !text.trim() || !Number.isFinite(parsed))
+          if (
+            !imageID ||
+            !viewID ||
+            !text.trim() ||
+            !Number.isFinite(parsed) ||
+            (field === 'width' && parsed <= 0)
+          )
             return;
           windowingStore.updateConfig(
             viewID,
@@ -125,6 +144,7 @@ export default defineComponent({
         }
 
         if (typeof selection === 'object') {
+          if (isSumProjection.value) return;
           windowingStore.updateConfig(
             viewID,
             imageID,
@@ -158,6 +178,7 @@ export default defineComponent({
 
     // --- Tag WL Options --- //
     const tags = computed(() => {
+      if (isSumProjection.value) return [];
       if (targetImageID.value && isDicomImage(targetImageID.value)) {
         const volKey = targetImageID.value;
         return getWindowLevels(dicomStore.volumeInfo[volKey]);

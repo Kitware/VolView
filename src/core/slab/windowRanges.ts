@@ -141,10 +141,9 @@ export function slabWindowRanges(image: vtkImageData, spec: SlabSpecification) {
   const projection = sampleProjection(image, spec);
   if (!projection) return null;
   const { samples, sampleCount } = projection;
-  // Bound raw and shifted texture sums without depending on texture storage.
   const sumBounds: [number, number] = [
     Math.min(0, min * sampleCount),
-    Math.max(0, max * sampleCount, min + (max - min) * sampleCount),
+    Math.max(0, max * sampleCount),
   ];
   const sumRange: [number, number] = sumBounds.every(Number.isFinite)
     ? sumBounds

@@ -3,13 +3,18 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { slabWindowRanges } from '../windowRanges';
 
-function constantDepthRanges(spacing: number[], first = 0, last = 2) {
+function constantDepthRanges(
+  spacing: number[],
+  first = 0,
+  last = 2,
+  values = [100, 200]
+) {
   const image = vtkImageData.newInstance();
   image.setDimensions([2, 3, 2]);
   image.setSpacing(spacing);
   const scalars = vtkDataArray.newInstance({
     values: Float32Array.from({ length: 12 }, (_, index) =>
-      index % 2 ? 200 : 100
+      index % 2 ? values[1] : values[0]
     ),
     numberOfComponents: 1,
   });
@@ -48,5 +53,16 @@ describe('Sum projection contrast sampling', () => {
   it('uses one sample for a single selected depth', () => {
     const ranges = constantDepthRanges([0.01, 0.01, 0.06], 1, 1);
     expect(ranges.LowContrast).toEqual([100, 200]);
+  });
+
+  it.each([
+    [-3024, 3071],
+    [-200, -100],
+  ])('bounds raw signed sums for source range %s..%s', (min, max) => {
+    const ranges = constantDepthRanges([1, 1, 1], 0, 2, [min, max]);
+    expect(ranges.FullRange).toEqual([
+      Math.min(0, min * 5),
+      Math.max(0, max * 5),
+    ]);
   });
 });
