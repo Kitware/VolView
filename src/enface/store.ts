@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { reactive } from 'vue';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
 import {
@@ -18,7 +18,7 @@ export type EnFaceViewConfig = {
   depthEnd: number | null;
   highlightThin: boolean;
   thresholdMicrons: number;
-  selectedMaskId: string | null;
+  selectedSegmentId: string | null;
 };
 
 export type ThicknessControlState = {
@@ -43,13 +43,13 @@ export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
   depthEnd: null,
   highlightThin: false,
   thresholdMicrons: 100,
-  selectedMaskId: null,
+  selectedSegmentId: null,
 });
 
 export const useEnFaceViewStore = defineStore('enface-view', () => {
   const configs = reactive<DoubleKeyRecord<EnFaceViewConfig>>({});
   const controlStates = reactive<DoubleKeyRecord<EnFaceViewControlState>>({});
-  const segmentationStore = useSegmentationStore();
+  const segmentsRegistry = useSegmentStore().segments;
 
   function configFor(viewID: string, dataID: string) {
     configs[viewID] ??= {};
@@ -95,12 +95,8 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     Object.entries(configs).forEach(([viewID, byDataID]) => {
       saved[viewID] = {};
       Object.entries(byDataID).forEach(([dataID, config]) => {
-        const selectedMask =
-          config.selectedMaskId &&
-          segmentationStore.maskExists(config.selectedMaskId)
-            ? segmentationStore.getMask(config.selectedMaskId)
-            : undefined;
-        const segmentId = selectedMask?.segmentId ?? null;
+        const segmentId =
+          segmentsRegistry.getSegment(config.selectedSegmentId)?.id ?? null;
         saved[viewID][dataID] = {
           axis: config.axis,
           method: config.method,
@@ -124,11 +120,9 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
       if (viewConfig.enFace) {
         const { segmentId, ...settings } = viewConfig.enFace;
         const mappedSegmentId = segmentId ? segmentIdMap[segmentId] : undefined;
-        const selectedMaskId =
-          segmentationStore.maskFor(dataID, mappedSegmentId)?.id ?? null;
         Object.assign(configFor(viewID, dataID), settings, {
-          selectedMaskId,
-          highlightThin: settings.highlightThin && !!selectedMaskId,
+          selectedSegmentId: mappedSegmentId ?? null,
+          highlightThin: settings.highlightThin && !!mappedSegmentId,
         });
       }
     });

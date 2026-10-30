@@ -30,7 +30,7 @@ function mountControls(overrides = {}) {
   const settings = reactive({
     ...defaultEnFaceViewConfig(),
     highlightThin: true,
-    selectedMaskId: 'retina',
+    selectedSegmentId: 'retina',
     ...overrides,
   });
   return mount(EnFaceControls, {
@@ -162,7 +162,10 @@ describe('En face rendering controls', () => {
           { value: 'other-layer', title: 'Other layer', color: '#00ff00' },
         ],
       },
-      settings: { ...wrapper.props('settings'), selectedMaskId: 'other-layer' },
+      settings: {
+        ...wrapper.props('settings'),
+        selectedSegmentId: 'other-layer',
+      },
     });
     expect(swatch().attributes('style')).toContain('background-color: #00ff00');
     expect(
@@ -186,6 +189,11 @@ describe('En face rendering controls', () => {
         ).toContain(`background-color: ${color}`);
       }
     });
+    (
+      document.body.querySelectorAll('[role="option"]')[0] as HTMLElement
+    ).click();
+    await nextTick();
+    expect(lastPatch(wrapper)).toEqual({ selectedSegmentId: 'retina' });
     expect(
       wrapper
         .get('[data-testid="enface-thin-highlight"]')

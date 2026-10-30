@@ -57,31 +57,45 @@ export function useOccupiedDepthInput(
 
   const segmentOptions = computed(() => {
     if (!currentImageID.value) return [];
-    return segmentationStore
-      .boundMaskIds(currentImageID.value)
-      .map((maskId) => {
-        const mask = segmentationStore.getMask(maskId);
-        const appearance = segmentsRegistry.appearanceOf(mask.segmentId);
-        return {
-          value: maskId,
-          title: appearance.displayName,
-          color: appearance.cssColor,
-        };
-      });
+    const segmentIds = segmentationStore
+      .imageMasks(currentImageID.value)
+      .map((mask) => mask.segmentId);
+    const selected = segmentsRegistry.getSegment(
+      settings.value.selectedSegmentId
+    );
+    // A restored segment can precede its mask record and decoded voxels.
+    if (selected && !segmentIds.includes(selected.id))
+      segmentIds.push(selected.id);
+    return segmentIds.map((segmentId) => {
+      const appearance = segmentsRegistry.appearanceOf(segmentId);
+      return {
+        value: segmentId,
+        title: appearance.displayName,
+        color: appearance.cssColor,
+      };
+    });
   });
   watch(
     [settings, segmentOptions],
     ([config, options]) => {
-      if (!options.some((option) => option.value === config.selectedMaskId)) {
-        if (config.selectedMaskId) config.highlightThin = false;
-        config.selectedMaskId = options[0]?.value ?? null;
+      if (
+        !options.some((option) => option.value === config.selectedSegmentId)
+      ) {
+        if (config.selectedSegmentId) config.highlightThin = false;
+        config.selectedSegmentId = options[0]?.value ?? null;
       }
     },
     { immediate: true }
   );
+  const selectedMask = computed(() =>
+    segmentationStore.maskFor(
+      currentImageID.value,
+      settings.value.selectedSegmentId
+    )
+  );
   const selectedBinding = computed(() =>
-    settings.value.selectedMaskId
-      ? segmentationStore.findMaskBinding(settings.value.selectedMaskId)
+    selectedMask.value
+      ? segmentationStore.findMaskBinding(selectedMask.value.id)
       : undefined
   );
   const segmentationReason = computed(
@@ -174,6 +188,7 @@ export function useOccupiedDepthInput(
   const highlightReason = computed(
     () =>
       segmentationReason.value ||
+      (!selectedBinding.value ? maskStorageReason.value : null) ||
       support.value.reason ||
       (support.value.calibratedAxes?.[slabAxis.value] === false
         ? 'The projection axis has no reliable declared voxel spacing; occupied depth is unavailable.'
@@ -238,7 +253,7 @@ export function useOccupiedDepthInput(
     return {
       dimensions: image.getDimensions(),
       source: image,
-      segment: settings.value.selectedMaskId!,
+      segment: selectedMask.value!.id,
       grid: JSON.stringify([
         image.getOrigin(),
         image.getSpacing(),
@@ -253,6 +268,7 @@ export function useOccupiedDepthInput(
 
   return {
     settings,
+    selectedMask,
     segmentOptions,
     segmentationReason,
     highlightReason,

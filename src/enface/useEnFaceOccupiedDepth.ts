@@ -20,7 +20,7 @@ export function useEnFaceOccupiedDepth(
   const input = useOccupiedDepthInput(viewId, projection);
   const { settings, micronsPerVoxel } = input;
   const appearance = useThinRegionAppearance(
-    computed(() => settings.value.selectedMaskId)
+    computed(() => input.selectedMask.value?.id)
   );
   const {
     accepted: measurement,

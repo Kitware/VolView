@@ -35,7 +35,7 @@ describe('En face view settings', () => {
       depthEnd: 40,
       thresholdMicrons: 35,
       highlightThin: true,
-      selectedMaskId: 'ephemeral-mask',
+      selectedSegmentId: 'missing-segment',
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -66,6 +66,7 @@ describe('En face view settings', () => {
     const settings = parsed.viewByID!.view.config!;
     expect(settings.oct.enFace?.method).toBe('sum');
     expect(settings.oct.enFace).not.toHaveProperty('selectedMaskId');
+    expect(settings.oct.enFace).not.toHaveProperty('selectedSegmentId');
     expect(settings.oct.enFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
@@ -81,7 +82,7 @@ describe('En face view settings', () => {
       thresholdMicrons: 35,
       highlightThin: false,
     });
-    expect(store.configFor('restored', 'new-oct').selectedMaskId).toBeNull();
+    expect(store.configFor('restored', 'new-oct').selectedSegmentId).toBeNull();
     expect(useWindowingStore().getConfig('restored', 'new-oct')).toMatchObject({
       width: 120,
       level: 60,
@@ -121,7 +122,7 @@ describe('En face view settings', () => {
       depthEnd: 4,
       highlightThin: false,
       thresholdMicrons: 100,
-      selectedMaskId: null,
+      selectedSegmentId: null,
     });
   });
 
@@ -132,7 +133,7 @@ describe('En face view settings', () => {
     const segmentation = useSegmentationStore();
     const group = segmentation.ensureSegmentationForImage('restored-oct');
     segmentation.createMask(group.id, first);
-    const chosenMask = segmentation.createMask(group.id, chosen);
+    segmentation.createMask(group.id, chosen);
     const store = useEnFaceViewStore();
     store.deserialize(
       'view',
@@ -151,8 +152,8 @@ describe('En face view settings', () => {
       },
       { 'saved-layer': chosen }
     );
-    expect(store.configFor('view', 'restored-oct').selectedMaskId).toBe(
-      chosenMask.id
+    expect(store.configFor('view', 'restored-oct').selectedSegmentId).toBe(
+      chosen
     );
     expect(store.configFor('view', 'restored-oct').highlightThin).toBe(true);
     store.deserialize('view', {
