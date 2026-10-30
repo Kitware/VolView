@@ -9,8 +9,14 @@ import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 function measurementMetadata(chunk: Chunk) {
   const tags = new Map(chunk.metadata ?? []);
-  const region = chunk.ultrasoundRegions?.region;
-  if (tags.get(Tags.Modality)?.trim() !== 'US' || !region) return tags;
+  const regions = chunk.ultrasoundRegions;
+  if (
+    tags.get(Tags.Modality)?.trim() !== 'US' ||
+    !regions?.region ||
+    regions.regionCount > 1
+  )
+    return tags;
+  const { region } = regions;
   const xFactor = unitToMm(region.physicalUnitsXDirection);
   const yFactor = unitToMm(region.physicalUnitsYDirection);
   if (xFactor === null || yFactor === null) return tags;

@@ -58,45 +58,51 @@ describe('occupied-depth support for loaded volumes', () => {
     expect(chunks).toHaveBeenCalledTimes(2);
   });
 
-  it('preserves declared ultrasound-region calibration without PixelSpacing', async () => {
-    const fixture = createOCTFixture();
-    await fixture.chunk.loadMeta();
-    const metadata = fixture.chunk.metadata!.filter(
-      ([tag]) => ![Tags.Modality, Tags.PixelSpacing].includes(tag)
-    );
-    metadata.push([Tags.Modality, 'US']);
-    const blob = fixture.chunk.metaBlob!;
-    const chunk = new Chunk({
-      metaLoader: {
-        meta: metadata,
-        metaBlob: blob,
-        ultrasoundRegions: {
-          regionCount: 1,
-          region: {
-            physicalUnitsXDirection: 3,
-            physicalUnitsYDirection: 3,
-            physicalDeltaX: 0.002,
-            physicalDeltaY: 0.00104,
+  it.each([
+    { regionCount: 1, calibrated: true },
+    { regionCount: 2, calibrated: false },
+  ])(
+    'calibrates ultrasound with $regionCount regions without PixelSpacing: $calibrated',
+    async ({ regionCount, calibrated }) => {
+      const fixture = createOCTFixture();
+      await fixture.chunk.loadMeta();
+      const metadata = fixture.chunk.metadata!.filter(
+        ([tag]) => ![Tags.Modality, Tags.PixelSpacing].includes(tag)
+      );
+      metadata.push([Tags.Modality, 'US']);
+      const blob = fixture.chunk.metaBlob!;
+      const chunk = new Chunk({
+        metaLoader: {
+          meta: metadata,
+          metaBlob: blob,
+          ultrasoundRegions: {
+            regionCount,
+            region: {
+              physicalUnitsXDirection: 3,
+              physicalUnitsYDirection: 3,
+              physicalDeltaX: 0.002,
+              physicalDeltaY: 0.00104,
+            },
           },
+          load: () => {},
+          stop: () => {},
         },
-        load: () => {},
-        stop: () => {},
-      },
-      dataLoader: { data: blob, load: () => {}, stop: () => {} },
-    });
-    fixture.chunk.dispose();
-    const id = useImageCacheStore().addProgressiveImage(fixture.image);
-    await fixture.image.addChunks([chunk]);
-    fixture.image.startLoad();
-    await untilLoaded(id);
-    expect(fixture.image.getVtkImageData().getSpacing()[1]).toBeCloseTo(
-      0.0104,
-      7
-    );
-    expect(getOccupiedDepthSupport(id).calibratedAxes).toEqual([
-      true,
-      true,
-      true,
-    ]);
-  });
+        dataLoader: { data: blob, load: () => {}, stop: () => {} },
+      });
+      fixture.chunk.dispose();
+      const id = useImageCacheStore().addProgressiveImage(fixture.image);
+      await fixture.image.addChunks([chunk]);
+      fixture.image.startLoad();
+      await untilLoaded(id);
+      expect(fixture.image.getVtkImageData().getSpacing()[1]).toBeCloseTo(
+        0.0104,
+        7
+      );
+      expect(getOccupiedDepthSupport(id).calibratedAxes).toEqual([
+        calibrated,
+        calibrated,
+        true,
+      ]);
+    }
+  );
 });

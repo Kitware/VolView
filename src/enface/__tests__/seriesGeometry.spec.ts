@@ -114,6 +114,15 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     expect(getOccupiedDepthSupport(id).reason).toBeNull();
   });
 
+  it('accepts sub-0.1 mm slice positions printed to four decimal places', async () => {
+    const positions = Array.from({ length: 5 }, (_, index) =>
+      Number((index * 0.023125).toFixed(4))
+    );
+    const { id } = await assemble(positions);
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
+    expect(getOccupiedDepthSupport(id).reason).toBeNull();
+  });
+
   it('uses uniform file positions when optional slice spacing disagrees', async () => {
     const { id, image } = await assemble(undefined, (chunks) => {
       chunks.forEach((chunk) =>
