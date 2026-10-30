@@ -235,31 +235,26 @@ export const createStateFileRestorer = ({
       }
     };
 
-    const prepareViewContent = async () => {
-      // Registries first: masks and shapes both name a segment, and the
-      // ids they name are minted here.
-      const { segmentIdMap, repeated: repeatedSegments } =
-        useSegmentStore().deserialize(manifest);
+    // Registries first: masks and shapes name the segment identities minted here.
+    const { segmentIdMap, repeated: repeatedSegments } =
+      useSegmentStore().deserialize(manifest);
 
-      const { skipped: skippedLabelmaps } =
-        await useSegmentationStore().deserialize({
-          manifest,
-          stateFiles,
-          dataIDMap: stateIDToStoreID,
-          segmentIdMap,
-          labelmapSources: planLabelmapSources(manifest).sources,
-        });
+    // Binding can mount a viewer, so install its saved camera and contrast first.
+    useViewConfigStore().deserializeAll(
+      manifest,
+      stateIDToStoreID,
+      segmentIdMap
+    );
+    bindRestoredViews();
 
-      useViewConfigStore().deserializeAll(
+    const { skipped: skippedLabelmaps } =
+      await useSegmentationStore().deserialize({
         manifest,
-        stateIDToStoreID,
-        segmentIdMap
-      );
-      return { segmentIdMap, repeatedSegments, skippedLabelmaps };
-    };
-    // Imported datasets remain visible if content preparation rejects.
-    const { segmentIdMap, repeatedSegments, skippedLabelmaps } =
-      await prepareViewContent().finally(bindRestoredViews);
+        stateFiles,
+        dataIDMap: stateIDToStoreID,
+        segmentIdMap,
+        labelmapSources: planLabelmapSources(manifest).sources,
+      });
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 

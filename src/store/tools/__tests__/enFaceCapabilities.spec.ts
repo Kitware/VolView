@@ -170,7 +170,7 @@ describe('En face tool capabilities', () => {
     expect(reason).toMatch(/nonzero starting voxel indices/);
     const tools = useToolStore();
     tools.setCurrentTool(Tools.Crosshairs);
-    expect(tools.currentTool).toBe(Tools.Select);
+    expect(tools.currentTool).toBe(Tools.WindowLevel);
     tools.setCurrentTool(Tools.WindowLevel);
     await crosshairsChord('keydown');
     expect(tools.currentTool).toBe(Tools.WindowLevel);
@@ -262,19 +262,19 @@ describe('activating an En face view', () => {
       expect(
         getToolUnavailableReason(Tools.WindowLevel, effective)
       ).toBeTruthy();
-      expect(tools.currentTool).toBe(Tools.Select);
+      expect(tools.currentTool).toBe(Tools.WindowLevel);
       tools.setCurrentTool(Tools.WindowLevel);
-      expect(tools.currentTool).toBe(Tools.Select);
+      expect(tools.currentTool).toBe(Tools.WindowLevel);
     }
   );
   it.each([Tools.WindowLevel, Tools.Pan, Tools.Zoom, Tools.Crosshairs])(
-    'rejects the %s shortcut in an En face slot with no dataset',
+    'preserves the selected tool when rejecting the unavailable %s shortcut',
     async (tool) => {
       activateEnFace(null);
       const tools = useToolStore();
       await nextTick();
       tools.setCurrentTool(tool);
-      expect(tools.currentTool).toBe(Tools.Select);
+      expect(tools.currentTool).toBe(Tools.WindowLevel);
     }
   );
   it('declines temporary Crosshairs until a projection source is available', async () => {
@@ -282,9 +282,45 @@ describe('activating an En face view', () => {
     const tools = useToolStore();
     await nextTick();
     tools.activateTemporaryCrosshairs();
-    expect(tools.currentTool).toBe(Tools.Select);
+    expect(tools.currentTool).toBe(Tools.WindowLevel);
     tools.deactivateTemporaryCrosshairs();
-    expect(tools.currentTool).toBe(Tools.Select);
+    expect(tools.currentTool).toBe(Tools.WindowLevel);
+  });
+  it.each([Tools.WindowLevel, Tools.Pan, Tools.Zoom])(
+    'keeps %s selected from an empty En face slot through deferred OCT loading',
+    async (tool) => {
+      const tools = useToolStore();
+      tools.setCurrentTool(tool);
+      const viewID = activateEnFace(null);
+      await nextTick();
+      expect(tools.currentTool).toBe(tool);
+      const dataID = await loadOCT('pending', { deferDecode: true });
+      useViewStore().setDataForView(viewID, dataID);
+      await nextTick();
+      expect(tools.currentTool).toBe(tool);
+      expect(getToolUnavailableReason(tool, getEffectiveView(viewID))).toMatch(
+        /complete volume/
+      );
+      decodeReleases.at(-1)!();
+      await untilLoaded(dataID);
+      await nextTick();
+      expect(tools.currentTool).toBe(tool);
+      expect(
+        getToolUnavailableReason(tool, getEffectiveView(viewID))
+      ).toBeNull();
+    }
+  );
+  it('refuses annotation shortcuts in an empty En face slot', async () => {
+    const viewID = activateEnFace(null);
+    const tools = useToolStore();
+    await nextTick();
+    for (const tool of Object.values(Tools).filter(
+      (candidate) => !supportedTools.has(candidate)
+    )) {
+      expect(isToolAllowedFor(tool, getEffectiveView(viewID))).toBe(false);
+      tools.setCurrentTool(tool);
+      expect(tools.currentTool).toBe(Tools.Select);
+    }
   });
   it('preserves normal-view contrast shortcuts when their dataset is missing', () => {
     const views = useViewStore();

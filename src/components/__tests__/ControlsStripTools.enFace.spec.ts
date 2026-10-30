@@ -43,7 +43,7 @@ function windowAction(wrapper: ReturnType<typeof mountToolbar>) {
 
 describe('En face contrast toolbar availability', () => {
   it.each([null, 'missing'])(
-    'keeps unavailable contrast visible and disabled with the same reason as shortcut coercion for %s',
+    'keeps unavailable contrast visible and disabled without clearing its selection for %s',
     async (dataID) => {
       const wrapper = mountToolbar(dataID);
       const reason = getEnFaceUnavailableReason(dataID);
@@ -52,7 +52,7 @@ describe('En face contrast toolbar availability', () => {
       expect(windowAction(wrapper).attributes('tabindex')).toBe('0');
       useToolStore().setCurrentTool(Tools.WindowLevel);
       await nextTick();
-      expect(useToolStore().currentTool).toBe(Tools.Select);
+      expect(useToolStore().currentTool).toBe(Tools.WindowLevel);
     }
   );
 
@@ -74,8 +74,6 @@ describe('En face contrast toolbar availability', () => {
     await nextTick();
     expect(wrapper.get(windowTool).attributes('disabled')).toBeUndefined();
     expect(windowAction(wrapper).props('reason')).toBeUndefined();
-    useToolStore().setCurrentTool(Tools.WindowLevel);
-    await nextTick();
     expect(useToolStore().currentTool).toBe(Tools.WindowLevel);
     expect(wrapper.get(windowTool).classes()).toContain('tool-btn-selected');
   });

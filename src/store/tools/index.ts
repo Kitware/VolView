@@ -30,7 +30,7 @@ const CINE_DISALLOWED_TOOLS = new Set([
 ]);
 
 export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
-  if (effective?.kind === 'enface')
+  if (effective?.viewInfo.type === 'EnFace')
     return [
       Tools.Select,
       Tools.WindowLevel,
@@ -48,7 +48,7 @@ export function getToolUnavailableReason(
   effective: EffectiveView | null
 ) {
   if (!isToolAllowedFor(tool, effective)) {
-    return effective?.kind === 'enface'
+    return effective?.viewInfo.type === 'EnFace'
       ? 'This tool is unavailable on an En face projection. Switch to a slice view to use it.'
       : 'This tool is unavailable for a cine clip.';
   }
@@ -76,7 +76,7 @@ const SEGMENT_TOOLS = new Set([
 const activeEffectiveView = () => getEffectiveView(useViewStore().activeView);
 
 function coerceForEffective(tool: Tools, effective: EffectiveView | null) {
-  return getToolUnavailableReason(tool, effective) ? Tools.Select : tool;
+  return isToolAllowedFor(tool, effective) ? tool : Tools.Select;
 }
 
 // TODO move these types out
@@ -152,7 +152,9 @@ export const useToolStore = defineStore('tool', () => {
   const { currentImageID } = useCurrentImage('global');
 
   function setCurrentTool(tool: Tools) {
-    const coerced = coerceForEffective(tool, activeEffectiveView());
+    const effective = activeEffectiveView();
+    const coerced = coerceForEffective(tool, effective);
+    if (coerced === tool && getToolUnavailableReason(tool, effective)) return;
     if (currentTool.value === coerced) {
       return;
     }
@@ -172,7 +174,7 @@ export const useToolStore = defineStore('tool', () => {
     if (!currentImageID.value) return 'Load an image to paint';
     const kind = activeEffectiveView()?.kind;
     if (kind === 'cine') return 'A clip cannot be painted';
-    if (kind === 'enface')
+    if (activeEffectiveView()?.viewInfo.type === 'EnFace')
       return 'Painting is not available on an En face projection';
     if (kind === 'oblique')
       return 'Painting is not available in an oblique view';

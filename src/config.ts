@@ -173,7 +173,7 @@ export const SAMPLE_DATA: SampleDataset[] = [
     filename: 'jhu-retinal-layers.zip',
     description:
       'JHU IACL retinal OCT with eight manually delineated tissue layers. 37 MB',
-    url: 'https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download',
+    url: 'https://data.kitware.com/api/v1/file/6ae4eeea1747c43eb2901727/download',
     image: RetinalLayersThumbnail,
   },
 ];

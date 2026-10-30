@@ -13,6 +13,7 @@ import VtkSlabProjectionRepresentation from '@/src/components/vtk/VtkSlabProject
 import CrosshairsWidget from '@/src/components/tools/crosshairs/CrosshairsWidget.vue';
 import { ReferenceLineSegments } from '@/src/referenceLines';
 import { useToolStore } from '@/src/store/tools';
+import { getEnFaceCrosshairsUnavailableReason } from '@/src/store/tools/crosshairs';
 import { Tools } from '@/src/store/tools/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import type { VtkViewApi } from '@/src/types/vtk-types';
@@ -54,9 +55,6 @@ function resetCamera() {
 useResetViewsEvents().onClick(resetCamera);
 const tools = useToolStore();
 const referenceLines = useReferenceLinesStore();
-const windowingManipulatorProps = computed(() => ({
-  button: tools.currentTool === Tools.WindowLevel ? 1 : -1,
-}));
 watchPostEffect(() => {
   const canvas = vtkView.value?.renderWindowView.getCanvas();
   canvas?.setAttribute('data-testid', 'enface-canvas');
@@ -74,6 +72,10 @@ function onRenderError(message: string) {
 const projectionReady = computed(
   () => !!geometry.value && !fatalContextError.value
 );
+const windowingManipulatorProps = computed(() => ({
+  button:
+    projectionReady.value && tools.currentTool === Tools.WindowLevel ? 1 : -1,
+}));
 const stateMessage = computed(
   () => controls.value.projectionReason || fatalContextError.value
 );
@@ -155,7 +157,10 @@ watch(
       </VtkSlabProjectionRepresentation>
       <CrosshairsWidget
         v-if="
-          tools.currentTool === Tools.Crosshairs && projectionReady && geometry
+          tools.currentTool === Tools.Crosshairs &&
+          projectionReady &&
+          geometry &&
+          !getEnFaceCrosshairsUnavailableReason(currentImageID)
         "
         :view-id="viewId"
         :plane-origin="geometry.planeOrigin"

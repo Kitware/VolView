@@ -164,7 +164,6 @@ def write_nrrd(path, data, spacing, provenance, metadata):
              *["# SHA256 " + source["filename"] + " " + source["sha256"] for source in provenance["sources"]],
              "OCT_AxisMeaning:=lateral depth slow", "OCT_DepthAxis:=1",
              "OCT_Source:=JHU IACL hc01 manually delineated healthy-control OCT",
-             "OCT_Usage:=Local research conversion; raw-data redistribution terms unconfirmed",
              *[key + ":=" + value for key, value in metadata.items()]]
     path.write_bytes(("\n".join(lines) + "\n\n").encode("ascii") + gzip.compress(data.tobytes(order="C"), mtime=0))
     return {"filename": path.name, "bytes": path.stat().st_size, "sha256": sha256(path)}

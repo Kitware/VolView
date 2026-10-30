@@ -10,6 +10,7 @@
     "backend-contract"
   ],
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "cross-env VITE_SHOW_SAMPLE_DATA=true vite",
     "preview": "vite preview",
     "serve": "npm run dev",
