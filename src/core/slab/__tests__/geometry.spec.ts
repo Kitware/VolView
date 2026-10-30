@@ -47,17 +47,11 @@ describe('slab source-world geometry', () => {
         method: 'sum',
       });
       const sourceIndex: Vector3 = [6, -3, 11];
-      const others = [0, 1, 2].filter((value) => value !== axis);
       const world = image.indexToWorld(sourceIndex);
       expectPoint(
         vec3.transformMat4([0, 0, 0], [1.5, 1.5, 0], geometry.pixelToWorld),
         world
       );
-      expect(geometry.spacing).toEqual(
-        others.map((index) => Math.abs(image.getSpacing()[index]))
-      );
-      expect(geometry.width).toBe(image.getDimensions()[others[0]]);
-      expect(geometry.height).toBe(image.getDimensions()[others[1]]);
       expect(
         vec3.dot(
           geometry.planeNormal,

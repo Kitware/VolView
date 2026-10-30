@@ -1,3 +1,5 @@
+import { volViewPage } from '../pageobjects/volview.page';
+
 export async function setReferenceLinesEnabled(enabled: boolean) {
   await browser.keys('Escape');
   await $('header').moveTo();
@@ -16,4 +18,13 @@ export async function setReferenceLinesEnabled(enabled: boolean) {
   );
   await browser.keys('Escape');
   await expect(label).not.toBeDisplayed();
+}
+
+/** Opens VolView with reference lines on for the suite, then turns them off. */
+export function useReferenceLines() {
+  before(async () => {
+    await volViewPage.open();
+    await setReferenceLinesEnabled(true);
+  });
+  after(async () => setReferenceLinesEnabled(false));
 }

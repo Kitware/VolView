@@ -13,6 +13,7 @@ import {
   getEnFaceWindow as getWindow,
   selectEnFace,
   selectTwoRowLayout,
+  CANVAS,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -30,7 +31,6 @@ import {
 } from './segmentationTestUtils';
 import {
   reference,
-  CANVAS,
   THRESHOLD,
   STEM,
   stageFixture,

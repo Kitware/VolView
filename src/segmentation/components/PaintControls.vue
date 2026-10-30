@@ -295,18 +295,12 @@ import { useSegmentationStore } from '@/src/segmentation/store';
 import ProcessControls from '@/src/components/ProcessControls.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useImageStatsStore } from '@/src/store/image-stats';
+import { rangeThumbLabels } from '@/src/utils/rangeThumbLabels';
 
-const setThresholdThumbLabels = (element: HTMLElement) => {
-  // VRangeSlider has no endpoint-name props, so label its two focus targets.
-  const thumbs = element.querySelectorAll<HTMLElement>('[role="slider"]');
-  thumbs[0]?.setAttribute('aria-label', 'Minimum threshold');
-  thumbs[1]?.setAttribute('aria-label', 'Maximum threshold');
-};
-
-const vThresholdThumbLabels = {
-  mounted: setThresholdThumbLabels,
-  updated: setThresholdThumbLabels,
-};
+const vThresholdThumbLabels = rangeThumbLabels(
+  'Minimum threshold',
+  'Maximum threshold'
+);
 
 const paintStore = usePaintToolStore();
 const processStore = usePaintProcessStore();

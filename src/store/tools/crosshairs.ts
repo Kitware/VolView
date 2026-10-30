@@ -15,11 +15,11 @@ import {
 import { IMAGE_BOX_INFLATION } from '@/src/constants';
 import { clampValue } from '@/src/utils';
 import type { ImageMetadata } from '@/src/types/image';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import type { Maybe } from '@/src/types';
 
 export function getEnFaceCrosshairsUnavailableReason(imageID: Maybe<string>) {
-  const sourceReason = getEnFaceAvailability(imageID).reason;
+  const sourceReason = getEnFaceUnavailableReason(imageID);
   if (sourceReason) return sourceReason;
   const extent = getImageData(imageID)?.getExtent();
   // Source slice configurations address zero-based voxel indices.

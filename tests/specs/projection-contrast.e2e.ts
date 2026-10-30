@@ -1,9 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import { projectionGrayscaleDistribution } from './slabSamplingTestUtils';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import {
+  applyTestViewport,
+  CONTENT_VIEWPORT,
+  TEMP_DIR,
+} from '../../wdio.shared.conf';
 import { JHU_RETINAL_LAYERS, MRA_HEAD_NECK_DATASET } from '../datasets';
 import { stageProjectionContrastVolume } from './projectionTestUtils';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -129,11 +133,7 @@ async function doubleClickImage(point: { x: number; y: number }) {
 }
 
 describe('Projection default contrast', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   before(async () => {
     await useCachedSample(MRA_HEAD_NECK_DATASET);
@@ -168,102 +168,115 @@ describe('Projection default contrast', () => {
 
   it('opens the MRA sample Mean projection with visible grayscale contrast', async () => {
     await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
-    await volViewPage.samplesList.$('div[title="MRA Head and Neck"]').click();
+    const sample = volViewPage.samplesList.$('div[title="MRA Head and Neck"]');
+    await sample.waitForClickable();
+    await sample.click();
     await waitForEnFaceReady();
     await expectVisibleContrast(80);
   });
 
   it('opens the non-DICOM retinal Mean projection with visible grayscale contrast', async () => {
     await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
-    await volViewPage.samplesList.$('div[title="Retinal OCT layers"]').click();
+    const sample = volViewPage.samplesList.$('div[title="Retinal OCT layers"]');
+    await sample.waitForClickable();
+    await sample.click();
     await waitForEnFaceReady();
     await expectVisibleContrast(35);
   });
 
   for (const manual of [false, true]) {
     it(`preserves ${manual ? 'manual' : 'automatic'} retinal contrast while maximizing and restoring`, async () => {
-      await browser.setWindowSize(1400, 1450);
-      await browser.setViewport({
-        width: 1260,
-        height: 1290,
-        devicePixelRatio: 1,
-      });
-      await volViewPage.open(
-        `?urls=[tmp/${STEM}-four.json,tmp/${STEM}/retinal-source.nrrd]`
-      );
-      await volViewPage.waitForViews();
-      await waitForEnFaceReady();
-      await expectVisibleContrast(35);
-      if (manual) await setEnFaceWindow(0.1, 0.16);
-      const initialWindow = await getEnFaceWindow();
-      const initialSize = await enFaceImageBounds();
-      const distribution = await projectionGrayscaleDistribution();
-      const initialSpread = distribution.high - distribution.low;
-
-      for (const viewCount of [1, 4]) {
-        const canvas = $('[data-testid="enface-canvas"]');
-        await canvas.waitForStable();
-        const bounds = await enFaceImageBounds();
-        const point = {
-          x: Math.round(bounds.left + bounds.width * 0.5),
-          y: Math.round(bounds.top + bounds.height * 0.5),
-        };
-        await browser.waitUntil(
-          () =>
-            browser.execute(
-              ({ x, y }) =>
-                !!document
-                  .elementFromPoint(x, y)
-                  ?.closest('[data-testid="enface-viewer"]'),
-              point
-            ),
-          { timeoutMsg: 'The visible En face image must receive pointer input' }
+      try {
+        // Keep the desktop layout while bounding software projection rendering.
+        await browser.setViewport({
+          ...CONTENT_VIEWPORT,
+          height: 400,
+          devicePixelRatio: 1,
+        });
+        await volViewPage.open(
+          `?urls=[tmp/${STEM}-four.json,tmp/${STEM}/retinal-source.nrrd]`
         );
-        const viewport = $('[data-testid="enface-viewer"]');
-        await viewport.waitForClickable();
-        await doubleClickImage(point);
-        await browser.waitUntil(
-          async () => {
-            const size = await enFaceImageBounds();
-            return viewCount === 1
-              ? size.width > initialSize.width * 1.5 &&
-                  size.height > initialSize.height * 1.5
-              : Math.abs(size.width - initialSize.width) <= 2 &&
-                  Math.abs(size.height - initialSize.height) <= 2;
-          },
-          {
-            timeoutMsg:
-              'Double-click must maximize and restore the En face image',
-          }
-        );
+        await volViewPage.waitForViews();
         await waitForEnFaceReady();
-        const renderedSize = await enFaceImageBounds();
-        if (viewCount === 1) {
-          expect(renderedSize.width).toBeGreaterThan(initialSize.width * 1.5);
-          expect(renderedSize.height).toBeGreaterThan(initialSize.height * 1.5);
-        } else {
-          expect(
-            Math.abs(renderedSize.width - initialSize.width)
-          ).toBeLessThanOrEqual(2);
-          expect(
-            Math.abs(renderedSize.height - initialSize.height)
-          ).toBeLessThanOrEqual(2);
-        }
-        const actualWindow = await getEnFaceWindow();
-        expect(actualWindow).toEqual(initialWindow);
-        await browser.waitUntil(
-          async () => {
-            const { count, low, high } =
-              await projectionGrayscaleDistribution();
-            return count > 1000 && high - low >= initialSpread - 8;
-          },
-          {
-            timeoutMsg:
-              'Maximizing and restoring must retain the retinal grayscale spread',
+        await expectVisibleContrast(35);
+        if (manual) await setEnFaceWindow(0.1, 0.16);
+        const initialWindow = await getEnFaceWindow();
+        const initialSize = await enFaceImageBounds();
+        const distribution = await projectionGrayscaleDistribution();
+        const initialSpread = distribution.high - distribution.low;
+
+        for (const viewCount of [1, 4]) {
+          const canvas = $('[data-testid="enface-canvas"]');
+          await canvas.waitForStable();
+          const bounds = await enFaceImageBounds();
+          const point = {
+            x: Math.round(bounds.left + bounds.width * 0.5),
+            y: Math.round(bounds.top + bounds.height * 0.5),
+          };
+          await browser.waitUntil(
+            () =>
+              browser.execute(
+                ({ x, y }) =>
+                  !!document
+                    .elementFromPoint(x, y)
+                    ?.closest('[data-testid="enface-viewer"]'),
+                point
+              ),
+            {
+              timeoutMsg:
+                'The visible En face image must receive pointer input',
+            }
+          );
+          const viewport = $('[data-testid="enface-viewer"]');
+          await viewport.waitForClickable();
+          await doubleClickImage(point);
+          await browser.waitUntil(
+            async () => {
+              const size = await enFaceImageBounds();
+              return viewCount === 1
+                ? size.width > initialSize.width * 1.5 &&
+                    size.height > initialSize.height * 1.5
+                : Math.abs(size.width - initialSize.width) <= 2 &&
+                    Math.abs(size.height - initialSize.height) <= 2;
+            },
+            {
+              timeoutMsg:
+                'Double-click must maximize and restore the En face image',
+            }
+          );
+          await waitForEnFaceReady();
+          const renderedSize = await enFaceImageBounds();
+          if (viewCount === 1) {
+            expect(renderedSize.width).toBeGreaterThan(initialSize.width * 1.5);
+            expect(renderedSize.height).toBeGreaterThan(
+              initialSize.height * 1.5
+            );
+          } else {
+            expect(
+              Math.abs(renderedSize.width - initialSize.width)
+            ).toBeLessThanOrEqual(2);
+            expect(
+              Math.abs(renderedSize.height - initialSize.height)
+            ).toBeLessThanOrEqual(2);
           }
-        );
+          const actualWindow = await getEnFaceWindow();
+          expect(actualWindow).toEqual(initialWindow);
+          await browser.waitUntil(
+            async () => {
+              const { count, low, high } =
+                await projectionGrayscaleDistribution();
+              return count > 1000 && high - low >= initialSpread - 8;
+            },
+            {
+              timeoutMsg:
+                'Maximizing and restoring must retain the retinal grayscale spread',
+            }
+          );
+        }
+        expect(await volViewPage.getNotificationsCount()).toBe(0);
+      } finally {
+        await applyTestViewport(browser);
       }
-      expect(await volViewPage.getNotificationsCount()).toBe(0);
     });
   }
 

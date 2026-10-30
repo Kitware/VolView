@@ -12,15 +12,15 @@ import {
   getEnFaceWindow as getWindow,
   projectionTransform,
   expectProjectionTransform,
+  CANVAS,
+  PANEL,
+  WINDOW_TOOL,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { waitForDownload, SESSION_SAVE_TIMEOUT } from './utils';
 import {
   reference,
-  CANVAS,
-  PANEL,
-  WINDOW_TOOL,
   SLICE_LINE,
   openControls,
   setThicknessThreshold,

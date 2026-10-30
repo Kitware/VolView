@@ -11,7 +11,7 @@ import vtkMouseRangeManipulator, {
 } from '@kitware/vtk.js/Interaction/Manipulators/MouseRangeManipulator';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
 import type { Vector2 } from '@kitware/vtk.js/types';
-import { inject, toRefs, computed, watch, onScopeDispose } from 'vue';
+import { inject, toRefs, computed, watch } from 'vue';
 
 type Props = {
   viewId: string;
@@ -47,10 +47,9 @@ const { instance: rangeManipulator } = useVtkInteractionManipulator(
 );
 
 const wlConfig = useWindowingConfig(viewId, imageId);
-const resets = useResetViewsEvents().onClick(() => {
+useResetViewsEvents().onClick(() => {
   useWindowingStore().resetConfig(wlConfig.viewID.value, imageId.value);
 });
-onScopeDispose(resets.off);
 
 const computeStep = (range: Vector2) => {
   const diff = range[1] - range[0] || 1;
@@ -58,25 +57,19 @@ const computeStep = (range: Vector2) => {
 };
 
 const wlStep = computed(() => computeStep(wlConfig.range.value));
+const widthRange = computed((): Vector2 => {
+  const [min, max] = wlConfig.range.value;
+  return [1e-12, Math.max(1e-12, max - min || 1)];
+});
 
-for (const [direction, field] of [
-  ['horizontal', 'level'],
-  ['vertical', 'width'],
+for (const [direction, field, range] of [
+  ['horizontal', 'level', wlConfig.range],
+  ['vertical', 'width', widthRange],
 ] as const) {
   const value = useMouseRangeManipulatorListener(
     rangeManipulator,
     direction,
-    computed(() =>
-      field === 'level'
-        ? wlConfig.range.value
-        : [
-            1e-12,
-            Math.max(
-              1e-12,
-              wlConfig.range.value[1] - wlConfig.range.value[0] || 1
-            ),
-          ]
-    ),
+    range,
     wlStep,
     wlConfig[field].value,
     1,

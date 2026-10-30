@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { Key } from 'webdriverio';
 import {
+  PANEL,
   attachMaskThroughDataPanel,
   enFaceAppearance,
   enFacePixel,
@@ -28,7 +29,6 @@ import {
   waitForSegmentContent,
 } from './segmentationTestUtils';
 import {
-  PANEL,
   THRESHOLD,
   STEM,
   stageFixture,

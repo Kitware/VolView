@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { selectBasePalette } from './layerDisplayTestUtils';
@@ -15,6 +15,9 @@ import {
   setEnFaceWindow,
   setSlabRange,
   waitForEnFaceReady,
+  CANVAS,
+  VIEWER,
+  PANEL,
 } from './octTestUtils';
 import { stageProjectionContrastVolume } from './projectionTestUtils';
 import {
@@ -30,13 +33,11 @@ import {
   waitForModuleTransitions,
   writeManifestToFile,
 } from './utils';
+import { selectSetting } from './octInteractionTestUtils';
 
 const STEM = 'projection-display-controls';
-const VIEWER = '[data-testid="enface-viewer"]';
-const CANVAS = '[data-testid="enface-canvas"]';
 const SIDEBAR = '[data-testid="enface-sidebar-controls"]';
 const SECTION = '[data-testid="enface-rendering-section"]';
-const POPUP = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const ENFACE_SELECTOR = '[data-testid="enface-view-selector"]';
 const field = (endpoint: 'min' | 'max') =>
   $(`[data-testid="base-image-range-${endpoint}"] input`);
@@ -149,26 +150,8 @@ async function openSidebar() {
   await $(SIDEBAR).waitForDisplayed();
   await toggle.$('..').waitForStable();
 }
-async function chooseSetting(surface: string, id: string, label: string) {
-  const select = $(surface).$('[data-testid="' + id + '"]');
-  await select.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await select.waitForClickable();
-  await select.click();
-  const option = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
-      label +
-      '"]'
-  );
-  await option.waitForClickable();
-  await option.click();
-}
-
 describe('Projection Layers display controls', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   it('edits En face-only contrast from Layers, Auto and mouse with normal manual contrast', async () => {
     const [view] = await openProjectionDisplay();
@@ -271,7 +254,7 @@ describe('Projection Layers display controls', () => {
     await expandEnFaceSection('projection');
     await setSlabRange(1, 3);
     expect(await getEnFaceWindow(target)).toEqual({ width: 1000, level: 500 });
-    await expect($(POPUP).$('button*=Reset contrast')).not.toExist();
+    await expect($(PANEL).$('button*=Reset contrast')).not.toExist();
     await browser.keys('Escape');
     await resetLayersContrast();
     await expect(field('min')).toHaveValue('200');
@@ -346,21 +329,21 @@ describe('Projection Layers display controls', () => {
     await expect($(ENFACE_SELECTOR).$('input')).toHaveValue(
       'En face 1 (source.nrrd)'
     );
-    await chooseSetting(SIDEBAR, 'enface-projection-method', 'Maximum');
+    await selectSetting('enface-projection-method', 'Maximum', SIDEBAR);
     await browser.waitUntil(
       async () => (await enFaceAppearance(target)).image !== meanImage
     );
     expect((await enFaceAppearance(peer)).image).toBe(peerImage);
     await target.$('[data-testid="enface-controls"]').click();
-    await $(POPUP).waitForDisplayed();
+    await $(PANEL).waitForDisplayed();
     await expect(
-      $(POPUP).$('[data-testid="enface-projection-method"] input')
+      $(PANEL).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Maximum');
-    await chooseSetting(POPUP, 'enface-projection-axis', 'Axial');
+    await selectSetting('enface-projection-axis', 'Axial');
     await expandEnFaceSection('projection');
     await setSlabRange(1, 3);
     await browser.keys('Escape');
-    await $(POPUP).waitForDisplayed({ reverse: true });
+    await $(PANEL).waitForDisplayed({ reverse: true });
     await expect(
       $(SIDEBAR).$('[data-testid="enface-projection-axis"] input')
     ).toHaveValue('Axial');
@@ -388,7 +371,7 @@ describe('Projection Layers display controls', () => {
     await expect(
       $(SIDEBAR).$('[data-testid="enface-projection-axis"] input')
     ).toHaveValue('Coronal');
-    await chooseSetting(SIDEBAR, 'enface-projection-method', 'Sum');
+    await selectSetting('enface-projection-method', 'Sum', SIDEBAR);
     await waitForEnFaceReady(peer);
     const peerWindow = await getEnFaceWindow(peer);
     const source = await $('div[data-testid~="vtk-two-view"]').getElement();
@@ -403,10 +386,10 @@ describe('Projection Layers display controls', () => {
     ).toHaveValue('Sum');
     expect(await appliedWindow()).toEqual(sourceWindow);
     const peerSumImage = (await enFaceAppearance(peer)).image;
-    await chooseSetting(
-      SECTION,
+    await selectSetting(
       'enface-view-selector',
-      'En face 1 (source.nrrd)'
+      'En face 1 (source.nrrd)',
+      SECTION
     );
     expect(
       await target.execute(
@@ -432,9 +415,9 @@ describe('Projection Layers display controls', () => {
     ).toHaveValue('Sum');
     expect(await appliedWindow()).toEqual(peerWindow);
     await peer.$('[data-testid="enface-controls"]').click();
-    await $(POPUP).waitForDisplayed();
+    await $(PANEL).waitForDisplayed();
     await expect(
-      $(POPUP).$('[data-testid="enface-projection-method"] input')
+      $(PANEL).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');
     await browser.keys('Escape');
     expect(await volViewPage.getNotificationsCount()).toBe(0);
@@ -493,7 +476,7 @@ describe('Projection Layers display controls', () => {
     await expect(
       $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toBeEnabled();
-    await chooseSetting(SIDEBAR, 'enface-projection-method', 'Maximum');
+    await selectSetting('enface-projection-method', 'Maximum', SIDEBAR);
     await browser.waitUntil(
       async () => (await enFaceAppearance()).image !== initialImage
     );

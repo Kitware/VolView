@@ -1,34 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import dicomParser from 'dicom-parser';
 import { Chunk } from '@/src/core/streaming/chunk';
 import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
 import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
 import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { createOCTFixture, readDicomTags } from '@/tests/unit/octFixture';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import {
+  getEnFaceAvailability,
+  getEnFaceUnavailableReason,
+} from '@/src/enface/availability';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
-
-async function readTags(file: File) {
-  const data = dicomParser.parseDicom(new Uint8Array(await file.arrayBuffer()));
-  return Object.values(Tags).reduce<Array<[string, string]>>((tags, tag) => {
-    const key = 'x' + tag.replace('|', '');
-    const attribute = data.elements[key];
-    if (attribute && attribute.vr !== 'SQ') {
-      const value = attribute.vr === 'US' ? data.uint16(key) : data.string(key);
-      if (value !== undefined) tags.push([tag, String(value)]);
-    }
-    return tags;
-  }, []);
-}
 
 describe('assembled OCT series through real chunk and file collaborators', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -58,7 +47,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       });
       const file = new File([Uint8Array.from(bytes)], 'oct-' + index + '.dcm');
       return new Chunk({
-        metaLoader: new DicomFileMetaLoader(file, readTags),
+        metaLoader: new DicomFileMetaLoader(file, readDicomTags),
         dataLoader: new DicomFileDataLoader(file),
       });
     });
@@ -200,8 +189,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       const { id } = await assemble(undefined, (chunks) =>
         chunks[2].metadata!.push([tag, value])
       );
-      expect(getEnFaceAvailability(id).available).toBe(false);
-      expect(getEnFaceAvailability(id).reason).toMatch(reason);
+      expect(getEnFaceUnavailableReason(id)).toMatch(reason);
     }
   );
 

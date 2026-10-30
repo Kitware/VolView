@@ -3,7 +3,10 @@ import { createPinia, setActivePinia } from 'pinia';
 import { computed, markRaw, nextTick } from 'vue';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import {
+  getEnFaceAvailability,
+  getEnFaceUnavailableReason,
+} from '@/src/enface/availability';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -37,8 +40,8 @@ describe('OCT view availability', () => {
   });
 
   it('gives a visible disabled reason for missing or deleted image references', () => {
-    expect(getEnFaceAvailability(null).available).toBe(false);
-    expect(getEnFaceAvailability('deleted').reason).toMatch(/volume/);
+    expect(getEnFaceUnavailableReason(null)).not.toBeNull();
+    expect(getEnFaceUnavailableReason('deleted')).toMatch(/volume/);
   });
 
   it('reacts to metadata allocation and complete pixel loading after initially empty raw chunks', async () => {
@@ -46,7 +49,7 @@ describe('OCT view availability', () => {
     releaseDecode = fixture.releaseDecode;
     useImageCacheStore().addProgressiveImage(fixture.image, { id: 'pending' });
     const availability = computed(() => getEnFaceAvailability('pending'));
-    expect(availability.value.available).toBe(false);
+    expect(availability.value.reason).not.toBeNull();
     await fixture.chunk.loadMeta();
     await fixture.image.addChunks([fixture.chunk]);
     await nextTick();
@@ -82,10 +85,7 @@ describe('OCT view availability', () => {
         })
       );
       const id = useImageCacheStore().addVTKImageData(data, 'generic.nrrd');
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: false,
-      });
-      expect(getEnFaceAvailability(id).reason).toMatch(reason);
+      expect(getEnFaceUnavailableReason(id)).toMatch(reason);
     }
   );
 
@@ -147,9 +147,7 @@ describe('OCT view availability', () => {
       await fixture.image.addChunks([fixture.chunk]);
       fixture.image.startLoad();
       await untilLoaded('guarded');
-      const availability = getEnFaceAvailability('guarded');
-      expect(availability.available).toBe(false);
-      expect(availability.reason).toMatch(
+      expect(getEnFaceUnavailableReason('guarded')).toMatch(
         kind === 'radial' ? /reconstruction/ : /unsuitable/
       );
     }

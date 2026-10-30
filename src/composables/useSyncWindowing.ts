@@ -1,31 +1,27 @@
-import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import {
+  sharesSourceWindowing,
+  useWindowingStore,
+} from '@/src/store/view-configs/windowing';
 import { useViewStore } from '@/src/store/views';
-import { Maybe } from '@/src/types';
-import { ViewInfo } from '@/src/types/views';
 
 export function useSyncWindowing() {
   const windowingStore = useWindowingStore();
   const viewStore = useViewStore();
   let isUpdating = false;
-  const isSourceView = (view: Maybe<ViewInfo>) =>
-    view != null && view.type !== 'EnFace';
   const getBoundSourcePeers = (viewID: string, dataID: string) =>
     viewStore
-      .getAllViews()
-      .filter(
-        (view) =>
-          view.id !== viewID && isSourceView(view) && view.dataID === dataID
-      );
+      .getViewsForData(dataID)
+      .filter((view) => view.id !== viewID && sharesSourceWindowing(view));
 
   windowingStore.WindowingUpdateEvent.on((viewID, dataID) => {
-    const sourceView = viewStore.getView(viewID);
-    // Each projection method and slab has its own intensity distribution.
-    if (isUpdating || !isSourceView(sourceView)) return;
+    if (isUpdating || !sharesSourceWindowing(viewStore.getView(viewID))) return;
     isUpdating = true;
     try {
       const config = windowingStore.getConfig(viewID, dataID);
       viewStore.viewIDs
-        .filter((id) => id !== viewID && isSourceView(viewStore.getView(id)))
+        .filter(
+          (id) => id !== viewID && sharesSourceWindowing(viewStore.getView(id))
+        )
         .forEach((vid) => {
           windowingStore.updateConfig(vid, dataID, config);
         });
@@ -38,13 +34,13 @@ export function useSyncWindowing() {
     const beforeView = viewStore.getView(beforeViewID);
     const afterView = viewStore.getView(afterViewID);
 
-    if (!beforeView || !isSourceView(afterView)) return;
+    if (!beforeView || !sharesSourceWindowing(afterView)) return;
 
     const dataID = afterView.dataID;
     if (!dataID) return;
 
     const sourceView =
-      isSourceView(beforeView) && beforeView.dataID === dataID
+      sharesSourceWindowing(beforeView) && beforeView.dataID === dataID
         ? beforeView
         : getBoundSourcePeers(afterViewID, dataID)[0];
     if (!sourceView) return;
@@ -54,7 +50,7 @@ export function useSyncWindowing() {
   });
 
   viewStore.ViewDataChangeEvent.on((viewID, dataID) => {
-    if (!dataID || !isSourceView(viewStore.getView(viewID))) return;
+    if (!dataID || !sharesSourceWindowing(viewStore.getView(viewID))) return;
 
     if (windowingStore.getInternalConfig(viewID, dataID)) return;
 

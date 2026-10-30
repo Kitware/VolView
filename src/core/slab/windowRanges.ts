@@ -1,7 +1,7 @@
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { WLAutoRanges } from '@/src/constants';
 import type { SlabMethod, SlabSpecification } from './types';
-import { deriveSlabGeometry } from './geometry';
+import { slabThickness } from './geometry';
 
 type WindowRanges = Record<keyof typeof WLAutoRanges, [number, number]>;
 type ProjectionRanges = Record<SlabMethod, WindowRanges>;
@@ -73,8 +73,7 @@ function sampleProjection(image: vtkImageData, spec: SlabSpecification) {
   const axes = [0, 1, 2].filter((axis) => axis !== spec.axis);
   const [width, height] = axes.map((axis) => dimensions[axis]);
   const spacing = Math.min(...image.getSpacing().map(Math.abs));
-  const { slabThickness } = deriveSlabGeometry(image, spec);
-  const sampleCount = slabSampleCount(slabThickness, spacing);
+  const sampleCount = slabSampleCount(slabThickness(image, spec), spacing);
   if (!(sampleCount > 0) || !Number.isFinite(sampleCount)) return null;
   const depthSamples = Math.min(maximumDepthSamples, sampleCount);
   const depths = Array.from({ length: depthSamples }, (_, index) =>

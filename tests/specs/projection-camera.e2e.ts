@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import path from 'node:path';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { syntheticScalars } from '../fixtures/oct/dicom';
@@ -15,6 +15,9 @@ import {
   projectionTransform,
   setSlabRange,
   waitForEnFaceReady,
+  CANVAS,
+  VIEWER,
+  attachAndSelectMask,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -23,16 +26,8 @@ import {
   waitForDownload,
   writeManifestToFile,
 } from './utils';
-import {
-  openAnnotationSegments,
-  selectSegment,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import { openControls, selectSetting } from './octInteractionTestUtils';
 
-const CANVAS = '[data-testid="enface-canvas"]';
-const VIEWER = '[data-testid="enface-viewer"]';
-const CONTROLS = '[data-testid="enface-controls"]';
-const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
 const STEM = 'projection-camera';
 const SOURCE_NAME = 'camera-source.nrrd';
 const MASK_NAME = 'camera-mask.nrrd';
@@ -99,26 +94,6 @@ async function openCameraScene(empty = false) {
   );
 }
 
-async function openControls() {
-  await $(CONTROLS).waitForClickable();
-  await $(CONTROLS).click();
-  await $(PANEL).waitForDisplayed();
-  await $(PANEL).waitForStable();
-}
-
-async function chooseSetting(testId: string, label: string) {
-  const field = $('[data-testid="' + testId + '"]');
-  await field.scrollIntoView();
-  await field.click();
-  const option = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
-      label +
-      '"]'
-  );
-  await option.waitForClickable();
-  await option.click();
-}
-
 async function panAndZoom() {
   await browser.keys('Escape');
   await $(CANVAS).click();
@@ -158,22 +133,6 @@ async function saveScene() {
   return saved;
 }
 
-async function attachRealMask() {
-  await openThroughDialog(path.join(TEMP_DIR, STEM, MASK_NAME));
-  await $('button[data-testid="module-tab-Data"]').click();
-  const mask = $('.v-card:has([title="' + MASK_NAME + '"])');
-  await mask.waitForDisplayed();
-  await mask.$('button.dataset-menu').click();
-  const attach = $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="Add as segmentation"]'
-  );
-  await attach.waitForStable();
-  await attach.click();
-  await openAnnotationSegments();
-  await waitForSegmentContent(SEGMENT_NAME);
-  await selectSegment(SEGMENT_NAME);
-}
-
 async function releaseMaskAfterReachableProjection() {
   await browser.waitUntil(() =>
     browser.execute(
@@ -197,11 +156,7 @@ async function releaseMaskAfterReachableProjection() {
 }
 
 describe('Projection camera persistence', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   before(installMaskDecodeGate);
 
@@ -242,10 +197,10 @@ describe('Projection camera persistence', () => {
     await stageCameraScene();
     await openCameraScene();
     await waitForEnFaceReady();
-    await attachRealMask();
+    await attachAndSelectMask(STEM + '/' + MASK_NAME, SEGMENT_NAME);
     await openControls();
     await expandEnFaceSection('projection');
-    await chooseSetting('enface-projection-axis', 'Sagittal');
+    await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
     await expandEnFaceSection('thickness');
@@ -253,7 +208,7 @@ describe('Projection camera persistence', () => {
       '.v-overlay--active [data-testid="enface-thin-highlight"]'
     );
     await highlight.$('label').click();
-    await chooseSetting('enface-segmentation-segment', SEGMENT_NAME);
+    await selectSetting('enface-segmentation-segment', SEGMENT_NAME);
     const threshold = $(
       '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
     );

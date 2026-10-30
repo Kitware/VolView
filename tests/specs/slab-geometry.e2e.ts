@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -13,6 +13,7 @@ import {
   setEnFaceWindow,
   setSlabRange,
   waitForEnFaceReady,
+  CANVAS,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -21,7 +22,6 @@ import {
   writeManifestToFile,
 } from './utils';
 
-const CANVAS = '[data-testid="enface-canvas"]';
 const SOURCE = '[data-testid~="vtk-two-view"] canvas';
 const STEM = 'slab-geometry';
 const SIZE = [6, 5, 4];
@@ -140,11 +140,7 @@ async function fittedPixels() {
 }
 
 describe('Slab geometry and automatic camera fitting', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   before(async () => {
     const directory = makeTempDir(STEM);

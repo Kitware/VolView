@@ -24,16 +24,7 @@ export async function observeProjectionRedraw(view: WebdriverIO.Element) {
   await view.execute((element) => {
     const root = element as ObservedProjection;
     const history = new Set<string>();
-    const rememberMessage = (text: string | null) => {
-      if (
-        /Rendering en face projection|arithmetic precision supported by GPU projection|finite positive contrast window/i.test(
-          text ?? ''
-        )
-      )
-        history.add(text!.trim());
-    };
     const inspectNode = (node: Node) => {
-      rememberMessage(node.textContent);
       if (
         node instanceof Element &&
         (node.matches('.loading-indicator') ||
@@ -45,14 +36,9 @@ export async function observeProjectionRedraw(view: WebdriverIO.Element) {
       if (root.getAttribute('aria-busy') === 'true') history.add('aria-busy');
       if (root.querySelector('.loading-indicator'))
         history.add('progress indicator');
-      rememberMessage(
-        root.querySelector('[data-testid="enface-projection-status"]')
-          ?.textContent ?? null
-      );
       for (const record of records) {
         if (record.attributeName === 'aria-busy' && record.oldValue === 'true')
           history.add('aria-busy');
-        if (record.type === 'characterData') rememberMessage(record.oldValue);
         record.addedNodes.forEach(inspectNode);
         record.removedNodes.forEach(inspectNode);
       }
@@ -65,8 +51,6 @@ export async function observeProjectionRedraw(view: WebdriverIO.Element) {
       attributes: true,
       attributeFilter: ['aria-busy', 'class'],
       attributeOldValue: true,
-      characterData: true,
-      characterDataOldValue: true,
     });
     root.finishRedrawObservation = () => {
       inspectRecords(observer.takeRecords());

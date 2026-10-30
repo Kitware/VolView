@@ -19,7 +19,7 @@ import {
 } from '@/src/core/views/effectiveView';
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -161,7 +161,7 @@ describe('En face tool capabilities', () => {
       Tools.Crosshairs,
       getEffectiveView(useViewStore().activeView)
     );
-    expect(getEnFaceAvailability(dataID).available).toBe(true);
+    expect(getEnFaceUnavailableReason(dataID)).toBeNull();
     expect(toolbar.get(selector).attributes('disabled')).toBeDefined();
     const action = toolbar
       .findAllComponents(ReasonedAction)
@@ -229,9 +229,7 @@ describe('activating an En face view', () => {
     activateEnFace(dataID);
     const tools = useToolStore();
     await nextTick();
-    expect(getEnFaceAvailability(dataID)).toMatchObject({
-      available: true,
-    });
+    expect(getEnFaceUnavailableReason(dataID)).toBeNull();
     tools.setCurrentTool(Tools.WindowLevel);
     expect(tools.currentTool).toBe(Tools.WindowLevel);
     expect(
@@ -259,7 +257,7 @@ describe('activating an En face view', () => {
       const effective = getEffectiveView(viewID);
       expect(effective?.kind).toBe('enface');
       expect(getToolUnavailableReason(Tools.WindowLevel, effective)).toBe(
-        getEnFaceAvailability(dataID).reason
+        getEnFaceUnavailableReason(dataID)
       );
       expect(
         getToolUnavailableReason(Tools.WindowLevel, effective)

@@ -1,26 +1,23 @@
 import { WLAutoRanges } from '@/src/constants';
 
-/** sampleWidth is 1 for inclusive integer bins and 0 for continuous samples. */
+/** Bins span [min, max + 1), so integer intensities fill whole bins. */
 export function histogram(
   data: ArrayLike<number>,
   dataRange: readonly number[],
-  numberOfBins: number,
-  sampleWidth = 1
+  numberOfBins: number
 ) {
   const [min, max] = dataRange;
-  const span = max - min + sampleWidth;
+  const span = max - min + 1;
   const hist = new Array(numberOfBins).fill(0);
   for (let index = 0; index < data.length; index += 1) {
     const value = data[index];
     if (Number.isNaN(value)) continue;
     if (!Number.isFinite(value))
       throw new Error('Image windowing requires finite intensities');
-    const bin = span
-      ? Math.min(
-          numberOfBins - 1,
-          Math.max(0, Math.floor(((value - min) / span) * numberOfBins))
-        )
-      : 0;
+    const bin = Math.min(
+      numberOfBins - 1,
+      Math.max(0, Math.floor(((value - min) / span) * numberOfBins))
+    );
     hist[bin] += 1;
   }
   return hist;
@@ -29,14 +26,13 @@ export function histogram(
 /** Exact full range with percentile bounds expanded to their histogram bins. */
 export function histogramWindowRanges(
   hist: ArrayLike<number>,
-  dataRange: readonly number[],
-  sampleWidth = 1
+  dataRange: readonly number[]
 ) {
   const [min, max] = dataRange;
   let validCount = 0;
   for (let index = 0; index < hist.length; index += 1)
     validCount += hist[index];
-  const span = max - min + sampleWidth;
+  const span = max - min + 1;
   const percentileRange = (percentage: number): [number, number] => {
     if (min === max || !percentage || !validCount) return [min, max];
     const lowerRank = Math.max(1, Math.ceil(validCount * percentage * 0.01));

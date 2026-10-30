@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ColorDot from '@/src/components/ColorDot.vue';
+import { rangeThumbLabels } from '@/src/utils/rangeThumbLabels';
 import { EN_FACE_THICKNESS_HELP } from './thickness';
 import type { EnFaceViewConfig, EnFaceViewControlState } from './store';
 
@@ -37,12 +38,7 @@ const projectionMethods = [
   { title: 'Maximum', value: 'max' },
   { title: 'Sum', value: 'sum' },
 ];
-// VRangeSlider does not expose separate accessible names for its thumbs.
-const vSlabLabels = (element: HTMLElement) => {
-  element.querySelectorAll('[role="slider"]').forEach((thumb, index) => {
-    thumb.setAttribute('aria-label', index === 0 ? 'Slab start' : 'Slab end');
-  });
-};
+const vSlabLabels = rangeThumbLabels('Slab start', 'Slab end');
 function updateSlab([depthStart, depthEnd]: number[]) {
   slabDraft.value = null;
   emit('patch', { depthStart, depthEnd });

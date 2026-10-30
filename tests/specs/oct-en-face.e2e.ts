@@ -11,6 +11,10 @@ import {
   selectEnFace,
   attachMaskThroughDataPanel,
   enFacePixel,
+  CANVAS,
+  CONTROLS,
+  PANEL,
+  WINDOW_TOOL,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -26,11 +30,7 @@ import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import {
   reference,
-  CANVAS,
-  CONTROLS,
-  PANEL,
   THRESHOLD,
-  WINDOW_TOOL,
   STEM,
   stageFixture,
   openControls,

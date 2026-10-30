@@ -145,3 +145,6 @@ export function getEnFaceAvailability(imageID: Maybe<string>) {
     calibratedAxes: geometry.calibratedAxes,
   };
 }
+
+export const getEnFaceUnavailableReason = (imageID: Maybe<string>) =>
+  getEnFaceAvailability(imageID).reason;

@@ -1,11 +1,12 @@
-import { computed, reactive, ref, unref, watch, type MaybeRef } from 'vue';
+import { computed, ref, unref, watch, type MaybeRef } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { extentSize, isEmptyExtent } from '@/src/segmentation/geometry';
 import { getEnFaceAvailability } from './availability';
-import { defaultEnFaceViewConfig, useEnFaceViewStore } from './store';
+import { useEnFaceViewStore } from './store';
+import { clampValue } from '@/src/utils';
 import { getSourceValidity } from '@/src/core/slab/sourceValidity';
 import { deriveSlabGeometry } from '@/src/core/slab/geometry';
 import { get2DOrientationForSourceAxis } from '@/src/utils/getViewingVectors';
@@ -17,11 +18,8 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
   const segmentationStore = useSegmentationStore();
   const segmentsRegistry = useSegmentStore().segments;
   const enFaceStore = useEnFaceViewStore();
-  const emptySettings = reactive(defaultEnFaceViewConfig());
   const settings = computed(() =>
-    currentImageID.value
-      ? enFaceStore.configFor(unref(viewId), currentImageID.value)
-      : emptySettings
+    enFaceStore.settingsFor(unref(viewId), currentImageID.value)
   );
   const volumeRevision = ref(0);
   const maskRevision = ref(0);
@@ -50,15 +48,13 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
     }))
   );
   const depthStart = computed(() =>
-    Math.min(depthMaximum.value, Math.max(0, settings.value.depthStart))
+    clampValue(settings.value.depthStart, 0, depthMaximum.value)
   );
   const depthEnd = computed(() =>
-    Math.max(
+    clampValue(
+      settings.value.depthEnd ?? depthMaximum.value,
       depthStart.value,
-      Math.min(
-        depthMaximum.value,
-        settings.value.depthEnd ?? depthMaximum.value
-      )
+      depthMaximum.value
     )
   );
   watch(
@@ -340,8 +336,8 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
   }));
   return {
     source,
-    orientation,
     settings,
+    orientation,
     controls,
     specification,
     geometry,

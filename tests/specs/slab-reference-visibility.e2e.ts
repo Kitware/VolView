@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
-import { waitForEnFaceReady } from './octTestUtils';
+import { waitForEnFaceReady, VIEWER } from './octTestUtils';
 import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
 import {
   makeTempDir,
@@ -11,7 +11,6 @@ import {
 } from './utils';
 
 const STEM = 'slab-reference-visibility';
-const VIEWER = '[data-testid="enface-viewer"]';
 const SOURCE = 'div[data-testid~="vtk-two-view"]';
 const tool = (name: string) =>
   $('button[data-testid^="control-button-' + name + ' "]');

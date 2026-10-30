@@ -1,9 +1,9 @@
 import fs from 'node:fs';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import path from 'node:path';
 import {
   dragContrast,
-  attachMaskThroughDataPanel,
+  attachAndSelectMask,
   enFaceAppearance,
   enFacePixel,
   waitForEnFaceReady,
@@ -13,41 +13,23 @@ import {
   getEnFaceWindow as getWindow,
   displayedWindow,
   selectEnFace,
+  CANVAS,
+  CONTROLS,
+  PANEL,
+  WINDOW_TOOL,
 } from './octTestUtils';
-import { FIXTURES } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, writeManifestToFile } from './utils';
+import { makeTempDir, writeManifestToFile, overlayOption } from './utils';
 import { syntheticMask } from '../fixtures/oct/volumes';
+import reference from '../fixtures/oct/reference.json';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
-import {
-  openAnnotationSegments,
-  selectSegment,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import { openAnnotationSegments } from './segmentationTestUtils';
 
-export const reference = JSON.parse(
-  fs.readFileSync(path.join(FIXTURES, 'oct', 'reference.json'), 'utf8')
-) as {
-  size: number[];
-  spacing: number[];
-  range: number[];
-  slab: { start: number; end: number };
-  thinColumns: number;
-};
-
-export const CANVAS = '[data-testid="enface-canvas"]';
-
-export const CONTROLS = '[data-testid="enface-controls"]';
-
-export const PANEL =
-  '.v-overlay--active [data-testid="enface-rendering-panel"]';
+export { reference };
 
 export const THRESHOLD =
   PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
-
-export const WINDOW_TOOL =
-  'button[data-testid^="control-button-Window & Level "]';
 
 export const SLICE_LINE = '[data-testid="enface-slice-lines"] line';
 
@@ -63,7 +45,10 @@ export function stageFixture(name: string) {
 }
 
 export async function openControls() {
-  await $(CONTROLS).click();
+  const controls = $(CONTROLS);
+  await controls.waitForStable();
+  await controls.waitForClickable();
+  await controls.click();
   const panel = $(PANEL);
   await panel.waitForDisplayed();
   await panel.waitForStable();
@@ -77,16 +62,20 @@ export async function setThicknessThreshold(value: number) {
   await setValueVueInput(input, String(value));
 }
 
-export async function selectSetting(testId: string, title: string) {
-  const select = $(PANEL).$('[data-testid="' + testId + '"]');
-  await select.scrollIntoView({ block: 'center', inline: 'nearest' });
+export async function selectSetting(
+  testId: string,
+  title: string,
+  scope = PANEL
+) {
+  const select = $(scope).$('[data-testid="' + testId + '"]');
+  await select.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior: 'instant',
+  });
   await select.waitForClickable();
   await select.click();
-  const option = $(
-    '//div[contains(@class, "v-overlay--active")]//div[contains(@class, "v-list-item") and normalize-space(.)="' +
-      title +
-      '"]'
-  );
+  const option = overlayOption(title);
   await option.waitForClickable();
   await option.click();
 }
@@ -241,13 +230,10 @@ export async function openRetina(withMask = false, comparison = false) {
     const mask = comparison
       ? STEM + '/' + stageIllustrativeMask(makeTempDir(STEM))
       : stageFixture('synthetic-thickness.nrrd');
-    await attachMaskThroughDataPanel(mask);
-    await openAnnotationSegments();
-    const segment = comparison
-      ? 'Synthetic retinal layer'
-      : 'Synthetic retinal band';
-    await waitForSegmentContent(segment);
-    await selectSegment(segment);
+    await attachAndSelectMask(
+      mask,
+      comparison ? 'Synthetic retinal layer' : 'Synthetic retinal band'
+    );
   }
   await openControls();
 }
@@ -292,11 +278,7 @@ export async function expectSliceLine() {
 }
 
 export function registerOctTestHooks() {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
   afterEach(async function () {
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory && this.currentTest?.state === 'failed') {

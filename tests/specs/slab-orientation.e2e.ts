@@ -8,11 +8,11 @@ import {
   setEnFaceWindow,
   setSlabRange,
   waitForEnFaceReady,
+  VIEWER,
 } from './octTestUtils';
 import { makeTempDir, writeManifestToFile } from './utils';
 
 const STEM = 'slab-orientation';
-const VIEWER = '[data-testid="enface-viewer"]';
 const SOURCE = '[data-testid~="vtk-two-view"] canvas';
 const cosine = Math.cos(Math.PI / 9);
 const sine = Math.sin(Math.PI / 9);

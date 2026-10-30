@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { useReferenceLines } from './referenceLinesTestUtils';
 import { projectionGrayscaleDistribution } from './slabSamplingTestUtils';
 import {
   CINE_US_DATASET,
@@ -56,11 +56,7 @@ function stageColorVolume() {
 }
 
 describe('Scalar volume projection inputs', () => {
-  before(async () => {
-    await volViewPage.open();
-    await setReferenceLinesEnabled(true);
-  });
-  after(async () => setReferenceLinesEnabled(false));
+  useReferenceLines();
 
   before(async () => {
     await useCachedSample(PROSTATEX_DATASET);

@@ -63,13 +63,13 @@ async function computeAutoRangeValues(imageData: vtkImageData) {
   );
   const remote = Comlink.wrap<HistogramWorker>(worker);
   const hist = await remote
-    .histogram(scalarData, [min, max], WL_HIST_BINS, 1)
+    .histogram(scalarData, [min, max], WL_HIST_BINS)
     .finally(() => {
       remote[Comlink.releaseProxy]();
       worker.terminate();
     });
 
-  return histogramWindowRanges(hist, [min, max], 1);
+  return histogramWindowRanges(hist, [min, max]);
 }
 
 export const useImageStatsStore = defineStore('image-stats', () => {

@@ -34,7 +34,7 @@ export function useEnFaceSliceLines(
           metadata.value
         );
         const line = enFaceSliceLine(planeGeometry, plane, metadata.value);
-        return line ? [{ viewId: peer.viewId, ...line }] : [];
+        return line ? [{ id: peer.viewId, ...line }] : [];
       });
   });
 }

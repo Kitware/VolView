@@ -12,12 +12,13 @@ import { useVTKMultiWorldToSVG } from '@/src/composables/useVTKWorldToDisplay';
 import { useWebGLWatchdog } from '@/src/composables/useWebGLWatchdog';
 import { useBaseSliceColoring } from '@/src/composables/useBaseSliceColoring';
 import { Messages } from '@/src/constants';
-import { deriveSlabGeometry } from '@/src/core/slab/geometry';
-import type { SlabSpecification } from '@/src/core/slab/types';
+import type { SlabGeometry } from '@/src/core/slab/geometry';
+import type { SlabMethod } from '@/src/core/slab/types';
 
 const props = defineProps<{
   imageData: vtkImageData | null | undefined;
-  specification: SlabSpecification;
+  geometry: SlabGeometry | null;
+  method: SlabMethod;
   window: {
     width: number;
     level: number;
@@ -52,13 +53,8 @@ useBaseSliceColoring(
 mapper.setSlicePlane(slicePlane);
 mapper.setResolveCoincidentTopologyToPolygonOffset();
 mapper.setRelativeCoincidentTopologyPolygonOffsetParameters(1, 1);
-const geometry = computed(() =>
-  props.imageData
-    ? deriveSlabGeometry(props.imageData, props.specification)
-    : null
-);
 watchEffect(() => {
-  const { specification, window } = props;
+  const { geometry, method, window } = props;
   actor.setVisibility(window.visibility ?? true);
   if (contextLost.value) {
     mapper.setInputData(null);
@@ -72,15 +68,12 @@ watchEffect(() => {
     emit('error', Messages.WebGLLost.details);
     return;
   }
-  const current = geometry.value;
-  if (!current) return;
-  slicePlane.setNormal(current.planeNormal);
-  slicePlane.setOrigin(current.planeOrigin);
-  mapper.setSlabThickness(current.slabThickness);
+  if (!geometry) return;
+  slicePlane.setNormal(geometry.planeNormal);
+  slicePlane.setOrigin(geometry.planeOrigin);
+  mapper.setSlabThickness(geometry.slabThickness);
   mapper.setSlabType(
-    { mean: SlabTypes.MEAN, max: SlabTypes.MAX, sum: SlabTypes.SUM }[
-      specification.method
-    ]
+    { mean: SlabTypes.MEAN, max: SlabTypes.MAX, sum: SlabTypes.SUM }[method]
   );
   property.setColorWindow(window.width);
   property.setColorLevel(window.level);
@@ -92,8 +85,8 @@ onScopeDispose(() => {
 });
 const corners = useVTKMultiWorldToSVG(
   computed(() => {
-    if (!geometry.value) return null;
-    const { pixelToWorld } = geometry.value;
+    if (!props.geometry) return null;
+    const { pixelToWorld } = props.geometry;
     return (
       [
         [0, 0, 0],

@@ -1,12 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  onScopeDispose,
-  ref,
-  toRefs,
-  watch,
-  watchPostEffect,
-} from 'vue';
+import { computed, ref, toRefs, watch, watchPostEffect } from 'vue';
 import { useViewWindowingRanges } from '@/src/composables/useViewWindowingRanges';
 import { useReferenceLinesStore } from '@/src/referenceLines';
 import { slabWindowRanges } from '@/src/core/slab/windowRanges';
@@ -107,8 +100,7 @@ const vtkView = ref<VtkViewApi>();
 function resetCamera() {
   vtkView.value?.resetCamera();
 }
-const resets = useResetViewsEvents().onClick(resetCamera);
-onScopeDispose(resets.off);
+useResetViewsEvents().onClick(resetCamera);
 const tools = useToolStore();
 const referenceLines = useReferenceLinesStore();
 const windowingManipulatorProps = computed(() => ({
@@ -120,9 +112,6 @@ watchPostEffect(() => {
   canvas?.setAttribute('aria-label', 'En face projection');
 });
 const sliceLines = useEnFaceSliceLines(viewId, currentImageID, geometry);
-const referenceSegments = computed(() =>
-  sliceLines.value.map(({ viewId: id, ...line }) => ({ id, ...line }))
-);
 const renderGeometry = computed(() => ({
   metadata: geometry.value?.metadata ?? null,
   fitKey: geometry.value?.fitKey ?? '',
@@ -203,7 +192,8 @@ watch(
       />
       <VtkSlabProjectionRepresentation
         :image-data="geometry ? currentImageData : null"
-        :specification="specification"
+        :geometry="geometry"
+        :method="specification.method"
         :window="windowConfig"
         @error="onRenderError"
         v-slot="{ imageMatrix }"
@@ -214,7 +204,7 @@ watch(
           data-testid="enface-slice-lines"
         >
           <ReferenceLineSegments
-            :segments="referenceSegments"
+            :segments="sliceLines"
             :transform-matrix="imageMatrix"
             data-testid="reference-lines"
           />
