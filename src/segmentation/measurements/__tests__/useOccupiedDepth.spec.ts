@@ -209,27 +209,6 @@ describe('occupied-depth result ownership', () => {
     expect(wrapper.text()).toContain('align with the source');
   });
 
-  it('refreshes source support and clears it when the replacement has no padding', async () => {
-    const { request, worker, wrapper } = mountMeasurement();
-    const input = request.value!;
-    await worker.finish();
-    request.value = {
-      ...input,
-      validity: {
-        values: new Uint8Array([0, 1, 1, 1, 1, 1]),
-        extent: [0, 0, 0, 5, 0, 0],
-      },
-    };
-    await worker.finish();
-    await nextTick();
-    expect(wrapper.text()).toBe('0 occupied cells');
-
-    request.value = { ...input };
-    await worker.finish();
-    await nextTick();
-    expect(wrapper.text()).toBe('4 occupied cells');
-  });
-
   it('ignores an old reply after highlighting restarts with the same mask', async () => {
     const { request, worker, wrapper } = mountMeasurement();
     const input = request.value!;

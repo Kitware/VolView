@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
-import { defineComponent, h, nextTick, reactive, ref } from 'vue';
+import { computed, defineComponent, h, nextTick, reactive, ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -9,11 +9,14 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useEnFaceInput } from '@/src/enface/useEnFaceInput';
+import { useEnFaceOccupiedDepth } from '@/src/enface/useEnFaceOccupiedDepth';
 import { createVuetify } from 'vuetify';
 import EnFaceControls from '@/src/enface/EnFaceControls.vue';
 import {
   defaultEnFaceViewConfig,
+  useEnFaceViewStore,
   type EnFaceViewConfig,
+  type ThicknessControlState,
 } from '@/src/enface/store';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
@@ -42,12 +45,16 @@ function mountControls(overrides = {}) {
       onPatch: (patch: Partial<EnFaceViewConfig>) =>
         Object.assign(settings, patch),
       depthMaximum: 221,
-      thresholdMaximum: 200,
       projectionReason: null,
-      segmentationReason: null,
-      highlightReason: null,
-      thicknessReason: null,
-      segments: [{ value: 'retina', title: 'Retinal layer', color: '#ff0000' }],
+      thickness: {
+        thresholdMaximum: 200,
+        segmentationReason: null,
+        highlightReason: null,
+        thicknessReason: null,
+        segments: [
+          { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
+        ],
+      },
     },
     global: { plugins: [createVuetify()] },
   });
@@ -55,6 +62,15 @@ function mountControls(overrides = {}) {
 
 function lastPatch(wrapper: ReturnType<typeof mountControls>) {
   return wrapper.emitted('patch')?.at(-1)?.[0];
+}
+
+function setThickness(
+  wrapper: ReturnType<typeof mountControls>,
+  thickness: Partial<ThicknessControlState>
+) {
+  return wrapper.setProps({
+    thickness: { ...wrapper.props('thickness'), ...thickness },
+  });
 }
 
 describe('En face rendering controls', () => {
@@ -139,10 +155,13 @@ describe('En face rendering controls', () => {
     const swatch = () => wrapper.get('[data-testid="enface-segment-color"]');
     expect(swatch().attributes('style')).toContain('background-color: #ff0000');
     await wrapper.setProps({
-      segments: [
-        { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
-        { value: 'other-layer', title: 'Other layer', color: '#00ff00' },
-      ],
+      thickness: {
+        ...wrapper.props('thickness'),
+        segments: [
+          { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
+          { value: 'other-layer', title: 'Other layer', color: '#00ff00' },
+        ],
+      },
       settings: { ...wrapper.props('settings'), selectedMaskId: 'other-layer' },
     });
     expect(swatch().attributes('style')).toContain('background-color: #00ff00');
@@ -176,7 +195,7 @@ describe('En face rendering controls', () => {
     expect(
       wrapper.get('[data-testid="enface-thin-highlight"]').text()
     ).toContain('Highlight thin regions');
-    await wrapper.setProps({ segments: [] });
+    await setThickness(wrapper, { segments: [] });
     expect(wrapper.find('[data-testid="enface-segment-color"]').exists()).toBe(
       false
     );
@@ -234,7 +253,7 @@ describe('En face rendering controls', () => {
         '[data-testid="enface-thickness-threshold-input"] input'
       ).element.value
     ).toBe('750.25');
-    await wrapper.setProps({ thresholdMaximum: 50 });
+    await setThickness(wrapper, { thresholdMaximum: 50 });
     expect(slider.attributes('aria-valuemax')).toBe('50');
     expect(slider.attributes('aria-valuenow')).toBe('50');
     expect(
@@ -247,7 +266,7 @@ describe('En face rendering controls', () => {
   it('keeps thickness actions disabled when the selected axis has unusable spacing', async () => {
     const wrapper = mountControls();
     const reason = 'The selected image axis has unusable voxel spacing.';
-    await wrapper.setProps({
+    await setThickness(wrapper, {
       highlightReason: reason,
       thicknessReason: reason,
     });
@@ -351,14 +370,14 @@ describe('En face rendering controls', () => {
         action.find('[data-testid="enface-segmentation-segment"]').exists()
       );
     expect(segmentAction?.props('reason')).toBeUndefined();
-    await wrapper.setProps({
+    await setThickness(wrapper, {
       thicknessReason: 'The selected segment is hidden.',
     });
     expect(toggle.attributes('disabled')).toBeUndefined();
     await toggle.setValue(true);
     expect(segment.attributes('disabled')).toBeUndefined();
     const reason = 'Load an associated segmentation to measure thickness.';
-    await wrapper.setProps({
+    await setThickness(wrapper, {
       segments: [],
       segmentationReason: reason,
       highlightReason: reason,
@@ -412,17 +431,21 @@ function mountImageControls(spacing = 0.01) {
   const component = defineComponent({
     setup() {
       const input = useEnFaceInput('measurement-view');
+      const thickness = useEnFaceOccupiedDepth('measurement-view', {
+        source: input.source,
+        slab: input.specification,
+        geometry: input.geometry,
+        blockedReason: computed(() => input.controls.value.projectionReason),
+      });
+      const enFaceStore = useEnFaceViewStore();
       return () =>
         h(EnFaceControls, {
-          settings: input.settings.value,
-          axes: input.controls.value.axisOptions,
-          segments: input.controls.value.segmentOptions,
-          depthMaximum: input.controls.value.depthMaximum,
-          thresholdMaximum: 200,
-          projectionReason: input.controls.value.projectionReason,
-          segmentationReason: input.controls.value.segmentationReason,
-          highlightReason: input.controls.value.highlightEligibilityReason,
-          thicknessReason: input.controls.value.thicknessReason,
+          ...input.controls.value,
+          settings: enFaceStore.settingsFor(
+            'measurement-view',
+            input.source.currentImageID.value
+          ),
+          thickness: thickness.controls.value,
         });
     },
   });

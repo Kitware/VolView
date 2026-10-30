@@ -4,8 +4,6 @@ import type { MeasurementRequest } from '@/src/segmentation/measurements/occupie
 const handle = createOccupiedDepthHandler();
 self.onmessage = ({ data }: MessageEvent<MeasurementRequest>) => {
   const response = handle(data);
-  const transfer = response.result
-    ? [response.result.counts.buffer, response.result.known.buffer]
-    : [];
+  const transfer = response.result ? [response.result.counts.buffer] : [];
   self.postMessage(response, transfer);
 };

@@ -1,5 +1,6 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { inflateSync } from 'fflate';
+import { vec3 } from 'gl-matrix';
 import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
 import {
   isOCTMetadata,
@@ -7,15 +8,56 @@ import {
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
 
-import {
-  coordinatesMatch,
-  imageDirection,
-  frameGridGeometry,
-} from '@/src/core/streaming/dicom/frameGeometry';
-import {
-  augmentPixelPadding,
-  DICOM_PADDING_ERROR,
-} from '@/src/core/streaming/dicom/pixelPadding';
+const close = (a: number, b: number) =>
+  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 1e-5;
+const coordinatesMatch = (a: ArrayLike<number>, b: ArrayLike<number>) =>
+  a.length === b.length && Array.from(a).every((n, i) => close(n, b[i]));
+
+function imageDirection(basis: number[] | null | undefined) {
+  if (!basis || basis.length !== 6 || !basis.every(Number.isFinite))
+    return null;
+  const row = basis.slice(0, 3) as vec3;
+  const column = basis.slice(3) as vec3;
+  if (
+    !close(vec3.length(row), 1) ||
+    !close(vec3.length(column), 1) ||
+    !close(vec3.dot(row, column), 0)
+  )
+    return null;
+  return [...basis, ...vec3.cross([0, 0, 0], row, column)];
+}
+
+/** Validate equally spaced slices along the positive image normal. */
+function frameGridError(positions: number[][], direction?: number[]) {
+  if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
+    return 'DICOM slice positions are invalid; spatial reconstruction is required.';
+  if (positions.length < 2) return null;
+  const step = positions
+    .at(-1)!
+    .map((n, axis) => (n - positions[0][axis]) / (positions.length - 1));
+  const distance = Math.hypot(...step);
+  if (distance <= 1e-5)
+    return 'Repeated DICOM slice locations need spatial reconstruction.';
+  if (
+    direction &&
+    !coordinatesMatch(
+      step,
+      direction.slice(6).map((n) => n * distance)
+    )
+  )
+    return 'DICOM slice positions do not follow the image grid; spatial reconstruction is required.';
+  if (
+    positions.some(
+      (position, i) =>
+        !coordinatesMatch(
+          position,
+          positions[0].map((n, axis) => n + i * step[axis])
+        )
+    )
+  )
+    return 'DICOM slices have nonuniform positions; spatial reconstruction is required.';
+  return null;
+}
 
 const SHARED = 'x52009229';
 const PER_FRAME = 'x52009230';
@@ -97,7 +139,7 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
   const direction = imageDirection(vector(geometry.orientation));
   if (positions.length > 1 && !direction)
     return 'OCT image orientation is missing; spatial reconstruction is required.';
-  return frameGridGeometry(positions, direction ?? undefined).reason;
+  return frameGridError(positions, direction ?? undefined);
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {
@@ -160,7 +202,7 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.SpacingBetweenSlices, sliceSpacing);
 }
 
-async function readMetadataHeader(file: Blob) {
+async function readOCTHeader(file: Blob) {
   let length = Math.min(file.size, 64 * 1024);
   for (;;) {
     const isCompleteFile = length === file.size;
@@ -177,7 +219,7 @@ async function readMetadataHeader(file: Blob) {
           // path for deflated datasets, including trailing NULL padding.
           if (!isCompleteFile) {
             needsCompleteFile = true;
-            throw new Error('Deflated DICOM requires the complete dataset');
+            throw new Error('Deflated OCT requires the complete dataset');
           }
           const inflated = inflateSync(bytes.subarray(position));
           // The parser requires the Part 10 header to retain metadata offsets.
@@ -202,28 +244,18 @@ async function readMetadataHeader(file: Blob) {
   }
 }
 
-/** Reads binary DICOM padding and promotes enhanced OCT spatial metadata. */
-export async function augmentDicomMetadata(
+/** Promotes enhanced OCT geometry for the loader. */
+export async function augmentOCTMetadata(
   file: Blob,
   metadata: Array<[string, string]>
 ) {
-  const isOCT = isOCTMetadata(metadata);
-  const hasPadding = metadata.some(([tag]) =>
-    [Tags.PixelPaddingValue, Tags.PixelPaddingRangeLimit].includes(tag)
-  );
-  if (!isOCT && !hasPadding) return metadata;
+  if (!isOCTMetadata(metadata)) return metadata;
   const tags = new Map(metadata);
   try {
-    const data = await readMetadataHeader(file);
-    augmentPixelPadding(data, tags);
-    if (isOCT) promoteOCTGeometry(data, tags);
+    const data = await readOCTHeader(file);
+    promoteOCTGeometry(data, tags);
   } catch {
-    tags.set(
-      isOCT ? OCT_GEOMETRY_ERROR : DICOM_PADDING_ERROR,
-      isOCT
-        ? 'OCT spatial metadata could not be read.'
-        : 'Image pixel padding could not be read.'
-    );
+    tags.set(OCT_GEOMETRY_ERROR, 'OCT spatial metadata could not be read.');
   }
   return [...tags];
 }

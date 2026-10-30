@@ -21,15 +21,19 @@ export type EnFaceViewConfig = {
   selectedMaskId: string | null;
 };
 
-export type EnFaceViewControlState = {
-  axes: { title: string; value: number }[];
-  depthMaximum: number;
+export type ThicknessControlState = {
   thresholdMaximum: number;
-  projectionReason: string | null;
   segmentationReason: string | null;
   highlightReason: string | null;
   thicknessReason: string | null;
   segments: { value: string; title: string; color?: string }[];
+};
+
+export type EnFaceViewControlState = {
+  axes: { title: string; value: number }[];
+  depthMaximum: number;
+  projectionReason: string | null;
+  thickness: ThicknessControlState;
 };
 
 export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({

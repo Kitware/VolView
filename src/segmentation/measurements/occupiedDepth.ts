@@ -9,16 +9,12 @@ export type OccupiedDepthInput = {
     /** Inclusive parent-image bounds of the cropped binary mask. */
     extent: readonly number[];
   };
-  /** One for valid source support, in cropped VTK voxel order. */
-  validity?: { values: Uint8Array; extent: readonly number[] };
 };
 
 export type OccupiedDepthResult = {
   width: number;
   height: number;
   counts: Uint32Array;
-  /** An occupied voxel on invalid source support makes its column unknown. */
-  known: Uint8Array;
   maximumCount: number;
 };
 
@@ -83,7 +79,6 @@ function validateInput(input: OccupiedDepthInput) {
     input.last >= input.dimensions[input.axis]
   )
     throw new Error('Occupied depth slab must be an inclusive source range.');
-  validateValidity(input);
   validateMaskGeometry(input);
 }
 
@@ -95,26 +90,6 @@ function selectedExtent(input: OccupiedDepthInput) {
   return extent;
 }
 
-function validateValidity(input: OccupiedDepthInput) {
-  if (!input.validity) return;
-  const { extent, values } = input.validity;
-  const sizes = [0, 1, 2].map(
-    (axis) => extent[2 * axis + 1] - extent[2 * axis] + 1
-  );
-  const selected = selectedExtent(input);
-  const coversSelection =
-    extent.length === 6 &&
-    extent.every((value, index) =>
-      index % 2 === 0 ? value <= selected[index] : value >= selected[index]
-    );
-  if (!coversSelection || values.length !== voxelCount(sizes))
-    throw new Error('Source validity does not match the selected mask extent.');
-  validateMaskGeometry({
-    ...input,
-    mask: { values, dimensions: sizes, extent },
-  });
-}
-
 const stridesOf = (dimensions: readonly number[]) => [
   1,
   dimensions[0],
@@ -124,32 +99,17 @@ const stridesOf = (dimensions: readonly number[]) => [
 function accumulateRow(
   state: {
     values: Uint8Array;
-    validity?: Uint8Array;
     counts: Uint32Array;
-    known: Uint8Array;
     length: number;
     pixelStep: number;
   },
   maskStart: number,
-  sourceStart: number,
   pixelStart: number
 ) {
   for (let x = 0; x < state.length; x++) {
-    if (!state.values[maskStart + x]) continue;
-    const pixel = pixelStart + x * state.pixelStep;
-    if (state.validity && !state.validity[sourceStart + x])
-      state.known[pixel] = 0;
-    else state.counts[pixel]++;
+    if (state.values[maskStart + x])
+      state.counts[pixelStart + x * state.pixelStep]++;
   }
-}
-
-function knownMaximum(counts: Uint32Array, known: Uint8Array) {
-  let maximum = 0;
-  for (let pixel = 0; pixel < counts.length; pixel++) {
-    if (!known[pixel]) counts[pixel] = 0;
-    maximum = Math.max(maximum, counts[pixel]);
-  }
-  return maximum;
 }
 
 function countOccupiedDepth(input: OccupiedDepthInput): OccupiedDepthResult {
@@ -159,23 +119,12 @@ function countOccupiedDepth(input: OccupiedDepthInput): OccupiedDepthResult {
   const width = input.dimensions[horizontal];
   const height = input.dimensions[vertical];
   const counts = new Uint32Array(width * height);
-  const known = new Uint8Array(width * height).fill(1);
   const maskStrides = stridesOf(input.mask.dimensions);
-  const supportExtent = input.validity?.extent ?? [0, 0, 0, 0, 0, 0];
-  const sourceStrides = stridesOf(
-    input.validity
-      ? [0, 1, 2].map(
-          (axis) => supportExtent[2 * axis + 1] - supportExtent[2 * axis] + 1
-        )
-      : input.dimensions
-  );
   const { extent } = input.mask;
   const selected = selectedExtent(input);
   const state = {
     values: input.mask.values,
-    validity: input.validity?.values,
     counts,
-    known,
     length: Math.max(0, selected[1] - selected[0] + 1),
     pixelStep: input.axis === 0 ? 0 : 1,
   };
@@ -189,10 +138,6 @@ function countOccupiedDepth(input: OccupiedDepthInput): OccupiedDepthResult {
           extent[0] +
           (y - extent[2]) * maskStrides[1] +
           (z - extent[4]) * maskStrides[2],
-        selected[0] -
-          supportExtent[0] +
-          (y - supportExtent[2]) * sourceStrides[1] +
-          (z - supportExtent[4]) * sourceStrides[2],
         point[horizontal] + width * point[vertical]
       );
     }
@@ -201,8 +146,10 @@ function countOccupiedDepth(input: OccupiedDepthInput): OccupiedDepthResult {
     width,
     height,
     counts,
-    known,
-    maximumCount: knownMaximum(counts, known),
+    maximumCount: counts.reduce(
+      (maximum, count) => Math.max(maximum, count),
+      0
+    ),
   };
 }
 

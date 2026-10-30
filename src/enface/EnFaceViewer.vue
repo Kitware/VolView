@@ -3,8 +3,8 @@ import { computed, ref, toRefs, watch, watchPostEffect } from 'vue';
 import { useViewWindowingRanges } from '@/src/composables/useViewWindowingRanges';
 import { useReferenceLinesStore } from '@/src/referenceLines';
 import { slabWindowRanges } from '@/src/core/slab/windowRanges';
-import { useOccupiedDepth } from '@/src/segmentation/measurements/useOccupiedDepth';
 import { useEnFaceInput } from './useEnFaceInput';
+import { useEnFaceOccupiedDepth } from './useEnFaceOccupiedDepth';
 import VtkEnFaceLabelmapRepresentation from './VtkEnFaceLabelmapRepresentation.vue';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
@@ -16,8 +16,6 @@ import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import type { VtkViewApi } from '@/src/types/vtk-types';
-import { useThinRegionAppearance } from './useThinRegionAppearance';
-import { thicknessSliderMaximum } from './thickness';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
@@ -25,66 +23,19 @@ import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import EnFaceControlPanel from './EnFaceControlPanel.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
-import { useEnFaceViewStore, type EnFaceViewControlState } from './store';
+import EnFaceMeasurementStatus from './EnFaceMeasurementStatus.vue';
+import { useEnFaceViewStore } from './store';
 
 const props = defineProps<{ viewId: string }>();
 const { viewId } = toRefs(props);
-const {
-  source,
-  settings,
-  controls,
-  specification,
-  geometry,
-  orientation,
-  measurementRequest,
-  micronsPerVoxel,
-} = useEnFaceInput(viewId);
+const { source, controls, specification, geometry, orientation } =
+  useEnFaceInput(viewId);
 const {
   currentImageID,
   currentImageData,
   currentImageMetadata,
   isImageLoading: sourceLoading,
 } = source;
-const highlightAppearance = useThinRegionAppearance(
-  computed(() => settings.value.selectedMaskId)
-);
-const {
-  accepted: measurement,
-  computing: measuring,
-  stale: measurementStale,
-  error: measurementError,
-} = useOccupiedDepth(
-  measurementRequest,
-  undefined,
-  computed(() => settings.value.highlightThin)
-);
-const highlightReason = computed(
-  () =>
-    controls.value.thicknessReason ||
-    highlightAppearance.value?.reason ||
-    measurementError.value ||
-    (measuring.value && !measurement.value
-      ? 'Measuring thickness in the selected slab…'
-      : null)
-);
-const measurementMessage = computed(() => {
-  if (!settings.value.highlightThin) return null;
-  if (highlightReason.value) return highlightReason.value;
-  if (measuring.value)
-    return measurementStale.value
-      ? 'Updating thickness; showing the previous result.'
-      : 'Measuring thickness in the selected slab…';
-  const unknown = measurement.value?.known.reduce(
-    (count, known) => count + Number(!known),
-    0
-  );
-  return unknown
-    ? `${unknown} occupied ${unknown === 1 ? 'column cannot' : 'columns cannot'} be measured because the segment overlaps missing source data. These columns are excluded from highlighting.`
-    : null;
-});
-const thresholdMaximum = computed(() =>
-  thicknessSliderMaximum(measurement.value, micronsPerVoxel.value)
-);
 const autoRanges = computed(() =>
   geometry.value && currentImageData.value
     ? slabWindowRanges(currentImageData.value, specification.value)
@@ -116,14 +67,6 @@ const renderGeometry = computed(() => ({
   metadata: geometry.value?.metadata ?? null,
   fitKey: geometry.value?.fitKey ?? '',
 }));
-const labelmapAppearance = computed(() =>
-  settings.value.highlightThin &&
-  !highlightReason.value &&
-  !fatalContextError.value &&
-  !!geometry.value
-    ? highlightAppearance.value
-    : null
-);
 const fatalContextError = ref<string | null>(null);
 function onRenderError(message: string) {
   fatalContextError.value = message;
@@ -134,23 +77,23 @@ const projectionReady = computed(
 const stateMessage = computed(
   () => controls.value.projectionReason || fatalContextError.value
 );
+const {
+  overlay: thinRegions,
+  controls: thicknessControls,
+  measuring,
+  message: measurementMessage,
+} = useEnFaceOccupiedDepth(viewId, {
+  source,
+  slab: specification,
+  geometry,
+  blockedReason: stateMessage,
+});
 const enFaceStore = useEnFaceViewStore();
-const controlState = computed(
-  () =>
-    ({
-      axes: controls.value.axisOptions,
-      depthMaximum: controls.value.depthMaximum,
-      thresholdMaximum: thresholdMaximum.value,
-      projectionReason:
-        controls.value.projectionReason || fatalContextError.value,
-      segmentationReason:
-        controls.value.segmentationReason || fatalContextError.value,
-      thicknessReason: highlightReason.value || fatalContextError.value,
-      highlightReason:
-        controls.value.highlightEligibilityReason || fatalContextError.value,
-      segments: controls.value.segmentOptions,
-    }) satisfies EnFaceViewControlState
-);
+const controlState = computed(() => ({
+  ...controls.value,
+  projectionReason: stateMessage.value,
+  thickness: thicknessControls.value,
+}));
 watch(
   [viewId, currentImageID, controlState],
   ([id, dataId, state]) => {
@@ -219,19 +162,10 @@ watch(
         :plane-normal="geometry.planeNormal"
         :preserved-axis="specification.axis"
       />
-      <VtkEnFaceLabelmapRepresentation
-        :geometry="geometry"
-        :measurement="measurement"
-        :microns-per-voxel="micronsPerVoxel"
-        :threshold="settings.thresholdMicrons"
-        :appearance="labelmapAppearance"
-      />
+      <VtkEnFaceLabelmapRepresentation v-bind="thinRegions" />
     </VtkSliceView>
-    <EnFaceStatus
-      :message="stateMessage"
-      :ready="projectionReady"
-      :measurement-message="measurementMessage"
-    />
+    <EnFaceStatus :message="stateMessage" :ready="projectionReady" />
+    <EnFaceMeasurementStatus :message="measurementMessage" />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
         <div class="annotation-cell" @click.stop @dblclick.stop>

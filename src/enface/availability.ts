@@ -8,10 +8,6 @@ import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
-import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
-import { decodedPaddingRanges } from '@/src/core/streaming/dicom/pixelPadding';
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
 function gridReason(data: Maybe<vtkImageData>) {
   if (!data || data.getDimensions().some((n) => n < 2)) {
@@ -36,7 +32,8 @@ function loadReason(
   return gridReason(data);
 }
 
-function acquisitionMetadataReason(tags: Map<string, string>) {
+function acquisitionMetadataReason(metadata: Iterable<[string, string]>) {
+  const tags = new Map(metadata);
   if (tags.get(Tags.OphthalmicVolumetricPropertiesFlag)?.trim() === 'NO') {
     return 'This OCT is marked unsuitable for volumetric processing.';
   }
@@ -47,104 +44,32 @@ function acquisitionMetadataReason(tags: Map<string, string>) {
   return tags.get(OCT_GEOMETRY_ERROR) ?? null;
 }
 
-function measurementMetadata(chunk: Chunk) {
-  const tags = new Map(chunk.metadata ?? []);
-  const region = chunk.ultrasoundRegions?.region;
-  if (tags.get(Tags.Modality)?.trim() !== 'US' || !region) return tags;
-  const xFactor = unitToMm(region.physicalUnitsXDirection);
-  const yFactor = unitToMm(region.physicalUnitsYDirection);
-  if (xFactor === null || yFactor === null) return tags;
-  const spacing = [
-    region.physicalDeltaY * yFactor,
-    region.physicalDeltaX * xFactor,
-  ];
-  if (spacing.every((value) => Number.isFinite(value) && value !== 0))
-    tags.set(Tags.PixelSpacing, spacing.map(Math.abs).join('\\'));
-  return tags;
-}
+// A chunk's tag list is fixed once loaded, so each is scanned at most once.
+const metadataReasons = new WeakMap<object, string | null>();
 
-function loadedGrid(data: vtkImageData) {
-  return {
-    spacing: data.getSpacing(),
-    direction: data.getDirection(),
-    origin: data.getOrigin(),
-  };
-}
-
-function dicomGeometry(image: DicomChunkImage, data: vtkImageData) {
-  const metadata = image.getChunks().map(measurementMetadata);
-  const series = dicomSeriesGeometry(metadata, loadedGrid(data));
-  const padding = decodedPaddingRanges(metadata, data.getDimensions()[2]);
-  const acquisitionReason = metadata
-    .map(acquisitionMetadataReason)
-    .find((reason) => reason !== null);
-  return {
-    reason: acquisitionReason ?? null,
-    paddingReason: padding.reason
-      ? `${padding.reason} Occupied depth is unavailable.`
-      : null,
-    measurementGeometryReason: acquisitionReason
-      ? acquisitionReason
-      : series.reason
-        ? `${series.reason} Occupied depth is unavailable.`
-        : null,
-    paddingRanges: padding.ranges.length ? padding.ranges : undefined,
-    calibratedAxes: series.calibratedAxes,
-  };
-}
-
-const geometryCache = new WeakMap<
-  vtkImageData,
-  { key: string; geometry: ReturnType<typeof dicomGeometry> }
->();
-
-function inputGeometry(
-  image: Maybe<ProgressiveImage>,
-  data: Maybe<vtkImageData>,
-  loaded: boolean
-) {
-  if (image instanceof DicomChunkImage && loaded && data) {
-    const key = [
-      ...data.getSpacing(),
-      ...data.getDirection(),
-      ...data.getOrigin(),
-      ...data.getDimensions(),
-    ].join(',');
-    const cached = geometryCache.get(data);
-    if (cached?.key === key) return cached.geometry;
-    const geometry = dicomGeometry(image, data);
-    geometryCache.set(data, { key, geometry });
-    return geometry;
+function acquisitionReason(image: ProgressiveImage) {
+  if (!(image instanceof DicomChunkImage)) return null;
+  for (const { metadata } of image.getChunks()) {
+    if (!metadata) continue;
+    let reason = metadataReasons.get(metadata);
+    if (reason === undefined) {
+      reason = acquisitionMetadataReason(metadata);
+      metadataReasons.set(metadata, reason);
+    }
+    if (reason !== null) return reason;
   }
-  return {
-    reason: null,
-    paddingReason: null,
-    measurementGeometryReason: null,
-    paddingRanges: undefined,
-    calibratedAxes: undefined,
-  };
+  return null;
 }
 
-export function getEnFaceAvailability(imageID: Maybe<string>) {
+export function getEnFaceUnavailableReason(imageID: Maybe<string>) {
   const cache = useImageCacheStore();
   const image = cache.imageById[imageID || ''];
   // Track allocation and progress even before raw DICOM chunks arrive.
   const loaded = Boolean(image?.isLoaded());
   const loading = Boolean(image?.isLoading());
   const data = cache.getVtkImageData(imageID);
-  const geometry = inputGeometry(image, data, loaded && !loading);
-  const reason = image
-    ? (geometry.reason ?? loadReason(imageID, loaded && !loading, data))
+  return image
+    ? (acquisitionReason(image) ??
+        loadReason(imageID, loaded && !loading, data))
     : 'Load a grayscale 3D volume to use En face.';
-  return {
-    available: reason === null,
-    reason,
-    paddingReason: geometry.paddingReason,
-    measurementGeometryReason: geometry.measurementGeometryReason,
-    paddingRanges: geometry.paddingRanges,
-    calibratedAxes: geometry.calibratedAxes,
-  };
 }
-
-export const getEnFaceUnavailableReason = (imageID: Maybe<string>) =>
-  getEnFaceAvailability(imageID).reason;

@@ -24,4 +24,4 @@ export function thicknessSliderMaximum(
 }
 
 export const EN_FACE_THICKNESS_HELP =
-  'Thickness of the selected segment within the slab, along the projection axis. Only occupied voxels are counted; gaps are excluded. Columns where the segment overlaps missing source data are excluded from highlighting. Missing data outside the segment does not change its measured thickness.';
+  'Thickness of the selected segment within the slab, along the projection axis. Only occupied voxels are counted; gaps are excluded.';

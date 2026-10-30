@@ -6,11 +6,9 @@ import type {
 
 export type MeasurementRequest = {
   id: number;
-  input: Omit<OccupiedDepthInput, 'mask' | 'validity'>;
+  input: Omit<OccupiedDepthInput, 'mask'>;
   /** Omitted when the worker already holds this mask revision. */
   mask?: OccupiedDepthInput['mask'];
-  /** Omitted when the worker already holds this source revision. */
-  source?: { validity?: OccupiedDepthInput['validity'] };
 };
 
 export type MeasurementResponse = {
@@ -19,19 +17,17 @@ export type MeasurementResponse = {
   error?: string;
 };
 
-/** Owns the prepared snapshots for one worker. */
+/** Owns the prepared mask snapshot for one worker. */
 export function createOccupiedDepthHandler() {
-  let validity: OccupiedDepthInput['validity'];
   let measure: ReturnType<typeof createOccupiedDepthMeasurer> | undefined;
   return (data: MeasurementRequest): MeasurementResponse => {
-    if (data.source) validity = data.source.validity;
     try {
       if (data.mask) {
         measure = undefined;
         measure = createOccupiedDepthMeasurer(data.mask);
       }
       if (!measure) throw new Error('Occupied depth requires a binary mask.');
-      return { id: data.id, result: measure({ ...data.input, validity }) };
+      return { id: data.id, result: measure(data.input) };
     } catch (cause) {
       return {
         id: data.id,

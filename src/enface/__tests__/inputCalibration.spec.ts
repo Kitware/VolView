@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { defineComponent, h, nextTick, ref } from 'vue';
+import { computed, defineComponent, h, nextTick, ref } from 'vue';
 import { createVuetify } from 'vuetify';
 import { Tags } from '@/src/core/dicomTags';
 import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useEnFaceInput } from '@/src/enface/useEnFaceInput';
+import { useOccupiedDepthInput } from '@/src/enface/useOccupiedDepthInput';
 import EnFaceControls from '@/src/enface/EnFaceControls.vue';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -57,16 +58,17 @@ async function mountInput(id: string) {
   settings.highlightThin = true;
   const host = defineComponent({
     setup() {
-      const input = useEnFaceInput('calibration');
+      const projection = useEnFaceInput('calibration');
+      const input = useOccupiedDepthInput('calibration', {
+        source: projection.source,
+        slab: projection.specification,
+        blockedReason: computed(
+          () => projection.controls.value.projectionReason
+        ),
+      });
       return () => {
-        const request = input.measurementRequest.value;
+        const request = input.request.value;
         const result = request ? measureOccupiedDepth(request) : null;
-        const {
-          axisOptions: axes,
-          segmentOptions: segments,
-          highlightEligibilityReason: highlightReason,
-          ...controls
-        } = input.controls.value;
         return h('div', [
           h(
             'output',
@@ -76,15 +78,18 @@ async function mountInput(id: string) {
                 ? result.maximumCount * input.micronsPerVoxel.value
                 : '',
             },
-            input.controls.value.thicknessReason ?? 'Ready'
+            input.thicknessReason.value ?? 'Ready'
           ),
           h(EnFaceControls, {
-            ...controls,
-            axes,
-            segments,
-            highlightReason,
+            ...projection.controls.value,
             settings: input.settings.value,
-            thresholdMaximum: 200,
+            thickness: {
+              thresholdMaximum: 200,
+              segmentationReason: input.segmentationReason.value,
+              highlightReason: input.highlightReason.value,
+              thicknessReason: input.thicknessReason.value,
+              segments: input.segmentOptions.value,
+            },
           }),
         ]);
       };

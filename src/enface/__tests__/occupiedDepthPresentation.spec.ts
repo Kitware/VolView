@@ -21,19 +21,18 @@ describe('occupied-depth threshold presentation', () => {
     'preserves strict calibrated threshold %f * %i below %f',
     (spacing, count, threshold, highlighted) => {
       const field = {
-        width: 3,
+        width: 2,
         height: 1,
-        counts: new Uint32Array([count, 0, count]),
-        known: new Uint8Array([1, 1, 0]),
+        counts: new Uint32Array([count, 0]),
         maximumCount: count,
       };
       expect(
         Array.from(createThinRegionMask(field, threshold, spacing * 1000))
-      ).toEqual([Number(highlighted), 0, 0]);
+      ).toEqual([Number(highlighted), 0]);
     }
   );
 
-  it('fits the slider above the known occupied maximum after slab clipping', () => {
+  it('fits the slider above the occupied maximum after slab clipping', () => {
     const values = new Uint8Array(24);
     for (const depth of [0, 1, 4, 5]) values[2 * depth] = 1;
     const input = {

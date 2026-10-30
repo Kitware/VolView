@@ -15,7 +15,7 @@ import {
 import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { repairUnusableSpacing } from '@/src/utils/imageSpace';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { getEnFaceAvailability } from '@/src/enface/availability';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
 const samples = Uint16Array.from({ length: 12 }, (_, index) => index);
@@ -110,11 +110,7 @@ describe('manual En face with real generic image readers', () => {
 
   it('loads explicit-mm NRRD while retaining declared geometry and custom metadata', async () => {
     const { id, data, headerMetadata } = await load(nrrd(['mm', 'mm', 'mm']));
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-
-      measurementGeometryReason: null,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
     expect(data.getDimensions()).toEqual(dimensions);
     expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
     expect(data.getOrigin()).toEqual([1, 2, 3]);
@@ -129,11 +125,7 @@ describe('manual En face with real generic image readers', () => {
     'uses loaded NRRD geometry regardless of declared units: %j',
     async ({ units }) => {
       const { id, data } = await load(nrrd(units));
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: true,
-
-        measurementGeometryReason: null,
-      });
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
       expect(data.getOrigin()).toEqual([1, 2, 3]);
     }
@@ -155,9 +147,6 @@ describe('manual En face with real generic image readers', () => {
         expect(
           Array.from(vector.data.getPointData().getScalars().getData())
         ).toEqual(Array.from(samples));
-        expect(
-          getEnFaceAvailability(vector.id).measurementGeometryReason
-        ).toBeNull();
       }
     }
   );
@@ -179,10 +168,7 @@ describe('manual En face with real generic image readers', () => {
       new File([header, samples], 'axis-units.nrrd')
     );
     expect(data.getSpacing()).toEqual([0.03, 0.01, 0.2]);
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-      measurementGeometryReason: null,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
     const measurement = measureOccupiedDepth({
       dimensions,
       axis: 1,
@@ -206,11 +192,7 @@ describe('manual En face with real generic image readers', () => {
     'uses NIfTI normalized millimeters for spatial unit code %i',
     async (units) => {
       const { id, data } = await load(nifti(units));
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: true,
-
-        measurementGeometryReason: null,
-      });
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
       const scale =
         [1, 2, 3].indexOf(units & 7) === 0
           ? 1000
@@ -242,17 +224,12 @@ describe('manual En face with real generic image readers', () => {
 
   it('uses loaded NIfTI geometry when physical units are unspecified', async () => {
     const { id } = await load(nifti(0));
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-
-      measurementGeometryReason: null,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
   });
 
   it('uses reader-repaired NIfTI spacing consistently with the loaded image', async () => {
-    const { id, data } = await load(nifti(2, [0.03, 0, 0.2], 0));
+    const { data } = await load(nifti(2, [0.03, 0, 0.2], 0));
     expect(data.getSpacing()[1]).toBeGreaterThan(0);
-    expect(getEnFaceAvailability(id).measurementGeometryReason).toBeNull();
   });
   it('loads gzip NIfTI with its decoded sampling', async () => {
     const uncompressed = nifti(2);
@@ -261,11 +238,7 @@ describe('manual En face with real generic image readers', () => {
       'retina.nii.gz'
     );
     const { id, data } = await load(compressed);
-    expect(getEnFaceAvailability(id)).toMatchObject({
-      available: true,
-
-      measurementGeometryReason: null,
-    });
+    expect(getEnFaceUnavailableReason(id)).toBeNull();
     expect(Array.from(data.getPointData().getScalars().getData())).toEqual(
       Array.from(samples)
     );
@@ -277,11 +250,7 @@ describe('manual En face with real generic image readers', () => {
       const { id, data } = await load(
         new File([syntheticOCTVolume(format)], `retina.${format}`)
       );
-      expect(getEnFaceAvailability(id)).toMatchObject({
-        available: true,
-
-        measurementGeometryReason: null,
-      });
+      expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(data.getDimensions()).toEqual([128, 32, 222]);
       expect(Array.from(data.getDirection(), (value) => value || 0)).toEqual([
         1, 0, 0, 0, 0, 1, 0, 1, 0,

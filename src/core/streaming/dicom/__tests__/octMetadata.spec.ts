@@ -2,11 +2,7 @@ import dicomParser, { type DataSet } from 'dicom-parser';
 import { deflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Tags } from '@/src/core/dicomTags';
-import { augmentDicomMetadata } from '@/src/core/streaming/dicom/dicomMetadata';
-import {
-  decodedPaddingRanges,
-  DICOM_PADDING_ERROR,
-} from '@/src/core/streaming/dicom/pixelPadding';
+import { augmentOCTMetadata } from '@/src/core/streaming/dicom/octMetadata';
 
 import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
@@ -23,7 +19,6 @@ import {
   createSyntheticOCT,
   element,
   enhancedFile,
-  sequence,
 } from '@/tests/fixtures/oct/dicom';
 
 const baseMetadata = (): Array<[string, string]> => [
@@ -70,7 +65,7 @@ const spatialMetadataError = (metadata: Iterable<[string, string]>) =>
 
 async function augmented(bytes = fixtureBytes()) {
   return new Map(
-    await augmentDicomMetadata(new Blob([bytes as BlobPart]), baseMetadata())
+    await augmentOCTMetadata(new Blob([bytes as BlobPart]), baseMetadata())
   );
 }
 
@@ -103,7 +98,7 @@ describe('OCT DICOM activation', () => {
 
   it('preserves metadata and skips parsing non-OCT files', async () => {
     const tags: Array<[string, string]> = [[Tags.Modality, 'CT']];
-    expect(await augmentDicomMetadata(new Blob(['not a DICOM']), tags)).toBe(
+    expect(await augmentOCTMetadata(new Blob(['not a DICOM']), tags)).toBe(
       tags
     );
   });
@@ -145,10 +140,8 @@ describe('OCT enhanced spatial metadata', () => {
         header,
         element('7fe00010', 'OW', new Uint8Array(2)),
       ]);
-      expect(new Map(await augmentDicomMetadata(file, baseMetadata()))).toEqual(
-        new Map(
-          await augmentDicomMetadata(enhancedFile(frames), baseMetadata())
-        )
+      expect(new Map(await augmentOCTMetadata(file, baseMetadata()))).toEqual(
+        new Map(await augmentOCTMetadata(enhancedFile(frames), baseMetadata()))
       );
     }
   );
@@ -299,7 +292,7 @@ describe('OCT enhanced spatial metadata', () => {
   });
 
   it('derives inter-frame spacing from uniform positions', async () => {
-    const tags = await augmentDicomMetadata(
+    const tags = await augmentOCTMetadata(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2' },
@@ -340,7 +333,7 @@ describe('OCT enhanced spatial metadata', () => {
   });
 
   it('rejects frames with inconsistent pixel spacing', async () => {
-    const tags = await augmentDicomMetadata(
+    const tags = await augmentOCTMetadata(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2', spacing: '0.02\\0.02' },
@@ -351,7 +344,7 @@ describe('OCT enhanced spatial metadata', () => {
   });
 
   it('rejects unequal per-frame slice spacing without positions', async () => {
-    const tags = await augmentDicomMetadata(
+    const tags = await augmentOCTMetadata(
       enhancedFile([{ slowSpacing: '0.2' }, { slowSpacing: '0.3' }]),
       baseMetadata()
     );
@@ -359,7 +352,7 @@ describe('OCT enhanced spatial metadata', () => {
   });
 
   it('rejects nonparallel frames', async () => {
-    const tags = await augmentDicomMetadata(
+    const tags = await augmentOCTMetadata(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2', orientation: '0\\1\\0\\1\\0\\0' },
@@ -373,15 +366,12 @@ describe('OCT enhanced spatial metadata', () => {
     [{ position: '0\\0\\0' }, {}],
     [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }, {}],
   ])('rejects partially missing frame positions %#', async (...frames) => {
-    const tags = await augmentDicomMetadata(
-      enhancedFile(frames),
-      baseMetadata()
-    );
+    const tags = await augmentOCTMetadata(enhancedFile(frames), baseMetadata());
     expect(spatialMetadataError(tags)).toMatch(/incomplete/);
   });
 
   it('rejects repeated B-scans rather than stacking duplicate locations', async () => {
-    const tags = await augmentDicomMetadata(
+    const tags = await augmentOCTMetadata(
       enhancedFile([{ position: '0\\0\\0' }, { position: '0\\0\\0' }]),
       baseMetadata()
     );
@@ -389,7 +379,7 @@ describe('OCT enhanced spatial metadata', () => {
   });
 
   it('records unreadable spatial metadata when the OCT header cannot be parsed', async () => {
-    const tags = await augmentDicomMetadata(
+    const tags = await augmentOCTMetadata(
       new Blob(['corrupt OCT']),
       baseMetadata()
     );
@@ -397,110 +387,4 @@ describe('OCT enhanced spatial metadata', () => {
       'OCT spatial metadata could not be read.'
     );
   });
-});
-
-function paddingElement(tag: string, value: number, signed = false) {
-  const bytes = new Uint8Array(2);
-  const view = new DataView(bytes.buffer);
-  if (signed) view.setInt16(0, value, true);
-  else view.setUint16(0, value, true);
-  return element(tag, signed ? 'SS' : 'US', bytes);
-}
-
-describe('DICOM padding metadata from actual binary attributes', () => {
-  const frames = [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }];
-  function declarations(signed = false) {
-    return [
-      ...baseMetadata(),
-      [Tags.BitsStored, '16'],
-      [Tags.PixelRepresentation, signed ? '1' : '0'],
-    ] as Array<[string, string]>;
-  }
-
-  it.each([
-    ['OPT', false],
-    ['OPT', true],
-    ['MR', false],
-    ['MR', true],
-    ['CT', false],
-    ['CT', true],
-  ] as const)(
-    'reads %s unsigned or signed padding and inclusive range: signed=%s',
-    async (modality, signed) => {
-      const first = signed ? -32768 : 65533;
-      const last = signed ? -32766 : 65535;
-      const file = enhancedFile(frames, [
-        paddingElement('00280103', Number(signed)),
-        paddingElement('00280120', first, signed),
-        paddingElement('00280121', last, signed),
-      ]);
-      const metadata = declarations(signed).map(([tag, value]) => {
-        if (tag === Tags.Modality) return [tag, modality];
-        if (tag === Tags.SOPClassUID && modality !== 'OPT')
-          return [tag, '1.2.840.10008.5.1.4.1.1.4'];
-        return [tag, value];
-      }) as Array<[string, string]>;
-      metadata.push([Tags.PixelPaddingValue, 'unparsed']);
-      const tags = await augmentDicomMetadata(file, metadata);
-      expect(new Map(tags).get(Tags.PixelPaddingValue)).toBe(String(first));
-      expect(new Map(tags).get(Tags.PixelPaddingRangeLimit)).toBe(String(last));
-      expect(decodedPaddingRanges([tags], 2)).toEqual({
-        ranges: [{ firstFrame: 0, lastFrame: 1, min: first, max: last }],
-        reason: null,
-      });
-    }
-  );
-
-  it('rejects a padding VR that disagrees with signed pixel representation', async () => {
-    const tags = await augmentDicomMetadata(
-      enhancedFile(frames, [
-        paddingElement('00280103', 1),
-        paddingElement('00280120', 65535),
-      ]),
-      declarations(true)
-    );
-    expect(new Map(tags).get(DICOM_PADDING_ERROR)).toMatch(
-      /cannot be interpreted/
-    );
-    expect(decodedPaddingRanges([tags], 2).reason).toMatch(
-      /cannot be interpreted/
-    );
-  });
-
-  it('rejects a shared pixel-value transformation whose decoder mapping is not established', async () => {
-    const transform = sequence('00289145', [element('00281053', 'DS', '0.25')]);
-    const tags = await augmentDicomMetadata(
-      enhancedFile(
-        frames,
-        [paddingElement('00280103', 0), paddingElement('00280120', 65535)],
-        [transform]
-      ),
-      declarations()
-    );
-    expect(decodedPaddingRanges([tags], 2).reason).toMatch(
-      /unsupported modality transformation/
-    );
-  });
-
-  it.each([false, true])(
-    'rejects an unknown modality LUT with deflate=%s',
-    async (deflated) => {
-      const file = enhancedFile(frames, [
-        paddingElement('00280103', 0),
-        paddingElement('00280120', 65535),
-        sequence('00283000', []),
-      ]);
-      const tags = await augmentDicomMetadata(
-        deflated
-          ? new Blob([
-              deflatedExplicitVR(new Uint8Array(await file.arrayBuffer())),
-            ])
-          : file,
-        declarations()
-      );
-      expect(decodedPaddingRanges([tags], 2).reason).toMatch(
-        /unsupported modality transformation/
-      );
-    }
-  );
 });

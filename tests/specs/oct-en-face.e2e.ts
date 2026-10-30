@@ -9,8 +9,6 @@ import {
   setEnFaceWindow,
   slabThumb,
   selectEnFace,
-  attachMaskThroughDataPanel,
-  enFacePixel,
   CANVAS,
   CONTROLS,
   PANEL,
@@ -259,7 +257,7 @@ describe('Retinal OCT en-face', () => {
     }
   });
 
-  it('renders padding through the image palette and reports unmeasurable segmented columns', async () => {
+  it('renders declared padding through the standard image contrast and palette', async () => {
     const name = STEM + '/retina-padding.dcm';
     const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(
@@ -282,19 +280,6 @@ describe('Retinal OCT en-face', () => {
     await selectBasePalette('Grayscale');
     await waitForEnFaceReady();
     await expectProjectionPixel(255, 5, 12);
-    await attachMaskThroughDataPanel(stageFixture('synthetic-thickness.nrrd'));
-    await openControls();
-    await enableHighlight();
-    await setThicknessThreshold(31);
-    await waitForEnFaceReady();
-    await expect($('[data-testid="enface-measurement-status"]')).toHaveText(
-      '2 occupied columns cannot be measured because the segment overlaps missing source data. These columns are excluded from highlighting.'
-    );
-    await browser.waitUntil(async () => {
-      const missing = await enFacePixel(5, 12);
-      const neighbor = await enFacePixel(6, 12);
-      return missing[0] === missing[1] && neighbor[0] > neighbor[1] + 20;
-    });
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 

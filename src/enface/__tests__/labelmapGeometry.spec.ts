@@ -50,7 +50,6 @@ describe('En face thin-region placement', () => {
             width,
             height,
             counts,
-            known: new Uint8Array(width * height).fill(1),
             maximumCount: 3,
           },
           25,

@@ -50,8 +50,6 @@ export function useOccupiedDepth(
   let pending: OccupiedDepthRequest | null = null;
   let sequence = 0;
   const acceptedRequest = shallowRef<OccupiedDepthRequest | null>(null);
-  let sourceValidity: OccupiedDepthInput['validity'];
-  let hasSource = false;
   let mask: OccupiedDepthInput['mask'] | undefined;
 
   function release() {
@@ -63,8 +61,6 @@ export function useOccupiedDepth(
     worker?.terminate();
     worker = null;
     active = null;
-    hasSource = false;
-    sourceValidity = undefined;
     acceptedRequest.value = null;
     mask = undefined;
     sequence++;
@@ -116,18 +112,6 @@ export function useOccupiedDepth(
           extent: [...mask.extent],
         };
         transfer.push(values.buffer);
-      }
-      if (!hasSource || sourceValidity !== input.validity) {
-        sourceValidity = input.validity;
-        hasSource = true;
-        const validity = input.validity
-          ? {
-              values: new Uint8Array(input.validity.values),
-              extent: [...input.validity.extent],
-            }
-          : undefined;
-        message.source = { validity };
-        if (validity) transfer.push(validity.values.buffer);
       }
       target.postMessage(message, transfer);
     } catch (cause) {
