@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Key } from 'webdriverio';
+import { closeMenuWithEscape } from './menuTestUtils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
@@ -183,7 +184,7 @@ export async function displayedWindow(view: WebdriverIO.Element) {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-export async function expandEnFaceSection(section: 'projection') {
+export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   const toggle = $(
     '.v-overlay--active [data-testid="enface-' + section + '-toggle"]'
   );
@@ -414,9 +415,12 @@ export async function expectEnFaceUnavailable(reason: string) {
 
 export async function openEnFaceWindowInputs(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  await browser.keys('Escape');
-  await viewer.$(CANVAS).click();
-  const tool = $(WINDOW_TOOL);
+  await closeMenuWithEscape(await viewer.$(CONTROLS).getElement());
+  const tool = await $(WINDOW_TOOL).getElement();
+  await closeMenuWithEscape(tool);
+  const canvas = viewer.$(CANVAS);
+  await canvas.waitForClickable();
+  await canvas.click();
   await tool.waitForClickable();
   await tool.click();
   const inputs = await $$('.v-overlay--active .manual-inputs input');
@@ -444,21 +448,27 @@ export async function setEnFaceWindow(
     }
   );
   await browser.keys('Escape');
-  await inputs[0].waitForDisplayed({ reverse: true });
+  await inputs[0].waitForDisplayed({ reverse: true, opacityProperty: false });
 }
 
 export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  const toggleSelector =
-    '.v-overlay--active [data-testid="enface-projection-toggle"]';
   const panel = $(PANEL);
   const restorePanel =
     (await panel.isExisting()) && (await panel.isDisplayed());
-  const expanded =
-    restorePanel &&
-    (await $(toggleSelector).getAttribute('aria-expanded')) === 'true';
+  const sections = ['projection', 'thickness'] as const;
+  const expanded = await Promise.all(
+    sections.map(
+      async (section) =>
+        restorePanel &&
+        (await panel
+          .$('[data-testid="enface-' + section + '-toggle"]')
+          .getAttribute('aria-expanded')) === 'true'
+    )
+  );
   await browser.keys('Escape');
-  if (restorePanel) await panel.waitForDisplayed({ reverse: true });
+  if (restorePanel)
+    await panel.waitForDisplayed({ reverse: true, opacityProperty: false });
   await viewer.$(CANVAS).waitForClickable();
   const inputs = await openEnFaceWindowInputs(viewer);
   const result = {
@@ -466,7 +476,7 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     level: Number(await inputs[1].getValue()),
   };
   await browser.keys('Escape');
-  await inputs[0].waitForDisplayed({ reverse: true });
+  await inputs[0].waitForDisplayed({ reverse: true, opacityProperty: false });
   if (restorePanel) {
     const controls = viewer.$(CONTROLS);
     await controls.waitForClickable();
@@ -475,13 +485,17 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     const reopened = $(PANEL);
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
-    const toggle = $(toggleSelector);
-    if (expanded) {
-      await expandEnFaceSection('projection');
-    } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
-      await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
-      await toggle.waitForClickable();
-      await toggle.click();
+    for (const [index, section] of sections.entries()) {
+      const toggle = reopened.$(
+        '[data-testid="enface-' + section + '-toggle"]'
+      );
+      if (expanded[index]) {
+        await expandEnFaceSection(section);
+      } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
+        await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await toggle.waitForClickable();
+        await toggle.click();
+      }
     }
     await reopened.waitForStable();
   }

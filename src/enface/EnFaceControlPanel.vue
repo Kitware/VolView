@@ -31,6 +31,13 @@ const controlState = computed(() => {
     axes: [],
     depthMaximum: 0,
     projectionReason: reason,
+    thickness: {
+      thresholdMaximum: 1,
+      segmentationReason: reason,
+      highlightReason: reason,
+      thicknessReason: reason,
+      segments: [],
+    },
   } satisfies EnFaceViewControlState;
 });
 function resetContrast() {

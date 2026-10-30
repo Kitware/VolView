@@ -28,11 +28,15 @@ import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import {
   reference,
+  THRESHOLD,
   STEM,
   stageFixture,
   openControls,
   selectSetting,
   expectProjectionPixel,
+  observeSlabProjectionChanges,
+  enableHighlight,
+  setThicknessThreshold,
   expectCalibratedEnFace,
   openRetina,
   registerOctTestHooks,
@@ -50,8 +54,30 @@ describe('Retinal OCT en-face', () => {
     };
     await $(CONTROLS).doubleClick();
     await expectBothViews();
-    const panel = $(PANEL);
-    if (!(await panel.isDisplayed())) await openControls();
+    await openControls();
+    await enableHighlight();
+    const inlineHelp = await $(
+      '.v-overlay--active [data-testid="enface-thickness-help"]'
+    ).execute((button) => {
+      const text = button.parentElement?.parentElement?.firstChild;
+      if (!text) return false;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const caption = range.getBoundingClientRect();
+      const icon = button.getBoundingClientRect();
+      return (
+        icon.left >= caption.right &&
+        icon.top < caption.bottom &&
+        icon.bottom > caption.top
+      );
+    });
+    expect(inlineHelp).toBe(true);
+    await $(THRESHOLD).doubleClick();
+    await expectBothViews();
+    await $(
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
+    ).doubleClick();
+    await expectBothViews();
     await expandEnFaceSection('projection');
     await slabThumb('start').doubleClick();
     await expectBothViews();
@@ -69,9 +95,10 @@ describe('Retinal OCT en-face', () => {
     const compactPanel = await $(PANEL).getSize();
     expect(compactPanel.width).toBe(300);
     expect(compactPanel.height).toBeLessThanOrEqual(560);
-    await expect(
-      $(PANEL).$('[data-testid="enface-projection-toggle"]')
-    ).toHaveAttribute('aria-expanded', 'true');
+    for (const section of ['projection', 'thickness'])
+      await expect(
+        $(PANEL).$('[data-testid="enface-' + section + '-toggle"]')
+      ).toHaveAttribute('aria-expanded', 'true');
     await setEnFaceWindow(1000, 500);
     // The standard physical slab has mean 317, maximum 538 and sampled sum 140431.
     await expectProjectionPixel(81);
@@ -109,6 +136,14 @@ describe('Retinal OCT en-face', () => {
     ).toHaveValue('Sagittal');
     await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '127');
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
+    ).toBeDisabled();
+    await expect($(THRESHOLD)).toBeDisabled();
+    await expect(
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
+    ).toBeDisabled();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
@@ -123,6 +158,15 @@ describe('Retinal OCT en-face', () => {
     await setEnFaceWindow(1000, 500);
     await expectProjectionPixel(81);
     await openControls();
+    const threshold = $(
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
+    );
+    await enableHighlight();
+    await expect($(THRESHOLD)).toBeEnabled();
+    await setThicknessThreshold(0);
+    const thresholdMaximum = await threshold.getAttribute('aria-valuemax');
+    expect(Number(thresholdMaximum)).toBeGreaterThan(1);
+    const thresholdValue = await $(THRESHOLD).getValue();
     const start = slabThumb('start');
     const end = slabThumb('end');
     await start.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -134,6 +178,7 @@ describe('Retinal OCT en-face', () => {
     const startX = Math.round(startBounds.x + startSize.width / 2);
     const endX = Math.round(endBounds.x + endSize.width / 2);
     const y = Math.round(startBounds.y + startSize.height / 2);
+    const readProjectionChanges = await observeSlabProjectionChanges();
     let draggedStart = 0;
     try {
       await browser
@@ -144,17 +189,26 @@ describe('Retinal OCT en-face', () => {
         .perform(true);
       await expect(start).not.toHaveAttribute('aria-valuenow', '0');
       draggedStart = Number(await start.getAttribute('aria-valuenow'));
-      expect(draggedStart).toBeGreaterThan(90);
+      expect(draggedStart).toBeGreaterThan(reference.slab.end);
       expect(draggedStart).toBeLessThan(130);
       await expect(start.$('.v-slider-thumb__label')).toBeDisplayed();
+      await expect(threshold).toHaveAttribute(
+        'aria-valuemax',
+        thresholdMaximum!
+      );
+      await expect($(THRESHOLD)).toHaveValue(thresholdValue);
       await expectProjectionPixel(81);
+      expect(await readProjectionChanges()).toEqual([]);
     } finally {
       await browser.action('pointer', { id: 'oct-slab-drag' }).up().perform();
+      await readProjectionChanges();
     }
     await waitForEnFaceReady();
     await expectProjectionPixel(
       Math.round(((317 + draggedStart) * 255) / 1000)
     );
+    await expect(threshold).toHaveAttribute('aria-valuemax', '0.1');
+    await expect($(THRESHOLD)).toHaveValue(thresholdValue);
     await browser.keys(Key.Home);
     await expect(start).toHaveAttribute('aria-valuenow', '0');
     await expectProjectionPixel(81);

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { JHU_RETINAL_LAYERS, RETINAL_OCT_DICOM } from '../datasets';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { useCachedSample, writeManifestToFile, overlayOption } from './utils';
 import native from '../fixtures/oct/heidelberg-reference.json';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
@@ -52,7 +52,7 @@ async function setSlab(start: number, end: number) {
 describe('Public OCT exports', () => {
   before(() => useCachedSample(JHU_RETINAL_LAYERS));
 
-  it('loads retinal layers from a ZIP URL or sample card and projects the volume on request', async () => {
+  it('loads retinal layers from a ZIP URL or sample card and projects a layer on request', async () => {
     const names = [
       'Retinal nerve fiber layer (RNFL)',
       'Ganglion cell and inner plexiform layers (GCL+IPL)',
@@ -127,10 +127,10 @@ describe('Public OCT exports', () => {
     await $(CONTROLS).click();
     await $(PANEL).waitForDisplayed();
     await $(PANEL).waitForStable();
-    await expect($('[data-testid="enface-projection-toggle"]')).toHaveAttribute(
-      'aria-expanded',
-      'true'
-    );
+    for (const section of ['projection', 'thickness'])
+      await expect(
+        $('[data-testid="enface-' + section + '-toggle"]')
+      ).toHaveAttribute('aria-expanded', 'true');
     await expandEnFaceSection('projection');
     const axis = $('.v-overlay--active [data-testid="enface-projection-axis"]');
     await axis.scrollIntoView({ block: 'center' });
@@ -138,6 +138,47 @@ describe('Public OCT exports', () => {
     await axis.click();
     await overlayOption('Coronal').waitForClickable();
     await overlayOption('Coronal').click();
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
+    ).toBeEnabled();
+    await $(
+      '.v-overlay--active [data-testid="enface-thin-highlight"] label'
+    ).click();
+    const segment = $(
+      '.v-overlay--active [data-testid="enface-segmentation-segment"]'
+    );
+    await segment.scrollIntoView({ block: 'center' });
+    await segment.waitForClickable();
+    await segment.click();
+    await overlayOption(names[2]).waitForClickable();
+    await overlayOption(names[2]).click();
+    const thresholdSlider = $(
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
+    );
+    await expect(thresholdSlider).toHaveAttribute('aria-valuemax', '58.1');
+    await setValueVueInput(
+      $(
+        '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
+      ),
+      '20'
+    );
+    await expect(thresholdSlider).toHaveAttribute('aria-valuenow', '20');
+    await $(
+      '.v-overlay--active [data-testid="enface-projection-toggle"]'
+    ).click();
+    await $('.v-overlay--active [data-testid="enface-projection-toggle"]')
+      .$('..')
+      .$('.v-expansion-panel-text')
+      .waitForDisplayed({ reverse: true });
+    await expect(
+      $('.v-overlay--active [data-testid="enface-thickness-toggle"]')
+    ).toHaveAttribute('aria-expanded', 'true');
+    await expect(
+      $(
+        '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
+      )
+    ).toHaveValue('20');
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
@@ -146,7 +187,11 @@ describe('Public OCT exports', () => {
       );
     }
     await browser.keys('Escape');
-    await waitForEnFaceReady();
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the enface labelmap to be visible' }
+    );
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   it('keeps source contrast and pixels when replacing an independently windowed projection', async () => {

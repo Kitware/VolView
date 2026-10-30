@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { reactive } from 'vue';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
 import {
@@ -15,12 +16,24 @@ export type EnFaceViewConfig = {
   method: SlabMethod;
   depthStart: number;
   depthEnd: number | null;
+  highlightThin: boolean;
+  thresholdMicrons: number;
+  selectedSegmentId: string | null;
+};
+
+export type ThicknessControlState = {
+  thresholdMaximum: number;
+  segmentationReason: string | null;
+  highlightReason: string | null;
+  thicknessReason: string | null;
+  segments: { value: string; title: string; color?: string }[];
 };
 
 export type EnFaceViewControlState = {
   axes: { title: string; value: number }[];
   depthMaximum: number;
   projectionReason: string | null;
+  thickness: ThicknessControlState;
 };
 
 export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
@@ -28,11 +41,15 @@ export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
   method: 'mean',
   depthStart: 0,
   depthEnd: null,
+  highlightThin: false,
+  thresholdMicrons: 100,
+  selectedSegmentId: null,
 });
 
 export const useEnFaceViewStore = defineStore('enface-view', () => {
   const configs = reactive<DoubleKeyRecord<EnFaceViewConfig>>({});
   const controlStates = reactive<DoubleKeyRecord<EnFaceViewControlState>>({});
+  const segmentsRegistry = useSegmentStore().segments;
 
   function configFor(viewID: string, dataID: string) {
     configs[viewID] ??= {};
@@ -74,13 +91,40 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
   }
 
   function serialize(stateFile: StateFile) {
-    createViewConfigSerializer(configs, 'enFace')(stateFile);
+    const saved: DoubleKeyRecord<NonNullable<ViewConfig['enFace']>> = {};
+    Object.entries(configs).forEach(([viewID, byDataID]) => {
+      saved[viewID] = {};
+      Object.entries(byDataID).forEach(([dataID, config]) => {
+        const segmentId =
+          segmentsRegistry.getSegment(config.selectedSegmentId)?.id ?? null;
+        saved[viewID][dataID] = {
+          axis: config.axis,
+          method: config.method,
+          depthStart: config.depthStart,
+          depthEnd: config.depthEnd,
+          highlightThin: config.highlightThin && !!segmentId,
+          segmentId,
+          thresholdMicrons: config.thresholdMicrons,
+        };
+      });
+    });
+    createViewConfigSerializer(saved, 'enFace')(stateFile);
   }
 
-  function deserialize(viewID: string, config: Record<string, ViewConfig>) {
+  function deserialize(
+    viewID: string,
+    config: Record<string, ViewConfig>,
+    segmentIdMap: Record<string, string> = {}
+  ) {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
-      if (viewConfig.enFace)
-        Object.assign(configFor(viewID, dataID), viewConfig.enFace);
+      if (viewConfig.enFace) {
+        const { segmentId, ...settings } = viewConfig.enFace;
+        const mappedSegmentId = segmentId ? segmentIdMap[segmentId] : undefined;
+        Object.assign(configFor(viewID, dataID), settings, {
+          selectedSegmentId: mappedSegmentId ?? null,
+          highlightThin: settings.highlightThin && !!mappedSegmentId,
+        });
+      }
     });
   }
 

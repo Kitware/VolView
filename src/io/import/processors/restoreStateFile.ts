@@ -240,7 +240,11 @@ export const createStateFileRestorer = ({
       useSegmentStore().deserialize(manifest);
 
     // Binding can mount a viewer, so install its saved camera and contrast first.
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
+    useViewConfigStore().deserializeAll(
+      manifest,
+      stateIDToStoreID,
+      segmentIdMap
+    );
     bindRestoredViews();
 
     const { skipped: skippedLabelmaps } =

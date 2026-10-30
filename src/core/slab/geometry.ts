@@ -25,6 +25,9 @@ export function deriveSlabGeometry(
   const extent = image.getExtent();
   const minimum = [extent[0], extent[2], extent[4]];
   const sourceSpacing = image.getSpacing();
+  const width = dimensions[axes[0]];
+  const height = dimensions[axes[1]];
+  const spacing = axes.map((axis) => Math.abs(sourceSpacing[axis]));
   const midpoint = minimum[spec.axis] + (spec.first + spec.last) / 2;
   const planeIndex = [...minimum] as Vector3;
   planeIndex[spec.axis] = midpoint;
@@ -54,6 +57,9 @@ export function deriveSlabGeometry(
     ...metadataFromVtkImageData(image),
   };
   return {
+    width,
+    height,
+    spacing,
     metadata,
     pixelToWorld,
     sourceExtent: extent,

@@ -163,6 +163,7 @@ describe('En face view configuration', () => {
       method: 'max',
       depthStart: 1,
       depthEnd: 2,
+      thresholdMicrons: 31.5,
     });
     useViewSliceStore().updateConfig(source.id, 'oct', { slice: 2 });
     views.setActiveView(enface.id);
@@ -174,6 +175,7 @@ describe('En face view configuration', () => {
       method: 'max',
       depthStart: 1,
       depthEnd: 2,
+      thresholdMicrons: 31.5,
     });
     expect(useViewSliceStore().getConfig(source.id, 'oct').slice).toBe(2);
   });

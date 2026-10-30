@@ -5,7 +5,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { syntheticScalars } from '../fixtures/oct/dicom';
 import reference from '../fixtures/oct/reference.json';
 import { createNrrdVolume, syntheticMask } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   enFaceAppearance,
   expandEnFaceSection,
@@ -203,6 +203,22 @@ describe('Projection camera persistence', () => {
     await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
+    await expandEnFaceSection('thickness');
+    const highlight = $(
+      '.v-overlay--active [data-testid="enface-thin-highlight"]'
+    );
+    await highlight.$('label').click();
+    await selectSetting('enface-segmentation-segment', SEGMENT_NAME);
+    const threshold = $(
+      '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
+    );
+    await threshold.scrollIntoView();
+    await threshold.waitForClickable();
+    await setValueVueInput(threshold, '6500');
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the enface labelmap to be visible' }
+    );
     const inspected = await panAndZoom();
     const saved = await saveScene();
 
@@ -215,6 +231,16 @@ describe('Projection camera persistence', () => {
     await expectCameraAndPixels(inspected);
     await openControls();
     await expectEnFaceProjectionSettings('Sagittal', 10, 100);
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"]')
+    ).toHaveText(expect.stringContaining(SEGMENT_NAME));
+    await expect(highlight.$('input')).toBeSelected();
+    await expect(threshold).toHaveValue('6500');
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the enface labelmap to be visible' }
+    );
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });
