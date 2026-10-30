@@ -80,14 +80,18 @@ describe('Paint brush size', () => {
       }, smallCanvas);
     const withoutPreview = await canvasImage();
     await smallCanvas.moveTo();
-    await expect(size).toHaveAttribute('aria-valuemax', '3');
-    await expect(size).toHaveAttribute('aria-valuenow', '3');
+    await expect(size).toHaveAttribute('aria-valuemax', '7');
+    await expect(size).toHaveAttribute('aria-valuenow', '7');
     await browser.waitUntil(
       async () => (await canvasImage()) !== withoutPreview
     );
     const preview = await canvasImage();
     await browser.keys(']');
-    await expect(size).toHaveAttribute('aria-valuenow', '3');
+    await expect(size).toHaveAttribute('aria-valuenow', '7');
     expect((await canvasImage()) === preview).toBe(true);
+
+    await smallCanvas.click();
+    await expect(size).toHaveAttribute('aria-valuemax', '3');
+    await expect(size).toHaveAttribute('aria-valuenow', '3');
   });
 });

@@ -176,7 +176,6 @@ export default defineComponent({
     // Turn on widget visibility and update stencil if mouse starts within view
     const enterView = () => {
       pointerInView.value = true;
-      if (imageId.value) viewStore.setActiveView(viewId.value);
     };
     const showPreviewOnFirstMove = () => {
       if (!checkIfPointerInView) return;

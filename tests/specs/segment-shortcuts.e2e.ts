@@ -86,7 +86,7 @@ const dragBefore = async (name: string, target: string) => {
 };
 
 describe('Segment shortcuts and ordering', () => {
-  it('selects segments on the image under the brush before a click', async () => {
+  it('keeps segment shortcuts on the clicked image while hovering other views', async () => {
     const first = writeMetaImage('shortcut-first.mha');
     const second = writeMetaImage('shortcut-second.mha');
     await writeManifestToFile(
@@ -104,20 +104,29 @@ describe('Segment shortcuts and ordering', () => {
 
     const firstCanvas = $$('.grid-item')[0].$('canvas');
     const secondCanvas = $$('.grid-item')[1].$('canvas');
-    await firstCanvas.moveTo();
+    await firstCanvas.click();
     await expect($('[data-testid="segment-image-name"]')).toHaveText(first);
     await browser.keys('3');
     await expect(selected()).toHaveAttribute('aria-label', 'Kidney');
 
     await secondCanvas.moveTo();
-    await expect($('[data-testid="segment-image-name"]')).toHaveText(second);
-    await browser.keys('2');
-    await expect(selected()).toHaveAttribute('aria-label', 'Liver');
-    await firstCanvas.moveTo();
-    await expect(selected()).toHaveAttribute('aria-label', 'Kidney');
-    await secondCanvas.moveTo();
-    await expect(selected()).toHaveAttribute('aria-label', 'Liver');
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(first);
     await browser.keys('q');
+    await expect(selected()).toHaveAttribute('aria-label', 'Liver');
+
+    await secondCanvas.click();
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(second);
+    await browser.keys('3');
+    await expect(selected()).toHaveAttribute('aria-label', 'Kidney');
+    await firstCanvas.moveTo();
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(second);
+    await browser.keys('w');
+    await expect(selected()).toHaveAttribute('aria-label', 'Tumor');
+
+    await firstCanvas.click();
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(first);
+    await expect(selected()).toHaveAttribute('aria-label', 'Liver');
+    await secondCanvas.click();
     await expect(selected()).toHaveAttribute('aria-label', 'Tumor');
   });
 
