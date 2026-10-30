@@ -622,7 +622,15 @@ describe('Overlay display controls', () => {
     });
     await restoredTransparent.click();
     await expect(restoredTransparent).toBeChecked();
+    const tooltipId =
+      await restoredTransparent.getAttribute('aria-describedby');
+    expect(tooltipId).toBeTruthy();
+    await restoredTransparent.execute((input) => input.blur());
     await $('header').moveTo();
+    await $(`[id="${tooltipId}"] .v-overlay__content`).waitForDisplayed({
+      reverse: true,
+      opacityProperty: false,
+    });
     let transparentPixels = await captureViewPixels();
     await browser.waitUntil(
       async () => {
