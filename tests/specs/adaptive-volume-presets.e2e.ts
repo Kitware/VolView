@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { applyTestViewport, TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   appearance,
@@ -156,6 +156,19 @@ async function openVolume(
 }
 
 describe('adaptive volume presets', () => {
+  // Bound software rendering cost while keeping every comparison at the same size.
+  before(async () => {
+    await browser.setViewport({
+      width: 1280,
+      height: 400,
+      devicePixelRatio: 1,
+    });
+  });
+
+  after(async () => {
+    await applyTestViewport(browser);
+  });
+
   it('keeps the fitted histogram when an older ordinary histogram finishes late', async () => {
     await openVolume('uint16');
     await holdVolumeHistograms();
