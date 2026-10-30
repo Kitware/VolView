@@ -101,6 +101,9 @@ describe('VolView downloaded collection import', () => {
           .sort((a, b) => a - b)
       );
       await volViewPage.waitForViews();
+      const views = $$('[data-testid~="vtk-view"]');
+      for (let index = 0; index < (await views.length); index++)
+        await volViewPage.waitForLoadingIndicator(views[index]);
       await expect($('.loading-indicator')).not.toBeExisting();
       await waitForRenderedSlice(
         `composition-${scenario.id}.png`,
