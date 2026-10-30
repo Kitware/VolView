@@ -1,43 +1,32 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { openConfigAndDataset } from './configTestUtils';
+import { openVolumeRenderingControls } from './volumeRenderingTestUtils';
 
 async function waitForPresetThumbnails() {
-  await browser.waitUntil(
-    () =>
-      browser.execute(() =>
-        Array.from(document.querySelectorAll('.v-expansion-panel-title')).some(
-          (element) => element.textContent?.includes('Color Presets')
-        )
-      ),
-    { timeoutMsg: 'Expected the color presets panel' }
-  );
-
-  const imageCount = await browser.execute(
-    () => document.querySelectorAll('.thumbnail-container img').length
-  );
-  if (imageCount === 0) {
-    await browser.execute(() => {
-      const title = Array.from(
-        document.querySelectorAll<HTMLElement>('.v-expansion-panel-title')
-      ).find((element) => element.textContent?.includes('Color Presets'));
-      title?.click();
-    });
-  }
+  await openVolumeRenderingControls();
+  const card = $('[data-testid="volume-preset-Adaptive-Balanced"]');
+  await card.scrollIntoView({ block: 'center', behavior: 'instant' });
 
   await browser.waitUntil(
     () =>
       browser.execute(() => {
         const images = Array.from(
           document.querySelectorAll<HTMLImageElement>(
-            '.thumbnail-container img'
+            '[data-testid^="volume-preset-"] img'
           )
         );
         return (
           images.length > 0 &&
-          images.every((image) => image.src.startsWith('data:image/png'))
+          images.every(
+            (image) =>
+              image.src.startsWith('data:image/png') &&
+              image.complete &&
+              image.naturalWidth === 80 &&
+              image.naturalHeight === 80
+          )
         );
       }),
-    { timeoutMsg: 'Expected every color preset thumbnail to finish rendering' }
+    { timeoutMsg: 'Expected decoded 80px preset thumbnails' }
   );
 }
 

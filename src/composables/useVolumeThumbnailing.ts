@@ -81,7 +81,6 @@ export function useVolumeThumbnailing(
       );
 
       const renWin = thumbnailer.scene.getRenderWindow();
-      renWin.render();
       const capture = renWin.captureImages()[0];
       inFlightCaptures.add(capture);
       const imageURL = await capture.finally(() => {

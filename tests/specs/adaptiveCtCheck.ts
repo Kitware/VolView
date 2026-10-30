@@ -17,6 +17,39 @@ export async function checkAdaptiveCtReset(
 
   await step('ct01', async () => load());
   await step('ct02', async () => selectPreset('CT-AAA'));
+  const thumbnail = $('[data-testid="volume-preset-CT-AAA"] img');
+  await thumbnail.waitForExist();
+  const captured = (await step('ct/presetThumbnail', () =>
+    thumbnail.execute(async (element) => {
+      const image = element as HTMLImageElement;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      ).data;
+      let foreground = 0;
+      for (let offset = 0; offset < pixels.length; offset += 4) {
+        if (
+          [0, 1, 2].some(
+            (channel) =>
+              Math.abs(pixels[offset + channel] - pixels[channel]) > 20
+          )
+        )
+          foreground++;
+      }
+      return { width: canvas.width, height: canvas.height, foreground };
+    })
+  )) as { width: number; height: number; foreground: number };
+  expect([captured.width, captured.height]).toEqual([80, 80]);
+  expect(captured.foreground).toBeGreaterThan(0);
+
   const cinematic = $('.v-expansion-panel-title*=Cinematic Rendering');
   await step('ct03', async () =>
     cinematic.scrollIntoView({ block: 'center', behavior: 'instant' })

@@ -115,6 +115,10 @@ export function createVolumeThumbnailer(size: number) {
     background: [0.2, 0.3, 0.4],
   });
   scene.setContainer(container);
+  const apiRenderWindow =
+    scene.getApiSpecificRenderWindow() as vtkOpenGLRenderWindow;
+  // Size the capture directly because the detached container has no layout.
+  apiRenderWindow.setSize(size, size);
 
   const pipeline = createRenderingPipeline();
   const { actor, mapper } = pipeline;
@@ -201,8 +205,6 @@ export function createVolumeThumbnailer(size: number) {
       renderer.removeVolume(actor);
       // scene.delete() deletes the API specific render window, so the context
       // can only be handed back afterwards
-      const apiRenderWindow =
-        scene.getApiSpecificRenderWindow() as vtkOpenGLRenderWindow;
       const loseContext = beginContextRelease(apiRenderWindow);
       const interactor = scene.getInteractor();
       const renderWindow = scene.getRenderWindow();
