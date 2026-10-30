@@ -48,7 +48,9 @@ export async function openControls() {
   const controls = $(CONTROLS);
   await controls.waitForStable();
   await controls.waitForClickable();
-  await controls.click();
+  if ((await controls.getAttribute('aria-expanded')) === 'false')
+    await controls.click();
+  await expect(controls).toHaveAttribute('aria-expanded', 'true');
   const panel = $(PANEL);
   await panel.waitForDisplayed();
   await panel.waitForStable();

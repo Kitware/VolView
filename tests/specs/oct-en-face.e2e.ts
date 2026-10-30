@@ -56,8 +56,7 @@ describe('Retinal OCT en-face', () => {
     };
     await $(CONTROLS).doubleClick();
     await expectBothViews();
-    const panel = $(PANEL);
-    if (!(await panel.isDisplayed())) await openControls();
+    await openControls();
     await enableHighlight();
     const inlineHelp = await $(
       '.v-overlay--active [data-testid="enface-thickness-help"]'
