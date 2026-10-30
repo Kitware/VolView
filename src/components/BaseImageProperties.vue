@@ -34,8 +34,11 @@ const displayView = computed(() => {
       type === 'Oblique' ||
       type === 'EnFace'
   );
+  const active = views.find(({ id }) => id === viewStore.activeView);
   return (
-    views.find(({ id }) => id === viewStore.activeView) ??
+    (active?.type === 'EnFace' && getEnFaceUnavailableReason(props.imageId)
+      ? undefined
+      : active) ??
     views.find(sharesSourceWindowing) ??
     views[0]
   );

@@ -4,6 +4,7 @@ import { createEventHook } from '@vueuse/core';
 import type { Maybe } from '@/src/types';
 import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
+import { useViewConfigStore } from '@/src/store/view-configs';
 import type { ViewInfo, ViewInfoInit, ViewType } from '@/src/types/views';
 import { DefaultNamedLayouts, getAvailableViews } from '@/src/config';
 import {
@@ -379,7 +380,9 @@ export const useViewStore = defineStore('view', () => {
     }
 
     if (manifest.viewByID) {
+      const viewConfigs = useViewConfigStore();
       viewIDs.value.forEach((key) => {
+        viewConfigs.removeView(key);
         delete viewByID[key];
       });
 
