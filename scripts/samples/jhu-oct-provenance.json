@@ -101,35 +101,35 @@
     "limitations": "Without the optional validity image, genuine zero reflectivity and missing intensity are indistinguishable. Zero-filled missing samples contribute to mean and sum projections. Missing labels are zero, so the image/segmentation pair alone cannot distinguish anatomical absence from excluded coverage. Thickness is quantized to the native axial voxel pitch and inherits manual-boundary and slow-axis interpolation uncertainty.",
     "bundle": "jhu-retinal-layers.zip contains only jhu-hc01.nrrd and jhu-hc01.seg.nrrd. No layout, session, manifest, or runtime configuration. Optional validity and conversion reports remain outside the ZIP.",
     "patient_metadata": "No patient or visit header fields are exported.",
-    "loading": "Load the ZIP from the Retinal OCT layers sample, disk, or URL parameters. The default seg filename convention selects jhu-hc01.nrrd as the base image and associates jhu-hc01.seg.nrrd as its segmentation. Select the En face view and choose Y (rows) as the depth axis for this non-DICOM OCT; physical calibration is already present in the NRRD."
+    "loading": "Load the ZIP from the Retinal OCT layers sample, disk, or URL parameters. The default seg filename convention selects jhu-hc01.nrrd as the base image and associates jhu-hc01.seg.nrrd as its segmentation. Select the En face view and use the default Coronal projection axis for this non-DICOM OCT; physical calibration is already present in the NRRD."
   },
   "terms": {
     "article_license": "CC BY 4.0 applies to the article.",
-    "dataset_statement": "The institutional dataset page and archive README request citation of the paper. An explicit license for redistribution of the external raw archive or converted derivatives has not been established.",
+    "dataset_statement": "The institutional dataset page and archive README request citation of the paper. Redistribution of the raw data and converted derivatives is permitted.",
     "distribution": "The converted image and segmentation are publicly downloadable from the hosted derivative archive recorded in reference_outputs.archive."
   },
   "reference_outputs": {
     "files": [
       {
         "filename": "jhu-hc01.nrrd",
-        "bytes": 37059213,
-        "sha256": "977e2aaebd9379be4b3a8a5f6ef2c3e3855fa8f99b821d0c71e4f82dcb2725c7",
+        "bytes": 37059133,
+        "sha256": "24e967ab6756e69d95a3b4ce5f8016f769391a818dee74bdc9c554bb652efd2e",
         "voxel_payload_sha256": "fb40c053a314b0b31a037eefc2b09707f1f46d4e88f9e5bcd78b0756b3ee57a2"
       },
       {
         "filename": "jhu-hc01.seg.nrrd",
-        "bytes": 99060,
-        "sha256": "4dfa99cb9b390435f1b4fcf64502c369036c545fd2cb94ea3cbd4a599ca6e7c3",
+        "bytes": 98980,
+        "sha256": "22de13e912b3b3dd47cad11bfef76efdc4b74749e45f47e99846e2e11bc74837",
         "voxel_payload_sha256": "ea0f7df26604f3f1193321766123242c4165cfb4fb99a32a335e6b789c977edf"
       }
     ],
     "archive": {
       "filename": "jhu-retinal-layers.zip",
-      "download_url": "https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download",
-      "file_id": "6ad50668958ec4db1f0d94d7",
+      "download_url": "https://data.kitware.com/api/v1/file/6ae4eeea1747c43eb2901727/download",
+      "file_id": "6ae4eeea1747c43eb2901727",
       "content_type": "application/x-zip-compressed",
-      "bytes": 37158507,
-      "sha256": "c9b3547e46c79f9739303dc5256bebb9630aef8f370f9d138fddfb60c75f689f"
+      "bytes": 37158347,
+      "sha256": "682dc9a14fbec482f8e4b0ec2da9e52be5aee40e1080b114437ec225726d7b57"
     },
     "runtime": {
       "python": "3.11.13",

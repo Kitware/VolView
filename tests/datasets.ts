@@ -11,9 +11,9 @@ const DATASETS = {
   JHU_RETINAL_LAYERS: {
     name: 'jhu-retinal-layers.zip',
     origin:
-      'https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download',
-    url: 'https://data.kitware.com/api/v1/file/6ad50668958ec4db1f0d94d7/download',
-    sha256: 'c9b3547e46c79f9739303dc5256bebb9630aef8f370f9d138fddfb60c75f689f',
+      'https://data.kitware.com/api/v1/file/6ae4eeea1747c43eb2901727/download',
+    url: 'https://data.kitware.com/api/v1/file/6ae4eeea1747c43eb2901727/download',
+    sha256: '682dc9a14fbec482f8e4b0ec2da9e52be5aee40e1080b114437ec225726d7b57',
   },
   // MIT, copyright 2020 Theis Lab. An anonymized example from DeepRT.
   RETINAL_OCT_DICOM: {
