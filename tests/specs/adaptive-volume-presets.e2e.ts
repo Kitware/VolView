@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import { checkAdaptiveCtReset } from './adaptiveCtCheck';
+import { step, viewport } from './adaptivePresetTrace';
 import path from 'node:path';
 import { applyTestViewport, TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -15,7 +17,6 @@ import {
   openVolViewPage,
   SESSION_SAVE_TIMEOUT,
   waitForDownload,
-  waitForModuleTransitions,
   writeManifestToFile,
 } from './utils';
 import {
@@ -99,28 +100,59 @@ function writeVolume(
   return name;
 }
 
-async function selectPreset(name: string) {
+async function selectPreset(name: string, tracePrefix?: string) {
   const card = $(`[data-testid="volume-preset-${name}"]`);
-  await card.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await card.waitForClickable();
-  await card.click();
-  await expect(card).toHaveElementClass('bg-blue');
-  await expect($(resetSelector)).toBeDisabled();
-  await $('header').moveTo();
+  await step(tracePrefix && `${tracePrefix}/selectPreset-01`, async () =>
+    card.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
+  await step(tracePrefix && `${tracePrefix}/selectPreset-02`, async () =>
+    card.waitForClickable()
+  );
+  await step(tracePrefix && `${tracePrefix}/selectPreset-03`, async () =>
+    card.click()
+  );
+  await step(tracePrefix && `${tracePrefix}/selectPreset-04`, async () =>
+    expect(card).toHaveElementClass('bg-blue')
+  );
+  await step(tracePrefix && `${tracePrefix}/selectPreset-05`, async () =>
+    expect($(resetSelector)).toBeDisabled()
+  );
+  await step(tracePrefix && `${tracePrefix}/selectPreset-06`, async () =>
+    $('header').moveTo()
+  );
 }
 
-async function renderedProfile(name: string) {
+async function renderedProfile(name: string, tracePrefix?: string) {
   const card = $(`[data-testid="volume-preset-${name}"]`);
-  const selected = (await card.getAttribute('class'))?.includes('bg-blue');
-  const previous = await visibleAppearance();
-  await selectPreset(name);
+  const selected = (
+    await step(tracePrefix && `${tracePrefix}/renderedProfile-01`, async () =>
+      card.getAttribute('class')
+    )
+  )?.includes('bg-blue');
+  const previous = await step(
+    tracePrefix && `${tracePrefix}/renderedProfile-02`,
+    async () => visibleAppearance(tracePrefix)
+  );
+  await step(tracePrefix && `${tracePrefix}/renderedProfile-03`, async () =>
+    selectPreset(name, tracePrefix)
+  );
   if (!selected) {
-    await browser.waitUntil(
-      async () => pixelDifference(await appearance(), previous, 4) > 2,
-      { timeoutMsg: `Expected ${name} to change the visible volume opacity` }
+    await step(tracePrefix && `${tracePrefix}/renderedProfile-04`, async () =>
+      browser.waitUntil(
+        async () =>
+          pixelDifference(
+            await step(
+              tracePrefix && `${tracePrefix}/renderedProfile-05`,
+              async () => appearance()
+            ),
+            previous,
+            4
+          ) > 2,
+        { timeoutMsg: `Expected ${name} to change the visible volume opacity` }
+      )
     );
   }
-  return visibleAppearance();
+  return visibleAppearance(tracePrefix);
 }
 
 async function openVolume(
@@ -132,27 +164,38 @@ async function openVolume(
     | 'constant'
     | 'binary'
     | 'ct' = 'layers',
-  scalarScale = 1
+  scalarScale = 1,
+  tracePrefix?: string
 ) {
   const name = writeVolume(encoding, variant, scalarScale);
   const configName = `adaptive-volume-layout-${encoding}-${variant}-${fixtureIndex++}.json`;
-  await writeManifestToFile(
-    {
-      layouts: {
-        default: {
-          direction: 'row',
-          items: [
-            { type: '3D', viewDirection: 'Superior', viewUp: 'Anterior' },
-          ],
+  await step(tracePrefix && `${tracePrefix}/openVolume-01`, async () =>
+    writeManifestToFile(
+      {
+        layouts: {
+          default: {
+            direction: 'row',
+            items: [
+              { type: '3D', viewDirection: 'Superior', viewUp: 'Anterior' },
+            ],
+          },
         },
       },
-    },
-    configName
+      configName
+    )
   );
-  await volViewPage.open(`?urls=[tmp/${configName},tmp/${name}]`);
-  await volViewPage.waitForViewCounts(0, true);
-  await openVolumeRenderingControls();
-  await selectPreset('Adaptive-Balanced');
+  await step(tracePrefix && `${tracePrefix}/openVolume-02`, async () =>
+    volViewPage.open(`?urls=[tmp/${configName},tmp/${name}]`)
+  );
+  await step(tracePrefix && `${tracePrefix}/openVolume-03`, async () =>
+    volViewPage.waitForViewCounts(0, true)
+  );
+  await step(tracePrefix && `${tracePrefix}/openVolume-04`, async () =>
+    openVolumeRenderingControls(tracePrefix)
+  );
+  await step(tracePrefix && `${tracePrefix}/openVolume-05`, async () =>
+    selectPreset('Adaptive-Balanced', tracePrefix)
+  );
 }
 
 describe('adaptive volume presets', () => {
@@ -195,15 +238,21 @@ describe('adaptive volume presets', () => {
     const names = ['Transparent', 'Balanced', 'Surface'];
     const reference: Record<string, Appearance> = {};
     before(async () => {
-      await openVolume('uint8');
+      await viewport('ref');
+
+      await step('ref01', async () => openVolume('uint8', 'layers', 1, 'ref'));
       const cards = $$('[data-testid^="volume-preset-Adaptive-"]');
-      await expect(cards).toBeElementsArrayOfSize(3);
-      const rows = (await cards.map((card) =>
-        card.execute((element) => element.getBoundingClientRect().top)
+      await step('ref02', async () => expect(cards).toBeElementsArrayOfSize(3));
+      const rows = (await step('ref03', async () =>
+        cards.map((card) =>
+          card.execute((element) => element.getBoundingClientRect().top)
+        )
       )) as number[];
       expect(new Set(rows).size).toBe(1);
       for (const name of names) {
-        reference[name] = await renderedProfile(`Adaptive-${name}`);
+        reference[name] = await step('ref04', async () =>
+          renderedProfile(`Adaptive-${name}`, 'ref')
+        );
       }
     });
 
@@ -336,130 +385,9 @@ describe('adaptive volume presets', () => {
   });
 
   it('preserves CT edits across tabs and resets color and opacity without changing its palette or lighting', async () => {
-    await openVolume('uint16', 'ct');
-    await selectPreset('CT-AAA');
-    const cinematic = $('.v-expansion-panel-title*=Cinematic Rendering');
-    await cinematic.scrollIntoView({ block: 'center', behavior: 'instant' });
-    if ((await cinematic.getAttribute('aria-expanded')) !== 'true')
-      await cinematic.click();
-    await waitForModuleTransitions();
-    const ambient = $(
-      "//label[normalize-space(.)='Ambient']/ancestor::div[contains(@class, 'v-slider')][1]//*[@role='slider']"
-    );
-    await ambient.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await ambient.execute((element) => element.focus());
-    await browser.keys('End');
-    await expect(ambient).toHaveAttribute('aria-valuenow', '1');
-    await expect($(resetSelector)).toBeDisabled();
-    await selectPreset('Adaptive-Balanced');
-    await expect(ambient).toHaveAttribute('aria-valuenow', '1');
-    await selectPreset('CT-AAA');
-    await expect(ambient).toHaveAttribute('aria-valuenow', '1');
-    await ambient.execute((element) => element.blur());
-    await $('header').moveTo();
-    await browser.waitUntil(async () => (await appearance()).visible > 250);
-    const original = await appearance();
-    const shift = await colorShift();
-    const initialShift = (await shift.getAttribute('aria-valuenow'))!;
-    expect(initialShift).toBe('0');
-    await shift.execute((element) => element.focus());
-    await browser.keys('ArrowRight');
-    await expect($(resetSelector)).toBeEnabled();
-    await browser.keys('ArrowLeft');
-    await expect(shift).toHaveAttribute('aria-valuenow', initialShift);
-    await expect($(resetSelector)).toBeDisabled();
-    await shift.execute((element) => element.blur());
-    const opacity = $('[data-testid="volume-opacity-editor"] canvas');
-    await opacity.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await opacity.waitForStable();
-    const bounds = (await opacity.execute((element) => {
-      const { x, y, width, height } = element.getBoundingClientRect();
-      return { x, y, width, height };
-    })) as Pick<DOMRect, 'x' | 'y' | 'width' | 'height'>;
-    const x = Math.round(bounds.x + bounds.width * 0.5);
-    const y = Math.round(bounds.y + bounds.height * 0.5);
-    await browser
-      .action('pointer')
-      .move({ x, y })
-      .down()
-      .move({ x: x + Math.round(bounds.width * 0.2), y, duration: 100 })
-      .up()
-      .perform();
-    await browser.waitUntil(
-      async () => pixelDifference(await appearance(), original) > 2,
-      {
-        timeoutMsg: 'Expected a CT opacity shift to change the rendered volume',
-      }
-    );
-    await expect($(resetSelector)).toBeEnabled();
-    const opacityEdited = await appearance();
-    await shift.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await shift.execute((element) => element.focus());
-    await browser.keys('End');
-    const changedShift = (await shift.getAttribute('aria-valuenow'))!;
-    expect(changedShift).not.toBe(initialShift);
-    await expect($(resetSelector)).toBeEnabled();
-    await browser.waitUntil(
-      async () => pixelDifference(await appearance(), opacityEdited) > 2
-    );
-    const edited = await appearance();
-    await $('[data-testid="module-tab-Data"]').click();
-    await waitForModuleTransitions();
-    await openVolumeRenderingControls();
-    await expect(await colorShift()).toHaveAttribute(
-      'aria-valuenow',
-      changedShift
-    );
-    await browser.waitUntil(
-      async () => pixelDifference(await appearance(), edited, 4) < 3,
-      {
-        timeoutMsg:
-          'Expected both manual CT edits to survive reopening Rendering',
-      }
-    );
-    const presets = $('.v-expansion-panel-title*=Color Presets');
-    await presets.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await presets.click();
-    await expect(presets).toHaveAttribute('aria-expanded', 'false');
-    await waitForModuleTransitions();
-    const reset = $(resetSelector);
-    await reset.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await expect(reset).toBeDisplayed();
-    await expect(reset).toHaveAttribute(
-      'aria-label',
-      'Reset color and opacity'
-    );
-    await expect($('.mapping-range-editor').$(resetSelector)).toBeDisplayed();
-    await expect(reset).toBeEnabled();
-    await browser.saveScreenshot(
-      path.join(TEMP_DIR, 'volume-reset-placement.png')
-    );
-    await reset.click();
-    await expect(reset).toBeDisabled();
-    await expect(await colorShift()).toHaveAttribute(
-      'aria-valuenow',
-      initialShift
-    );
-    await cinematic.scrollIntoView({ block: 'center', behavior: 'instant' });
-    if ((await cinematic.getAttribute('aria-expanded')) !== 'true')
-      await cinematic.click();
-    await waitForModuleTransitions();
-    await expect(
-      $(
-        "//label[normalize-space(.)='Ambient']/ancestor::div[contains(@class, 'v-slider')][1]//*[@role='slider']"
-      )
-    ).toHaveAttribute('aria-valuenow', '1');
-    await browser.waitUntil(
-      async () => pixelDifference(await appearance(), original, 4) < 3,
-      {
-        timeoutMsg:
-          'Expected reset to restore CT color and opacity with the edited lighting',
-      }
-    );
-    await presets.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await presets.click();
-    await expect($('[data-testid="volume-preset-CT-AAA"]')).toHaveElementClass(
-      'bg-blue'
+    await checkAdaptiveCtReset(
+      () => openVolume('uint16', 'ct', 1, 'ct'),
+      (name) => selectPreset(name, 'ct')
     );
   });
 

@@ -1,3 +1,4 @@
+import { step } from './adaptivePresetTrace';
 import { volViewPage } from '../pageobjects/volview.page';
 import { waitForModuleTransitions } from './utils';
 
@@ -26,18 +27,49 @@ export function createVolumeScalars(
   return buffer;
 }
 
-export async function openVolumeRenderingControls() {
-  await volViewPage.renderingModuleTab.waitForClickable();
-  await volViewPage.renderingModuleTab.click();
-  await waitForModuleTransitions();
+export async function openVolumeRenderingControls(tracePrefix?: string) {
+  await step(
+    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-01`,
+    async () => volViewPage.renderingModuleTab.waitForClickable()
+  );
+  await step(
+    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-02`,
+    async () => volViewPage.renderingModuleTab.click()
+  );
+  await step(
+    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-03`,
+    async () => waitForModuleTransitions()
+  );
   const volume = $('[data-testid="volume-rendering-toggle"]');
-  if ((await volume.getAttribute('aria-expanded')) !== 'true')
-    await volume.click();
+  if (
+    (await step(
+      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-04`,
+      async () => volume.getAttribute('aria-expanded')
+    )) !== 'true'
+  )
+    await step(
+      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-05`,
+      async () => volume.click()
+    );
   const presets = $('.v-expansion-panel-title*=Color Presets');
-  await presets.scrollIntoView({ block: 'center', behavior: 'instant' });
-  if ((await presets.getAttribute('aria-expanded')) !== 'true')
-    await presets.click();
-  await waitForModuleTransitions();
+  await step(
+    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-06`,
+    async () => presets.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
+  if (
+    (await step(
+      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-07`,
+      async () => presets.getAttribute('aria-expanded')
+    )) !== 'true'
+  )
+    await step(
+      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-08`,
+      async () => presets.click()
+    );
+  await step(
+    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-09`,
+    async () => waitForModuleTransitions()
+  );
 }
 
 export type Appearance = {
@@ -106,16 +138,22 @@ export function pixelDifference(a: Appearance, b: Appearance, blockSize = 1) {
   return difference / Math.max(1, samples);
 }
 
-export async function visibleAppearance() {
+export async function visibleAppearance(tracePrefix?: string) {
   let result: Appearance;
-  await browser.waitUntil(
-    async () => {
-      result = await appearance();
-      return result.visible > 250 && result.colored < 30;
-    },
-    {
-      timeoutMsg: 'Expected the adaptive preset to render the generated layers',
-    }
+  await step(tracePrefix && `${tracePrefix}/visibleAppearance-01`, async () =>
+    browser.waitUntil(
+      async () => {
+        result = await step(
+          tracePrefix && `${tracePrefix}/visibleAppearance-02`,
+          async () => appearance()
+        );
+        return result.visible > 250 && result.colored < 30;
+      },
+      {
+        timeoutMsg:
+          'Expected the adaptive preset to render the generated layers',
+      }
+    )
   );
   expect(result!.background).toBeGreaterThan(96 * 96 * 0.4);
   return result!;
