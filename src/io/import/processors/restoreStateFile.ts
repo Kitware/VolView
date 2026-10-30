@@ -186,8 +186,8 @@ type RestoreServices = {
 export const createStateFileRestorer = ({
   addWarning = (title, options) => useMessageStore().addWarning(title, options),
   views,
-}: RestoreServices = {}) =>
-  async function restoreState(
+}: RestoreServices = {}) => {
+  async function restoreScene(
     manifest: Manifest,
     stateFiles: FileEntry[],
     stateIDToStoreID: Record<string, string>,
@@ -237,8 +237,11 @@ export const createStateFileRestorer = ({
 
     // Registries first: masks and shapes both name a segment, and the
     // ids they name are minted here.
-    const { segmentIdMap, repeated: repeatedSegments } =
-      useSegmentStore().deserialize(manifest);
+    const {
+      segmentIdMap,
+      repeated: repeatedSegments,
+      unassigned,
+    } = useSegmentStore().deserialize(manifest, stateIDToStoreID);
 
     const { skipped: skippedLabelmaps } =
       await useSegmentationStore().deserialize({
@@ -293,13 +296,31 @@ export const createStateFileRestorer = ({
         ({ name }) =>
           `- segment: ${name} (repeats the id of an earlier segment)`
       ),
+      ...unassigned.map(
+        ({ name }) => `- segment: ${name} (is not assigned to an image)`
+      ),
     ];
     if (missing.length > 0) {
       addWarning('Some scene content could not be restored', {
         details: missing.join('\n'),
       });
     }
+  }
+
+  // Each destination image installs its saved segments before a view can
+  // seed it with a copy.
+  return async function restoreState(...args: Parameters<typeof restoreScene>) {
+    const [, , stateIDToStoreID] = args;
+    const releaseInitialization = useSegmentStore().deferInitialization(
+      Object.values(stateIDToStoreID)
+    );
+    try {
+      await restoreScene(...args);
+    } finally {
+      releaseInitialization();
+    }
   };
+};
 
 export const completeStateFileRestore = createStateFileRestorer();
 

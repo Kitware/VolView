@@ -27,10 +27,14 @@ describe('segment assignment list', () => {
 
   it('titles an unnamed segment the way the segment list does', () => {
     const registry = useSegmentStore().segments;
-    registry.mintSegment({ name: 'Tumor' });
-    registry.mintSegment({ name: '' });
+    registry.mintSegment('image', { name: 'Tumor' });
+    registry.mintSegment('image', { name: '' });
+    registry.mintSegment('other-image', { name: 'Other image' });
 
-    const wrapper = mount(SegmentAssignmentList, { global: globalOptions });
+    const wrapper = mount(SegmentAssignmentList, {
+      props: { imageId: 'image' },
+      global: globalOptions,
+    });
 
     expect(wrapper.findAll('.title').map((title) => title.text())).toEqual([
       'Tumor',
@@ -40,10 +44,10 @@ describe('segment assignment list', () => {
 
   it('marks the current segment and emits the chosen segment id', async () => {
     const registry = useSegmentStore().segments;
-    const first = registry.mintSegment({ name: 'Tumor' });
-    const second = registry.mintSegment({ name: 'Node' });
+    const first = registry.mintSegment('image', { name: 'Tumor' });
+    const second = registry.mintSegment('image', { name: 'Node' });
     const wrapper = mount(SegmentAssignmentList, {
-      props: { segmentId: first },
+      props: { imageId: 'image', segmentId: first },
       global: globalOptions,
     });
     const items = wrapper.findAll('.item');

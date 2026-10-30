@@ -84,7 +84,8 @@ const catalog = () => {
 // that segment has on this image. Both groups decode two segments each, in
 // ascending source value, so a segment's place says which value it came from.
 const selectedIndex = () => {
-  const segmentId = useSegmentStore().segments.selectedSegmentId.value;
+  const segmentId =
+    useSegmentStore().segments.selectedSegmentId('parent-store');
   const index = catalog().findIndex(
     (segment) => segment.segmentId === segmentId
   );
@@ -123,11 +124,13 @@ describe('restoring a descriptorless active group', () => {
     let liver = '';
     await restoreTwoGroups(1, () => {
       const registry = useSegmentStore().segments;
-      liver = registry.segmentNamed('Liver');
+      liver = registry.segmentNamed('parent-store', 'Liver');
       registry.selectSegment(liver);
     });
 
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(liver);
+    expect(useSegmentStore().segments.selectedSegmentId('parent-store')).toBe(
+      liver
+    );
   });
 
   it('selects the first segment when no source value matches', async () => {

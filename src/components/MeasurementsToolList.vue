@@ -169,6 +169,7 @@ function toggleSelectedHidden() {
             </v-btn>
           </template>
           <segment-assignment-list
+            :image-id="shape.imageId"
             :segment-id="shape.segmentId"
             @select="shape.assignSegment($event)"
           />

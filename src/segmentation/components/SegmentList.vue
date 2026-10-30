@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import EditableItemList from '@/src/components/EditableItemList.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
@@ -51,7 +51,13 @@ const props = withDefaults(
 const registry = useSegmentStore().segments;
 const { shapesOf } = useSegmentShapes();
 const segmentationStore = useSegmentationStore();
-const { currentImageID } = useCurrentImage();
+const { currentImageID, currentImageMetadata } = useCurrentImage();
+const imageUnavailableReason = computed(() =>
+  currentImageID.value ? '' : 'Select an image to edit segments'
+);
+const addSegment = () => {
+  if (currentImageID.value) registry.addSegment(currentImageID.value);
+};
 
 // Scoped to the viewed image: the per-image controls belong to this image's
 // masks. Before storage exists, the panel presents the defaults it will use.
@@ -82,7 +88,7 @@ type Row = {
 // Rows omit mask bounds, so growing a painted mask does not rebuild the list.
 const rows = computed((previous?: Row[]) => {
   const before = new Map(previous?.map((row) => [row.id, row] as const));
-  return registry.segmentList.value.map((segment, index) => {
+  return registry.segmentList(currentImageID.value).map((segment, index) => {
     const appearance = registry.appearanceOf(segment.id);
     const row: Row = {
       id: segment.id,
@@ -117,6 +123,11 @@ const DISPLAY_CONTROLS = [
 const display = computed(
   () => viewedSegmentation.value ?? DEFAULT_SEGMENTATION_DISPLAY
 );
+const displayDisabledReason = computed(() =>
+  viewingCine.value
+    ? 'A clip has no segmentation to display'
+    : imageUnavailableReason.value
+);
 const openSections = ref(['segments']);
 
 const setDisplay = (patch: SegmentationDisplayPatch) => {
@@ -135,6 +146,7 @@ const saveDialog = ref(false);
 // Saving writes this image's masks, so it stays offered and says why it
 // cannot run rather than disappearing.
 const savableReason = computed(() => {
+  if (imageUnavailableReason.value) return imageUnavailableReason.value;
   if (viewingCine.value) return 'A clip has no segmentation to save';
   const segmentation = viewedSegmentation.value;
   // Records alone save nothing: a segment resolved here but never painted
@@ -200,8 +212,9 @@ function revealSlice(row: Row) {
   if (mask) pulseSegmentMask(mask.id);
 }
 
-const noSegmentsReason = computed(() =>
-  rows.value.length ? '' : 'No segments yet'
+const noSegmentsReason = computed(
+  () =>
+    imageUnavailableReason.value || (rows.value.length ? '' : 'No segments yet')
 );
 
 // An empty list shows the open eye and lock a new segment starts with.
@@ -218,7 +231,14 @@ const setAll = (key: 'visible' | 'locked', value: boolean) =>
 
 // --- editing state --- //
 
-const editing = useSegmentEditing(registry);
+const editing = useSegmentEditing(registry, currentImageID);
+watch(
+  currentImageID,
+  () => {
+    saveDialog.value = false;
+  },
+  { flush: 'sync' }
+);
 const {
   editDialog,
   editState,
@@ -230,11 +250,10 @@ const {
 </script>
 
 <template>
-  <div
-    v-if="currentImageID"
-    data-testid="segment-list"
-    :aria-busy="masksArriving"
-  >
+  <div data-testid="segment-list" :aria-busy="masksArriving">
+    <div class="px-3 py-2 text-caption" data-testid="segment-image-name">
+      {{ currentImageID ? currentImageMetadata.name : 'No selected image' }}
+    </div>
     <v-expansion-panels
       v-model="openSections"
       multiple
@@ -247,7 +266,10 @@ const {
           Display
         </v-expansion-panel-title>
         <v-expansion-panel-text>
-          <div class="display-controls" :tabindex="viewingCine ? 0 : undefined">
+          <div
+            class="display-controls"
+            :tabindex="displayDisabledReason ? 0 : undefined"
+          >
             <div
               v-for="control in DISPLAY_CONTROLS"
               :key="control.key"
@@ -264,13 +286,17 @@ const {
                 density="compact"
                 hide-details
                 thumb-label
-                :disabled="viewingCine"
+                :disabled="!!displayDisabledReason"
                 :model-value="display[control.key]"
                 @update:model-value="setDisplay({ [control.key]: $event })"
               />
             </div>
-            <v-tooltip v-if="viewingCine" location="top" activator="parent">
-              A clip has no segmentation to display
+            <v-tooltip
+              v-if="displayDisabledReason"
+              location="top"
+              activator="parent"
+            >
+              {{ displayDisabledReason }}
             </v-tooltip>
           </div>
         </v-expansion-panel-text>
@@ -286,14 +312,18 @@ const {
             <reasoned-action
               :reason="noSegmentsReason"
               :tooltip="
-                allLocked ? 'Unlock every segment' : 'Lock every segment'
+                allLocked
+                  ? 'Unlock every segment on this image'
+                  : 'Lock every segment on this image'
               "
               v-slot="{ disabled }"
             >
               <v-btn
                 data-testid="toggle-segments-locked-button"
                 :aria-label="
-                  allLocked ? 'Unlock every segment' : 'Lock every segment'
+                  allLocked
+                    ? 'Unlock every segment on this image'
+                    : 'Lock every segment on this image'
                 "
                 icon
                 size="small"
@@ -310,14 +340,18 @@ const {
             <reasoned-action
               :reason="noSegmentsReason"
               :tooltip="
-                allVisible ? 'Hide every segment' : 'Show every segment'
+                allVisible
+                  ? 'Hide every segment on this image'
+                  : 'Show every segment on this image'
               "
               v-slot="{ disabled }"
             >
               <v-btn
                 data-testid="toggle-segments-visible-button"
                 :aria-label="
-                  allVisible ? 'Hide every segment' : 'Show every segment'
+                  allVisible
+                    ? 'Hide every segment on this image'
+                    : 'Show every segment on this image'
                 "
                 icon
                 size="small"
@@ -353,14 +387,15 @@ const {
 
         <v-expansion-panel-text class="segments-section-body">
           <editable-item-list
-            :model-value="registry.selectedSegmentId.value"
+            :model-value="registry.selectedSegmentId(currentImageID)"
             @update:model-value="registry.selectSegment"
             :selection-revision="registry.selectionRevision.value"
             :items="rows"
             @move="registry.moveSegment"
             create-text="New segment"
+            :create-reason="imageUnavailableReason"
             reorder-hint="Drag to reorder segments and shortcuts. Earlier segments win picking and come first on export; overlaps blend in the view. Alt+Up or Alt+Down also moves this segment."
-            @create="registry.addSegment()"
+            @create="addSegment"
             class="segment-items"
           >
             <template #item-prepend="{ item }">
@@ -416,7 +451,6 @@ const {
       </v-expansion-panel>
     </v-expansion-panels>
   </div>
-  <div v-else class="px-3 py-2 text-center text-caption">No selected image</div>
 
   <isolated-dialog v-model="editDialog" max-width="800px">
     <segment-editor
@@ -506,7 +540,7 @@ const {
 }
 
 .segment-items :deep(.item-row),
-.segment-items :deep(.create-row) {
+.segment-items :deep(.create-row-content) {
   padding-inline: 16px;
 }
 

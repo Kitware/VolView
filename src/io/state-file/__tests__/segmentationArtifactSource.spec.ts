@@ -169,9 +169,7 @@ describe('Segmentation wire shape', () => {
 });
 
 describe('manifest version', () => {
-  // The segment model replaces `segmentGroups` with `segmentations` plus
-  // `segmentationArtifacts`, including display state in that breaking change.
-  it('pins MANIFEST_VERSION at 7.0.0', () => {
-    expect(MANIFEST_VERSION).toBe('7.0.0');
+  it('writes the image segment ownership version', () => {
+    expect(MANIFEST_VERSION).toBe('8.0.0');
   });
 });

@@ -4,6 +4,7 @@ import { useRulerStore } from '@/src/store/tools/rulers';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import {
   inMemoryArtifactIO,
   manifestForImages,
@@ -11,7 +12,7 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 export const serializeAnnotations = (
-  manifest = manifestForImages([], { tools: {} })
+  manifest = manifestForImages(useImageCacheStore().imageIds, { tools: {} })
 ) => {
   const state = { zip: new JSZip(), manifest };
   useSegmentStore().serialize(state);

@@ -200,7 +200,7 @@ export const inMemoryArtifactIO = () => {
 export const segmentationSnapshot = (imageId: string) => {
   const segments = useSegmentStore().segments;
   const segmentation = store().getSegmentationForImage(imageId)!;
-  const selectedSegmentId = segments.selectedSegmentId.value;
+  const selectedSegmentId = segments.selectedSegmentId(imageId);
   return {
     name: segmentation.name,
     segments: segmentation.order.map((maskId) => {
@@ -307,15 +307,22 @@ export const makeSpecImage = () => makeImage();
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 
-export const mintSegment = (init: SegmentInit | string = {}) =>
+/** An image's segment names, in its own order. */
+export const segmentNames = (imageId: string) =>
+  useSegmentStore()
+    .segments.segmentList(imageId)
+    .map(({ name }) => name);
+
+export const mintSegment = (imageId: string, init: SegmentInit | string = {}) =>
   useSegmentStore().segments.mintSegment(
+    imageId,
     typeof init === 'string' ? { name: init } : init
   );
 
 /** A record with no storage: adding one never allocates voxels. */
 export function addMask(imageId: string, name?: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  return store().createMask(segmentation.id, mintSegment(name)).id;
+  return store().createMask(segmentation.id, mintSegment(imageId, name)).id;
 }
 
 export const bindEmptyMasks = (imageId: string, names: string[]) =>
@@ -363,7 +370,7 @@ export function addActiveSegment(
   const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
   const segment = segmentationStore.createMask(
     segmentation.id,
-    mintSegment({
+    mintSegment(imageId, {
       name: 'Segment 1',
     })
   );

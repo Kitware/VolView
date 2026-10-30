@@ -8,7 +8,11 @@ export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
   const paths: string[] = [];
   zip.forEach((relPath, file) => {
     const fileName = basename(file.name);
-    if (!file.dir && fileName.toLowerCase() !== 'license') {
+    if (
+      !file.dir &&
+      !relPath.split('/').includes('__MACOSX') &&
+      fileName.toLowerCase() !== 'license'
+    ) {
       const path = dirname(file.name);
       const fileEntry = zip.file(file.name);
       if (fileEntry) {

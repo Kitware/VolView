@@ -256,6 +256,7 @@ const reportUnparseableColors = (rejected: Set<string>) => {
 // Wire namespaces are per kind but bind into one registry, so the first kind to
 // bind a name sets its style. Unreferenced labels stay out of the picker.
 const bindReferencedSegments = (
+  imageId: string,
   tools: readonly PreparedCore[],
   namespace: Record<string, AnnotationLabel>,
   rejected: Set<string>
@@ -268,6 +269,7 @@ const bindReferencedSegments = (
     [...names].map((name) => [
       name,
       segments.segmentNamed(
+        imageId,
         name,
         segmentInit(name, namespace[name] ?? {}, rejected)
       ),
@@ -327,6 +329,7 @@ async function applyAnnotations(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
       bindReferencedSegments(
+        parentSelection,
         prepared[kind],
         decoded.labels[kind],
         rejectedColors

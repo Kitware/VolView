@@ -95,7 +95,7 @@ export function useInputStaging(write = writeSegmentation) {
   const annotationToolsView = computed(() => {
     const registry = useSegmentStore().segments;
     const labels = Object.fromEntries(
-      registry.segmentList.value.map((segment) => {
+      registry.segmentList(currentImageID.value).map((segment) => {
         const { name, cssColor, strokeWidth } =
           resolveSegmentAppearance(segment);
         return [segment.id, { labelName: name, color: cssColor, strokeWidth }];

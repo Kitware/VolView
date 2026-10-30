@@ -16,6 +16,30 @@ export function imageCacheMultiKey(offset: number, asThumbnail: boolean) {
   return `${offset}!!${asThumbnail}`;
 }
 
+async function addVolumeChunks(
+  id: string,
+  chunks: Chunk[],
+  onImageImported?: (id: string) => void
+) {
+  const imageCacheStore = useImageCacheStore();
+  const cachedImage = imageCacheStore.imageById[id];
+  if (cachedImage && !(cachedImage instanceof DicomChunkImage)) {
+    throw new Error(
+      `Volume ${id} is already loaded as a non-chunk progressive image; cannot re-import as a chunk volume.`
+    );
+  }
+  const image = cachedImage ?? new DicomChunkImage();
+  if (cachedImage) onImageImported?.(id);
+  await image.addChunks(chunks);
+  // Registration starts the first load; a re-import starts its own.
+  if (cachedImage) image.startLoad();
+  else {
+    imageCacheStore.addProgressiveImage(image, { id });
+    onImageImported?.(id);
+  }
+  return image;
+}
+
 export type VolumeKeys = {
   patientKey: string;
   studyKey: string;
@@ -148,9 +172,10 @@ export const useDICOMStore = defineStore('dicom', {
     needsRebuild: {},
   }),
   actions: {
-    async importChunks(chunks: Chunk[]) {
-      const imageCacheStore = useImageCacheStore();
-
+    async importChunks(
+      chunks: Chunk[],
+      onImageImported?: (id: string) => void
+    ) {
       // split into groups
       const chunksByVolume = await DICOM.splitAndSort(
         chunks,
@@ -162,23 +187,17 @@ export const useDICOMStore = defineStore('dicom', {
           if (isCineChunkGroup(sortedChunks)) {
             const importedAsCine = await this._importCineChunk(
               id,
-              sortedChunks[0]
+              sortedChunks[0],
+              onImageImported
             );
             if (importedAsCine) return;
           }
 
-          const cachedImage = imageCacheStore.imageById[id];
-          if (cachedImage && !(cachedImage instanceof DicomChunkImage)) {
-            throw new Error(
-              `Volume ${id} is already loaded as a non-chunk progressive image; cannot re-import as a chunk volume.`
-            );
-          }
-          const image = cachedImage ?? new DicomChunkImage();
-
-          await image.addChunks(sortedChunks);
-          // Registration starts the first load; a re-import starts its own.
-          if (cachedImage) image.startLoad();
-          else imageCacheStore.addProgressiveImage(image, { id });
+          const image = await addVolumeChunks(
+            id,
+            sortedChunks,
+            onImageImported
+          );
 
           // update database
           const metaPairs = image.getDicomMetadata();
@@ -223,11 +242,16 @@ export const useDICOMStore = defineStore('dicom', {
       return chunksByVolume;
     },
 
-    async _importCineChunk(id: string, chunk: Chunk): Promise<boolean> {
+    async _importCineChunk(
+      id: string,
+      chunk: Chunk,
+      onImageImported?: (id: string) => void
+    ): Promise<boolean> {
       const imageCacheStore = useImageCacheStore();
 
       // If we already created this cine image (state-file reload), bail.
       if (this.volumeInfo[id]?.kind === 'cine') {
+        onImageImported?.(id);
         return true;
       }
 
@@ -259,6 +283,7 @@ export const useDICOMStore = defineStore('dicom', {
 
       const image = new DicomCineImage(parsed);
       imageCacheStore.addProgressiveImage(image, { id });
+      onImageImported?.(id);
 
       const { patient, study, series } = parsed.header;
       const volumeInfo: VolumeInfo = {

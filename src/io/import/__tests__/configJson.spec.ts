@@ -7,14 +7,17 @@ import {
   recognizeConfig,
 } from '@/src/io/import/configJson';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { viewImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const segments = () => useSegmentStore().segments;
 
 const segmentSummary = () =>
-  segments().segmentList.value.map((segment) => ({
-    name: segment.name,
-    color: segments().appearanceOf(segment.id).cssColor,
-  }));
+  segments()
+    .segmentList('image')
+    .map((segment) => ({
+      name: segment.name,
+      color: segments().appearanceOf(segment.id).cssColor,
+    }));
 
 describe('config schema', () => {
   describe('shortcuts', () => {
@@ -86,8 +89,9 @@ describe('config schema', () => {
 });
 
 describe('segment config', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
+    await viewImage('image');
   });
 
   it('reports config colors it cannot parse', () => {
@@ -114,8 +118,9 @@ describe('legacy labels', () => {
   const applyLabels = (labels: unknown) =>
     applyPostStateConfig(config.parse({ labels }));
 
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
+    await viewImage('image');
   });
 
   // Only known top-level keys mark a file as config, so a config that names

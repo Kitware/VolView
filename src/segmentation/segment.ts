@@ -12,7 +12,7 @@ import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
 
 /**
  * Identity and shared appearance for everything drawn as one thing: a paint
- * mask on any image, a rectangle, a polygon. Appearance fields are absent
+ * mask, a rectangle or a polygon on the same image. Appearance fields are absent
  * until set and mean "app default" while they are, so a configured or imported
  * segment that states nothing follows the default and a ruler's segment carries
  * no meaningless opacity.
@@ -21,7 +21,7 @@ export type Segment = {
   id: string;
   name: string;
   color: RGBAColor;
-  // State the user sets on the thing itself, so it holds on every image.
+  // State shared by this image's masks and shapes for the segment.
   visible: boolean;
   locked: boolean;
   fillOpacity?: number;
