@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Key } from 'webdriverio';
+import { closeMenuWithEscape } from './menuTestUtils';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
@@ -414,9 +415,12 @@ export async function expectEnFaceUnavailable(reason: string) {
 
 export async function openEnFaceWindowInputs(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  await browser.keys('Escape');
-  await viewer.$(CANVAS).click();
-  const tool = $(WINDOW_TOOL);
+  await closeMenuWithEscape(await viewer.$(CONTROLS).getElement());
+  const tool = await $(WINDOW_TOOL).getElement();
+  await closeMenuWithEscape(tool);
+  const canvas = viewer.$(CANVAS);
+  await canvas.waitForClickable();
+  await canvas.click();
   await tool.waitForClickable();
   await tool.click();
   const inputs = await $$('.v-overlay--active .manual-inputs input');
@@ -444,7 +448,7 @@ export async function setEnFaceWindow(
     }
   );
   await browser.keys('Escape');
-  await inputs[0].waitForDisplayed({ reverse: true });
+  await inputs[0].waitForDisplayed({ reverse: true, opacityProperty: false });
 }
 
 export async function getEnFaceWindow(view?: WebdriverIO.Element) {
@@ -463,7 +467,8 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     )
   );
   await browser.keys('Escape');
-  if (restorePanel) await panel.waitForDisplayed({ reverse: true });
+  if (restorePanel)
+    await panel.waitForDisplayed({ reverse: true, opacityProperty: false });
   await viewer.$(CANVAS).waitForClickable();
   const inputs = await openEnFaceWindowInputs(viewer);
   const result = {
@@ -471,7 +476,7 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     level: Number(await inputs[1].getValue()),
   };
   await browser.keys('Escape');
-  await inputs[0].waitForDisplayed({ reverse: true });
+  await inputs[0].waitForDisplayed({ reverse: true, opacityProperty: false });
   if (restorePanel) {
     const controls = viewer.$(CONTROLS);
     await controls.waitForClickable();
