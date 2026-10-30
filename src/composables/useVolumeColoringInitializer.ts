@@ -26,14 +26,16 @@ export function useVolumeColoringInitializer(
       () => image.value?.isLoaded(),
     ],
     () => {
-      if (coloringConfig.value) return;
-
       const viewIdVal = unref(viewId);
       const imageIdVal = unref(imageId);
       if (!viewIdVal || !imageIdVal || !imageData.value) return;
 
       // Default selection uses the complete scalar range, including for DICOM.
       if (!image.value?.isLoaded()) return;
+      if (coloringConfig.value) {
+        store.finalizePresetRange(viewIdVal, imageIdVal);
+        return;
+      }
       store.resetToDefaultColoring(viewIdVal, imageIdVal, imageData.value);
     }
   );

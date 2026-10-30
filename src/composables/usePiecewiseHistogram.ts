@@ -1,7 +1,8 @@
 import { onScopeDispose } from 'vue';
 import * as Comlink from 'comlink';
-import { arrayRange } from '@kitware/vtk.js/Common/Core/Math';
+import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { HistogramWorker } from '@/src/utils/histogram.worker';
+import { getAdaptiveVolumeHistogram } from '@/src/utils/adaptiveVolumePreset';
 import { logError } from '@/src/utils/loggers';
 
 type HistogramWidget = {
@@ -9,16 +10,35 @@ type HistogramWidget = {
   setHistogram(histogram: Float32Array | null, range: number[]): void;
 };
 
-function computeHistogram(data: ArrayLike<number>, bins: number) {
+type HistogramCache = {
+  revision: string;
+  histograms: Map<string, Float32Array>;
+};
+
+function getImageHistograms(
+  cache: WeakMap<vtkImageData, HistogramCache>,
+  image: vtkImageData,
+  revision: string
+) {
+  const stored = cache.get(image);
+  if (stored?.revision === revision) return stored.histograms;
+  const histograms = new Map<string, Float32Array>();
+  cache.set(image, { revision, histograms });
+  return histograms;
+}
+
+function computeHistogram(
+  data: ArrayLike<number>,
+  range: [number, number],
+  bins: number
+) {
   const worker = new Worker(
     new URL('@/src/utils/histogram.worker.ts', import.meta.url),
     { type: 'module' }
   );
   const remote = Comlink.wrap<HistogramWorker>(worker);
-  const range = arrayRange(data as number[], 0, 1);
   let stopped = false;
   return {
-    range,
     result: remote.piecewiseHistogram(data, range, bins),
     stop() {
       if (stopped) return;
@@ -30,7 +50,8 @@ function computeHistogram(data: ArrayLike<number>, bins: number) {
 }
 
 export function usePiecewiseHistogram(widget: HistogramWidget) {
-  let previous: ArrayLike<number> | undefined;
+  const cache = new WeakMap<vtkImageData, HistogramCache>();
+  let previous: { image: vtkImageData; revision: string; key: string };
   let active: ReturnType<typeof computeHistogram> | undefined;
   let disposed = false;
 
@@ -40,17 +61,41 @@ export function usePiecewiseHistogram(widget: HistogramWidget) {
     active = undefined;
   });
 
-  return (data: ArrayLike<number>) => {
-    if (disposed || data === previous) return;
-    previous = data;
+  return (image: vtkImageData, fittedRange?: [number, number]) => {
+    if (disposed) return;
+    const scalars = image.getPointData().getScalars();
+    const revision = `${image.getMTime()}:${scalars.getMTime()}`;
+    const range: [number, number] = [...(fittedRange ?? scalars.getRange())];
+    const bins = widget.getNumberOfBins();
+    const key = `${!!fittedRange}:${range}:${bins}`;
+    if (
+      previous?.image === image &&
+      previous.revision === revision &&
+      previous.key === key
+    )
+      return;
+    previous = { image, revision, key };
     active?.stop();
-    const request = computeHistogram(data, widget.getNumberOfBins());
+    active = undefined;
+
+    const histograms = getImageHistograms(cache, image, revision);
+    const cached = histograms.get(key);
+    if (cached) {
+      widget.setHistogram(cached, range);
+      return;
+    }
+
+    const data = fittedRange
+      ? Float64Array.from(getAdaptiveVolumeHistogram(image, range))
+      : scalars.getData();
+    const request = computeHistogram(data, range, bins);
     active = request;
-    widget.setHistogram(null, request.range);
+    widget.setHistogram(null, range);
     request.result
       .then((histogram) => {
         if (disposed || active !== request) return;
-        widget.setHistogram(histogram, request.range);
+        histograms.set(key, histogram);
+        widget.setHistogram(histogram, range);
       })
       .catch((error) => {
         if (!disposed && active === request) logError(error);

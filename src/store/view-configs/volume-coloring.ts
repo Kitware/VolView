@@ -26,6 +26,7 @@ import {
 import {
   ADAPTIVE_VOLUME_LIGHTING,
   getAdaptiveVolumePreset,
+  getAdaptiveVolumePresetUnavailableReason,
   isAdaptiveVolumePreset,
 } from '@/src/utils/adaptiveVolumePreset';
 import { createViewConfigSerializer } from './common';
@@ -89,7 +90,7 @@ function getConventionalColorAndOpacity(
   };
 }
 
-function getColorAndOpacityFromPreset(
+export function getColorAndOpacityFromPreset(
   image: vtkImageData,
   preset: string
 ): ColorAndOpacity | null {
@@ -229,10 +230,29 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
   const defaultConfigs = reactive<
     Record<string, DeepPartial<VolumeColorConfig>>
   >(Object.create(null));
+  // Reconcile presets selected on partial data without changing restored ranges.
+  const pendingOpacityRanges: DoubleKeyRecord<boolean> = Object.create(null);
 
   const getDefaultColorPreset = (imageID: string) =>
     defaultConfigs[imageID]?.transferFunction?.preset ??
     getPresetFromImageModality(imageID);
+
+  const getInitialColorAndOpacity = (imageID: string, image: vtkImageData) => {
+    const preset = getDefaultColorPreset(imageID);
+    const adaptiveUnavailable = getAdaptiveVolumePresetUnavailableReason(
+      image,
+      useImageCacheStore().imageById[imageID]?.isLoaded() ?? false
+    );
+    return (
+      (isAdaptiveVolumePreset(preset) && adaptiveUnavailable
+        ? null
+        : getColorAndOpacityFromPreset(image, preset)) ??
+      getConventionalColorAndOpacity(
+        getConventionalVolumePreset(getImageModality(imageID)),
+        image.getPointData().getScalars().getRange()
+      )
+    );
+  };
 
   // Streaming appearances stay outside configs so completed data still selects
   // the automatic default and only deliberate settings are saved or restored.
@@ -302,17 +322,31 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     const image = imageCacheStore.getVtkImageData(imageID);
     if (!image) throw new Error('Invalid imageID');
 
-    const adaptive = isAdaptiveVolumePreset(preset);
-    if (adaptive && !imageCacheStore.imageById[imageID]?.isLoaded()) return;
+    const loaded = imageCacheStore.imageById[imageID]?.isLoaded() ?? false;
+    if (
+      isAdaptiveVolumePreset(preset) &&
+      getAdaptiveVolumePresetUnavailableReason(image, loaded)
+    )
+      return;
     const coloring = getColorAndOpacityFromPreset(image, preset);
     if (!coloring) return;
 
-    const current = getConfig(viewID, imageID) ?? defaultVolumeColorConfig();
-    const cvr =
-      adaptive && !isAdaptiveVolumePreset(current.transferFunction.preset)
-        ? { ...current.cvr, ...ADAPTIVE_VOLUME_LIGHTING }
-        : current.cvr;
-    updateConfig(viewID, imageID, { ...coloring, cvr });
+    pendingOpacityRanges[viewID] ??= {};
+    pendingOpacityRanges[viewID][imageID] = !loaded;
+    updateConfig(viewID, imageID, coloring);
+  };
+
+  const finalizePresetRange = (viewID: string, imageID: string) => {
+    if (!pendingOpacityRanges[viewID]?.[imageID]) return;
+    const cache = useImageCacheStore();
+    if (!cache.imageById[imageID]?.isLoaded()) return;
+    delete pendingOpacityRanges[viewID][imageID];
+    const image = cache.getVtkImageData(imageID);
+    const current = getConfig(viewID, imageID);
+    if (!image || !current) return;
+    updateOpacityFunction(viewID, imageID, {
+      mappingRange: [...image.getPointData().getScalars().getRange()],
+    });
   };
 
   const isColorAndOpacityDefault = (
@@ -340,11 +374,22 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     const defaults = defaultConfigs[dataID];
     const scalars = image.getPointData().getScalars();
 
-    updateColorBy(viewID, dataID, {
-      arrayName: defaults?.colorBy?.arrayName ?? scalars.getName(),
-      location: defaults?.colorBy?.location ?? 'pointData',
+    const coloring = getInitialColorAndOpacity(dataID, image);
+    const current = getConfig(viewID, dataID);
+    const cvr = current?.cvr ?? {
+      ...defaultVolumeColorConfig().cvr,
+      ...(isAdaptiveVolumePreset(coloring.transferFunction.preset)
+        ? ADAPTIVE_VOLUME_LIGHTING
+        : {}),
+    };
+    updateConfig(viewID, dataID, {
+      ...coloring,
+      colorBy: {
+        arrayName: defaults?.colorBy?.arrayName ?? scalars.getName(),
+        location: defaults?.colorBy?.location ?? 'pointData',
+      },
+      cvr,
     });
-    setColorPreset(viewID, dataID, getDefaultColorPreset(dataID));
   };
 
   const resetColorAndOpacity = (viewID: string, imageID: string) => {
@@ -368,13 +413,16 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
 
   const removeView = (viewID: string) => {
     delete configs[viewID];
+    delete pendingOpacityRanges[viewID];
   };
 
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
       delete configs[viewID]?.[dataID];
+      delete pendingOpacityRanges[viewID]?.[dataID];
     } else {
       deleteSecondKey(configs, dataID);
+      deleteSecondKey(pendingOpacityRanges, dataID);
     }
   };
 
@@ -383,6 +431,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.volumeColorConfig) {
+        delete pendingOpacityRanges[viewID]?.[dataID];
         updateConfig(viewID, dataID, viewConfig.volumeColorConfig);
       }
     });
@@ -403,6 +452,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     isColorAndOpacityDefault,
     setDefaults,
     setColorPreset,
+    finalizePresetRange,
     removeView,
     removeData,
     serialize,

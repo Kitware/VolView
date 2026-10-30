@@ -20,6 +20,7 @@ import {
 } from './utils';
 import {
   captureOpacityEditor,
+  hasHistogramRequest,
   holdVolumeHistograms,
   releaseHistogram,
   restoreHistogramWorkers,
@@ -163,7 +164,8 @@ describe('adaptive volume presets', () => {
       await waitForHistogram('ordinary');
       await selectAdaptiveHistogramPhase();
       await selectPreset('Adaptive-Balanced');
-      await waitForHistogram('adaptive');
+      if (await hasHistogramRequest('adaptive'))
+        await waitForHistogram('adaptive');
       await releaseHistogram('adaptive');
       const fitted = await captureOpacityEditor();
       await releaseHistogram('ordinary');
@@ -336,6 +338,10 @@ describe('adaptive volume presets', () => {
     await browser.keys('End');
     await expect(ambient).toHaveAttribute('aria-valuenow', '1');
     await expect($(resetSelector)).toBeDisabled();
+    await selectPreset('Adaptive-Balanced');
+    await expect(ambient).toHaveAttribute('aria-valuenow', '1');
+    await selectPreset('CT-AAA');
+    await expect(ambient).toHaveAttribute('aria-valuenow', '1');
     await ambient.execute((element) => element.blur());
     await $('header').moveTo();
     await browser.waitUntil(async () => (await appearance()).visible > 250);

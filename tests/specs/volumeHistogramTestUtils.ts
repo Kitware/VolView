@@ -82,6 +82,16 @@ export async function waitForHistogram(phase: HistogramPhase) {
   );
 }
 
+export async function hasHistogramRequest(phase: HistogramPhase) {
+  return browser.execute(
+    (selectedPhase) =>
+      (
+        window as unknown as HistogramGateWindow
+      ).volumeHistogramGate.posts.includes(selectedPhase),
+    phase
+  );
+}
+
 export async function releaseHistogram(phase: HistogramPhase) {
   await browser.execute((selectedPhase) => {
     (window as unknown as HistogramGateWindow).volumeHistogramGate.held

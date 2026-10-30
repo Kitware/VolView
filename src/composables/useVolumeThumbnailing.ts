@@ -1,4 +1,4 @@
-import { onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, watch } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
@@ -6,15 +6,21 @@ import { useImageStore } from '../store/datasets-images';
 import { useCurrentImage } from './useCurrentImage';
 import { PresetNameList } from '../vtk/ColorMaps';
 import { logError } from '../utils/loggers';
-import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePreset';
+import {
+  getAdaptiveVolumePresetUnavailableReason,
+  isAdaptiveVolumePreset,
+} from '@/src/utils/adaptiveVolumePreset';
 
 export function useVolumeThumbnailing(
   thumbnailSize: number,
   createThumbnailer = createVolumeThumbnailer
 ) {
   const thumbnails = reactive<Record<string, Record<string, string>>>({});
+  const thumbnailSources = new Map<
+    string,
+    { image: vtkImageData; loaded: boolean }
+  >();
   const thumbnailer = createThumbnailer(thumbnailSize);
-  const currentThumbnails = ref<Record<string, string>>({});
 
   const {
     currentImageMetadata,
@@ -22,6 +28,9 @@ export function useVolumeThumbnailing(
     currentImageData,
     currentImage,
   } = useCurrentImage();
+  const currentThumbnails = computed(
+    () => thumbnails[currentImageID.value ?? ''] ?? {}
+  );
 
   // same as 3D view
   const { cameraDirVec, cameraUpVec } = useCameraOrientation(
@@ -45,11 +54,10 @@ export function useVolumeThumbnailing(
     interruptSentinel = localSentinel;
 
     thumbnailer.setInputImage(image);
-    const scalars = image.getPointData().getScalars();
-    const adaptiveAvailable =
-      currentImage.value?.isLoaded() &&
-      scalars.getNumberOfComponents() === 1 &&
-      scalars.getRange().every(Number.isFinite);
+    const adaptiveAvailable = !getAdaptiveVolumePresetUnavailableReason(
+      image,
+      !!currentImage.value?.isLoaded()
+    );
     const cycleIsCurrent = () =>
       interruptSentinel === localSentinel && imageID === currentImageID.value;
 
@@ -94,18 +102,6 @@ export function useVolumeThumbnailing(
     ).catch(logError);
   }
 
-  // workaround for computed not properly working on deeply reactive objects
-  // in vue 2.
-  watch(
-    thumbnails,
-    () => {
-      if (currentImageID.value) {
-        currentThumbnails.value = thumbnails[currentImageID.value] ?? {};
-      }
-    },
-    { deep: true }
-  );
-
   // force thumbnailing to stop
   onBeforeUnmount(() => {
     interruptSentinel = UNMOUNTED;
@@ -117,9 +113,13 @@ export function useVolumeThumbnailing(
   // trigger thumbnailing
   watch(
     [currentImageID, currentImageData, () => currentImage.value?.isLoaded()],
-    ([imageID, image], previous) => {
+    ([imageID, image, loaded]) => {
       if (imageID && image) {
-        if (previous?.[0] === imageID) thumbnails[imageID] = {};
+        const source = thumbnailSources.get(imageID);
+        if (source?.image !== image || source.loaded !== !!loaded) {
+          thumbnails[imageID] = {};
+          thumbnailSources.set(imageID, { image, loaded: !!loaded });
+        }
         doThumbnailing(imageID, image);
       }
     },
@@ -134,6 +134,7 @@ export function useVolumeThumbnailing(
       if (id in thumbnails) {
         after(() => {
           delete thumbnails[id];
+          thumbnailSources.delete(id);
         });
       }
     }

@@ -1,5 +1,6 @@
 import medicalPresets from '@/src/vtk/MedicalColorPresets.json';
 import { DEFAULT_ADAPTIVE_VOLUME_PRESET } from '@/src/utils/adaptiveVolumePreset';
+import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
 
 type DefaultVolumePresetInput = {
   nativeModality?: string;
@@ -7,12 +8,6 @@ type DefaultVolumePresetInput = {
   numberOfComponents?: number;
   scalarRange?: readonly [number, number];
   fallbackPreset: string;
-};
-
-const presetsByModality: Record<string, string> = {
-  CT: 'CT-AAA',
-  MR: 'MR-Default',
-  US: 'US-Fetal',
 };
 
 function getDeclaredModality({
@@ -70,7 +65,10 @@ export function getConventionalVolumePreset(
     'nativeModality' | 'metadata' | 'fallbackPreset'
   >
 ) {
-  return presetsByModality[getDeclaredModality(input)] ?? input.fallbackPreset;
+  return (
+    DEFAULT_PRESET_BY_MODALITY[getDeclaredModality(input)] ??
+    input.fallbackPreset
+  );
 }
 
 export function getDefaultVolumePreset(input: DefaultVolumePresetInput) {
@@ -83,7 +81,7 @@ export function getDefaultVolumePreset(input: DefaultVolumePresetInput) {
   )
     return fallbackPreset;
 
-  const presetName = presetsByModality[getDeclaredModality(input)];
+  const presetName = DEFAULT_PRESET_BY_MODALITY[getDeclaredModality(input)];
   if (!presetName) return DEFAULT_ADAPTIVE_VOLUME_PRESET;
 
   const preset = medicalPresets.find(({ Name }) => Name === presetName);

@@ -19,9 +19,10 @@ let heldSlice: Awaited<ReturnType<typeof browser.addInitScript>> | undefined;
 async function openStreamingVolume(
   modality: string,
   normalized = false,
-  sliceCount = 8
+  sliceCount = 8,
+  finalPixelValue = 0
 ) {
-  const directory = `progressive-${modality}-${normalized}-${sliceCount}`;
+  const directory = `progressive-${modality}-${normalized}-${sliceCount}-${finalPixelValue}`;
   const folder = path.join(TEMP_DIR, directory);
   fs.mkdirSync(folder, { recursive: true });
   const studyUid = newUid();
@@ -43,9 +44,11 @@ async function openStreamingVolume(
       imagePositionPatient: [0, 0, index * 3],
       spacingBetweenSlices: 3,
       pixelValue:
-        index === sliceCount - 1 || (sliceCount > 2 && index === 0)
-          ? 0
-          : 200 + index * 50,
+        index === sliceCount - 1
+          ? finalPixelValue
+          : sliceCount > 2 && index === 0
+            ? 0
+            : 200 + index * 50,
       ...(normalized ? { rescaleSlope: 0.001 } : {}),
     });
     fs.writeFileSync(path.join(folder, name), bytes);
@@ -141,12 +144,27 @@ describe('progressive volume presets', () => {
       await expectVisibleVolume();
       await expect(loadingIndicator()).toBeDisplayed();
       await openVolumeRenderingControls();
+      const cinematic = $('[data-testid="volume-properties"]');
+      await cinematic.scrollIntoView({ block: 'center', behavior: 'instant' });
+      await expect(cinematic).toBeDisplayed();
+      await expect(cinematic.$('.v-slider input')).toBeDisabled();
+      await expect(cinematic.$('.v-switch input')).toBeDisabled();
+      await cinematic.moveTo();
+      const tooltipID = await cinematic.getAttribute('aria-describedby');
+      if (!tooltipID) throw new Error('Expected a Cinematic loading tooltip');
+      const loadingTooltip = $(`#${tooltipID}`);
+      await expect(loadingTooltip).toBeDisplayed();
+      await expect(loadingTooltip).toHaveText(
+        expect.stringContaining('after the volume finishes loading')
+      );
       await expect(presetCard('Adaptive-Balanced')).toHaveAttribute(
         'aria-disabled',
         'true'
       );
       await releaseSlice();
       await expectCompletedPreset(modality === 'CT' ? 'CT-AAA' : 'MR-Default');
+      await expect(cinematic.$('.v-slider input')).toBeEnabled();
+      await expect(cinematic.$('.v-switch input')).toBeEnabled();
     });
   }
 
@@ -174,8 +192,8 @@ describe('progressive volume presets', () => {
     await expectCompletedPreset('Adaptive-Balanced');
   });
 
-  it('preserves a preset selected while slices are loading', async () => {
-    await openStreamingVolume('MR');
+  it('preserves a selected preset and finishes its opacity range when the final slice expands the intensities', async () => {
+    await openStreamingVolume('MR', false, 8, 2000);
     await expectVisibleVolume();
     await openVolumeRenderingControls();
     const selected = presetCard('CT-AAA');
@@ -185,5 +203,8 @@ describe('progressive volume presets', () => {
     await expect(loadingIndicator()).toBeDisplayed();
     await releaseSlice();
     await expectCompletedPreset('CT-AAA');
+    await expect(
+      $('[data-testid="volume-reset-color-opacity"]')
+    ).toBeDisabled();
   });
 });

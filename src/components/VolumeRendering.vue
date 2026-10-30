@@ -20,16 +20,11 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { usePiecewiseHistogram } from '@/src/composables/usePiecewiseHistogram';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
-import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import {
-  getAdaptiveVolumeHistogram,
-  getAdaptiveVolumePreset,
-  isAdaptiveVolumePreset,
-} from '@/src/utils/adaptiveVolumePreset';
-import {
-  getColorFunctionRangeFromPreset,
-  getShiftedOpacityFromPreset,
-} from '@/src/utils/vtk-helpers';
+import useVolumeColoringStore, {
+  getColorAndOpacityFromPreset,
+} from '@/src/store/view-configs/volume-coloring';
+import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePreset';
+import { getShiftedOpacityFromPreset } from '@/src/utils/vtk-helpers';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -224,11 +219,10 @@ export default defineComponent({
       ],
       ([image, preset, range]) => {
         if (!image) return;
-        const data =
-          preset && range && isAdaptiveVolumePreset(preset)
-            ? Float64Array.from(getAdaptiveVolumeHistogram(image, range))
-            : image.getPointData().getScalars().getData();
-        updateHistogram(data);
+        updateHistogram(
+          image,
+          preset && range && isAdaptiveVolumePreset(preset) ? range : undefined
+        );
       },
       { immediate: true }
     );
@@ -331,13 +325,12 @@ export default defineComponent({
     const fullMappingRange = computed(() => {
       const preset = colorTransferFunctionRef.value?.preset ?? '';
       const image = currentImageData.value;
-      if (image && isAdaptiveVolumePreset(preset)) {
-        return (
-          getAdaptiveVolumePreset(image, preset)?.transferFunction
-            .mappingRange ?? imageDataRange.value
-        );
-      }
-      return getColorFunctionRangeFromPreset(preset) ?? imageDataRange.value;
+      return (
+        (image &&
+          getColorAndOpacityFromPreset(image, preset)?.transferFunction
+            .mappingRange) ||
+        imageDataRange.value
+      );
     });
 
     const fullMappingRangeWidth = computed(() => {
@@ -406,19 +399,6 @@ export default defineComponent({
       rangeWidth.value = fullMappingRangeWidth.value;
     };
 
-    // Opening the controls preserves fitted and manually edited ranges.
-    const syncRangeControls = () => {
-      const mappingRange = colorTransferFunctionRef.value?.mappingRange;
-      if (!mappingRange) return;
-      const fullRange = fullMappingRange.value;
-      rangeWidth.value = mappingRange[1] - mappingRange[0];
-      rangeShift.value =
-        (mappingRange[0] + mappingRange[1] - fullRange[0] - fullRange[1]) / 2;
-    };
-    watch([selectedPreset, currentImageID], syncRangeControls, {
-      immediate: true,
-    });
-
     useResetViewsEvents().onClick(reset);
 
     // Sync slider values from mappingRange when it changes (e.g., when switching views)
@@ -433,7 +413,8 @@ export default defineComponent({
 
         rangeWidth.value = mappingRange[1] - mappingRange[0];
         rangeShift.value = currentCenter - fullCenter;
-      }
+      },
+      { immediate: true }
     );
 
     // Update store when sliders change (using center-based math to avoid drift)

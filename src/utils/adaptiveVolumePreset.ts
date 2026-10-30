@@ -22,6 +22,20 @@ export const ADAPTIVE_VOLUME_LIGHTING = {
   useLocalAmbientOcclusion: false,
 };
 
+export function getAdaptiveVolumePresetUnavailableReason(
+  image: vtkImageData | null | undefined,
+  isLoaded: boolean
+) {
+  if (!image) return 'Load a grayscale volume to use adaptive presets';
+  if (!isLoaded) return 'Wait for the complete volume to load';
+  const scalars = image.getPointData().getScalars();
+  if (!scalars || scalars.getNumberOfComponents() !== 1)
+    return 'Adaptive presets require a grayscale volume';
+  if (!scalars.getRange().every(Number.isFinite))
+    return 'Adaptive presets require finite intensities';
+  return '';
+}
+
 type AdaptiveColoring = Pick<
   VolumeColorConfig,
   'transferFunction' | 'opacityFunction'
