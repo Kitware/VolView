@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { computed, defineComponent, h, nextTick, ref } from 'vue';
+import { computed, defineComponent, h, markRaw, nextTick, ref } from 'vue';
 import { createVuetify } from 'vuetify';
 import { Tags } from '@/src/core/dicomTags';
 import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
@@ -13,10 +13,13 @@ import EnFaceControls from '@/src/enface/EnFaceControls.vue';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import { allocateMask } from '@/src/segmentation/masks/storage';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 import { createOCTFixture } from '@/tests/unit/octFixture';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import type { mat3 } from 'gl-matrix';
+import type { Extent3D } from '@/src/segmentation/geometry';
 
 beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => {
@@ -50,10 +53,14 @@ async function mountInput(id: string) {
     segmentation.ensureSegmentationForImage(id).id,
     segment
   );
-  const voxels = segmentation.maskVoxels(mask.id);
-  voxels.materialize();
-  voxels.ensureContains([0, 1, 0, 1, 0, 1]);
-  voxels.apply(new Uint8Array(8).fill(1));
+  const [i, , j, , k] = image.getExtent();
+  const extent: Extent3D = [i, i + 1, j, j + 1, k, k + 1];
+  mask.representations.labelmap = {
+    image: markRaw(allocateMask(image, extent)),
+    extent,
+    name: 'Layer.vti',
+  };
+  segmentation.maskVoxels(mask.id).apply(new Uint8Array(8).fill(1));
   const settings = useEnFaceViewStore().configFor('calibration', id);
   settings.highlightThin = true;
   const host = defineComponent({
@@ -74,6 +81,7 @@ async function mountInput(id: string) {
             'output',
             {
               'data-measurable': Boolean(request),
+              'data-counts': result ? Array.from(result.counts).join(',') : '',
               'data-depth': result
                 ? result.maximumCount * input.micronsPerVoxel.value
                 : '',
@@ -181,35 +189,90 @@ describe('occupied-depth input calibration', () => {
     }
   });
 
-  it('rejects a nonorthogonal source grid', async () => {
-    const { wrapper, image } = await inputFor('0.0104\\0.02');
-    try {
-      image.setDirection([1, 0, 0, 0.1, 1, 0, 0, 0, 1]);
-      await nextTick();
-      expect(wrapper.get('output').attributes('data-measurable')).toBe('false');
-      expect(wrapper.text()).toMatch(
-        /requires an orthogonal source voxel grid/
-      );
-    } finally {
-      wrapper.unmount();
+  it.each([
+    { name: 'unit skewed', direction: [1, 0, 0, 0.1, 1, 0, 0, 0, 1] },
+    {
+      name: 'scaled skewed',
+      direction: [0.01, 0, 0, 0.005, 0.01, 0, 0, 0, 0.01],
+    },
+    { name: 'zero-length', direction: [0, 0, 0, 0, 1, 0, 0, 0, 1] },
+    { name: 'non-finite', direction: [Infinity, 0, 0, 0, 1, 0, 0, 0, 1] },
+  ] satisfies { name: string; direction: mat3 }[])(
+    'rejects a $name source grid',
+    async ({ direction }) => {
+      const { wrapper, image } = await inputFor('0.0104\\0.02');
+      try {
+        image.setDirection(direction);
+        await nextTick();
+        expect(wrapper.get('output').attributes('data-measurable')).toBe(
+          'false'
+        );
+        expect(wrapper.text()).toMatch(
+          /requires an orthogonal source voxel grid/
+        );
+      } finally {
+        wrapper.unmount();
+      }
     }
-  });
+  );
 
-  it('retains physical scale carried by an orthogonal generic image direction', async () => {
-    const image = vtkImageData.newInstance();
-    image.setDimensions([2, 2, 2]);
-    image.setSpacing([0.01, 0.01, 0.01]);
-    image.setDirection([1, 0, 0, 0, 2, 0, 0, 0, 1]);
-    image
-      .getPointData()
-      .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(8) }));
-    const id = useImageCacheStore().addVTKImageData(image, 'scaled.vti');
-    const { wrapper } = await mountInput(id);
-    try {
-      expect(wrapper.get('output').attributes('data-measurable')).toBe('true');
-      expect(wrapper.get('output').attributes('data-depth')).toBe('40');
-    } finally {
-      wrapper.unmount();
+  it.each([
+    { extent: [1, 3, 1, 4, 1, 5] },
+    { extent: [5, 7, -4, -1, 10, 14] },
+  ] satisfies { extent: Extent3D }[])(
+    'aligns occupied-depth pixels and slab ranges for extent $extent',
+    async ({ extent }) => {
+      const image = vtkImageData.newInstance();
+      image.setExtent(extent);
+      image.setSpacing([0.01, 0.01, 0.01]);
+      image
+        .getPointData()
+        .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(60) }));
+      const id = useImageCacheStore().addVTKImageData(image, 'offset.vti');
+      const { wrapper, settings } = await mountInput(id);
+      try {
+        expect(wrapper.get('output').attributes('data-measurable')).toBe(
+          'true'
+        );
+        expect(wrapper.get('output').attributes('data-depth')).toBe('20');
+        expect(wrapper.get('output').attributes('data-counts')).toBe(
+          '2,2,0,2,2,0,0,0,0,0,0,0,0,0,0'
+        );
+        settings.depthStart = 1;
+        settings.depthEnd = 1;
+        await nextTick();
+        expect(wrapper.get('output').attributes('data-depth')).toBe('10');
+        expect(wrapper.get('output').attributes('data-counts')).toBe(
+          '1,1,0,1,1,0,0,0,0,0,0,0,0,0,0'
+        );
+      } finally {
+        wrapper.unmount();
+      }
     }
-  });
+  );
+
+  it.each([2, 0.01])(
+    'retains physical scale %s carried by an orthogonal generic image direction',
+    async (scale) => {
+      const image = vtkImageData.newInstance();
+      image.setDimensions([2, 2, 2]);
+      image.setSpacing([0.01, 0.01, 0.01]);
+      image.setDirection([1, 0, 0, 0, scale, 0, 0, 0, 1]);
+      image
+        .getPointData()
+        .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(8) }));
+      const id = useImageCacheStore().addVTKImageData(image, 'scaled.vti');
+      const { wrapper } = await mountInput(id);
+      try {
+        expect(wrapper.get('output').attributes('data-measurable')).toBe(
+          'true'
+        );
+        expect(wrapper.get('output').attributes('data-depth')).toBe(
+          String(20 * scale)
+        );
+      } finally {
+        wrapper.unmount();
+      }
+    }
+  );
 });

@@ -1,22 +1,19 @@
 import { computed, ref, unref, watch, type MaybeRef } from 'vue';
+import { areEquals, dot } from '@kitware/vtk.js/Common/Core/Math';
+import type { Vector3 } from '@kitware/vtk.js/types';
 import type { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { extentSize, isEmptyExtent } from '@/src/segmentation/geometry';
+import {
+  extentSize,
+  extentWithin,
+  isEmptyExtent,
+} from '@/src/segmentation/geometry';
 import type { OccupiedDepthRequest } from '@/src/segmentation/measurements/useOccupiedDepth';
 import type { SlabSpecification } from '@/src/core/slab/types';
 import { getOccupiedDepthSupport } from './occupiedDepthSupport';
 import { useEnFaceViewStore } from './store';
-
-function arraysNear(left: ArrayLike<number>, right: ArrayLike<number>) {
-  return (
-    left.length === right.length &&
-    Array.from(left).every(
-      (value, index) => Math.abs(value - right[index]) < 1e-5
-    )
-  );
-}
 
 export type OccupiedDepthProjection = {
   source: Pick<
@@ -121,6 +118,25 @@ export function useOccupiedDepthInput(
       return 'The selected segment does not have a supported binary voxel mask.';
     return null;
   });
+  const measurementMask = computed(() => {
+    void volumeRevision.value;
+    void maskRevision.value;
+    const binding = selectedBinding.value;
+    const parent = currentImageData.value;
+    if (!binding || !parent) return null;
+    const scalars = binding.image.getPointData().getScalars();
+    const values = scalars?.getData();
+    if (
+      !(values instanceof Uint8Array) ||
+      scalars.getNumberOfComponents() !== 1
+    )
+      return null;
+    return {
+      values,
+      dimensions: binding.image.getDimensions(),
+      extent: extentWithin(binding.extent, parent.getExtent()),
+    };
+  });
   const maskGeometryReason = computed(() => {
     void volumeRevision.value;
     void maskRevision.value;
@@ -128,38 +144,50 @@ export function useOccupiedDepthInput(
     const parent = currentImageData.value;
     if (!binding || !parent) return null;
     const extent = binding.extent;
-    const validExtent = extent.every(
+    const validExtent = measurementMask.value?.extent.every(
       (value, index) =>
         Number.isInteger(value) &&
         value >= 0 &&
         value < dimensions.value[Math.floor(index / 2)]
     );
     const direction = parent.getDirection();
-    const bases = [0, 1, 2].map((axis) =>
-      Array.from(direction).slice(axis * 3, axis * 3 + 3)
-    );
+    const bases = [0, 1, 2].map((axis) => {
+      const offset = axis * 3;
+      const basis: Vector3 = [
+        direction[offset],
+        direction[offset + 1],
+        direction[offset + 2],
+      ];
+      const length = Math.hypot(...basis);
+      return Number.isFinite(length) && length > 0
+        ? (basis.map((value) => value / length) as Vector3)
+        : null;
+    });
     const orthogonal = [
       [0, 1],
       [0, 2],
       [1, 2],
-    ].every(
-      ([a, b]) =>
-        Math.abs(
-          bases[a].reduce(
-            (sum, value, index) => sum + value * bases[b][index],
-            0
-          )
-        ) < 1e-4
-    );
+    ].every(([a, b]) => {
+      const left = bases[a];
+      const right = bases[b];
+      return (
+        left !== null && right !== null && Math.abs(dot(left, right)) < 1e-4
+      );
+    });
     if (!orthogonal)
       return 'Occupied depth requires an orthogonal source voxel grid.';
     const gridMatches =
-      arraysNear(binding.image.getDimensions(), extentSize(extent)) &&
-      arraysNear(binding.image.getSpacing(), parent.getSpacing()) &&
-      arraysNear(binding.image.getDirection(), parent.getDirection());
-    const originMatches = arraysNear(
+      areEquals(binding.image.getDimensions(), extentSize(extent), 1e-5) &&
+      areEquals(binding.image.getSpacing(), parent.getSpacing(), 1e-5) &&
+      areEquals(
+        [...binding.image.getDirection()],
+        [...parent.getDirection()],
+        1e-5
+      );
+    const originMatches = areEquals(
       binding.image.getOrigin(),
-      parent.indexToWorld([extent[0], extent[2], extent[4]])
+      [...parent.indexToWorld([extent[0], extent[2], extent[4]])],
+      1e-5
     );
     return validExtent && gridMatches && originMatches
       ? null
@@ -227,23 +255,6 @@ export function useOccupiedDepthInput(
     maskRevision.value += 1;
   });
 
-  const measurementMask = computed(() => {
-    void maskRevision.value;
-    const binding = selectedBinding.value;
-    if (!binding) return null;
-    const scalars = binding.image.getPointData().getScalars();
-    const values = scalars?.getData();
-    if (
-      !(values instanceof Uint8Array) ||
-      scalars.getNumberOfComponents() !== 1
-    )
-      return null;
-    return {
-      values,
-      dimensions: binding.image.getDimensions(),
-      extent: [...binding.extent],
-    };
-  });
   const request = computed((): OccupiedDepthRequest | null => {
     if (!settings.value.highlightThin) return null;
     void volumeRevision.value;

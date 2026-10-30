@@ -1,4 +1,7 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import JSZip from 'jszip';
+import { createNrrdVolume } from '../fixtures/oct/volumes';
 import { Key } from 'webdriverio';
 import {
   PANEL,
@@ -42,6 +45,97 @@ import {
   openRetina,
   registerOctTestHooks,
 } from './octInteractionTestUtils';
+
+async function stageOffsetDepthScene(offset: boolean) {
+  const directory = makeTempDir(STEM);
+  const name = offset ? 'offset-depth' : 'zero-depth';
+  const minimum = offset ? [1, 1, 1] : [0, 0, 0];
+  const origin = offset ? [0, 0, 0] : [1, 1, 1];
+  const extent = minimum.flatMap((first) => [first, first + 7]).join(' ');
+  fs.writeFileSync(
+    path.join(directory, name + '.vti'),
+    '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
+      `<ImageData WholeExtent="${extent}" Origin="${origin.join(' ')}" Spacing="1 1 1">` +
+      `<Piece Extent="${extent}"><PointData Scalars="intensity">` +
+      '<DataArray type="UInt16" Name="intensity" format="ascii">' +
+      new Array(8 ** 3).fill(100).join(' ') +
+      '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
+  );
+  const zip = new JSZip();
+  zip.file(
+    'mask.nrrd',
+    createNrrdVolume({
+      dimensions: [4, 4, 4],
+      spacing: [1, 1, 1],
+      origin: [2, 3, 2],
+      scalars: Uint16Array.from({ length: 4 ** 3 }, (_, index) =>
+        index % 4 < 2 && Math.floor(index / 4) % 4 >= 2 ? 0 : 1
+      ),
+    })
+  );
+  zip.file(
+    'manifest.json',
+    JSON.stringify({
+      version: '7.0.0',
+      dataSources: [{ id: 0, type: 'uri', uri: `/tmp/${STEM}/${name}.vti` }],
+      segments: [{ id: 'band', name: 'Offset band', color: [255, 0, 0, 255] }],
+      segmentations: [
+        {
+          id: 'segmentation',
+          name: 'Offset band',
+          parentImage: '0',
+          fillOpacity: 1,
+          outlineOpacity: 0,
+          outlineThickness: 0,
+          order: ['mask'],
+          masks: [
+            {
+              id: 'mask',
+              segmentId: 'band',
+              representations: {
+                labelmap: {
+                  path: 'mask.nrrd',
+                  extent: [1, 4, 2, 5, 1, 4].map(
+                    (value, index) => value + minimum[Math.floor(index / 2)]
+                  ),
+                },
+              },
+            },
+          ],
+        },
+      ],
+      viewByID: {
+        enface: {
+          id: 'enface',
+          name: 'En face',
+          type: 'EnFace',
+          dataID: '0',
+          config: {
+            '0': {
+              enFace: {
+                axis: 1,
+                method: 'mean',
+                depthStart: 0,
+                depthEnd: null,
+                highlightThin: true,
+                thresholdMicrons: 3000,
+                segmentId: 'band',
+              },
+            },
+          },
+        },
+      },
+      layout: { direction: 'row', items: [{ type: 'slot', slotIndex: 0 }] },
+      layoutSlots: ['enface'],
+      activeView: 'enface',
+    })
+  );
+  fs.writeFileSync(
+    path.join(directory, name + '.volview.zip'),
+    await zip.generateAsync({ type: 'nodebuffer' })
+  );
+  return `${STEM}/${name}.volview.zip`;
+}
 
 describe('Retinal OCT occupied-depth', () => {
   registerOctTestHooks();
@@ -128,6 +222,59 @@ describe('Retinal OCT occupied-depth', () => {
       $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
     ).toBeSelected();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('keeps highlighted pixels and selected slabs aligned on equivalent offset extents', async () => {
+    const expectedImages: string[] = [];
+    for (const offset of [false, true]) {
+      const scene = await stageOffsetDepthScene(offset);
+      await volViewPage.open(`?urls=[tmp/${scene}]`);
+      await waitForEnFaceReady();
+      await setEnFaceWindow(200, 100);
+      await openControls();
+      await expandEnFaceSection('thickness');
+      await expect(
+        $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
+      ).toBeEnabled();
+      const slabs = [
+        [0, 7, [true, false, false]],
+        [0, 1, [false, false, false]],
+        [2, 2, [true, true, false]],
+        [4, 5, [false, true, false]],
+      ] satisfies [number, number, boolean[]][];
+      for (const [step, [first, last, highlighted]] of slabs.entries()) {
+        await expandEnFaceSection('projection');
+        await setSlabRange(first, last);
+        await browser.waitUntil(
+          async () => {
+            const pixels = await Promise.all(
+              [1.5, 3.5, 6].map((x) => enFacePixel(x, 2.5))
+            );
+            return pixels.every((pixel, index) =>
+              highlighted[index]
+                ? pixel[0] > pixel[1] + 20 && pixel[0] > pixel[2] + 20
+                : pixel[0] === pixel[1] &&
+                  pixel[1] === pixel[2] &&
+                  pixel[0] > 20
+            );
+          },
+          {
+            timeoutMsg: `Expected occupied-depth pixels for slab ${first}-${last}`,
+          }
+        );
+        if (offset)
+          await browser.waitUntil(
+            async () =>
+              (await enFaceAppearance()).image === expectedImages[step],
+            {
+              timeoutMsg:
+                'Expected the same occupied-depth overlay for equivalent extents',
+            }
+          );
+        else expectedImages.push((await enFaceAppearance()).image);
+      }
+      expect(await volViewPage.getNotificationsCount()).toBe(0);
+    }
   });
 
   it('uses imported NIfTI geometry for thickness when units are unspecified', async () => {
