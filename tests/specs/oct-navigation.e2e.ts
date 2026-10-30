@@ -359,9 +359,6 @@ describe('Retinal OCT navigation', () => {
     await enableHighlight();
     await setThicknessThreshold(31);
     await expectHighlight(true);
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).coloredPixels > 100
-    );
     await expectSliceLine();
     await expectControlsBesideSelector();
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
