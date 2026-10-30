@@ -14,6 +14,7 @@ const {
   DeflatedReadBufferStream,
 } = dcmjs.data;
 
+const FILE_META_GROUP = 0x0002;
 const FILE_META_GROUP_LENGTH = '00020000';
 const TRANSFER_SYNTAX_UID = '00020010';
 const PIXEL_DATA = '7FE00010';
@@ -136,16 +137,24 @@ const openFile = (bytes: Uint8Array) => {
       syntax: DicomMessage._normalizeSyntax(layout.transferSyntaxUid),
     };
 
-  const groupLength = DicomMessage._readTag(stream, EXPLICIT_VR_LITTLE_ENDIAN);
-  if (groupLength.tag.toCleanString() !== FILE_META_GROUP_LENGTH)
-    throw new Error('Not a DICOM file: the file meta group length is missing');
-
-  const [metaLength] = groupLength.values as number[];
-  const meta = DicomMessage._read(
-    stream.more(metaLength),
-    EXPLICIT_VR_LITTLE_ENDIAN
-  );
-  const syntax = meta[TRANSFER_SYNTAX_UID]?.Value[0];
+  // Read group 2 sequentially when its group length is absent. A declared
+  // length also prevents compressed data from being mistaken for more meta.
+  let syntax: unknown;
+  let metaEnd = bytes.length;
+  stream.setEndian(true);
+  while (!stream.end() && stream.offset < metaEnd) {
+    const start = stream.offset;
+    const group = stream.readUint16();
+    stream.offset = start;
+    if (group !== FILE_META_GROUP) break;
+    const attribute = DicomMessage._readTag(stream, EXPLICIT_VR_LITTLE_ENDIAN);
+    const tag = attribute.tag.toCleanString();
+    if (tag === FILE_META_GROUP_LENGTH) {
+      const [length] = attribute.values as number[];
+      metaEnd = stream.offset + length;
+    }
+    if (tag === TRANSFER_SYNTAX_UID) [syntax] = attribute.values as unknown[];
+  }
   if (typeof syntax !== 'string')
     throw new Error('Not a DICOM file: the transfer syntax is missing');
 
