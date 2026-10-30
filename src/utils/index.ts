@@ -320,6 +320,23 @@ export function addEventListenerOnce<T extends EventTarget>(
  * @param param1
  * @returns
  */
+/**
+ * `parts` joined into one buffer, cut to `length` bytes when one is given.
+ */
+export function concatBytes(
+  parts: readonly Uint8Array[],
+  length = parts.reduce((total, part) => total + part.length, 0)
+) {
+  const out = new Uint8Array(length);
+  parts.reduce((offset, part) => {
+    if (offset >= length) return offset;
+    const slice = part.subarray(0, length - offset);
+    out.set(slice, offset);
+    return offset + slice.length;
+  }, 0);
+  return out;
+}
+
 export function toAscii(
   bytes: Uint8Array | Uint8ClampedArray,
   { ignoreNulls = false } = {}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { getConsistentDicomWindowRange } from '@/src/utils/dicomWindowRange';
 
 function windowTags(center: string, width: string, voiFunction?: string) {

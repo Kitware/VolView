@@ -3,6 +3,9 @@
 // local server at `/tmp/<name>`. CI keys its dataset cache on this file.
 //
 // Release fixtures and original public DICOM instances are pinned by SHA-256.
+import dicomVolumeCorpus from './dicomVolumeCorpus.json' with { type: 'json' };
+import compositionCorpus from './dicomCompositionCorpus.json' with { type: 'json' };
+
 const DATASET_RELEASE =
   'https://github.com/Kitware/VolView/releases/download/test-data-1';
 
@@ -108,113 +111,15 @@ export const {
   CT_ELECTRODES,
 } = DATASETS;
 
-export const PET_CT_DICOM_DATASETS = [
-  {
-    name: 'PET-CT-PT-01.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.125971577518855152164687925479',
-    sha256: '082cc2a92409d26dcd465ca37dcb55182f526fa94f0d66299c93196f0dd2b130',
-  },
-  {
-    name: 'PET-CT-PT-02.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.164470072637482892742730606415',
-    sha256: '7fc5a40cc7645c64c91df14008e27c8f20f6b613af8f888125d72c6ae6f153d6',
-  },
-  {
-    name: 'PET-CT-PT-03.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.645656839545863315258382059304',
-    sha256: 'b4922f66ed2d02e1783c32d23e3bd8aa73cc30f648784de91316890c1a8faaf6',
-  },
-  {
-    name: 'PET-CT-PT-04.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.171033599854331402388163035916',
-    sha256: 'ae96aa74535276c86e9e6f06be540b446f349d58e376cd6812832bbb183fed0b',
-  },
-  {
-    name: 'PET-CT-PT-05.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.757229251338810950547930294076',
-    sha256: '71d7ea70e1527dcaac130ec4794748710961d0d18b11dc8a0dda3d96c7e1ddea',
-  },
-  {
-    name: 'PET-CT-PT-06.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.290313076131916328810257384513',
-    sha256: '4c9f3fac5d2710d72c46ed63f97aed8052245380967efa3f1f4ce72aeb488fa7',
-  },
-  {
-    name: 'PET-CT-PT-07.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.167034157012705076112347098246',
-    sha256: 'c5398c842bb35f7c7b7d77398d2246003b4565474961c622820545ab1a42d7dc',
-  },
-  {
-    name: 'PET-CT-PT-08.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.305525101475115108798705213666',
-    sha256: '65115e0a3335074976e2178e52e5036bfe4201d3b315a79f733cb470729c220d',
-  },
-  {
-    name: 'PET-CT-PT-09.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.180547818912813778100247492512',
-    sha256: '8e0316240d5e8cc3c7e0913b4abb892be1be5879b5cc3f0379a205fd286ca17b',
-  },
-  {
-    name: 'PET-CT-PT-10.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.316521143696464534574699049839&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.190211187176681563808826571096',
-    sha256: 'fb424c9c3670d0f0374361ecb16bf342e27cdfcf8be0aead1e4629ea7a2e7928',
-  },
-  {
-    name: 'PET-CT-CT-01.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.330442471593744252750634668562',
-    sha256: '262fc85a0a05c57ec96451baf8a1b64f3287d5d6efdf5e4d9e67983e20e59fe2',
-  },
-  {
-    name: 'PET-CT-CT-02.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.787146087385319992976365569088',
-    sha256: 'c348f6f8d899ce9e02a4b2fc3f93743491df1a04c99f65c1c77ab1c8baec8cb7',
-  },
-  {
-    name: 'PET-CT-CT-03.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.754367593034585495537680981967',
-    sha256: '4935a37d77059028d175a38c515e52beb2e90d0971c9b495ab956433c8e7fa18',
-  },
-  {
-    name: 'PET-CT-CT-04.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.268694914226381205284654198517',
-    sha256: '27cff9c1bd6d1fc6543bb8d2a009e232c4f39b6aa333b9d3ce39d7cdeddf0cc3',
-  },
-  {
-    name: 'PET-CT-CT-05.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.273002091516249828143197374115',
-    sha256: '038be9136459b5d9d5dbd44b7d35394012a0415f5ed09b2ba46ca34aef1c1f96',
-  },
-  {
-    name: 'PET-CT-CT-06.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.251520880093056497198942071424',
-    sha256: 'feceb609cda89e382459a1c6884e5737e5f00b378de19c33e3f9838474f418bd',
-  },
-  {
-    name: 'PET-CT-CT-07.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.254151550624375545322457061626',
-    sha256: 'a416fb025436c0d0bcdedb9e36b51a4ac744ac332b83ce8c94da7b459188e39b',
-  },
-  {
-    name: 'PET-CT-CT-08.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.477776731601464757864806040291',
-    sha256: '6b8db167b9ddbf9194d9935b94092668d2b7eb6c576dce5cc3f96046046fb6fc',
-  },
-  {
-    name: 'PET-CT-CT-09.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.831869199671510110705249657284',
-    sha256: '31df0464f111f0cccd1cba25f2e014f88375de44bc0ba7ead844a015508f5f43',
-  },
-  {
-    name: 'PET-CT-CT-10.dcm',
-    url: 'https://services.cancerimagingarchive.net/nbia-api/services/v1/getSingleImage?SeriesInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.114189455733462211540942355885&SOPInstanceUID=1.3.6.1.4.1.14519.5.2.1.6655.2359.243468898389109491372438016818',
-    sha256: 'c2470a67fd601d7e36130bebd51e8e71b9f6fad9832ea6b79f504309f2fee984',
-  },
-];
+export const PET_CT_DICOM_DATASETS = compositionCorpus.datasets.filter(
+  ({ name }) => name.startsWith('PET-CT-')
+);
 
 // Everything declared above is downloaded.
 export const TEST_DATASETS = [
   ...Object.values(DATASETS),
-  ...PET_CT_DICOM_DATASETS,
+  ...compositionCorpus.datasets,
+  ...dicomVolumeCorpus,
 ];
 
 export type TestDataset = (typeof TEST_DATASETS)[number];

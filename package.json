@@ -7,7 +7,11 @@
   "files": [
     "dist",
     "src",
-    "backend-contract"
+    "backend-contract",
+    "packages/dicom/core/**/*.ts",
+    "packages/dicom/vtk/**/*.ts",
+    "packages/dicom/README.md",
+    "!packages/dicom/**/__tests__/**"
   ],
   "scripts": {
     "dev": "cross-env VITE_SHOW_SAMPLE_DATA=true vite",
@@ -21,17 +25,17 @@
     "test:e2e:chrome": "cross-env VITE_SHOW_SAMPLE_DATA=true npm run build && wdio run ./wdio.chrome.conf.ts",
     "test:e2e:chrome:skip-build": "wdio run ./wdio.chrome.conf.ts",
     "test:e2e:dev": "cross-env VITE_SHOW_SAMPLE_DATA=true concurrently -P \"npm run dev\"  \"wdio run ./wdio.dev.conf.ts --watch {@}\"",
-    "lint": "vue-tsc --noEmit && eslint \"src/**/*.{js,ts,vue}\" \"tests/**/*.{js,ts}\" \"scripts/**/*.mjs\"",
-    "build:all": "npm run build:dicom && npm run build:resample && npm run build",
-    "build:dicom": "itk-wasm -s src/io/itk-dicom/ build ",
-    "build:dicom:debug": "itk-wasm -s src/io/itk-dicom/ build -- -DCMAKE_BUILD_TYPE=Debug",
+    "lint": "vue-tsc --noEmit && eslint \"src/**/*.{js,ts,vue}\" \"tests/**/*.{js,ts}\" \"scripts/**/*.mjs\" \"packages/dicom/**/*.{js,ts,mjs}\"",
+    "build:all": "npm run build:resample && npm run build",
     "build:resample": "itk-wasm -s src/io/resample/ build ",
     "build:resample:debug": "itk-wasm -s src/io/resample/ build -- -DCMAKE_BUILD_TYPE=Debug",
     "build:watch": "npm run build -- --watch",
-    "prettify": "prettier --write src tests",
+    "prettify": "prettier --write src tests packages/dicom",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "dicom:build": "node packages/dicom/scripts/build.mjs",
+    "dicom:check": "npm run dicom:build && node packages/dicom/scripts/check-consumers.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.0",
@@ -72,6 +76,7 @@
     "core-js": "3.47.0",
     "cors": "^2.8.5",
     "cross-env": "^10.1.0",
+    "dcmjs": "^0.52.0",
     "dicom-parser": "^1.8.21",
     "dicomweb-client-typed": "^0.8.6",
     "eslint": "^9.39.1",

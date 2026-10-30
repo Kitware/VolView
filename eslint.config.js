@@ -64,6 +64,11 @@ const ownFeatureExceptPure = (feature) => {
 const upperLayerMessage = (feature) =>
   `The ${feature.dir} pure layer must not import stores, components, or upper feature modules. Dependencies point downward only.`;
 
+const dicomPublicSurface = {
+  regex: '^@/packages/dicom/(?!core(?:/index)?$|vtk(?:/index)?$)',
+  message: 'Use the DICOM core or vtk public entry point.',
+};
+
 const featureBoundaries = (features) => {
   const publicSurface = ({ dir }) => ({
     group: [`@/src/${dir}/*`, `@/src/${dir}/*/**`, `!@/src/${dir}/index`],
@@ -72,8 +77,10 @@ const featureBoundaries = (features) => {
   const publicFeatures = features.filter(
     (feature) => feature.publicSurface !== false
   );
-  const otherSurfaces = (feature) =>
-    publicFeatures.filter((other) => other !== feature).map(publicSurface);
+  const otherSurfaces = (feature) => [
+    dicomPublicSurface,
+    ...publicFeatures.filter((other) => other !== feature).map(publicSurface),
+  ];
 
   return [
     {
@@ -82,7 +89,12 @@ const featureBoundaries = (features) => {
       rules: {
         'no-restricted-imports': [
           'error',
-          { patterns: publicFeatures.map(publicSurface) },
+          {
+            patterns: [
+              dicomPublicSurface,
+              ...publicFeatures.map(publicSurface),
+            ],
+          },
         ],
       },
     },
@@ -172,10 +184,10 @@ const E2E_TIMEOUT_DEBT = [
 export default tseslint.config(
   {
     ignores: [
-      'src/io/itk-dicom/emscripten-build/**',
       'src/io/resample/emscripten-build/**',
       '**/*.d.ts',
       'dist/**',
+      'packages/dicom/dist/**',
       'node_modules/**',
     ],
   },
@@ -293,7 +305,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/vtk/**/*.{js,ts}'],
+    files: ['src/vtk/**/*.{js,ts}', 'packages/dicom/vtk/**/*.{js,ts}'],
     rules: {
       'no-param-reassign': [
         'error',
@@ -365,8 +377,9 @@ export default tseslint.config(
   // level because the ratchet only fails a file whose debt grows, so existing
   // files stay over these numbers without failing `npm run lint`.
   {
-    files: ['src/**/*.{js,ts,vue}'],
+    files: ['src/**/*.{js,ts,vue}', 'packages/dicom/**/*.{js,ts}'],
     ignores: [
+      'packages/dicom/**/__tests__/**',
       'src/**/__tests__/**',
       'src/**/*.{spec,test}.{js,ts}',
       'src/**/*.d.ts',
@@ -382,5 +395,26 @@ export default tseslint.config(
       ],
     },
   },
+  ...['core', 'vtk'].map((entry) => ({
+    files: [`packages/dicom/${entry}/**/*.{js,ts}`],
+    ignores: ['**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                entry === 'core'
+                  ? '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$))'
+                  : '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/)',
+              message:
+                'DICOM package internals use relative imports and cannot depend on application state or UI frameworks. Core cannot depend on vtk.js.',
+            },
+          ],
+        },
+      ],
+    },
+  })),
   eslintConfigPrettier
 );

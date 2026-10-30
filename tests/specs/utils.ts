@@ -268,6 +268,40 @@ export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   await openVolViewPage(fileName);
 }
 
+/** Drops local files onto the open app using its files-list import path. */
+export async function dropFiles(filePaths: string[]) {
+  const encoded = filePaths.map((filePath) => ({
+    name: path.basename(filePath),
+    base64: fs.readFileSync(filePath).toString('base64'),
+  }));
+  const dropped = await browser.execute(
+    (files: Array<{ name: string; base64: string }>) => {
+      const transfer = new DataTransfer();
+      files.forEach(({ name, base64 }) => {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1)
+          bytes[i] = binary.charCodeAt(i);
+        transfer.items.add(new File([bytes], name));
+      });
+
+      const target = document.querySelector('#app-container');
+      if (!target) return false;
+
+      const drop = new Event('drop', { bubbles: true, cancelable: true });
+      // Synthetic items have no filesystem entry, so use the files list.
+      Object.defineProperty(drop, 'dataTransfer', {
+        value: { items: null, files: transfer.files },
+      });
+      // dispatchEvent reports preventDefault, not delivery.
+      target.dispatchEvent(drop);
+      return true;
+    },
+    encoded
+  );
+  expect(dropped).toBe(true);
+}
+
 /** Loads a file into the page already open, through the Open files dialog. */
 export async function openThroughDialog(
   filePath: string,

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { computed, defineComponent, reactive, toRefs, watch } from 'vue';
+import { computed, defineComponent, reactive, ref, toRefs, watch } from 'vue';
 import type { PropType } from 'vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { DataSelection, isDicomImage } from '@/src/utils/dataSelection';
@@ -15,6 +15,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { useSegmentationStore } from '@/src/segmentation/store';
+import ImageSpacingDetails from '@/src/components/ImageSpacingDetails.vue';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -33,11 +34,13 @@ export default defineComponent({
     },
   },
   components: {
+    ImageSpacingDetails,
     GroupableItem,
     PersistentOverlay,
     SegmentationConversionProgress,
   },
   setup(props) {
+    const spacingImageID = ref<string | null>(null);
     const { volumeKeys } = toRefs(props);
     const dicomStore = useDICOMStore();
     const datasetStore = useDatasetStore();
@@ -95,51 +98,75 @@ export default defineComponent({
     const thumbnailCache = reactive<Record<string, Thumbnail>>({});
 
     watch(
-      volumeKeys,
-      (keys) => {
-        keys.forEach(async (key) => {
-          const cacheKey = dicomCacheKey(key);
-          if (cacheKey in thumbnailCache) {
-            return;
-          }
+      () =>
+        volumeKeys.value.map((key) => ({
+          key,
+          image: imageCacheStore.imageById[key],
+          info: dicomStore.volumeInfo[key],
+        })),
+      (entries, previousEntries, onCleanup) => {
+        let active = true;
+        onCleanup(() => {
+          active = false;
+        });
+        const previousByKey = new Map(
+          previousEntries?.map((entry) => [entry.key, entry])
+        );
 
-          const image = imageCacheStore.imageById[key];
-          if (!image) return;
+        entries
+          .filter(({ key, image, info }) => {
+            const cacheKey = dicomCacheKey(key);
+            const previous = previousByKey.get(key);
+            if (previous?.image !== image || previous?.info !== info) {
+              delete thumbnailCache[cacheKey];
+            }
+            return image && info && !(cacheKey in thumbnailCache);
+          })
+          .forEach(async ({ key, image, info }) => {
+            const cacheKey = dicomCacheKey(key);
 
-          try {
-            const thumb = await image.getThumbnail();
-            if (thumb) {
-              thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
-            } else {
+            const isCurrent = () =>
+              active &&
+              volumeKeys.value.includes(key) &&
+              imageCacheStore.imageById[key] === image &&
+              dicomStore.volumeInfo[key] === info;
+
+            try {
+              const thumb = await image.getThumbnail();
+              if (!isCurrent()) return;
+              if (thumb) {
+                thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
+              } else {
+                thumbnailCache[cacheKey] = {
+                  kind: 'text',
+                  value: info.Modality,
+                };
+              }
+            } catch (err) {
+              if (!isCurrent()) return;
+              if (err instanceof Error && err.name !== 'AbortError') {
+                const messageStore = useMessageStore();
+                messageStore.addError('Failed to generate thumbnails', {
+                  error: err,
+                  details: `${err}. More details can be found in the developer's console.`,
+                });
+              }
               thumbnailCache[cacheKey] = {
                 kind: 'text',
-                value: dicomStore.volumeInfo[key].Modality,
+                value: info.Modality,
               };
             }
-          } catch (err) {
-            if (err instanceof Error) {
-              const messageStore = useMessageStore();
-              messageStore.addError('Failed to generate thumbnails', {
-                error: err,
-                details: `${err}. More details can be found in the developer's console.`,
-              });
-            }
-            thumbnailCache[cacheKey] = {
-              kind: 'text',
-              value: dicomStore.volumeInfo[key].Modality,
-            };
-          }
-        });
+          });
 
         // deletion case
-        const lookup = new Set(keys.map((key) => dicomCacheKey(key)));
+        const lookup = new Set(entries.map(({ key }) => dicomCacheKey(key)));
         Object.keys(thumbnailCache).forEach((key) => {
           if (!lookup.has(key)) {
             delete thumbnailCache[key];
           }
         });
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     // --- selection --- //
@@ -169,6 +196,7 @@ export default defineComponent({
     }
 
     return {
+      spacingImageID,
       selected,
       selectedAll,
       selectedSome,
@@ -312,6 +340,12 @@ export default defineComponent({
                   <v-menu activator="parent">
                     <v-list>
                       <v-list-item
+                        @click="spacingImageID = volume.key"
+                        data-testid="dataset-menu-spacing-item"
+                      >
+                        Image spacing
+                      </v-list-item>
+                      <v-list-item
                         v-if="volume.layerable"
                         @click.stop="volume.layerHandler()"
                         data-testid="dataset-menu-layer-item"
@@ -350,6 +384,7 @@ export default defineComponent({
       </v-col>
     </v-row>
   </v-container>
+  <image-spacing-details v-if="spacingImageID" v-model="spacingImageID" />
 </template>
 
 <style scoped>

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { git, materialize, stagedContext } from './git.mjs';
 import { limits as LIMITS } from './config.mjs';
-const SOURCE = /^src\/.*\.(ts|js|vue)$/;
+const SOURCE = /^(src|packages\/dicom)\/.*\.(ts|js|vue)$/;
 const EXCLUDED = /(__tests__|\.(spec|test)\.|\.d\.ts$|emscripten-build)/;
 
 const { base, baseRef, changed: entries, worktree } = stagedContext();

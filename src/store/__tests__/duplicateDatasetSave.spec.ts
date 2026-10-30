@@ -1,3 +1,4 @@
+import { datasetFromTags } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
@@ -12,8 +13,8 @@ import {
   isRemoteDataSource,
   type DataSource,
 } from '@/src/io/import/dataSource';
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { Tags } from '@/src/core/dicomTags';
+import type { Chunk } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 // ---------------------------------------------------------------------------
@@ -47,48 +48,52 @@ describe('dataset provenance dedup on re-import', () => {
     expect(() => normalizeManifest(manifest, zip)).not.toThrow();
   });
 
-  const dicomBatch = (instances: string[]): DataSource => ({
+  const dicomCollection = (
+    instances: string[],
+    parent: (instance: string) => DataSource
+  ): DataSource => ({
     type: 'collection',
     sources: instances.map((instance) => ({
       type: 'chunk',
       chunk: {
-        metadata: [[Tags.SOPInstanceUID, instance]],
+        metadata: datasetFromTags([[Tags.SOPInstanceUID, instance]]),
       } as Chunk,
       mime: FILE_EXT_TO_MIME.dcm,
-      parent: uriToDataSource(
+      parent: parent(instance),
+    })),
+  });
+
+  const dicomBatch = (instances: string[]) =>
+    dicomCollection(instances, (instance) =>
+      uriToDataSource(
         `https://ex/series/${instance}.dcm`,
         `${instance}.dcm`,
         FILE_EXT_TO_MIME.dcm
-      ),
-    })),
-  });
+      )
+    );
 
-  const localDicomBatch = (instances: string[]): DataSource => ({
-    type: 'collection',
-    sources: instances.map((instance) => ({
-      type: 'chunk',
-      chunk: {
-        metadata: [[Tags.SOPInstanceUID, instance]],
-      } as Chunk,
-      mime: FILE_EXT_TO_MIME.dcm,
-      parent: {
-        type: 'file',
-        file: new File([instance], `${instance}.dcm`, {
-          type: FILE_EXT_TO_MIME.dcm,
-          lastModified: 1,
-        }),
-        fileType: FILE_EXT_TO_MIME.dcm,
-      },
-    })),
-  });
+  const localDicomBatch = (instances: string[]) =>
+    dicomCollection(instances, (instance) => ({
+      type: 'file',
+      file: new File([instance], `${instance}.dcm`, {
+        type: FILE_EXT_TO_MIME.dcm,
+        lastModified: 1,
+      }),
+      fileType: FILE_EXT_TO_MIME.dcm,
+    }));
 
-  it('merges complementary DICOM batches into one complete saved dataset', async () => {
+  // A re-import reports every member the volume now holds, so the later
+  // collection is the complete one.
+  it('saves the membership the latest import reports for a dataset', async () => {
     const store = useDatasetStore();
     store.addDataSources([
       { dataID: 'series-1', dataSource: dicomBatch(['sop-1', 'sop-2']) },
     ]);
     store.addDataSources([
-      { dataID: 'series-1', dataSource: dicomBatch(['sop-3', 'sop-4']) },
+      {
+        dataID: 'series-1',
+        dataSource: dicomBatch(['sop-1', 'sop-2', 'sop-3', 'sop-4']),
+      },
     ]);
 
     const zip = new JSZip();
@@ -142,6 +147,32 @@ describe('dataset provenance dedup on re-import', () => {
       throw new Error('Expected collection');
     }
     expect(collection.sources).toHaveLength(2);
+  });
+
+  it('drops a member a replan moved to another dataset', () => {
+    const store = useDatasetStore();
+    store.addDataSources([
+      { dataID: 'series-1', dataSource: dicomBatch(['sop-1', 'sop-2']) },
+    ]);
+    store.addDataSources([
+      { dataID: 'series-1', dataSource: dicomBatch(['sop-1']) },
+    ]);
+
+    const source = store.getDataSource('series-1');
+    if (source?.type !== 'collection') throw new Error('Expected collection');
+    expect(source.sources).toHaveLength(1);
+  });
+
+  it('keeps remote provenance for a member the re-import supplies locally', () => {
+    const store = useDatasetStore();
+    store.addDataSources([
+      { dataID: 'series-1', dataSource: dicomBatch(['sop-1', 'sop-2']) },
+    ]);
+    store.addDataSources([
+      { dataID: 'series-1', dataSource: localDicomBatch(['sop-1', 'sop-2']) },
+    ]);
+
+    expect(isRemoteDataSource(store.getDataSource('series-1'))).toBe(true);
   });
 
   it('replaces local provenance when the same instances are re-imported remotely', () => {
