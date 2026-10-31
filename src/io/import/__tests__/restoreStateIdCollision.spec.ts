@@ -132,7 +132,8 @@ const restoreOnto = async (
     manifest: setup.manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(setup.manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(setup.manifest, dataIDMap)
+      .segmentIdMap,
     labelmapSources: planLabelmapSources(setup.manifest).sources,
     io: artifactIO,
   });

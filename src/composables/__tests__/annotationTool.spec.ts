@@ -30,7 +30,7 @@ describe.each([
   it('keeps the active placement alive through hiding, committing and starting again', () => {
     const tools = useStore();
     const segments = useSegmentStore().segments;
-    const segmentId = segments.addSegment();
+    const segmentId = segments.addSegment('img-1');
     const metadata = ref({
       imageID: 'img-1',
       segmentId,
@@ -64,6 +64,15 @@ describe.each([
     expect(ids()).toEqual([first, placing.id.value]);
     placing.remove();
     expect(ids()).toEqual([first]);
+
+    placing.add();
+    const next = placing.id.value!;
+    whitelist.value = [next];
+    segments.deleteSegment(segmentId);
+    tools.updateTool(next, { slice: 1 });
+    placing.beginPlacement();
+    placing.commit();
+    expect(ids()).toEqual([next]);
   });
 });
 
@@ -71,7 +80,7 @@ describe.each([
   ['ruler', useRulerStore],
   ['rectangle', useRectangleStore],
   ['polygon', usePolygonStore],
-] as const)('shared segment visibility for a %s', (_name, useStore) => {
+] as const)('image-owned segment visibility for a %s', (_name, useStore) => {
   beforeEach(async () => {
     setActivePinia(createPinia());
     await viewImage('img-1');
@@ -80,11 +89,12 @@ describe.each([
   it('filters hidden segments and shapes across images and cine frames', async () => {
     const tools = useStore();
     const segments = useSegmentStore().segments;
-    const segmentId = segments.addSegment();
+    const segmentId = segments.addSegment('img-1');
+    const cineSegmentId = segments.addSegment('cine-1');
     const addShape = (imageID: string, hidden = false, frame?: number) =>
       tools.addTool({
         imageID,
-        segmentId,
+        segmentId: imageID === 'cine-1' ? cineSegmentId : segmentId,
         slice: 0,
         frameOfReference: AXIAL_FRAME_OF_REFERENCE,
         hidden,
@@ -104,16 +114,20 @@ describe.each([
     expect(ids()).toEqual([]);
     await showImage('cine-1');
     viewFrame.value = 0;
+    expect(ids()).toEqual([cineFirst]);
+    segments.updateSegment(cineSegmentId, { visible: false });
     expect(ids()).toEqual([]);
-    segments.updateSegment(segmentId, { visible: true });
+    segments.updateSegment(cineSegmentId, { visible: true });
     expect(ids()).toEqual([cineFirst]);
     viewFrame.value = 1;
     expect(ids()).toEqual([cineSecond]);
-    segments.updateSegment(segmentId, { visible: false });
+    segments.updateSegment(cineSegmentId, { visible: false });
     expect(ids()).toEqual([]);
-    segments.updateSegment(segmentId, { visible: true });
+    segments.updateSegment(cineSegmentId, { visible: true });
     await showImage('img-1');
     viewFrame.value = undefined;
+    expect(ids()).toEqual([]);
+    segments.updateSegment(segmentId, { visible: true });
     expect(ids()).toEqual([shown]);
   });
 });

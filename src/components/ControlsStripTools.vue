@@ -78,43 +78,67 @@
       />
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Paint">
-      <control-button
-        icon="mdi-brush"
-        :name="`Paint [${nameToShortcut['Paint']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="!!paintUnavailableReason"
-        @click="toggle"
-      ></control-button>
+      <reasoned-action
+        :reason="paintUnavailableReason"
+        location="end"
+        v-slot="{ disabled }"
+      >
+        <control-button
+          icon="mdi-brush"
+          :name="`Paint [${nameToShortcut['Paint']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="disabled"
+          @click="toggle"
+        ></control-button>
+      </reasoned-action>
     </groupable-item>
     <groupable-item
       v-slot:default="{ active, toggle }"
       :value="Tools.Rectangle"
     >
-      <control-button
-        icon="mdi-vector-square"
-        :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+      <reasoned-action
+        :reason="segmentEditingUnavailableReason"
+        location="end"
+        v-slot="{ disabled }"
+      >
+        <control-button
+          icon="mdi-vector-square"
+          :name="`Rectangle [${nameToShortcut['Rectangle']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="disabled || noCurrentImage || isObliqueLayout"
+          @click="toggle"
+        />
+      </reasoned-action>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Polygon">
-      <control-button
-        icon="mdi-pentagon-outline"
-        :name="`Polygon [${nameToShortcut['Polygon']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+      <reasoned-action
+        :reason="segmentEditingUnavailableReason"
+        location="end"
+        v-slot="{ disabled }"
+      >
+        <control-button
+          icon="mdi-pentagon-outline"
+          :name="`Polygon [${nameToShortcut['Polygon']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="disabled || noCurrentImage || isObliqueLayout"
+          @click="toggle"
+        />
+      </reasoned-action>
     </groupable-item>
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Ruler">
-      <control-button
-        icon="mdi-ruler"
-        :name="`Ruler [${nameToShortcut['Ruler']}]`"
-        :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-        :disabled="noCurrentImage || isObliqueLayout"
-        @click="toggle"
-      />
+      <reasoned-action
+        :reason="segmentEditingUnavailableReason"
+        location="end"
+        v-slot="{ disabled }"
+      >
+        <control-button
+          icon="mdi-ruler"
+          :name="`Ruler [${nameToShortcut['Ruler']}]`"
+          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+          :disabled="disabled || noCurrentImage || isObliqueLayout"
+          @click="toggle"
+        />
+      </reasoned-action>
     </groupable-item>
 
     <div class="my-1 tool-separator" />
@@ -140,6 +164,7 @@
 import { computed, defineComponent, watch } from 'vue';
 import { Tools } from '@/src/store/tools/types';
 import ControlButton from '@/src/components/ControlButton.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useToolStore, isToolAllowedFor } from '@/src/store/tools';
@@ -161,6 +186,7 @@ import { isCineImage } from '@/src/core/cine/isCineImage';
 export default defineComponent({
   components: {
     ControlButton,
+    ReasonedAction,
     MenuControlButton,
     ItemGroup,
     GroupableItem,
@@ -240,6 +266,9 @@ export default defineComponent({
       isObliqueLayout,
       isDisallowedOnCine,
       paintUnavailableReason,
+      segmentEditingUnavailableReason: computed(
+        () => toolStore.segmentEditingUnavailableReason
+      ),
       Tools,
       nameToShortcut,
     };

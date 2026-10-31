@@ -364,6 +364,21 @@ export const Segment = z.object({
   strokeWidth: z.number().optional(),
 }) satisfies z.ZodType<SegmentModel>;
 
+export const ImageSegmentSet = z.object({
+  imageId: z.string(),
+  segmentIds: z.string().array(),
+  selectedSegmentId: z.string().optional(),
+  // Migration-only: datasets can resolve to the same image, whose copies of
+  // each legacy shared definition must resolve to one segment.
+  legacySegmentIds: z.record(z.string(), z.string()).optional(),
+});
+
+export type ImageSegmentSet = z.infer<typeof ImageSegmentSet>;
+
+const SegmentDefaults = Segment.omit({ id: true }).extend({
+  color: RGBAColor.optional(),
+});
+
 export const Segmentation = z.object({
   id: z.string(),
   name: z.string(),
@@ -517,7 +532,8 @@ export const ManifestSchema = z.object({
   segmentations: ImportedSegmentation.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
   segments: Segment.array().optional(),
-  selectedSegment: z.string().optional(),
+  imageSegmentSets: ImageSegmentSet.array().optional(),
+  seedSegmentDefaults: SegmentDefaults.array().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),

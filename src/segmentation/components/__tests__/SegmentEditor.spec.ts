@@ -88,14 +88,14 @@ describe('segment editor name validation', () => {
 });
 
 describe('editor delete', () => {
-  it('says it removes the segment from every image', () => {
+  it('says it removes the segment from this image', () => {
     const remove = actionButton(mountEditor(), 'Delete');
 
     expect(remove.attributes('aria-label')).toBe(
-      'Delete this segment from every image'
+      'Delete this segment from this image'
     );
     expect(remove.element.parentElement?.textContent).toContain(
-      'Delete from every image'
+      'Delete from this image'
     );
   });
 });

@@ -11,3 +11,15 @@ index ba92841..a59d269 100644
  			const background = model.renderable.getBackgroundByReference();
  			gl.clearColor(background[0], background[1], background[2], background[3]);
  			clearMask |= gl.COLOR_BUFFER_BIT;
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js
+@@ -868,7 +868,7 @@
+ 			const reBuildTex = !tex?.oglObject?.getHandle() || tex?.hash !== scalarsHash;
+ 			const updatedExtents = volumeProperty.getUpdatedExtents();
+ 			const hasUpdatedExtents = !!updatedExtents.length;
+-			if (reBuildTex && !hasUpdatedExtents) {
++			if (reBuildTex && (!hasUpdatedExtents || !tex?.oglObject?.getHandle())) {
+ 				const newScalarTexture = Texture_default.newInstance();
+ 				newScalarTexture.setOpenGLRenderWindow(model._openGLRenderWindow);
+ 				const dims = imageData.getDimensions();

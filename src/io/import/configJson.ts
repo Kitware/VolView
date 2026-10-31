@@ -228,12 +228,13 @@ const reportUnparseableColors = (
 // clears what an earlier config contributed to it.
 const applySegments = (
   manifest: Config,
-  addError: (message: string) => void
+  addError: (message: string) => void,
+  imageIds: string[]
 ) => {
   const configured = manifest.segments;
   if (configured === undefined) return;
   if (configured) reportUnparseableColors(configured, addError);
-  useSegmentStore().segments.replaceConfigSegments(configured);
+  useSegmentStore().replaceConfigSegments(configured, imageIds);
 };
 
 const applyLayout = (manifest: Config) => {
@@ -331,7 +332,8 @@ export const applyPreStateConfig = async (manifest: Config) => {
 export const applyPostStateConfig = (
   manifest: Config,
   addError: (message: string) => void = (message) =>
-    useMessageStore().addError(message)
+    useMessageStore().addError(message),
+  imageIds: string[]
 ) => {
-  applySegments(manifest, addError);
+  applySegments(manifest, addError, imageIds);
 };

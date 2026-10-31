@@ -3,13 +3,13 @@ import { computed } from 'vue';
 import ColorDot from '@/src/components/ColorDot.vue';
 import { useSegmentStore } from '@/src/segmentation/segments';
 
-defineProps<{ segmentId?: string }>();
+const props = defineProps<{ imageId: string; segmentId?: string }>();
 defineEmits<{ select: [segmentId: string] }>();
 
 const registry = useSegmentStore().segments;
 
 const items = computed(() =>
-  registry.segmentList.value.map(({ id }) => {
+  registry.segmentList(props.imageId).map(({ id }) => {
     const { displayName, cssColor } = registry.appearanceOf(id);
     return { id, name: displayName, cssColor };
   })

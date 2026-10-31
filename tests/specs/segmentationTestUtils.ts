@@ -1,3 +1,4 @@
+import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import type { ChainablePromiseElement } from 'webdriverio';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 
@@ -83,6 +84,34 @@ export const selectedSegmentName = () =>
   $(
     `${SEGMENT_LIST} .item-row.v-list-item--active .v-list-item-title`
   ).getText();
+
+/** Drops an imported image's card onto a layout slot through its DOM handlers. */
+export const dropImageOnView = async (name: string, slotIndex: number) => {
+  await $('button[data-testid="module-tab-Data"]').click();
+  const card = $(`.image-list-card:has([title="${name}"])`);
+  await card.waitForDisplayed();
+  await browser.execute(
+    (source, destination, mediaType) => {
+      const transfer = new DataTransfer();
+      const dispatch = (element: HTMLElement, type: string) =>
+        element.dispatchEvent(
+          new DragEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: transfer,
+          })
+        );
+      dispatch(source, 'dragstart');
+      if (!transfer.getData(mediaType))
+        throw new Error('Image drag did not provide an image identifier');
+      dispatch(destination, 'dragenter');
+      dispatch(destination, 'drop');
+    },
+    await card,
+    await $$('.grid-item')[slotIndex],
+    IMAGE_DRAG_MEDIA_TYPE
+  );
+};
 
 /** Page-coordinate top of the Segments list, for asserting it has not moved. */
 export const segmentListTop = async () =>

@@ -42,7 +42,7 @@ declareManifestRefs('primarySelection', (manifest) =>
 );
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '7.0.0';
+export const MANIFEST_VERSION = '8.0.0';
 
 type ManifestCandidate = Record<string, unknown>;
 
@@ -250,7 +250,8 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'layerDisplay',
     'tools',
     'segments',
-    'selectedSegment',
+    'imageSegmentSets',
+    'seedSegmentDefaults',
     'activeView',
     'isActiveViewMaximized',
     'viewByID',

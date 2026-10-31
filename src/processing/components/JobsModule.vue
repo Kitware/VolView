@@ -546,10 +546,11 @@ const overlapSignal = () => {
   return [
     imageId,
     maskRevision.value,
-    segmentRegistry.selectedSegmentId.value,
+    segmentRegistry.selectedSegmentId(imageId),
     // The first or last finished tool can move a union input off the labelmap.
     finishedAnnotationCount.value > 0,
-    segmentRegistry.segmentList.value
+    segmentRegistry
+      .segmentList(imageId)
       .map(({ id, name }) => `${id}:${name}`)
       .join(),
     imageId

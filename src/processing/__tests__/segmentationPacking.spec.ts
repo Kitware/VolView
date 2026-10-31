@@ -139,10 +139,10 @@ const seedTwoImages = async () => {
   };
 };
 
-describe('single-file packing against a selection from another image', () => {
+describe('single-file packing with image-scoped selection', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it('packs a mask this image holds and says where to select', async () => {
+  it('keeps this image’s preferred mask when another image’s segment is selected', async () => {
     const { gamma, segmentation } = await seedTwoImages();
     selectSegment(gamma);
 
@@ -153,8 +153,7 @@ describe('single-file packing against a selection from another image', () => {
       namesAtVoxels(composeLabelmapPart(snapshot.parent, snapshot.parts[0]))
     ).toEqual(['Alpha', '', '', '', '', '', '', '']);
     expect(plan.warning).toBe(
-      'This input accepts one labelmap. Omitted whole segments: Beta.' +
-        ' Select a segment on this image to prioritize it.'
+      'This input accepts one labelmap. Omitted whole segments: Beta.'
     );
   });
 

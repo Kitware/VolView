@@ -22,7 +22,7 @@ function seatMask(imageId: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
   const segment = store().createMask(
     segmentation.id,
-    mintSegment({ name: 'Tumor' })
+    mintSegment(imageId, { name: 'Tumor' })
   );
   const voxels = store().maskVoxels(segment.id);
   voxels.materialize();

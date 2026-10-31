@@ -3,7 +3,6 @@ import { setActivePinia, createPinia } from 'pinia';
 import {
   seatSpecImage,
   inMemoryArtifactIO,
-  mintSegment,
   manifestForImages,
   serializeToStateFiles,
   store,
@@ -11,6 +10,7 @@ import {
 import { nextTick } from 'vue';
 
 import { ManifestSchema } from '@/src/io/state-file/schema';
+import { migrateManifest } from '@/src/io/state-file/migrations';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { DEFAULT_SEGMENTATION_DISPLAY } from '@/src/segmentation/model';
 
@@ -25,14 +25,17 @@ const baseManifest = () => manifestForImages(['img-1']);
 /** A scene whose display state is nowhere near the defaults. */
 function buildScene() {
   const segmentation = store().ensureSegmentationForImage('img-1');
-  const tumorSegmentId = mintSegment({
+  const tumorSegmentId = useSegmentStore().segments.mintSegment('img-1', {
     name: 'Tumor',
     fillOpacity: 0.25,
     outlineOpacity: 0.75,
   });
   const tumor = store().createMask(segmentation.id, tumorSegmentId);
   store().ensureLabelmapBinding(tumor.id);
-  const plannedSegmentId = mintSegment({ name: 'Planned', fillOpacity: 0 });
+  const plannedSegmentId = useSegmentStore().segments.mintSegment('img-1', {
+    name: 'Planned',
+    fillOpacity: 0,
+  });
   store().createMask(segmentation.id, plannedSegmentId);
 
   const model = store().segmentations[segmentation.id];
@@ -52,7 +55,8 @@ const opacitiesOf = (segmentIds: string[]) => {
 // A 7.0.0 manifest that states no display state anywhere.
 const manifest700 = () => ({
   version: '7.0.0',
-  dataSources: [],
+  dataSources: [{ id: 1, type: 'uri', uri: '/img-1.nrrd' }],
+  datasets: [{ id: 'img-1', dataSourceId: 1 }],
   segments: [{ id: 't-1', name: 'Tumor', color: [255, 0, 0, 255] }],
   segmentations: [
     {
@@ -109,7 +113,8 @@ describe('segmentation display state on the wire', () => {
       manifest: parsed,
       stateFiles: stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(parsed, { 'img-1': 'new-1' })
+        .segmentIdMap,
       io: io,
     });
     await nextTick();
@@ -126,7 +131,9 @@ describe('segmentation display state on the wire', () => {
   });
 
   it('fills defaults for a manifest that carries no display state', () => {
-    const parsed = ManifestSchema.parse(manifest700());
+    const parsed = ManifestSchema.parse(
+      migrateManifest(JSON.stringify(manifest700()))
+    );
     const wire = parsed.segmentations![0];
 
     expect(wire).toMatchObject(DEFAULT_SEGMENTATION_DISPLAY);
@@ -136,13 +143,16 @@ describe('segmentation display state on the wire', () => {
   });
 
   it('restores a 7.0.0 manifest with default display state', async () => {
-    const parsed = ManifestSchema.parse(manifest700());
+    const parsed = ManifestSchema.parse(
+      migrateManifest(JSON.stringify(manifest700()))
+    );
 
     await store().deserialize({
       manifest: parsed,
       stateFiles: [],
       dataIDMap: { 'img-1': 'img-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(parsed, { 'img-1': 'img-1' })
+        .segmentIdMap,
       io: inMemoryArtifactIO(),
     });
     await nextTick();

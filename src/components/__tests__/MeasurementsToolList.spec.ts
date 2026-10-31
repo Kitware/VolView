@@ -86,7 +86,7 @@ describe('measurement list', () => {
 
   it('shows a shape of a hidden segment as hidden and says why its eye is off', () => {
     const { segments } = useSegmentStore();
-    const segmentId = segments.mintSegment({ name: 'Tumor' });
+    const segmentId = segments.mintSegment('img-1', { name: 'Tumor' });
     drawRuler(segmentId);
     segments.updateSegment(segmentId, { visible: false });
 
@@ -100,7 +100,7 @@ describe('measurement list', () => {
   });
 
   it('names the shape of an unnamed segment', () => {
-    drawRuler(useSegmentStore().segments.mintSegment({ name: '' }));
+    drawRuler(useSegmentStore().segments.mintSegment('img-1', { name: '' }));
 
     expect(mountList().get('.row-title').text()).toBe('(no name)');
   });
@@ -123,7 +123,9 @@ describe('measurement list', () => {
   });
 
   it('says why the selection actions wait for a selection', () => {
-    drawRuler(useSegmentStore().segments.mintSegment({ name: 'Tumor' }));
+    drawRuler(
+      useSegmentStore().segments.mintSegment('img-1', { name: 'Tumor' })
+    );
     const wrapper = mountList();
 
     const hide = actionLabelled(wrapper, /^Hide selected/);
@@ -141,8 +143,8 @@ describe('measurement list', () => {
 
   it('selects all rows from a partial selection and clears them on a second click', async () => {
     const { segments } = useSegmentStore();
-    drawRuler(segments.mintSegment({ name: 'Tumor' }));
-    drawRuler(segments.mintSegment({ name: 'Node' }));
+    drawRuler(segments.mintSegment('img-1', { name: 'Tumor' }));
+    drawRuler(segments.mintSegment('img-1', { name: 'Node' }));
     const wrapper = mountList();
     const selectAll = wrapper.get<HTMLInputElement>(
       'input[aria-label="Select all measurements"]'
@@ -185,9 +187,12 @@ describe('measurement list', () => {
 
   it('hides and shows selected measurements without changing hidden-segment children or unselected rows', async () => {
     const { segments } = useSegmentStore();
-    const tumor = segments.mintSegment({ name: 'Tumor' });
-    const node = segments.mintSegment({ name: 'Node', visible: false });
-    const other = segments.mintSegment({ name: 'Other' });
+    const tumor = segments.mintSegment('img-1', { name: 'Tumor' });
+    const node = segments.mintSegment('img-1', {
+      name: 'Node',
+      visible: false,
+    });
+    const other = segments.mintSegment('img-1', { name: 'Other' });
     drawRuler(tumor);
     drawRuler(tumor, { slice: 1, hidden: true });
     drawRuler(node, { slice: 2 });
@@ -261,7 +266,10 @@ describe('measurement list', () => {
 
   it('explains why a selection under hidden segments cannot be shown or hidden', async () => {
     drawRuler(
-      useSegmentStore().segments.mintSegment({ name: 'Tumor', visible: false })
+      useSegmentStore().segments.mintSegment('img-1', {
+        name: 'Tumor',
+        visible: false,
+      })
     );
     const wrapper = mountList();
     await wrapper
@@ -283,11 +291,11 @@ describe('measurement list', () => {
 
   it('deletes selected rulers and rectangles while keeping an unselected measurement', async () => {
     const { segments } = useSegmentStore();
-    drawRuler(segments.mintSegment({ name: 'Tumor' }));
-    drawRuler(segments.mintSegment({ name: 'Other' }));
+    drawRuler(segments.mintSegment('img-1', { name: 'Tumor' }));
+    drawRuler(segments.mintSegment('img-1', { name: 'Other' }));
     useRectangleStore().addTool({
       imageID: IMAGE_ID,
-      segmentId: segments.mintSegment({ name: 'Node' }),
+      segmentId: segments.mintSegment('img-1', { name: 'Node' }),
       slice: 0,
       frameOfReference: AXIAL_FRAME_OF_REFERENCE,
     });
@@ -318,11 +326,14 @@ describe('measurement list', () => {
   });
 
   it('shows a cine ruler with a one-based frame caption and its measured length', () => {
-    drawRuler(useSegmentStore().segments.mintSegment({ name: 'Tumor' }), {
-      frame: 7,
-      firstPoint: [0, 0, 0],
-      secondPoint: [3, 4, 0],
-    });
+    drawRuler(
+      useSegmentStore().segments.mintSegment('img-1', { name: 'Tumor' }),
+      {
+        frame: 7,
+        firstPoint: [0, 0, 0],
+        secondPoint: [3, 4, 0],
+      }
+    );
 
     const row = mountList().get('[data-testid="segment-shape-row"]');
     expect(row.get('.row-subtitle').text()).toBe('Frame 8 5.00mm');
@@ -333,8 +344,8 @@ describe('measurement list', () => {
 
   it('reassigns only the measurement whose segment picker is used', async () => {
     const registry = useSegmentStore().segments;
-    const first = registry.mintSegment({ name: 'Tumor' });
-    registry.mintSegment({ name: 'Node' });
+    const first = registry.mintSegment('img-1', { name: 'Tumor' });
+    registry.mintSegment('img-1', { name: 'Node' });
     drawRuler(first);
     drawRuler(first);
     const wrapper = mountList();
