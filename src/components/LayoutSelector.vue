@@ -23,7 +23,7 @@ const selectNamedLayout = (name: string) => {
 
 <template>
   <div>
-    <div v-if="namedLayoutsList.length > 0" class="named-layouts">
+    <div v-if="namedLayoutsList.length" class="named-layouts">
       <v-list density="compact">
         <v-list-item
           v-for="name in namedLayoutsList"

@@ -10,12 +10,13 @@ export function useBaseSliceColoring(
   enabled: MaybeRef<boolean>,
   requestRender: () => void
 ) {
+  // A stable transfer-function identity lets VTK cache the scalar lookup texture.
   const colors = vtkColorTransferFunction.newInstance();
   onScopeDispose(() => colors.delete());
 
   watchEffect(() => {
     const name = resolveBaseColorPreset(unref(preset));
-    if (!unref(enabled) || name === 'Grayscale') {
+    if (!unref(enabled)) {
       property.setRGBTransferFunction(0, null);
     } else {
       colors.applyColorMap(vtkColorMaps.getPresetByName(name)!);

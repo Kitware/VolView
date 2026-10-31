@@ -2,7 +2,6 @@ import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { Maybe } from '@/src/types';
 import type { Vector2 } from '@kitware/vtk.js/types';
 import { MaybeRef, unref, computed, inject, InjectionKey } from 'vue';
-import { useImageStatsStore } from '@/src/store/image-stats';
 
 export const WindowingViewContext: InjectionKey<MaybeRef<string>> = Symbol(
   'WindowingViewContext'
@@ -14,8 +13,6 @@ export function useWindowingConfig(
 ) {
   const windowingViewID = inject(WindowingViewContext, viewID);
   const store = useWindowingStore();
-  const imageStatsStore = useImageStatsStore();
-
   const config = computed(() => {
     const imageIdVal = unref(imageID);
     if (!imageIdVal) return undefined;
@@ -47,10 +44,7 @@ export function useWindowingConfig(
   const range = computed((): Vector2 => {
     const imageIdVal = unref(imageID);
     if (!imageIdVal) return [0, 1];
-    const stats = imageStatsStore.stats[imageIdVal];
-    if (!stats || stats.scalarMin == null || stats.scalarMax == null)
-      return [0, 1];
-    return [stats.scalarMin, stats.scalarMax];
+    return store.getRange(unref(windowingViewID), imageIdVal);
   });
 
   return {

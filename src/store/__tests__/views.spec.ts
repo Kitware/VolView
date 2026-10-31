@@ -4,6 +4,9 @@ import { useViewStore } from '@/src/store/views';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { markCine } from '@/src/core/cine/__tests__/cineFixtures';
 import type { Manifest } from '@/src/io/state-file/schema';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import { useViewCameraStore } from '@/src/store/view-configs/camera';
+import { useImageStatsStore } from '@/src/store/image-stats';
 
 describe('View store', () => {
   beforeEach(() => {
@@ -85,6 +88,62 @@ describe('View store', () => {
 
     expect(store.activeView).toBe('view-1');
     expect(store.viewByID['view-1'].dataID).toBe('loaded-image');
+  });
+
+  it('clears projection ranges and camera state when a session reuses a view ID', () => {
+    const store = useViewStore();
+    store.replaceView(store.layoutViews[0].id, {
+      name: 'En face',
+      type: 'EnFace',
+      dataID: 'image',
+      options: {},
+    });
+    const id = store.layoutViews[0].id;
+    const windowing = useWindowingStore();
+    const range: [number, number] = [5000, 100000];
+    windowing.setAutoRangeValues(id, 'image', {
+      FullRange: range,
+      LowContrast: range,
+      MediumContrast: range,
+      HighContrast: range,
+    });
+    const cameras = useViewCameraStore();
+    cameras.markCameraAsInitialized(id, 'image');
+    useImageStatsStore().stats.image = {
+      scalarMin: 0,
+      scalarMax: 255,
+      autoRangeValues: {
+        FullRange: [0, 255],
+        LowContrast: [0, 255],
+        MediumContrast: [0, 255],
+        HighContrast: [0, 255],
+      },
+    };
+    const manifest: Manifest = {
+      version: '7.0.0',
+      dataSources: [],
+      viewByID: {
+        [id]: {
+          id,
+          name: 'Axial',
+          type: '2D',
+          dataID: 'saved-image',
+          options: { orientation: 'Axial' },
+        },
+      },
+    };
+
+    store.deserializeLayout(manifest);
+    store.bindViewsToData('saved-image', 'image', manifest);
+    windowing.resetContrast(id, 'image');
+
+    expect(store.getView(id)?.type).toBe('2D');
+    expect(windowing.getRange(id, 'image')).toEqual([0, 255]);
+    expect(windowing.getConfig(id, 'image')).toMatchObject({
+      width: 255,
+      level: 127.5,
+    });
+    expect(cameras.isCameraInitialized(id, 'image')).toBe(false);
   });
 });
 

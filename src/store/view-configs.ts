@@ -7,6 +7,7 @@ import useLayerColoringStore from './view-configs/layers';
 import useViewCameraStore from './view-configs/camera';
 import useVolumeColoringStore from './view-configs/volume-coloring';
 import useCinePlaybackStore from './view-configs/cine-playback';
+import { useEnFaceViewStore } from '@/src/enface/store';
 import { useViewStore } from './views';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 
@@ -21,6 +22,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const viewCameraStore = useViewCameraStore();
   const volumeColoringStore = useVolumeColoringStore();
   const cinePlaybackStore = useCinePlaybackStore();
+  const enFaceViewStore = useEnFaceViewStore();
   const viewStore = useViewStore();
 
   const removeView = (viewID: string) => {
@@ -30,6 +32,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.removeView(viewID);
     volumeColoringStore.removeView(viewID);
     cinePlaybackStore.removeView(viewID);
+    enFaceViewStore.removeView(viewID);
   };
 
   const removeData = (dataID: string, viewID?: string) => {
@@ -39,6 +42,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.removeData(dataID, viewID);
     volumeColoringStore.removeData(dataID, viewID);
     cinePlaybackStore.removeData(dataID, viewID);
+    enFaceViewStore.removeData(dataID, viewID);
   };
 
   const serialize = (stateFile: StateFile) => {
@@ -48,6 +52,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.serialize(stateFile);
     volumeColoringStore.serialize(stateFile);
     cinePlaybackStore.serialize(stateFile);
+    enFaceViewStore.serialize(stateFile);
   };
 
   const deserialize = (
@@ -69,6 +74,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
     cinePlaybackStore.deserialize(viewID, updatedConfig);
+    enFaceViewStore.deserialize(viewID, updatedConfig);
   };
 
   const deserializeAll = (

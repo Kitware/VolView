@@ -8,6 +8,21 @@ const DATASET_RELEASE =
 
 // `origin` is where the file was first published.
 const DATASETS = {
+  JHU_RETINAL_LAYERS: {
+    name: 'jhu-retinal-layers.zip',
+    origin:
+      'https://data.kitware.com/api/v1/file/6ae4eeea1747c43eb2901727/download',
+    url: 'https://data.kitware.com/api/v1/file/6ae4eeea1747c43eb2901727/download',
+    sha256: '682dc9a14fbec482f8e4b0ec2da9e52be5aee40e1080b114437ec225726d7b57',
+  },
+  // MIT, copyright 2020 Theis Lab. An anonymized example from DeepRT.
+  RETINAL_OCT_DICOM: {
+    name: 'retinal-oct.dcm',
+    origin:
+      'https://raw.githubusercontent.com/theislab/DeepRT/be86ac601294866d0c3f1d924418d8fee41ead37/thickness_map_calculation/data/256692_R_20160524/1.3.6.1.4.1.33437.10.4.4089432.13108567473.25811.4.1.dcm',
+    url: 'https://raw.githubusercontent.com/theislab/DeepRT/be86ac601294866d0c3f1d924418d8fee41ead37/thickness_map_calculation/data/256692_R_20160524/1.3.6.1.4.1.33437.10.4.4089432.13108567473.25811.4.1.dcm',
+    sha256: 'f82badd35ee5691133a0d25c34568cedb0bd17575bb75b8812d61c03f13a4992',
+  },
   ONE_CT_SLICE_DICOM: {
     name: 'CT000085.dcm',
     url: `${DATASET_RELEASE}/CT000085.dcm`,
@@ -95,6 +110,8 @@ const DATASETS = {
 } as const;
 
 export const {
+  JHU_RETINAL_LAYERS,
+  RETINAL_OCT_DICOM,
   ONE_CT_SLICE_DICOM,
   MINIMAL_DICOM,
   MINIMAL_501_SESSION,

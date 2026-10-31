@@ -202,43 +202,46 @@ export const createStateFileRestorer = ({
       (ds) => !(ds.id in stateIDToStoreID)
     );
 
-    Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
-      viewStore.bindViewsToData(stateID, storeID, manifest);
-    });
+    const bindRestoredViews = () => {
+      Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
+        viewStore.bindViewsToData(stateID, storeID, manifest);
+      });
 
-    const defaultStoreID =
-      (manifest.primarySelection
-        ? stateIDToStoreID[manifest.primarySelection]
-        : undefined) ??
-      (resolvedDatasets.length > 0
-        ? stateIDToStoreID[resolvedDatasets[0].id]
-        : undefined);
+      const defaultStoreID =
+        (manifest.primarySelection
+          ? stateIDToStoreID[manifest.primarySelection]
+          : undefined) ??
+        (resolvedDatasets.length > 0
+          ? stateIDToStoreID[resolvedDatasets[0].id]
+          : undefined);
 
-    if (defaultStoreID !== undefined) {
-      if (!manifest.viewByID) {
-        viewStore.setDataForAllViews(defaultStoreID);
-      } else {
-        // Resolve-first-then-apply: a view whose saved dataset never resolved
-        // resets to the default assignment (views are reconstructible UI)
-        // rather than staying empty.
-        const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
-        Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
-          if (
-            typeof view.dataID === 'string' &&
-            unresolvedIDs.has(view.dataID)
-          ) {
-            viewStore.setDataForView(viewID, defaultStoreID);
-          }
-        });
+      if (defaultStoreID !== undefined) {
+        if (!manifest.viewByID) {
+          viewStore.setDataForAllViews(defaultStoreID);
+        } else {
+          // Resolve-first-then-apply: a view whose saved dataset never resolved
+          // resets to the default assignment (views are reconstructible UI)
+          // rather than staying empty.
+          const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
+          Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
+            if (
+              typeof view.dataID === 'string' &&
+              unresolvedIDs.has(view.dataID)
+            ) {
+              viewStore.setDataForView(viewID, defaultStoreID);
+            }
+          });
+        }
       }
-    }
+    };
 
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
-
-    // Registries first: masks and shapes both name a segment, and the
-    // ids they name are minted here.
+    // Registries first: masks and shapes name the segment identities minted here.
     const { segmentIdMap, repeated: repeatedSegments } =
       useSegmentStore().deserialize(manifest);
+
+    // Binding can mount a viewer, so install its saved camera and contrast first.
+    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
+    bindRestoredViews();
 
     const { skipped: skippedLabelmaps } =
       await useSegmentationStore().deserialize({

@@ -34,6 +34,7 @@ import { useViewStore } from '@/src/store/views';
 const BASE_MODALITY_TYPES = {
   CT: { priority: 3 },
   MR: { priority: 3 },
+  OPT: { priority: 3 },
   US: { priority: 2 },
   DX: { priority: 1 },
 } as const;
@@ -48,7 +49,8 @@ function findBaseDicom(loadableDataSources: Array<LoadableResult>) {
   const baseDicomVolumes = dicoms
     .map((dicomSource) => {
       const volumeInfo = dicomStore.volumeInfo[dicomSource.dataID];
-      const modality = volumeInfo?.Modality as keyof typeof BASE_MODALITY_TYPES;
+      const modality =
+        volumeInfo?.Modality?.trim() as keyof typeof BASE_MODALITY_TYPES;
       if (modality in BASE_MODALITY_TYPES)
         return {
           dicomSource,

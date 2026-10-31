@@ -268,6 +268,37 @@ export async function openUrls(datasets: ReadonlyArray<TestDataset>) {
   await openVolViewPage(fileName);
 }
 
+/** The item labelled `label` in the open Vuetify menu or select list. */
+export const overlayOption = (label: string) =>
+  $(
+    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and normalize-space(.)="' +
+      label +
+      '"]'
+  );
+
+/** Route a sample's compiled URL to the locally cached fixture. */
+export async function useCachedSample(dataset: {
+  origin: string;
+  name: string;
+}) {
+  await browser.addInitScript(
+    (remote, local) => {
+      const original = window.fetch;
+      window.fetch = (input, init) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url !== remote) return original(input, init);
+        const target =
+          input instanceof Request
+            ? new Request(new URL(local, location.href), input)
+            : local;
+        return original(target, init);
+      };
+    },
+    dataset.origin,
+    `/tmp/${dataset.name}`
+  );
+}
+
 /** Loads a file into the page already open, through the Open files dialog. */
 export async function openThroughDialog(
   filePath: string,

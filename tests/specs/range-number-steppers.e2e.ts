@@ -175,8 +175,8 @@ describe('Display range number steppers', () => {
     await expectEndpoint('base-image-range', 'min', 1.728394965e-8, 1e-22);
     await expectEndpoint('base-image-range', 'max', 2.962962855e-8, 1e-22);
     await control('base-image-contrast').click();
-    await expect(fields[0]).toHaveValue('1.235e-8');
-    await expect(fields[1]).toHaveValue('2.346e-8');
+    await expect(fields[0]).toHaveValue('1.23456789e-8');
+    await expect(fields[1]).toHaveValue('2.34567891e-8');
     await browser.keys('Escape');
     await expectEndpoint('base-image-range', 'min', 1.728394965e-8, 1e-22);
     await expectEndpoint('base-image-range', 'max', 2.962962855e-8, 1e-22);

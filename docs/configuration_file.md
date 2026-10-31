@@ -37,7 +37,7 @@ Use a 2D array of view type strings to specify both the grid layout and which vi
 }
 ```
 
-Available view type strings: `"axial"`, `"coronal"`, `"sagittal"`, `"volume"`, `"oblique"`
+Available view type strings: `"axial"`, `"coronal"`, `"sagittal"`, `"volume"`, `"oblique"`, `"enface"`
 
 ### 2. Simple Grid (gridSize)
 
@@ -111,6 +111,7 @@ View object properties:
 - 2D views: `type: "2D"`, `orientation: "Axial" | "Coronal" | "Sagittal"`, `name` (optional)
 - 3D views: `type: "3D"`, `viewDirection` (optional), `viewUp` (optional), `name` (optional)
 - Oblique views: `type: "Oblique"`, `name` (optional)
+- En face views: `type: "EnFace"`, `name` (optional)
 
 ### Multiple Layouts Example
 
@@ -147,7 +148,12 @@ Use `disabledViewTypes` to prevent certain view types from being available in th
 }
 ```
 
-This removes the specified view types from the dropdown menu and replaces them in the default layout with allowed types. Valid values: `"2D"`, `"3D"`, `"Oblique"`
+Valid values: `"2D"`, `"3D"`, `"Oblique"`, `"EnFace"`.
+
+Disabled types are replaced in the default layout with allowed types. Disabled 2D,
+3D and Oblique types are removed from the view type dropdown. A disabled En face
+option stays visible with a tooltip explaining that the current configuration
+disables it.
 
 ## Segments
 

@@ -4,6 +4,7 @@ import { createEventHook } from '@vueuse/core';
 import type { Maybe } from '@/src/types';
 import type { Layout, LayoutItem } from '@/src/types/layout';
 import { useIdStore } from '@/src/store/id';
+import { useViewConfigStore } from '@/src/store/view-configs';
 import type { ViewInfo, ViewInfoInit, ViewType } from '@/src/types/views';
 import { DefaultNamedLayouts, getAvailableViews } from '@/src/config';
 import {
@@ -357,6 +358,7 @@ export const useViewStore = defineStore('view', () => {
   function serialize(stateFile: StateFile) {
     const { manifest } = stateFile;
     manifest.layout = layout.value;
+    manifest.currentLayoutName = currentLayoutName.value;
     manifest.activeView = activeView.value;
     manifest.isActiveViewMaximized = isActiveViewMaximized.value;
     manifest.layoutSlots = layoutSlots.value;
@@ -365,6 +367,8 @@ export const useViewStore = defineStore('view', () => {
 
   function deserializeLayout(manifest: Manifest) {
     if (manifest.layout) {
+      // Older scenes have unknown selection identity, even for matching panes.
+      currentLayoutName.value = manifest.currentLayoutName;
       setLayout(manifest.layout);
     }
     setActiveView(manifest.activeView);
@@ -376,7 +380,9 @@ export const useViewStore = defineStore('view', () => {
     }
 
     if (manifest.viewByID) {
+      const viewConfigs = useViewConfigStore();
       viewIDs.value.forEach((key) => {
+        viewConfigs.removeView(key);
         delete viewByID[key];
       });
 

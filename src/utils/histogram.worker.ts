@@ -1,8 +1,8 @@
 import * as Comlink from 'comlink';
 import { histogram } from '@/src/utils/histogram';
 
-export interface HistogramWorker {
+export type HistogramWorker = {
   histogram: typeof histogram;
-}
+};
 
 Comlink.expose({ histogram });

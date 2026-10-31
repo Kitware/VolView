@@ -253,14 +253,9 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
   }
 
   const spacing: Vector3 = [1, 1, 1];
-  if (
-    pixelSpacing &&
-    pixelSpacing.length >= 2 &&
-    isPositiveFiniteNumber(pixelSpacing[0]) &&
-    isPositiveFiniteNumber(pixelSpacing[1])
-  ) {
-    spacing[0] = pixelSpacing[1];
-    spacing[1] = pixelSpacing[0];
+  if (pixelSpacing) {
+    if (isPositiveFiniteNumber(pixelSpacing[1])) spacing[0] = pixelSpacing[1];
+    if (isPositiveFiniteNumber(pixelSpacing[0])) spacing[1] = pixelSpacing[0];
   }
 
   if (imagePositionPatient && sortedChunks.length > 1) {
@@ -272,7 +267,7 @@ export function allocateImageFromChunks(sortedChunks: Chunk[]) {
       vec3.sub(zVec, lastIPP as vec3, imagePositionPatient as vec3);
       spacing[2] = vec3.len(zVec) / (slices - 1) || 1;
     }
-  } else if (slices === 1 && isPositiveFiniteNumber(spacingBetweenSlices)) {
+  } else if (isPositiveFiniteNumber(spacingBetweenSlices)) {
     spacing[2] = spacingBetweenSlices;
   }
   image.setSpacing(spacing);

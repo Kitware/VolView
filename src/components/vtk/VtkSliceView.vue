@@ -22,12 +22,17 @@ import { Maybe } from '@/src/types';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
+import type { ImageMetadata } from '@/src/types/image';
+import { getLPSDirections } from '@/src/utils/lps';
+import { vec3 } from 'gl-matrix';
 
 type Props = {
   viewId: string;
   imageId: Maybe<string>;
   viewDirection: LPSAxisDir;
   viewUp: LPSAxisDir;
+  renderGeometry?: { metadata: ImageMetadata | null; fitKey: string };
+  zoomOnScroll?: boolean;
 };
 
 const props = defineProps<Props>();
@@ -42,7 +47,12 @@ const vtkContainerRef = ref<HTMLElement>();
 const viewCameraStore = useViewCameraStore();
 const { disableCameraAutoReset } = storeToRefs(viewCameraStore);
 
-const { metadata: imageMetadata } = useImage(imageID);
+const { metadata: sourceMetadata } = useImage(imageID);
+const imageMetadata = computed(() =>
+  props.renderGeometry === undefined
+    ? sourceMetadata.value
+    : props.renderGeometry.metadata
+);
 
 // use a detached scope so that actors can be removed from
 // the renderer before the renderer is deleted.
@@ -50,7 +60,7 @@ const scope = effectScope(true);
 const view = scope.run(() =>
   useVtkView(vtkContainerRef, {
     separateImageLayer: true,
-    clippingBounds: computed(() => imageMetadata.value.worldBounds),
+    clippingBounds: computed(() => imageMetadata.value?.worldBounds),
   })
 )!;
 
@@ -87,14 +97,10 @@ const autoFit = useAutoFitState(
 );
 
 function autoFitImage() {
-  if (!autoFit.autoFit.value) return;
+  const metadata = imageMetadata.value;
+  if (!autoFit.autoFit.value || !metadata) return;
   autoFit.withPaused(() => {
-    resizeToFitImage(
-      view,
-      imageMetadata.value,
-      viewDirection.value,
-      viewUp.value
-    );
+    resizeToFitImage(view, metadata, viewDirection.value, viewUp.value);
   });
 }
 
@@ -104,29 +110,79 @@ useResizeObserver(vtkContainerRef, () => {
 });
 
 function resetCamera() {
+  const metadata = imageMetadata.value;
+  if (!metadata) return;
   autoFit.autoFit.value = true;
   autoFit.withPaused(() => {
-    resetCameraToImage(
-      view,
-      imageMetadata.value,
-      viewDirection.value,
-      viewUp.value
-    );
+    resetCameraToImage(view, metadata, viewDirection.value, viewUp.value);
     autoFitImage();
   });
+  viewCameraStore.markCameraAsInitialized(viewID.value, imageID.value);
 }
 
+let previousGeometry: {
+  viewId: string;
+  imageId: Maybe<string>;
+  key?: string;
+  direction: LPSAxisDir;
+  up: LPSAxisDir;
+};
+const isPreviousImage = (viewId: string, imageId: Maybe<string>) =>
+  previousGeometry?.viewId === viewId && previousGeometry.imageId === imageId;
+const projectionOrientationChanged = (direction: LPSAxisDir, up: LPSAxisDir) =>
+  !!props.renderGeometry &&
+  (previousGeometry.direction !== direction || previousGeometry.up !== up);
 watchImmediate(
-  [viewID, imageID, disableCameraAutoReset],
-  ([viewID_, imageID_, noAutoReset]) => {
+  [
+    viewID,
+    imageID,
+    disableCameraAutoReset,
+    imageMetadata,
+    () => props.renderGeometry?.fitKey,
+    viewDirection,
+    viewUp,
+  ],
+  ([viewID_, imageID_, noAutoReset, metadata, geometryKey, direction, up]) => {
+    if (!metadata) return;
+    const sameImage = isPreviousImage(viewID_, imageID_);
+    const geometryChanged = sameImage && previousGeometry.key !== geometryKey;
     if (
       imageID_ &&
-      !viewCameraStore.isCameraInitialized(viewID_, imageID_) &&
+      (!viewCameraStore.isCameraInitialized(viewID_, imageID_) ||
+        geometryChanged) &&
       !noAutoReset
     ) {
       resetCamera();
-      viewCameraStore.markCameraAsInitialized(viewID_, imageID_);
+    } else if (
+      noAutoReset &&
+      sameImage &&
+      projectionOrientationChanged(direction, up)
+    ) {
+      // A new projection plane still needs a facing camera; keep pan and zoom.
+      autoFit.withPaused(() => {
+        const camera = view.renderer.getActiveCamera();
+        const focalPoint = [...camera.getFocalPoint()];
+        const directions = getLPSDirections(metadata.orientation);
+        const normal = vec3.normalize([0, 0, 0], directions[direction]);
+        camera.setPositionAndFocalPoint(
+          focalPoint.map(
+            (value, axis) => value - camera.getDistance() * normal[axis]
+          ),
+          focalPoint
+        );
+        const vertical = directions[up];
+        camera.setViewUp(vertical[0], vertical[1], vertical[2]);
+        view.renderer.resetCameraClippingRange(metadata.worldBounds);
+        view.requestRender();
+      });
     }
+    previousGeometry = {
+      viewId: viewID_,
+      imageId: imageID_,
+      key: geometryKey,
+      direction,
+      up,
+    };
   }
 );
 
@@ -137,11 +193,13 @@ watchImmediate(
 usePersistCameraConfig(viewID, imageID, view.renderer.getActiveCamera());
 
 watchImmediate([imageMetadata, disableCameraAutoReset], () => {
+  const metadata = imageMetadata.value;
+  if (!metadata) return;
   if (
     viewCameraStore.isCameraInitialized(viewID.value, imageID.value) ||
     disableCameraAutoReset.value
   ) {
-    view.renderer.resetCameraClippingRange(imageMetadata.value.worldBounds);
+    view.renderer.resetCameraClippingRange(metadata.worldBounds);
   }
 });
 
@@ -171,6 +229,7 @@ function onPointerUp() {
       class="view"
       @pointerdown.capture="onPointerDown"
       @pointerup.capture="onPointerUp"
+      @wheel.capture="zoomOnScroll && (autoFit.autoFit.value = false)"
     />
     <slot></slot>
   </div>

@@ -2,4 +2,6 @@
 // zones.
 
 export { default as ReferenceLines } from './ReferenceLines.vue';
+export { default as ReferenceLineSegments } from './ReferenceLineSegments.vue';
 export { useReferenceLinesStore } from './store';
+export { slicePlane, computeReferenceLine, type SlicePlane } from './geometry';
