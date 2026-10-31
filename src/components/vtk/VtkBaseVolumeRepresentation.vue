@@ -14,7 +14,7 @@ import { useVolumeRepresentation } from '@/src/core/vtk/useVolumeRepresentation'
 import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useColoringEffect } from '@/src/composables/useColoringEffect';
-import useVolumeColoringStore, {
+import {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
@@ -22,6 +22,7 @@ import useVolumeColoringStore, {
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
+import { useVolumeColoringConfig } from '@/src/composables/useVolumeColoringConfig';
 import { isViewAnimating } from '@/src/composables/isViewAnimating';
 import { InterpolationType } from '@kitware/vtk.js/Rendering/Core/VolumeProperty/Constants';
 import {
@@ -42,10 +43,10 @@ import {
   type ChunkLoadedInfo,
 } from '@/src/core/streaming/chunkImage';
 
-interface Props {
+type Props = {
   viewId: string;
   imageId: Maybe<string>;
-}
+};
 
 const props = defineProps<Props>();
 const { viewId: viewID, imageId: imageID } = toRefs(props);
@@ -59,9 +60,6 @@ const {
   isLoading: isImageStreaming,
   image,
 } = useImage(imageID);
-const coloringConfig = computed(() =>
-  useVolumeColoringStore().getConfig(viewID.value, imageID.value)
-);
 
 // setup base image
 const rep = useVolumeRepresentation(view, imageData);
@@ -103,6 +101,8 @@ watch(updatedExtents, (current, old) => {
   ]);
   view.requestRender();
 });
+
+const coloringConfig = useVolumeColoringConfig(viewID, imageID);
 
 // cinematic volume rendering
 const cvrParams = computed(() => coloringConfig.value?.cvr);

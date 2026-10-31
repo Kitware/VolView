@@ -1,4 +1,12 @@
-import { MaybeRef, computed, unref, ref, Ref } from 'vue';
+import {
+  MaybeRef,
+  computed,
+  unref,
+  ref,
+  Ref,
+  watchEffect,
+  onScopeDispose,
+} from 'vue';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
@@ -21,31 +29,25 @@ export function useVtkComputed<T extends Maybe<vtkObject>, R>(
   const trackedValue = ref(
     Array.isArray(initialValue) ? [...initialValue] : initialValue
   ) as Ref<R>;
-  let lastValueIsArray = Array.isArray(initialValue);
-  const onModified = batchForNextTask(() => {
+  const refresh = () => {
     if (unref(obj)?.isDeleted()) return;
 
     const currentValue = propertyGetter(); // Avoid unnecessary updates when array contents haven't changed
-    if (lastValueIsArray && Array.isArray(currentValue)) {
+    if (Array.isArray(currentValue)) {
       const previousValue = trackedValue.value;
       if (
         Array.isArray(previousValue) &&
-        !arrayEquals(previousValue as any[], currentValue as any[])
-      ) {
-        trackedValue.value = [...currentValue] as R;
+        arrayEquals<unknown[]>(previousValue, currentValue)
+      )
         return;
-      }
-      return;
-    }
-
-    if (Array.isArray(currentValue)) {
       trackedValue.value = [...currentValue] as R;
-      lastValueIsArray = true;
     } else {
       trackedValue.value = currentValue;
-      lastValueIsArray = false;
     }
-  });
+  };
+  watchEffect(refresh);
+  const onModified = batchForNextTask(refresh);
+  onScopeDispose(onModified.cancel);
 
   onPausableVTKEvent(obj as vtkObject, 'onModified', onModified);
   return computed(() => {
