@@ -1,0 +1,13 @@
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
+index ba92841..a59d269 100644
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js
+@@ -87,7 +87,7 @@ function vtkOpenGLRenderer(publicAPI, model) {
+ 	publicAPI.clear = () => {
+ 		let clearMask = 0;
+ 		const gl = model.context;
+-		if (!model.renderable.getTransparent()) {
++		if (!model.renderable.getTransparent() || model.selector) {
+ 			const background = model.renderable.getBackgroundByReference();
+ 			gl.clearColor(background[0], background[1], background[2], background[3]);
+ 			clearMask |= gl.COLOR_BUFFER_BIT;
