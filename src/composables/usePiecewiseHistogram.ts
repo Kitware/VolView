@@ -1,8 +1,8 @@
 import { onScopeDispose } from 'vue';
-import * as Comlink from 'comlink';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import type { HistogramWorker } from '@/src/utils/histogram.worker';
 import { getAdaptiveVolumeHistogram } from '@/src/utils/adaptiveVolumePreset';
+import { createHistogramWorker } from '@/src/utils/createHistogramWorker';
+import { getAllComponentRange } from '@/src/utils/dataArrayRange';
 import { logError } from '@/src/utils/loggers';
 
 type HistogramWidget = {
@@ -32,26 +32,18 @@ function computeHistogram(
   range: [number, number],
   bins: number
 ) {
-  const worker = new Worker(
-    new URL('@/src/utils/histogram.worker.ts', import.meta.url),
-    { type: 'module' }
-  );
-  const remote = Comlink.wrap<HistogramWorker>(worker);
-  let stopped = false;
+  const worker = createHistogramWorker();
   return {
-    result: remote.piecewiseHistogram(data, range, bins),
-    stop() {
-      if (stopped) return;
-      stopped = true;
-      remote[Comlink.releaseProxy]();
-      worker.terminate();
-    },
+    result: worker.remote.piecewiseHistogram(data, range, bins),
+    stop: worker.stop,
   };
 }
 
 export function usePiecewiseHistogram(widget: HistogramWidget) {
   const cache = new WeakMap<vtkImageData, HistogramCache>();
-  let previous: { image: vtkImageData; revision: string; key: string };
+  let previous:
+    | { image: vtkImageData; revision: string; key: string }
+    | undefined;
   let active: ReturnType<typeof computeHistogram> | undefined;
   let disposed = false;
 
@@ -65,7 +57,9 @@ export function usePiecewiseHistogram(widget: HistogramWidget) {
     if (disposed) return;
     const scalars = image.getPointData().getScalars();
     const revision = `${image.getMTime()}:${scalars.getMTime()}`;
-    const range: [number, number] = [...(fittedRange ?? scalars.getRange())];
+    const range: [number, number] = [
+      ...(fittedRange ?? getAllComponentRange(scalars)),
+    ];
     const bins = widget.getNumberOfBins();
     const key = `${!!fittedRange}:${range}:${bins}`;
     if (
@@ -98,8 +92,14 @@ export function usePiecewiseHistogram(widget: HistogramWidget) {
         widget.setHistogram(histogram, range);
       })
       .catch((error) => {
-        if (!disposed && active === request) logError(error);
+        if (!disposed && active === request) {
+          previous = undefined;
+          logError(error);
+        }
       })
-      .finally(() => request.stop());
+      .finally(() => {
+        if (active === request) active = undefined;
+        request.stop();
+      });
   };
 }

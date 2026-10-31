@@ -4,6 +4,7 @@ import { PresetNameList } from '@/src/vtk/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
+import { useVolumeColoringConfig } from '@/src/composables/useVolumeColoringConfig';
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
@@ -38,9 +39,7 @@ export default defineComponent({
 
     useVolumeColoringInitializer(viewId, currentImageID);
 
-    const volumeColorConfig = computed(() =>
-      volumeColoringStore.getConfig(viewId.value, currentImageID.value)
-    );
+    const volumeColorConfig = useVolumeColoringConfig(viewId, currentImageID);
 
     const colorTransferFunctionRef = computed(
       () => volumeColorConfig.value?.transferFunction

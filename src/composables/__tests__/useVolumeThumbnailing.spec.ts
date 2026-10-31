@@ -196,7 +196,7 @@ describe('useVolumeThumbnailing', () => {
     await flushPromises();
   });
 
-  it('refreshes partial thumbnails when a background volume has completed', async () => {
+  it('waits for complete data before rendering thumbnails, including background loads', async () => {
     const partialURI = 'data:image/png;base64,cGFydGlhbA==';
     const completeURI = 'data:image/png;base64,Y29tcGxldGU=';
     let captureURI = partialURI;
@@ -208,9 +208,8 @@ describe('useVolumeThumbnailing', () => {
     const imageID = ref<string | null>(IMAGE_ID);
     const wrapper = mountThumbnailing(stub.thumbnailer, imageID);
     await flushPromises();
-    expect(wrapper.get('[data-preset="CT-AAA"]').attributes('src')).toBe(
-      partialURI
-    );
+    expect(stub.getCaptureCount()).toBe(0);
+    expect(wrapper.get('[data-preset="CT-AAA"]').attributes('src')).toBe('');
 
     imageID.value = OTHER_IMAGE_ID;
     await flushPromises();

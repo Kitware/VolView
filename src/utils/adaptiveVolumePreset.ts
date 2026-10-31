@@ -46,6 +46,7 @@ const summaries = new WeakMap<
   vtkImageData,
   {
     revision: string;
+    samples: number[];
     colorRange: [number, number];
     low: number;
     high: number;
@@ -74,8 +75,8 @@ export function getAdaptiveVolumeHistogram(
 ) {
   return [
     ...range,
-    ...sampleScalars(image).map((value) =>
-      Math.max(range[0], Math.min(range[1], value))
+    ...(summarize(image)?.samples ?? []).filter(
+      (value) => value >= range[0] && value <= range[1]
     ),
   ];
 }
@@ -158,10 +159,12 @@ function summarize(image: vtkImageData) {
   const [minimum, maximum] = scalars.getRange();
   if (!Number.isFinite(minimum) || !Number.isFinite(maximum)) return null;
   const range: [number, number] = [minimum, maximum];
+  const samples = sampleScalars(image);
   const summary = {
     revision,
+    samples,
     maxDimension: Math.max(...image.getDimensions()),
-    ...fitIntensities(sampleScalars(image), range),
+    ...fitIntensities(samples, range),
   };
   summaries.set(image, summary);
   return summary;

@@ -121,7 +121,43 @@ describe('opacity editor histogram reuse', () => {
     expect(changes).toHaveLength(1);
     await workers[0].finish();
     expect(changes.at(-1)?.histogram).toEqual(
-      piecewiseHistogram([2, 4, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4], [2, 4], 5)
+      piecewiseHistogram([2, 4, 2, 2, 2, 3, 3, 3, 3, 4, 4], [2, 4], 5)
+    );
+  });
+
+  it('uses RGB component intensities across the full histogram width', async () => {
+    const image = createImage();
+    const values = Uint8Array.from([
+      0, 0, 0, 255, 0, 0, 0, 255, 0, 255, 255, 255,
+    ]);
+    image
+      .getPointData()
+      .setScalars(vtkDataArray.newInstance({ values, numberOfComponents: 3 }));
+    const { update, changes } = createEditor();
+    update(image);
+    await workers[0].started;
+    await workers[0].finish();
+    expect(changes.at(-1)).toEqual({
+      range: [0, 255],
+      histogram: piecewiseHistogram(values, [0, 255], 5),
+    });
+    expect(changes.at(-1)?.histogram?.at(-1)).toBeGreaterThan(0);
+  });
+
+  it('excludes fitted-out intensities instead of piling them into endpoint bins', async () => {
+    const image = createImage();
+    const values = Float32Array.from({ length: 1000 }, (_, index) => index);
+    image.getPointData().getScalars().setData(values);
+    const { update, changes } = createEditor();
+    update(image, [400, 600]);
+    await workers[0].started;
+    await workers[0].finish();
+    expect(changes.at(-1)?.histogram).toEqual(
+      piecewiseHistogram(
+        [400, 600, ...values.filter((value) => value >= 400 && value <= 600)],
+        [400, 600],
+        5
+      )
     );
   });
 
@@ -148,7 +184,7 @@ describe('opacity editor histogram reuse', () => {
     expect(changes.at(-1)).toEqual(original);
   });
 
-  it('retries a failed histogram after another preset without caching the failure', async () => {
+  it('retries a failed histogram for the same image and range', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const image = createImage();
     const { update, changes } = createEditor();
@@ -158,13 +194,10 @@ describe('opacity editor histogram reuse', () => {
     expect(errors).toHaveBeenCalledOnce();
     expect(changes.at(-1)?.histogram).toBeNull();
 
-    update(image, [2, 4]);
+    update(image);
+    expect(workers).toHaveLength(2);
     await workers[1].started;
     await workers[1].finish();
-    update(image);
-    expect(workers).toHaveLength(3);
-    await workers[2].started;
-    await workers[2].finish();
     expect(changes.at(-1)?.histogram).toEqual(
       piecewiseHistogram(image.getPointData().getScalars().getData(), [0, 4], 5)
     );

@@ -4,6 +4,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   createVolumeScalars,
+  restoredVolumeManifest,
   openVolumeRenderingControls,
 } from './volumeRenderingTestUtils';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
@@ -242,60 +243,11 @@ describe('initial volume presets', () => {
     });
     const manifest = 'explicit-volume-preset.json';
     await writeManifestToFile(
-      {
-        version: '7.0.0',
-        dataSources: [{ id: 0, type: 'uri', uri: `/tmp/${name}` }],
-        primarySelection: '0',
-        activeView: 'volume',
-        layoutSlots: ['volume'],
-        layout: { direction: 'row', items: [{ type: 'slot', slotIndex: 0 }] },
-        viewByID: {
-          volume: {
-            id: 'volume',
-            name: 'Volume',
-            type: '3D',
-            dataID: '0',
-            options: { viewDirection: 'Superior', viewUp: 'Anterior' },
-            config: {
-              '0': {
-                volumeColorConfig: {
-                  colorBy: { arrayName: 'Scalars', location: 'pointData' },
-                  transferFunction: {
-                    preset: 'Adaptive-Transparent',
-                    mappingRange: [0, 1000],
-                  },
-                  opacityFunction: {
-                    mode: 0,
-                    mappingRange: [0, 1000],
-                    gaussians: [
-                      {
-                        position: 1,
-                        height: 0.4,
-                        width: 1,
-                        xBias: 0,
-                        yBias: 1,
-                      },
-                    ],
-                  },
-                  cvr: {
-                    enabled: true,
-                    lightFollowsCamera: true,
-                    volumeQuality: 1,
-                    useVolumetricScatteringBlending: false,
-                    volumetricScatteringBlending: 0.5,
-                    useLocalAmbientOcclusion: false,
-                    laoKernelSize: 15,
-                    laoKernelRadius: 5,
-                    ambient: 0.6,
-                    diffuse: 0.4,
-                    specular: 0.1,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      restoredVolumeManifest([{ url: `tmp/${name}` }], {
+        preset: 'Adaptive-Transparent',
+        mappingRange: [0, 1000],
+        cinematic: true,
+      }),
       manifest
     );
     await volViewPage.open(`?urls=[tmp/${manifest}]`);

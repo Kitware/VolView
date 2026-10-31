@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import { checkAdaptiveCtReset } from './adaptiveCtCheck';
-import { step, viewport } from './adaptivePresetTrace';
 import path from 'node:path';
 import { applyTestViewport, TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -100,59 +99,28 @@ function writeVolume(
   return name;
 }
 
-async function selectPreset(name: string, tracePrefix?: string) {
+async function selectPreset(name: string) {
   const card = $(`[data-testid="volume-preset-${name}"]`);
-  await step(tracePrefix && `${tracePrefix}/selectPreset-01`, async () =>
-    card.scrollIntoView({ block: 'center', behavior: 'instant' })
-  );
-  await step(tracePrefix && `${tracePrefix}/selectPreset-02`, async () =>
-    card.waitForClickable()
-  );
-  await step(tracePrefix && `${tracePrefix}/selectPreset-03`, async () =>
-    card.click()
-  );
-  await step(tracePrefix && `${tracePrefix}/selectPreset-04`, async () =>
-    expect(card).toHaveElementClass('bg-blue')
-  );
-  await step(tracePrefix && `${tracePrefix}/selectPreset-05`, async () =>
-    expect($(resetSelector)).toBeDisabled()
-  );
-  await step(tracePrefix && `${tracePrefix}/selectPreset-06`, async () =>
-    $('header').moveTo()
-  );
+  await card.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await card.waitForClickable();
+  await card.click();
+  await expect(card).toHaveElementClass('bg-blue');
+  await expect($(resetSelector)).toBeDisabled();
+  await $('header').moveTo();
 }
 
-async function renderedProfile(name: string, tracePrefix?: string) {
+async function renderedProfile(name: string) {
   const card = $(`[data-testid="volume-preset-${name}"]`);
-  const selected = (
-    await step(tracePrefix && `${tracePrefix}/renderedProfile-01`, async () =>
-      card.getAttribute('class')
-    )
-  )?.includes('bg-blue');
-  const previous = await step(
-    tracePrefix && `${tracePrefix}/renderedProfile-02`,
-    async () => visibleAppearance(tracePrefix)
-  );
-  await step(tracePrefix && `${tracePrefix}/renderedProfile-03`, async () =>
-    selectPreset(name, tracePrefix)
-  );
+  const selected = (await card.getAttribute('class'))?.includes('bg-blue');
+  const previous = await visibleAppearance();
+  await selectPreset(name);
   if (!selected) {
-    await step(tracePrefix && `${tracePrefix}/renderedProfile-04`, async () =>
-      browser.waitUntil(
-        async () =>
-          pixelDifference(
-            await step(
-              tracePrefix && `${tracePrefix}/renderedProfile-05`,
-              async () => appearance()
-            ),
-            previous,
-            4
-          ) > 2,
-        { timeoutMsg: `Expected ${name} to change the visible volume opacity` }
-      )
+    await browser.waitUntil(
+      async () => pixelDifference(await appearance(), previous, 4) > 2,
+      { timeoutMsg: `Expected ${name} to change the visible volume opacity` }
     );
   }
-  return visibleAppearance(tracePrefix);
+  return visibleAppearance();
 }
 
 async function openVolume(
@@ -164,38 +132,27 @@ async function openVolume(
     | 'constant'
     | 'binary'
     | 'ct' = 'layers',
-  scalarScale = 1,
-  tracePrefix?: string
+  scalarScale = 1
 ) {
   const name = writeVolume(encoding, variant, scalarScale);
   const configName = `adaptive-volume-layout-${encoding}-${variant}-${fixtureIndex++}.json`;
-  await step(tracePrefix && `${tracePrefix}/openVolume-01`, async () =>
-    writeManifestToFile(
-      {
-        layouts: {
-          default: {
-            direction: 'row',
-            items: [
-              { type: '3D', viewDirection: 'Superior', viewUp: 'Anterior' },
-            ],
-          },
+  await writeManifestToFile(
+    {
+      layouts: {
+        default: {
+          direction: 'row',
+          items: [
+            { type: '3D', viewDirection: 'Superior', viewUp: 'Anterior' },
+          ],
         },
       },
-      configName
-    )
+    },
+    configName
   );
-  await step(tracePrefix && `${tracePrefix}/openVolume-02`, async () =>
-    volViewPage.open(`?urls=[tmp/${configName},tmp/${name}]`)
-  );
-  await step(tracePrefix && `${tracePrefix}/openVolume-03`, async () =>
-    volViewPage.waitForViewCounts(0, true)
-  );
-  await step(tracePrefix && `${tracePrefix}/openVolume-04`, async () =>
-    openVolumeRenderingControls(tracePrefix)
-  );
-  await step(tracePrefix && `${tracePrefix}/openVolume-05`, async () =>
-    selectPreset('Adaptive-Balanced', tracePrefix)
-  );
+  await volViewPage.open(`?urls=[tmp/${configName},tmp/${name}]`);
+  await volViewPage.waitForViewCounts(0, true);
+  await openVolumeRenderingControls();
+  await selectPreset('Adaptive-Balanced');
 }
 
 describe('adaptive volume presets', () => {
@@ -238,21 +195,15 @@ describe('adaptive volume presets', () => {
     const names = ['Transparent', 'Balanced', 'Surface'];
     const reference: Record<string, Appearance> = {};
     before(async () => {
-      await viewport('ref');
-
-      await step('ref01', async () => openVolume('uint8', 'layers', 1, 'ref'));
+      await openVolume('uint8', 'layers', 1);
       const cards = $$('[data-testid^="volume-preset-Adaptive-"]');
-      await step('ref02', async () => expect(cards).toBeElementsArrayOfSize(3));
-      const rows = (await step('ref03', async () =>
-        cards.map((card) =>
-          card.execute((element) => element.getBoundingClientRect().top)
-        )
+      await expect(cards).toBeElementsArrayOfSize(3);
+      const rows = (await cards.map((card) =>
+        card.execute((element) => element.getBoundingClientRect().top)
       )) as number[];
       expect(new Set(rows).size).toBe(1);
       for (const name of names) {
-        reference[name] = await step('ref04', async () =>
-          renderedProfile(`Adaptive-${name}`, 'ref')
-        );
+        reference[name] = await renderedProfile(`Adaptive-${name}`);
       }
     });
 
@@ -386,8 +337,8 @@ describe('adaptive volume presets', () => {
 
   it('preserves CT edits across tabs and resets color and opacity without changing its palette or lighting', async () => {
     await checkAdaptiveCtReset(
-      () => openVolume('uint16', 'ct', 1, 'ct'),
-      (name) => selectPreset(name, 'ct')
+      () => openVolume('uint16', 'ct', 1),
+      (name) => selectPreset(name)
     );
   });
 

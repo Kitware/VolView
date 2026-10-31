@@ -16,10 +16,7 @@ export function useVolumeThumbnailing(
   createThumbnailer = createVolumeThumbnailer
 ) {
   const thumbnails = reactive<Record<string, Record<string, string>>>({});
-  const thumbnailSources = new Map<
-    string,
-    { image: vtkImageData; loaded: boolean }
-  >();
+  const thumbnailSources = new Map<string, vtkImageData>();
   const thumbnailer = createThumbnailer(thumbnailSize);
 
   const {
@@ -113,11 +110,13 @@ export function useVolumeThumbnailing(
   watch(
     [currentImageID, currentImageData, () => currentImage.value?.isLoaded()],
     ([imageID, image, loaded]) => {
-      if (imageID && image) {
+      if (interruptSentinel === UNMOUNTED) return;
+      interruptSentinel = Symbol('interrupt');
+      if (imageID && image && loaded) {
         const source = thumbnailSources.get(imageID);
-        if (source?.image !== image || source.loaded !== !!loaded) {
+        if (source !== image) {
           thumbnails[imageID] = {};
-          thumbnailSources.set(imageID, { image, loaded: !!loaded });
+          thumbnailSources.set(imageID, image);
         }
         doThumbnailing(imageID, image);
       }

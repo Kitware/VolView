@@ -5,6 +5,7 @@ import { volViewPage } from '../pageobjects/volview.page';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
 import {
   appearance,
+  restoredVolumeManifest,
   openVolumeRenderingControls,
 } from './volumeRenderingTestUtils';
 
@@ -14,13 +15,17 @@ const layout = {
 };
 const loadingIndicator = () => $('.volume-viewer-container .loading-indicator');
 const presetCard = (name: string) => $(`[data-testid="volume-preset-${name}"]`);
+const presetLabel = () => $('.volume-viewer-container .view-annotations');
 let heldSlice: Awaited<ReturnType<typeof browser.addInitScript>> | undefined;
 
 async function openStreamingVolume(
   modality: string,
-  normalized = false,
-  sliceCount = 8,
-  finalPixelValue = 0
+  {
+    normalized = false,
+    sliceCount = 8,
+    finalPixelValue = 0,
+    restoreColoring = false,
+  } = {}
 ) {
   const directory = `progressive-${modality}-${normalized}-${sliceCount}-${finalPixelValue}`;
   const folder = path.join(TEMP_DIR, directory);
@@ -61,7 +66,14 @@ async function openStreamingVolume(
   // that release the outstanding request from this spec's afterEach hook.
   fs.writeFileSync(
     path.join(TEMP_DIR, manifest),
-    JSON.stringify({ resources })
+    JSON.stringify(
+      restoreColoring
+        ? restoredVolumeManifest(resources, {
+            preset: 'Adaptive-Balanced',
+            mappingRange: [250, 1000],
+          })
+        : { resources }
+    )
   );
   fs.writeFileSync(
     path.join(TEMP_DIR, config),
@@ -127,6 +139,9 @@ async function expectVisibleVolume() {
 async function expectCompletedPreset(preset: string) {
   await expect(loadingIndicator()).not.toExist();
   await expect(presetCard(preset)).toHaveElementClass('bg-blue');
+  await expect(presetLabel()).toHaveText(
+    expect.stringContaining(preset.replace(/-/g, ' '))
+  );
   await expectVisibleVolume();
   expect(await volViewPage.getNotificationsCount()).toBe(0);
 }
@@ -144,6 +159,11 @@ describe('progressive volume presets', () => {
       await expectVisibleVolume();
       await expect(loadingIndicator()).toBeDisplayed();
       await openVolumeRenderingControls();
+      const preset = modality === 'CT' ? 'CT-AAA' : 'MR-Default';
+      await expect(presetCard(preset)).toHaveElementClass('bg-blue');
+      await expect(presetLabel()).toHaveText(
+        expect.stringContaining(preset.replace(/-/g, ' '))
+      );
       const cinematic = $('[data-testid="volume-properties"]');
       await cinematic.scrollIntoView({ block: 'center', behavior: 'instant' });
       await expect(cinematic).toBeDisplayed();
@@ -162,14 +182,14 @@ describe('progressive volume presets', () => {
         'true'
       );
       await releaseSlice();
-      await expectCompletedPreset(modality === 'CT' ? 'CT-AAA' : 'MR-Default');
+      await expectCompletedPreset(preset);
       await expect(cinematic.$('.v-slider input')).toBeEnabled();
       await expect(cinematic.$('.v-switch input')).toBeEnabled();
     });
   }
 
   it('displays a constant MR slice before completion and after a 3D view mounts', async () => {
-    await openStreamingVolume('MR', false, 2);
+    await openStreamingVolume('MR', { sliceCount: 2 });
     await expectVisibleVolume();
     await switchViewType('Axial', 1, false);
     await switchViewType('Volume', 0, true);
@@ -181,19 +201,22 @@ describe('progressive volume presets', () => {
   });
 
   it('fits normalized MR data only after all slices load', async () => {
-    await openStreamingVolume('MR', true);
+    await openStreamingVolume('MR', { normalized: true });
     await openVolumeRenderingControls();
     await expect(presetCard('Adaptive-Balanced')).toHaveAttribute(
       'aria-disabled',
       'true'
     );
-    await expect(presetCard('MR-Default')).not.toHaveElementClass('bg-blue');
+    await expect(presetCard('MR-Default')).toHaveElementClass('bg-blue');
+    await expect(presetLabel()).toHaveText(
+      expect.stringContaining('MR Default')
+    );
     await releaseSlice();
     await expectCompletedPreset('Adaptive-Balanced');
   });
 
   it('preserves a selected preset and finishes its opacity range when the final slice expands the intensities', async () => {
-    await openStreamingVolume('MR', false, 8, 2000);
+    await openStreamingVolume('MR', { finalPixelValue: 2000 });
     await expectVisibleVolume();
     await openVolumeRenderingControls();
     const selected = presetCard('CT-AAA');
@@ -206,5 +229,33 @@ describe('progressive volume presets', () => {
     await expect(
       $('[data-testid="volume-reset-color-opacity"]')
     ).toBeDisabled();
+  });
+
+  it('updates restored adaptive Shift bounds when the final slice expands the intensities', async () => {
+    await openStreamingVolume('MR', {
+      finalPixelValue: 2000,
+      restoreColoring: true,
+    });
+    await openVolumeRenderingControls();
+    await expect(presetCard('Adaptive-Balanced')).toHaveElementClass('bg-blue');
+    await expect(presetLabel()).toHaveText(
+      expect.stringContaining('Adaptive Balanced')
+    );
+    await releaseSlice();
+    await expect(loadingIndicator()).not.toExist();
+    const shift = $('[data-testid="volume-color-shift"] [role="slider"]');
+    const width = $('[data-testid="volume-color-width"] [role="slider"]');
+    await expect(width).toHaveAttribute('aria-valuenow', '750');
+    // Seven equally sized nonzero slices have median 400 and upper fit 2000.
+    // The restored color center is 625, so its shift from the new fit is -575.
+    await expect(shift).toHaveAttribute('aria-valuenow', '-575');
+    await shift.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await shift.execute((element) => element.focus());
+    await browser.keys('ArrowRight');
+    await expect(shift).toHaveAttribute('aria-valuenow', '-574');
+    await expect(width).toHaveAttribute('aria-valuenow', '750');
+    await browser.keys('ArrowLeft');
+    await expect(shift).toHaveAttribute('aria-valuenow', '-575');
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

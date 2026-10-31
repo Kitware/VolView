@@ -1,4 +1,3 @@
-import { step } from './adaptivePresetTrace';
 import { volViewPage } from '../pageobjects/volview.page';
 import { waitForModuleTransitions } from './utils';
 
@@ -27,49 +26,18 @@ export function createVolumeScalars(
   return buffer;
 }
 
-export async function openVolumeRenderingControls(tracePrefix?: string) {
-  await step(
-    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-01`,
-    async () => volViewPage.renderingModuleTab.waitForClickable()
-  );
-  await step(
-    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-02`,
-    async () => volViewPage.renderingModuleTab.click()
-  );
-  await step(
-    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-03`,
-    async () => waitForModuleTransitions()
-  );
+export async function openVolumeRenderingControls() {
+  await volViewPage.renderingModuleTab.waitForClickable();
+  await volViewPage.renderingModuleTab.click();
+  await waitForModuleTransitions();
   const volume = $('[data-testid="volume-rendering-toggle"]');
-  if (
-    (await step(
-      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-04`,
-      async () => volume.getAttribute('aria-expanded')
-    )) !== 'true'
-  )
-    await step(
-      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-05`,
-      async () => volume.click()
-    );
+  if ((await volume.getAttribute('aria-expanded')) !== 'true')
+    await volume.click();
   const presets = $('.v-expansion-panel-title*=Color Presets');
-  await step(
-    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-06`,
-    async () => presets.scrollIntoView({ block: 'center', behavior: 'instant' })
-  );
-  if (
-    (await step(
-      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-07`,
-      async () => presets.getAttribute('aria-expanded')
-    )) !== 'true'
-  )
-    await step(
-      tracePrefix && `${tracePrefix}/openVolumeRenderingControls-08`,
-      async () => presets.click()
-    );
-  await step(
-    tracePrefix && `${tracePrefix}/openVolumeRenderingControls-09`,
-    async () => waitForModuleTransitions()
-  );
+  await presets.scrollIntoView({ block: 'center', behavior: 'instant' });
+  if ((await presets.getAttribute('aria-expanded')) !== 'true')
+    await presets.click();
+  await waitForModuleTransitions();
 }
 
 export type Appearance = {
@@ -138,22 +106,16 @@ export function pixelDifference(a: Appearance, b: Appearance, blockSize = 1) {
   return difference / Math.max(1, samples);
 }
 
-export async function visibleAppearance(tracePrefix?: string) {
+export async function visibleAppearance() {
   let result: Appearance;
-  await step(tracePrefix && `${tracePrefix}/visibleAppearance-01`, async () =>
-    browser.waitUntil(
-      async () => {
-        result = await step(
-          tracePrefix && `${tracePrefix}/visibleAppearance-02`,
-          async () => appearance()
-        );
-        return result.visible > 250 && result.colored < 30;
-      },
-      {
-        timeoutMsg:
-          'Expected the adaptive preset to render the generated layers',
-      }
-    )
+  await browser.waitUntil(
+    async () => {
+      result = await appearance();
+      return result.visible > 250 && result.colored < 30;
+    },
+    {
+      timeoutMsg: 'Expected the adaptive preset to render the generated layers',
+    }
   );
   expect(result!.background).toBeGreaterThan(96 * 96 * 0.4);
   return result!;
@@ -164,4 +126,75 @@ export async function colorShift() {
   await slider.scrollIntoView({ block: 'center', behavior: 'instant' });
   await slider.waitForDisplayed();
   return slider;
+}
+
+export function restoredVolumeManifest(
+  resources: { url: string; name?: string }[],
+  {
+    preset,
+    mappingRange,
+    cinematic = false,
+  }: {
+    preset: string;
+    mappingRange: [number, number];
+    cinematic?: boolean;
+  }
+) {
+  return {
+    version: '7.0.0',
+    datasets: [{ id: 'volume-data', dataSourceId: 0 }],
+    dataSources: [
+      { id: 0, type: 'collection', sources: resources.map((_, i) => i + 1) },
+      ...resources.map(({ url, name }, index) => ({
+        id: index + 1,
+        type: 'uri',
+        uri: `/${url}`,
+        name,
+      })),
+    ],
+    primarySelection: 'volume-data',
+    activeView: 'volume',
+    layoutSlots: ['volume'],
+    layout: { direction: 'row', items: [{ type: 'slot', slotIndex: 0 }] },
+    viewByID: {
+      volume: {
+        id: 'volume',
+        name: 'Volume',
+        type: '3D',
+        dataID: 'volume-data',
+        options: { viewDirection: 'Superior', viewUp: 'Anterior' },
+        config: {
+          'volume-data': {
+            volumeColorConfig: {
+              colorBy: { arrayName: 'Scalars', location: 'pointData' },
+              transferFunction: {
+                preset,
+                mappingRange,
+              },
+              opacityFunction: {
+                mode: 0,
+                mappingRange,
+                gaussians: [
+                  { position: 1, height: 0.4, width: 1, xBias: 0, yBias: 1 },
+                ],
+              },
+              cvr: {
+                enabled: cinematic,
+                lightFollowsCamera: true,
+                volumeQuality: 1,
+                useVolumetricScatteringBlending: false,
+                volumetricScatteringBlending: 0.5,
+                useLocalAmbientOcclusion: false,
+                laoKernelSize: 15,
+                laoKernelRadius: 5,
+                ambient: 0.6,
+                diffuse: 0.4,
+                specular: 0.1,
+              },
+            },
+          },
+        },
+      },
+    },
+  };
 }

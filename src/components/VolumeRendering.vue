@@ -17,13 +17,18 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import useViewAnimationStore from '@/src/store/view-animation';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
+import { useVolumeColoringConfig } from '@/src/composables/useVolumeColoringConfig';
+import { useVtkComputed } from '@/src/core/vtk/useVtkComputed';
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { usePiecewiseHistogram } from '@/src/composables/usePiecewiseHistogram';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore, {
   getColorAndOpacityFromPreset,
 } from '@/src/store/view-configs/volume-coloring';
-import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePreset';
+import {
+  getAdaptiveVolumePresetUnavailableReason,
+  isAdaptiveVolumePreset,
+} from '@/src/utils/adaptiveVolumePreset';
 import { getShiftedOpacityFromPreset } from '@/src/utils/vtk-helpers';
 
 const WIDGET_WIDTH = 250;
@@ -72,9 +77,7 @@ export default defineComponent({
 
     useVolumeColoringInitializer(viewId, currentImageID);
 
-    const volumeColorConfig = computed(() =>
-      volumeColoringStore.getConfig(viewId.value, currentImageID.value)
-    );
+    const volumeColorConfig = useVolumeColoringConfig(viewId, currentImageID);
 
     const colorTransferFunctionRef = computed(
       () => volumeColorConfig.value?.transferFunction
@@ -278,6 +281,17 @@ export default defineComponent({
       () => colorTransferFunctionRef.value?.preset || null
     );
     const hasCurrentImage = computed(() => !!currentImageData.value);
+    const resetImageUnavailableReason = computed(() => {
+      const image = currentImageData.value;
+      if (!image) return 'Load a volume to reset contrast and opacity';
+      if (!currentImage.value?.isLoaded())
+        return 'Wait for the complete volume to load';
+      if (isAdaptiveVolumePreset(selectedPreset.value ?? ''))
+        return getAdaptiveVolumePresetUnavailableReason(image, true);
+      return image.getPointData().getScalars().getRange().every(Number.isFinite)
+        ? ''
+        : 'Reset requires finite intensities';
+    });
     const resetColoringUnavailableReason = computed(() => {
       if (
         !viewId.value ||
@@ -285,13 +299,8 @@ export default defineComponent({
         !colorTransferFunctionRef.value?.preset
       )
         return 'Wait for volume rendering to initialize';
-      const image = currentImageData.value;
-      if (!image) return 'Load a volume to reset contrast and opacity';
-      if (!currentImage.value?.isLoaded())
-        return 'Wait for the complete volume to load';
-      const scalars = image.getPointData().getScalars();
-      if (!scalars.getRange().every(Number.isFinite))
-        return 'Reset requires finite intensities';
+      if (resetImageUnavailableReason.value)
+        return resetImageUnavailableReason.value;
       if (
         volumeColoringStore.isColorAndOpacityDefault(
           viewId.value,
@@ -314,15 +323,18 @@ export default defineComponent({
     };
 
     // the data range, if any
-    const imageDataRange = computed((): [number, number] => {
-      const image = currentImageData.value;
-      if (image) {
-        return image.getPointData().getScalars().getRange();
+    const imageDataRange = useVtkComputed(
+      currentImageData,
+      (): [number, number] => {
+        const image = currentImageData.value;
+        if (image) {
+          return image.getPointData().getScalars().getRange();
+        }
+        return [0, 1];
       }
-      return [0, 1];
-    });
+    );
 
-    const fullMappingRange = computed(() => {
+    const fullMappingRange = useVtkComputed(currentImageData, () => {
       const preset = colorTransferFunctionRef.value?.preset ?? '';
       const image = currentImageData.value;
       return (
@@ -352,8 +364,26 @@ export default defineComponent({
     onKeyDown('Control', () => pwfWidget.setShiftOpacityValues(true));
     onKeyUp('Control', () => pwfWidget.setShiftOpacityValues(false));
 
-    const rangeShift = ref(0);
-    const rangeWidth = ref(0);
+    const rangeShift = computed({
+      get() {
+        const range = colorTransferFunctionRef.value?.mappingRange;
+        if (!range) return 0;
+        const fullRange = fullMappingRange.value;
+        return (range[0] + range[1]) / 2 - (fullRange[0] + fullRange[1]) / 2;
+      },
+      set(shift: number) {
+        updateMappingRange(shift, rangeWidth.value);
+      },
+    });
+    const rangeWidth = computed({
+      get() {
+        const range = colorTransferFunctionRef.value?.mappingRange;
+        return range ? range[1] - range[0] : 0;
+      },
+      set(width: number) {
+        updateMappingRange(rangeShift.value, width);
+      },
+    });
 
     const colorSliderStep = computed(() => {
       const [low, high] = imageDataRange.value;
@@ -401,24 +431,7 @@ export default defineComponent({
 
     useResetViewsEvents().onClick(reset);
 
-    // Sync slider values from mappingRange when it changes (e.g., when switching views)
-    watch(
-      () => colorTransferFunctionRef.value?.mappingRange,
-      (mappingRange) => {
-        if (!mappingRange) return;
-
-        const fullRange = fullMappingRange.value;
-        const fullCenter = (fullRange[0] + fullRange[1]) / 2;
-        const currentCenter = (mappingRange[0] + mappingRange[1]) / 2;
-
-        rangeWidth.value = mappingRange[1] - mappingRange[0];
-        rangeShift.value = currentCenter - fullCenter;
-      },
-      { immediate: true }
-    );
-
-    // Update store when sliders change (using center-based math to avoid drift)
-    watch([rangeShift, rangeWidth], ([shift, width]) => {
+    function updateMappingRange(shift: number, width: number) {
       if (!canEditColoring.value || !viewId.value || !currentImageID.value)
         return;
 
@@ -437,7 +450,7 @@ export default defineComponent({
         currentImageID.value,
         { mappingRange: [min, max] }
       );
-    });
+    }
 
     return {
       editorContainerRef,
