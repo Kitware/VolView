@@ -1,5 +1,7 @@
-import { MRA_HEAD_NECK_DATASET, PROSTATEX_DATASET } from '../datasets';
-import { openUrls } from './utils';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { makeTempDir, writeManifestToFile } from './utils';
+import { buildSyntheticDicom, newUid } from './syntheticDicom';
 import { volViewPage } from '../pageobjects/volview.page';
 
 const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
@@ -7,6 +9,44 @@ const IMAGE_DRAG_MEDIA_TYPE = 'application/x-volview-image-id';
 // Four Up: the loaded image fills every slot, so these two get the other one.
 const FIRST_OTHER_SLOT = 2;
 const SECOND_OTHER_SLOT = 1;
+
+const openImages = async () => {
+  const directory = makeTempDir('crosshairs-images');
+  const studyUid = newUid();
+  // Separate image bounds make an incorrectly shared crosshair clamp the other
+  // volume to an edge slice instead of leaving it at the middle slice.
+  const resources = [0, 100].flatMap((origin, series) => {
+    const seriesUid = newUid();
+    return Array.from({ length: 16 }, (_, slice) => {
+      const filename = `${series}-${slice}.dcm`;
+      writeFileSync(
+        join(directory, filename),
+        buildSyntheticDicom({
+          studyUid,
+          seriesUid,
+          sopUid: newUid(),
+          instanceNumber: slice + 1,
+          seriesNumber: series + 1,
+          imageOrientationPatient: [1, 0, 0, 0, 1, 0],
+          imagePositionPatient: [origin, origin, origin + slice],
+          rows: 16,
+          cols: 16,
+          pixelValue: 20 + slice * 10,
+        })
+      );
+      return { url: `/tmp/crosshairs-images/${filename}` };
+    });
+  });
+  await writeManifestToFile({ resources }, 'crosshairs-images.json');
+  await volViewPage.open('?urls=[tmp/crosshairs-images.json]');
+  await volViewPage.waitForViews();
+  await volViewPage.waitForVolumeCardSliceCounts([16, 16]);
+};
+
+const expectSlotImage = (index: number, name: string) =>
+  expect(
+    $$('.grid-item')[index].$('.view-annotations .annotation-cell')
+  ).toHaveText(name);
 
 /**
  * Dispatches a real dragstart on a volume card so the app stamps the imageID
@@ -74,15 +114,7 @@ const dragInSlot = async (index: number, dx: number, dy: number) => {
 
 describe('Crosshairs with two base images', () => {
   it('only slices the views showing the image it was dragged in', async () => {
-    await openUrls([PROSTATEX_DATASET, MRA_HEAD_NECK_DATASET]);
-    await volViewPage.waitForViews();
-    await browser.waitUntil(
-      async () => (await $$('.volume-card').length) >= 2,
-      {
-        timeout: 30000,
-        timeoutMsg: 'Expected both volume cards to appear',
-      }
-    );
+    await openImages();
     await browser.waitUntil(async () => (await $$('.grid-item').length) === 4, {
       timeout: 10000,
       timeoutMsg: 'Expected the Four Up layout (4 slots)',
@@ -96,18 +128,25 @@ describe('Crosshairs with two base images', () => {
       )
     );
     expect(otherCard).toBeGreaterThanOrEqual(0);
+    const otherName = await $$('.volume-card')
+      [otherCard].$('.series-desc')
+      .getText();
+    const activeName = await $$('.grid-item')[0]
+      .$('.view-annotations .annotation-cell')
+      .getText();
+    expect(activeName).not.toBe('');
+    expect(otherName).not.toBe(activeName);
+    await expectSlotImage(SECOND_OTHER_SLOT, activeName);
 
     expect(await dropCardOnSlot(otherCard, FIRST_OTHER_SLOT)).toBe(true);
-    await browser.waitUntil(
-      async () => (await getSlices())[FIRST_OTHER_SLOT] != null,
-      { timeout: 15000, timeoutMsg: 'Expected the dropped image to render' }
-    );
+    await expectSlotImage(FIRST_OTHER_SLOT, otherName);
 
     const crosshairsButton = await $('button span i[class~=mdi-crosshairs]');
     await crosshairsButton.waitForClickable();
     await crosshairsButton.click();
 
     const before = await getSlices();
+    expect(before.slice(0, 3)).toEqual([9, 9, 9]);
 
     // Drag the crosshair well off centre in a view of the other image.
     await dragInSlot(0, 60, 40);
@@ -124,10 +163,10 @@ describe('Crosshairs with two base images', () => {
     // not a crosshair interaction, so the slot already showing it must not be
     // re-sliced to wherever the crosshair sits in the other image.
     expect(await dropCardOnSlot(otherCard, SECOND_OTHER_SLOT)).toBe(true);
-    await browser.waitUntil(
-      async () => (await getSlices())[SECOND_OTHER_SLOT] !== afterDrag[1],
-      { timeout: 15000, timeoutMsg: 'Expected the second slot to remount' }
-    );
+    await expectSlotImage(SECOND_OTHER_SLOT, otherName);
+    await expect(
+      $$('.grid-item')[SECOND_OTHER_SLOT].$('.slice-label')
+    ).toHaveText('Slice: 9/16');
 
     const afterRemount = await getSlices();
     expect(afterRemount[FIRST_OTHER_SLOT]).toBe(before[FIRST_OTHER_SLOT]);

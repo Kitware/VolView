@@ -1,91 +1,85 @@
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
+import { datasetFromTags } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/src/core/streaming/chunk';
+import type { Chunk } from '@/packages/dicom/core';
+import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import {
   SOP_CLASS_ULTRASOUND_MULTIFRAME,
   SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED,
   Tags,
-} from '@/src/core/dicomTags';
+} from '@/packages/dicom/core';
 import type {
   CineHeader,
   CineParseResult,
 } from '@/src/core/cine/parseCineDicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { instanceTags } from '@/src/store/__tests__/dicomTagFixtures';
-import { isCineChunkGroup, useDICOMStore } from '@/src/store/datasets-dicom';
+import {
+  isCineChunkGroup,
+  useDICOMStore,
+  type ImportChunksResult,
+} from '@/src/store/datasets-dicom';
 
-const mocks = vi.hoisted(() => {
-  const chunkImages: MockDicomChunkImage[] = [];
+class FakeChunkImage {
+  orientation: number[] | null = null;
 
-  class MockDicomChunkImage {
-    chunks: Chunk[] = [];
-    name = '';
-
-    constructor() {
-      chunkImages.push(this);
-    }
-
-    async addChunks(chunks: Chunk[]) {
-      this.chunks = chunks;
-    }
-
-    getDicomMetadata() {
-      return this.chunks[0].metadata;
-    }
-
-    getChunks() {
-      return this.chunks.slice();
-    }
-
-    setName(name: string) {
-      this.name = name;
-    }
-
-    getStatus() {
-      return 'complete';
-    }
-
-    isLoading() {
-      return false;
-    }
-
-    addEventListener() {}
-
-    removeEventListener() {}
-
-    startLoad() {}
-
-    dispose() {}
+  getReconstruction() {
+    return null;
   }
 
-  return {
-    splitAndSort: vi.fn(),
-    parseCineDicom: vi.fn(),
-    chunkImages,
-    MockDicomChunkImage,
+  getOrientation() {
+    return this.orientation;
+  }
+
+  chunks: Chunk[] = [];
+
+  name = '';
+
+  async setChunks(chunks: Chunk[], orientation: number[] | null) {
+    this.chunks = chunks;
+    this.orientation = orientation;
+  }
+
+  getDicomMetadata() {
+    return dicomDatasetToTags(this.chunks[0].metadata!);
+  }
+
+  getChunks() {
+    return this.chunks.slice();
+  }
+
+  setName(name: string) {
+    this.name = name;
+  }
+
+  getStatus() {
+    return 'complete';
+  }
+
+  isLoading() {
+    return false;
+  }
+
+  addEventListener() {}
+
+  removeEventListener() {}
+
+  startLoad() {}
+
+  dispose() {}
+}
+
+function imageFactory() {
+  const created: FakeChunkImage[] = [];
+  const createChunkImage = () => {
+    const image = new FakeChunkImage();
+    created.push(image);
+    return image as unknown as DicomChunkImage;
   };
-});
-
-// eslint-disable-next-line no-restricted-syntax -- DICOM splitting runs in wasm; unavailable in the node test environment
-vi.mock('@/src/io/dicom', () => ({
-  splitAndSort: mocks.splitAndSort,
-}));
-
-// eslint-disable-next-line no-restricted-syntax -- reads real DICOM bytes through wasm
-vi.mock('@/src/core/cine/parseCineDicom', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/src/core/cine/parseCineDicom')>();
-  return {
-    ...actual,
-    parseCineDicom: mocks.parseCineDicom,
-  };
-});
-
-// eslint-disable-next-line no-restricted-syntax -- needs a streaming chunk source the node environment cannot provide
-vi.mock('@/src/core/streaming/dicomChunkImage', () => ({
-  default: mocks.MockDicomChunkImage,
-}));
+  return { created, createChunkImage };
+}
 
 function metadata(overrides: Record<string, string> = {}) {
   return instanceTags({
@@ -147,12 +141,17 @@ function parseResult(header: CineHeader): CineParseResult {
 
 function chunk(meta = metadata()) {
   return {
-    metadata: meta,
-    metaBlob: new Blob([new Uint8Array([1])]),
+    metadata: datasetFromTags(meta),
     dataBlob: new Blob([new Uint8Array([2])]),
     loadData: vi.fn().mockResolvedValue(undefined),
   } as unknown as Chunk;
 }
+
+const onlyId = (volumes: Record<string, Chunk[]>) => {
+  const ids = Object.keys(volumes);
+  expect(ids).toHaveLength(1);
+  return ids[0];
+};
 
 describe('isCineChunkGroup', () => {
   it('accepts a single current ultrasound multi-frame image with more than one frame', () => {
@@ -203,86 +202,119 @@ describe('isCineChunkGroup', () => {
 describe('DICOM store cine routing', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    mocks.splitAndSort.mockReset();
-    mocks.parseCineDicom.mockReset();
-    mocks.chunkImages.length = 0;
   });
 
   it('falls back to chunk import for unsupported parsed cine headers', async () => {
+    const { created, createChunkImage } = imageFactory();
+    const parseCineDicom = vi.fn(() => parseResult(cineHeader()));
     const unsupportedCineChunk = chunk();
-    const chunksByVolume = { 'volume-1': [unsupportedCineChunk] };
-    mocks.splitAndSort.mockResolvedValue(chunksByVolume);
-    mocks.parseCineDicom.mockReturnValue(parseResult(cineHeader()));
 
     const store = useDICOMStore();
-    await expect(store.importChunks([unsupportedCineChunk])).resolves.toBe(
-      chunksByVolume
-    );
+    const result = await store.importChunks([unsupportedCineChunk], {
+      createChunkImage,
+      parseCineDicom,
+    });
 
     expect(unsupportedCineChunk.loadData).toHaveBeenCalledOnce();
-    expect(mocks.parseCineDicom).toHaveBeenCalledOnce();
-    expect(mocks.chunkImages).toHaveLength(1);
-    expect(mocks.chunkImages[0].chunks).toEqual([unsupportedCineChunk]);
+    expect(parseCineDicom).toHaveBeenCalledOnce();
+    expect(created).toHaveLength(1);
+    expect(created[0].chunks).toEqual([unsupportedCineChunk]);
 
-    const imageCacheStore = useImageCacheStore();
-    expect(imageCacheStore.imageById['volume-1']).toBe(mocks.chunkImages[0]);
-    expect(store.volumeInfo['volume-1']).toMatchObject({
-      NumberOfSlices: 1,
-      VolumeID: 'volume-1',
+    const id = onlyId(result.volumes);
+    expect(result.volumes[id]).toEqual([unsupportedCineChunk]);
+    expect(useImageCacheStore().imageById[id]).toBe(created[0]);
+    expect(store.volumeInfo[id]).toMatchObject({
+      NumberOfSlices: 2,
+      VolumeID: id,
       Modality: 'US',
       SeriesInstanceUID: 'series-uid',
       SeriesNumber: '7',
       SeriesDescription: 'Unsupported native cine',
+      kind: 'volume',
     });
-    expect(store.volumeInfo['volume-1'].kind).toBe('volume');
   });
 
   it('falls back to chunk import when cine parsing throws', async () => {
-    const malformedCineChunk = chunk();
-    const chunksByVolume = { 'volume-1': [malformedCineChunk] };
-    mocks.splitAndSort.mockResolvedValue(chunksByVolume);
-    mocks.parseCineDicom.mockImplementation(() => {
+    const { created, createChunkImage } = imageFactory();
+    const parseCineDicom = vi.fn(() => {
       throw new Error('unsupported encapsulated frame layout');
     });
+    const malformedCineChunk = chunk();
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const store = useDICOMStore();
+    let result: ImportChunksResult;
     try {
-      const store = useDICOMStore();
-      await expect(store.importChunks([malformedCineChunk])).resolves.toBe(
-        chunksByVolume
-      );
+      result = await store.importChunks([malformedCineChunk], {
+        createChunkImage,
+        parseCineDicom,
+      });
     } finally {
       warn.mockRestore();
     }
 
     expect(malformedCineChunk.loadData).toHaveBeenCalledOnce();
-    expect(mocks.parseCineDicom).toHaveBeenCalledOnce();
-    expect(mocks.chunkImages).toHaveLength(1);
-    expect(mocks.chunkImages[0].chunks).toEqual([malformedCineChunk]);
+    expect(parseCineDicom).toHaveBeenCalledOnce();
+    expect(created).toHaveLength(1);
+    expect(created[0].chunks).toEqual([malformedCineChunk]);
 
-    const imageCacheStore = useImageCacheStore();
-    expect(imageCacheStore.imageById['volume-1']).toBe(mocks.chunkImages[0]);
-    expect(useDICOMStore().volumeInfo['volume-1'].kind).toBe('volume');
+    const id = onlyId(result!.volumes);
+    expect(useImageCacheStore().imageById[id]).toBe(created[0]);
+    expect(store.volumeInfo[id].kind).toBe('volume');
   });
 
-  it('rejects cached non-chunk images before chunk-volume reuse', async () => {
-    const normalChunk = chunk(
-      metadata({
-        [Tags.SOPClassUID]: '1.2.840.10008.5.1.4.1.1.2',
-        [Tags.NumberOfFrames]: '1',
-      })
-    );
-    const chunksByVolume = { 'volume-1': [normalChunk] };
-    mocks.splitAndSort.mockResolvedValue(chunksByVolume);
+  it('refuses to reuse a cached image that cannot hold chunks', async () => {
+    const parseCineDicom = vi.fn(() => parseResult(cineHeader()));
+    const normalChunk = () =>
+      chunk(
+        metadata({
+          [Tags.SOPClassUID]: '1.2.840.10008.5.1.4.1.1.2',
+          [Tags.NumberOfFrames]: '1',
+        })
+      );
 
+    const learner = imageFactory();
+    const learned = await useDICOMStore().importChunks([normalChunk()], {
+      createChunkImage: learner.createChunkImage,
+      parseCineDicom,
+    });
+    const id = onlyId(learned.volumes);
+
+    // A fresh session plans the same id, but the cache holds a foreign image.
+    setActivePinia(createPinia());
     const imageCacheStore = useImageCacheStore();
-    imageCacheStore.imageById['volume-1'] =
+    imageCacheStore.imageById[id] =
       {} as (typeof imageCacheStore.imageById)[string];
 
-    const store = useDICOMStore();
-    await expect(store.importChunks([normalChunk])).rejects.toThrow(
-      /non-chunk progressive image/
-    );
-    expect(mocks.chunkImages).toHaveLength(0);
+    const { created, createChunkImage } = imageFactory();
+    await expect(
+      useDICOMStore().importChunks([normalChunk()], {
+        createChunkImage,
+        parseCineDicom,
+      })
+    ).rejects.toThrow(/chunk/i);
+    expect(created).toHaveLength(0);
   });
+});
+
+it('imports two same-shaped ultrasound clips as separate playable cine volumes', async () => {
+  setActivePinia(createPinia());
+  const clips = ['clip-1', 'clip-2'].map((sop) =>
+    chunk(metadata({ [Tags.SOPInstanceUID]: sop }))
+  );
+  const { created, createChunkImage } = imageFactory();
+  const store = useDICOMStore();
+  const result = await store.importChunks(clips, {
+    createChunkImage,
+    parseCineDicom: () =>
+      parseResult(cineHeader({ photometricInterpretation: 'MONOCHROME2' })),
+  });
+  expect(
+    Object.values(result.volumes).map((members) => members.length)
+  ).toEqual([1, 1]);
+  expect(Object.values(store.volumeInfo).map((info) => info.kind)).toEqual([
+    'cine',
+    'cine',
+  ]);
+  expect(created).toHaveLength(0);
 });

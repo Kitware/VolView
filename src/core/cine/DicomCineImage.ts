@@ -24,24 +24,70 @@ import {
   decodeJpegFrame,
   decodeNativeFrame,
 } from './frameCache';
-import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
+import {
+  unitToMm,
+  physicalSpacing,
+  fallbackSpacing,
+  type SpatialMetadata,
+} from '@/packages/dicom/core';
 
-function pickPixelSpacing(header: CineHeader): [number, number] {
+function spatialRegionSpacing(r: CineHeader['regions'][number]) {
+  const sx = r.physicalUnitsX != null ? unitToMm(r.physicalUnitsX) : null;
+  const sy = r.physicalUnitsY != null ? unitToMm(r.physicalUnitsY) : null;
+  if (sx == null || sy == null) return null;
+  const { physicalDeltaX: dx, physicalDeltaY: dy } = r;
+  if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+  return [
+    physicalSpacing(
+      Math.abs(dx) * sx,
+      'Ultrasound region (cm converted to mm)'
+    ),
+    physicalSpacing(
+      Math.abs(dy) * sy,
+      'Ultrasound region (cm converted to mm)'
+    ),
+  ] as const;
+}
+
+function pickSpacing(header: CineHeader): SpatialMetadata {
+  const z = fallbackSpacing(
+    'Cine frames share one image plane; this is not a spatial frame step.'
+  );
   for (const r of header.regions) {
-    const sx = r.physicalUnitsX != null ? unitToMm(r.physicalUnitsX) : null;
-    const sy = r.physicalUnitsY != null ? unitToMm(r.physicalUnitsY) : null;
-    if (sx == null || sy == null) continue;
-    const { physicalDeltaX: dx, physicalDeltaY: dy } = r;
-    if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) continue;
-    return [Math.abs(dx) * sx, Math.abs(dy) * sy];
+    const spacing = spatialRegionSpacing(r);
+    if (!spacing) continue;
+    return {
+      axes: [...spacing, z],
+      notes: [
+        'Physical spacing applies within the first spatial ultrasound region, not necessarily the entire image.',
+      ],
+    };
   }
 
   if (header.pixelSpacing) {
     const [rowSpacing, columnSpacing] = header.pixelSpacing;
-    return [columnSpacing, rowSpacing];
+    return {
+      axes: [
+        physicalSpacing(columnSpacing, 'PixelSpacing'),
+        physicalSpacing(rowSpacing, 'PixelSpacing'),
+        z,
+      ],
+      notes: [],
+    };
   }
 
-  return [1, 1];
+  return {
+    axes: [
+      fallbackSpacing(
+        'No usable spatial ultrasound region or PixelSpacing is supplied.'
+      ),
+      fallbackSpacing(
+        'No usable spatial ultrasound region or PixelSpacing is supplied.'
+      ),
+      z,
+    ],
+    notes: [],
+  };
 }
 
 export default class DicomCineImage extends BaseProgressiveImage {
@@ -76,10 +122,10 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.scalarBuffer = new Uint8Array(cols * rows * 3);
     const imageData = vtkImageData.newInstance();
     imageData.setExtent([0, cols - 1, 0, rows - 1, 0, 0]);
-    // Spacing falls back to 1 when no region declares a spatial unit, so
-    // rulers report pixels (documented v1 behavior).
-    const [spacingX, spacingY] = pickPixelSpacing(header);
-    imageData.setSpacing([spacingX, spacingY, 1]);
+    this.spatialMetadata.value = pickSpacing(header);
+    imageData.setSpacing(
+      this.spatialMetadata.value.axes.map((axis) => axis.value)
+    );
     imageData.setOrigin([0, 0, 0]);
     imageData.setDirection([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 

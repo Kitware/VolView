@@ -1,10 +1,35 @@
 import { Skip } from '@/src/utils/evaluateChain';
-import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
-import { getRequestPool } from '@/src/core/streaming/requestPool';
-import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
-import { canFetchUrl } from '@/src/utils/fetch';
+import { CachedStreamFetcher } from '@/packages/dicom/core';
+import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
+import {
+  ImportHandler,
+  asIntermediateResult,
+  type ImportContext,
+} from '@/src/io/import/common';
+import { canFetchUrl, fetchFile } from '@/src/utils/fetch';
 import { extractFilenameFromContentDisposition } from '@/src/utils/parseContentDispositionHeader';
 import { basename } from '@/src/utils/path';
+import {
+  findStateFileLeaves,
+  type DataSource,
+  type UriSource,
+} from '@/src/io/import/dataSource';
+
+const savedArchiveFile = async (
+  dataSource: DataSource & UriSource,
+  context?: ImportContext
+) => {
+  if (!findStateFileLeaves(dataSource)[0]?.archivePaths?.length) return null;
+  const file = await fetchFile(dataSource.uri, dataSource.name, {
+    cache: context?.fetchFileCache,
+  });
+  return {
+    type: 'file' as const,
+    file,
+    fileType: dataSource.mime ?? file.type,
+    parent: dataSource,
+  };
+};
 
 const openUriStream: ImportHandler = async (dataSource, context) => {
   if (dataSource.type !== 'uri' || !canFetchUrl(dataSource.uri)) {
@@ -15,8 +40,11 @@ const openUriStream: ImportHandler = async (dataSource, context) => {
     return Skip;
   }
 
+  const archive = await savedArchiveFile(dataSource, context);
+  if (archive) return asIntermediateResult([archive]);
+
   const fetcher = new CachedStreamFetcher(dataSource.uri, {
-    fetch: (...args) => getRequestPool().fetch(...args),
+    fetch: useDicomRuntimeStore().loader.fetch,
   });
 
   await fetcher.connect();
