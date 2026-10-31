@@ -180,7 +180,7 @@ export const STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT = 1;
 
 export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
   CT: 'CT-AAA',
-  MR: 'CT-Coronary-Arteries-2',
+  MR: 'MR-Default',
   US: 'US-Fetal',
 };
 

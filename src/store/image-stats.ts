@@ -8,12 +8,11 @@ import {
   effectScope,
   type EffectScope,
 } from 'vue';
-import * as Comlink from 'comlink';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useVtkComputed } from '@/src/core/vtk/useVtkComputed';
 import { WLAutoRanges, WL_HIST_BINS } from '@/src/constants';
-import { HistogramWorker } from '@/src/utils/histogram.worker';
+import { createHistogramWorker } from '@/src/utils/createHistogramWorker';
+import { getAllComponentRange } from '@/src/utils/dataArrayRange';
 import { Maybe } from '@/src/types';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { ensureError } from '@/src/utils';
@@ -27,46 +26,18 @@ export type ImageStats = {
   autoRangeValues?: Record<string, [number, number]>;
 };
 
-function getRangesWithCache(scalars: vtkDataArray) {
-  const numberOfComponents = scalars.getNumberOfComponents();
-  return Array.from({ length: numberOfComponents }, (_, i) => {
-    const [min, max] = scalars.getRange(i);
-    return { min, max };
-  });
-}
-
-function getAllComponentRange(scalars: vtkDataArray) {
-  const ranges = getRangesWithCache(scalars);
-
-  const min = ranges
-    .map((range) => range.min)
-    .reduce((acc, val) => Math.min(acc, val), Infinity);
-  const max = ranges
-    .map((range) => range.max)
-    .reduce((acc, val) => Math.max(acc, val), -Infinity);
-
-  return { min, max };
-}
-
 async function computeAutoRangeValues(imageData: vtkImageData) {
   const scalars = imageData.getPointData()?.getScalars();
   if (!scalars) {
     return {};
   }
 
-  const { min, max } = getAllComponentRange(scalars);
+  const [min, max] = getAllComponentRange(scalars);
   const scalarData = scalars.getData();
-  const worker = new Worker(
-    new URL('@/src/utils/histogram.worker.ts', import.meta.url),
-    { type: 'module' }
-  );
-  const remote = Comlink.wrap<HistogramWorker>(worker);
-  const hist = await remote
+  const worker = createHistogramWorker();
+  const hist = await worker.remote
     .histogram(scalarData, [min, max], WL_HIST_BINS)
-    .finally(() => {
-      remote[Comlink.releaseProxy]();
-      worker.terminate();
-    });
+    .finally(worker.stop);
 
   const cumulativeHist: number[] = [];
   hist.reduce((acc, val) => {

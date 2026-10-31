@@ -1,15 +1,19 @@
 <script lang="ts">
 import { computed, defineComponent } from 'vue';
 import { PresetNameList } from '@/src/vtk/ColorMaps';
-import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import ItemGroup from '@/src/components/ItemGroup.vue';
 import GroupableItem from '@/src/components/GroupableItem.vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
+import { useVolumeColoringConfig } from '@/src/composables/useVolumeColoringConfig';
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import { getColorFunctionRangeFromPreset } from '@/src/utils/vtk-helpers';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
+import {
+  getAdaptiveVolumePresetDescription,
+  getAdaptiveVolumePresetUnavailableReason,
+  isAdaptiveVolumePreset,
+} from '@/src/utils/adaptiveVolumePreset';
 
 const THUMBNAIL_SIZE = 80;
 
@@ -30,13 +34,12 @@ export default defineComponent({
     const volumeColoringStore = useVolumeColoringStore();
     const viewId = computed(() => props.viewId);
 
-    const { currentImageID, currentImageData } = useCurrentImage();
+    const { currentImageID, currentImageData, currentImage } =
+      useCurrentImage();
 
     useVolumeColoringInitializer(viewId, currentImageID);
 
-    const volumeColorConfig = computed(() =>
-      volumeColoringStore.getConfig(viewId.value, currentImageID.value)
-    );
+    const volumeColorConfig = useVolumeColoringConfig(viewId, currentImageID);
 
     const colorTransferFunctionRef = computed(
       () => volumeColorConfig.value?.transferFunction
@@ -49,21 +52,15 @@ export default defineComponent({
     const selectedPreset = computed(
       () => colorTransferFunctionRef.value?.preset || null
     );
-    const hasCurrentImage = computed(() => !!currentImageData.value);
-
-    // the data range, if any
-    const imageDataRange = computed((): [number, number] => {
-      const image = currentImageData.value;
-      if (image) {
-        return image.getPointData().getScalars().getRange();
-      }
-      return [0, 1];
-    });
-    const effectiveMappingRange = computed(
-      () =>
-        getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
-        imageDataRange.value
+    const adaptiveUnavailableReason = computed(() =>
+      getAdaptiveVolumePresetUnavailableReason(
+        currentImageData.value,
+        !!currentImage.value?.isLoaded()
+      )
     );
+    const presetUnavailableReason = (name: string) =>
+      isAdaptiveVolumePreset(name) ? adaptiveUnavailableReason.value : '';
+    const hasCurrentImage = computed(() => !!currentImageData.value);
 
     const selectPreset = (name: string) => {
       if (!viewId.value || !currentImageID.value) return;
@@ -74,45 +71,15 @@ export default defineComponent({
       );
     };
 
-    const rgbPoints = computed(
-      () =>
-        vtkColorMaps.getPresetByName(colorTransferFunctionRef.value!.preset)
-          ?.RGBPoints
-    );
-
-    const updateColorMappingRange = (range: [number, number]) => {
-      const { mappingRange } = colorTransferFunctionRef.value ?? {};
-      // guard against infinite loops
-      if (
-        viewId.value &&
-        currentImageID.value &&
-        mappingRange &&
-        (Math.abs(range[0] - mappingRange[0]) > 1e-6 ||
-          Math.abs(range[1] - mappingRange[1]) > 1e-6)
-      ) {
-        volumeColoringStore.updateColorTransferFunction(
-          viewId.value,
-          currentImageID.value,
-          {
-            mappingRange: range,
-          }
-        );
-      }
-    };
-
     return {
+      presetUnavailableReason,
+      presetDescription: getAdaptiveVolumePresetDescription,
       thumbnails: currentThumbnails,
       hasCurrentImage,
       preset: selectedPreset,
-      fullMappingRange: effectiveMappingRange,
-      mappingRange: computed(
-        () => colorTransferFunctionRef.value!.mappingRange
-      ),
       presetList: PresetNameList,
       size: THUMBNAIL_SIZE,
-      rgbPoints,
       selectPreset,
-      updateColorMappingRange,
     };
   },
 });
@@ -133,8 +100,20 @@ export default defineComponent({
             :class="{
               'thumbnail-container': true,
               'bg-blue': active,
+              'opacity-50': !!presetUnavailableReason(preset),
             }"
-            @click="select"
+            :data-testid="`volume-preset-${preset}`"
+            :title="
+              presetUnavailableReason(preset) || presetDescription(preset)
+            "
+            :aria-disabled="!!presetUnavailableReason(preset)"
+            :tabindex="presetUnavailableReason(preset) ? -1 : 0"
+            role="button"
+            @click="!presetUnavailableReason(preset) && select()"
+            @keydown.enter="!presetUnavailableReason(preset) && select()"
+            @keydown.space.prevent="
+              !presetUnavailableReason(preset) && select()
+            "
           >
             <v-img :src="thumbnails[preset] || ''" cover aspect-ratio="1">
               <persistent-overlay class="thumbnail-overlay">

@@ -29,6 +29,7 @@ export const config = {
   capabilities: [
     {
       browserName: 'chrome',
+      browserVersion: '157.0.8103.26',
       // this overrides the default chrome download directory with our temporary one
       'goog:chromeOptions': {
         args: chromeArgs,
