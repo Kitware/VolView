@@ -16,6 +16,9 @@ import {
   CANVAS,
   PANEL,
   WINDOW_TOOL,
+  openEnFaceProjection,
+  openEnFaceControls,
+  selectSetting,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -23,8 +26,6 @@ import { waitForDownload, SESSION_SAVE_TIMEOUT } from './utils';
 import {
   reference,
   SLICE_LINE,
-  openControls,
-  selectSetting,
   expectProjectionPixel,
   dragEnFaceContrast,
   getOriginalWindow,
@@ -38,7 +39,7 @@ describe('Retinal OCT navigation', () => {
   registerOctTestHooks();
   it('restores a nondefault projection axis without resetting the saved slab', async () => {
     await openRetina();
-    await expandEnFaceSection('projection');
+    await expandEnFaceSection();
     await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await selectSetting('enface-projection-method', 'Maximum');
@@ -54,7 +55,7 @@ describe('Retinal OCT navigation', () => {
     await volViewPage.open('?urls=[tmp/' + saved + ']');
     await $(CANVAS).waitForDisplayed();
     await waitForEnFaceReady();
-    await openControls();
+    await openEnFaceControls();
     await expectEnFaceProjectionSettings('Sagittal', 10, 100);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
@@ -119,8 +120,7 @@ describe('Retinal OCT navigation', () => {
 
     await $('button[data-testid^="control-button-Pan "]').click();
     await dragContrast(await $(CANVAS).getElement(), 55, 30);
-    await openControls();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     await selectSetting('enface-projection-axis', 'Sagittal');
     await waitForEnFaceReady();
     await browser.keys('Escape');
@@ -347,7 +347,7 @@ describe('Retinal OCT navigation', () => {
     await expectSliceLine();
     // Select before capturing the comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
-    await openControls();
+    await openEnFaceControls();
     await expectSliceLine();
     await expectControlsBesideSelector();
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
@@ -371,7 +371,7 @@ describe('Retinal OCT navigation', () => {
     await volViewPage.waitForViews();
     await $(CANVAS).waitForDisplayed();
     await waitForEnFaceReady();
-    await openControls();
+    await openEnFaceControls();
     await browser.keys('Escape');
     await expectSliceLine();
     expect(await getWindow()).toEqual(savedWindow);

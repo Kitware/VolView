@@ -1,5 +1,6 @@
+import type { DataSet } from 'dicom-parser';
 import reference from './reference.json';
-import { elemShort, elemLong } from '../../specs/syntheticDicom';
+import { elemShort, elemLong, LONG_FORM_VRS } from '../../specs/syntheticDicom';
 
 const concat = (chunks: Uint8Array[]) => Buffer.concat(chunks);
 
@@ -7,13 +8,28 @@ export function element(tag: string, vr: string, value: string | Uint8Array) {
   let payload = typeof value === 'string' ? Buffer.from(value) : value;
   if (payload.length % 2)
     payload = concat([payload, Uint8Array.of(vr === 'UI' ? 0 : 32)]);
-  const encode = ['SQ', 'OW', 'OB'].includes(vr) ? elemLong : elemShort;
+  const encode = LONG_FORM_VRS.has(vr) ? elemLong : elemShort;
   return encode(
     parseInt(tag.slice(0, 4), 16),
     parseInt(tag.slice(4), 16),
     vr,
     payload
   );
+}
+
+/** Overwrites a fixed-length string value in place, padding the remainder. */
+export function overwriteDicomString(
+  data: DataSet,
+  tag: string,
+  value: string,
+  pad = 0x20
+) {
+  const { dataOffset, length } = data.elements[tag];
+  const bytes = new TextEncoder().encode(value);
+  if (bytes.length > length)
+    throw new Error('Replacement exceeds the DICOM value length');
+  data.byteArray.fill(pad, dataOffset, dataOffset + length);
+  data.byteArray.set(bytes, dataOffset);
 }
 
 export function sequence(tag: string, datasets: Uint8Array[]) {

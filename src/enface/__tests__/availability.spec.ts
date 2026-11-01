@@ -5,6 +5,7 @@ import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { createOCTFixture } from '@/tests/unit/octFixture';
+import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -12,17 +13,13 @@ import { Tags } from '@/src/core/dicomTags';
 
 describe('OCT view availability', () => {
   let emptyImage: DicomChunkImage | undefined;
-  let releaseDecode: (() => void) | undefined;
+  const decodeReleases: (() => void)[] = [];
 
   beforeEach(() => setActivePinia(createPinia()));
   afterEach(async () => {
-    releaseDecode?.();
-    const cache = useImageCacheStore();
-    [...cache.imageIds].forEach((id) => cache.removeImage(id));
+    await cleanupCachedImages(decodeReleases);
     emptyImage?.dispose();
     emptyImage = undefined;
-    releaseDecode = undefined;
-    await nextTick();
   });
 
   it('keeps the view disabled while a cached DICOM image has no metadata chunks', () => {
@@ -38,7 +35,7 @@ describe('OCT view availability', () => {
 
   it('reacts to metadata allocation and complete pixel loading after initially empty raw chunks', async () => {
     const fixture = createOCTFixture({ deferDecode: true });
-    releaseDecode = fixture.releaseDecode;
+    decodeReleases.push(fixture.releaseDecode);
     useImageCacheStore().addProgressiveImage(fixture.image, { id: 'pending' });
     const reason = computed(() => getEnFaceUnavailableReason('pending'));
     expect(reason.value).not.toBeNull();

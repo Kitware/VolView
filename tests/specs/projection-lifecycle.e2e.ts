@@ -8,7 +8,6 @@ import {
   canvasAppearance,
   chooseEnFaceProjection,
   displayedWindow,
-  expandEnFaceSection,
   getEnFaceWindow,
   projectionTransform,
   setSlabRange,
@@ -17,6 +16,7 @@ import {
   CANVAS,
   VIEWER,
   WINDOW_TOOL,
+  openEnFaceProjection,
 } from './octTestUtils';
 import { expectProjectionPixel } from './octInteractionTestUtils';
 
@@ -72,8 +72,7 @@ describe('Projection lifecycle', () => {
     expect(await getEnFaceWindow()).toEqual({ width: 192, level: 331 });
     await expectProjectionPixel(109);
     await setEnFaceWindow(1000, 500);
-    await $('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     for (const [first, last] of [
       [10, 50],
       [100, 103],

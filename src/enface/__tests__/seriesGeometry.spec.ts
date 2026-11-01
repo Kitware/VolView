@@ -7,6 +7,7 @@ import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { createOCTFixture, readDicomTags } from '@/tests/unit/octFixture';
+import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import {
@@ -16,10 +17,7 @@ import {
 
 describe('assembled OCT series through real chunk and file collaborators', () => {
   beforeEach(() => setActivePinia(createPinia()));
-  afterEach(() => {
-    const cache = useImageCacheStore();
-    [...cache.imageIds].forEach((id) => cache.removeImage(id));
-  });
+  afterEach(() => cleanupCachedImages([]));
 
   async function assemble(
     positions = [0, 0.2, 0.4],

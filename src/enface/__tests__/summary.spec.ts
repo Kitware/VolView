@@ -22,7 +22,7 @@ describe('En face projection announcements', () => {
     await wrapper.setProps({
       message: null,
     });
-    expect(wrapper.find('button').exists()).toBe(false);
+    expect(wrapper.text()).toBe('');
     await wrapper.setProps({ message: null, ready: true });
     expect(wrapper.text()).toBe('En face projection ready.');
     expect(wrapper.classes()).toContain('d-sr-only');

@@ -4,8 +4,15 @@ import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
 import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
 import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { useViewStore } from '@/src/store/views';
+import { untilLoaded } from '@/src/composables/untilLoaded';
+import type { Maybe } from '@/src/types';
 
-import { createSyntheticOCT } from '../fixtures/oct/dicom';
+import {
+  createSyntheticOCT,
+  overwriteDicomString,
+} from '../fixtures/oct/dicom';
 
 /** Reads the named VolView tags, standing in for the itk-wasm tag reader. */
 export async function readDicomTags(file: Blob) {
@@ -32,13 +39,11 @@ export function createOCTFixture(
   const bytes = Uint8Array.from(createSyntheticOCT());
   if (options.scanPattern) {
     const data = dicomParser.parseDicom(bytes, { untilTag: 'x7fe00010' });
-    const pattern =
-      data.elements.x00221618.items![0].dataSet!.elements.x00080100;
-    const replacement = new TextEncoder().encode(options.scanPattern);
-    if (replacement.length > pattern.length)
-      throw new Error('Fixture scan code is too long');
-    bytes.fill(0x20, pattern.dataOffset, pattern.dataOffset + pattern.length);
-    bytes.set(replacement, pattern.dataOffset);
+    overwriteDicomString(
+      data.elements.x00221618.items![0].dataSet!,
+      'x00080100',
+      options.scanPattern
+    );
   }
   const file = new File([bytes], 'synthetic-oct.dcm');
   const chunk = new Chunk({
@@ -80,4 +85,34 @@ export function createOCTFixture(
     },
   });
   return { image, chunk, releaseDecode };
+}
+
+/** Replaces the first layout view with an active En face view of `dataID`. */
+export function activateEnFace(dataID: Maybe<string>) {
+  const views = useViewStore();
+  views.replaceView(views.layoutViews[0].id, {
+    name: 'En face',
+    type: 'EnFace',
+    dataID,
+    options: {},
+  });
+  const viewID = views.layoutViews[0].id;
+  views.setActiveView(viewID);
+  return viewID;
+}
+
+/** Caches and loads a synthetic OCT; `releases` collects its decode gate for cleanup. */
+export async function loadOCT(
+  releases: (() => void)[],
+  id = 'retina-oct',
+  options: Parameters<typeof createOCTFixture>[0] = {}
+) {
+  const fixture = createOCTFixture(options);
+  releases.push(fixture.releaseDecode);
+  useImageCacheStore().addProgressiveImage(fixture.image, { id });
+  await fixture.chunk.loadMeta();
+  await fixture.image.addChunks([fixture.chunk]);
+  fixture.image.startLoad();
+  if (!options.deferDecode) await untilLoaded(id);
+  return id;
 }

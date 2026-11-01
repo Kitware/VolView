@@ -8,13 +8,14 @@ import {
   chooseEnFaceProjection,
   dragContrast,
   enFaceScreenPoint,
-  expandEnFaceSection,
   projectionTransform,
   setEnFaceWindow,
-  setSlabRange,
   slabThumb,
   waitForEnFaceReady,
   CANVAS,
+  openEnFaceProjection,
+  setEnFaceSlab,
+  toolButton,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -66,9 +67,6 @@ async function scene(otherImage = false) {
   await browser.waitUntil(async () => Object.keys(await slices()).length === 3);
 }
 
-const tool = (name: string) =>
-  $('button[data-testid^="control-button-' + name + ' "]');
-
 function slices() {
   return browser.execute(() =>
     Object.fromEntries(
@@ -109,11 +107,6 @@ async function expectSlices(expected: Record<string, number | null>) {
     async () => JSON.stringify(await slices()) === JSON.stringify(expected),
     { timeoutMsg: 'Expected source slice labels to follow the projection pick' }
   );
-}
-
-async function controls() {
-  await $(VIEW).$('[data-testid="enface-controls"]').click();
-  await expandEnFaceSection('projection');
 }
 
 function gapWidths() {
@@ -178,16 +171,14 @@ describe('Crosshairs in slab projections', () => {
           'enface-projection-axis',
           ORIENTATIONS[axis]
         );
-        await controls();
         const last = 4;
-        await setSlabRange(1, last);
-        await browser.keys('Escape');
+        await setEnFaceSlab(1, last);
         await waitForEnFaceReady();
         const before = await slices();
         const framing = await projectionTransform();
         await $(VIEW).click();
-        await expect(tool('Crosshairs')).toBeEnabled();
-        await tool('Crosshairs').click();
+        await expect(toolButton('Crosshairs')).toBeEnabled();
+        await toolButton('Crosshairs').click();
         const inPlane = ORIENTATIONS.filter((_, index) => index !== axis);
         const expected = { ...before, [inPlane[0]]: 2, [inPlane[1]]: 3 };
         await pick(2, 3);
@@ -195,7 +186,7 @@ describe('Crosshairs in slab projections', () => {
         await pick(4, 2, [2, 3]);
         await expectSlices({ ...before, [inPlane[0]]: 4, [inPlane[1]]: 2 });
         expect(await projectionTransform()).toEqual(framing);
-        await controls();
+        await openEnFaceProjection();
         await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '1');
         await expect(slabThumb('end')).toHaveAttribute(
           'aria-valuenow',
@@ -210,7 +201,7 @@ describe('Crosshairs in slab projections', () => {
     await scene();
     await expectGap();
     await $(VIEW).click();
-    await tool('Crosshairs').click();
+    await toolButton('Crosshairs').click();
     await $(
       '.vtk-container-wrapper [data-testid="reference-lines"] line'
     ).waitForExist();
@@ -237,7 +228,7 @@ describe('Crosshairs in slab projections', () => {
       ['Pan', 18, 12],
     ] as const) {
       const before = await projectionTransform();
-      await tool(name).click();
+      await toolButton(name).click();
       await dragContrast(await $(CANVAS).getElement(), dx, dy);
       await browser.waitUntil(async () =>
         (await projectionTransform()).some(
@@ -260,7 +251,7 @@ describe('Crosshairs in slab projections', () => {
         )
       );
       await expectGap();
-      await tool('Crosshairs').click();
+      await toolButton('Crosshairs').click();
       await pick(3, 4);
       await expectSlices({ ...sourceSlices, Coronal: 3, Sagittal: 4 });
     } finally {
@@ -300,19 +291,23 @@ describe('Crosshairs in slab projections', () => {
     await $('[data-testid="base-image-visibility"]').click();
     await setEnFaceWindow(600, 300, await $(VIEW).getElement());
     await expect($(VIEW)).toHaveAttribute('aria-busy', 'false');
-    await tool('Pan').click();
+    await toolButton('Pan').click();
     const keyboard = () => browser.action('key', { id: 'slab-crosshair-hold' });
     try {
       await keyboard().down(Key.Shift).down('c').perform(true);
-      await expect(tool('Crosshairs')).toHaveElementClass('tool-btn-selected');
+      await expect(toolButton('Crosshairs')).toHaveElementClass(
+        'tool-btn-selected'
+      );
       await browser
         .action('pointer')
         .move(await point(3, 2))
         .perform(true);
       await expectSlices({ ...before, Sagittal: 2 });
-      await expect(tool('Crosshairs')).toHaveElementClass('tool-btn-selected');
+      await expect(toolButton('Crosshairs')).toHaveElementClass(
+        'tool-btn-selected'
+      );
       await keyboard().up('c').up(Key.Shift).perform(true);
-      await expect(tool('Pan')).toHaveElementClass('tool-btn-selected');
+      await expect(toolButton('Pan')).toHaveElementClass('tool-btn-selected');
     } finally {
       await browser.releaseActions();
     }

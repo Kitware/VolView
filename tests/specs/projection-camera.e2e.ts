@@ -9,7 +9,6 @@ import { volViewPage } from '../pageobjects/volview.page';
 import {
   enFaceAppearance,
   canvasAppearance,
-  expandEnFaceSection,
   expectEnFaceProjectionSettings,
   expectProjectionTransform,
   dragContrast,
@@ -19,6 +18,9 @@ import {
   CANVAS,
   VIEWER,
   attachAndSelectMask,
+  openEnFaceProjection,
+  openEnFaceControls,
+  selectSetting,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -27,7 +29,6 @@ import {
   waitForDownload,
   writeManifestToFile,
 } from './utils';
-import { openControls, selectSetting } from './octInteractionTestUtils';
 
 const STEM = 'projection-camera';
 const SOURCE_NAME = 'camera-source.nrrd';
@@ -223,8 +224,7 @@ describe('Projection camera persistence', () => {
     await openCameraScene();
     await waitForEnFaceReady();
     await attachAndSelectMask(STEM + '/' + MASK_NAME, SEGMENT_NAME);
-    await openControls();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
@@ -240,7 +240,7 @@ describe('Projection camera persistence', () => {
     await releaseMaskAfterReachableProjection(inspected);
     await expectSourceMaskPixels(sourceMaskImage);
     await expectCameraAndPixels(inspected);
-    await openControls();
+    await openEnFaceControls();
     await expectEnFaceProjectionSettings('Sagittal', 10, 100);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });

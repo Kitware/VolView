@@ -12,7 +12,6 @@ import {
   enFaceAppearance,
   expectEnFacePixel,
   expectProjectionTransform,
-  expandEnFaceSection,
   getEnFaceWindow,
   projectionTransform,
   setSlabRange,
@@ -22,6 +21,8 @@ import {
   CANVAS,
   VIEWER,
   PANEL,
+  openEnFaceProjection,
+  windowedGray,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -79,17 +80,7 @@ async function openScene(twoProjections = false, nonlinear = false) {
 
 async function openControls(view: WebdriverIO.Element) {
   await browser.keys('Escape');
-  await view.$('[data-testid="enface-controls"]').click();
-  await $(PANEL).waitForDisplayed();
-  await expandEnFaceSection('projection');
-}
-
-async function setWindow(
-  view: WebdriverIO.Element,
-  width: number,
-  level: number
-) {
-  await setEnFaceWindow(width, level, view);
+  await openEnFaceProjection(view);
 }
 
 async function magnifyProjection(view: WebdriverIO.Element) {
@@ -124,10 +115,7 @@ async function expectGray(
   value: number,
   contrast = { width: 2048, level: 1024 }
 ) {
-  const expected = Math.round(
-    255 *
-      Math.max(0, Math.min(1, (value - contrast.level) / contrast.width + 0.5))
-  );
+  const expected = windowedGray(value, contrast);
   expect(expected).toBeGreaterThan(0);
   expect(expected).toBeLessThan(255);
   await expectEnFacePixel(expected, point, view);
@@ -270,7 +258,7 @@ describe('Generic slab projection contracts', () => {
           level: (minimum + maximum) / 2,
         };
         await chooseEnFaceProjection('enface-projection-method', method, view);
-        await setWindow(view, contrast.width, contrast.level);
+        await setEnFaceWindow(contrast.width, contrast.level, view);
         await openControls(view);
         for (const { first, last, expectedValues } of cases) {
           await setSlabRange(first, last);
@@ -321,7 +309,7 @@ describe('Generic slab projection contracts', () => {
       await openControls(view);
       await setSlabRange(setting.first, setting.last);
       await browser.keys('Escape');
-      await setWindow(view, setting.width, setting.level);
+      await setEnFaceWindow(setting.width, setting.level, view);
     }
     const expected = [];
     for (const [index, view] of views.entries()) {
@@ -388,7 +376,7 @@ describe('Generic slab projection contracts', () => {
         AXES[setting.axis],
         view
       );
-      await setWindow(view, setting.width, setting.level);
+      await setEnFaceWindow(setting.width, setting.level, view);
       await view.$(CANVAS).click();
       await $('button[data-testid^="control-button-Pan "]').click();
       await dragContrast(await view.$(CANVAS).getElement(), 12 + index * 8, 9);
@@ -414,7 +402,7 @@ describe('Generic slab projection contracts', () => {
     const restored = await saveAndReopen();
     for (const [index, view] of restored.entries())
       await expectSnapshot(view, expected[index]);
-    await setWindow(restored[0], 600, 200);
+    await setEnFaceWindow(600, 200, restored[0]);
     await expectSourceAndPeerUnchanged(
       sourceContrast,
       restored[1],
@@ -429,7 +417,7 @@ describe('Generic slab projection contracts', () => {
       width: 134,
       level: 1750 / 13,
     });
-    await setWindow(manual, 350, 175);
+    await setEnFaceWindow(350, 175, manual);
     const unchanged = await snapshot(manual);
     await chooseEnFaceProjection(
       'enface-projection-method',
@@ -488,7 +476,7 @@ describe('Generic slab projection contracts', () => {
     const fullRestored = await saveAndReopen();
     await expectSnapshot(fullRestored[0], savedFull);
     await expectSnapshot(fullRestored[1], unchanged);
-    await setWindow(fullRestored[0], 600, 200);
+    await setEnFaceWindow(600, 200, fullRestored[0]);
     await chooseEnFaceProjection(
       'enface-projection-method',
       'Sum',

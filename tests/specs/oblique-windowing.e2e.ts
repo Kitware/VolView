@@ -8,9 +8,9 @@ import {
   displayedWindow,
   dragContrast,
   stageGenericOCT,
+  WINDOW_TOOL,
 } from './octTestUtils';
 
-const WINDOW_TOOL = 'button[data-testid^="control-button-Window & Level "]';
 const OBLIQUE_CHILD =
   '.oblique-grid > .d-flex:first-child [data-testid="vtk-view"]';
 const SOURCE_PEER = '[data-testid~="vtk-two-view"]';

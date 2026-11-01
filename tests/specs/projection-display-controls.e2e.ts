@@ -19,6 +19,11 @@ import {
   CANVAS,
   VIEWER,
   PANEL,
+  openEnFaceProjection,
+  openEnFaceControls,
+  setEnFaceSlab,
+  selectSetting,
+  windowedGray,
 } from './octTestUtils';
 import { stageProjectionContrastVolume } from './projectionTestUtils';
 import {
@@ -34,7 +39,6 @@ import {
   waitForModuleTransitions,
   writeManifestToFile,
 } from './utils';
-import { selectSetting } from './octInteractionTestUtils';
 
 const STEM = 'projection-display-controls';
 const SIDEBAR = '[data-testid="enface-sidebar-controls"]';
@@ -92,13 +96,7 @@ async function expectProjectionGray(
   inverted = false,
   projectedValue = 1551 / 9
 ) {
-  const value = Math.min(
-    255,
-    Math.max(
-      0,
-      Math.round(((projectedValue - window.level) / window.width + 0.5) * 255)
-    )
-  );
+  const value = windowedGray(projectedValue, window);
   const expected = inverted ? 255 - value : value;
   await expectEnFacePixel(expected, [4, 3], view);
 }
@@ -247,8 +245,7 @@ describe('Projection Layers display controls', () => {
     await setLayersRange(0, 1000);
     await setValueVueInput(field('max'), '-1');
     await expect($('[data-testid="base-image-range-status"]')).toBeDisplayed();
-    await target.$('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection(target);
     await setSlabRange(1, 3);
     expect(await getEnFaceWindow(target)).toEqual({ width: 1000, level: 500 });
     await expect($(PANEL).$('button*=Reset contrast')).not.toExist();
@@ -260,10 +257,7 @@ describe('Projection Layers display controls', () => {
     const slabWindow = await expectLayersWindow(target);
     expect(slabWindow).toEqual({ width: 425, level: 412.5 });
     await expectProjectionGray(target, slabWindow, true, 445);
-    await target.$('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('projection');
-    await setSlabRange(0, 4);
-    await browser.keys('Escape');
+    await setEnFaceSlab(0, 4, target);
     expect(await expectLayersWindow(target)).toEqual(automaticSum);
     await expectProjectionGray(target, automaticSum, true, 1551);
     await expect($('[data-testid="base-image-colormap"]')).toHaveText(
@@ -335,13 +329,12 @@ describe('Projection Layers display controls', () => {
       async () => (await enFaceAppearance(target)).image !== meanImage
     );
     expect((await enFaceAppearance(peer)).image).toBe(peerImage);
-    await target.$('[data-testid="enface-controls"]').click();
-    await $(PANEL).waitForDisplayed();
+    await openEnFaceControls(target);
     await expect(
       $(PANEL).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Maximum');
     await selectSetting('enface-projection-axis', 'Axial');
-    await expandEnFaceSection('projection');
+    await expandEnFaceSection();
     await setSlabRange(1, 3);
     await browser.keys('Escape');
     await $(PANEL).waitForDisplayed({ reverse: true });
@@ -415,8 +408,7 @@ describe('Projection Layers display controls', () => {
       $(SIDEBAR).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');
     expect(await appliedWindow()).toEqual(peerWindow);
-    await peer.$('[data-testid="enface-controls"]').click();
-    await $(PANEL).waitForDisplayed();
+    await openEnFaceControls(peer);
     await expect(
       $(PANEL).$('[data-testid="enface-projection-method"] input')
     ).toHaveValue('Sum');

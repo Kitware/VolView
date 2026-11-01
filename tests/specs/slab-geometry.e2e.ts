@@ -2,18 +2,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { useReferenceLines } from './referenceLinesTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { createNrrdVolume } from '../fixtures/oct/volumes';
+import { createNrrdVolume, createVtiVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   chooseEnFaceProjection,
   canvasAppearance,
   enFaceAppearance,
   enFacePixel,
-  expandEnFaceSection,
   setEnFaceWindow,
-  setSlabRange,
   waitForEnFaceReady,
   CANVAS,
+  setEnFaceSlab,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -32,9 +31,10 @@ const valueAt = (x: number, y: number, z: number) => 17 * x + 11 * y + 7 * z;
 function vti(offsetExtent: boolean) {
   const minimum = offsetExtent ? MINIMUM : [0, 0, 0];
   const origin = offsetExtent ? [0, 0, 0] : MINIMUM;
-  const extent = minimum
-    .flatMap((first, axis) => [first, first + SIZE[axis] - 1])
-    .join(' ');
+  const extent = minimum.flatMap((first, axis) => [
+    first,
+    first + SIZE[axis] - 1,
+  ]);
   const values = Array.from({ length: SIZE[0] * SIZE[1] * SIZE[2] }, (_, i) =>
     valueAt(
       i % SIZE[0],
@@ -42,14 +42,7 @@ function vti(offsetExtent: boolean) {
       Math.floor(i / (SIZE[0] * SIZE[1]))
     )
   );
-  return (
-    '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
-    `<ImageData WholeExtent="${extent}" Origin="${origin.join(' ')}" Spacing="1 1 1">` +
-    `<Piece Extent="${extent}"><PointData Scalars="intensity">` +
-    '<DataArray type="Float32" Name="intensity" format="ascii">' +
-    values.join(' ') +
-    '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
-  );
+  return createVtiVolume({ extent, origin, type: 'Float32', values });
 }
 
 function signedFitVolume(negativeAxis?: 0 | 2) {
@@ -70,14 +63,13 @@ function signedFitVolume(negativeAxis?: 0 | 2) {
     if (x < 2 || x >= 18) return 255;
     return x === 2 || x === 17 ? 0 : 70;
   });
-  return (
-    '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
-    `<ImageData WholeExtent="0 19 0 9 0 9" Origin="0 0 0" Spacing="${spacing.join(' ')}" Direction="${direction.join(' ')}">` +
-    '<Piece Extent="0 19 0 9 0 9"><PointData Scalars="intensity">' +
-    '<DataArray type="UInt8" Name="intensity" format="ascii">' +
-    values.join(' ') +
-    '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
-  );
+  return createVtiVolume({
+    extent: [0, 19, 0, 9, 0, 9],
+    spacing,
+    direction,
+    type: 'UInt8',
+    values,
+  });
 }
 
 async function expectEdgeFiducials(selector: string) {
@@ -173,10 +165,7 @@ describe('Slab geometry and automatic camera fitting', () => {
         await openScene(name);
         await chooseEnFaceProjection('enface-projection-axis', AXES[axis]);
         await setEnFaceWindow(200, 100);
-        await $('[data-testid="enface-controls"]').click();
-        await expandEnFaceSection('projection');
-        await setSlabRange(1, SIZE[axis] - 2);
-        await browser.keys('Escape');
+        await setEnFaceSlab(1, SIZE[axis] - 2);
         await waitForEnFaceReady();
         const point = [1, 1];
         const index = [1, 1, 1];

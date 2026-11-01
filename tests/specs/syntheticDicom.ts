@@ -58,7 +58,20 @@ export const elemShort = (
     value
   );
 
-// Long-form explicit VR (2-byte reserved + 4-byte length): OB, OW, UN, SQ, ...
+export const LONG_FORM_VRS = new Set([
+  'OB',
+  'OD',
+  'OF',
+  'OL',
+  'OW',
+  'SQ',
+  'UC',
+  'UN',
+  'UR',
+  'UT',
+]);
+
+// Long-form explicit VR (2-byte reserved + 4-byte length): LONG_FORM_VRS.
 export const elemLong = (
   group: number,
   element: number,

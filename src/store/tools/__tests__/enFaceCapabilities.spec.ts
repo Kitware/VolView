@@ -20,7 +20,7 @@ import {
 import { useViewStore } from '@/src/store/views';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { activateEnFace, loadOCT } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import type { ViewInfoEnFace } from '@/src/types/views';
@@ -41,34 +41,7 @@ const supportedTools = new Set([
   Tools.Crosshairs,
 ]);
 
-function activateEnFace(dataID = view.dataID) {
-  const views = useViewStore();
-  const previous = views.layoutViews[0].id;
-  views.replaceView(previous, {
-    name: view.name,
-    type: view.type,
-    dataID,
-    options: {},
-  });
-  const current = views.layoutViews[0].id;
-  views.setActiveView(current);
-  return current;
-}
-
 const decodeReleases: (() => void)[] = [];
-async function loadOCT(
-  id = 'retina-oct',
-  options: Parameters<typeof createOCTFixture>[0] = {}
-) {
-  const fixture = createOCTFixture(options);
-  decodeReleases.push(fixture.releaseDecode);
-  useImageCacheStore().addProgressiveImage(fixture.image, { id });
-  await fixture.chunk.loadMeta();
-  await fixture.image.addChunks([fixture.chunk]);
-  fixture.image.startLoad();
-  if (!options.deferDecode) await untilLoaded(id);
-  return id;
-}
 
 function addRegularVolume(flat = false) {
   const image = vtkImageData.newInstance();
@@ -111,9 +84,9 @@ describe('temporary crosshairs in the toolbar', () => {
   ])(
     'restores $initial after focusing an unavailable En face view while held',
     async ({ initial, pending }) => {
-      const imageID = await loadOCT();
+      const imageID = await loadOCT(decodeReleases);
       const pendingID = pending
-        ? await loadOCT('pending', { deferDecode: true })
+        ? await loadOCT(decodeReleases, 'pending', { deferDecode: true })
         : null;
       useViewStore().setDataForAllViews(imageID);
       vi.stubGlobal('visualViewport', null);
@@ -148,7 +121,7 @@ describe('temporary crosshairs in the toolbar', () => {
   it.each(['denied', 'successful', 'En face', 'focus change'])(
     'preserves selection after a %s hold',
     async (scenario) => {
-      const imageID = await loadOCT();
+      const imageID = await loadOCT(decodeReleases);
       const views = useViewStore();
       views.setDataForAllViews(imageID);
       if (scenario === 'denied') activateEnFace(addRegularVolume(true));
@@ -239,19 +212,19 @@ describe('activating an En face view', () => {
   it('keeps Pan selected when changing to an En face view', async () => {
     const tools = useToolStore();
     tools.setCurrentTool(Tools.Pan);
-    activateEnFace(await loadOCT());
+    activateEnFace(await loadOCT(decodeReleases));
     await nextTick();
     expect(tools.currentTool).toBe(Tools.Pan);
   });
   it('keeps the standard window/level tool active when supported OCT pixels are loaded', async () => {
     const tools = useToolStore();
     expect(tools.currentTool).toBe(Tools.WindowLevel);
-    activateEnFace(await loadOCT());
+    activateEnFace(await loadOCT(decodeReleases));
     await nextTick();
     expect(tools.currentTool).toBe(Tools.WindowLevel);
   });
   it('allows the contrast shortcut while refusing unsupported projection tools', async () => {
-    activateEnFace(await loadOCT());
+    activateEnFace(await loadOCT(decodeReleases));
     const tools = useToolStore();
     await nextTick();
     expect(tools.currentTool).toBe(Tools.WindowLevel);
@@ -287,15 +260,19 @@ describe('activating an En face view', () => {
   it.each(['2D', 'radial', 'incomplete', 'missing'])(
     'disables contrast after replacing En face with %s data without changing the view kind',
     async (replacement) => {
-      const viewID = activateEnFace(await loadOCT());
+      const viewID = activateEnFace(await loadOCT(decodeReleases));
       const tools = useToolStore();
       expect(tools.currentTool).toBe(Tools.WindowLevel);
       let dataID = 'missing';
       if (replacement === '2D') dataID = addRegularVolume(true);
       if (replacement === 'radial')
-        dataID = await loadOCT('radial', { scanPattern: '128282' });
+        dataID = await loadOCT(decodeReleases, 'radial', {
+          scanPattern: '128282',
+        });
       if (replacement === 'incomplete')
-        dataID = await loadOCT('pending', { deferDecode: true });
+        dataID = await loadOCT(decodeReleases, 'pending', {
+          deferDecode: true,
+        });
       useViewStore().setDataForView(viewID, dataID);
       await nextTick();
       const effective = getEffectiveView(viewID);
@@ -338,7 +315,9 @@ describe('activating an En face view', () => {
       const viewID = activateEnFace(null);
       await nextTick();
       expect(tools.currentTool).toBe(tool);
-      const dataID = await loadOCT('pending', { deferDecode: true });
+      const dataID = await loadOCT(decodeReleases, 'pending', {
+        deferDecode: true,
+      });
       useViewStore().setDataForView(viewID, dataID);
       await nextTick();
       expect(tools.currentTool).toBe(tool);

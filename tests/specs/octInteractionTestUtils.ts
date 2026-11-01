@@ -11,13 +11,14 @@ import {
   getEnFaceWindow as getWindow,
   displayedWindow,
   selectEnFace,
+  openEnFaceControls,
   CANVAS,
   CONTROLS,
   PANEL,
   WINDOW_TOOL,
 } from './octTestUtils';
 import { volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, writeManifestToFile, overlayOption } from './utils';
+import { makeTempDir, writeManifestToFile } from './utils';
 import { applyTestViewport } from '../../wdio.shared.conf';
 import { syntheticMask } from '../fixtures/oct/volumes';
 import reference from '../fixtures/oct/reference.json';
@@ -37,36 +38,6 @@ export function stageFixture(name: string) {
     name.endsWith('.dcm') ? createSyntheticOCT() : syntheticMask()
   );
   return STEM + '/' + name;
-}
-
-export async function openControls() {
-  const controls = $(CONTROLS);
-  await controls.waitForStable();
-  await controls.waitForClickable();
-  if ((await controls.getAttribute('aria-expanded')) !== 'true')
-    await controls.click();
-  await expect(controls).toHaveAttribute('aria-expanded', 'true');
-  const panel = $(PANEL);
-  await panel.waitForDisplayed();
-  await panel.waitForStable();
-}
-
-export async function selectSetting(
-  testId: string,
-  title: string,
-  scope = PANEL
-) {
-  const select = $(scope).$('[data-testid="' + testId + '"]');
-  await select.scrollIntoView({
-    block: 'center',
-    inline: 'nearest',
-    behavior: 'instant',
-  });
-  await select.waitForClickable();
-  await select.click();
-  const option = overlayOption(title);
-  await option.waitForClickable();
-  await option.click();
 }
 
 export async function expectProjectionPixel(gray: number, x = 60, y = 12) {
@@ -149,7 +120,7 @@ export async function openRetina(withMask = false, comparison = false) {
       comparison ? 'Synthetic retinal layer' : 'Synthetic retinal band'
     );
   }
-  await openControls();
+  await openEnFaceControls();
 }
 
 export async function expectSliceLine() {

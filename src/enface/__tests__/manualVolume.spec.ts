@@ -4,7 +4,6 @@ import { mkdtempSync, unlinkSync, rmdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createPinia, setActivePinia } from 'pinia';
-import { nextTick } from 'vue';
 import { readImageNode } from '@itk-wasm/image-io';
 import { gzipSync } from 'node:zlib';
 import {
@@ -15,6 +14,7 @@ import {
 import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { repairUnusableSpacing } from '@/src/utils/imageSpace';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 
 const samples = Uint16Array.from({ length: 12 }, (_, index) => index);
@@ -84,9 +84,7 @@ describe('manual En face with real generic image readers', () => {
     paths = [];
   });
   afterEach(async () => {
-    const cache = useImageCacheStore();
-    [...cache.imageIds].forEach((id) => cache.removeImage(id));
-    await nextTick();
+    await cleanupCachedImages([]);
     paths.forEach((path) => unlinkSync(path));
     rmdirSync(directory);
   });

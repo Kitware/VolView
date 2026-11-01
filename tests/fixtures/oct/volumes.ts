@@ -1,7 +1,7 @@
 import dicomParser from 'dicom-parser';
 import { deflateRawSync, gzipSync } from 'node:zlib';
 import reference from './reference.json';
-import { syntheticScalars } from './dicom';
+import { overwriteDicomString, syntheticScalars } from './dicom';
 import { elemShort } from '../../specs/syntheticDicom';
 
 /** Preserve a Part 10 dataset while changing only its transfer syntax. */
@@ -46,17 +46,8 @@ export function nonOCTDicom(source: Uint8Array) {
     ['x00020002', '1.2.840.10008.5.1.4.1.1.7.3'],
     ['x00080016', '1.2.840.10008.5.1.4.1.1.7.3'],
     ['x00080060', 'CT'],
-  ]) {
-    const element = dicom.elements[tag];
-    if (value.length > element.length)
-      throw new Error('Replacement DICOM tag is too long');
-    const target = bytes.subarray(
-      element.dataOffset,
-      element.dataOffset + element.length
-    );
-    target.fill(tag === 'x00080060' ? 32 : 0);
-    target.write(value, 'ascii');
-  }
+  ])
+    overwriteDicomString(dicom, tag, value, tag === 'x00080060' ? 0x20 : 0);
   return bytes;
 }
 
@@ -147,6 +138,40 @@ export function createNiftiVolume({
   });
   header.write('n+1\0', 344, 'ascii');
   return Buffer.concat([header, scalarBytes(scalars)]);
+}
+
+/** ASCII VTK image data, for grids NRRD and NIfTI cannot express such as offset extents. */
+export function createVtiVolume({
+  values,
+  extent,
+  spacing = [1, 1, 1],
+  origin = [0, 0, 0],
+  direction,
+  type,
+  name = 'intensity',
+  components,
+}: {
+  values: ArrayLike<number>;
+  extent: readonly number[];
+  spacing?: readonly number[];
+  origin?: readonly number[];
+  direction?: readonly number[];
+  type: 'UInt8' | 'UInt16' | 'Float32';
+  name?: string;
+  components?: number;
+}) {
+  const range = extent.join(' ');
+  return (
+    '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
+    `<ImageData WholeExtent="${range}" Origin="${origin.join(' ')}" Spacing="${spacing.join(' ')}"` +
+    (direction ? ` Direction="${direction.join(' ')}"` : '') +
+    `><Piece Extent="${range}"><PointData Scalars="${name}">` +
+    `<DataArray type="${type}" Name="${name}"` +
+    (components ? ` NumberOfComponents="${components}"` : '') +
+    ' format="ascii">' +
+    Array.from(values).join(' ') +
+    '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
+  );
 }
 
 export function syntheticOCTGrid() {
