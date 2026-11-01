@@ -180,8 +180,10 @@ def main():
     for path, expected in zip(inputs, provenance["sources"]):
         if sha256(path) != expected["sha256"]:
             raise ValueError(f"Unexpected source checksum: {path.name}")
-    native = read_sources(*inputs)
-    image, labels, validity, spacing, complete = regularize(*native[:5])
+    *grid, native_invalid, crossing_clamps = read_sources(*inputs)
+    image, labels, validity, spacing, complete = regularize(*grid)
+    excluded, total = int((~complete).sum()), int(complete.size)
+    coverage = f"{excluded} of {total} columns excluded"
     if not np.all(np.isfinite(image)) or image.min() < 0 or image.max() > 1:
         raise ValueError("Converted image must contain finite reflectivity display values from zero to one")
     if np.any(labels[validity == 0]) or set(np.unique(labels)) != set(range(9)):
@@ -190,7 +192,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     metadata = {"Segmentation_MasterRepresentation": "Binary labelmap", "Segmentation_ContainedRepresentationNames": "Binary labelmap|",
                 "Segmentation_ReferenceImageExtentOffset": "0 0 0",
-                "OCT_CoveragePolicy": "All eight labels excluded for a column if any expected retinal voxel is invalid; 22 of 25088 columns excluded"}
+                "OCT_CoveragePolicy": f"All eight labels excluded for a column if any expected retinal voxel is invalid; {coverage}"}
     width, depth, frames = image.shape[::-1]
     for index, (name, color) in enumerate(zip(NAMES, COLORS)):
         fields = {"ID": f"Segment_{index + 1}", "Name": name, "LabelValue": str(index + 1),
@@ -200,7 +202,7 @@ def main():
     files = [write_nrrd(args.output / "jhu-hc01.nrrd", image, spacing, provenance,
                         {"OCT_IntensityTransform": "Nested float32 sqrt(sqrt(valid native reflectivity)) before slow-axis interpolation",
                          "OCT_InvalidPadding": "Missing reflectivity is zero; genuine zero and missing samples are indistinguishable without the optional validity sidecar",
-                         "OCT_RetinalCoverage": "22 of 25088 columns excluded from all labels because expected retina has missing reflectivity",
+                         "OCT_RetinalCoverage": f"{coverage} from all labels because expected retina has missing reflectivity",
                          "OCT_IntensityEncoding": "uint8; normalized intensity = stored value / 255; nearest rounding after slow-axis interpolation"}),
              write_nrrd(args.output / "jhu-hc01.seg.nrrd", labels, spacing, provenance, metadata)]
     archive = args.output / "jhu-retinal-layers.zip"
@@ -215,9 +217,9 @@ def main():
                    {"OCT_Validity": "One iff every source with nonzero interpolation weight is valid"})
     report = {"dimensions": list(image.shape[::-1]), "spacing_mm": spacing, "axial_spacing_microns": spacing[1] * 1000,
               "intensity_type": "uint8", "normalized_intensity_scale": 255,
-              "native_invalid_voxels": native[5], "surface_crossing_clamps": native[6],
-              "complete_retinal_columns": int(complete.sum()), "excluded_retinal_columns": int((~complete).sum()),
-              "total_retinal_columns": int(complete.size), "files": files,
+              "native_invalid_voxels": native_invalid, "surface_crossing_clamps": crossing_clamps,
+              "complete_retinal_columns": int(complete.sum()), "excluded_retinal_columns": excluded,
+              "total_retinal_columns": total, "files": files,
               "archive": {"filename": archive.name, "bytes": archive.stat().st_size, "sha256": sha256(archive)}}
     (args.output / "jhu-hc01-conversion.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

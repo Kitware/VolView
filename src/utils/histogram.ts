@@ -34,7 +34,7 @@ export function histogramWindowRanges(
     validCount += hist[index];
   const span = max - min + 1;
   const percentileRange = (percentage: number): [number, number] => {
-    if (min === max || !percentage || !validCount) return [min, max];
+    if (min === max || !validCount) return [min, max];
     const lowerRank = Math.max(1, Math.ceil(validCount * percentage * 0.01));
     const upperRank = Math.ceil(validCount * (1 - percentage * 0.01));
     let count = 0;

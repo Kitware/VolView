@@ -5,8 +5,9 @@ export function get2DOrientationForSourceAxis(
   sourceAxis: 0 | 1 | 2,
   directions: LPSDirections
 ) {
-  const orientation = LPSAxes.find((axis) => directions[axis] === sourceAxis)!;
-  return { name: orientation, ...get2DViewingVectors(orientation) };
+  return get2DViewingVectors(
+    LPSAxes.find((axis) => directions[axis] === sourceAxis)!
+  );
 }
 
 export function get2DViewingVectors(viewerOrientation: LPSAxis) {

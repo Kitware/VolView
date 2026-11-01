@@ -16,6 +16,7 @@ import { IMAGE_BOX_INFLATION } from '@/src/constants';
 import { clampValue } from '@/src/utils';
 import type { ImageMetadata } from '@/src/types/image';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import { useEnFaceViewStore } from '@/src/enface/store';
 import type { Maybe } from '@/src/types';
 
 export function getEnFaceCrosshairsUnavailableReason(imageID: Maybe<string>) {
@@ -68,25 +69,24 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
    *
    * All registered views of the image are sliced, not just those in the
    * current layout, so views hidden by a layout switch come back consistent.
-   * A preserved source index axis leaves its peer slices unchanged: a
-   * projection pick selects an in-plane location without choosing depth.
+   * An en face pick leaves the peer slices along its projection axis
+   * unchanged: it selects an in-plane location without choosing depth.
    */
-  function setPosition(
-    worldPosition: Vector3,
-    viewId: string,
-    preservedAxis?: 0 | 1 | 2
-  ) {
+  function setPosition(worldPosition: Vector3, viewId: string) {
     const view = viewStore.getView(viewId);
     const host = view && computeEffectiveView(view, view.dataID);
     if (host?.kind !== 'volume2D' && host?.kind !== 'enface') return;
     if (
       host.kind === 'enface' &&
-      (preservedAxis == null ||
-        getEnFaceCrosshairsUnavailableReason(host.renderDataID))
+      getEnFaceCrosshairsUnavailableReason(host.renderDataID)
     )
       return;
 
     const imageID = host.renderDataID;
+    const preservedAxis =
+      host.kind === 'enface'
+        ? useEnFaceViewStore().settingsFor(viewId, imageID).axis
+        : undefined;
     const metadata = getImageMetadata(imageID);
     const indexPosition = clampToImage(worldPosition, metadata);
 

@@ -146,19 +146,10 @@ const viewSpecToViewInfoInit = (spec: ViewSpec): ViewInfoInit => {
     };
   }
 
-  if (spec.type === 'EnFace') {
+  if (spec.type === 'EnFace' || spec.type === 'Oblique') {
     return {
       name: viewSpecName(spec),
-      type: 'EnFace',
-      dataID: null,
-      options: {},
-    };
-  }
-
-  if (spec.type === 'Oblique') {
-    return {
-      name: viewSpecName(spec),
-      type: 'Oblique',
+      type: spec.type,
       dataID: null,
       options: {},
     };

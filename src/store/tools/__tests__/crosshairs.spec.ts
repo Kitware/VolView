@@ -104,11 +104,7 @@ describe('crosshairs tool store', () => {
       useViewStore().setActiveView(coronalB);
       useViewStore().setLayoutFromGrid([1, 1]);
 
-      useCrosshairsToolStore().setPosition(
-        [2, 8, 17],
-        projection,
-        preservedAxis
-      );
+      useCrosshairsToolStore().setPosition([2, 8, 17], projection);
 
       expect(sliceOf(sagittalA, imageA)).toBe(preservedAxis === 0 ? 3 : 2);
       expect(sliceOf(coronalA, imageA)).toBe(preservedAxis === 1 ? 6 : 8);
@@ -117,13 +113,6 @@ describe('crosshairs tool store', () => {
       expect(settings).toEqual(before);
     }
   );
-
-  it('requires an explicit preserved axis when navigating from a projection', () => {
-    const { projection } = projectionWithPeer();
-    useCrosshairsToolStore().setPosition([2, 8, 17], projection);
-    expect(sliceOf(axialA, imageA)).toBe(5);
-    expect(sliceOf(sagittalA, imageA)).toBe(3);
-  });
 
   it('slices every view showing the image the crosshair was moved in', () => {
     useCrosshairsToolStore().setPosition([2, 8, 17], axialA);

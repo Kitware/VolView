@@ -39,6 +39,7 @@ import type {
   BlendConfig,
 } from '@/src/types/views';
 import { WLAutoRanges } from '@/src/constants';
+import { SLAB_METHODS } from '@/src/core/slab/types';
 import {
   type Layout,
   type LayoutDirection,
@@ -283,7 +284,7 @@ const CinePlaybackViewConfig = z.object({
 
 const EnFaceViewConfig = z.object({
   axis: z.union([z.literal(0), z.literal(1), z.literal(2)]),
-  method: z.enum(['mean', 'max', 'sum']),
+  method: z.enum(SLAB_METHODS),
   depthStart: z.number().int().nonnegative(),
   depthEnd: z.number().int().nonnegative().nullable(),
 }) satisfies z.ZodType<EnFaceViewConfig>;

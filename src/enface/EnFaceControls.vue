@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { rangeThumbLabels } from '@/src/utils/rangeThumbLabels';
+import { SLAB_METHODS } from '@/src/core/slab/types';
 import type { EnFaceViewConfig, EnFaceViewControlState } from './store';
 
 const props = defineProps<
@@ -39,8 +40,8 @@ function applyKeyboardSlab() {
   if (slabDraft.value) updateSlab(slabDraft.value);
 }
 function updateMethod(method: string) {
-  if (method === 'mean' || method === 'max' || method === 'sum')
-    emit('patch', { method });
+  const value = SLAB_METHODS.find((candidate) => candidate === method);
+  if (value) emit('patch', { method: value });
 }
 function updateAxis(axis: number) {
   if (axis === 0 || axis === 1 || axis === 2)

@@ -1,9 +1,7 @@
 import { computed, unref, watch, type MaybeRef } from 'vue';
 import type { Maybe } from '@/src/types';
-import {
-  useWindowingStore,
-  type WindowingAutoRanges,
-} from '@/src/store/view-configs/windowing';
+import type { WindowingAutoRanges } from '@/src/constants';
+import { useWindowingStore } from '@/src/store/view-configs/windowing';
 
 export function useViewWindowingRanges(
   viewId: MaybeRef<string>,
@@ -21,7 +19,7 @@ export function useViewWindowingRanges(
     },
     { immediate: true }
   );
-  const config = computed(() => {
+  return computed(() => {
     const imageID = unref(imageId);
     const shared = imageID
       ? windowing.getConfig(unref(viewId), imageID)
@@ -29,10 +27,8 @@ export function useViewWindowingRanges(
     const width = shared?.width ?? 1;
     return {
       ...shared,
-      userTriggered: shared?.userTriggered ?? false,
       width: Number.isFinite(width) && width > 0 ? width : 1,
       level: shared?.level ?? 0.5,
     };
   });
-  return config;
 }

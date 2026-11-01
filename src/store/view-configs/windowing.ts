@@ -10,7 +10,11 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { Maybe } from '@/src/types';
-import { WL_AUTO_DEFAULT, WLAutoRanges } from '@/src/constants';
+import {
+  WL_AUTO_DEFAULT,
+  WLAutoRanges,
+  type WindowingAutoRanges,
+} from '@/src/constants';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
 import type { StateFile, ViewConfig } from '@/src/io/state-file/schema';
@@ -18,11 +22,6 @@ import { WindowLevelConfig } from '@/src/store/view-configs/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { getWindowLevels, useDICOMStore } from '@/src/store/datasets-dicom';
 import type { ViewInfo } from '@/src/types/views';
-
-export type WindowingAutoRanges = Record<
-  keyof typeof WLAutoRanges,
-  readonly [number, number]
->;
 
 type WindowingAutoSource = {
   ranges: WindowingAutoRanges | null;

@@ -2,7 +2,6 @@
 import { computed, inject, onScopeDispose, watchEffect } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPlane from '@kitware/vtk.js/Common/DataModel/Plane';
-import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { SlabTypes } from '@kitware/vtk.js/Rendering/Core/ImageResliceMapper/Constants';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3 } from 'gl-matrix';
@@ -40,10 +39,6 @@ const representation = useResliceRepresentation(
 );
 const { actor, mapper, property } = representation;
 const slicePlane = vtkPlane.newInstance();
-const opacity = vtkPiecewiseFunction.newInstance();
-opacity.addPoint(0, 1);
-opacity.addPoint(1, 1);
-property.setPiecewiseFunction(0, opacity);
 useBaseSliceColoring(
   property,
   computed(() => props.window.preset),
@@ -81,7 +76,6 @@ watchEffect(() => {
 });
 onScopeDispose(() => {
   slicePlane.delete();
-  opacity.delete();
 });
 const corners = useVTKMultiWorldToSVG(
   computed(() => {

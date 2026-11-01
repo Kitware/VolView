@@ -33,25 +33,19 @@ const controlState = computed(() => {
     projectionReason: reason,
   } satisfies EnFaceViewControlState;
 });
-function resetContrast() {
-  if (props.dataId && !controlState.value.projectionReason)
-    windowing.resetContrast(props.viewId, props.dataId);
-}
 function patch(patchSettings: Partial<EnFaceViewConfig>) {
-  if (!props.dataId) return;
+  const { viewId, dataId } = props;
+  if (!dataId) return;
   const methodChanged =
     patchSettings.method !== undefined &&
     patchSettings.method !== settings.value.method;
-  Object.assign(
-    enFaceStore.configFor(props.viewId, props.dataId),
-    patchSettings
-  );
+  Object.assign(enFaceStore.configFor(viewId, dataId), patchSettings);
   if (
     methodChanged &&
-    props.dataId &&
-    !windowing.getConfig(props.viewId, props.dataId).useAuto
+    !controlState.value.projectionReason &&
+    !windowing.getConfig(viewId, dataId).useAuto
   )
-    resetContrast();
+    windowing.resetContrast(viewId, dataId);
 }
 </script>
 

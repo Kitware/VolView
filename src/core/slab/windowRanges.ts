@@ -1,10 +1,9 @@
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { WLAutoRanges } from '@/src/constants';
+import { WLAutoRanges, type WindowingAutoRanges } from '@/src/constants';
 import type { SlabMethod, SlabSpecification } from './types';
 import { slabThickness } from './geometry';
 
-type WindowRanges = Record<keyof typeof WLAutoRanges, [number, number]>;
-type ProjectionRanges = Record<SlabMethod, WindowRanges>;
+type ProjectionRanges = Record<SlabMethod, WindowingAutoRanges>;
 type CachedRanges = {
   revision: string;
   slabs: Map<string, ProjectionRanges>;
@@ -102,7 +101,7 @@ function sampleProjection(image: vtkImageData, spec: SlabSpecification) {
 function windowRanges(
   samples: number[],
   complete: [number, number]
-): WindowRanges {
+): WindowingAutoRanges {
   const sorted = samples.filter(Number.isFinite).sort((a, b) => a - b);
   const percentile = (
     percentage: number,
