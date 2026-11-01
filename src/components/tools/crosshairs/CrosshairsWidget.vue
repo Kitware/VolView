@@ -7,10 +7,9 @@ const props = defineProps<{
   viewId: string;
   planeOrigin: Vector3;
   planeNormal: Vector3;
-  preservedAxis?: 0 | 1 | 2;
 }>();
-const { viewId, preservedAxis } = toRefs(props);
-const manipulator = useCrosshairsWidget(viewId, preservedAxis);
+const { viewId } = toRefs(props);
+const manipulator = useCrosshairsWidget(viewId);
 watchEffect(() => {
   manipulator.setUserOrigin(props.planeOrigin);
   manipulator.setUserNormal(props.planeNormal);

@@ -150,7 +150,6 @@ export default defineComponent({
         }
 
         if (typeof selection === 'object') {
-          if (isSumProjection.value) return;
           windowingStore.updateConfig(
             viewID,
             imageID,
@@ -200,8 +199,6 @@ export default defineComponent({
           return 'Load an image in this view to reset contrast.';
         return '';
       }),
-      targetViewID,
-      targetImageID,
       wlOptions,
       WLPresetsCT,
       showCtPresets,

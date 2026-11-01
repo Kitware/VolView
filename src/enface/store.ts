@@ -6,7 +6,7 @@ import {
   getDoubleKeyRecord,
   type DoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
-import type { StateFile, ViewConfig } from '@/src/io/state-file/schema';
+import type { ViewConfig } from '@/src/io/state-file/schema';
 import type { SlabAxis, SlabMethod } from '@/src/core/slab/types';
 import type { Maybe } from '@/src/types';
 
@@ -77,9 +77,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     }
   }
 
-  function serialize(stateFile: StateFile) {
-    createViewConfigSerializer(configs, 'enFace')(stateFile);
-  }
+  const serialize = createViewConfigSerializer(configs, 'enFace');
 
   function deserialize(viewID: string, config: Record<string, ViewConfig>) {
     Object.entries(config).forEach(([dataID, viewConfig]) => {

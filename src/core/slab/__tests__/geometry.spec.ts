@@ -76,7 +76,7 @@ describe('slab source-world geometry', () => {
       expect(geometry.metadata).toEqual({ name: '', ...ordinaryMetadata });
       expect(
         get2DOrientationForSourceAxis(axis, geometry.metadata.lpsOrientation)
-      ).toEqual({ name, ...get2DViewingVectors(name) });
+      ).toEqual(get2DViewingVectors(name));
     }
     image.delete();
   });

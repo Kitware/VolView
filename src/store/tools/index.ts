@@ -29,15 +29,16 @@ const CINE_DISALLOWED_TOOLS = new Set([
   Tools.Crosshairs,
 ]);
 
+const EN_FACE_TOOLS = new Set([
+  Tools.Select,
+  Tools.WindowLevel,
+  Tools.Pan,
+  Tools.Zoom,
+  Tools.Crosshairs,
+]);
+
 export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
-  if (effective?.viewInfo.type === 'EnFace')
-    return [
-      Tools.Select,
-      Tools.WindowLevel,
-      Tools.Pan,
-      Tools.Zoom,
-      Tools.Crosshairs,
-    ].includes(tool);
+  if (effective?.viewInfo.type === 'EnFace') return EN_FACE_TOOLS.has(tool);
   if (effective?.kind === 'cine' && CINE_DISALLOWED_TOOLS.has(tool))
     return false;
   return true;
@@ -52,16 +53,11 @@ export function getToolUnavailableReason(
       ? 'This tool is unavailable on an En face projection. Switch to a slice view to use it.'
       : 'This tool is unavailable for a cine clip.';
   }
-  if (effective?.viewInfo.type === 'EnFace' && tool === Tools.Crosshairs) {
-    return getEnFaceCrosshairsUnavailableReason(effective.renderDataID);
-  }
-  if (
-    effective?.viewInfo.type === 'EnFace' &&
-    [Tools.WindowLevel, Tools.Pan, Tools.Zoom].includes(tool)
-  ) {
-    return getEnFaceUnavailableReason(effective.renderDataID);
-  }
-  return null;
+  if (effective?.viewInfo.type !== 'EnFace' || tool === Tools.Select)
+    return null;
+  return tool === Tools.Crosshairs
+    ? getEnFaceCrosshairsUnavailableReason(effective.renderDataID)
+    : getEnFaceUnavailableReason(effective.renderDataID);
 }
 // These tools draw into the selected segment, so picking one up seats a
 // segment: the palette shows the color the next stroke will be before it is
@@ -176,11 +172,11 @@ export const useToolStore = defineStore('tool', () => {
   // Shared by the toolbar and the Paint hints, so no hint asks for a disabled tool.
   const paintUnavailableReason = computed(() => {
     if (!currentImageID.value) return 'Load an image to paint';
-    const kind = activeEffectiveView()?.kind;
-    if (kind === 'cine') return 'A clip cannot be painted';
-    if (activeEffectiveView()?.viewInfo.type === 'EnFace')
+    const effective = activeEffectiveView();
+    if (effective?.kind === 'cine') return 'A clip cannot be painted';
+    if (effective?.viewInfo.type === 'EnFace')
       return 'Painting is not available on an En face projection';
-    if (kind === 'oblique')
+    if (effective?.kind === 'oblique')
       return 'Painting is not available in an oblique view';
     return '';
   });

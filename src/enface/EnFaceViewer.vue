@@ -145,7 +145,6 @@ watch(
         :view-id="viewId"
         :plane-origin="geometry.planeOrigin"
         :plane-normal="geometry.planeNormal"
-        :preserved-axis="specification.axis"
       />
     </VtkSliceView>
     <EnFaceStatus :message="stateMessage" :ready="projectionReady" />

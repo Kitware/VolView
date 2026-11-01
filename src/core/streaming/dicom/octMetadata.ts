@@ -1,22 +1,17 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { inflateSync } from 'fflate';
 import { vec3 } from 'gl-matrix';
+import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
 import {
   isOCTMetadata,
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
 } from '@/src/core/streaming/dicom/octMetadataTags';
+import type { Maybe } from '@/src/types';
 
-const close = (a: number, b: number, tolerance = 1e-5) =>
+const close = (a: number, b: number, tolerance: number) =>
   Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
-const coordinatesMatch = (
-  a: ArrayLike<number>,
-  b: ArrayLike<number>,
-  tolerance = 1e-5
-) =>
-  a.length === b.length &&
-  Array.from(a).every((n, i) => close(n, b[i], tolerance));
 const finiteVector = (
   value: number[] | null | undefined,
   length: number
@@ -39,7 +34,7 @@ function imageDirection(basis: number[] | null | undefined) {
 }
 
 /** Validate equally spaced slices along the positive image normal. */
-function frameGridError(positions: number[][], direction?: number[]) {
+function frameGridError(positions: number[][], direction: number[] | null) {
   if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
     return 'DICOM slice positions are invalid; spatial reconstruction is required.';
   if (positions.length < 2) return null;
@@ -53,7 +48,7 @@ function frameGridError(positions: number[][], direction?: number[]) {
     return 'Repeated DICOM slice locations need spatial reconstruction.';
   if (
     direction &&
-    !coordinatesMatch(
+    !areEquals(
       step,
       direction.slice(6).map((n) => n * distance),
       tolerance
@@ -63,7 +58,7 @@ function frameGridError(positions: number[][], direction?: number[]) {
   if (
     positions.some(
       (position, i) =>
-        !coordinatesMatch(
+        !areEquals(
           position,
           positions[0].map((n, axis) => n + i * step[axis]),
           tolerance
@@ -99,6 +94,10 @@ const sequenceTags = new Set([
 
 const firstItem = (data: DataSet | undefined, tag: string) =>
   data?.elements[tag]?.items?.[0]?.dataSet;
+const sequenceItems = (data: DataSet, tag: string) =>
+  data.elements[tag]?.items?.flatMap((item) =>
+    item.dataSet ? [item.dataSet] : []
+  ) ?? [];
 const stringValue = (data: DataSet | undefined, tag: string) =>
   data?.string(tag)?.trim() || undefined;
 const vector = (value: string | undefined) => value?.split('\\').map(Number);
@@ -113,10 +112,7 @@ function frameAttribute(
 
 function frameGeometry(data: DataSet) {
   const shared = firstItem(data, SHARED);
-  const frames =
-    data.elements[PER_FRAME]?.items?.flatMap((item) =>
-      item.dataSet ? [item.dataSet] : []
-    ) ?? [];
+  const frames = sequenceItems(data, PER_FRAME);
   // Shared groups take precedence over the first frame, then the top level.
   const attribute = (sequence: string, tag: string) =>
     frameAttribute(shared, sequence, tag) ??
@@ -147,11 +143,7 @@ function frameAttributeMismatch(
   return geometry.frames.some((frame) => {
     const value = vector(frameAttribute(frame, sequence, attribute));
     return value
-      ? !coordinatesMatch(
-          value,
-          expected,
-          sequence === ORIENTATION ? 1e-4 : 1e-5
-        )
+      ? !areEquals(value, expected, sequence === ORIENTATION ? 1e-4 : 1e-5)
       : false;
   });
 }
@@ -169,7 +161,7 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
     !positiveNumber(Number(geometry.sliceSpacing))
   )
     return 'OCT slice spacing is unavailable; spatial reconstruction is required.';
-  return frameGridError(positions, direction ?? undefined);
+  return frameGridError(positions, direction);
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {
@@ -210,16 +202,11 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
 }
 
 function scanPattern(data: DataSet) {
-  const acquisitions =
-    data.elements[ACQUISITION_PARAMETERS]?.items?.flatMap((item) =>
-      item.dataSet ? [item.dataSet] : []
-    ) ?? [];
-  const patterns = [data, ...acquisitions].flatMap(
-    (dataset) =>
-      dataset.elements[SCAN_PATTERN]?.items?.flatMap((item) => {
-        const code = stringValue(item.dataSet, 'x00080100');
-        return code ? [code] : [];
-      }) ?? []
+  const acquisitions = sequenceItems(data, ACQUISITION_PARAMETERS);
+  const patterns = [data, ...acquisitions].flatMap((dataset) =>
+    sequenceItems(dataset, SCAN_PATTERN).flatMap(
+      (item) => stringValue(item, 'x00080100') ?? []
+    )
   );
   return acquisitions.length > 1 || new Set(patterns).size > 1
     ? 'multiple'
@@ -228,7 +215,7 @@ function scanPattern(data: DataSet) {
 
 function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   const geometry = frameGeometry(data);
-  const set = (tag: string, value: string | undefined) => {
+  const set = (tag: string, value: Maybe<string>) => {
     if (value) tags.set(tag, value);
   };
   set(Tags.PixelSpacing, geometry.spacing);
@@ -238,7 +225,7 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   );
   set(OCT_SCAN_PATTERN, scanPattern(data));
   const reason = geometryError(geometry);
-  set(OCT_GEOMETRY_ERROR, reason ?? undefined);
+  set(OCT_GEOMETRY_ERROR, reason);
   if (reason) return;
   set(Tags.ImageOrientationPatient, geometry.orientation);
   set(Tags.ImagePositionPatient, geometry.origin);

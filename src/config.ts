@@ -6,7 +6,7 @@ import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
 import { PET_CT_URLS } from './samples/petCT';
 import PETCTChestThumbnail from '@/src/assets/samples/PET-CT-Chest.png';
-import RetinalLayersThumbnail from '@/src/assets/samples/Retinal-Layers.png';
+import RetinalLayersThumbnail from '@/src/assets/samples/Retinal-Layers.jpg';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -69,9 +69,8 @@ export const getAvailableViews = () => {
         orientation: 'Axial',
       },
     },
+    { name: 'En face', type: 'EnFace', dataID: null, options: {} },
   ];
-
-  list.push({ name: 'En face', type: 'EnFace', dataID: null, options: {} });
 
   const byName = list.reduce(
     (acc, view) => ({ ...acc, [view.name]: view }),

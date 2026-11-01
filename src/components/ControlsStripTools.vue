@@ -26,47 +26,29 @@
         </menu-control-button>
       </ReasonedAction>
     </groupable-item>
-    <groupable-item
-      v-for="tool in navigationTools"
-      :key="tool.value"
-      v-slot:default="{ active, toggle }"
-      :value="tool.value"
-    >
-      <ReasonedAction
-        location="end"
-        :reason="toolUnavailableReason(tool.value)"
-        v-slot="{ disabled }"
+    <template v-for="(group, index) in buttonToolGroups" :key="index">
+      <div v-if="index" class="my-1 tool-separator" />
+      <groupable-item
+        v-for="tool in group"
+        :key="tool.value"
+        v-slot:default="{ active, toggle }"
+        :value="tool.value"
       >
-        <control-button
-          :icon="tool.icon"
-          :name="`${tool.name} [${nameToShortcut[tool.name]}]`"
-          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-          :disabled="disabled"
-          @click="toggle"
-        />
-      </ReasonedAction>
-    </groupable-item>
-    <div class="my-1 tool-separator" />
-    <groupable-item
-      v-for="tool in annotationTools"
-      :key="tool.value"
-      v-slot:default="{ active, toggle }"
-      :value="tool.value"
-    >
-      <ReasonedAction
-        location="end"
-        :reason="toolUnavailableReason(tool.value)"
-        v-slot="{ disabled }"
-      >
-        <control-button
-          :icon="tool.icon"
-          :name="`${tool.name} [${nameToShortcut[tool.name]}]`"
-          :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
-          :disabled="disabled"
-          @click="toggle"
-        />
-      </ReasonedAction>
-    </groupable-item>
+        <ReasonedAction
+          location="end"
+          :reason="toolUnavailableReason(tool.value)"
+          v-slot="{ disabled }"
+        >
+          <control-button
+            :icon="tool.icon"
+            :name="`${tool.name} [${nameToShortcut[tool.name]}]`"
+            :buttonClass="['tool-btn', active ? 'tool-btn-selected' : '']"
+            :disabled="disabled"
+            @click="toggle"
+          />
+        </ReasonedAction>
+      </groupable-item>
+    </template>
 
     <div class="my-1 tool-separator" />
     <groupable-item v-slot:default="{ active, toggle }" :value="Tools.Crop">
@@ -126,6 +108,7 @@ const annotationTools = [
   { value: Tools.Polygon, icon: 'mdi-pentagon-outline', name: 'Polygon' },
   { value: Tools.Ruler, icon: 'mdi-ruler', name: 'Ruler' },
 ] as const;
+const buttonToolGroups = [navigationTools, annotationTools];
 
 export default defineComponent({
   components: {
@@ -220,8 +203,7 @@ export default defineComponent({
       toolUnavailableReason,
       Tools,
       nameToShortcut,
-      navigationTools,
-      annotationTools,
+      buttonToolGroups,
     };
   },
 });

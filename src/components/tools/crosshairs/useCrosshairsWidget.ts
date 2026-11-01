@@ -5,10 +5,7 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useCrosshairsToolStore } from '@/src/store/tools/crosshairs';
 import type { vtkCrosshairsViewWidget } from '@/src/vtk/CrosshairsWidget';
 
-export function useCrosshairsWidget(
-  viewId: MaybeRef<string>,
-  preservedAxis?: MaybeRef<0 | 1 | 2 | undefined>
-) {
+export function useCrosshairsWidget(viewId: MaybeRef<string>) {
   const view = inject(VtkViewContext);
   if (!view) throw new Error('No VtkView');
 
@@ -33,7 +30,7 @@ export function useCrosshairsWidget(
   onVTKEvent(widget, 'onInteractionEvent', () => {
     const origin = handle.getOrigin();
     if (!origin) return;
-    crosshairs.setPosition(origin, unref(viewId), unref(preservedAxis));
+    crosshairs.setPosition(origin, unref(viewId));
   });
 
   onMounted(() => view.widgetManager.renderWidgets());

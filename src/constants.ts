@@ -153,6 +153,11 @@ export const WLAutoRanges = {
   HighContrast: 5.0,
 };
 
+export type WindowingAutoRanges = Record<
+  keyof typeof WLAutoRanges,
+  readonly [number, number]
+>;
+
 export const WL_AUTO_DEFAULT = 'FullRange';
 export const WL_HIST_BINS = 512;
 

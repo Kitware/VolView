@@ -21,10 +21,8 @@ export function deriveSlabGeometry(
   spec: SlabSpecification
 ) {
   const axes = [0, 1, 2].filter((axis) => axis !== spec.axis);
-  const dimensions = image.getDimensions();
   const extent = image.getExtent();
   const minimum = [extent[0], extent[2], extent[4]];
-  const sourceSpacing = image.getSpacing();
   const midpoint = minimum[spec.axis] + (spec.first + spec.last) / 2;
   const planeIndex = [...minimum] as Vector3;
   planeIndex[spec.axis] = midpoint;
@@ -48,7 +46,6 @@ export function deriveSlabGeometry(
       planeOrigin[component] -
       (pixelToWorld[component] + pixelToWorld[4 + component]) / 2;
   }
-  const orientation = image.getDirection();
   const metadata: ImageMetadata = {
     name: '',
     ...metadataFromVtkImageData(image),
@@ -62,11 +59,11 @@ export function deriveSlabGeometry(
     slabThickness: slabThickness(image, spec),
     fitKey: [
       spec.axis,
-      ...dimensions,
+      ...metadata.dimensions,
       ...extent,
-      ...sourceSpacing,
-      ...image.getOrigin(),
-      ...orientation,
+      ...metadata.spacing,
+      ...metadata.origin,
+      ...metadata.orientation,
     ].join(','),
   };
 }
