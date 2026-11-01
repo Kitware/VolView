@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
-import { createThinRegionMask } from '@/src/enface/projectionMasks';
 import {
+  createThinRegionMask,
   isPresentThicknessBelow,
   thicknessSliderMaximum,
+  thinCountCutoff,
 } from '@/src/enface/thickness';
 
 describe('occupied-depth threshold presentation', () => {
@@ -27,7 +28,12 @@ describe('occupied-depth threshold presentation', () => {
         maximumCount: count,
       };
       expect(
-        Array.from(createThinRegionMask(field, threshold, spacing * 1000))
+        Array.from(
+          createThinRegionMask(
+            field.counts,
+            thinCountCutoff(field, threshold, spacing * 1000)
+          )
+        )
       ).toEqual([Number(highlighted), 0]);
     }
   );

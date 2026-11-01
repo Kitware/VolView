@@ -57,7 +57,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewID: string,
     config: Record<string, ViewConfig>,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string> = {}
+    segmentIdMap: Record<string, string>
   ) => {
     // First update the view config map to use the new dataIDs
     const updatedConfig: Record<string, ViewConfig> = {};
@@ -79,7 +79,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const deserializeAll = (
     manifest: StateFile['manifest'],
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string> = {}
+    segmentIdMap: Record<string, string>
   ) => {
     // Layer images are rebuilt after view settings are restored.
     const configIDMap = { ...dataIDMap };

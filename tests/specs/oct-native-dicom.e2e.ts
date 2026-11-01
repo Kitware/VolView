@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { JHU_RETINAL_LAYERS, RETINAL_OCT_DICOM } from '../datasets';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { volViewPage } from '../pageobjects/volview.page';
 import { applyTestViewport } from '../../wdio.shared.conf';
 import { useCachedSample, writeManifestToFile, overlayOption } from './utils';
 import native from '../fixtures/oct/heidelberg-reference.json';
@@ -25,6 +25,12 @@ import {
   openEnFaceProjection,
   openEnFaceControls,
   setEnFaceSlab,
+  selectSetting,
+  setHighlight,
+  setThicknessThreshold,
+  expectHighlight,
+  THRESHOLD,
+  THRESHOLD_SLIDER,
 } from './octTestUtils';
 import {
   openAnnotationSegments,
@@ -199,38 +205,16 @@ describe('Public OCT exports', () => {
         $('[data-testid="enface-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
     await expandEnFaceSection('projection');
-    const axis = $('.v-overlay--active [data-testid="enface-projection-axis"]');
-    await axis.scrollIntoView({ block: 'center' });
-    await axis.waitForClickable();
-    await axis.click();
-    await overlayOption('Coronal').waitForClickable();
-    await overlayOption('Coronal').click();
+    await selectSetting('enface-projection-axis', 'Coronal');
     await expandEnFaceSection('thickness');
     await expect(
       $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
     ).toBeEnabled();
-    await $(
-      '.v-overlay--active [data-testid="enface-thin-highlight"] label'
-    ).click();
-    const segment = $(
-      '.v-overlay--active [data-testid="enface-segmentation-segment"]'
-    );
-    await segment.scrollIntoView({ block: 'center' });
-    await segment.waitForClickable();
-    await segment.click();
-    await overlayOption(names[2]).waitForClickable();
-    await overlayOption(names[2]).click();
-    const thresholdSlider = $(
-      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
-    );
-    await expect(thresholdSlider).toHaveAttribute('aria-valuemax', '58.1');
-    await setValueVueInput(
-      $(
-        '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
-      ),
-      '20'
-    );
-    await expect(thresholdSlider).toHaveAttribute('aria-valuenow', '20');
+    await setHighlight(true);
+    await selectSetting('enface-segmentation-segment', names[2]);
+    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '58.1');
+    await setThicknessThreshold(20);
+    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuenow', '20');
     await $(
       '.v-overlay--active [data-testid="enface-projection-toggle"]'
     ).click();
@@ -241,11 +225,7 @@ describe('Public OCT exports', () => {
     await expect(
       $('.v-overlay--active [data-testid="enface-thickness-toggle"]')
     ).toHaveAttribute('aria-expanded', 'true');
-    await expect(
-      $(
-        '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
-      )
-    ).toHaveValue('20');
+    await expect($(THRESHOLD)).toHaveValue('20');
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
@@ -254,10 +234,7 @@ describe('Public OCT exports', () => {
       );
     }
     await browser.keys('Escape');
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).coloredPixels > 100,
-      { timeoutMsg: 'Expected the enface labelmap to be visible' }
-    );
+    await expectHighlight(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 

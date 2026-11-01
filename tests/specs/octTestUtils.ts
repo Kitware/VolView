@@ -138,6 +138,12 @@ export const VIEWER = '[data-testid="enface-viewer"]';
 export const CONTROLS = '[data-testid="enface-controls"]';
 export const PANEL =
   '.v-overlay--active [data-testid="enface-rendering-panel"]';
+export const THRESHOLD =
+  PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
+export const THRESHOLD_SLIDER =
+  PANEL + ' [data-testid="enface-thickness-threshold"] [role="slider"]';
+export const HIGHLIGHT_TOGGLE =
+  PANEL + ' [data-testid="enface-thin-highlight"]';
 export const WINDOW_TOOL =
   'button[data-testid^="control-button-Window & Level "]';
 export const toolButton = (name: string) =>
@@ -203,6 +209,36 @@ export async function openEnFaceControls(view?: WebdriverIO.Element) {
   const panel = $(PANEL);
   await panel.waitForDisplayed();
   await panel.waitForStable();
+}
+
+export async function setThicknessThreshold(value: number) {
+  await expandEnFaceSection('thickness');
+  const input = $(THRESHOLD);
+  await input.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await input.waitForClickable();
+  await setValueVueInput(input, String(value));
+}
+
+export async function setHighlight(enabled: boolean) {
+  await expandEnFaceSection('thickness');
+  const label = $(HIGHLIGHT_TOGGLE + ' label');
+  await label.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await label.waitForClickable();
+  if ((await $(HIGHLIGHT_TOGGLE + ' input').isSelected()) !== enabled)
+    await label.click();
+}
+
+export async function expectHighlight(present: boolean) {
+  await waitForEnFaceReady();
+  await browser.waitUntil(
+    async () => {
+      const { coloredPixels } = await enFaceAppearance();
+      return present ? coloredPixels > 100 : coloredPixels === 0;
+    },
+    {
+      timeoutMsg: `Expected enface highlight to be ${present ? 'visible' : 'hidden'}`,
+    }
+  );
 }
 
 export async function openEnFaceProjection(view?: WebdriverIO.Element) {

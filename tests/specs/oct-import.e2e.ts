@@ -17,6 +17,10 @@ import {
   openEnFaceProjection,
   openEnFaceControls,
   selectSetting,
+  THRESHOLD,
+  setThicknessThreshold,
+  setHighlight,
+  expectHighlight,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -34,14 +38,10 @@ import {
 } from './segmentationTestUtils';
 import {
   reference,
-  THRESHOLD,
   STEM,
   stageFixture,
-  setThicknessThreshold,
   expectProjectionPixel,
-  enableHighlight,
   dragEnFaceContrast,
-  expectHighlight,
   expectStackedMaskWithoutSidebar,
   expectSliceLine,
   registerOctTestHooks,
@@ -85,7 +85,7 @@ describe('Retinal OCT import', () => {
     await expectStackedMaskWithoutSidebar();
 
     await openEnFaceControls();
-    await enableHighlight();
+    await setHighlight(true);
     expect(
       await $(
         '.v-overlay--active [data-testid="enface-segmentation-segment"]'

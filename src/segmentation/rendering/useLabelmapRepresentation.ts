@@ -21,16 +21,12 @@ export type LabelmapAppearance = {
   outlineOpacity: number;
 };
 
-type LabelmapRepresentationOptions = {
-  axis: MaybeRef<number | undefined>;
-};
-
 /** Renders a borrowed single-plane labelmap with resolved segment appearance. */
 export function useLabelmapRepresentation(
   view: View,
   imageData: MaybeRef<Maybe<vtkImageData>>,
-  appearance: MaybeRef<LabelmapAppearance | null>,
-  options: LabelmapRepresentationOptions
+  appearance: MaybeRef<Maybe<LabelmapAppearance>>,
+  axis: MaybeRef<number | undefined>
 ) {
   const sliceRep = useSliceRepresentation(view, imageData);
 
@@ -56,7 +52,7 @@ export function useLabelmapRepresentation(
     ...SEGMENT_COINCIDENT_OFFSET
   );
   watchEffect(() => {
-    const axisIndex = unref(options.axis);
+    const axisIndex = unref(axis);
     if (axisIndex === undefined) return;
     sliceRep.mapper.setSlicingMode(
       [SlicingMode.I, SlicingMode.J, SlicingMode.K][axisIndex]

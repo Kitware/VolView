@@ -5,7 +5,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { syntheticScalars } from '../fixtures/oct/dicom';
 import reference from '../fixtures/oct/reference.json';
 import { createNrrdVolume, syntheticMask } from '../fixtures/oct/volumes';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { volViewPage } from '../pageobjects/volview.page';
 import {
   enFaceAppearance,
   canvasAppearance,
@@ -22,6 +22,11 @@ import {
   openEnFaceProjection,
   openEnFaceControls,
   selectSetting,
+  setHighlight,
+  setThicknessThreshold,
+  expectHighlight,
+  HIGHLIGHT_TOGGLE,
+  THRESHOLD,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -239,22 +244,10 @@ describe('Projection camera persistence', () => {
     await waitForEnFaceReady();
     const baseProjection = await panAndZoom();
     await openEnFaceControls();
-    await expandEnFaceSection('thickness');
-    const highlight = $(
-      '.v-overlay--active [data-testid="enface-thin-highlight"]'
-    );
-    await highlight.$('label').click();
+    await setHighlight(true);
     await selectSetting('enface-segmentation-segment', SEGMENT_NAME);
-    const threshold = $(
-      '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
-    );
-    await threshold.scrollIntoView();
-    await threshold.waitForClickable();
-    await setValueVueInput(threshold, '6500');
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).coloredPixels > 100,
-      { timeoutMsg: 'Expected the enface labelmap to be visible' }
-    );
+    await setThicknessThreshold(6500);
+    await expectHighlight(true);
     await expectProjectionTransform(baseProjection.transform);
     const inspected = {
       transform: baseProjection.transform,
@@ -277,12 +270,9 @@ describe('Projection camera persistence', () => {
     await expect(
       $('.v-overlay--active [data-testid="enface-segmentation-segment"]')
     ).toHaveText(expect.stringContaining(SEGMENT_NAME));
-    await expect(highlight.$('input')).toBeSelected();
-    await expect(threshold).toHaveValue('6500');
-    await browser.waitUntil(
-      async () => (await enFaceAppearance()).coloredPixels > 100,
-      { timeoutMsg: 'Expected the enface labelmap to be visible' }
-    );
+    await expect($(HIGHLIGHT_TOGGLE + ' input')).toBeSelected();
+    await expect($(THRESHOLD)).toHaveValue('6500');
+    await expectHighlight(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

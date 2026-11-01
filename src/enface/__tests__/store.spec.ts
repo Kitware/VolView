@@ -35,7 +35,7 @@ describe('En face view settings', () => {
       depthEnd: 40,
       thresholdMicrons: 35,
       highlightThin: true,
-      selectedSegmentId: 'missing-segment',
+      segmentId: 'missing-segment',
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -65,8 +65,7 @@ describe('En face view settings', () => {
     expect(parsed.viewByID?.view.type).toBe('EnFace');
     const settings = parsed.viewByID!.view.config!;
     expect(settings.oct.enFace?.method).toBe('sum');
-    expect(settings.oct.enFace).not.toHaveProperty('selectedMaskId');
-    expect(settings.oct.enFace).not.toHaveProperty('selectedSegmentId');
+    expect(settings.oct.enFace?.segmentId).toBeNull();
     expect(settings.oct.enFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
@@ -74,7 +73,12 @@ describe('En face view settings', () => {
       userTriggered: true,
     });
     store.removeView('view');
-    useViewConfigStore().deserialize('restored', settings, { oct: 'new-oct' });
+    useViewConfigStore().deserialize(
+      'restored',
+      settings,
+      { oct: 'new-oct' },
+      {}
+    );
     expect(store.configFor('restored', 'new-oct')).toMatchObject({
       method: 'sum',
       depthStart: 20,
@@ -82,7 +86,7 @@ describe('En face view settings', () => {
       thresholdMicrons: 35,
       highlightThin: false,
     });
-    expect(store.configFor('restored', 'new-oct').selectedSegmentId).toBeNull();
+    expect(store.configFor('restored', 'new-oct').segmentId).toBeNull();
     expect(useWindowingStore().getConfig('restored', 'new-oct')).toMatchObject({
       width: 120,
       level: 60,
@@ -111,9 +115,8 @@ describe('En face view settings', () => {
     useViewConfigStore().deserialize(
       'restored',
       parsed.viewByID!.saved.config!,
-      {
-        source: 'loaded',
-      }
+      { source: 'loaded' },
+      {}
     );
     expect(useEnFaceViewStore().configFor('restored', 'loaded')).toMatchObject({
       axis: 2,
@@ -122,7 +125,7 @@ describe('En face view settings', () => {
       depthEnd: 4,
       highlightThin: false,
       thresholdMicrons: 100,
-      selectedSegmentId: null,
+      segmentId: null,
     });
   });
 
@@ -152,23 +155,25 @@ describe('En face view settings', () => {
       },
       { 'saved-layer': chosen }
     );
-    expect(store.configFor('view', 'restored-oct').selectedSegmentId).toBe(
-      chosen
-    );
+    expect(store.configFor('view', 'restored-oct').segmentId).toBe(chosen);
     expect(store.configFor('view', 'restored-oct').highlightThin).toBe(true);
-    store.deserialize('view', {
-      'restored-oct': {
-        enFace: {
-          axis: 1,
-          method: 'mean',
-          depthStart: 0,
-          depthEnd: null,
-          thresholdMicrons: 35,
-          highlightThin: true,
-          segmentId: 'missing-layer',
+    store.deserialize(
+      'view',
+      {
+        'restored-oct': {
+          enFace: {
+            axis: 1,
+            method: 'mean',
+            depthStart: 0,
+            depthEnd: null,
+            thresholdMicrons: 35,
+            highlightThin: true,
+            segmentId: 'missing-layer',
+          },
         },
       },
-    });
+      {}
+    );
     expect(store.configFor('view', 'restored-oct').highlightThin).toBe(false);
   });
 

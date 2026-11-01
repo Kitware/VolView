@@ -313,11 +313,7 @@ export default tseslint.config(
     {
       dir: 'enface',
       publicSurface: false,
-      pure: [
-        'src/enface/thickness.ts',
-        'src/enface/sliceGeometry.ts',
-        'src/enface/projectionMasks.ts',
-      ],
+      pure: ['src/enface/thickness.ts', 'src/enface/sliceGeometry.ts'],
     },
     {
       dir: 'segmentation',

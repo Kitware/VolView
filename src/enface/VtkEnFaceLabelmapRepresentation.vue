@@ -32,7 +32,7 @@ useLabelmapRepresentation(
   view,
   computed(() => (appearance.value ? thinRegions.value : null)),
   appearance,
-  { axis: 2 }
+  2
 );
 </script>
 

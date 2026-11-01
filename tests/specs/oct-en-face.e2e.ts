@@ -16,6 +16,9 @@ import {
   openEnFaceControls,
   expandEnFaceSection,
   selectSetting,
+  THRESHOLD,
+  setHighlight,
+  setThicknessThreshold,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -31,13 +34,10 @@ import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import {
   reference,
-  THRESHOLD,
   STEM,
   stageFixture,
   expectProjectionPixel,
   observeSlabProjectionChanges,
-  enableHighlight,
-  setThicknessThreshold,
   expectCalibratedEnFace,
   openRetina,
   registerOctTestHooks,
@@ -60,7 +60,7 @@ describe('Retinal OCT en-face', () => {
     await $(CONTROLS).doubleClick();
     await expectBothViews();
     await openEnFaceControls();
-    await enableHighlight();
+    await setHighlight(true);
     const inlineHelp = await $(
       '.v-overlay--active [data-testid="enface-thickness-help"]'
     ).execute((button) => {
@@ -180,7 +180,7 @@ describe('Retinal OCT en-face', () => {
     const threshold = $(
       '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
     );
-    await enableHighlight();
+    await setHighlight(true);
     await expect($(THRESHOLD)).toBeEnabled();
     await setThicknessThreshold(0);
     const thresholdMaximum = await threshold.getAttribute('aria-valuemax');

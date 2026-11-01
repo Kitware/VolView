@@ -170,7 +170,8 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(getOccupiedDepthSupport(id).reason).toMatch(/nonuniform/);
       expect(
-        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+        dicomSeriesGeometry(chunks.map((chunk) => new Map(chunk.metadata!)))
+          .reason
       ).toMatch(/nonuniform/);
     }
   );
@@ -202,7 +203,8 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(getOccupiedDepthSupport(id).reason).toMatch(reason);
       expect(
-        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+        dicomSeriesGeometry(chunks.map((chunk) => new Map(chunk.metadata!)))
+          .reason
       ).toMatch(reason);
     }
   );
@@ -222,7 +224,8 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
       expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(getOccupiedDepthSupport(id).reason).toMatch(/incomplete/);
       expect(
-        dicomSeriesGeometry(chunks.map((chunk) => chunk.metadata!)).reason
+        dicomSeriesGeometry(chunks.map((chunk) => new Map(chunk.metadata!)))
+          .reason
       ).toMatch(/incomplete/);
     }
   );
@@ -235,7 +238,7 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
     expect(getOccupiedDepthSupport(id).reason).toMatch(/loaded.*grid/);
     expect(
       dicomSeriesGeometry(
-        chunks.map((chunk) => chunk.metadata!),
+        chunks.map((chunk) => new Map(chunk.metadata!)),
         {
           spacing: data.getSpacing(),
           direction: data.getDirection(),

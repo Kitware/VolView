@@ -73,7 +73,7 @@ function mountMeasurement(keepEnabled = false) {
   const wrapper = mount(
     defineComponent({
       setup() {
-        const { accepted, computing, error, stale } = useOccupiedDepth(
+        const { accepted, computing, error } = useOccupiedDepth(
           request,
           worker.create,
           keepEnabled ? true : undefined
@@ -82,8 +82,8 @@ function mountMeasurement(keepEnabled = false) {
           h(
             'output',
             { role: 'status' },
-            stale.value
-              ? `${accepted.value!.counts.join(',')} occupied cells (updating)`
+            computing.value && accepted.value
+              ? `${accepted.value.counts.join(',')} occupied cells (updating)`
               : computing.value
                 ? 'Measuring occupied depth'
                 : (error.value ??

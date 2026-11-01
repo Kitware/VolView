@@ -25,7 +25,7 @@ describe('En face thin-region placement', () => {
     'places rectangular axis $axis overlays at thick-slab midpoints for orientation $orientation',
     async ({ axis, direction }) => {
       const source = vtkImageData.newInstance();
-      source.setExtent([5, 7, -4, -1, 10, 14]);
+      source.setDimensions([3, 4, 5]);
       source.setOrigin([23, -8, 100]);
       source.setSpacing([-0.2, 0.7, 2]);
       source.setDirection(direction);
@@ -74,7 +74,7 @@ describe('En face thin-region placement', () => {
           [0, height - 1],
           [width - 1, height - 1],
         ]) {
-          const sourceIndex: [number, number, number] = [5, -4, 10];
+          const sourceIndex: [number, number, number] = [0, 0, 0];
           sourceIndex[planeAxes[0]] += x;
           sourceIndex[planeAxes[1]] += y;
           sourceIndex[axis] += (first + last) / 2;

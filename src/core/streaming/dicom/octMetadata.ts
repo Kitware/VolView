@@ -112,7 +112,7 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
     !positiveNumber(Number(geometry.sliceSpacing))
   )
     return 'OCT slice spacing is unavailable; spatial reconstruction is required.';
-  return frameGridGeometry(positions, direction ?? undefined).reason;
+  return frameGridGeometry(positions, direction).reason;
 }
 
 function geometryError(geometry: ReturnType<typeof frameGeometry>) {

@@ -19,6 +19,9 @@ import {
   openEnFaceProjection,
   openEnFaceControls,
   selectSetting,
+  setThicknessThreshold,
+  setHighlight,
+  expectHighlight,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -26,12 +29,9 @@ import { waitForDownload, SESSION_SAVE_TIMEOUT } from './utils';
 import {
   reference,
   SLICE_LINE,
-  setThicknessThreshold,
   expectProjectionPixel,
-  enableHighlight,
   dragEnFaceContrast,
   getOriginalWindow,
-  expectHighlight,
   expectStackedMaskWithoutSidebar,
   openRetina,
   expectSliceLine,
@@ -351,7 +351,7 @@ describe('Retinal OCT navigation', () => {
     // Select before capturing the comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
     await openEnFaceControls();
-    await enableHighlight();
+    await setHighlight(true);
     await setThicknessThreshold(31);
     await expectHighlight(true);
     await expectSliceLine();

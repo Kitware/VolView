@@ -192,3 +192,10 @@ export async function setSegmentationDisplaySlider(
   await keys.perform();
   await expect(slider).toHaveAttribute('aria-valuenow', String(value));
 }
+
+export async function openSegmentDisplay() {
+  await openAnnotationSegments();
+  const display = $('[data-testid="segment-display-section"]');
+  if ((await display.getAttribute('aria-expanded')) !== 'true')
+    await display.click();
+}

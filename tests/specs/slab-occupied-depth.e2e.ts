@@ -8,7 +8,7 @@ import {
   gappedSyntheticMask,
   syntheticMask,
 } from '../fixtures/oct/volumes';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { volViewPage } from '../pageobjects/volview.page';
 import {
   makeTempDir,
   writeManifestToFile,
@@ -17,26 +17,26 @@ import {
 } from './utils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
-  attachMaskThroughDataPanel,
+  attachAndSelectMask,
   chooseEnFaceProjection,
   enFacePixel,
   expandEnFaceSection,
+  openEnFaceControls,
+  setHighlight,
   setSlabRange,
+  setThicknessThreshold,
   slabThumb,
   waitForEnFaceReady,
+  PANEL,
+  THRESHOLD,
+  THRESHOLD_SLIDER,
 } from './octTestUtils';
 import {
-  openAnnotationSegments,
+  openSegmentDisplay,
   setSegmentationDisplaySlider,
-  selectSegment,
-  waitForSegmentContent,
 } from './segmentationTestUtils';
 
 const STEM = 'slab-occupied-depth';
-const PANEL = '.v-overlay--active [data-testid="enface-rendering-panel"]';
-const INPUT = PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
-const SLIDER =
-  PANEL + ' [data-testid="enface-thickness-threshold"] [role="slider"]';
 
 async function expectHighlighted(present: boolean, point = [60, 12]) {
   await waitForEnFaceReady();
@@ -49,14 +49,6 @@ async function expectHighlighted(present: boolean, point = [60, 12]) {
       timeoutMsg: `Expected the selected slab to ${present ? 'qualify' : 'not qualify'} for highlighting`,
     }
   );
-}
-
-async function threshold(value: number) {
-  await expandEnFaceSection('thickness');
-  const input = $(INPUT);
-  await input.scrollIntoView({ block: 'center', inline: 'nearest' });
-  await input.waitForClickable();
-  await setValueVueInput(input, String(value));
 }
 
 async function openGappedMask(twoViews = false) {
@@ -80,14 +72,12 @@ async function openGappedMask(twoViews = false) {
     '?urls=[tmp/' + STEM + '.json,tmp/' + STEM + '/retina.dcm]'
   );
   await waitForEnFaceReady();
-  await attachMaskThroughDataPanel(STEM + '/gapped-band.nrrd');
-  await openAnnotationSegments();
-  const segment = twoViews ? 'Synthetic retinal band' : 'Gapped band';
-  await waitForSegmentContent(segment);
-  await selectSegment(segment);
-  await $('[data-testid="enface-controls"]').click();
-  await expandEnFaceSection('thickness');
-  await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
+  await attachAndSelectMask(
+    STEM + '/gapped-band.nrrd',
+    twoViews ? 'Synthetic retinal band' : 'Gapped band'
+  );
+  await openEnFaceControls();
+  await setHighlight(true);
 }
 
 async function openAxisMask(axis: number) {
@@ -137,26 +127,14 @@ async function openAxisMask(axis: number) {
     '?urls=[tmp/' + STEM + '.json,tmp/' + STEM + '/' + sourceFile + ']'
   );
   await waitForEnFaceReady();
-  await attachMaskThroughDataPanel(STEM + '/' + maskFile);
-  await openAnnotationSegments();
-  await waitForSegmentContent('Directional band');
-  await selectSegment('Directional band');
+  await attachAndSelectMask(STEM + '/' + maskFile, 'Directional band');
   await chooseEnFaceProjection(
     'enface-projection-axis',
     ['Sagittal', 'Coronal', 'Axial'][axis]
   );
-  await $('[data-testid="enface-controls"]').click();
-  await expandEnFaceSection('thickness');
-  await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
+  await openEnFaceControls();
+  await setHighlight(true);
   return spacing[axis] * 1000;
-}
-
-async function openSharedAppearance() {
-  await browser.keys(Key.Escape);
-  await openAnnotationSegments();
-  const display = $('[data-testid="segment-display-section"]');
-  if ((await display.getAttribute('aria-expanded')) !== 'true')
-    await display.click();
 }
 
 describe('Selected-slab occupied depth', () => {
@@ -178,10 +156,13 @@ describe('Selected-slab occupied depth', () => {
       await setSlabRange(first, last);
       await waitForEnFaceReady();
       await expandEnFaceSection('thickness');
-      await expect($(SLIDER)).toHaveAttribute('aria-valuemax', String(maximum));
-      await threshold(occupied);
+      await expect($(THRESHOLD_SLIDER)).toHaveAttribute(
+        'aria-valuemax',
+        String(maximum)
+      );
+      await setThicknessThreshold(occupied);
       await expectHighlighted(false);
-      await threshold(occupied + 0.1);
+      await setThicknessThreshold(occupied + 0.1);
       await expectHighlighted(true);
       const absent = await enFacePixel(0, 12);
       expect(absent[0]).toBe(absent[1]);
@@ -189,32 +170,26 @@ describe('Selected-slab occupied depth', () => {
     await expandEnFaceSection('projection');
     await setSlabRange(102, 103);
     await waitForEnFaceReady();
-    await expect($(SLIDER)).toHaveAttribute('aria-valuemax', '0.1');
-    await expect($(INPUT)).toHaveValue('41.7');
+    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '0.1');
+    await expect($(THRESHOLD)).toHaveValue('41.7');
     await expectHighlighted(false);
-    await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
+    await setHighlight(false);
     await expandEnFaceSection('projection');
     await setSlabRange(100, 105);
     await waitForEnFaceReady();
     await expectHighlighted(false);
-    await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
-    await expect($(SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
+    await setHighlight(true);
+    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
     await expectHighlighted(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   it('remeasures mask storage grown by painting in an ordinary source slice', async () => {
     await openGappedMask();
-    await threshold(50);
-    await expect($(SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
+    await setThicknessThreshold(50);
+    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
     await browser.keys(Key.Escape);
-    await $(
-      '.v-overlay--active [data-testid="enface-rendering-panel"]'
-    ).waitForDisplayed({
-      reverse: true,
-    });
+    await $(PANEL).waitForDisplayed({ reverse: true });
     const source = $('[data-testid~="vtk-two-view"]');
     await source.click();
     const slice = await volViewPage.getFirst2DSlice();
@@ -247,16 +222,17 @@ describe('Selected-slab occupied depth', () => {
       },
       { timeoutMsg: 'Expected the thicker painted column to stop qualifying.' }
     );
-    await $('[data-testid="enface-controls"]').click();
+    await openEnFaceControls();
     await expandEnFaceSection('thickness');
     await browser.waitUntil(
-      async () => Number(await $(SLIDER).getAttribute('aria-valuemax')) > 41.7,
+      async () =>
+        Number(await $(THRESHOLD_SLIDER).getAttribute('aria-valuemax')) > 41.7,
       {
         timeoutMsg:
           'Expected the fitted thickness maximum to reflect source mask growth.',
       }
     );
-    await expect($(INPUT)).toHaveValue('50');
+    await expect($(THRESHOLD)).toHaveValue('50');
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
@@ -265,26 +241,24 @@ describe('Selected-slab occupied depth', () => {
     const panes = await $$('[data-testid="enface-viewer"]').map((view) =>
       view.getElement()
     );
-    await threshold(31);
+    await setThicknessThreshold(31);
     await expandEnFaceSection('projection');
     await setSlabRange(100, 103);
     await browser.keys(Key.Escape);
-    await panes[1].$('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
+    await openEnFaceControls(panes[1]);
+    await setHighlight(true);
     await chooseEnFaceProjection(
       'enface-segmentation-segment',
       'Alternative synthetic band',
       panes[1]
     );
-    await panes[1].$('[data-testid="enface-controls"]').click();
-    await threshold(60);
+    await openEnFaceControls(panes[1]);
+    await setThicknessThreshold(60);
     await expandEnFaceSection('projection');
     await setSlabRange(110, 114);
-    await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
+    await setHighlight(false);
     await browser.keys(Key.Escape);
-    await openSharedAppearance();
+    await openSegmentDisplay();
     await setSegmentationDisplaySlider('Fill Opacity', 0.5);
     await setSegmentationDisplaySlider('Outline Thickness', 5);
     const firstPixel = () => enFacePixel(20, 12, undefined, panes[0]);
@@ -324,7 +298,7 @@ describe('Selected-slab occupied depth', () => {
             'Expected the saved pane to restore its segmentation appearance.',
         }
       );
-      await pane.$('[data-testid="enface-controls"]').click();
+      await openEnFaceControls(pane);
       await expandEnFaceSection('projection');
       await expect(slabThumb('start')).toHaveAttribute(
         'aria-valuenow',
@@ -335,7 +309,7 @@ describe('Selected-slab occupied depth', () => {
         index ? '114' : '103'
       );
       await expandEnFaceSection('thickness');
-      await expect($(INPUT)).toHaveValue(index ? '60' : '31');
+      await expect($(THRESHOLD)).toHaveValue(index ? '60' : '31');
       await expect(
         $(PANEL).$('[data-testid="enface-segmentation-segment"]')
       ).toHaveText(
@@ -348,7 +322,7 @@ describe('Selected-slab occupied depth', () => {
       else await expect(enabled).toBeSelected();
       await browser.keys(Key.Escape);
     }
-    await openSharedAppearance();
+    await openSegmentDisplay();
     for (const [label, value] of [
       ['Fill Opacity', '0.5'],
       ['Outline Thickness', '5'],
@@ -361,9 +335,8 @@ describe('Selected-slab occupied depth', () => {
         )
       ).toHaveAttribute('aria-valuenow', value);
     }
-    await restored[1].$('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('thickness');
-    await $(PANEL).$('[data-testid="enface-thin-highlight"] label').click();
+    await openEnFaceControls(restored[1]);
+    await setHighlight(true);
     await browser.waitUntil(
       async () => {
         const [r, g] = await enFacePixel(60, 12, undefined, restored[1]);
@@ -392,19 +365,19 @@ describe('Selected-slab occupied depth', () => {
         await waitForEnFaceReady();
         await expandEnFaceSection('thickness');
         const occupied = count * cellLength;
-        await expect($(SLIDER)).toHaveAttribute(
+        await expect($(THRESHOLD_SLIDER)).toHaveAttribute(
           'aria-valuemax',
           String(occupied + 0.1)
         );
-        await threshold(occupied);
+        await setThicknessThreshold(occupied);
         await expectHighlighted(false, [15, 14]);
-        await threshold(occupied + 0.1);
+        await setThicknessThreshold(occupied + 0.1);
         await expectHighlighted(true, [15, 14]);
       }
       await expandEnFaceSection('projection');
       await setSlabRange(5, 6);
       await waitForEnFaceReady();
-      await expect($(SLIDER)).toHaveAttribute('aria-valuemax', '0.1');
+      await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '0.1');
       await expectHighlighted(false, [15, 14]);
       expect(await volViewPage.getNotificationsCount()).toBe(0);
     });
