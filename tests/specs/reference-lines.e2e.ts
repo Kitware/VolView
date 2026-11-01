@@ -1,8 +1,7 @@
 import { PROSTATEX_DATASET } from '../datasets';
 import { openUrls } from './utils';
 import { volViewPage } from '../pageobjects/volview.page';
-
-const SETTING_LABEL = 'label*=Reference Lines';
+import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
 
 /**
  * The reference-line segments currently drawn, grouped by 2D view in layout
@@ -42,7 +41,7 @@ const waitForReferenceLineCount = async (
   });
 };
 
-// Must match CROSSING_GAP in src/referenceLines/ReferenceLines.vue.
+// Must match CROSSING_GAP in src/referenceLines/ReferenceLineSegments.vue.
 const CROSSING_GAP = 16;
 
 /**
@@ -83,31 +82,6 @@ const clickToolButton = async (iconClass: string) => {
   await button.click();
 };
 
-const setReferenceLinesSetting = async (on: boolean) => {
-  const settingsButton = await $(
-    'button[data-testid="control-button-Settings"]'
-  );
-  await settingsButton.waitForClickable();
-  await settingsButton.click();
-
-  const label = await $(SETTING_LABEL);
-  await label.waitForClickable();
-  const isOn = (await label.getText()).includes('On');
-  if (isOn !== on) {
-    await label.click();
-    await browser.waitUntil(
-      async () =>
-        (await $(SETTING_LABEL).getText()).includes(on ? 'On' : 'Off'),
-      { timeoutMsg: `Reference Lines switch did not turn ${on ? 'on' : 'off'}` }
-    );
-  }
-
-  await browser.keys(['Escape']);
-  await browser.waitUntil(async () => !(await $(SETTING_LABEL).isExisting()), {
-    timeoutMsg: 'Settings dialog did not close',
-  });
-};
-
 describe('Reference lines', () => {
   before(async () => {
     await openUrls([PROSTATEX_DATASET]);
@@ -116,7 +90,7 @@ describe('Reference lines', () => {
 
   after(async () => {
     // The setting is browser-level, so leave the profile as we found it.
-    await setReferenceLinesSetting(false);
+    await setReferenceLinesEnabled(false);
   });
 
   it('draws no lines by default', async () => {
@@ -154,7 +128,7 @@ describe('Reference lines', () => {
   });
 
   it('keeps lines on independently of any tool when the setting is on', async () => {
-    await setReferenceLinesSetting(true);
+    await setReferenceLinesEnabled(true);
 
     await waitForReferenceLineCount(
       (count) => count > 0,

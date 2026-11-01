@@ -202,6 +202,12 @@ export const createStateFileRestorer = ({
       (ds) => !(ds.id in stateIDToStoreID)
     );
 
+    // Registries first: masks and shapes name the segment identities minted here.
+    const { segmentIdMap, repeated: repeatedSegments } =
+      useSegmentStore().deserialize(manifest);
+
+    // Restore camera and contrast before asynchronous mask decoding.
+    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
     Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
       viewStore.bindViewsToData(stateID, storeID, manifest);
     });
@@ -218,9 +224,7 @@ export const createStateFileRestorer = ({
       if (!manifest.viewByID) {
         viewStore.setDataForAllViews(defaultStoreID);
       } else {
-        // Resolve-first-then-apply: a view whose saved dataset never resolved
-        // resets to the default assignment (views are reconstructible UI)
-        // rather than staying empty.
+        // A saved view whose image could not be restored uses the default image.
         const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
         Object.entries(manifest.viewByID).forEach(([viewID, view]) => {
           if (
@@ -232,13 +236,6 @@ export const createStateFileRestorer = ({
         });
       }
     }
-
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
-
-    // Registries first: masks and shapes both name a segment, and the
-    // ids they name are minted here.
-    const { segmentIdMap, repeated: repeatedSegments } =
-      useSegmentStore().deserialize(manifest);
 
     const { skipped: skippedLabelmaps } =
       await useSegmentationStore().deserialize({

@@ -125,9 +125,9 @@ describe('VolView Layout Configuration', () => {
     expect(sliceInFirstViewAfterDualSwitch).toBe(sliceAfterScroll);
   });
 
-  it('should disable 3D and Oblique view types', async () => {
+  it('should disable configured view types', async () => {
     const config = {
-      disabledViewTypes: ['3D', 'Oblique'],
+      disabledViewTypes: ['3D', 'Oblique', 'EnFace'],
     };
 
     await openConfigAndDataset(config, 'disabled-view-types');
@@ -147,6 +147,7 @@ describe('VolView Layout Configuration', () => {
 
     expect(optionTexts).not.toContain('Volume');
     expect(optionTexts).not.toContain('Oblique');
+    expect(optionTexts).not.toContain('En face');
     expect(optionTexts).toContain('Axial');
     expect(optionTexts).toContain('Coronal');
     expect(optionTexts).toContain('Sagittal');

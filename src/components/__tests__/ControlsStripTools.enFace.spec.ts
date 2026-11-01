@@ -1,0 +1,113 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { enableAutoUnmount, mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import { createVuetify } from 'vuetify';
+import { nextTick } from 'vue';
+import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
+import { useToolStore } from '@/src/store/tools';
+import { Tools } from '@/src/store/tools/types';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import {
+  activateEnFace,
+  createOCTFixture,
+  loadOCT,
+} from '@/tests/unit/octFixture';
+import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
+import { untilLoaded } from '@/src/composables/untilLoaded';
+
+const windowTool = 'button[data-testid^="control-button-Window & Level "]';
+enableAutoUnmount(afterEach);
+const decodeReleases: (() => void)[] = [];
+beforeEach(() => setActivePinia(createPinia()));
+afterEach(() => cleanupCachedImages(decodeReleases));
+
+function mountToolbar(dataID: string | null) {
+  activateEnFace(dataID);
+  return mount(ControlsStripTools, {
+    attachTo: document.body,
+    global: {
+      plugins: [createVuetify()],
+      stubs: {
+        VTooltip: { template: '<span role="tooltip"><slot /></span>' },
+      },
+    },
+  });
+}
+
+function windowAction(wrapper: ReturnType<typeof mountToolbar>) {
+  return wrapper
+    .findAllComponents(ReasonedAction)
+    .find((action) => action.find(windowTool).exists())!;
+}
+
+describe('En face contrast toolbar availability', () => {
+  it.each([null, 'missing'])(
+    'keeps unavailable contrast visible and disabled without clearing its selection for %s',
+    async (dataID) => {
+      const wrapper = mountToolbar(dataID);
+      const reason = getEnFaceUnavailableReason(dataID);
+      expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
+      expect(
+        windowAction(wrapper).get(':scope > [role="tooltip"]').text()
+      ).toBe(reason);
+      expect(windowAction(wrapper).attributes('tabindex')).toBe('0');
+      useToolStore().setCurrentTool(Tools.WindowLevel);
+      await nextTick();
+      expect(wrapper.get(windowTool).classes()).toContain('tool-btn-selected');
+    }
+  );
+
+  it('updates the disabled reason as metadata arrives and enables contrast once real OCT pixels finish loading', async () => {
+    const fixture = createOCTFixture({ deferDecode: true });
+    decodeReleases.push(fixture.releaseDecode);
+    useImageCacheStore().addProgressiveImage(fixture.image, { id: 'pending' });
+    const wrapper = mountToolbar('pending');
+    expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
+    expect(
+      windowAction(wrapper).get(':scope > [role="tooltip"]').text()
+    ).toMatch(/complete volume/);
+    await fixture.chunk.loadMeta();
+    await fixture.image.addChunks([fixture.chunk]);
+    await nextTick();
+    expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
+    expect(
+      windowAction(wrapper).get(':scope > [role="tooltip"]').text()
+    ).toMatch(/complete volume/);
+    fixture.image.startLoad();
+    fixture.releaseDecode();
+    await untilLoaded('pending');
+    await nextTick();
+    expect(wrapper.get(windowTool).attributes('disabled')).toBeUndefined();
+    expect(
+      windowAction(wrapper).find(':scope > [role="tooltip"]').exists()
+    ).toBe(false);
+    expect(wrapper.get(windowTool).classes()).toContain('tool-btn-selected');
+  });
+
+  it('shows the actual radial-scan reconstruction reason on a loaded unsupported OCT', async () => {
+    await loadOCT(decodeReleases, 'radial', { scanPattern: '128282' });
+    const wrapper = mountToolbar('radial');
+    expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
+    expect(windowAction(wrapper).get(':scope > [role="tooltip"]').text()).toBe(
+      getEnFaceUnavailableReason('radial')
+    );
+    expect(
+      windowAction(wrapper).get(':scope > [role="tooltip"]').text()
+    ).toMatch(/scan pattern.*reconstruction/);
+  });
+
+  it('shows the Paint panel reason on the disabled toolbar action', async () => {
+    const wrapper = mountToolbar('missing');
+    const selector = 'button[data-testid^="control-button-Paint "]';
+    const action = wrapper
+      .findAllComponents(ReasonedAction)
+      .find((candidate) => candidate.find(selector).exists())!;
+    expect(action.get(selector).attributes('disabled')).toBeDefined();
+    expect(action.attributes('tabindex')).toBe('0');
+    expect(action.get(':scope > [role="tooltip"]').text()).toBe(
+      'Painting is not available on an En face projection'
+    );
+  });
+});

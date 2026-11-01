@@ -12,6 +12,8 @@ import {
 import { IMAGE_BOX_INFLATION } from '@/src/constants';
 import { clampValue } from '@/src/utils';
 import type { ImageMetadata } from '@/src/types/image';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import { useEnFaceViewStore } from '@/src/enface/store';
 
 /** The world point in `metadata`'s index space, pulled inside the image box. */
 function clampToImage(worldPosition: Vector3, metadata: ImageMetadata) {
@@ -53,20 +55,30 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
    *
    * All registered views of the image are sliced, not just those in the
    * current layout, so views hidden by a layout switch come back consistent.
+   * An en face pick leaves the peer slices along its projection axis
+   * unchanged: it selects an in-plane location without choosing depth.
    */
   function setPosition(worldPosition: Vector3, viewId: string) {
     const view = viewStore.getView(viewId);
     const host = view && computeEffectiveView(view, view.dataID);
-    if (host?.kind !== 'volume2D') return;
+    if (host?.kind !== 'volume2D' && host?.kind !== 'enface') return;
+    if (host.kind === 'enface' && getEnFaceUnavailableReason(host.renderDataID))
+      return;
 
     const imageID = host.renderDataID;
+    const preservedAxis =
+      host.kind === 'enface'
+        ? useEnFaceViewStore().settingsFor(viewId, imageID).axis
+        : undefined;
     const metadata = getImageMetadata(imageID);
     const indexPosition = clampToImage(worldPosition, metadata);
 
     const { lpsOrientation } = metadata;
     volume2DViewsOfImage(imageID, viewStore.getAllViews()).forEach(
       ({ viewId: peerId, axis }) => {
-        const slice = Math.round(indexPosition[lpsOrientation[axis]]);
+        const sourceAxis = lpsOrientation[axis];
+        if (sourceAxis === preservedAxis) return;
+        const slice = Math.round(indexPosition[sourceAxis]);
         viewSliceStore.updateConfig(peerId, imageID, { slice });
       }
     );

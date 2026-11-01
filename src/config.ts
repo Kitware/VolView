@@ -6,6 +6,7 @@ import USFetusThumbnail from '@/src/assets/samples/3DUS-Fetus.jpg';
 import USCineThumbnail from '@/src/assets/samples/US-Cine.jpg';
 import { PET_CT_URLS } from './samples/petCT';
 import PETCTChestThumbnail from '@/src/assets/samples/PET-CT-Chest.png';
+import RetinalLayersThumbnail from '@/src/assets/samples/Retinal-Layers.jpg';
 import type { LayoutConfig } from './utils/layoutParsing';
 import type { ViewInfoInit } from './types/views';
 import { SampleDataset } from './types';
@@ -68,6 +69,7 @@ export const getAvailableViews = () => {
         orientation: 'Axial',
       },
     },
+    { name: 'En face', type: 'EnFace', dataID: null, options: {} },
   ];
 
   const byName = list.reduce(
@@ -164,6 +166,14 @@ export const SAMPLE_DATA: SampleDataset[] = [
     description: 'PET layered over chest CT. 6 MB',
     urls: PET_CT_URLS,
     image: PETCTChestThumbnail,
+  },
+  {
+    name: 'Retinal OCT layers',
+    filename: 'jhu-retinal-layers.zip',
+    description:
+      'JHU IACL retinal OCT with eight manually delineated tissue layers. 8.4 MB',
+    url: 'https://data.kitware.com/api/v1/file/6ae786c91747c43eb290172f/download',
+    image: RetinalLayersThumbnail,
   },
 ];
 

@@ -1,4 +1,14 @@
-import { LPSAxis } from '@/src/types/lps';
+import type { LPSAxis, LPSDirections } from '@/src/types/lps';
+import { LPSAxes } from '@/src/utils/lps';
+
+export function get2DOrientationForSourceAxis(
+  sourceAxis: 0 | 1 | 2,
+  directions: LPSDirections
+) {
+  return get2DViewingVectors(
+    LPSAxes.find((axis) => directions[axis] === sourceAxis)!
+  );
+}
 
 export function get2DViewingVectors(viewerOrientation: LPSAxis) {
   switch (viewerOrientation) {

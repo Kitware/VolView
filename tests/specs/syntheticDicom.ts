@@ -45,7 +45,7 @@ const combine = (...arr: Uint8Array[]) => {
 };
 
 // Short-form explicit VR (2-byte length): UI, CS, DA, DS, IS, LO, PN, SH, US, UL, ...
-const elemShort = (
+export const elemShort = (
   group: number,
   element: number,
   vr: string,
@@ -58,8 +58,21 @@ const elemShort = (
     value
   );
 
-// Long-form explicit VR (2-byte reserved + 4-byte length): OB, OW, UN, SQ, ...
-const elemLong = (
+export const LONG_FORM_VRS = new Set([
+  'OB',
+  'OD',
+  'OF',
+  'OL',
+  'OW',
+  'SQ',
+  'UC',
+  'UN',
+  'UR',
+  'UT',
+]);
+
+// Long-form explicit VR (2-byte reserved + 4-byte length): LONG_FORM_VRS.
+export const elemLong = (
   group: number,
   element: number,
   vr: string,
