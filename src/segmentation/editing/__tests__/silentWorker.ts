@@ -1,4 +1,7 @@
-import { createProcessWorkerHost } from '@/src/segmentation/editing/processWorker';
+import {
+  createProcessWorkerHost,
+  createWorkerHost,
+} from '@/src/segmentation/editing/processWorker';
 
 // A failed or abandoned worker accepts calls without ever replying.
 function silentEndpoint() {
@@ -38,9 +41,11 @@ function silentEndpoint() {
 
 export type SilentApi = { smooth: (value: number) => Promise<number> };
 
-export function hostOverSilentWorkers() {
+export function hostOverSilentWorkers(
+  create: typeof createWorkerHost = createProcessWorkerHost
+) {
   const workers: ReturnType<typeof silentEndpoint>[] = [];
-  const host = createProcessWorkerHost<SilentApi>(() => {
+  const host = create<SilentApi>(() => {
     const worker = silentEndpoint();
     workers.push(worker);
     return worker as unknown as Worker;

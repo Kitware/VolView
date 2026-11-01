@@ -1,4 +1,4 @@
-import { computed, ref, unref, watch, type MaybeRef } from 'vue';
+import { computed, ref, unref, type MaybeRef } from 'vue';
 import { areEquals, dot } from '@kitware/vtk.js/Common/Core/Math';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { useCurrentImage } from '@/src/composables/useCurrentImage';
@@ -49,13 +49,16 @@ export function useOccupiedDepthInput(
     return getOccupiedDepthSupport(currentImageID.value);
   });
 
+  const storedSegment = computed(() =>
+    segmentsRegistry.getSegment(settings.value.segmentId)
+  );
   const segmentOptions = computed(() => {
     if (!currentImageID.value) return [];
     const segmentIds = segmentationStore
       .imageMasks(currentImageID.value)
       .map((mask) => mask.segmentId);
-    const selected = segmentsRegistry.getSegment(settings.value.segmentId);
-    // A restored segment can precede its mask record and decoded voxels.
+    const selected = storedSegment.value;
+    // A saved segment stays listed without a mask, as while restored voxels decode.
     if (selected && !segmentIds.includes(selected.id))
       segmentIds.push(selected.id);
     return segmentIds.map((segmentId) => {
@@ -67,18 +70,15 @@ export function useOccupiedDepthInput(
       };
     });
   });
-  watch(
-    [settings, segmentOptions],
-    ([config, options]) => {
-      if (!options.some((option) => option.value === config.segmentId)) {
-        if (config.segmentId) config.highlightThin = false;
-        config.segmentId = options[0]?.value ?? null;
-      }
-    },
-    { immediate: true }
+  // Saved choices stay raw; a deleted one shows the first option, unhighlighted.
+  const segmentId = computed(
+    () => storedSegment.value?.id ?? segmentOptions.value[0]?.value ?? null
+  );
+  const highlightThin = computed(
+    () => settings.value.highlightThin && !!storedSegment.value
   );
   const selectedMask = computed(() =>
-    segmentationStore.maskFor(currentImageID.value, settings.value.segmentId)
+    segmentationStore.maskFor(currentImageID.value, segmentId.value)
   );
   const selectedBinding = computed(() =>
     selectedMask.value
@@ -177,21 +177,13 @@ export function useOccupiedDepthInput(
     void volumeRevision.value;
     const image = currentImageData.value;
     if (!image) return 0;
-    const direction = image.getDirection();
-    const offset = slabAxis.value * 3;
-    const directionLength = Math.hypot(
-      direction[offset],
-      direction[offset + 1],
-      direction[offset + 2]
-    );
-    // DICOM direction cosines describe unit vectors; rounded values retain
-    // their declared spacing. Generic image directions can also carry scale.
-    const scale =
-      support.value.calibratedAxes?.[slabAxis.value] &&
-      Math.abs(directionLength - 1) <= (slabAxis.value === 2 ? 2e-4 : 1e-4)
-        ? 1
-        : directionLength;
-    return Math.abs(image.getSpacing()[slabAxis.value]) * scale * 1000;
+    const axis = slabAxis.value;
+    // Declared DICOM spacing is physical, so rounded unit cosines must not
+    // rescale it. Generic image directions can carry scale.
+    const scale = support.value.calibratedAxes?.[axis]
+      ? 1
+      : Math.hypot(...image.getDirection().slice(axis * 3, axis * 3 + 3));
+    return Math.abs(image.getSpacing()[axis]) * scale * 1000;
   });
   const highlightReason = computed(
     () =>
@@ -236,7 +228,7 @@ export function useOccupiedDepthInput(
   });
 
   const request = computed((): OccupiedDepthRequest | null => {
-    if (!settings.value.highlightThin) return null;
+    if (!highlightThin.value) return null;
     void volumeRevision.value;
     const image = currentImageData.value;
     const mask = measurementMask.value;
@@ -259,6 +251,8 @@ export function useOccupiedDepthInput(
 
   return {
     settings,
+    segmentId,
+    highlightThin,
     selectedMask,
     segmentOptions,
     segmentationReason,

@@ -1,5 +1,8 @@
 import { computed, unref, type MaybeRef } from 'vue';
-import { useOccupiedDepth } from '@/src/segmentation/measurements/useOccupiedDepth';
+import {
+  useOccupiedDepth,
+  type OccupiedDepthMeasurer,
+} from '@/src/segmentation/measurements/useOccupiedDepth';
 import type { SlabGeometry } from '@/src/core/slab/geometry';
 import {
   useOccupiedDepthInput,
@@ -15,11 +18,11 @@ export function useEnFaceOccupiedDepth(
   projection: OccupiedDepthProjection & {
     geometry: MaybeRef<SlabGeometry | null>;
   },
-  createWorker?: () => Worker
+  createMeasurer?: () => OccupiedDepthMeasurer
 ) {
   const { geometry, blockedReason } = projection;
   const input = useOccupiedDepthInput(viewId, projection);
-  const { settings, micronsPerVoxel } = input;
+  const { settings, highlightThin, micronsPerVoxel } = input;
   const appearance = useThinRegionAppearance(
     computed(() => input.selectedMask.value?.id)
   );
@@ -27,11 +30,7 @@ export function useEnFaceOccupiedDepth(
     accepted: measurement,
     computing: measuring,
     error,
-  } = useOccupiedDepth(
-    input.request,
-    createWorker,
-    computed(() => settings.value.highlightThin)
-  );
+  } = useOccupiedDepth(input.request, createMeasurer);
   const thicknessReason = computed(
     () =>
       input.thicknessReason.value ||
@@ -42,7 +41,7 @@ export function useEnFaceOccupiedDepth(
         : null)
   );
   const message = computed(() => {
-    if (!settings.value.highlightThin || unref(blockedReason)) return null;
+    if (!highlightThin.value || unref(blockedReason)) return null;
     // Without a reason, a running measurement has a previous result to show.
     return (
       thicknessReason.value ||
@@ -57,7 +56,7 @@ export function useEnFaceOccupiedDepth(
     micronsPerVoxel: micronsPerVoxel.value,
     threshold: settings.value.thresholdMicrons,
     appearance:
-      settings.value.highlightThin && !thicknessReason.value && unref(geometry)
+      highlightThin.value && !thicknessReason.value && unref(geometry)
         ? appearance.value
         : null,
   }));
@@ -72,6 +71,8 @@ export function useEnFaceOccupiedDepth(
         highlightReason: input.highlightReason.value,
         thicknessReason: thicknessReason.value,
         segments: input.segmentOptions.value,
+        segmentId: input.segmentId.value,
+        highlightThin: highlightThin.value,
       }) satisfies ThicknessControlState
   );
   return { overlay, controls, measuring, message };

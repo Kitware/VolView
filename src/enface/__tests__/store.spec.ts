@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
-import { useSegmentationStore } from '@/src/segmentation/store';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { parseNamedLayouts } from '@/src/utils/layoutParsing';
@@ -34,8 +32,6 @@ describe('En face view settings', () => {
       depthStart: 20,
       depthEnd: 40,
       thresholdMicrons: 35,
-      highlightThin: true,
-      segmentId: 'missing-segment',
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -65,7 +61,6 @@ describe('En face view settings', () => {
     expect(parsed.viewByID?.view.type).toBe('EnFace');
     const settings = parsed.viewByID!.view.config!;
     expect(settings.oct.enFace?.method).toBe('sum');
-    expect(settings.oct.enFace?.segmentId).toBeNull();
     expect(settings.oct.enFace).not.toHaveProperty('windowWidth');
     expect(settings.oct.window).toMatchObject({
       width: 120,
@@ -129,52 +124,26 @@ describe('En face view settings', () => {
     });
   });
 
-  it('restores the chosen segment instead of highlighting the first mask', () => {
-    const registry = useSegmentStore().segments;
-    const first = registry.addSegment({ name: 'First layer' });
-    const chosen = registry.addSegment({ name: 'Chosen layer' });
-    const segmentation = useSegmentationStore();
-    const group = segmentation.ensureSegmentationForImage('restored-oct');
-    segmentation.createMask(group.id, first);
-    segmentation.createMask(group.id, chosen);
+  it('remaps saved segment ids and drops unknown ones on restore', () => {
     const store = useEnFaceViewStore();
+    const saved = (segmentId: string) => ({
+      enFace: {
+        axis: 1 as const,
+        method: 'mean' as const,
+        depthStart: 0,
+        depthEnd: null,
+        thresholdMicrons: 35,
+        highlightThin: true,
+        segmentId,
+      },
+    });
     store.deserialize(
       'view',
-      {
-        'restored-oct': {
-          enFace: {
-            axis: 1,
-            method: 'mean',
-            depthStart: 0,
-            depthEnd: null,
-            thresholdMicrons: 35,
-            highlightThin: true,
-            segmentId: 'saved-layer',
-          },
-        },
-      },
-      { 'saved-layer': chosen }
+      { kept: saved('saved-layer'), dropped: saved('missing-layer') },
+      { 'saved-layer': 'chosen' }
     );
-    expect(store.configFor('view', 'restored-oct').segmentId).toBe(chosen);
-    expect(store.configFor('view', 'restored-oct').highlightThin).toBe(true);
-    store.deserialize(
-      'view',
-      {
-        'restored-oct': {
-          enFace: {
-            axis: 1,
-            method: 'mean',
-            depthStart: 0,
-            depthEnd: null,
-            thresholdMicrons: 35,
-            highlightThin: true,
-            segmentId: 'missing-layer',
-          },
-        },
-      },
-      {}
-    );
-    expect(store.configFor('view', 'restored-oct').highlightThin).toBe(false);
+    expect(store.configFor('view', 'kept').segmentId).toBe('chosen');
+    expect(store.configFor('view', 'dropped').segmentId).toBeNull();
   });
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {

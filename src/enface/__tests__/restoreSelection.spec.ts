@@ -16,9 +16,9 @@ import { createThinRegionMask, thinCountCutoff } from '@/src/enface/thickness';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import {
-  createOccupiedDepthHandler,
-  type MeasurementRequest,
-} from '@/src/segmentation/measurements/occupiedDepthHandler';
+  measureOccupiedDepth,
+  type OccupiedDepthInput,
+} from '@/src/segmentation/measurements/occupiedDepth';
 import {
   activateAppPinia,
   makeImage,
@@ -37,23 +37,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function createMeasurementWorker() {
-  const handle = createOccupiedDepthHandler();
-  const worker = {
-    onmessage: null as Worker['onmessage'],
-    postMessage(message: MeasurementRequest, transfer: Transferable[]) {
-      const response = handle(structuredClone(message, { transfer }));
-      queueMicrotask(() =>
-        worker.onmessage?.call(
-          worker as unknown as Worker,
-          new MessageEvent('message', { data: response })
-        )
-      );
-    },
-    terminate() {},
-  };
-  return worker as unknown as Worker;
-}
+const measureInProcess = () => ({
+  measure: async (input: OccupiedDepthInput) => measureOccupiedDepth(input),
+  release: () => {},
+});
 
 it('keeps the projection ready and restores the non-first segment after deferred mask decoding', async () => {
   useImageStatsStore().stats.oct = {
@@ -164,7 +151,7 @@ it('keeps the projection ready and restores the non-first segment after deferred
               () => projection.controls.value.projectionReason
             ),
           },
-          createMeasurementWorker
+          measureInProcess
         );
         return () =>
           h(EnFaceControls, {

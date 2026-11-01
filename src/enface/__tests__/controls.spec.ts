@@ -27,12 +27,7 @@ afterEach(() => vi.unstubAllGlobals());
 enableAutoUnmount(afterEach);
 
 function mountControls(overrides = {}) {
-  const settings = reactive({
-    ...defaultEnFaceViewConfig(),
-    highlightThin: true,
-    segmentId: 'retina',
-    ...overrides,
-  });
+  const settings = reactive({ ...defaultEnFaceViewConfig(), ...overrides });
   return mount(EnFaceControls, {
     attachTo: document.body,
     props: {
@@ -54,6 +49,8 @@ function mountControls(overrides = {}) {
         segments: [
           { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
         ],
+        segmentId: 'retina',
+        highlightThin: true,
       },
     },
     global: { plugins: [createVuetify()] },
@@ -161,9 +158,6 @@ describe('En face rendering controls', () => {
           { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
           { value: 'other-layer', title: 'Other layer', color: '#00ff00' },
         ],
-      },
-      settings: {
-        ...wrapper.props('settings'),
         segmentId: 'other-layer',
       },
     });
@@ -193,7 +187,10 @@ describe('En face rendering controls', () => {
       document.body.querySelectorAll('[role="option"]')[0] as HTMLElement
     ).click();
     await nextTick();
-    expect(lastPatch(wrapper)).toEqual({ segmentId: 'retina' });
+    expect(lastPatch(wrapper)).toEqual({
+      segmentId: 'retina',
+      highlightThin: true,
+    });
     expect(
       wrapper
         .get('[data-testid="enface-thin-highlight"]')

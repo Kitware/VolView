@@ -37,7 +37,6 @@ function voxelCount(dimensions: readonly number[]) {
 function validateMaskStorage(mask: OccupiedDepthInput['mask']) {
   if (mask.values.length !== voxelCount(mask.dimensions))
     throw new Error('Mask scalar count does not match its dimensions.');
-  validateBinaryValues(mask.values);
 }
 
 function validateMaskGeometry(input: OccupiedDepthInput) {
@@ -57,13 +56,6 @@ function validateMaskGeometry(input: OccupiedDepthInput) {
       last - first + 1 !== mask.dimensions[axis]
     )
       throw new Error('Mask dimensions and extent must align with the source.');
-  }
-}
-
-function validateBinaryValues(values: Uint8Array) {
-  for (let index = 0; index < values.length; index++) {
-    if (values[index] > 1)
-      throw new Error('Occupied depth requires a binary mask.');
   }
 }
 

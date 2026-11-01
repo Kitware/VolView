@@ -41,10 +41,10 @@ export function thicknessSliderMaximum(
     return 1;
   const maximum = result.maximumCount * micronsPerVoxel;
   // The strict below-threshold comparison needs an endpoint above the maximum.
-  let rounded = (Math.floor(maximum * 10) + 1) / 10;
-  if (!Number.isFinite(rounded)) return maximum;
-  if (maximum > 0 && !isPresentThicknessBelow(maximum, rounded)) rounded += 0.1;
-  return Math.max(0.1, rounded);
+  const tenths = Math.floor(maximum * 10) + 1;
+  return maximum > 0 && !isPresentThicknessBelow(maximum, tenths / 10)
+    ? (tenths + 1) / 10
+    : tenths / 10;
 }
 
 export const EN_FACE_THICKNESS_HELP =

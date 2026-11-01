@@ -81,10 +81,7 @@ describe('selected-slab occupied depth', () => {
     expect(Array.from(field.counts)).toEqual([0, 0, 0, 2]);
   });
 
-  it('rejects malformed or nonbinary masks instead of treating them as empty', () => {
-    const input = gappedColumn();
-    input.mask.values[0] = 2;
-    expect(() => measureOccupiedDepth(input)).toThrow('binary mask');
+  it('rejects slabs outside the source', () => {
     expect(() =>
       measureOccupiedDepth({ ...gappedColumn(), first: -1 })
     ).toThrow('inclusive source range');
@@ -112,13 +109,6 @@ describe('selected-slab occupied depth', () => {
       'inclusive source range'
     );
     expect(measure({ ...slab, first: 1, last: 1 }).maximumCount).toBe(1);
-  });
-
-  it('validates one-shot mask contents again after the same array is edited', () => {
-    const input = gappedColumn();
-    expect(measureOccupiedDepth(input).maximumCount).toBe(4);
-    input.mask.values[0] = 2;
-    expect(() => measureOccupiedDepth(input)).toThrow('binary mask');
   });
 
   it('rejects malformed prepared storage and one-shot crop geometry', () => {
