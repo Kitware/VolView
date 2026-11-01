@@ -145,6 +145,12 @@ export const useAnnotationTool = <
   function placeTool(id: ToolID) {
     resolveToolSegment(id);
     updateTool(id, { placing: false } as ToolPatch);
+    // Placing tools are created ahead of time per view, so their IDs are not in
+    // the order they get placed. Move the placed tool last so lists follow it.
+    if (id in toolByID.value) {
+      removeFromArray(toolIDs.value, id);
+      toolIDs.value.push(id);
+    }
   }
 
   // Delete-base cleanup: a removed image's tools
