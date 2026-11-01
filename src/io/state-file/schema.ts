@@ -539,7 +539,6 @@ export const ManifestSchema = z.object({
   viewByID: z.record(z.string(), View).optional(),
   primarySelection: z.string().optional(),
   layout: Layout.optional(),
-  currentLayoutName: z.string().nullable().optional(),
   layoutSlots: z.array(z.string()).optional(),
   parentToLayers: ParentToLayers.optional(),
   layerDisplay: z.record(z.string(), LayerDisplayConfig).optional(),

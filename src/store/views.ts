@@ -97,6 +97,19 @@ function generateLayoutFromGrid(size: [number, number]): Layout {
   };
 }
 
+function sameLayout(a: Layout, b: Layout): boolean {
+  return (
+    a.direction === b.direction &&
+    a.items.length === b.items.length &&
+    a.items.every((item, index) => {
+      const other = b.items[index];
+      if (item.type === 'slot')
+        return other.type === 'slot' && item.slotIndex === other.slotIndex;
+      return other.type === 'layout' && sameLayout(item, other);
+    })
+  );
+}
+
 function needsViewReplacement(existingView: ViewInfo, nextView: ViewInfoInit) {
   if (existingView.type !== nextView.type) return true;
 
@@ -121,7 +134,6 @@ export const useViewStore = defineStore('view', () => {
 
   const defaultNamedLayoutEntries = Object.entries(parsedDefaultLayouts);
   const firstLayout = defaultNamedLayoutEntries[0][1];
-  const firstLayoutName = defaultNamedLayoutEntries[0][0];
 
   const layout = ref<Layout>(firstLayout.layout);
   // which assigns view IDs to layout slots
@@ -133,7 +145,18 @@ export const useViewStore = defineStore('view', () => {
     ref<Record<string, { layout: Layout; views: ViewInfoInit[] }>>(
       parsedDefaultLayouts
     );
-  const currentLayoutName = ref<Maybe<string>>(firstLayoutName);
+  // A named layout is current when switching to it would only rename views.
+  const currentLayoutName = computed(
+    () =>
+      Object.entries(namedLayouts.value).find(
+        ([, named]) =>
+          sameLayout(named.layout, layout.value) &&
+          named.views.every((viewInit, index) => {
+            const view = viewByID[layoutSlots.value[index]];
+            return view && !needsViewReplacement(view, viewInit);
+          })
+      )?.[0]
+  );
 
   const isActiveViewMaximized = ref(false);
   const maximizedView = computed(() => {
@@ -242,14 +265,9 @@ export const useViewStore = defineStore('view', () => {
   function applyLayoutChange(
     newLayout: Layout,
     options?: {
-      layoutName?: Maybe<string>;
       updateSlots?: (viewCount: number) => void;
     }
   ) {
-    if (options?.layoutName !== undefined) {
-      currentLayoutName.value = options.layoutName;
-    }
-
     isActiveViewMaximized.value = false;
 
     if (options?.updateSlots) {
@@ -273,7 +291,6 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function setLayoutFromGrid(gridSize: [number, number]) {
-    currentLayoutName.value = null;
     setLayout(generateLayoutFromGrid(gridSize));
   }
 
@@ -287,7 +304,6 @@ export const useViewStore = defineStore('view', () => {
       throw new Error(`Named layout "${name}" not found`);
     }
     applyLayoutChange(namedLayout.layout, {
-      layoutName: name,
       updateSlots: () => {
         namedLayout.views.forEach((viewInit, index) => {
           if (index < layoutSlots.value.length) {
@@ -359,7 +375,6 @@ export const useViewStore = defineStore('view', () => {
   function serialize(stateFile: StateFile) {
     const { manifest } = stateFile;
     manifest.layout = layout.value;
-    manifest.currentLayoutName = currentLayoutName.value;
     manifest.activeView = activeView.value;
     manifest.isActiveViewMaximized = isActiveViewMaximized.value;
     manifest.layoutSlots = layoutSlots.value;
@@ -368,8 +383,6 @@ export const useViewStore = defineStore('view', () => {
 
   function deserializeLayout(manifest: Manifest) {
     if (manifest.layout) {
-      // Older scenes have unknown selection identity, even for matching panes.
-      currentLayoutName.value = manifest.currentLayoutName;
       setLayout(manifest.layout);
     }
     setActiveView(manifest.activeView);
