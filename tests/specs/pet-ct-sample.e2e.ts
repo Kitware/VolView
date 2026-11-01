@@ -171,7 +171,10 @@ async function reopenSample(
   await browser.saveScreenshot(path.join(TEMP_DIR, 'pet-ct-sample-reload.png'));
   await sample.waitForClickable();
   await sample.click();
-  await sample.$('.mdi-check').waitForExist();
+  await expect(
+    $('.volume-card[html-title="PET WB Corrected"]')
+  ).toBeDisplayed();
+  await waitForModuleTransitions();
   await volViewPage.waitForViewCounts(1, false);
   await volViewPage.renderingModuleTab.click();
   await expect($$('h4*=PET WB Corrected')).toBeElementsArrayOfSize(1);
