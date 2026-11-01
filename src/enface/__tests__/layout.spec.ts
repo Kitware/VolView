@@ -37,15 +37,26 @@ function configureComparison() {
 }
 
 describe('En face view configuration', () => {
-  it.each(['custom', 'named', 'legacy named'])(
-    'restores the %s layout selection without inferring its identity from panes',
-    async (selection) => {
+  it.each([
+    ['named', true],
+    ['regridded', false],
+    ['retyped', false],
+  ] as const)(
+    'highlights a %s layout after restore only when its panes match',
+    async (selection, highlighted) => {
       await loadVolume('oct');
       const views = useViewStore();
       views.setDataForAllViews('oct');
       configureComparison();
       views.switchToNamedLayout('Comparison');
-      if (selection === 'custom') views.setLayoutFromGrid([1, 2]);
+      if (selection === 'regridded') views.setLayoutFromGrid([2, 1]);
+      if (selection === 'retyped')
+        views.replaceView(views.layoutViews[1].id, {
+          name: 'Oblique',
+          type: 'Oblique',
+          dataID: 'oct',
+          options: {},
+        });
       const hidden = views
         .getAllViews()
         .filter((view) => !views.layoutViews.includes(view));
@@ -63,7 +74,6 @@ describe('En face view configuration', () => {
       });
       const zip = await JSZip.loadAsync(saved);
       const raw = JSON.parse(await zip.file(MANIFEST)!.async('string'));
-      if (selection === 'legacy named') delete raw.currentLayoutName;
       const manifest = ManifestSchema.parse(raw);
       await cleanupCachedImages([]);
       setActivePinia(createPinia());
@@ -77,7 +87,10 @@ describe('En face view configuration', () => {
         restored.layoutViews.map(({ type, dataID }) => ({ type, dataID }))
       ).toEqual([
         { type: '2D', dataID: 'restored-oct' },
-        { type: 'EnFace', dataID: 'restored-oct' },
+        {
+          type: selection === 'retyped' ? 'Oblique' : 'EnFace',
+          dataID: 'restored-oct',
+        },
       ]);
       hidden.forEach(({ id, type }) =>
         expect(restored.getView(id)?.type).toBe(type)
@@ -87,9 +100,7 @@ describe('En face view configuration', () => {
       });
       const named = wrapper.get('.v-list-item');
       expect(named.text()).toBe('Comparison');
-      expect(named.classes().includes('v-list-item--active')).toBe(
-        selection === 'named'
-      );
+      expect(named.classes().includes('v-list-item--active')).toBe(highlighted);
       expect(Object.keys(restored.namedLayouts)).toEqual(['Comparison']);
     }
   );
