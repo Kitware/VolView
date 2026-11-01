@@ -7,6 +7,7 @@ import {
   watch,
   type MaybeRef,
 } from 'vue';
+import { getErrorDetail } from '@/src/utils';
 import type { OccupiedDepthInput, OccupiedDepthResult } from './occupiedDepth';
 import type {
   MeasurementRequest,
@@ -115,11 +116,7 @@ export function useOccupiedDepth(
       }
       target.postMessage(message, transfer);
     } catch (cause) {
-      fail(
-        cause instanceof Error
-          ? cause.message
-          : 'Occupied depth measurement failed.'
-      );
+      fail(getErrorDetail(cause, 'Occupied depth measurement failed.'));
     }
   }
 
@@ -165,6 +162,5 @@ export function useOccupiedDepth(
       ? result.value
       : null;
   });
-  const stale = computed(() => computing.value && !!accepted.value);
-  return { accepted, computing, error, stale };
+  return { accepted, computing, error };
 }

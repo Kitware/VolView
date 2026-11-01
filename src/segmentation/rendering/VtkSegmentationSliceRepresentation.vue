@@ -8,10 +8,7 @@ import { VtkViewContext } from '@/src/components/vtk/context';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { watchImmediate } from '@vueuse/core';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
-import {
-  segmentFillAlpha,
-  segmentOutline,
-} from '@/src/segmentation/rendering/display';
+import { labelmapAppearance } from '@/src/segmentation/rendering/display';
 import {
   segmentRenderMask,
   type RenderMaskSlot,
@@ -94,28 +91,17 @@ watchImmediate(
   }
 );
 
-const appearance = computed(() => {
-  const segment = descriptor.value;
-  if (!segment) return null;
-
-  const normalAlpha = segmentFillAlpha(segment, display.value.fillOpacity);
-  const pulseAlpha = segment.visible ? 0.7 * revealPulse.value : 0;
-  const { thicknesses, opacities } = segmentOutline(
-    segment,
-    display.value.outlineThickness + 3 * revealPulse.value,
-    Math.max(display.value.outlineOpacity, revealPulse.value)
-  );
-  return {
-    value: segment.value,
-    color: segment.color,
-    fillOpacity: Math.max(normalAlpha, pulseAlpha),
-    outlineThickness: thicknesses[0],
-    outlineOpacity: opacities[0],
-  };
-});
-const sliceRep = useLabelmapRepresentation(view, imageData, appearance, {
-  axis: ijkAxis,
-});
+const appearance = computed(
+  () =>
+    descriptor.value &&
+    labelmapAppearance(descriptor.value, display.value, revealPulse.value)
+);
+const sliceRep = useLabelmapRepresentation(
+  view,
+  imageData,
+  appearance,
+  ijkAxis
+);
 
 defineExpose(sliceRep);
 </script>

@@ -26,8 +26,8 @@ function updateThreshold(value: string | number | null) {
 function updateSliderThreshold(value: number) {
   updateThreshold(Math.round(value * 10) / 10);
 }
-function updateSegment(selectedSegmentId: string | null) {
-  emit('patch', { selectedSegmentId });
+function updateSegment(segmentId: string | null) {
+  emit('patch', { segmentId });
 }
 function updateHighlight(highlightThin: boolean | null) {
   emit('patch', { highlightThin: !!highlightThin });
@@ -58,7 +58,7 @@ function updateHighlight(highlightThin: boolean | null) {
       </ReasonedAction>
       <ReasonedAction :reason="segmentationReason ?? undefined" block>
         <v-select
-          :model-value="settings.selectedSegmentId"
+          :model-value="settings.segmentId"
           @update:model-value="updateSegment"
           :items="segments"
           label="Thickness segment"

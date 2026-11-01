@@ -6,8 +6,9 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import {
+  extentContains,
   extentSize,
-  extentWithin,
+  fullExtent,
   isEmptyExtent,
 } from '@/src/segmentation/geometry';
 import type { OccupiedDepthRequest } from '@/src/segmentation/measurements/useOccupiedDepth';
@@ -47,19 +48,13 @@ export function useOccupiedDepthInput(
     void volumeRevision.value;
     return getOccupiedDepthSupport(currentImageID.value);
   });
-  const dimensions = computed(() => {
-    void volumeRevision.value;
-    return currentImageData.value?.getDimensions() ?? [1, 1, 1];
-  });
 
   const segmentOptions = computed(() => {
     if (!currentImageID.value) return [];
     const segmentIds = segmentationStore
       .imageMasks(currentImageID.value)
       .map((mask) => mask.segmentId);
-    const selected = segmentsRegistry.getSegment(
-      settings.value.selectedSegmentId
-    );
+    const selected = segmentsRegistry.getSegment(settings.value.segmentId);
     // A restored segment can precede its mask record and decoded voxels.
     if (selected && !segmentIds.includes(selected.id))
       segmentIds.push(selected.id);
@@ -75,20 +70,15 @@ export function useOccupiedDepthInput(
   watch(
     [settings, segmentOptions],
     ([config, options]) => {
-      if (
-        !options.some((option) => option.value === config.selectedSegmentId)
-      ) {
-        if (config.selectedSegmentId) config.highlightThin = false;
-        config.selectedSegmentId = options[0]?.value ?? null;
+      if (!options.some((option) => option.value === config.segmentId)) {
+        if (config.segmentId) config.highlightThin = false;
+        config.segmentId = options[0]?.value ?? null;
       }
     },
     { immediate: true }
   );
   const selectedMask = computed(() =>
-    segmentationStore.maskFor(
-      currentImageID.value,
-      settings.value.selectedSegmentId
-    )
+    segmentationStore.maskFor(currentImageID.value, settings.value.segmentId)
   );
   const selectedBinding = computed(() =>
     selectedMask.value
@@ -102,28 +92,10 @@ export function useOccupiedDepthInput(
         ? 'Load or create a segmentation mask associated with this volume.'
         : null)
   );
-  const maskStorageReason = computed(() => {
-    void maskRevision.value;
-    const binding = selectedBinding.value;
-    if (!binding)
-      return 'The selected segment voxels are not available; load or create its mask to measure occupied depth.';
-    if (isEmptyExtent(binding.extent))
-      return 'The selected segment has no occupied voxels to measure.';
-    const scalars = binding.image.getPointData().getScalars();
-    if (
-      !scalars ||
-      !(scalars.getData() instanceof Uint8Array) ||
-      scalars.getNumberOfComponents() !== 1
-    )
-      return 'The selected segment does not have a supported binary voxel mask.';
-    return null;
-  });
   const measurementMask = computed(() => {
-    void volumeRevision.value;
     void maskRevision.value;
     const binding = selectedBinding.value;
-    const parent = currentImageData.value;
-    if (!binding || !parent) return null;
+    if (!binding) return null;
     const scalars = binding.image.getPointData().getScalars();
     const values = scalars?.getData();
     if (
@@ -134,8 +106,18 @@ export function useOccupiedDepthInput(
     return {
       values,
       dimensions: binding.image.getDimensions(),
-      extent: extentWithin(binding.extent, parent.getExtent()),
+      extent: binding.extent,
     };
+  });
+  const maskStorageReason = computed(() => {
+    const binding = selectedBinding.value;
+    if (!binding)
+      return 'The selected segment voxels are not available; load or create its mask to measure occupied depth.';
+    if (isEmptyExtent(binding.extent))
+      return 'The selected segment has no occupied voxels to measure.';
+    if (!measurementMask.value)
+      return 'The selected segment does not have a supported binary voxel mask.';
+    return null;
   });
   const maskGeometryReason = computed(() => {
     void volumeRevision.value;
@@ -144,11 +126,9 @@ export function useOccupiedDepthInput(
     const parent = currentImageData.value;
     if (!binding || !parent) return null;
     const extent = binding.extent;
-    const validExtent = measurementMask.value?.extent.every(
-      (value, index) =>
-        Number.isInteger(value) &&
-        value >= 0 &&
-        value < dimensions.value[Math.floor(index / 2)]
+    const validExtent = extentContains(
+      fullExtent(parent.getDimensions()),
+      extent
     );
     const direction = parent.getDirection();
     const bases = [0, 1, 2].map((axis) => {

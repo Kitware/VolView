@@ -12,7 +12,7 @@ import { useEnFaceViewStore } from '@/src/enface/store';
 import { useEnFaceInput } from '@/src/enface/useEnFaceInput';
 import { useEnFaceOccupiedDepth } from '@/src/enface/useEnFaceOccupiedDepth';
 import EnFaceControls from '@/src/enface/EnFaceControls.vue';
-import { createThinRegionMask } from '@/src/enface/projectionMasks';
+import { createThinRegionMask, thinCountCutoff } from '@/src/enface/thickness';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import {
@@ -223,9 +223,13 @@ it('keeps the projection ready and restores the non-first segment after deferred
   expect(thickness.overlay.value.measurement?.counts).toEqual(
     new Uint32Array([1, 0, 0, 0])
   );
+  const measurement = thickness.overlay.value.measurement!;
   expect(
     Array.from(
-      createThinRegionMask(thickness.overlay.value.measurement!, 15, 10)
+      createThinRegionMask(
+        measurement.counts,
+        thinCountCutoff(measurement, 15, 10)
+      )
     )
   ).toEqual([1, 0, 0, 0]);
   for (const control of ['thin-highlight', 'thickness-threshold-input'])

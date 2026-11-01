@@ -26,7 +26,6 @@ export function useEnFaceOccupiedDepth(
   const {
     accepted: measurement,
     computing: measuring,
-    stale,
     error,
   } = useOccupiedDepth(
     input.request,
@@ -44,11 +43,13 @@ export function useEnFaceOccupiedDepth(
   );
   const message = computed(() => {
     if (!settings.value.highlightThin || unref(blockedReason)) return null;
-    if (thicknessReason.value) return thicknessReason.value;
-    if (!measuring.value) return null;
-    return stale.value
-      ? 'Updating thickness; showing the previous result.'
-      : 'Measuring thickness in the selected slab…';
+    // Without a reason, a running measurement has a previous result to show.
+    return (
+      thicknessReason.value ||
+      (measuring.value
+        ? 'Updating thickness; showing the previous result.'
+        : null)
+    );
   });
   const overlay = computed(() => ({
     geometry: unref(geometry),

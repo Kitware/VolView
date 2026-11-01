@@ -1,12 +1,13 @@
+import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 import { Tags } from '@/src/core/dicomTags';
-
 import {
-  coordinatesMatch,
   frameGridGeometry,
   imageDirection,
-  numbersMatch,
+  near,
 } from '@/src/core/streaming/dicom/frameGeometry';
 import { OCT_GEOMETRY_ERROR } from '@/src/core/streaming/dicom/octMetadataTags';
+
+const TOLERANCE = 1e-5;
 
 type Grid = {
   spacing: ArrayLike<number>;
@@ -34,7 +35,7 @@ function declaredSeriesReason(tags: Map<string, string>[]) {
     tags.some((entry) => {
       const other = vector(entry, Tags.PixelSpacing, 2);
       return spacing && other
-        ? !coordinatesMatch(spacing, other)
+        ? !areEquals(spacing, other, TOLERANCE)
         : spacing !== other;
     })
   )
@@ -57,9 +58,9 @@ function loadedGridReason(
 ) {
   if (
     grid &&
-    (!coordinatesMatch(grid.direction, direction) ||
-      !coordinatesMatch(grid.origin, origin) ||
-      !numbersMatch(grid.spacing[2], distance))
+    (!areEquals(Array.from(grid.direction), direction, TOLERANCE) ||
+      !areEquals(Array.from(grid.origin), origin, TOLERANCE) ||
+      !near(grid.spacing[2], distance, TOLERANCE))
   )
     return 'The loaded DICOM grid does not match its file geometry; spatial reconstruction is required.';
   return null;
@@ -68,17 +69,15 @@ function loadedGridReason(
 function seriesGeometry(tags: Map<string, string>[], grid?: Grid) {
   const declaredReason = declaredSeriesReason(tags);
   if (declaredReason) return { reason: declaredReason };
-  const direction = imageDirection(
-    vector(tags[0], Tags.ImageOrientationPatient, 6)
+  const directions = tags.map((entry) =>
+    imageDirection(vector(entry, Tags.ImageOrientationPatient, 6))
   );
+  const [direction] = directions;
   if (
     !direction ||
-    tags.some((entry) => {
-      const other = imageDirection(
-        vector(entry, Tags.ImageOrientationPatient, 6)
-      );
-      return !other || !coordinatesMatch(direction, other);
-    })
+    directions.some(
+      (other) => !other || !areEquals(direction, other, TOLERANCE)
+    )
   )
     return {
       reason:
@@ -98,9 +97,8 @@ function seriesGeometry(tags: Map<string, string>[], grid?: Grid) {
 }
 
 function declaredPixelSpacing(tags: Map<string, string>, component: number) {
-  const spacing = tags.get(Tags.PixelSpacing)?.split('\\').map(Number);
-  const value = spacing?.length === 2 ? spacing[component] : NaN;
-  return Number.isFinite(value) && value! > 0 ? value : NaN;
+  const value = vector(tags, Tags.PixelSpacing, 2)?.[component] ?? NaN;
+  return value > 0 ? value : NaN;
 }
 
 function calibratedAxes(
@@ -115,25 +113,19 @@ function calibratedAxes(
   ];
   return declared.map((spacing, axis) => {
     if (!spacing || !Number.isFinite(spacing) || spacing <= 0) return false;
-    if (grid && !numbersMatch(Math.abs(grid.spacing[axis]), spacing))
+    if (grid && !near(Math.abs(grid.spacing[axis]), spacing, TOLERANCE))
       return false;
     return (
       axis === 2 ||
       tags.every((entry) =>
-        numbersMatch(declaredPixelSpacing(entry, 1 - axis), spacing)
+        near(declaredPixelSpacing(entry, 1 - axis), spacing, TOLERANCE)
       )
     );
   });
 }
 
 /** Validate source slice arrangement against the loaded grid. */
-export function dicomSeriesGeometry(
-  metadata: readonly Iterable<[string, string]>[],
-  grid?: Grid
-) {
-  const tags = metadata.map((entry) =>
-    entry instanceof Map ? entry : new Map(entry)
-  );
+export function dicomSeriesGeometry(tags: Map<string, string>[], grid?: Grid) {
   if (!tags.length)
     return { reason: null, calibratedAxes: [false, false, false] };
   const geometry =

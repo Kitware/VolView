@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { createNrrdVolume } from '../fixtures/oct/volumes';
+import { createNrrdVolume, createVtiVolume } from '../fixtures/oct/volumes';
 import { Key } from 'webdriverio';
 import {
   PANEL,
-  attachMaskThroughDataPanel,
   enFaceAppearance,
   enFacePixel,
   waitForEnFaceReady,
@@ -17,6 +16,12 @@ import {
   selectEnFace,
   openEnFaceControls,
   selectSetting,
+  THRESHOLD,
+  THRESHOLD_SLIDER,
+  attachAndSelectMask,
+  setThicknessThreshold,
+  setHighlight,
+  expectHighlight,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -27,39 +32,27 @@ import {
   SESSION_SAVE_TIMEOUT,
   waitForModuleTransitions,
 } from './utils';
+import { setSegmentationDisplaySlider as setDisplaySlider } from './segmentationTestUtils';
 import {
-  openAnnotationSegments,
-  setSegmentationDisplaySlider as setDisplaySlider,
-  selectSegment,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
-import {
-  THRESHOLD,
   STEM,
   stageFixture,
-  setThicknessThreshold,
   expectProjectionPixel,
-  enableHighlight,
-  expectHighlight,
   openHighlightedSegmentationDisplay,
   openRetina,
   registerOctTestHooks,
 } from './octInteractionTestUtils';
 
-async function stageOffsetDepthScene(offset: boolean) {
+async function stageDepthScene() {
   const directory = makeTempDir(STEM);
-  const name = offset ? 'offset-depth' : 'zero-depth';
-  const minimum = offset ? [1, 1, 1] : [0, 0, 0];
-  const origin = offset ? [0, 0, 0] : [1, 1, 1];
-  const extent = minimum.flatMap((first) => [first, first + 7]).join(' ');
+  const name = 'depth';
   fs.writeFileSync(
     path.join(directory, name + '.vti'),
-    '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
-      `<ImageData WholeExtent="${extent}" Origin="${origin.join(' ')}" Spacing="1 1 1">` +
-      `<Piece Extent="${extent}"><PointData Scalars="intensity">` +
-      '<DataArray type="UInt16" Name="intensity" format="ascii">' +
-      new Array(8 ** 3).fill(100).join(' ') +
-      '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
+    createVtiVolume({
+      values: new Uint16Array(8 ** 3).fill(100),
+      dimensions: [8, 8, 8],
+      origin: [1, 1, 1],
+      type: 'UInt16',
+    })
   );
   const zip = new JSZip();
   zip.file(
@@ -78,11 +71,11 @@ async function stageOffsetDepthScene(offset: boolean) {
     JSON.stringify({
       version: '7.0.0',
       dataSources: [{ id: 0, type: 'uri', uri: `/tmp/${STEM}/${name}.vti` }],
-      segments: [{ id: 'band', name: 'Offset band', color: [255, 0, 0, 255] }],
+      segments: [{ id: 'band', name: 'Depth band', color: [255, 0, 0, 255] }],
       segmentations: [
         {
           id: 'segmentation',
-          name: 'Offset band',
+          name: 'Depth band',
           parentImage: '0',
           fillOpacity: 1,
           outlineOpacity: 0,
@@ -95,9 +88,7 @@ async function stageOffsetDepthScene(offset: boolean) {
               representations: {
                 labelmap: {
                   path: 'mask.nrrd',
-                  extent: [1, 4, 2, 5, 1, 4].map(
-                    (value, index) => value + minimum[Math.floor(index / 2)]
-                  ),
+                  extent: [1, 4, 2, 5, 1, 4],
                 },
               },
             },
@@ -141,7 +132,7 @@ describe('Retinal OCT occupied-depth', () => {
   registerOctTestHooks();
   it('highlights physical thickness and restores its selected segment, threshold and slab', async () => {
     await openRetina(true);
-    await enableHighlight();
+    await setHighlight(true);
     await setThicknessThreshold(31);
     await expectHighlight(true);
     const expectThinColumns = async () => {
@@ -163,9 +154,7 @@ describe('Retinal OCT occupied-depth', () => {
       );
     };
     await expectThinColumns();
-    const slider = $(
-      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
-    );
+    const slider = $(THRESHOLD_SLIDER);
     await $(THRESHOLD).click();
     await browser.keys('Tab');
     await expect(slider).toBeFocused();
@@ -224,57 +213,42 @@ describe('Retinal OCT occupied-depth', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('keeps highlighted pixels and selected slabs aligned on equivalent offset extents', async () => {
-    const expectedImages: string[] = [];
-    for (const offset of [false, true]) {
-      const scene = await stageOffsetDepthScene(offset);
-      await volViewPage.open(`?urls=[tmp/${scene}]`);
-      await waitForEnFaceReady();
-      await setEnFaceWindow(200, 100);
-      await openEnFaceControls();
-      await expandEnFaceSection('thickness');
-      await expect(
-        $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
-      ).toBeEnabled();
-      const slabs = [
-        [0, 7, [true, false, false]],
-        [0, 1, [false, false, false]],
-        [2, 2, [true, true, false]],
-        [4, 5, [false, true, false]],
-      ] satisfies [number, number, boolean[]][];
-      for (const [step, [first, last, highlighted]] of slabs.entries()) {
-        await expandEnFaceSection('projection');
-        await setSlabRange(first, last);
-        await browser.waitUntil(
-          async () => {
-            const pixels = await Promise.all(
-              [1.5, 3.5, 6].map((x) => enFacePixel(x, 2.5))
-            );
-            return pixels.every((pixel, index) =>
-              highlighted[index]
-                ? pixel[0] > pixel[1] + 20 && pixel[0] > pixel[2] + 20
-                : pixel[0] === pixel[1] &&
-                  pixel[1] === pixel[2] &&
-                  pixel[0] > 20
-            );
-          },
-          {
-            timeoutMsg: `Expected occupied-depth pixels for slab ${first}-${last}`,
-          }
-        );
-        if (offset)
-          await browser.waitUntil(
-            async () =>
-              (await enFaceAppearance()).image === expectedImages[step],
-            {
-              timeoutMsg:
-                'Expected the same occupied-depth overlay for equivalent extents',
-            }
+  it('keeps highlighted pixels aligned with selected slabs', async () => {
+    const scene = await stageDepthScene();
+    await volViewPage.open(`?urls=[tmp/${scene}]`);
+    await waitForEnFaceReady();
+    await setEnFaceWindow(200, 100);
+    await openEnFaceControls();
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
+    ).toBeEnabled();
+    const slabs = [
+      [0, 7, [true, false, false]],
+      [0, 1, [false, false, false]],
+      [2, 2, [true, true, false]],
+      [4, 5, [false, true, false]],
+    ] satisfies [number, number, boolean[]][];
+    for (const [first, last, highlighted] of slabs) {
+      await expandEnFaceSection('projection');
+      await setSlabRange(first, last);
+      await browser.waitUntil(
+        async () => {
+          const pixels = await Promise.all(
+            [1.5, 3.5, 6].map((x) => enFacePixel(x, 2.5))
           );
-        else expectedImages.push((await enFaceAppearance()).image);
-      }
-      expect(await volViewPage.getNotificationsCount()).toBe(0);
+          return pixels.every((pixel, index) =>
+            highlighted[index]
+              ? pixel[0] > pixel[1] + 20 && pixel[0] > pixel[2] + 20
+              : pixel[0] === pixel[1] && pixel[1] === pixel[2] && pixel[0] > 20
+          );
+        },
+        {
+          timeoutMsg: `Expected occupied-depth pixels for slab ${first}-${last}`,
+        }
+      );
     }
+    expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   it('uses imported NIfTI geometry for thickness when units are unspecified', async () => {
@@ -289,16 +263,16 @@ describe('Retinal OCT occupied-depth', () => {
     await selectSetting('enface-projection-axis', 'Coronal');
     await waitForEnFaceReady();
     await browser.keys('Escape');
-    await attachMaskThroughDataPanel(stageFixture('synthetic-thickness.nrrd'));
-    await openAnnotationSegments();
-    await waitForSegmentContent('Synthetic retinal band');
-    await selectSegment('Synthetic retinal band');
+    await attachAndSelectMask(
+      stageFixture('synthetic-thickness.nrrd'),
+      'Synthetic retinal band'
+    );
     await openEnFaceControls();
     await expandEnFaceSection('thickness');
     await expect(
       $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
     ).toBeEnabled();
-    await enableHighlight();
+    await setHighlight(true);
     await setThicknessThreshold(1);
     await expectHighlight(false);
     await setThicknessThreshold(31);

@@ -42,3 +42,30 @@ export const segmentOutline = (
   thicknesses: [segment.visible ? thickness : 0],
   opacities: [segmentationOpacity * segment.outlineOpacity],
 });
+
+/** Resolved fill and outline for one labelmap; `pulse` briefly emphasizes it. */
+export const labelmapAppearance = (
+  segment: ResolvedLabelmapSegment,
+  display: {
+    fillOpacity: number;
+    outlineThickness: number;
+    outlineOpacity: number;
+  },
+  pulse = 0
+) => {
+  const { thicknesses, opacities } = segmentOutline(
+    segment,
+    display.outlineThickness + 3 * pulse,
+    Math.max(display.outlineOpacity, pulse)
+  );
+  return {
+    value: segment.value,
+    color: segment.color,
+    fillOpacity: Math.max(
+      segmentFillAlpha(segment, display.fillOpacity),
+      segment.visible ? 0.7 * pulse : 0
+    ),
+    outlineThickness: thicknesses[0],
+    outlineOpacity: opacities[0],
+  };
+};

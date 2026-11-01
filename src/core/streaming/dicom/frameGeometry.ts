@@ -1,31 +1,29 @@
 import { vec3 } from 'gl-matrix';
+import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 
-export const numbersMatch = (a: number, b: number, tolerance = 1e-5) =>
-  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
-export const coordinatesMatch = (
-  a: ArrayLike<number>,
-  b: ArrayLike<number>,
-  tolerance = 1e-5
-) =>
-  a.length === b.length &&
-  Array.from(a).every((n, i) => numbersMatch(n, b[i], tolerance));
+export const near = (a: number, b: number, tolerance: number) =>
+  Math.abs(a - b) <= tolerance;
+
 export function imageDirection(basis: number[] | null | undefined) {
   if (!basis || basis.length !== 6 || !basis.every(Number.isFinite))
     return null;
   const row = basis.slice(0, 3) as vec3;
   const column = basis.slice(3) as vec3;
   if (
-    !numbersMatch(vec3.length(row), 1, 1e-4) ||
-    !numbersMatch(vec3.length(column), 1, 1e-4) ||
+    !near(vec3.length(row), 1, 1e-4) ||
+    !near(vec3.length(column), 1, 1e-4) ||
     // Rounding two unit vectors to four decimals can shift their dot by 1.8e-4.
-    !numbersMatch(vec3.dot(row, column), 0, 2e-4)
+    !near(vec3.dot(row, column), 0, 2e-4)
   )
     return null;
   return [...basis, ...vec3.cross([0, 0, 0], row, column)];
 }
 
 /** Validate equally spaced slices along the positive image normal. */
-export function frameGridGeometry(positions: number[][], direction?: number[]) {
+export function frameGridGeometry(
+  positions: number[][],
+  direction: number[] | null
+) {
   if (positions.some((p) => p.length !== 3 || !p.every(Number.isFinite)))
     return {
       reason:
@@ -44,7 +42,7 @@ export function frameGridGeometry(positions: number[][], direction?: number[]) {
     };
   if (
     direction &&
-    !coordinatesMatch(
+    !areEquals(
       step,
       direction.slice(6).map((n) => n * distance),
       tolerance
@@ -57,7 +55,7 @@ export function frameGridGeometry(positions: number[][], direction?: number[]) {
   if (
     positions.some(
       (position, i) =>
-        !coordinatesMatch(
+        !areEquals(
           position,
           positions[0].map((n, axis) => n + i * step[axis]),
           tolerance

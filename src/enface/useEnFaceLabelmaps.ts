@@ -4,7 +4,8 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3, type mat4 } from 'gl-matrix';
 import type { OccupiedDepthResult } from '@/src/segmentation/measurements/occupiedDepth';
-import { createThinRegionMask } from './projectionMasks';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { createThinRegionMask, thinCountCutoff } from './thickness';
 
 export type MeasurementPlaneGeometry = {
   width: number;
@@ -39,11 +40,16 @@ export function useEnFaceLabelmaps(
     values: new Uint8Array(1),
   });
   image.getPointData().setScalars(scalars);
-  const pixels = computed(() => {
+  const cutoff = computed(() => {
     const result = unref(measurement);
     return result
-      ? createThinRegionMask(result, unref(threshold), unref(micronsPerVoxel))
-      : null;
+      ? thinCountCutoff(result, unref(threshold), unref(micronsPerVoxel))
+      : 0;
+  });
+  // Threshold drags rebuild the plane only when the count cutoff moves.
+  const pixels = computed(() => {
+    const result = unref(measurement);
+    return result ? createThinRegionMask(result.counts, cutoff.value) : null;
   });
   watch(
     [() => unref(geometry), pixels],
@@ -73,6 +79,14 @@ export function useEnFaceLabelmaps(
         plane.pixelToWorld[10],
       ]);
       scalars.setData(values, 1);
+      // The plane is binary; supplying its range avoids another scan.
+      scalars.setRange(
+        {
+          min: values.includes(0) ? 0 : SEGMENT_VALUE,
+          max: values.includes(SEGMENT_VALUE) ? SEGMENT_VALUE : 0,
+        },
+        0
+      );
       image.modified();
     },
     { immediate: true }

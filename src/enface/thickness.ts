@@ -1,3 +1,4 @@
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import type { OccupiedDepthResult } from '@/src/segmentation/measurements/occupiedDepth';
 
 const unitRoundoff = Number.EPSILON / 2;
@@ -8,6 +9,29 @@ export const isPresentThicknessBelow = (thickness: number, threshold: number) =>
   thickness > 0 &&
   threshold - thickness >
     relativeRoundoff * Math.max(Math.abs(thickness), Math.abs(threshold));
+
+/** Counts are integers, so the highlighted set changes only when this does. */
+export function thinCountCutoff(
+  result: OccupiedDepthResult,
+  threshold: number,
+  micronsPerVoxel: number
+) {
+  let cutoff = 0;
+  while (
+    cutoff < result.maximumCount &&
+    isPresentThicknessBelow((cutoff + 1) * micronsPerVoxel, threshold)
+  )
+    cutoff++;
+  return cutoff;
+}
+
+export function createThinRegionMask(counts: Uint32Array, cutoff: number) {
+  const pixels = new Uint8Array(counts.length);
+  for (let index = 0; index < pixels.length; index++)
+    if (counts[index] > 0 && counts[index] <= cutoff)
+      pixels[index] = SEGMENT_VALUE;
+  return pixels;
+}
 
 export function thicknessSliderMaximum(
   result: OccupiedDepthResult | null,

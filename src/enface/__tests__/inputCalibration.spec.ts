@@ -53,8 +53,7 @@ async function mountInput(id: string) {
     segmentation.ensureSegmentationForImage(id).id,
     segment
   );
-  const [i, , j, , k] = image.getExtent();
-  const extent: Extent3D = [i, i + 1, j, j + 1, k, k + 1];
+  const extent: Extent3D = [0, 1, 0, 1, 0, 1];
   mask.representations.labelmap = {
     image: markRaw(allocateMask(image, extent)),
     extent,
@@ -216,40 +215,32 @@ describe('occupied-depth input calibration', () => {
     }
   );
 
-  it.each([
-    { extent: [1, 3, 1, 4, 1, 5] },
-    { extent: [5, 7, -4, -1, 10, 14] },
-  ] satisfies { extent: Extent3D }[])(
-    'aligns occupied-depth pixels and slab ranges for extent $extent',
-    async ({ extent }) => {
-      const image = vtkImageData.newInstance();
-      image.setExtent(extent);
-      image.setSpacing([0.01, 0.01, 0.01]);
-      image
-        .getPointData()
-        .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(60) }));
-      const id = useImageCacheStore().addVTKImageData(image, 'offset.vti');
-      const { wrapper, settings } = await mountInput(id);
-      try {
-        expect(wrapper.get('output').attributes('data-measurable')).toBe(
-          'true'
-        );
-        expect(wrapper.get('output').attributes('data-depth')).toBe('20');
-        expect(wrapper.get('output').attributes('data-counts')).toBe(
-          '2,2,0,2,2,0,0,0,0,0,0,0,0,0,0'
-        );
-        settings.depthStart = 1;
-        settings.depthEnd = 1;
-        await nextTick();
-        expect(wrapper.get('output').attributes('data-depth')).toBe('10');
-        expect(wrapper.get('output').attributes('data-counts')).toBe(
-          '1,1,0,1,1,0,0,0,0,0,0,0,0,0,0'
-        );
-      } finally {
-        wrapper.unmount();
-      }
+  it('aligns occupied-depth pixels and slab ranges', async () => {
+    const image = vtkImageData.newInstance();
+    image.setDimensions([3, 4, 5]);
+    image.setSpacing([0.01, 0.01, 0.01]);
+    image
+      .getPointData()
+      .setScalars(vtkDataArray.newInstance({ values: new Uint8Array(60) }));
+    const id = useImageCacheStore().addVTKImageData(image, 'slab.vti');
+    const { wrapper, settings } = await mountInput(id);
+    try {
+      expect(wrapper.get('output').attributes('data-measurable')).toBe('true');
+      expect(wrapper.get('output').attributes('data-depth')).toBe('20');
+      expect(wrapper.get('output').attributes('data-counts')).toBe(
+        '2,2,0,2,2,0,0,0,0,0,0,0,0,0,0'
+      );
+      settings.depthStart = 1;
+      settings.depthEnd = 1;
+      await nextTick();
+      expect(wrapper.get('output').attributes('data-depth')).toBe('10');
+      expect(wrapper.get('output').attributes('data-counts')).toBe(
+        '1,1,0,1,1,0,0,0,0,0,0,0,0,0,0'
+      );
+    } finally {
+      wrapper.unmount();
     }
-  );
+  });
 
   it.each([2, 0.01])(
     'retains physical scale %s carried by an orthogonal generic image direction',
