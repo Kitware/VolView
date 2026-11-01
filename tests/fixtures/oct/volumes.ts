@@ -140,10 +140,10 @@ export function createNiftiVolume({
   return Buffer.concat([header, scalarBytes(scalars)]);
 }
 
-/** ASCII VTK image data, for grids NRRD and NIfTI cannot express such as offset extents. */
+/** ASCII VTK image data, for inputs NRRD and NIfTI cannot express such as signed spacing. */
 export function createVtiVolume({
   values,
-  extent,
+  dimensions,
   spacing = [1, 1, 1],
   origin = [0, 0, 0],
   direction,
@@ -152,7 +152,7 @@ export function createVtiVolume({
   components,
 }: {
   values: ArrayLike<number>;
-  extent: readonly number[];
+  dimensions: readonly number[];
   spacing?: readonly number[];
   origin?: readonly number[];
   direction?: readonly number[];
@@ -160,7 +160,7 @@ export function createVtiVolume({
   name?: string;
   components?: number;
 }) {
-  const range = extent.join(' ');
+  const range = dimensions.map((size) => `0 ${size - 1}`).join(' ');
   return (
     '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
     `<ImageData WholeExtent="${range}" Origin="${origin.join(' ')}" Spacing="${spacing.join(' ')}"` +

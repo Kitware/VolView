@@ -15,12 +15,11 @@ import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import type { ViewInfo2D } from '@/src/types/views';
 
-function metadata(rotated = false, nonzeroExtent = false) {
+function metadata(rotated = false) {
   const image = vtkImageData.newInstance();
   image.setDimensions(10, 20, 30);
   image.setSpacing([0.04, 0.01, 0.2]);
   image.setOrigin([10, -8, 20]);
-  if (nonzeroExtent) image.setExtent([5, 14, -8, 11, 20, 49]);
   if (rotated) {
     const angle = 0.4;
     image.setDirection([
@@ -101,20 +100,6 @@ describe('En face world slice-plane projection', () => {
         grid
       )
     ).toBeNull();
-  });
-  it('clips nonzero source extents and maps intersections to projection pixels', () => {
-    const grid = metadata(true, true);
-    const line = enFaceSliceLine(
-      projection(grid, 1, 9),
-      slicePlane('Axial', 27, grid),
-      grid
-    )!;
-    expect(line.y1).toBeCloseTo(7.5, 4);
-    expect(line.y2).toBeCloseTo(7.5, 4);
-    expect([line.x1, line.x2].sort((a, b) => a - b)).toEqual([
-      expect.closeTo(0, 4),
-      expect.closeTo(10, 4),
-    ]);
   });
 });
 

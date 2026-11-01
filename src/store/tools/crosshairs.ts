@@ -4,10 +4,7 @@ import { vec3 } from 'gl-matrix';
 import { defineStore } from 'pinia';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
-import {
-  getImageData,
-  getImageMetadata,
-} from '@/src/composables/useCurrentImage';
+import { getImageMetadata } from '@/src/composables/useCurrentImage';
 import {
   computeEffectiveView,
   volume2DViewsOfImage,
@@ -17,17 +14,6 @@ import { clampValue } from '@/src/utils';
 import type { ImageMetadata } from '@/src/types/image';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { useEnFaceViewStore } from '@/src/enface/store';
-import type { Maybe } from '@/src/types';
-
-export function getEnFaceCrosshairsUnavailableReason(imageID: Maybe<string>) {
-  const sourceReason = getEnFaceUnavailableReason(imageID);
-  if (sourceReason) return sourceReason;
-  const extent = getImageData(imageID)?.getExtent();
-  // Crosshairs clamp picked indices against zero-based image dimensions.
-  return extent && [0, 2, 4].some((index) => extent[index] !== 0)
-    ? 'Crosshairs navigation is unavailable for source grids with nonzero starting voxel indices.'
-    : null;
-}
 
 /** The world point in `metadata`'s index space, pulled inside the image box. */
 function clampToImage(worldPosition: Vector3, metadata: ImageMetadata) {
@@ -76,10 +62,7 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
     const view = viewStore.getView(viewId);
     const host = view && computeEffectiveView(view, view.dataID);
     if (host?.kind !== 'volume2D' && host?.kind !== 'enface') return;
-    if (
-      host.kind === 'enface' &&
-      getEnFaceCrosshairsUnavailableReason(host.renderDataID)
-    )
+    if (host.kind === 'enface' && getEnFaceUnavailableReason(host.renderDataID))
       return;
 
     const imageID = host.renderDataID;

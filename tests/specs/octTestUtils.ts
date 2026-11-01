@@ -31,12 +31,11 @@ export function stageGenericOCT(
   let bytes: Buffer;
   if (format === 'vti') {
     const volume = syntheticOCTGrid();
-    const [width, frames, depth] = volume.dimensions;
     const spacing = [...volume.spacing];
     spacing[0] *= -1;
     bytes = Buffer.from(
       createVtiVolume({
-        extent: [0, width - 1, 0, frames - 1, 0, depth - 1],
+        dimensions: volume.dimensions,
         spacing,
         type: 'UInt16',
         values: volume.scalars,

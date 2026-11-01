@@ -11,7 +11,6 @@ import VtkSlabProjectionRepresentation from '@/src/components/vtk/VtkSlabProject
 import CrosshairsWidget from '@/src/components/tools/crosshairs/CrosshairsWidget.vue';
 import { ReferenceLineSegments } from '@/src/referenceLines';
 import { useToolStore } from '@/src/store/tools';
-import { getEnFaceCrosshairsUnavailableReason } from '@/src/store/tools/crosshairs';
 import { Tools } from '@/src/store/tools/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import type { VtkViewApi } from '@/src/types/vtk-types';
@@ -137,10 +136,7 @@ watch(
       </VtkSlabProjectionRepresentation>
       <CrosshairsWidget
         v-if="
-          tools.currentTool === Tools.Crosshairs &&
-          projectionReady &&
-          geometry &&
-          !getEnFaceCrosshairsUnavailableReason(currentImageID)
+          tools.currentTool === Tools.Crosshairs && projectionReady && geometry
         "
         :view-id="viewId"
         :plane-origin="geometry.planeOrigin"

@@ -1,23 +1,7 @@
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
-@@ -440,11 +440,12 @@
- 				if (program.isUniformUsed(uniformName)) {
- 					const imageData = model.currentValidInputs[i].imageData;
- 					const dim = imageData.getDimensions();
-+					const extent = imageData.getExtent();
- 					mat4.copy(model.tmpMat4, imageData.getIndexToWorld());
- 					mat4.translate(model.tmpMat4, model.tmpMat4, [
--						-.5,
--						-.5,
--						-.5
-+						extent[0] - .5,
-+						extent[2] - .5,
-+						extent[4] - .5
- 					]);
- 					mat4.scale(model.tmpMat4, model.tmpMat4, dim);
- 					mat4.invert(model.tmpMat4, model.tmpMat4);
-@@ -574,7 +575,7 @@
+@@ -574,7 +574,7 @@
  		let needRebuild = false;
  		if (!model.currentRenderPass && model.lastRenderPassShaderReplacement || model.currentRenderPass && model.currentRenderPass.getShaderReplacement() !== model.lastRenderPassShaderReplacement) needRebuild = true;
  		const numValidInputs = model.currentValidInputs?.length ?? 0;
@@ -26,7 +10,7 @@ diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
  			model.lastHaveSeenDepthRequest = model.haveSeenDepthRequest;
  			model.lastNumberOfComponents = model.numberOfComponents;
  			model.lastMultiTexturePerVolumeEnabled = model.multiTexturePerVolumeEnabled;
-@@ -724,33 +725,25 @@
+@@ -724,33 +724,25 @@
  	}
  	function getSlabSampleLoopLines() {
  		return [
@@ -74,7 +58,7 @@ diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
  			"  vec3 fragTCoordNeg = (WCTCMatrix0 * vec4(worldPosNeg, 1.0)).xyz;",
  			"  if (!any(greaterThan(fragTCoordNeg, vec3(1.0))) && !any(lessThan(fragTCoordNeg, vec3(0.0))))",
  			"  {",
-@@ -758,11 +751,11 @@
+@@ -758,11 +750,11 @@
  			"    tvalue = compositeValue(tvalue, newVal, trapezoid);",
  			"    numSlices += 1;",
  			"  }",
@@ -88,7 +72,7 @@ diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
  			"  vec3 fragTCoordPos = (WCTCMatrix0 * vec4(worldPosPos, 1.0)).xyz;",
  			"  if (!any(greaterThan(fragTCoordPos, vec3(1.0))) && !any(lessThan(fragTCoordPos, vec3(0.0))))",
  			"  {",
-@@ -770,11 +763,15 @@
+@@ -770,11 +762,15 @@
  			"    tvalue = compositeValue(tvalue, newVal, trapezoid);",
  			"    numSlices += 1;",
  			"  }",
@@ -106,7 +90,7 @@ diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
  			"}",
  			"// Finally, if slab type is *mean*, divide the sum by the numSlices",
  			"if (slabType == 2)",
-@@ -1155,7 +1152,7 @@
+@@ -1155,7 +1151,7 @@
  		let FSSource = shaders.Fragment;
  		const slabThickness = model.renderable.getSlabThickness();
  		let posVCVSDec = ["attribute vec4 vertexWC;", "varying vec4 vertexWCVSOutput;"];

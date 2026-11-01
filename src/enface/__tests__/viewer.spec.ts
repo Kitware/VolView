@@ -81,19 +81,6 @@ it('enables pane interactions only when their projection source supports them', 
   tools.setCurrentTool(Tools.Crosshairs);
   await nextTick();
   expect(wrapper.findComponent(CrosshairsWidget).exists()).toBe(true);
-  const image = useImageCacheStore().getVtkImageData('oct')!;
-  const extent = [...image.getExtent()];
-  image.setExtent(
-    10,
-    extent[1] + 10,
-    extent[2],
-    extent[3],
-    extent[4],
-    extent[5]
-  );
-  await nextTick();
-  expect(tools.currentTool).toBe(Tools.Crosshairs);
-  expect(wrapper.findComponent(CrosshairsWidget).exists()).toBe(false);
 
   tools.setCurrentTool(Tools.WindowLevel);
 

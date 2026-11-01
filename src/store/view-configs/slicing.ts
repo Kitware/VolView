@@ -37,16 +37,15 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     if (view?.type !== '2D') return defaultSliceConfig();
 
     const { orientation } = view.options;
-    const { metadata, imageData } = useImage(imageID);
+    const { metadata } = useImage(imageID);
     const { lpsOrientation, dimensions } = metadata.value;
     const ijkIndex = lpsOrientation[orientation];
-    const min = imageData.value?.getExtent()[2 * ijkIndex] ?? 0;
-    const max = min + dimensions[ijkIndex] - 1;
+    const dimMax = dimensions[ijkIndex];
 
     return {
-      min,
-      slice: Math.ceil((min + max) / 2),
-      max,
+      min: 0,
+      slice: Math.ceil((dimMax - 1) / 2),
+      max: dimMax - 1,
       syncState: false,
     };
   };
