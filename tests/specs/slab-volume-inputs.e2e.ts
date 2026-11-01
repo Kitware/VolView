@@ -45,7 +45,7 @@ function stageColorVolume() {
   fs.writeFileSync(
     path.join(makeTempDir(STEM), 'color.vti'),
     createVtiVolume({
-      extent: [0, 3, 0, 3, 0, 3],
+      dimensions: [4, 4, 4],
       type: 'UInt8',
       name: 'color',
       components: 3,

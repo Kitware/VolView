@@ -4,10 +4,7 @@ import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { useCropStore } from './crop';
-import {
-  getEnFaceCrosshairsUnavailableReason,
-  useCrosshairsToolStore,
-} from './crosshairs';
+import { useCrosshairsToolStore } from './crosshairs';
 import { usePaintToolStore } from './paint';
 import { useRulerStore } from './rulers';
 import { useRectangleStore } from './rectangles';
@@ -55,9 +52,7 @@ export function getToolUnavailableReason(
   }
   if (effective?.viewInfo.type !== 'EnFace' || tool === Tools.Select)
     return null;
-  return tool === Tools.Crosshairs
-    ? getEnFaceCrosshairsUnavailableReason(effective.renderDataID)
-    : getEnFaceUnavailableReason(effective.renderDataID);
+  return getEnFaceUnavailableReason(effective.renderDataID);
 }
 // These tools draw into the selected segment, so picking one up seats a
 // segment: the palette shows the color the next stroke will be before it is

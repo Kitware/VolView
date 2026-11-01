@@ -11,7 +11,7 @@ import {
 
 function source() {
   const image = vtkImageData.newInstance();
-  image.setExtent([5, 7, -4, -1, 10, 14]);
+  image.setDimensions(3, 4, 5);
   image.setOrigin([23, -8, 100]);
   image.setSpacing([-0.2, 0.7, 2]);
   const angle = 0.4;
@@ -46,7 +46,7 @@ describe('slab source-world geometry', () => {
         last: 2,
         method: 'sum',
       });
-      const sourceIndex: Vector3 = [6, -3, 11];
+      const sourceIndex: Vector3 = [1, 1, 1];
       const world = image.indexToWorld(sourceIndex);
       expectPoint(
         vec3.transformMat4([0, 0, 0], [1.5, 1.5, 0], geometry.pixelToWorld),
@@ -101,7 +101,7 @@ describe('slab source-world geometry', () => {
     expect(vec3.distance(first.planeOrigin, last.planeOrigin)).toBeCloseTo(400);
     expectPoint(
       vec3.transformMat4([0, 0, 0], [0.5, 0.5, 0], last.pixelToWorld),
-      image.indexToWorld([5, -4, 14])
+      image.indexToWorld([0, 0, 4])
     );
     image.delete();
   });

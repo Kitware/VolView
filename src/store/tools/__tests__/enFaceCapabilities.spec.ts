@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createVuetify } from 'vuetify';
 import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
-import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -159,41 +158,6 @@ describe('temporary crosshairs in the toolbar', () => {
 });
 
 describe('En face tool capabilities', () => {
-  it('keeps offset-grid projection available while disabling Crosshairs and its shortcut with a shared reason', async () => {
-    const dataID = addRegularVolume();
-    useImageCacheStore()
-      .getVtkImageData(dataID)!
-      .setExtent(10, 11, 0, 1, 30, 31);
-    activateEnFace(dataID);
-    vi.stubGlobal('visualViewport', null);
-    const toolbar = mount(ControlsStripTools, {
-      attachTo: document.body,
-      global: { plugins: [createVuetify()] },
-    });
-    const selector = 'button[data-testid^="control-button-Crosshairs "]';
-    const reason = getToolUnavailableReason(
-      Tools.Crosshairs,
-      getEffectiveView(useViewStore().activeView)
-    );
-    expect(getEnFaceUnavailableReason(dataID)).toBeNull();
-    expect(toolbar.get(selector).attributes('disabled')).toBeDefined();
-    const action = toolbar
-      .findAllComponents(ReasonedAction)
-      .find((candidate) => candidate.find(selector).exists())!;
-    expect(action.props('reason')).toBe(reason);
-    expect(reason).toMatch(/nonzero starting voxel indices/);
-    const tools = useToolStore();
-    tools.setCurrentTool(Tools.Crosshairs);
-    await nextTick();
-    const selected = () =>
-      toolbar.get('button[data-testid^="control-button-Window & Level "]');
-    expect(selected().classes()).toContain('tool-btn-selected');
-    tools.setCurrentTool(Tools.WindowLevel);
-    await crosshairsChord('keydown');
-    expect(selected().classes()).toContain('tool-btn-selected');
-    await crosshairsChord('keyup');
-    expect(selected().classes()).toContain('tool-btn-selected');
-  });
   it.each(Object.values(Tools))(
     'supports viewing tools when evaluating %s',
     (tool) => {

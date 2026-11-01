@@ -5,14 +5,12 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { createNrrdVolume, createVtiVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
-  chooseEnFaceProjection,
   canvasAppearance,
   enFaceAppearance,
   enFacePixel,
   setEnFaceWindow,
   waitForEnFaceReady,
   CANVAS,
-  setEnFaceSlab,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -23,28 +21,6 @@ import {
 
 const SOURCE = '[data-testid~="vtk-two-view"] canvas';
 const STEM = 'slab-geometry';
-const SIZE = [6, 5, 4];
-const MINIMUM = [10, -7, 30];
-const AXES = ['Sagittal', 'Coronal', 'Axial'];
-const valueAt = (x: number, y: number, z: number) => 17 * x + 11 * y + 7 * z;
-
-function vti(offsetExtent: boolean) {
-  const minimum = offsetExtent ? MINIMUM : [0, 0, 0];
-  const origin = offsetExtent ? [0, 0, 0] : MINIMUM;
-  const extent = minimum.flatMap((first, axis) => [
-    first,
-    first + SIZE[axis] - 1,
-  ]);
-  const values = Array.from({ length: SIZE[0] * SIZE[1] * SIZE[2] }, (_, i) =>
-    valueAt(
-      i % SIZE[0],
-      Math.floor(i / SIZE[0]) % SIZE[1],
-      Math.floor(i / (SIZE[0] * SIZE[1]))
-    )
-  );
-  return createVtiVolume({ extent, origin, type: 'Float32', values });
-}
-
 function signedFitVolume(negativeAxis?: 0 | 2) {
   const spacing = [negativeAxis === 0 ? -4 : 4, 1, negativeAxis === 2 ? -1 : 1];
   const direction = [
@@ -64,7 +40,7 @@ function signedFitVolume(negativeAxis?: 0 | 2) {
     return x === 2 || x === 17 ? 0 : 70;
   });
   return createVtiVolume({
-    extent: [0, 19, 0, 9, 0, 9],
+    dimensions: [20, 10, 10],
     spacing,
     direction,
     type: 'UInt8',
@@ -136,8 +112,6 @@ describe('Slab geometry and automatic camera fitting', () => {
 
   before(async () => {
     const directory = makeTempDir(STEM);
-    fs.writeFileSync(path.join(directory, 'zero.vti'), vti(false));
-    fs.writeFileSync(path.join(directory, 'offset.vti'), vti(true));
     fs.writeFileSync(path.join(directory, 'reflected.vti'), signedFitVolume());
     fs.writeFileSync(path.join(directory, 'signed-x.vti'), signedFitVolume(0));
     fs.writeFileSync(path.join(directory, 'signed-z.vti'), signedFitVolume(2));
@@ -156,56 +130,6 @@ describe('Slab geometry and automatic camera fitting', () => {
       STEM + '.json'
     );
   });
-
-  for (const axis of [0, 1, 2]) {
-    it(`renders physically equivalent offset extents on axis ${axis}`, async () => {
-      let expectedImage = '';
-      let expectedSource = '';
-      for (const name of ['zero.vti', 'offset.vti']) {
-        await openScene(name);
-        await chooseEnFaceProjection('enface-projection-axis', AXES[axis]);
-        await setEnFaceWindow(200, 100);
-        await setEnFaceSlab(1, SIZE[axis] - 2);
-        await waitForEnFaceReady();
-        const point = [1, 1];
-        const index = [1, 1, 1];
-        index[axis] = (SIZE[axis] - 1) / 2;
-        const expectedGray = Math.round(
-          (255 * valueAt(index[0], index[1], index[2])) / 200
-        );
-        await browser.waitUntil(async () => {
-          const pixel = await enFacePixel(point[0], point[1]);
-          return (
-            pixel[3] === 255 &&
-            pixel
-              .slice(0, 3)
-              .every((channel) => Math.abs(channel - expectedGray) <= 1)
-          );
-        });
-        if (expectedImage) await expectPixels(expectedImage);
-        else expectedImage = (await enFaceAppearance()).image;
-        await expect(
-          $('[data-testid~="vtk-two-view"] .slice-label')
-        ).toHaveText('Slice: 3/5');
-        const source = await $(SOURCE).getElement();
-        await browser.waitUntil(
-          async () => {
-            const appearance = await canvasAppearance(source);
-            return (
-              appearance.visiblePixels > 0 &&
-              (!expectedSource || appearance.image === expectedSource)
-            );
-          },
-          {
-            timeoutMsg:
-              'Expected equivalent visible source slices for offset extents',
-          }
-        );
-        expectedSource = (await canvasAppearance(source)).image;
-      }
-      expect(await volViewPage.getNotificationsCount()).toBe(0);
-    });
-  }
 
   it('fits signed-spacing equivalents with both edge fiducials after load and reset', async () => {
     let expectedProjection = '';

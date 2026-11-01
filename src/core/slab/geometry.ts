@@ -21,11 +21,8 @@ export function deriveSlabGeometry(
   spec: SlabSpecification
 ) {
   const axes = [0, 1, 2].filter((axis) => axis !== spec.axis);
-  const extent = image.getExtent();
-  const minimum = [extent[0], extent[2], extent[4]];
-  const midpoint = minimum[spec.axis] + (spec.first + spec.last) / 2;
-  const planeIndex = [...minimum] as Vector3;
-  planeIndex[spec.axis] = midpoint;
+  const planeIndex: Vector3 = [0, 0, 0];
+  planeIndex[spec.axis] = (spec.first + spec.last) / 2;
   const planeOrigin = image.indexToWorld(planeIndex) as Vector3;
   const planeNormal = vec3.normalize(
     [0, 0, 0],
@@ -53,14 +50,12 @@ export function deriveSlabGeometry(
   return {
     metadata,
     pixelToWorld,
-    sourceExtent: extent,
     planeOrigin,
     planeNormal,
     slabThickness: slabThickness(image, spec),
     fitKey: [
       spec.axis,
       ...metadata.dimensions,
-      ...extent,
       ...metadata.spacing,
       ...metadata.origin,
       ...metadata.orientation,

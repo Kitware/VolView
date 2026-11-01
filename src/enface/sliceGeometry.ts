@@ -10,24 +10,14 @@ export function enFaceSliceLine(
   peer: SlicePlane,
   metadata: ImageMetadata
 ) {
-  const { sourceExtent, pixelToWorld, planeNormal, planeOrigin } = geometry;
-  const minimum: Vector3 = [sourceExtent[0], sourceExtent[2], sourceExtent[4]];
-  const localToWorld = mat4.translate(
-    new Array(16) as mat4,
-    metadata.indexToWorld,
-    minimum
-  );
+  const { pixelToWorld, planeNormal, planeOrigin } = geometry;
   const line = computeReferenceLine(
     {
       normal: planeNormal,
       origin: planeOrigin,
     },
     peer,
-    {
-      ...metadata,
-      indexToWorld: localToWorld,
-      worldToIndex: mat4.invert(new Array(16) as mat4, localToWorld),
-    }
+    metadata
   );
   if (!line) return null;
   const worldToPixel = mat4.invert(new Array(16) as mat4, pixelToWorld);
