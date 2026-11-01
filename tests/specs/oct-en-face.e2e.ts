@@ -4,7 +4,6 @@ import { Key } from 'webdriverio';
 import {
   waitForEnFaceReady,
   expectEnFaceDisabledInSwitcher,
-  expandEnFaceSection,
   setSlabRange,
   setEnFaceWindow,
   slabThumb,
@@ -13,6 +12,9 @@ import {
   CONTROLS,
   PANEL,
   WINDOW_TOOL,
+  openEnFaceProjection,
+  openEnFaceControls,
+  selectSetting,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -30,8 +32,6 @@ import {
   reference,
   STEM,
   stageFixture,
-  openControls,
-  selectSetting,
   expectProjectionPixel,
   expectCalibratedEnFace,
   openRetina,
@@ -54,8 +54,7 @@ describe('Retinal OCT en-face', () => {
     };
     await $(CONTROLS).doubleClick();
     await expectBothViews();
-    await openControls();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     await slabThumb('start').doubleClick();
     await expectBothViews();
     await browser.keys('Escape');
@@ -94,8 +93,7 @@ describe('Retinal OCT en-face', () => {
     await setEnFaceWindow(1000, 500);
     // The standard physical slab has mean 317, maximum 538 and sampled sum 140431.
     await expectProjectionPixel(81);
-    await openControls();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     await selectSetting('enface-projection-method', 'Maximum');
     await waitForEnFaceReady();
     await expect(
@@ -103,7 +101,7 @@ describe('Retinal OCT en-face', () => {
     ).toHaveValue('Maximum');
     await setEnFaceWindow(1000, 500);
     await expectProjectionPixel(137);
-    await openControls();
+    await openEnFaceControls();
     await selectSetting('enface-projection-method', 'Sum');
     await waitForEnFaceReady();
     await expect(
@@ -111,16 +109,15 @@ describe('Retinal OCT en-face', () => {
     ).toHaveValue('Sum');
     await setEnFaceWindow(200000, 100000);
     await expectProjectionPixel(179);
-    await openControls();
+    await openEnFaceControls();
     await selectSetting('enface-projection-method', 'Mean');
     await setEnFaceWindow(1000, 500);
-    await openControls();
+    await openEnFaceControls();
     await setSlabRange(reference.slab.start, reference.slab.end);
     await waitForEnFaceReady();
     await expectProjectionPixel(76);
     await browser.keys('Escape');
-    await openControls();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     await selectSetting('enface-projection-axis', 'Sagittal');
     await waitForEnFaceReady();
     await expect(
@@ -141,7 +138,7 @@ describe('Retinal OCT en-face', () => {
     for (const label of await labels) await expect(label).not.toBeDisplayed();
     await setEnFaceWindow(1000, 500);
     await expectProjectionPixel(81);
-    await openControls();
+    await openEnFaceControls();
     const start = slabThumb('start');
     const end = slabThumb('end');
     await start.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -274,7 +271,7 @@ describe('Retinal OCT en-face', () => {
     await waitForEnFaceReady();
     await setEnFaceWindow(1000, 500);
     await expectProjectionPixel(81);
-    await openControls();
+    await openEnFaceControls();
     await selectSetting('enface-projection-method', 'Maximum');
     await browser.keys('Escape');
     await waitForEnFaceReady();

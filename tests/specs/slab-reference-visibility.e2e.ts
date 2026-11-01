@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
-import { waitForEnFaceReady, VIEWER } from './octTestUtils';
+import { waitForEnFaceReady, VIEWER, toolButton } from './octTestUtils';
 import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
 import {
   makeTempDir,
@@ -12,9 +12,6 @@ import {
 
 const STEM = 'slab-reference-visibility';
 const SOURCE = 'div[data-testid~="vtk-two-view"]';
-const tool = (name: string) =>
-  $('button[data-testid^="control-button-' + name + ' "]');
-
 async function expectReferenceLines(visible: boolean) {
   const lines = [
     $(VIEWER).$('[data-testid="enface-slice-lines"] line'),
@@ -45,7 +42,7 @@ describe('Slab reference-line visibility', () => {
     await volViewPage.open(`?urls=[tmp/${STEM}.json,tmp/${STEM}/source.nrrd]`);
     await waitForEnFaceReady();
     await $(VIEWER).$('canvas').click();
-    await tool('Pan').click();
+    await toolButton('Pan').click();
     await setReferenceLinesEnabled(false);
     await expectReferenceLines(false);
 
@@ -61,9 +58,9 @@ describe('Slab reference-line visibility', () => {
     await setReferenceLinesEnabled(false);
     await expectReferenceLines(false);
     await $(SOURCE).$('canvas').click();
-    await tool('Crosshairs').click();
+    await toolButton('Crosshairs').click();
     await expectReferenceLines(true);
-    await tool('Pan').click();
+    await toolButton('Pan').click();
     await expectReferenceLines(false);
   });
 });

@@ -14,6 +14,9 @@ import {
   selectEnFace,
   selectTwoRowLayout,
   CANVAS,
+  openEnFaceProjection,
+  openEnFaceControls,
+  selectSetting,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -33,8 +36,6 @@ import {
   reference,
   STEM,
   stageFixture,
-  openControls,
-  selectSetting,
   expectProjectionPixel,
   dragEnFaceContrast,
   expectStackedMaskWithoutSidebar,
@@ -79,7 +80,7 @@ describe('Retinal OCT import', () => {
     await selectSegment('Synthetic retinal layer');
     await expectStackedMaskWithoutSidebar();
 
-    await openControls();
+    await openEnFaceControls();
     await expectControlsBesideSelector();
     await browser.keys('Escape');
     await dragEnFaceContrast();
@@ -90,7 +91,7 @@ describe('Retinal OCT import', () => {
     expect(await getWindow()).toEqual(retainedWindow);
     expect(await volViewPage.getFirst2DSlice()).toBe(retainedSlice);
     await expectSliceLine();
-    await openControls();
+    await openEnFaceControls();
     await browser.keys('Escape');
     await volViewPage.focusFirst2DView();
     const before = await volViewPage.getFirst2DSlice();
@@ -147,13 +148,13 @@ describe('Retinal OCT import', () => {
         await selectEnFace();
         await waitForEnFaceReady();
         expect((await $$('.view-type-select')).length).toBe(viewCount);
-        await openControls();
+        await openEnFaceControls();
         expect(
           await $(
             '.v-overlay--active [data-testid="enface-projection-toggle"]'
           ).getAttribute('aria-expanded')
         ).toBe('true');
-        await expandEnFaceSection('projection');
+        await expandEnFaceSection();
         await selectSetting('enface-projection-axis', projectionAxis);
         await waitForEnFaceReady();
         const display = await $(CANVAS).getSize();
@@ -172,8 +173,7 @@ describe('Retinal OCT import', () => {
         await volViewPage.waitForViews();
         await $(CANVAS).waitForDisplayed();
         await waitForEnFaceReady();
-        await openControls();
-        await expandEnFaceSection('projection');
+        await openEnFaceProjection();
         expect(
           await $(
             '.v-overlay--active [data-testid="enface-projection-axis"] input'

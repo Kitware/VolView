@@ -22,8 +22,9 @@ import {
   selectEnFace,
   selectTwoRowLayout,
   CANVAS,
-  PANEL,
-  CONTROLS,
+  openEnFaceProjection,
+  openEnFaceControls,
+  setEnFaceSlab,
 } from './octTestUtils';
 import {
   openAnnotationSegments,
@@ -45,13 +46,6 @@ async function openNativeDicom() {
   await selectEnFace(1);
   await waitForEnFaceReady();
   await volViewPage.waitForViewCounts(1, false);
-}
-
-async function setSlab(start: number, end: number) {
-  await $('[data-testid="enface-controls"]').click();
-  await $(PANEL).waitForDisplayed();
-  await expandEnFaceSection('projection');
-  await setSlabRange(start, end);
 }
 
 async function magnifyNativeCenter() {
@@ -197,18 +191,14 @@ describe('Public OCT exports', () => {
       expect(await volViewPage.getNotificationsCount()).toBe(0);
     }
 
-    await (await $$('.view-type-select .v-field'))[1].click();
-    await overlayOption('En face').waitForClickable();
-    await overlayOption('En face').click();
+    await selectEnFace(1);
     await waitForEnFaceReady();
-    await $(CONTROLS).click();
-    await $(PANEL).waitForDisplayed();
-    await $(PANEL).waitForStable();
+    await openEnFaceControls();
     await expect($('[data-testid="enface-projection-toggle"]')).toHaveAttribute(
       'aria-expanded',
       'true'
     );
-    await expandEnFaceSection('projection');
+    await expandEnFaceSection();
     const axis = $('.v-overlay--active [data-testid="enface-projection-axis"]');
     await axis.scrollIntoView({ block: 'center' });
     await axis.waitForClickable();
@@ -294,7 +284,8 @@ describe('Public OCT exports', () => {
       expect(value).toBeCloseTo(native.spacing[axis], 6)
     );
     const fullProjection = await enFaceAppearance();
-    await setSlab(100, 300);
+    await openEnFaceProjection();
+    await setSlabRange(100, 300);
     await browser.waitUntil(
       async () => (await enFaceAppearance()).image !== fullProjection.image
     );
@@ -327,8 +318,7 @@ describe('Public OCT exports', () => {
           scenario.method
         );
         if (scenario.field === 'slab100to300mean') {
-          await setSlab(100, 300);
-          await browser.keys('Escape');
+          await setEnFaceSlab(100, 300);
         }
         await waitForEnFaceReady();
         await setEnFaceWindow(scenario.width, scenario.width / 2);

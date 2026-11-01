@@ -9,6 +9,7 @@ import {
   overlayOption,
 } from './utils';
 import {
+  createVtiVolume,
   syntheticOCTGrid,
   syntheticOCTVolume,
   syntheticMask,
@@ -16,6 +17,7 @@ import {
 import {
   openAnnotationSegments,
   selectSegment,
+  tooltipOf,
   waitForSegmentContent,
 } from './segmentationTestUtils';
 
@@ -33,26 +35,12 @@ export function stageGenericOCT(
     const spacing = [...volume.spacing];
     spacing[0] *= -1;
     bytes = Buffer.from(
-      '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
-        '<ImageData WholeExtent="0 ' +
-        (width - 1) +
-        ' 0 ' +
-        (frames - 1) +
-        ' 0 ' +
-        (depth - 1) +
-        '" Origin="0 0 0" Spacing="' +
-        spacing.join(' ') +
-        '">' +
-        '<Piece Extent="0 ' +
-        (width - 1) +
-        ' 0 ' +
-        (frames - 1) +
-        ' 0 ' +
-        (depth - 1) +
-        '"><PointData Scalars="intensity">' +
-        '<DataArray type="UInt16" Name="intensity" format="ascii">' +
-        Array.from(volume.scalars).join(' ') +
-        '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
+      createVtiVolume({
+        extent: [0, width - 1, 0, frames - 1, 0, depth - 1],
+        spacing,
+        type: 'UInt16',
+        values: volume.scalars,
+      })
     );
   } else bytes = syntheticOCTVolume(format, unitsKnown);
   fs.writeFileSync(path.join(directory, name), bytes);
@@ -153,6 +141,15 @@ export const PANEL =
   '.v-overlay--active [data-testid="enface-rendering-panel"]';
 export const WINDOW_TOOL =
   'button[data-testid^="control-button-Window & Level "]';
+export const toolButton = (name: string) =>
+  $('button[data-testid^="control-button-' + name + ' "]');
+/** Display gray for a scalar under window/level, as the slab shader maps it. */
+export const windowedGray = (
+  value: number,
+  { width, level }: { width: number; level: number }
+) => Math.round(255 * Math.min(1, Math.max(0, (value - level) / width + 0.5)));
+const PROJECTION_TOGGLE =
+  '.v-overlay--active [data-testid="enface-projection-toggle"]';
 const enFaceView = async (view?: WebdriverIO.Element) =>
   view ?? $(VIEWER).getElement();
 
@@ -186,10 +183,8 @@ export async function displayedWindow(view: WebdriverIO.Element) {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-export async function expandEnFaceSection(section: 'projection') {
-  const toggle = $(
-    '.v-overlay--active [data-testid="enface-' + section + '-toggle"]'
-  );
+export async function expandEnFaceSection() {
+  const toggle = $(PROJECTION_TOGGLE);
   await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
   await toggle.waitForClickable();
   if ((await toggle.getAttribute('aria-expanded')) !== 'true')
@@ -201,6 +196,36 @@ export async function expandEnFaceSection(section: 'projection') {
   await $(PANEL).waitForStable();
 }
 
+export async function openEnFaceControls(view?: WebdriverIO.Element) {
+  await volViewPage.openMenu((await enFaceView(view)).$(CONTROLS));
+  const panel = $(PANEL);
+  await panel.waitForDisplayed();
+  await panel.waitForStable();
+}
+
+export async function openEnFaceProjection(view?: WebdriverIO.Element) {
+  await openEnFaceControls(view);
+  await expandEnFaceSection();
+}
+
+export async function selectSetting(
+  testId: string,
+  title: string,
+  scope = PANEL
+) {
+  const select = $(scope).$('[data-testid="' + testId + '"]');
+  await select.scrollIntoView({
+    block: 'center',
+    inline: 'nearest',
+    behavior: 'instant',
+  });
+  await select.waitForClickable();
+  await select.click();
+  const option = overlayOption(title);
+  await option.waitForClickable();
+  await option.click();
+}
+
 export async function chooseEnFaceProjection(
   testId: string,
   label: string,
@@ -208,21 +233,11 @@ export async function chooseEnFaceProjection(
 ) {
   const viewer = await enFaceView(view);
   await volViewPage.closeMenu($(WINDOW_TOOL));
-  const controls = viewer.$(CONTROLS);
-  await volViewPage.openMenu(controls);
-  const panel = $(PANEL);
-  await panel.waitForDisplayed();
-  await expandEnFaceSection('projection');
-  const select = panel.$('[data-testid="' + testId + '"]');
-  await select.scrollIntoView({ block: 'center', inline: 'nearest' });
-  await select.waitForClickable();
-  await select.click();
-  const option = overlayOption(label);
-  await option.waitForClickable();
-  await option.click();
-  await option.waitForDisplayed({ reverse: true });
-  await volViewPage.closeMenu(controls);
-  await panel.waitForDisplayed({ reverse: true });
+  await openEnFaceProjection(viewer);
+  await selectSetting(testId, label);
+  await overlayOption(label).waitForDisplayed({ reverse: true });
+  await volViewPage.closeMenu(viewer.$(CONTROLS));
+  await $(PANEL).waitForDisplayed({ reverse: true });
 }
 
 export const slabThumb = (bound: 'start' | 'end') =>
@@ -237,7 +252,7 @@ export async function expectEnFaceProjectionSettings(
   start: number,
   end: number
 ) {
-  await expandEnFaceSection('projection');
+  await expandEnFaceSection();
   await expect(
     $('.v-overlay--active [data-testid="enface-projection-axis"] input')
   ).toHaveValue(axis);
@@ -280,6 +295,16 @@ export async function setSlabRange(start: number, end: number) {
     }
     await expect(thumb).toHaveAttribute('aria-valuenow', String(value));
   }
+}
+
+export async function setEnFaceSlab(
+  start: number,
+  end: number,
+  view?: WebdriverIO.Element
+) {
+  await openEnFaceProjection(view);
+  await setSlabRange(start, end);
+  await browser.keys('Escape');
 }
 
 export async function dragContrast(
@@ -436,8 +461,7 @@ export async function expectEnFaceUnavailable(reason: string) {
   await expect(viewer).toHaveAttribute('aria-busy', 'false');
   await expect(viewer.$('[data-testid="enface-slice-lines"]')).not.toExist();
   expect((await enFaceAppearance(viewer)).visiblePixels).toBe(0);
-  await viewer.$(CONTROLS).click();
-  await expandEnFaceSection('projection');
+  await openEnFaceProjection(viewer);
   const method = $(
     '.v-overlay--active [data-testid="enface-projection-method"]'
   );
@@ -446,7 +470,7 @@ export async function expectEnFaceUnavailable(reason: string) {
   await browser.keys('Escape');
 }
 
-export async function openEnFaceWindowInputs(view?: WebdriverIO.Element) {
+async function openEnFaceWindowInputs(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
   const tool = $(WINDOW_TOOL);
   await volViewPage.closeMenu(tool);
@@ -498,15 +522,13 @@ export async function setEnFaceWindow(
 
 export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  const toggleSelector =
-    '.v-overlay--active [data-testid="enface-projection-toggle"]';
   const panel = $(PANEL);
   const controls = viewer.$(CONTROLS);
   const restorePanel =
     (await controls.getAttribute('aria-expanded')) === 'true';
   const expanded =
     restorePanel &&
-    (await $(toggleSelector).getAttribute('aria-expanded')) === 'true';
+    (await $(PROJECTION_TOGGLE).getAttribute('aria-expanded')) === 'true';
   await volViewPage.closeMenu(controls);
   if (restorePanel) await panel.waitForDisplayed({ reverse: true });
   await viewer.$(CANVAS).waitForClickable();
@@ -523,9 +545,9 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     const reopened = $(PANEL);
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
-    const toggle = $(toggleSelector);
+    const toggle = $(PROJECTION_TOGGLE);
     if (expanded) {
-      await expandEnFaceSection('projection');
+      await expandEnFaceSection();
     } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
       await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
       await toggle.waitForClickable();
@@ -546,9 +568,7 @@ export async function expectEnFaceDisabledInSwitcher(reason: string) {
   const activator = option.$('..');
   await expect(activator).toHaveAttribute('tabindex', '0');
   await activator.execute((element) => (element as HTMLElement).focus());
-  const tooltipId = await activator.getAttribute('aria-describedby');
-  expect(tooltipId).toBeTruthy();
-  await expect($(`[id="${tooltipId}"]`)).toHaveText(
+  await expect(await tooltipOf(activator)).toHaveText(
     expect.stringContaining(reason)
   );
 }

@@ -5,12 +5,15 @@ import { createVuetify } from 'vuetify';
 import { nextTick } from 'vue';
 import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
-import { useViewStore } from '@/src/store/views';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import {
+  activateEnFace,
+  createOCTFixture,
+  loadOCT,
+} from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 
@@ -21,14 +24,7 @@ beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => cleanupCachedImages(decodeReleases));
 
 function mountToolbar(dataID: string | null) {
-  const views = useViewStore();
-  views.replaceView(views.layoutViews[0].id, {
-    type: 'EnFace',
-    name: 'En face',
-    options: {},
-    dataID,
-  });
-  views.setActiveView(views.layoutViews[0].id);
+  activateEnFace(dataID);
   return mount(ControlsStripTools, {
     attachTo: document.body,
     global: {
@@ -91,13 +87,7 @@ describe('En face contrast toolbar availability', () => {
   });
 
   it('shows the actual radial-scan reconstruction reason on a loaded unsupported OCT', async () => {
-    const fixture = createOCTFixture({ scanPattern: '128282' });
-    decodeReleases.push(fixture.releaseDecode);
-    useImageCacheStore().addProgressiveImage(fixture.image, { id: 'radial' });
-    await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
-    fixture.image.startLoad();
-    await untilLoaded('radial');
+    await loadOCT(decodeReleases, 'radial', { scanPattern: '128282' });
     const wrapper = mountToolbar('radial');
     expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
     expect(windowAction(wrapper).get(':scope > [role="tooltip"]').text()).toBe(

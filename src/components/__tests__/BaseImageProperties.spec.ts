@@ -12,6 +12,7 @@ import { useImageStatsStore } from '@/src/store/image-stats';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
+import { activateEnFace } from '@/tests/unit/octFixture';
 
 enableAutoUnmount(afterEach);
 beforeEach(() => setActivePinia(createPinia()));
@@ -34,14 +35,7 @@ it('uses a source slice for Layers controls when the active En face cannot proje
   useImageCacheStore().addVTKImageData(image, '2D image', { id: 'image' });
   const views = useViewStore();
   views.setDataForAllViews('image');
-  views.replaceView(views.layoutViews[0].id, {
-    type: 'EnFace',
-    name: 'En face',
-    dataID: 'image',
-    options: {},
-  });
-  const enFaceID = views.layoutViews[0].id;
-  views.setActiveView(enFaceID);
+  const enFaceID = activateEnFace('image');
   const sourceID = views.visibleViews.find(({ type }) => type === '2D')!.id;
   const windowing = useWindowingStore();
   const wrapper = mount(BaseImageProperties, {

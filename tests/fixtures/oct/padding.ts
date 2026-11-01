@@ -1,5 +1,5 @@
 import dicomParser from 'dicom-parser';
-import { elemShort } from '../../specs/syntheticDicom';
+import { elemShort, LONG_FORM_VRS } from '../../specs/syntheticDicom';
 
 function paddingElement() {
   return elemShort(0x0028, 0x0120, 'US', Uint8Array.of(255, 255));
@@ -12,18 +12,7 @@ export function paddedSyntheticOCT(original: Uint8Array) {
     .sort()
     .find((tag) => tag > 'x00280120')!;
   const element = source.elements[next];
-  const longVR = [
-    'OB',
-    'OD',
-    'OF',
-    'OL',
-    'OW',
-    'SQ',
-    'UC',
-    'UN',
-    'UR',
-    'UT',
-  ].includes(element.vr!);
+  const longVR = LONG_FORM_VRS.has(element.vr!);
   const position = element.dataOffset - (longVR ? 12 : 8);
   const bytes = Buffer.concat([
     original.subarray(0, position),

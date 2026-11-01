@@ -4,11 +4,10 @@ import { createNrrdVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   chooseEnFaceProjection,
-  expandEnFaceSection,
   setEnFaceWindow,
-  setSlabRange,
   waitForEnFaceReady,
   VIEWER,
+  setEnFaceSlab,
 } from './octTestUtils';
 import { makeTempDir, writeManifestToFile } from './utils';
 
@@ -155,13 +154,6 @@ async function expectMatchingOrientation() {
   );
 }
 
-async function setDepth(depth: number) {
-  await $('[data-testid="enface-controls"]').click();
-  await expandEnFaceSection('projection');
-  await setSlabRange(depth, depth);
-  await browser.keys('Escape');
-}
-
 describe('Slab orientation follows ordinary volume views', () => {
   for (const frame of frames) {
     for (const axis of [0, 1, 2]) {
@@ -172,10 +164,10 @@ describe('Slab orientation follows ordinary volume views', () => {
           frame.axes[axis]
         );
         await setEnFaceWindow(220, 130);
-        await setDepth(48);
+        await setEnFaceSlab(48, 48);
         await expectMatchingOrientation();
         for (const depth of [95, 0]) {
-          await setDepth(depth);
+          await setEnFaceSlab(depth, depth);
           await expectMatchingOrientation();
         }
         expect(await volViewPage.getNotificationsCount()).toBe(0);

@@ -8,13 +8,13 @@ import {
   chooseEnFaceProjection,
   displayedWindow,
   expectEnFacePixel,
-  expandEnFaceSection,
   getEnFaceWindow,
   setEnFaceWindow,
-  setSlabRange,
   slabThumb,
   waitForEnFaceReady,
   VIEWER,
+  openEnFaceProjection,
+  setEnFaceSlab,
 } from './octTestUtils';
 import { useReferenceLines } from './referenceLinesTestUtils';
 import {
@@ -114,10 +114,7 @@ describe('Built-in reslice slab rendering', () => {
       const source = await $('[data-testid~="vtk-two-view"]').getElement();
       const sourceWindow = await displayedWindow(source);
       await observeProjectionRedraw(view);
-      await view.$('[data-testid="enface-controls"]').click();
-      await expandEnFaceSection('projection');
-      await setSlabRange(scenario.first, scenario.last);
-      await browser.keys('Escape');
+      await setEnFaceSlab(scenario.first, scenario.last, view);
       for (const [index, method] of ['Mean', 'Maximum', 'Sum'].entries()) {
         await chooseEnFaceProjection('enface-projection-method', method, view);
         await setEnFaceWindow(WINDOW.width, WINDOW.level, view);
@@ -145,18 +142,14 @@ describe('Built-in reslice slab rendering', () => {
     await volViewPage.open(`?urls=[tmp/${STEM}/oversized.volview.zip]`);
     await waitForEnFaceReady();
     await expectIntensity(400);
-    await $('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('projection');
+    await openEnFaceProjection();
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '14');
     await browser.keys('Escape');
     const clamped = await saveArchive();
     expect(savedSlabs(clamped.manifest)).toMatchObject([
       { depthStart: 0, depthEnd: 14 },
     ]);
-    await $('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('projection');
-    await setSlabRange(10, 14);
-    await browser.keys('Escape');
+    await setEnFaceSlab(10, 14);
     await waitForEnFaceReady();
     await expectIntensity(400);
     expect(await getEnFaceWindow()).toEqual(WINDOW);

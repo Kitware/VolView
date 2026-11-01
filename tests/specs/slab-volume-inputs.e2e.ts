@@ -13,13 +13,13 @@ import { makeTempDir, useCachedSample, writeManifestToFile } from './utils';
 import {
   chooseEnFaceProjection,
   enFaceAppearance,
-  expandEnFaceSection,
   expectEnFaceUnavailable,
   selectEnFace,
   setEnFaceWindow,
-  setSlabRange,
   waitForEnFaceReady,
+  setEnFaceSlab,
 } from './octTestUtils';
+import { createVtiVolume } from '../fixtures/oct/volumes';
 
 const STEM = 'slab-volume-inputs';
 
@@ -42,15 +42,15 @@ async function expectMethodChangesImage() {
 }
 
 function stageColorVolume() {
-  const values = Array.from({ length: 64 }, () => '200 30 20').join(' ');
   fs.writeFileSync(
     path.join(makeTempDir(STEM), 'color.vti'),
-    '<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian">' +
-      '<ImageData WholeExtent="0 3 0 3 0 3" Origin="0 0 0" Spacing="1 1 1">' +
-      '<Piece Extent="0 3 0 3 0 3"><PointData Scalars="color">' +
-      '<DataArray type="UInt8" Name="color" NumberOfComponents="3" format="ascii">' +
-      values +
-      '</DataArray></PointData><CellData/></Piece></ImageData></VTKFile>'
+    createVtiVolume({
+      extent: [0, 3, 0, 3, 0, 3],
+      type: 'UInt8',
+      name: 'color',
+      components: 3,
+      values: Array.from({ length: 64 }, () => [200, 30, 20]).flat(),
+    })
   );
   return `${STEM}/color.vti`;
 }
@@ -80,10 +80,7 @@ describe('Scalar volume projection inputs', () => {
     await waitForEnFaceReady();
     await chooseEnFaceProjection('enface-projection-axis', 'Axial');
     await setEnFaceWindow(128, 64);
-    await $('[data-testid="enface-controls"]').click();
-    await expandEnFaceSection('projection');
-    await setSlabRange(10, 60);
-    await browser.keys('Escape');
+    await setEnFaceSlab(10, 60);
     await expectMethodChangesImage();
   });
 

@@ -22,6 +22,7 @@ import {
   element,
   enhancedFile,
   sequence,
+  overwriteDicomString,
 } from '@/tests/fixtures/oct/dicom';
 
 const baseMetadata = (): Array<[string, string]> => [
@@ -40,19 +41,6 @@ function fixtureBytes() {
 
 function readDataset(bytes: Uint8Array) {
   return dicomParser.parseDicom(bytes, { untilTag: 'x7fe00010' });
-}
-
-function overwrite(data: DataSet, tag: string, value: string) {
-  const attribute = data.elements[tag];
-  const bytes = new TextEncoder().encode(value);
-  if (bytes.length > attribute.length)
-    throw new Error('Test replacement exceeds DICOM value length');
-  data.byteArray.fill(
-    0x20,
-    attribute.dataOffset,
-    attribute.dataOffset + attribute.length
-  );
-  data.byteArray.set(bytes, attribute.dataOffset);
 }
 
 function hide(data: DataSet, tag: string) {
@@ -249,7 +237,7 @@ describe('OCT enhanced spatial metadata', () => {
   it('preserves declared scan patterns such as radial scans', async () => {
     const bytes = fixtureBytes();
     const data = readDataset(bytes);
-    overwrite(firstItem(data, 'x00221618'), 'x00080100', '128282');
+    overwriteDicomString(firstItem(data, 'x00221618'), 'x00080100', '128282');
     const tags = await augmented(bytes);
     expect(isOCTMetadata(tags)).toBe(true);
     expect(tags.get(OCT_SCAN_PATTERN)).toBe('128282');
@@ -316,7 +304,7 @@ describe('OCT enhanced spatial metadata', () => {
 
   it('preserves declarations marking a volume unsuitable for volumetric processing', async () => {
     const bytes = fixtureBytes();
-    overwrite(readDataset(bytes), 'x00221622', 'NO');
+    overwriteDicomString(readDataset(bytes), 'x00221622', 'NO');
     expect(
       (await augmented(bytes)).get(Tags.OphthalmicVolumetricPropertiesFlag)
     ).toBe('NO');
@@ -337,7 +325,7 @@ describe('OCT enhanced spatial metadata', () => {
 
   it('rejects a per-frame geometry count that disagrees with NumberOfFrames', async () => {
     const bytes = fixtureBytes();
-    overwrite(readDataset(bytes), 'x00280008', '31');
+    overwriteDicomString(readDataset(bytes), 'x00280008', '31');
     expect(spatialMetadataError(await augmented(bytes))).toMatch(
       /frame.*count|number.*frames/i
     );
@@ -354,7 +342,7 @@ describe('OCT enhanced spatial metadata', () => {
       const bytes = fixtureBytes();
       const data = readDataset(bytes);
       const shared = firstItem(data, 'x52009229');
-      overwrite(
+      overwriteDicomString(
         firstItem(shared, 'x00209116'),
         'x00200037',
         orientation.join('\\')
@@ -371,13 +359,13 @@ describe('OCT enhanced spatial metadata', () => {
       const bytes = fixtureBytes();
       const data = readDataset(bytes);
       if (kind === 'position') {
-        overwrite(
+        overwriteDicomString(
           firstItem(firstItem(data, 'x52009230'), 'x00209113'),
           'x00200032',
           '0\\0'
         );
       } else {
-        overwrite(
+        overwriteDicomString(
           firstItem(firstItem(data, 'x52009229'), 'x00209116'),
           'x00200037',
           kind === 'orientation' ? '1\\0\\0\\0\\1' : '2\\0\\0\\0\\.5\\0'
@@ -410,7 +398,7 @@ describe('OCT enhanced spatial metadata', () => {
       const data = readDataset(bytes);
       const finalFrame = data.elements.x52009230.items!.at(-1)!.dataSet!;
       const position = firstItem(finalFrame, 'x00209113');
-      overwrite(position, 'x00200032', '0.0\\0.0\\5.8225');
+      overwriteDicomString(position, 'x00200032', '0.0\\0.0\\5.8225');
       expect(
         spatialMetadataError(
           await augmented(deflated ? deflatedExplicitVR(bytes) : bytes)
@@ -423,7 +411,7 @@ describe('OCT enhanced spatial metadata', () => {
     const bytes = fixtureBytes();
     const data = readDataset(bytes);
     const secondFrame = data.elements.x52009230.items![1].dataSet!;
-    overwrite(
+    overwriteDicomString(
       firstItem(secondFrame, 'x00209113'),
       'x00200032',
       '1.0\\0.0\\0.1875'
@@ -460,7 +448,7 @@ describe('OCT enhanced spatial metadata', () => {
 
   it('accepts rounded orthogonal direction cosines', async () => {
     const bytes = fixtureBytes();
-    overwrite(
+    overwriteDicomString(
       firstItem(firstItem(readDataset(bytes), 'x52009229'), 'x00209116'),
       'x00200037',
       '.8660\\.5\\0\\-.5\\.8660\\0'
@@ -506,7 +494,7 @@ describe('OCT enhanced spatial metadata', () => {
             : []
         ).arrayBuffer()
       );
-      overwrite(
+      overwriteDicomString(
         firstItem(firstItem(readDataset(bytes), 'x52009229'), 'x00209116'),
         'x00200037',
         '  '
@@ -577,50 +565,46 @@ describe('OCT enhanced spatial metadata', () => {
     expect(tags.get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
 
-  it('rejects frames with inconsistent pixel spacing', async () => {
-    const tags = await augmentOCTMetadata(
-      enhancedFile([
+  it.each([
+    [
+      'frames with inconsistent pixel spacing',
+      [
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2', spacing: '0.02\\0.02' },
-      ]),
-      baseMetadata()
-    );
-    expect(spatialMetadataError(tags)).toMatch(/different pixel spacing/);
-  });
-
-  it('rejects unequal per-frame slice spacing without positions', async () => {
-    const tags = await augmentOCTMetadata(
-      enhancedFile([{ slowSpacing: '0.2' }, { slowSpacing: '0.3' }]),
-      baseMetadata()
-    );
-    expect(spatialMetadataError(tags)).toMatch(/slice spacing/);
-  });
-
-  it('rejects nonparallel frames', async () => {
-    const tags = await augmentOCTMetadata(
-      enhancedFile([
+      ],
+      /different pixel spacing/,
+    ],
+    [
+      'unequal per-frame slice spacing without positions',
+      [{ slowSpacing: '0.2' }, { slowSpacing: '0.3' }],
+      /slice spacing/,
+    ],
+    [
+      'nonparallel frames',
+      [
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2', orientation: '0\\1\\0\\1\\0\\0' },
-      ]),
-      baseMetadata()
-    );
-    expect(spatialMetadataError(tags)).toMatch(/not parallel/);
-  });
-
-  it.each([
-    [{ position: '0\\0\\0' }, {}],
-    [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }, {}],
-  ])('rejects partially missing frame positions %#', async (...frames) => {
+      ],
+      /not parallel/,
+    ],
+    [
+      'a frame missing its position',
+      [{ position: '0\\0\\0' }, {}],
+      /incomplete/,
+    ],
+    [
+      'a frame missing its position after a positioned pair',
+      [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }, {}],
+      /incomplete/,
+    ],
+    [
+      'repeated B-scans rather than stacking duplicate locations',
+      [{ position: '0\\0\\0' }, { position: '0\\0\\0' }],
+      /Repeated/,
+    ],
+  ])('rejects %s', async (_label, frames, error) => {
     const tags = await augmentOCTMetadata(enhancedFile(frames), baseMetadata());
-    expect(spatialMetadataError(tags)).toMatch(/incomplete/);
-  });
-
-  it('rejects repeated B-scans rather than stacking duplicate locations', async () => {
-    const tags = await augmentOCTMetadata(
-      enhancedFile([{ position: '0\\0\\0' }, { position: '0\\0\\0' }]),
-      baseMetadata()
-    );
-    expect(spatialMetadataError(tags)).toMatch(/Repeated/);
+    expect(spatialMetadataError(tags)).toMatch(error);
   });
 
   it('records unreadable spatial metadata when the OCT header cannot be parsed', async () => {

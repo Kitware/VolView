@@ -16,7 +16,11 @@ import { Tools } from '@/src/store/tools/types';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import {
+  activateEnFace,
+  createOCTFixture,
+  loadOCT,
+} from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 
 const releases: (() => void)[] = [];
@@ -43,14 +47,7 @@ function mountViewer(viewID: string) {
 
 it('enables pane interactions only when their projection source supports them', async () => {
   const views = useViewStore();
-  views.replaceView(views.layoutViews[0].id, {
-    name: 'En face',
-    type: 'EnFace',
-    dataID: null,
-    options: {},
-  });
-  const viewID = views.layoutViews[0].id;
-  views.setActiveView(viewID);
+  const viewID = activateEnFace(null);
   const tools = useToolStore();
   const wrapper = mountViewer(viewID);
   const button = () =>
@@ -111,26 +108,13 @@ it.each(['data', 'view'] as const)(
   'does not recreate removed %s settings while its viewer is still mounted',
   async (removed) => {
     const views = useViewStore();
-    views.replaceView(views.layoutViews[0].id, {
-      name: 'En face',
-      type: 'EnFace',
-      dataID: 'oct',
-      options: {},
-    });
-    const viewID = views.layoutViews[0].id;
-    views.setActiveView(viewID);
+    const viewID = activateEnFace('oct');
     useImageStatsStore().stats.oct = {
       scalarMin: 0,
       scalarMax: 768,
       autoRangeValues: {},
     };
-    const fixture = createOCTFixture();
-    releases.push(fixture.releaseDecode);
-    useImageCacheStore().addProgressiveImage(fixture.image, { id: 'oct' });
-    await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
-    fixture.image.startLoad();
-    await untilLoaded('oct');
+    await loadOCT(releases, 'oct');
     const wrapper = mountViewer(viewID);
     const store = useEnFaceViewStore();
     const savedSettings = () => {

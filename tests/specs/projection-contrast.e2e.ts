@@ -14,11 +14,11 @@ import { volViewPage } from '../pageobjects/volview.page';
 import {
   chooseEnFaceProjection,
   expectEnFacePixel,
-  expandEnFaceSection,
   getEnFaceWindow,
   setEnFaceWindow,
-  setSlabRange,
   waitForEnFaceReady,
+  setEnFaceSlab,
+  windowedGray,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -67,14 +67,6 @@ async function expectVisibleContrast(minimumSpread: number) {
   });
 }
 
-async function setProjectionSlab(first: number, last: number) {
-  await $('[data-testid="enface-controls"]').click();
-  await expandEnFaceSection('projection');
-  await setSlabRange(first, last);
-  await browser.keys('Escape');
-  await waitForEnFaceReady();
-}
-
 async function expectAutomaticRange(minimum: number, maximum: number) {
   const window = await getEnFaceWindow();
   expect(window.width).toBeGreaterThan(0);
@@ -88,10 +80,7 @@ async function expectAnalyticalPixel(
   value: number,
   window: { width: number; level: number }
 ) {
-  const gray = Math.round(
-    ((value - window.level + window.width / 2) / window.width) * 255
-  );
-  await expectEnFacePixel(gray, [4, 3]);
+  await expectEnFacePixel(windowedGray(value, window), [4, 3]);
 }
 
 async function enFaceImageBounds() {
@@ -302,7 +291,8 @@ describe('Projection default contrast', () => {
     await waitForEnFaceReady();
     await expectAnalyticalPixel(1551, await expectAutomaticRange(1110, 1875));
     await chooseEnFaceProjection('enface-projection-method', 'Mean');
-    await setProjectionSlab(1, 3);
+    await setEnFaceSlab(1, 3);
+    await waitForEnFaceReady();
     await expectAnalyticalPixel(89, await expectAutomaticRange(40, 125));
 
     const manual = { width: 160, level: 80 };
@@ -313,7 +303,8 @@ describe('Projection default contrast', () => {
     expect(await getEnFaceWindow()).toEqual(automatic);
     await expectAnalyticalPixel(109, automatic);
     await setEnFaceWindow(manual.width, manual.level);
-    await setProjectionSlab(2, 4);
+    await setEnFaceSlab(2, 4);
+    await waitForEnFaceReady();
     expect(await getEnFaceWindow()).toEqual(manual);
     await expectAnalyticalPixel(129, manual);
     const saved = await volViewPage.saveSession();
