@@ -79,21 +79,40 @@ export default defineComponent({
       { immediate: true }
     );
 
-    watch(
-      [hasAnonymousImages, patients] as const,
-      ([showAnonymous, patients_]) => {
-        const showPatients = patients_.length > 0;
-        if (showAnonymous) {
-          panels.value.push(ANONYMOUS_DATA_KEY);
-        }
-        if (showPatients) {
-          panels.value.push(...patients_.map((patient) => patient.key));
-        }
-        if (showAnonymous || showPatients) {
-          removeFromArray(panels.value, SAMPLE_DATA_KEY);
-        }
+    const openPanel = (key: string) => {
+      if (!panels.value.includes(key)) {
+        panels.value.push(key);
       }
+      removeFromArray(panels.value, SAMPLE_DATA_KEY);
+    };
+
+    // Expand the panel of newly loaded data, also when the panel already
+    // exists but was collapsed.
+    const anonymousImageIDs = computed(() =>
+      imageStore.idList.filter((id) => isRegularImage(id))
     );
+    watch(anonymousImageIDs, (ids, oldIds) => {
+      if (ids.some((id) => !oldIds.includes(id))) {
+        openPanel(ANONYMOUS_DATA_KEY);
+      }
+    });
+
+    const patientVolumes = computed(() =>
+      Object.fromEntries(
+        Object.entries(dicomStore.patientStudies).map(([patient, studies]) => [
+          patient,
+          studies.flatMap((study) => dicomStore.studyVolumes[study] ?? []),
+        ])
+      )
+    );
+    watch(patientVolumes, (volumes, oldVolumes) => {
+      Object.entries(volumes).forEach(([patient, ids]) => {
+        const oldIds = oldVolumes[patient] ?? [];
+        if (ids.some((id) => !oldIds.includes(id))) {
+          openPanel(patient);
+        }
+      });
+    });
 
     const deletePatient = (key: string) => {
       dicomStore.patientStudies[key]
