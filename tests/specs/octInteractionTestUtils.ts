@@ -4,10 +4,12 @@ import path from 'node:path';
 import {
   dragContrast,
   attachAndSelectMask,
+  enFaceAppearance,
   expectEnFacePixel,
   waitForEnFaceReady,
   stageIllustrativeMask,
   expectStackedSourceMask,
+  expandEnFaceSection,
   getEnFaceWindow as getWindow,
   displayedWindow,
   selectEnFace,
@@ -16,15 +18,19 @@ import {
   PANEL,
   WINDOW_TOOL,
 } from './octTestUtils';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import { makeTempDir, writeManifestToFile, overlayOption } from './utils';
 import { applyTestViewport } from '../../wdio.shared.conf';
 import { syntheticMask } from '../fixtures/oct/volumes';
 import reference from '../fixtures/oct/reference.json';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
+import { openAnnotationSegments } from './segmentationTestUtils';
 
 export { reference };
+
+export const THRESHOLD =
+  PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
 
 export const SLICE_LINE = '[data-testid="enface-slice-lines"] line';
 
@@ -51,6 +57,14 @@ export async function openControls() {
   await panel.waitForStable();
 }
 
+export async function setThicknessThreshold(value: number) {
+  await expandEnFaceSection('thickness');
+  const input = $(THRESHOLD);
+  await input.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await input.waitForClickable();
+  await setValueVueInput(input, String(value));
+}
+
 export async function selectSetting(
   testId: string,
   title: string,
@@ -67,10 +81,53 @@ export async function selectSetting(
   const option = overlayOption(title);
   await option.waitForClickable();
   await option.click();
+  await option.waitForDisplayed({ reverse: true });
 }
 
 export async function expectProjectionPixel(gray: number, x = 60, y = 12) {
   await expectEnFacePixel(gray, [x, y]);
+}
+
+export async function observeSlabProjectionChanges() {
+  await browser.execute(() => {
+    const viewer = document.querySelector('[data-testid="enface-viewer"]')!;
+    const threshold = document.querySelector(
+      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
+    )!;
+    const changes: string[] = [];
+    const observer = new MutationObserver((records) => {
+      records.forEach((record) => changes.push(record.attributeName!));
+    });
+    observer.observe(viewer, { attributeFilter: ['aria-busy'] });
+    observer.observe(threshold, { attributeFilter: ['aria-valuemax'] });
+    Object.assign(window, {
+      readSlabProjectionChanges: () => {
+        observer.disconnect();
+        return changes;
+      },
+    });
+  });
+  return () =>
+    browser.execute(() =>
+      (
+        window as typeof window & { readSlabProjectionChanges: () => string[] }
+      ).readSlabProjectionChanges()
+    );
+}
+
+export async function enableHighlight() {
+  await expandEnFaceSection('thickness');
+  const label = $(
+    '.v-overlay--active [data-testid="enface-thin-highlight"] label'
+  );
+  await label.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await label.waitForClickable();
+  if (
+    !(await $(
+      '.v-overlay--active [data-testid="enface-thin-highlight"] input'
+    ).isSelected())
+  )
+    await label.click();
 }
 
 export async function dragEnFaceContrast() {
@@ -99,6 +156,31 @@ export async function dragEnFaceContrast() {
 export async function getOriginalWindow() {
   const source = await (await volViewPage.getViews2D())[0].getElement();
   return displayedWindow(source);
+}
+
+export async function expectHighlight(present: boolean) {
+  await waitForEnFaceReady();
+  await browser.waitUntil(
+    async () => {
+      const { coloredPixels } = await enFaceAppearance();
+      return present ? coloredPixels > 100 : coloredPixels === 0;
+    },
+    {
+      timeoutMsg: `Expected enface highlight to be ${present ? 'visible' : 'hidden'}`,
+    }
+  );
+}
+
+export async function openHighlightedSegmentationDisplay() {
+  await openControls();
+  await enableHighlight();
+  await setThicknessThreshold(31);
+  await expectHighlight(true);
+  await browser.keys('Escape');
+  await openAnnotationSegments();
+  const display = $('[data-testid="segment-display-section"]');
+  if ((await display.getAttribute('aria-expanded')) !== 'true')
+    await display.click();
 }
 
 export async function expectCalibratedEnFace() {

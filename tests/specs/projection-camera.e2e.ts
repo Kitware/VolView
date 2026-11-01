@@ -5,7 +5,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { syntheticScalars } from '../fixtures/oct/dicom';
 import reference from '../fixtures/oct/reference.json';
 import { createNrrdVolume, syntheticMask } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   enFaceAppearance,
   canvasAppearance,
@@ -157,27 +157,35 @@ async function expectSourceMaskPixels(expectedImage?: string) {
 async function releaseMaskAfterReachableProjection(
   inspected: Awaited<ReturnType<typeof panAndZoom>>
 ) {
-  await browser.waitUntil(() =>
-    browser.execute(
-      () => (window as unknown as MaskGateWindow).maskRestoreGate.entered
-    )
-  );
-  await expect($(VIEWER + ' .annotation-cell')).toHaveText(
-    expect.stringContaining(SOURCE_NAME)
-  );
-  await expectCameraAndPixels(inspected);
-  const sourceCanvas = await $(
-    'div[data-testid~="vtk-two-view"] canvas'
-  ).getElement();
-  await browser.waitUntil(
-    async () => (await canvasAppearance(sourceCanvas)).visiblePixels > 1000
-  );
-  expect((await canvasAppearance(sourceCanvas)).coloredPixels).toBe(0);
-  await browser.execute(() => {
-    const gate = (window as unknown as MaskGateWindow).maskRestoreGate;
-    if (!gate.release) throw new Error('No decoded archived mask is held');
-    gate.release();
-  });
+  try {
+    await browser.waitUntil(() =>
+      browser.execute(
+        () => (window as unknown as MaskGateWindow).maskRestoreGate.entered
+      )
+    );
+    await expect($(VIEWER + ' .annotation-cell')).toHaveText(
+      expect.stringContaining(SOURCE_NAME)
+    );
+    await expectCameraAndPixels(inspected);
+    const sourceCanvas = await $(
+      'div[data-testid~="vtk-two-view"] canvas'
+    ).getElement();
+    await browser.waitUntil(
+      async () => (await canvasAppearance(sourceCanvas)).visiblePixels > 1000
+    );
+    expect((await canvasAppearance(sourceCanvas)).coloredPixels).toBe(0);
+    await browser.execute(() => {
+      const gate = (window as unknown as MaskGateWindow).maskRestoreGate;
+      if (!gate.release) throw new Error('No decoded archived mask is held');
+      gate.release();
+    });
+  } finally {
+    await browser.execute(() => {
+      const gate = (window as unknown as MaskGateWindow).maskRestoreGate;
+      gate.armed = false;
+      gate.release?.();
+    });
+  }
 }
 
 describe('Projection camera persistence', () => {
@@ -228,7 +236,29 @@ describe('Projection camera persistence', () => {
     await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
-    const inspected = await panAndZoom();
+    const baseProjection = await panAndZoom();
+    await openControls();
+    await expandEnFaceSection('thickness');
+    const highlight = $(
+      '.v-overlay--active [data-testid="enface-thin-highlight"]'
+    );
+    await highlight.$('label').click();
+    await selectSetting('enface-segmentation-segment', SEGMENT_NAME);
+    const threshold = $(
+      '.v-overlay--active [data-testid="enface-thickness-threshold-input"] input'
+    );
+    await threshold.scrollIntoView();
+    await threshold.waitForClickable();
+    await setValueVueInput(threshold, '6500');
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the enface labelmap to be visible' }
+    );
+    await expectProjectionTransform(baseProjection.transform);
+    const inspected = {
+      transform: baseProjection.transform,
+      image: (await enFaceAppearance()).image,
+    };
     const sourceMaskImage = await expectSourceMaskPixels();
     const saved = await saveScene();
 
@@ -237,11 +267,21 @@ describe('Projection camera persistence', () => {
       (window as unknown as MaskGateWindow).maskRestoreGate.armed = true;
     });
     await openThroughDialog(path.join(TEMP_DIR, saved));
-    await releaseMaskAfterReachableProjection(inspected);
+    await releaseMaskAfterReachableProjection(baseProjection);
     await expectSourceMaskPixels(sourceMaskImage);
     await expectCameraAndPixels(inspected);
     await openControls();
     await expectEnFaceProjectionSettings('Sagittal', 10, 100);
+    await expandEnFaceSection('thickness');
+    await expect(
+      $('.v-overlay--active [data-testid="enface-segmentation-segment"]')
+    ).toHaveText(expect.stringContaining(SEGMENT_NAME));
+    await expect(highlight.$('input')).toBeSelected();
+    await expect(threshold).toHaveValue('6500');
+    await browser.waitUntil(
+      async () => (await enFaceAppearance()).coloredPixels > 100,
+      { timeoutMsg: 'Expected the enface labelmap to be visible' }
+    );
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

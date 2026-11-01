@@ -207,7 +207,11 @@ export const createStateFileRestorer = ({
       useSegmentStore().deserialize(manifest);
 
     // Restore camera and contrast before asynchronous mask decoding.
-    useViewConfigStore().deserializeAll(manifest, stateIDToStoreID);
+    useViewConfigStore().deserializeAll(
+      manifest,
+      stateIDToStoreID,
+      segmentIdMap
+    );
     Object.entries(stateIDToStoreID).forEach(([stateID, storeID]) => {
       viewStore.bindViewsToData(stateID, storeID, manifest);
     });

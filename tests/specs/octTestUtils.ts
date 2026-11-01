@@ -186,7 +186,7 @@ export async function displayedWindow(view: WebdriverIO.Element) {
   return { width: Number(match[1]), level: Number(match[2]) };
 }
 
-export async function expandEnFaceSection(section: 'projection') {
+export async function expandEnFaceSection(section: 'projection' | 'thickness') {
   const toggle = $(
     '.v-overlay--active [data-testid="enface-' + section + '-toggle"]'
   );
@@ -498,15 +498,20 @@ export async function setEnFaceWindow(
 
 export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const viewer = await enFaceView(view);
-  const toggleSelector =
-    '.v-overlay--active [data-testid="enface-projection-toggle"]';
   const panel = $(PANEL);
   const controls = viewer.$(CONTROLS);
   const restorePanel =
     (await controls.getAttribute('aria-expanded')) === 'true';
-  const expanded =
-    restorePanel &&
-    (await $(toggleSelector).getAttribute('aria-expanded')) === 'true';
+  const sections = ['projection', 'thickness'] as const;
+  const expanded = await Promise.all(
+    sections.map(
+      async (section) =>
+        restorePanel &&
+        (await panel
+          .$('[data-testid="enface-' + section + '-toggle"]')
+          .getAttribute('aria-expanded')) === 'true'
+    )
+  );
   await volViewPage.closeMenu(controls);
   if (restorePanel) await panel.waitForDisplayed({ reverse: true });
   await viewer.$(CANVAS).waitForClickable();
@@ -523,13 +528,17 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     const reopened = $(PANEL);
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
-    const toggle = $(toggleSelector);
-    if (expanded) {
-      await expandEnFaceSection('projection');
-    } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
-      await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
-      await toggle.waitForClickable();
-      await toggle.click();
+    for (const [index, section] of sections.entries()) {
+      const toggle = reopened.$(
+        '[data-testid="enface-' + section + '-toggle"]'
+      );
+      if (expanded[index]) {
+        await expandEnFaceSection(section);
+      } else if ((await toggle.getAttribute('aria-expanded')) === 'true') {
+        await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await toggle.waitForClickable();
+        await toggle.click();
+      }
     }
     await reopened.waitForStable();
   }

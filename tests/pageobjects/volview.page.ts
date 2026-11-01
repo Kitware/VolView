@@ -368,8 +368,8 @@ class VolViewPage extends Page {
   async closeMenu(activator: ChainablePromiseElement) {
     const contentId = await activator.getAttribute('aria-controls');
     if ((await activator.getAttribute('aria-expanded')) === 'true') {
-      await activator.waitForClickable();
-      await activator.click();
+      // A tall popup can cover its activator in a compact pane.
+      await browser.keys(Key.Escape);
     }
     await expect(activator).toHaveAttribute('aria-expanded', 'false');
     if (contentId)
