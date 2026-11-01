@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { terminateProcessWorkers } from '@/src/segmentation/editing/processWorker';
+import {
+  createWorkerHost,
+  terminateProcessWorkers,
+} from '@/src/segmentation/editing/processWorker';
 import { hostOverSilentWorkers } from '@/src/segmentation/editing/__tests__/silentWorker';
 
 describe('a process worker host', () => {
@@ -87,5 +90,16 @@ describe('a process worker host', () => {
     expect(workers[0].terminated).toBe(true);
     expect(workers).toHaveLength(2);
     expect(workers[1].terminated).toBe(false);
+  });
+
+  it('leaves a plain host running when process runs are cancelled', async () => {
+    const { host, workers } = hostOverSilentWorkers(createWorkerHost);
+
+    const call = host.call((api) => api.smooth(1));
+    terminateProcessWorkers();
+
+    expect(workers[0].terminated).toBe(false);
+    host.terminate();
+    await expect(call).rejects.toThrow(/stopped/);
   });
 });

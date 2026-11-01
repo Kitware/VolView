@@ -37,6 +37,8 @@ const controlState = computed(() => {
       highlightReason: reason,
       thicknessReason: reason,
       segments: [],
+      segmentId: null,
+      highlightThin: false,
     },
   } satisfies EnFaceViewControlState;
 });

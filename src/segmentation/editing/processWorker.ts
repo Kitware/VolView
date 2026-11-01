@@ -21,7 +21,7 @@ type ProcessWorkerHost<Api> = {
   terminate(): void;
 };
 
-/** Every host built here, so a cancelled run can drop the lot. */
+/** Every process host, so a cancelled run can drop the lot. */
 const hosts = new Set<{ terminate: () => void }>();
 
 /**
@@ -36,12 +36,10 @@ export function terminateProcessWorkers() {
 
 function workerFailure(event: Event) {
   const reported = (event as Partial<ErrorEvent>).message;
-  return new Error(
-    reported || `The worker running this process reported "${event.type}".`
-  );
+  return new Error(reported || `The worker reported "${event.type}".`);
 }
 
-export function createProcessWorkerHost<Api>(
+export function createWorkerHost<Api>(
   spawn: () => Worker
 ): ProcessWorkerHost<Api> {
   let live: {
@@ -84,11 +82,16 @@ export function createProcessWorkerHost<Api>(
     });
   }
 
-  const host = {
+  return {
     call,
     terminate: () =>
       live?.discard(new Error('The process worker was stopped.')),
   };
+}
+
+/** A host that `terminateProcessWorkers` ends with a cancelled run. */
+export function createProcessWorkerHost<Api>(spawn: () => Worker) {
+  const host = createWorkerHost<Api>(spawn);
   hosts.add(host);
   return host;
 }

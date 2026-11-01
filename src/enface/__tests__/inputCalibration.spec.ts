@@ -61,7 +61,7 @@ async function mountInput(id: string) {
   };
   segmentation.maskVoxels(mask.id).apply(new Uint8Array(8).fill(1));
   const settings = useEnFaceViewStore().configFor('calibration', id);
-  settings.highlightThin = true;
+  Object.assign(settings, { highlightThin: true, segmentId: segment });
   const host = defineComponent({
     setup() {
       const projection = useEnFaceInput('calibration');
@@ -96,6 +96,8 @@ async function mountInput(id: string) {
               highlightReason: input.highlightReason.value,
               thicknessReason: input.thicknessReason.value,
               segments: input.segmentOptions.value,
+              segmentId: input.segmentId.value,
+              highlightThin: input.highlightThin.value,
             },
           }),
         ]);

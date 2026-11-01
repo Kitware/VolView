@@ -14,7 +14,7 @@ const emit = defineEmits<{
 const thresholdReason = computed(
   () =>
     props.thicknessReason ||
-    (!props.settings.highlightThin
+    (!props.highlightThin
       ? 'Enable thin-region highlighting to adjust the threshold.'
       : null)
 );
@@ -26,11 +26,12 @@ function updateThreshold(value: string | number | null) {
 function updateSliderThreshold(value: number) {
   updateThreshold(Math.round(value * 10) / 10);
 }
+// Edits save the shown pair, so a stale saved choice cannot resurface.
 function updateSegment(segmentId: string | null) {
-  emit('patch', { segmentId });
+  emit('patch', { segmentId, highlightThin: props.highlightThin });
 }
 function updateHighlight(highlightThin: boolean | null) {
-  emit('patch', { highlightThin: !!highlightThin });
+  emit('patch', { highlightThin: !!highlightThin, segmentId: props.segmentId });
 }
 </script>
 
@@ -45,7 +46,7 @@ function updateHighlight(highlightThin: boolean | null) {
     <v-expansion-panel-text class="thickness-controls">
       <ReasonedAction :reason="highlightReason ?? undefined" block>
         <v-switch
-          :model-value="settings.highlightThin"
+          :model-value="highlightThin"
           @update:model-value="updateHighlight"
           color="secondary"
           density="compact"
@@ -58,7 +59,7 @@ function updateHighlight(highlightThin: boolean | null) {
       </ReasonedAction>
       <ReasonedAction :reason="segmentationReason ?? undefined" block>
         <v-select
-          :model-value="settings.segmentId"
+          :model-value="segmentId"
           @update:model-value="updateSegment"
           :items="segments"
           label="Thickness segment"
