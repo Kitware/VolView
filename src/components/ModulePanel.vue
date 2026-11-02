@@ -28,6 +28,8 @@
           v-for="mod in modules"
           :key="mod.name"
           :value="mod.name"
+          :transition="false"
+          :reverse-transition="false"
           class="module-window-item"
         >
           <component
