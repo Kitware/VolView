@@ -51,6 +51,62 @@ const DRAWING_TOOLS = [
 ];
 
 describe('Annotations sidebar', () => {
+  it('uses the annotation panel height immediately when switching from Rendering', async () => {
+    await openUrls([PROSTATEX_DATASET]);
+    await $('[data-testid="module-tab-Annotations"]').click();
+    await $('[data-testid="measurements-section"]').waitForDisplayed();
+    await $('[data-testid="module-tab-Rendering"]').click();
+    await browser.waitUntil(
+      () =>
+        browser.execute(() => {
+          const panel = document.querySelector('.module-window')!;
+          return [
+            ...panel.querySelectorAll(
+              '.v-window__container, .module-window-item'
+            ),
+          ].every((element) => element.getAnimations().length === 0);
+        }),
+      { timeoutMsg: 'Rendering panel transition did not finish' }
+    );
+
+    const heights = await browser.executeAsync<
+      { available: number; maximum: number; final: number },
+      []
+    >((done) => {
+      const container =
+        document.querySelector<HTMLElement>('#module-container')!;
+      const panel = document.querySelector('.module-window')!;
+      let maximum = 0;
+      const sample = () => {
+        maximum = Math.max(maximum, container.scrollHeight);
+        if (
+          [
+            ...panel.querySelectorAll(
+              '.v-window__container, .module-window-item'
+            ),
+          ]
+            .flatMap((element) => element.getAnimations())
+            .some((animation) => animation.playState === 'running')
+        ) {
+          requestAnimationFrame(sample);
+        } else {
+          done({
+            available: container.clientHeight,
+            maximum,
+            final: container.scrollHeight,
+          });
+        }
+      };
+      document
+        .querySelector<HTMLElement>('[data-testid="module-tab-Annotations"]')!
+        .click();
+      requestAnimationFrame(sample);
+    });
+
+    expect(heights.final).toBe(heights.available);
+    expect(heights.maximum).toBe(heights.available);
+  });
+
   it('deletes a segment with its painted mask and measurement without a notification', async () => {
     const { axialView } = await placeRectangle();
     await volViewPage.activatePaint();
