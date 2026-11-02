@@ -16,6 +16,7 @@ import {
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useViewStore } from '@/src/store/views';
+import { useImageStatsStore } from '@/src/store/image-stats';
 import { defer } from '@/src/utils';
 import { Skip } from '@/src/utils/evaluateChain';
 
@@ -44,10 +45,7 @@ describe('image segment initialization boundaries', () => {
     expect(copied.id).not.toBe(selected);
   });
 
-  it.each([
-    [],
-    [{ name: 'Session', color: [1, 2, 3, 255], visible: true, locked: false }],
-  ])(
+  it.each([[], [{ name: 'Session', color: [1, 2, 3, 255] }]])(
     'uses restored defaults for an image without a saved set',
     async (...defaults) => {
       const store = useSegmentStore();
@@ -102,9 +100,7 @@ describe('image segment initialization boundaries', () => {
       const manifest = manifestForImages(['incoming'], {
         primarySelection: 'incoming',
         segments: [],
-        seedSegmentDefaults: [
-          { name: 'Fallback', visible: true, locked: false },
-        ],
+        seedSegmentDefaults: [{ name: 'Fallback' }],
         imageSegmentSets: savedEmptySet
           ? [{ imageId: 'incoming', segmentIds: [] }]
           : [],
@@ -224,6 +220,129 @@ describe('image segment initialization boundaries', () => {
     expect(segmentNames('base')).toEqual(['Lung', 'Lesion', 'labelmap']);
     expect(segmentNames('existing')).toEqual(['Lung', 'Lesion', 'Unrelated']);
   });
+
+  it.each([false, true])(
+    "captures a companion conversion's defaults while preserving intervening edits: %s",
+    async (edited) => {
+      const store = useSegmentStore();
+      store.replaceConfigSegments({ Lung: {} }, []);
+      await viewImage('existing');
+      store.segments.addSegment('existing', { name: 'Unrelated' });
+
+      await companionImport(() => {
+        if (edited) store.segments.addSegment('base', { name: 'My edit' });
+        store.replaceConfigSegments({ Other: {} }, []);
+      });
+
+      expect(segmentNames('base')).toEqual(
+        edited
+          ? ['Lung', 'Unrelated', 'My edit', 'labelmap']
+          : ['Lung', 'labelmap']
+      );
+      expect(serializeAnnotations().seedSegmentDefaults).toEqual([
+        { name: 'Other' },
+      ]);
+    }
+  );
+
+  it('initializes every image in an artifact-only restore from configured defaults', async () => {
+    const store = useSegmentStore();
+    store.replaceConfigSegments({ Site: {} }, []);
+    await viewImage('existing');
+    store.segments.addSegment('existing', { name: 'Unrelated' });
+    await viewImage('destination-a');
+    await seatImage('destination-b');
+    const image = await seatImage('artifact', {
+      values: new Uint8Array(64).fill(1),
+    });
+    const segmentation = useSegmentationStore();
+    const deserialize = segmentation.deserialize;
+    vi.spyOn(segmentation, 'deserialize').mockImplementation((options) =>
+      deserialize({
+        ...options,
+        io: { read: async () => ({ image }), write: async () => '' },
+      })
+    );
+    const ids = ['a', 'b'];
+    await completeStateFileRestore(
+      manifestForImages(ids, {
+        primarySelection: 'a',
+        segmentationArtifacts: ids.map((id) => ({
+          id: `artifact-${id}`,
+          name: `Mask ${id}`,
+          parentImage: id,
+          path: `${id}.vti`,
+        })),
+      }),
+      ids.map((id) => ({
+        archivePath: `${id}.vti`,
+        file: new File([], `${id}.vti`),
+      })),
+      { a: 'destination-a', b: 'destination-b' }
+    );
+
+    ids.forEach((id) => {
+      expect(segmentNames(`destination-${id}`)).toEqual(['Site', `Mask ${id}`]);
+      expect(segmentation.imageMasks(`destination-${id}`)).toHaveLength(1);
+    });
+    expect(segmentNames('existing')).toEqual(['Site', 'Unrelated']);
+  });
+
+  it.each([false, true])(
+    'ignores old view contents while replacing a restored layout (layout saved: %s)',
+    async (savedLayout) => {
+      ['existing', 'other', 'destination'].forEach((id) => {
+        useImageStatsStore().stats[id] = {
+          scalarMin: 0,
+          scalarMax: 0,
+          autoRangeValues: {},
+        };
+      });
+      await viewImage('existing');
+      const store = useSegmentStore();
+      store.segments.addSegment('existing', { name: 'Previous' });
+      await seatImage('other');
+      store.segments.addSegment('other', { name: 'Wrong source' });
+      await seatImage('destination');
+      const views = useViewStore();
+      const previousViewId = views.viewIDs[1];
+      views.setDataForView(previousViewId, 'existing');
+      views.setActiveView(previousViewId);
+      const incomingViewId = views.viewIDs[0];
+      views.setDataForView(incomingViewId, 'other');
+      const manifest = manifestForImages(['saved'], {
+        activeView: incomingViewId,
+        ...(savedLayout
+          ? {
+              layout: {
+                direction: 'row',
+                items: [
+                  { type: 'slot', slotIndex: 0 },
+                  { type: 'slot', slotIndex: 1 },
+                ],
+              },
+            }
+          : {}),
+        layoutSlots: [incomingViewId, previousViewId],
+        isActiveViewMaximized: true,
+        viewByID: {
+          [incomingViewId]: {
+            ...views.viewByID[incomingViewId],
+            dataID: 'saved',
+          },
+          [previousViewId]: { ...views.viewByID[previousViewId], dataID: null },
+        },
+      });
+
+      views.deserializeLayout(manifest);
+      await completeStateFileRestore(manifest, [], { saved: 'destination' });
+
+      expect(segmentNames('destination')).toEqual(['Previous']);
+      expect(views.visibleViews.map(({ dataID }) => dataID)).toEqual([
+        'destination',
+      ]);
+    }
+  );
 
   it.each(['new segment', 'paint'])(
     'keeps a copy edited by a %s before the companion segmentation lands',

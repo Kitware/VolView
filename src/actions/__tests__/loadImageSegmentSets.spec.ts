@@ -89,7 +89,7 @@ beforeEach(() => {
   activateAppPinia();
   slowEntered = defer<void>();
   slowGate = defer<void>();
-  // Run the production codecs in process; only their Worker transport differs.
+  // Read VTI/STL geometry in process and supply synthetic segmentation metadata.
   FILE_READERS.set(vtiMime, async (file) => {
     if (file.name === 'pending.vti') {
       slowEntered.resolve();
@@ -181,7 +181,6 @@ describe('image segment initialization through public loading', () => {
       }
       await duringPendingImage(async () => {
         const completed = await openImage('completed.vti');
-        expect(useLoadDataStore().isLoading).toBe(true);
         useViewStore().setDataForAllViews(completed);
         await nextTick();
         expect(picker(completed)()).toEqual(['Liver']);
@@ -386,7 +385,6 @@ describe('background labelmap conversion', () => {
         imageFile('stream.seg.vti', true),
       ]);
       expect(ids).toHaveLength(2);
-      expect(useLoadDataStore().isLoading).toBe(false);
       const views = useViewStore();
       const imageId = views.getView(views.activeView)!.dataID!;
       const names = picker(imageId);

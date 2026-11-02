@@ -212,9 +212,8 @@ describe('Paint process store', () => {
   });
 
   it('names a selected segment with no mask on this image as empty', () => {
-    // The selection is shared across images while masks are per image, so a
-    // selected segment routinely has no record on the image being viewed.
-    const segmentId = mintSegment('image-1', { name: 'Elsewhere' });
+    // A segment selected on this image need not have a mask yet.
+    const segmentId = mintSegment('image-1', { name: 'Unpainted' });
     useSegmentStore().segments.selectSegment(segmentId);
 
     expect(usePaintProcessStore().startRefusal('image-1')).toBe(

@@ -53,7 +53,7 @@ it('keeps the projection ready and restores the non-first segment after deferred
     spacing: [0.01, 0.01, 0.01],
   });
   const manifest = ManifestSchema.parse({
-    version: '7.0.0',
+    version: '8.0.0',
     datasets: [],
     dataSources: [],
     segments: ['first', 'chosen'].map((id, index) => ({

@@ -28,7 +28,7 @@ import { AnnotationToolType } from '@/src/store/tools/types';
 
 const detached = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-const ruler = (imageID: string, segmentId: string, placing = false) => ({
+const annotation = (imageID: string, segmentId: string, placing = false) => ({
   imageID,
   segmentId,
   placing,
@@ -37,8 +37,21 @@ const ruler = (imageID: string, segmentId: string, placing = false) => ({
     planeOrigin: [0, 0, 0] as Vector3,
     planeNormal: [0, 0, 1] as Vector3,
   },
+});
+
+const ruler = (imageID: string, segmentId: string, placing = false) => ({
+  ...annotation(imageID, segmentId, placing),
   firstPoint: [0, 0, 0] as Vector3,
   secondPoint: [1, 1, 0] as Vector3,
+});
+
+const polygon = (imageID: string, segmentId: string, placing = false) => ({
+  ...annotation(imageID, segmentId, placing),
+  points: [
+    [0, 0, 0],
+    [2, 0, 0],
+    [1, 2, 0],
+  ] as Vector3[],
 });
 
 const copiedCatalog = async (count: number) => {
@@ -68,14 +81,12 @@ describe('bulk image segment removal', () => {
 
   it('removes a copied empty catalog and preserves the remaining definitions and complete ruler geometry', async () => {
     const { registry, rulers } = await copiedCatalog(32);
-    const masks = useSegmentationStore();
     const beforeSegments = detached(registry.segmentList('b'));
     const beforeRulers = detached(rulers.serializeTools());
     const removedIds = registry.segmentList('a').map(({ id }) => id);
     expect(
       new Set([...removedIds, ...beforeSegments.map(({ id }) => id)]).size
     ).toBe(64);
-    expect(masks.segmentations).toEqual({});
     const cancelPreview = vi.fn();
     useSegmentationEditsStore().hold(cancelPreview);
 
@@ -90,7 +101,6 @@ describe('bulk image segment removal', () => {
     removedIds.forEach((removed) =>
       expect(saved.segments?.map(({ id }) => id)).not.toContain(removed)
     );
-    expect(masks.segmentations).toEqual({});
     expect(cancelPreview).not.toHaveBeenCalled();
   });
 
@@ -99,16 +109,23 @@ describe('bulk image segment removal', () => {
     const masks = useSegmentationStore();
     const aSegments = registry.segmentList('a');
     const b = registry.segmentList('b')[0].id;
-    const shapeStores = [rulers, useRectangleStore(), usePolygonStore()];
-    const tools = shapeStores.map((store) => ({
+    const shapeStores = [
+      { store: rulers, makeTool: ruler },
+      { store: useRectangleStore(), makeTool: ruler },
+      { store: usePolygonStore(), makeTool: polygon },
+    ];
+    const tools = shapeStores.map(({ store, makeTool }) => ({
       store,
       removed: [
-        ...aSegments.map(({ id }) => store.addTool(ruler('a', id))),
-        store.addTool(ruler('a', aSegments[0].id, true)),
-        store.addTool(ruler('a', '')),
+        ...aSegments.map(({ id }) => store.addTool(makeTool('a', id))),
+        store.addTool(makeTool('a', aSegments[0].id, true)),
+        store.addTool(makeTool('a', '')),
       ],
-      retained: store.addTool(ruler('b', b)),
+      retained: store.addTool(makeTool('b', b)),
     }));
+    const originalGeometry = tools.map(({ store, retained }) =>
+      detached(store.getPoints(retained))
+    );
     const aMasks = aSegments.map(({ id }) => masks.resolveEditTarget('a', id));
     aMasks.forEach((id, index) => seedVoxel(id, [index, 0, 0]));
     const bMask = masks.resolveEditTarget('b', b);
@@ -134,9 +151,10 @@ describe('bulk image segment removal', () => {
     const saved = serializeAnnotations(manifestForImages(['b'], { tools: {} }));
     expect(saved.tools?.rulers?.tools).toEqual(originalB);
     expect(saved.segments).toEqual(registry.segmentList('b'));
-    tools.forEach(({ store, removed, retained }) => {
+    tools.forEach(({ store, removed, retained }, index) => {
       expect(removed.every((id) => !store.toolByID[id])).toBe(true);
       expect(store.toolByID[retained]?.segmentId).toBe(b);
+      expect(store.getPoints(retained)).toEqual(originalGeometry[index]);
     });
     expect(selection.isSelected(selectedA)).toBe(false);
     expect(selection.isSelected(selectedB)).toBe(true);

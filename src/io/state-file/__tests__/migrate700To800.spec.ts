@@ -18,6 +18,8 @@ const planned = {
   id: 'planned',
   name: 'Planned',
   color: [0, 255, 0, 255],
+  visible: true,
+  locked: false,
 };
 
 const migrate = (overrides: Record<string, unknown> = {}) =>
@@ -199,15 +201,41 @@ describe('7.0.0 image segment ownership migration', () => {
     expect(migrated.segments!.some(({ id }) => id === missingId)).toBe(false);
   });
 
+  it('keeps a missing en face reference from selecting a generated segment', () => {
+    const missingId = 'image-1-segment-1';
+    const migrated = migrate({
+      viewByID: {
+        view: {
+          id: 'view',
+          type: 'EnFace',
+          name: 'En face',
+          config: {
+            a: {
+              enFace: {
+                axis: 1,
+                method: 'mean',
+                depthStart: 0,
+                depthEnd: null,
+                segmentId: missingId,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(migrated.viewByID!.view.config!.a.enFace!.segmentId).toBe(missingId);
+    expect(migrated.segments!.some(({ id }) => id === missingId)).toBe(false);
+  });
+
   it('retains an image-free catalog as seed defaults', () => {
     const migrated = migrate({ datasets: [], dataSources: [] });
     expect(migrated.imageSegmentSets).toEqual([]);
     expect(migrated.segments).toEqual([]);
     expect(migrated.seedSegmentDefaults).toEqual(
-      [
-        { ...tumor, id: undefined },
-        { ...planned, id: undefined, visible: true, locked: false },
-      ].map((definition) => omit(definition, ['id']))
+      [tumor, planned].map((definition) =>
+        omit(definition, ['id', 'visible', 'locked'])
+      )
     );
   });
 

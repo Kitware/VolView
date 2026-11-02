@@ -108,6 +108,14 @@ export function useSegmentEditing(
     { flush: 'sync' }
   );
 
+  watch(
+    editingSegment,
+    (segment) => {
+      if (!segment) stopEditing(false);
+    },
+    { flush: 'sync' }
+  );
+
   return {
     editDialog,
     editState,

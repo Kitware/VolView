@@ -34,7 +34,6 @@ const applyConfig = (raw: unknown) => {
   const { currentImageID } = useCurrentImage('global');
   applyPostStateConfig(
     config.parse(raw),
-    undefined,
     currentImageID.value ? [currentImageID.value] : []
   );
 };
@@ -393,8 +392,8 @@ describe('configured defaults without an active image', () => {
   it('waits for an image before creating configured segment identities', async () => {
     applyConfig(TWO_TYPES);
 
-    expect(segments().imageSets.value).toEqual({});
-    expect(store().segmentations).toEqual({});
+    expect(segments().serialize()).toEqual([]);
+    expect(boundMasks()).toEqual([]);
 
     await seatAndView('img-1');
 

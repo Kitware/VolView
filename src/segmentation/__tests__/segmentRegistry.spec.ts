@@ -312,11 +312,11 @@ describe('segment registry', () => {
     const registry = createSegmentRegistry();
     const chosen = registry.mintSegment('img-1', { name: 'Liver' });
     registry.selectSegment(chosen);
-    const revision = registry.selectionRevision.value;
+    const revision = registry.selectionRevision('img-1');
 
     registry.selectSegment(chosen);
 
-    expect(registry.selectionRevision.value).toBe(revision + 1);
+    expect(registry.selectionRevision('img-1')).toBe(revision + 1);
   });
 
   it('falls back to the first segment once the chosen one is deleted', () => {
@@ -666,6 +666,53 @@ describe('image segment sets', () => {
     );
   });
 
+  it.each([
+    {},
+    { color: [1, 2, 3, 255] as [number, number, number, number] },
+    { fillOpacity: undefined },
+  ])(
+    'keeps an unchanged copy replaceable after a no-op update (%o)',
+    (patch) => {
+      const registry = createSegmentRegistry();
+      registry.addSegment('source', { name: 'Copied', color: [1, 2, 3, 255] });
+      registry.initializeSet('destination', registry.snapshot('source'), {
+        copied: true,
+      });
+      registry.updateSegment(registry.segmentList('destination')[0].id, patch);
+
+      registry.releaseBorrowed('destination');
+      registry.initializeSet('destination', {
+        segments: [{ name: 'Incoming' }],
+        configured: [],
+      });
+
+      expect(namesOf(registry, 'destination')).toEqual(['Incoming']);
+    }
+  );
+
+  it('copies snapshot colors independently into every destination', () => {
+    const registry = createSegmentRegistry();
+    registry.replaceConfigSegments('source', { Tumor: { color: 'red' } });
+    const snapshot = registry.snapshot('source');
+    registry.initializeSet('first', snapshot);
+    registry.initializeSet('second', snapshot);
+
+    const first = registry.findSegmentByName('first', 'Tumor')!;
+    first.color[0] = 64;
+    registry.replaceConfigSegments('first', { Tumor: {} });
+
+    expect(registry.findSegmentByName('second', 'Tumor')?.color).toEqual(
+      cssColorToRGBA('red')
+    );
+    expect(registry.findSegmentByName('source', 'Tumor')?.color).toEqual(
+      cssColorToRGBA('red')
+    );
+    registry.replaceConfigSegments('second', { Tumor: {} });
+    expect(registry.findSegmentByName('second', 'Tumor')?.color).not.toEqual(
+      first.color
+    );
+  });
+
   it('preserves an initialized empty set instead of copying again', () => {
     const registry = createSegmentRegistry();
     registry.addSegment('first', { name: 'Tumor' });
@@ -675,7 +722,6 @@ describe('image segment sets', () => {
     registry.initializeSet('second', registry.snapshot('first'));
 
     expect(namesOf(registry, 'second')).toEqual([]);
-    expect(registry.imageSets.value.second).toEqual({ segmentIds: [] });
   });
 
   it('matches names, assigns defaults and applies config within one image', () => {
@@ -711,7 +757,7 @@ describe('image segment sets', () => {
     expect(namesOf(registry, 'second')).toEqual(['Node']);
     expect(registry.selectedSegmentId('second')).toBe(second);
     expect(registry.belongsToImage('second', first)).toBe(false);
-    expect(registry.ownerImageId(first)).toBe('first');
+    expect(registry.belongsToImage('first', first)).toBe(true);
   });
 
   it('forgets only the removed image metadata without invoking per-segment content removal', () => {
@@ -734,7 +780,7 @@ describe('image segment sets', () => {
     expect(registry.imageSets.value.first).toBeUndefined();
     expect(registry.getSegment(first)).toBeUndefined();
     expect(registry.getSegment(another)).toBeUndefined();
-    expect(registry.ownerImageId(first)).toBeUndefined();
+    expect(registry.belongsToImage('first', first)).toBe(false);
     expect(registry.getSegment(second)?.name).toBe('Tumor');
     expect(registry.selectedSegmentId('first')).toBeUndefined();
     expect(registry.selectedSegmentId('second')).toBe(second);

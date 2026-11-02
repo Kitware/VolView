@@ -238,6 +238,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;
 
+    useSegmentStore().segments.markEdited(imageID);
     const { voxels, maskId } = target;
     const underlyingImagePixels = parentImage
       .getPointData()

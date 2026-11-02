@@ -70,14 +70,11 @@ export default defineComponent({
 
     // --- widget representation config --- //
 
-    const { segments } = useSegmentStore();
+    const segmentStore = useSegmentStore();
     const pointerInView = ref(false);
     watchEffect(() => {
       if (!pointerInView.value) return;
-      const segmentId = segments.selectedSegmentId(imageId.value);
-      const [r, g, b] = segmentId
-        ? segments.appearanceOf(segmentId).color
-        : segments.nextSegmentColor(imageId.value);
+      const [r, g, b] = segmentStore.previewSegmentColor(imageId.value);
       widgetState.getBrush().setColor3([r, g, b]);
     });
 

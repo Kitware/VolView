@@ -52,6 +52,7 @@ import {
 import { boundScalars } from '@/src/segmentation/masks/overlap';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { withCopiedColor } from '@/src/segmentation/segmentRegistry';
 import { useMessageStore } from '@/src/store/messages';
 import {
   cleanUndefined,
@@ -418,6 +419,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const running = conversions.get(imageID)?.get(parentID);
     if (running) return running;
 
+    const companionDefaults = seedDefaults
+      ? useSegmentStore().seedSegmentDefaults.map(withCopiedColor)
+      : undefined;
+
     const bySourceValue = new Map(
       descriptions.map((descriptor) => [
         descriptor.value,
@@ -445,7 +450,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
         return withDeclaredEmpties(decoded, bySourceValue, coveredValues);
       },
       split: (labelmap, descriptors) => {
-        if (seedDefaults) useSegmentStore().seedDefaults(parentID);
+        if (companionDefaults)
+          useSegmentStore().seedDefaults(parentID, companionDefaults);
         const created = splitLabelmapIntoMasks(
           parentID,
           labelmap,
@@ -681,6 +687,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const segmentId =
       targetSegmentId(imageId, preferredSegmentId) ??
       segmentRegistry.ensureSelectedSegment(imageId);
+    segmentRegistry.markEdited(imageId);
     return ensureMask(imageId, segmentId).id;
   }
 

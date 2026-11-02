@@ -544,6 +544,13 @@ const remapEnFaceSegments = (
   });
 };
 
+const enFaceSegmentIds = (manifest: any) =>
+  Object.values(manifest.viewByID ?? {}).flatMap((view: any) =>
+    Object.values(view?.config ?? {}).map(
+      (config: any) => config?.enFace?.segmentId
+    )
+  );
+
 // Every saved image keeps the full catalog the global picker offered, including
 // unused rows. Mask buffers stay in place; only their segment references split.
 const migrate700To800 = (inputManifest: any) => {
@@ -564,6 +571,7 @@ const migrate700To800 = (inputManifest: any) => {
     ...ANNOTATION_TOOL_KEYS.flatMap((key) =>
       (manifest.tools?.[key]?.tools ?? []).map((tool: any) => tool.segmentId)
     ),
+    ...enFaceSegmentIds(manifest),
   ];
   // Missing references must stay missing rather than alias a newly minted id.
   const uniqueId = uniqueIdAmong(
@@ -620,7 +628,7 @@ const migrate700To800 = (inputManifest: any) => {
 
   if (imageIds.length === 0 && catalog.length > 0) {
     manifest.seedSegmentDefaults = catalog.map((segment) =>
-      omit(segment, ['id'])
+      omit(segment, ['id', 'visible', 'locked'])
     );
   }
   if (manifest.segments === undefined || Array.isArray(manifest.segments))

@@ -385,7 +385,7 @@ const {
           <editable-item-list
             :model-value="registry.selectedSegmentId(currentImageID)"
             @update:model-value="registry.selectSegment"
-            :selection-revision="registry.selectionRevision.value"
+            :selection-revision="registry.selectionRevision(currentImageID)"
             :items="rows"
             @move="registry.moveSegment"
             create-text="New segment"

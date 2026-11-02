@@ -10,20 +10,23 @@ import {
   type Segment,
   type SegmentInit,
 } from '@/src/segmentation/segment';
-import { cleanUndefined, omit } from '@/src/utils';
+import { arrayEquals, cleanUndefined, omit } from '@/src/utils';
 import { makeDefaultSegmentName } from '@/src/segmentation/model';
 import type { ConfiguredSegments } from '@/src/io/import/configSegments';
 
-export type ImageSegmentSet = {
+type ImageSegmentSet = {
   segmentIds: string[];
   selectedSegmentId?: string;
 };
 
-export type SegmentDefaults = Omit<Segment, 'id' | 'color'> & {
+export type SegmentDefaults = Omit<
+  Segment,
+  'id' | 'color' | 'visible' | 'locked'
+> & {
   color?: RGBAColor;
 };
 
-export type SegmentSetSnapshot = {
+type SegmentSetSnapshot = {
   segments: SegmentInit[];
   selectedIndex?: number;
   nextColorIndex?: number;
@@ -78,17 +81,15 @@ export const withCopiedColor = <T extends { color?: RGBAColor }>(
 /** The definitions a config gives an image that has no earlier set to copy. */
 export const defaultsFromConfig = (configured: ConfiguredSegments) =>
   Object.entries(configured).map(([name, props]) => ({
-    name,
-    visible: true,
-    locked: false,
     ...fromConfigured(name, props),
+    name,
   }));
 
 /** Seeds defaults as config-minted segments, as the config itself would. */
 export const snapshotFromDefaults = (
   defaults: readonly SegmentDefaults[]
 ): SegmentSetSnapshot => ({
-  segments: defaults.map(withCopiedColor),
+  segments: [...defaults],
   configured: defaults.map(
     ({ name, color, fillOpacity, outlineOpacity, strokeWidth }, index) => ({
       name,
@@ -96,7 +97,7 @@ export const snapshotFromDefaults = (
       appearance: configuredAppearance({ color: configuredColor(index) }),
       contribution: cleanUndefined({
         name,
-        ...(color ? { color: [...color] } : {}),
+        color,
         fillOpacity,
         outlineOpacity,
         strokeWidth,
@@ -207,22 +208,21 @@ export const createSegmentRegistry = (
   const getSegment = (id: Maybe<string>) =>
     id ? segmentById.value[id] : undefined;
 
-  const selectionRevision = ref(0);
+  const selectionRevisions = ref<Record<string, number>>(Object.create(null));
+  const selectionRevision = (imageId: Maybe<string>) =>
+    imageId ? (selectionRevisions.value[imageId] ?? 0) : 0;
 
   const selectedSegmentId = (imageId: Maybe<string>) => {
     const set = imageId ? imageSets.value[imageId] : undefined;
-    if (!set) return undefined;
-    return belongsToImage(imageId, set.selectedSegmentId)
-      ? set.selectedSegmentId
-      : set.segmentIds[0];
+    return set?.selectedSegmentId ?? set?.segmentIds[0];
   };
 
   const selectSegment = (id: Maybe<string>) => {
     const imageId = ownerImageId(id);
-    if (!imageId || !id || !getSegment(id)) return;
+    if (!imageId || !id) return;
     ensureSet(imageId).selectedSegmentId = id;
     // Reselecting the same segment can still request that its row be revealed.
-    selectionRevision.value += 1;
+    selectionRevisions.value[imageId] = selectionRevision(imageId) + 1;
   };
 
   const appearanceOf = (id: Maybe<string>) =>
@@ -304,6 +304,8 @@ export const createSegmentRegistry = (
     return id;
   };
 
+  const markEdited = (imageId: string) => borrowed.delete(imageId);
+
   const updateSegment = (id: string, patch: SegmentInit) => {
     const segment = segmentById.value[id];
     if (!segment) return;
@@ -317,6 +319,12 @@ export const createSegmentRegistry = (
       locked: patch.locked ?? segment.locked,
       id,
     };
+    const unchanged = Object.keys(next).every((key) =>
+      key === 'color'
+        ? arrayEquals(next.color, segment.color)
+        : next[key as keyof Segment] === segment[key as keyof Segment]
+    );
+    if (unchanged) return;
     borrowed.delete(ownerImageId(id)!);
     if (next.name !== segment.name) {
       const imageId = ownerImageId(id)!;
@@ -370,6 +378,8 @@ export const createSegmentRegistry = (
     return mintSegment(imageId, { ...init, name });
   };
 
+  // Updates replace records and colors; initialization copies the captured
+  // values into each destination's independently owned arrays.
   const snapshot = (imageId: string): SegmentSetSnapshot => {
     const segments = segmentList(imageId);
     const indexesById = new Map(segments.map(({ id }, index) => [id, index]));
@@ -377,9 +387,7 @@ export const createSegmentRegistry = (
       imageSets.value[imageId]?.selectedSegmentId ?? ''
     );
     return {
-      segments: segments.map((segment) =>
-        withCopiedColor(omit(segment, ['id']))
-      ),
+      segments: segments.map((segment) => omit(segment, ['id'])),
       ...(selectedIndex === undefined ? {} : { selectedIndex }),
       nextColorIndex: indexes.get(imageId)?.nextColorIndex ?? 0,
       configured: [...(indexes.get(imageId)?.config ?? [])].flatMap(
@@ -392,13 +400,8 @@ export const createSegmentRegistry = (
                   ...entry,
                   name,
                   index,
-                  appearance: withCopiedColor(entry.appearance),
-                  contribution: {
-                    ...entry.contribution,
-                    ...(entry.contribution.color
-                      ? { color: [...entry.contribution.color] }
-                      : {}),
-                  },
+                  appearance: entry.appearance,
+                  contribution: entry.contribution,
                 },
               ];
         }
@@ -413,10 +416,9 @@ export const createSegmentRegistry = (
   ) => {
     if (imageSets.value[imageId]) return;
     const set = ensureSet(imageId);
-    source.segments.forEach(({ color, ...segment }) =>
+    source.segments.forEach((segment) =>
       mintSegment(imageId, {
-        ...segment,
-        ...(color ? { color: [...color] } : {}),
+        ...withCopiedColor(segment),
         visible: true,
         locked: false,
       })
@@ -427,7 +429,13 @@ export const createSegmentRegistry = (
       selectSegment(set.segmentIds[source.selectedIndex]);
     source.configured.forEach(({ name, index, ...entry }) => {
       const id = set.segmentIds[index];
-      if (id) indexFor(imageId).config.set(name, { ...entry, id });
+      if (id)
+        indexFor(imageId).config.set(name, {
+          ...entry,
+          id,
+          appearance: withCopiedColor(entry.appearance),
+          contribution: cleanUndefined(withCopiedColor(entry.contribution)),
+        });
     });
     if (copied) borrowed.add(imageId);
   };
@@ -485,14 +493,15 @@ export const createSegmentRegistry = (
   // --- wire --- //
 
   const serialize = () =>
-    Object.keys(imageSets.value).flatMap((imageId) =>
-      segmentList(imageId).map((segment) => ({ ...segment }))
+    Object.values(imageSets.value).flatMap(({ segmentIds }) =>
+      segmentIds.map((id) => ({ ...segmentById.value[id] }))
     );
 
   // Image eviction also notifies each content store, which removes its own
   // masks and tools by image. Only the segment metadata belongs here.
   const removeImage = (imageId: string) => {
     borrowed.delete(imageId);
+    delete selectionRevisions.value[imageId];
     const ids = imageSets.value[imageId]?.segmentIds ?? [];
     delete imageSets.value[imageId];
     ids.forEach((id) => {
@@ -503,7 +512,7 @@ export const createSegmentRegistry = (
     indexes.delete(imageId);
   };
 
-  /** Drops a borrowed set still holding no mask or shape. */
+  /** Drops a copied set that no user edit or incoming content has claimed. */
   const releaseBorrowed = (imageId: string) => {
     const ids = imageSets.value[imageId]?.segmentIds ?? [];
     if (borrowed.has(imageId) && !ids.some(hasReferences)) removeImage(imageId);
@@ -588,7 +597,7 @@ export const createSegmentRegistry = (
   const restoreSelection = (imageId: string, id: Maybe<string>) => {
     if (
       belongsToImage(imageId, id) &&
-      !getSegment(imageSets.value[imageId]?.selectedSegmentId)
+      !imageSets.value[imageId]?.selectedSegmentId
     )
       selectSegment(id);
   };
@@ -597,7 +606,6 @@ export const createSegmentRegistry = (
     imageSets,
     initializeSet,
     snapshot,
-    ownerImageId,
     belongsToImage,
     removeImage,
     releaseBorrowed,
@@ -614,6 +622,7 @@ export const createSegmentRegistry = (
     mintSegment,
     addSegment,
     updateSegment,
+    markEdited,
     moveSegment,
     deleteSegment,
     ensureSelectedSegment,

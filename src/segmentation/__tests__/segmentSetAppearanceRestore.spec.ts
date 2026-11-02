@@ -55,9 +55,7 @@ describe('image segment appearance on restore', () => {
       manifestForImages([]),
       inMemoryArtifactIO()
     );
-    expect(defaults.seedSegmentDefaults).toEqual([
-      { name: 'Tumor', visible: true, locked: false },
-    ]);
+    expect(defaults.seedSegmentDefaults).toEqual([{ name: 'Tumor' }]);
 
     setActivePinia(createPinia());
     useSegmentStore().deserialize(ManifestSchema.parse(defaults), {});
@@ -78,9 +76,7 @@ describe('image segment appearance on restore', () => {
     useSegmentStore().deserialize(
       ManifestSchema.parse(
         manifestForImages([], {
-          seedSegmentDefaults: [
-            { name: 'Tumor', color, visible: true, locked: false },
-          ],
+          seedSegmentDefaults: [{ name: 'Tumor', color }],
         })
       ),
       {}

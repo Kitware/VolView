@@ -382,13 +382,8 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function deserializeLayout(manifest: Manifest) {
-    if (manifest.layout) {
-      setLayout(manifest.layout);
-    }
-    setActiveView(manifest.activeView);
-    if (manifest.isActiveViewMaximized !== undefined) {
-      isActiveViewMaximized.value = manifest.isActiveViewMaximized;
-    }
+    // No old view is current while the incoming layout replaces its contents.
+    setActiveView(undefined);
     if (manifest.layoutSlots) {
       layoutSlots.value = manifest.layoutSlots;
     }
@@ -407,6 +402,13 @@ export const useViewStore = defineStore('view', () => {
         } as unknown as ViewInfo;
       });
     }
+    if (manifest.layout) {
+      setLayout(manifest.layout);
+    }
+    if (manifest.isActiveViewMaximized !== undefined) {
+      isActiveViewMaximized.value = manifest.isActiveViewMaximized;
+    }
+    setActiveView(manifest.activeView);
   }
 
   function bindViewsToData(

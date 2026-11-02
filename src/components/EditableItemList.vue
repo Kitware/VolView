@@ -180,12 +180,10 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
           :disabled="disabled"
           @click="!disabled && emit('create')"
         >
-          <v-list-item class="create-row-content">
-            <div class="d-flex align-center">
-              <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
-              <span class="text-body-2">{{ createText }}</span>
-            </div>
-          </v-list-item>
+          <span class="create-row-content">
+            <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
+            <span class="text-body-2">{{ createText }}</span>
+          </span>
         </button>
       </reasoned-action>
     </div>
@@ -210,11 +208,17 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
 }
 
 .v-list-item.item-row,
-.v-list-item.create-row-content {
+.create-row-content {
   border: 1px solid transparent;
   border-radius: 4px;
   /* The default inset would dwarf the gaps between the row's parts. */
   padding-inline: 4px;
+}
+
+.create-row-content {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
 }
 
 .item-row.v-list-item--active {

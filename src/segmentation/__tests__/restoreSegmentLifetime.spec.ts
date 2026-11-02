@@ -5,6 +5,7 @@ import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useImageStatsStore } from '@/src/store/image-stats';
+import { useMessageStore } from '@/src/store/messages';
 import { defer } from '@/src/utils';
 import {
   activateAppPinia,
@@ -157,6 +158,11 @@ describe.each(['own', 'legacy'] as const)(
           healthy.id,
           '',
         ]);
+        expect(
+          useMessageStore().messages.some((message) =>
+            message.options.details?.includes('belongs to another image')
+          )
+        ).toBe(false);
       }
     );
   }

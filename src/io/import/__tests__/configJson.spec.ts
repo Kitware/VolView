@@ -104,8 +104,8 @@ describe('segment config', () => {
           Fine: { color: '#00ff00' },
         },
       }),
-      addError,
-      ['image']
+      ['image'],
+      { addError }
     );
     expect(addError).toHaveBeenCalledTimes(1);
     const [[message]] = addError.mock.calls;
@@ -117,7 +117,7 @@ describe('segment config', () => {
 
 describe('legacy labels', () => {
   const applyLabels = (labels: unknown) =>
-    applyPostStateConfig(config.parse({ labels }), undefined, ['image']);
+    applyPostStateConfig(config.parse({ labels }), ['image']);
 
   beforeEach(async () => {
     setActivePinia(createPinia());

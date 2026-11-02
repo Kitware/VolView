@@ -1,7 +1,8 @@
 import path from 'node:path';
 import { writeFileSync } from 'node:fs';
-import { volViewPage } from '../pageobjects/volview.page';
+import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
+  capture2DViewScreenshotMetrics,
   makeTempDir,
   openThroughDialog,
   openVolViewPage,
@@ -12,8 +13,10 @@ import {
   addSegment,
   openAnnotationSegments,
   segmentNames,
+  segmentRow,
   waitForSegmentContent,
 } from './segmentationTestUtils';
+import { moveTo } from './annotationTestUtils';
 
 type ConversionGateWindow = Window &
   typeof globalThis & {
@@ -160,36 +163,10 @@ const prepareSelectedPaint = async (stem: string) => {
   await expect(newSegmentButton()).toBeDisabled();
 };
 
-const imageMetrics = async () => {
-  const canvas = await (await volViewPage.getViews2D())[0].$('canvas');
-  return browser.execute(async (source) => {
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    );
-    const imageCanvas = source as HTMLCanvasElement;
-    const image = new Image();
-    image.src = imageCanvas.toDataURL();
-    await image.decode();
-    const copy = document.createElement('canvas');
-    copy.width = imageCanvas.width;
-    copy.height = imageCanvas.height;
-    const context = copy.getContext('2d')!;
-    context.drawImage(image, 0, 0);
-    const { data } = context.getImageData(0, 0, copy.width, copy.height);
-    let visiblePixels = 0;
-    let coloredPixels = 0;
-    for (let offset = 0; offset < data.length; offset += 4) {
-      const high = Math.max(data[offset], data[offset + 1], data[offset + 2]);
-      const low = Math.min(data[offset], data[offset + 1], data[offset + 2]);
-      if (data[offset + 3] && high > 20) visiblePixels++;
-      if (data[offset + 3] && high - low > 10) coloredPixels++;
-    }
-    return { visiblePixels, coloredPixels };
-  }, canvas);
-};
+const imageMetrics = async () =>
+  (await capture2DViewScreenshotMetrics('segmentation-loading.png'))[0];
 
-const moveOutsideImage = () =>
-  browser.action('pointer').move({ x: 10, y: 10 }).perform();
+const moveOutsideImage = () => moveTo(10, 10);
 
 const expectEditingEnabled = async () => {
   await expect(newSegmentButton()).toBeEnabled();
@@ -261,13 +238,10 @@ describe('Segment definitions during companion loading', () => {
     await loadCompanionWhile('segmentation-loading', async () => {});
 
     expect(await segmentNames()).toEqual(['Liver', 'Kidney', 'Tumor']);
-    await browser.waitUntil(
-      async () => (await imageMetrics()).coloredPixels > 0,
-      {
-        timeoutMsg:
-          'Expected the incoming Tumor mask to render on the primary image',
-      }
-    );
+    await browser.waitUntil(async () => (await imageMetrics()).colored > 0, {
+      timeoutMsg:
+        'Expected the incoming Tumor mask to render on the primary image',
+    });
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
@@ -275,14 +249,35 @@ describe('Segment definitions during companion loading', () => {
     await loadCompanionWhile('segmentation-loading-painted', async () => {
       await volViewPage.paintStrokeOnView((await volViewPage.getViews2D())[0]);
       await moveOutsideImage();
-      await browser.waitUntil(
-        async () => (await imageMetrics()).coloredPixels > 0,
-        { timeoutMsg: 'Expected the Liver stroke before conversion completes' }
-      );
+      await browser.waitUntil(async () => (await imageMetrics()).colored > 0, {
+        timeoutMsg: 'Expected the Liver stroke before conversion completes',
+      });
     });
 
     expect(await segmentNames()).toEqual(['Liver', 'Kidney', 'Tumor']);
+    await waitForSegmentContent('Liver');
+    await (await segmentRow('Tumor'))
+      .$('button[aria-label="Hide Tumor"]')
+      .click();
+    await browser.waitUntil(async () => (await imageMetrics()).colored > 0, {
+      timeoutMsg:
+        'Expected the original Liver stroke after conversion completes',
+    });
     expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('closes an uncommitted editor when its segment is replaced', async () => {
+    const dialog = () => $('div[role="dialog"]');
+    await loadCompanionWhile('segmentation-loading-editor', async () => {
+      await (await segmentRow('Liver'))
+        .$('button[data-testid="edit-segment-button"]')
+        .click();
+      await expect(dialog()).toBeDisplayed();
+      await setValueVueInput(dialog().$('.v-text-field input'), 'Uncommitted');
+    });
+
+    await expect(dialog()).not.toBeDisplayed();
+    expect(await segmentNames()).toEqual(['Liver', 'Kidney', 'Tumor']);
   });
 
   it('treats an explicitly empty companion configuration as ready and editable', async () => {
@@ -313,9 +308,7 @@ describe('Segment definitions during companion loading', () => {
     await volViewPage.paintStrokeOnView((await volViewPage.getViews2D())[0]);
     await moveOutsideImage();
     await waitForSegmentContent('Segment 1');
-    await browser.waitUntil(
-      async () => (await imageMetrics()).coloredPixels > 0
-    );
+    await browser.waitUntil(async () => (await imageMetrics()).colored > 0);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 });

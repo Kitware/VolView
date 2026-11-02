@@ -22,6 +22,7 @@ describe('creating an item', () => {
     const button = wrapper.get<HTMLButtonElement>('.create-row');
 
     expect(button.element.tagName).toBe('BUTTON');
+    expect(button.find('[role="listitem"]').exists()).toBe(false);
     expect(button.element.disabled).toBe(true);
     button.element.click();
     button.element.dispatchEvent(new MouseEvent('click', { bubbles: true }));

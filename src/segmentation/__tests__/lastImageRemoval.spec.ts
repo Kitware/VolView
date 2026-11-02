@@ -24,7 +24,7 @@ const seatBareImage = (id: string) => {
 };
 
 const configure = (configured: Record<string, { color?: string }>) =>
-  applyPostStateConfig(config.parse({ segments: configured }), undefined, []);
+  applyPostStateConfig(config.parse({ segments: configured }), []);
 
 describe('removing image segment sets', () => {
   beforeEach(() => {

@@ -238,6 +238,53 @@ describe('placing an annotation names its segment', () => {
     return id;
   };
 
+  const copyToDestination = () => {
+    segments().addSegment(IMAGE_ID, { name: 'Custom copied row' });
+    seatAndView('destination');
+    const store = useRulerStore();
+    const id = store.addTool({ imageID: 'destination', placing: true });
+    return { store, id };
+  };
+
+  it('keeps a copied set after a finished annotation is removed', () => {
+    const { store, id } = copyToDestination();
+    store.placeTool(id);
+    store.removeTool(id);
+
+    useSegmentStore().seedDefaults('destination');
+
+    expect(
+      segments()
+        .segmentList('destination')
+        .map(({ name }) => name)
+    ).toEqual(['Custom copied row']);
+  });
+
+  it('keeps the begun annotation in its copied segment while incoming defaults arrive', () => {
+    const { store, id } = copyToDestination();
+    store.resolveToolSegment(id);
+
+    useSegmentStore().seedDefaults('destination');
+    store.updateTool(id, { firstPoint: [0, 0, 0], secondPoint: [1, 1, 0] });
+    store.placeTool(id);
+
+    expect(store.getPoints(id)).toEqual([
+      [0, 0, 0],
+      [1, 1, 0],
+    ]);
+    expect(store.appearanceOfTool(id).name).toBe('Custom copied row');
+  });
+
+  it('replaces a copied set while its annotation is still an idle stub', () => {
+    const { store, id } = copyToDestination();
+
+    useSegmentStore().seedDefaults('destination');
+    expect(segments().segmentList('destination')).toEqual([]);
+    store.placeTool(id);
+
+    expect(store.appearanceOfTool(id).name).toBe('Segment 1');
+  });
+
   it('mints a segment for an annotation placed against nothing', () => {
     const store = useRectangleStore();
     expect(segments().selectedSegmentId(IMAGE_ID)).toBeUndefined();

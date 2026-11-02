@@ -212,6 +212,45 @@ describe('flat segment list', () => {
     await showImage('img-1');
   });
 
+  it('reveals a reselected row without scrolling when another image copies its selection', async () => {
+    makeSegment('First');
+    const selected = makeSegment('Selected');
+    segments().selectSegment(selected);
+    const passthrough = { template: '<div><slot /></div>' };
+    const wrapper = mount(SegmentList, {
+      global: {
+        stubs: {
+          ...globalOptions.stubs,
+          EditableItemList: false,
+          VList: passthrough,
+          VListItem: passthrough,
+          VListItemTitle: passthrough,
+        },
+      },
+    });
+    await nextTick();
+    const list = wrapper.get<HTMLElement>('.item-list-scroll').element;
+    const row = wrapper.get<HTMLElement>(
+      '.item-row[aria-current="true"]'
+    ).element;
+    Object.defineProperties(list, {
+      clientHeight: { value: 100 },
+      clientTop: { value: 0 },
+    });
+    list.getBoundingClientRect = () => ({ top: 0, bottom: 100 }) as DOMRect;
+    row.getBoundingClientRect = () => ({ top: 200, bottom: 240 }) as DOMRect;
+
+    segments().initializeSet('img-2', segments().snapshot('img-1'), {
+      copied: true,
+    });
+    await nextTick();
+    expect(list.scrollTop).toBe(0);
+
+    segments().selectSegment(selected);
+    await nextTick();
+    expect(list.scrollTop).toBe(140);
+  });
+
   it('lists the registry in creation order, keyed by segment id', async () => {
     const first = makeMask('img-1', 'Tumor');
     const second = makeMask('img-1', 'Node');

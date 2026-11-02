@@ -61,44 +61,69 @@ export const useSegmentStore = defineStore('segments', () => {
   const registry = createSegmentRegistry(prepareForEdit);
   const seedSegmentDefaults = ref<SegmentDefaults[]>([]);
   const { currentImageID: activeImageId } = useCurrentImage('global');
-  let lastImageId: string | undefined;
+  const lastImageId = ref<string>();
 
   const defaultSnapshot = () => snapshotFromDefaults(seedSegmentDefaults.value);
 
   // A new set copies the last viewed image's, else starts from the defaults.
   const inheritedSet = () =>
-    lastImageId && registry.imageSets.value[lastImageId]
-      ? registry.snapshot(lastImageId)
+    lastImageId.value && registry.imageSets.value[lastImageId.value]
+      ? registry.snapshot(lastImageId.value)
       : defaultSnapshot();
+
+  const previewSegmentColor = (imageId: Maybe<string>) => {
+    const sourceImageId =
+      imageId && registry.imageSets.value[imageId]
+        ? imageId
+        : lastImageId.value;
+    if (sourceImageId && registry.imageSets.value[sourceImageId]) {
+      const segmentId = registry.selectedSegmentId(sourceImageId);
+      return segmentId
+        ? registry.appearanceOf(segmentId).color
+        : registry.nextSegmentColor(sourceImageId);
+    }
+    return (
+      seedSegmentDefaults.value[0]?.color ??
+      registry.nextSegmentColor(undefined)
+    );
+  };
 
   watch(
     activeImageId,
     (imageId) => {
       if (!imageId || !imageCacheStore.imageById[imageId]) return;
       prepareForEdit(imageId);
-      lastImageId = imageId;
+      lastImageId.value = imageId;
     },
     { immediate: true, flush: 'sync' }
   );
 
   /** Incoming definitions merge into the defaults, not a copy nobody edited. */
-  function seedDefaults(imageId: string) {
+  function seedDefaults(
+    imageId: string,
+    defaults: readonly SegmentDefaults[] = seedSegmentDefaults.value
+  ) {
     registry.releaseBorrowed(imageId);
-    if (imageCacheStore.imageById[imageId])
-      registry.initializeSet(imageId, defaultSnapshot());
+    if (
+      imageCacheStore.imageById[imageId] &&
+      !registry.imageSets.value[imageId]
+    )
+      registry.initializeSet(imageId, snapshotFromDefaults(defaults));
   }
 
   function replaceConfigSegments(
     configured: Maybe<ConfiguredSegments>,
-    imageIds: string[]
+    imageIds: string[],
+    { replaceBorrowed = false } = {}
   ) {
     if (configured === undefined) return;
     seedSegmentDefaults.value = defaultsFromConfig(configured ?? {});
-    imageIds
+    [...new Set(imageIds)]
       .filter((id) => imageCacheStore.imageById[id])
-      .forEach((imageId) =>
-        registry.replaceConfigSegments(imageId, configured)
-      );
+      .forEach((imageId) => {
+        if (replaceBorrowed) registry.releaseBorrowed(imageId);
+        registry.replaceConfigSegments(imageId, configured);
+      });
   }
 
   function serialize(state: StateFile) {
@@ -112,6 +137,33 @@ export const useSegmentStore = defineStore('segments', () => {
     }));
     state.manifest.seedSegmentDefaults =
       seedSegmentDefaults.value.map(withCopiedColor);
+  }
+
+  function restoreDefaults(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
+    // Artifact-only manifests provide incoming definitions through their masks.
+    // Initialize every restored image before views or asynchronous decoding can
+    // give the active image a different borrowed set.
+    if (
+      manifest.seedSegmentDefaults ||
+      (manifest.segmentationArtifacts?.length &&
+        !manifest.segments &&
+        !manifest.imageSegmentSets)
+    ) {
+      if (manifest.seedSegmentDefaults)
+        seedSegmentDefaults.value =
+          manifest.seedSegmentDefaults.map(withCopiedColor);
+      const savedImages = new Set(
+        (manifest.imageSegmentSets ?? []).map(
+          ({ imageId }) => dataIDMap[imageId]
+        )
+      );
+      [...new Set(Object.values(dataIDMap))]
+        .filter((imageId) => !savedImages.has(imageId))
+        .forEach((imageId) => seedDefaults(imageId));
+    }
   }
 
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
@@ -158,18 +210,7 @@ export const useSegmentStore = defineStore('segments', () => {
         set.selectedSegmentId && segmentIdMap[set.selectedSegmentId]
       );
     });
-    if (manifest.seedSegmentDefaults) {
-      seedSegmentDefaults.value =
-        manifest.seedSegmentDefaults.map(withCopiedColor);
-      const savedImages = new Set(
-        (manifest.imageSegmentSets ?? []).map(
-          ({ imageId }) => dataIDMap[imageId]
-        )
-      );
-      Object.values(dataIDMap)
-        .filter((imageId) => !savedImages.has(imageId))
-        .forEach(seedDefaults);
-    }
+    restoreDefaults(manifest, dataIDMap);
     const assigned = new Set(
       (manifest.imageSegmentSets ?? []).flatMap(({ segmentIds }) => segmentIds)
     );
@@ -181,7 +222,7 @@ export const useSegmentStore = defineStore('segments', () => {
 
   onImageDeleted((deleted) => {
     deleted.forEach((imageId) => {
-      if (lastImageId === imageId) lastImageId = undefined;
+      if (lastImageId.value === imageId) lastImageId.value = undefined;
       registry.removeImage(imageId);
     });
   });
@@ -190,6 +231,7 @@ export const useSegmentStore = defineStore('segments', () => {
     segments: markRaw(registry),
     seedSegmentDefaults,
     prepareForEdit,
+    previewSegmentColor,
     seedDefaults,
     replaceConfigSegments,
     serialize,

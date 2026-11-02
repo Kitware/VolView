@@ -21,6 +21,34 @@ describe('committing a segment edit', () => {
     return { registry, id, imageId, editing };
   };
 
+  it.each([false, true])(
+    'leaves an unchanged copy replaceable after Done (fields reverted: %s)',
+    (revert) => {
+      const registry = createSegmentRegistry();
+      registry.addSegment('source', { name: 'Copied' });
+      registry.initializeSet('image', registry.snapshot('source'), {
+        copied: true,
+      });
+      const editing = useSegmentEditing(registry, ref('image'));
+      editing.startEditing(registry.segmentList('image')[0].id);
+      if (revert) {
+        editing.editState.name = 'Changed';
+        editing.editState.name = 'Copied';
+      }
+
+      editing.stopEditing(true);
+      registry.releaseBorrowed('image');
+      registry.initializeSet('image', {
+        segments: [{ name: 'Incoming' }],
+        configured: [],
+      });
+
+      expect(registry.segmentList('image').map(({ name }) => name)).toEqual([
+        'Incoming',
+      ]);
+    }
+  );
+
   it('leaves the fields a rename did not touch unstated', () => {
     const { registry, id, editing } = editSegment();
     const { color } = registry.getSegment(id)!;

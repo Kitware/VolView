@@ -119,6 +119,7 @@ export const useAnnotationTool = <
     };
 
     toolIDs.value.push(id);
+    if (!tool.placing && tool.imageID) registry.markEdited(tool.imageID);
     return id;
   }
 
@@ -164,11 +165,12 @@ export const useAnnotationTool = <
   // placed. Idempotent, since the tool then names a live segment.
   function resolveToolSegment(id: ToolID) {
     const tool = toolByID.value[id];
-    if (!tool?.imageID || registry.belongsToImage(tool.imageID, tool.segmentId))
-      return;
-    updateTool(id, {
-      segmentId: registry.ensureSelectedSegment(tool.imageID),
-    } as ToolPatch);
+    if (!tool?.imageID) return;
+    if (!registry.belongsToImage(tool.imageID, tool.segmentId))
+      updateTool(id, {
+        segmentId: registry.ensureSelectedSegment(tool.imageID),
+      } as ToolPatch);
+    registry.markEdited(tool.imageID);
   }
 
   // Placing resolves too, for an annotation that arrived without one of the
@@ -232,6 +234,7 @@ export const useAnnotationTool = <
         if (!mappedImageId || !imageCache.imageById[mappedImageId])
           return false;
         const mappedId = segmentId && segmentIdMap[segmentId];
+        if (mappedId && !registry.getSegment(mappedId)) return false;
         if (mappedId && !registry.belongsToImage(mappedImageId, mappedId)) {
           skipped.push({
             name: name ?? manifestKey,

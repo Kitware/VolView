@@ -170,7 +170,9 @@ an image share its segments.
   The Display sliders in "Annotations" scale these per image.
 - `strokeWidth`: line width for rectangles, polygons and rulers.
 
-All fields are optional. Omitted fields use the app defaults.
+All fields are optional. On a new segment, omitted fields use the app defaults.
+On an existing segment matched by name, omitted fields preserve its underlying
+appearance.
 
 A configuration loaded with images applies to those images. A configuration loaded on
 its own applies to the image that was active when loading started. Either way, the
@@ -178,8 +180,9 @@ configured segments also become the starting set for new images with no earlier 
 to copy from.
 
 Applying a configuration again restores each configured name and appearance. Omitting
-`segments` changes nothing. `{}` or `null` removes the configured segments, except any
-that hold masks or shapes.
+`segments` changes nothing. `{}` or `null` removes only unreferenced segments that
+the configuration created. Segments matched by name and segments that hold masks
+or shapes remain.
 
 ### Legacy `labels`
 

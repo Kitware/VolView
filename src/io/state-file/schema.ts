@@ -382,7 +382,7 @@ export const Segment = z.object({
   strokeWidth: z.number().optional(),
 }) satisfies z.ZodType<SegmentModel>;
 
-export const ImageSegmentSet = z.object({
+const ImageSegmentSet = z.object({
   imageId: z.string(),
   segmentIds: z.string().array(),
   selectedSegmentId: z.string().optional(),
@@ -391,9 +391,11 @@ export const ImageSegmentSet = z.object({
   legacySegmentIds: z.record(z.string(), z.string()).optional(),
 });
 
-export type ImageSegmentSet = z.infer<typeof ImageSegmentSet>;
-
-const SegmentDefaults = Segment.omit({ id: true }).extend({
+const SegmentDefaults = Segment.omit({
+  id: true,
+  visible: true,
+  locked: true,
+}).extend({
   color: RGBAColor.optional(),
 });
 

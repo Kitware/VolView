@@ -359,7 +359,7 @@ describe('Image segmentation sets', () => {
     await showImage(SECOND);
     await expectSegments([]);
 
-    // Save with the populated image active so a lost empty set would borrow it.
+    // A lost empty set would be seeded from the restored Tumor/Liver defaults.
     await showImage(FIRST);
     await expectSegments(['Tumor', 'Liver']);
     const filename = await volViewPage.saveSession();
