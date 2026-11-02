@@ -78,6 +78,8 @@ import {
   rasterizeTargetDisabledReason,
 } from '@/src/segmentation/editing/rasterizePolygon';
 import { isCineImage } from '@/src/core/cine/isCineImage';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { frameOfReferenceToImageSliceAndAxis } from '@/src/utils/frameOfReference';
 
 const useActiveToolStore = usePolygonStore;
 const toolType = Tools.Polygon;
@@ -193,31 +195,40 @@ export default defineComponent({
         : 'Shift select multiple polygons that overlap and belong to the same segment.'
     );
 
-    const isCurrentImageCine = computed(() => isCineImage(imageId.value));
+    const imageCache = useImageCacheStore();
+    function rasterizeFrame(toolId: ToolID) {
+      const tool = activeToolStore.toolByID[toolId];
+      const metadata = tool && imageCache.getImageMetadata(tool.imageID);
+      return metadata
+        ? frameOfReferenceToImageSliceAndAxis(tool.frameOfReference, metadata, {
+            allowOutOfBoundsSlice: true,
+          })
+        : null;
+    }
 
     function rasterizeDisabledReason(toolId: ToolID) {
-      if (isCurrentImageCine.value) {
+      const tool = activeToolStore.toolByID[toolId];
+      if (!tool) return 'No polygon is available for rasterization';
+      if (isCineImage(tool.imageID))
         return 'Rasterization is not supported for cine images';
-      }
-      const { segmentId } = activeToolStore.toolByID[toolId];
-      return rasterizeTargetDisabledReason(segmentId);
+      if (!rasterizeFrame(toolId))
+        return 'The polygon must align with a loaded image slice';
+      return rasterizeTargetDisabledReason(tool.segmentId);
     }
 
     function rasterize(toolId: ToolID) {
-      if (!imageId.value) {
-        throw new Error('No image ID available for rasterization');
-      }
-      if (isCurrentImageCine.value) {
-        throw new Error('Rasterization is not supported for cine images');
-      }
+      const tool = activeToolStore.toolByID[toolId];
+      if (!tool || isCineImage(tool.imageID)) return;
+      const plane = rasterizeFrame(toolId);
+      if (!plane) return;
 
-      const { segmentId } = activeToolStore.toolByID[toolId];
+      const { imageID, segmentId } = tool;
       const rasterized = rasterizePolygon({
-        imageId: imageId.value,
+        imageId: imageID,
         segmentId,
         points: activeToolStore.getPoints(toolId),
-        slice: slice.value,
-        viewAxis: viewAxis.value,
+        slice: tool.slice,
+        viewAxis: plane.axis,
       });
       // Record where the voxels landed; a refused rasterize returns the input.
       if (rasterized.segmentId && rasterized.segmentId !== segmentId) {
