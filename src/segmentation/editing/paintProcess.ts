@@ -324,7 +324,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // A selected segment with no mask on this image is selected all the same:
   // it just holds nothing here yet.
   function segmentScopedRefusal(imageId: string) {
-    if (!segmentRegistry.selectedSegmentId.value)
+    if (!segmentRegistry.selectedSegmentId(imageId))
       return 'No segments to process';
     const maskId = segmentationStore.findEditTarget(imageId);
     if (maskId && segmentationStore.isLocked(maskId))
@@ -550,7 +550,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
   // selecting another throws it away. An all-segments run watches nothing and
   // outlives the selection changing under it.
   watch(
-    () => segmentRegistry.selectedSegmentId.value,
+    () => segmentRegistry.selectedSegmentId(currentImageID.value),
     (segmentId) => {
       const state = runInFlight();
       if (!state) return;

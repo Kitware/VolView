@@ -35,6 +35,7 @@ async function pendingRestore(kind: 'own' | 'legacy') {
   const ids = ['deleted', 'healthy'];
   const manifest = ManifestSchema.parse(
     manifestForImages(['parent'], {
+      imageSegmentSets: [{ imageId: 'parent', segmentIds: ids }],
       segments: ids.map((id) => ({
         id,
         name: id,
@@ -128,23 +129,23 @@ describe.each(['own', 'legacy'] as const)(
       'honors deletion during IO, same-name recreation: %s',
       async (recreate) => {
         const { completed, release, registry } = await pendingRestore(kind);
-        const deleted = registry.segmentList.value.find(
-          (segment) => segment.name === 'deleted'
-        )!;
-        const healthy = registry.segmentList.value.find(
-          (segment) => segment.name === 'healthy'
-        )!;
+        const deleted = registry
+          .segmentList('parent')
+          .find((segment) => segment.name === 'deleted')!;
+        const healthy = registry
+          .segmentList('parent')
+          .find((segment) => segment.name === 'healthy')!;
         registry.deleteSegment(deleted.id);
         const replacement = recreate
-          ? registry.addSegment({ name: deleted.name })
+          ? registry.addSegment('parent', { name: deleted.name })
           : undefined;
         release.resolve();
         await completed;
 
         expect(registry.getSegment(deleted.id)).toBeUndefined();
-        expect(registry.segmentList.value.map((segment) => segment.id)).toEqual(
-          replacement ? [healthy.id, replacement] : [healthy.id]
-        );
+        expect(
+          registry.segmentList('parent').map((segment) => segment.id)
+        ).toEqual(replacement ? [healthy.id, replacement] : [healthy.id]);
         const masks = store().imageMasks('parent');
         expect(masks.map((mask) => mask.segmentId)).toEqual([healthy.id]);
         expect(Array.from(store().maskVoxels(masks[0].id).scalars())).toContain(

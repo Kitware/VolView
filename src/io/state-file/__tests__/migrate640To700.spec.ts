@@ -3,7 +3,10 @@ import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
 
 import { ManifestSchema } from '@/src/io/state-file/schema';
-import { migrateManifest } from '@/src/io/state-file/migrations';
+import {
+  migrate640To700,
+  migrateManifest,
+} from '@/src/io/state-file/migrations';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
@@ -55,7 +58,7 @@ const legacyManifest = (overrides: Record<string, unknown>) =>
   });
 
 const migrate = (overrides: Record<string, unknown>) =>
-  migrateManifest(legacyManifest(overrides)) as any;
+  migrate640To700(JSON.parse(legacyManifest(overrides))) as any;
 
 type LegacyMask = {
   value: number;
@@ -185,7 +188,7 @@ describe('migrate640To700: structural stage', () => {
       ],
     });
 
-    expect(migrated.version).toBe(MANIFEST_VERSION);
+    expect(migrated.version).toBe('7.0.0');
     expect(migrated.segmentGroups).toBeUndefined();
 
     expect(migrated.segmentationArtifacts).toHaveLength(1);
@@ -974,7 +977,7 @@ describe('migrate640To700: structural stage', () => {
       },
     });
 
-    expect(migrated.version).toBe(MANIFEST_VERSION);
+    expect(migrated.version).toBe('7.0.0');
     expect(migrated.segments).toEqual([
       {
         id: expect.any(String),
@@ -996,7 +999,7 @@ describe('migrate640To700: structural stage', () => {
 // ---------------------------------------------------------------------------
 // Loaded stage + round trip: a migrated 6.4.0 file restores through the real
 // import path, resolves its placeholder extents against the loaded parent, and
-// re-saves as 7.0.0 that reloads identically.
+// re-saves with image-owned segment sets that reload identically.
 // ---------------------------------------------------------------------------
 
 const legacyScene = () =>
@@ -1094,9 +1097,9 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     const store = useSegmentationStore();
     const segments = useSegmentStore().segments;
     const segmentation = store.getSegmentationForImage('store-ct')!;
-    expect(segments.appearanceOf(segments.selectedSegmentId.value).name).toBe(
-      'Edema'
-    );
+    expect(
+      segments.appearanceOf(segments.selectedSegmentId('store-ct')).name
+    ).toBe('Edema');
     expect(
       segmentation.order.map(
         (id) => segments.appearanceOf(segmentation.masks[id].segmentId).name
@@ -1128,7 +1131,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
         0.4
       );
     });
-    const drawn = segments.findSegmentByName('Drawn')!;
+    const drawn = segments.findSegmentByName('store-ct', 'Drawn')!;
     expect(segments.appearanceOf(drawn.id)).toMatchObject({
       fillOpacity: 1,
       outlineOpacity: 1,
@@ -1159,9 +1162,9 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     await restoreLegacyScene();
 
     const segments = useSegmentStore().segments;
-    expect(segments.segmentList.value.map((segment) => segment.name)).toContain(
-      'Planned'
-    );
+    expect(
+      segments.segmentList('store-ct').map((segment) => segment.name)
+    ).toContain('Planned');
 
     // Offered, not painted: nothing was drawn with it.
     const segmentation =
@@ -1173,7 +1176,7 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
     ).not.toContain('Planned');
   });
 
-  it('re-saves as 7.0.0 and reloads identically', async () => {
+  it('re-saves with image ownership and reloads identically', async () => {
     await restoreLegacyScene();
     const before = segmentationSnapshot('store-ct');
     // Named after the loaded image, as a live segmentation is.
@@ -1194,7 +1197,9 @@ describe('migrated 6.4.0 state file: loaded stage and round trip', () => {
       manifest: saved,
       stateFiles,
       dataIDMap: { 'store-ct': 'new-ct' },
-      segmentIdMap: useSegmentStore().deserialize(saved).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(saved, {
+        'store-ct': 'new-ct',
+      }).segmentIdMap,
       io,
     });
     await nextTick();

@@ -3,6 +3,7 @@
 
 import { nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
 const emit = defineEmits<{
   create: [];
@@ -13,6 +14,7 @@ const emit = defineEmits<{
 const props = defineProps<{
   items: Array<T>;
   createText: string;
+  createReason?: string;
   reorderHint: string;
   modelValue: Maybe<string>;
   selectionRevision?: number;
@@ -171,18 +173,21 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
     </div>
 
     <div role="listitem" class="create-row-wrapper">
-      <v-list-item
-        tag="button"
-        type="button"
-        role="button"
-        class="create-row w-100"
-        @click="emit('create')"
-      >
-        <div class="d-flex align-center">
-          <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
-          <span class="text-body-2">{{ createText }}</span>
-        </div>
-      </v-list-item>
+      <reasoned-action :reason="createReason" block v-slot="{ disabled }">
+        <button
+          type="button"
+          class="create-row w-100"
+          :disabled="disabled"
+          @click="!disabled && emit('create')"
+        >
+          <v-list-item class="create-row-content">
+            <div class="d-flex align-center">
+              <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
+              <span class="text-body-2">{{ createText }}</span>
+            </div>
+          </v-list-item>
+        </button>
+      </reasoned-action>
     </div>
   </v-list>
 </template>
@@ -205,7 +210,7 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
 }
 
 .v-list-item.item-row,
-.v-list-item.create-row {
+.v-list-item.create-row-content {
   border: 1px solid transparent;
   border-radius: 4px;
   /* The default inset would dwarf the gaps between the row's parts. */
@@ -231,6 +236,18 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
 
 .create-row {
   opacity: var(--v-medium-emphasis-opacity);
+  text-align: left;
+  border-radius: 4px;
+}
+
+.create-row:hover:enabled,
+.create-row:focus-visible {
+  background-color: rgba(var(--v-theme-on-surface), var(--v-hover-opacity));
+}
+
+.create-row:disabled {
+  opacity: var(--v-disabled-opacity);
+  pointer-events: none;
 }
 
 .create-icon {

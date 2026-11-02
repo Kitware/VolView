@@ -71,10 +71,13 @@ export default defineComponent({
     // --- widget representation config --- //
 
     const { segments } = useSegmentStore();
+    const pointerInView = ref(false);
     watchEffect(() => {
-      const [r, g, b] = segments.appearanceOf(
-        segments.selectedSegmentId.value
-      ).color;
+      if (!pointerInView.value) return;
+      const segmentId = segments.selectedSegmentId(imageId.value);
+      const [r, g, b] = segmentId
+        ? segments.appearanceOf(segmentId).color
+        : segments.nextSegmentColor(imageId.value);
       widgetState.getBrush().setColor3([r, g, b]);
     });
 
@@ -151,7 +154,6 @@ export default defineComponent({
     // --- visibility --- //
 
     let checkIfPointerInView = false;
-    const pointerInView = ref(false);
     watchEffect(() => {
       if (pointerInView.value && imageId.value) {
         paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
@@ -173,16 +175,17 @@ export default defineComponent({
     });
 
     // Turn on widget visibility and update stencil if mouse starts within view
+    const enterView = () => {
+      pointerInView.value = true;
+    };
     const showPreviewOnFirstMove = () => {
       if (!checkIfPointerInView) return;
       checkIfPointerInView = false;
-      pointerInView.value = true;
+      enterView();
     };
     onVTKEvent(view.interactor, 'onMouseMove', showPreviewOnFirstMove);
 
-    onVTKEvent(view.interactor, 'onMouseEnter', () => {
-      pointerInView.value = true;
-    });
+    onVTKEvent(view.interactor, 'onMouseEnter', enterView);
 
     onVTKEvent(view.interactor, 'onMouseLeave', () => {
       pointerInView.value = false;

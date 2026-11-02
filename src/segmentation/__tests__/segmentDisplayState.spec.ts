@@ -5,7 +5,6 @@ import {
   SPEC_DIMENSIONS as DIMENSIONS,
   labelmapValues,
   makeLabelmap,
-  mintSegment,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
@@ -80,7 +79,7 @@ describe('segmentation display state', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       const segment = store().createMask(
         segmentation.id,
-        mintSegment({ name: 'Tumor' })
+        segments().mintSegment('img-1', { name: 'Tumor' })
       );
       expect(segments().appearanceOf(segment.segmentId).fillOpacity).toBe(1);
 
@@ -99,8 +98,14 @@ describe('segmentation display state', () => {
 
     it('keeps display state per segment', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const first = store().createMask(segmentation.id, mintSegment());
-      const second = store().createMask(segmentation.id, mintSegment());
+      const first = store().createMask(
+        segmentation.id,
+        segments().mintSegment('img-1')
+      );
+      const second = store().createMask(
+        segmentation.id,
+        segments().mintSegment('img-1')
+      );
 
       segments().updateSegment(first.segmentId, {
         fillOpacity: 0,
@@ -124,7 +129,7 @@ describe('segmentation display state', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       const segment = store().createMask(
         segmentation.id,
-        mintSegment({ name: 'Tumor' })
+        segments().mintSegment('img-1', { name: 'Tumor' })
       );
       store().maskVoxels(segment.id).materialize();
 
@@ -142,8 +147,14 @@ describe('segmentation display state', () => {
     // editing one segment must not hand every other mask a new array.
     it('leaves an untouched mask its previous list', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const edited = store().createMask(segmentation.id, mintSegment());
-      const untouched = store().createMask(segmentation.id, mintSegment());
+      const edited = store().createMask(
+        segmentation.id,
+        segments().mintSegment('img-1')
+      );
+      const untouched = store().createMask(
+        segmentation.id,
+        segments().mintSegment('img-1')
+      );
       store().maskVoxels(edited.id).materialize();
       store().maskVoxels(untouched.id).materialize();
 
@@ -161,7 +172,10 @@ describe('segmentation display state', () => {
     // touched no mask must not invalidate it either.
     it('keeps the whole projection when nothing it covers changed', () => {
       const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createMask(segmentation.id, mintSegment());
+      const segment = store().createMask(
+        segmentation.id,
+        segments().mintSegment('img-1')
+      );
       store().maskVoxels(segment.id).materialize();
 
       const before = store().labelmapDescriptorByMask;

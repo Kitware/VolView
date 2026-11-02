@@ -46,7 +46,7 @@ it.each(['encoding', 'queued update'])(
       segmentId: originalSegment,
     });
     const reassign = () => {
-      const segmentId = segments.segments.mintSegment({
+      const segmentId = segments.segments.mintSegment('ct', {
         name: 'Tumor',
         color: [255, 0, 0, 255],
       });
@@ -90,7 +90,9 @@ it.each(['encoding', 'queued update'])(
 
     setActivePinia(createPinia());
     await seatImage('restored');
-    const { segmentIdMap } = useSegmentStore().deserialize(saved);
+    const { segmentIdMap } = useSegmentStore().deserialize(saved, {
+      ct: 'restored',
+    });
     const restored = useRulerStore();
     restored.deserialize(saved, { ct: 'restored' }, segmentIdMap);
     const [ruler] = restored.serializeTools().tools;

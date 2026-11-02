@@ -63,6 +63,9 @@ it('keeps the projection ready and restores the non-first segment after deferred
       visible: true,
       locked: false,
     })),
+    imageSegmentSets: [
+      { imageId: 'saved-oct', segmentIds: ['first', 'chosen'] },
+    ],
     segmentations: [
       {
         id: 'segmentation',
@@ -102,8 +105,8 @@ it('keeps the projection ready and restores the non-first segment after deferred
       },
     },
   });
-  const { segmentIdMap } = useSegmentStore().deserialize(manifest);
   const dataIDMap = { 'saved-oct': 'oct' };
+  const { segmentIdMap } = useSegmentStore().deserialize(manifest, dataIDMap);
   useViewConfigStore().deserializeAll(manifest, dataIDMap, segmentIdMap);
   const reading = defer<void>();
   const release = defer<void>();

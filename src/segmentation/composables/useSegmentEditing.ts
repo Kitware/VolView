@@ -1,4 +1,11 @@
-import { computed, reactive, ref } from 'vue';
+import {
+  computed,
+  reactive,
+  ref,
+  toValue,
+  watch,
+  type MaybeRefOrGetter,
+} from 'vue';
 
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import type { Maybe } from '@/src/types';
@@ -11,7 +18,10 @@ import { deleteUnlockedSegment } from '@/src/segmentation/deleteSegment';
  * decides what a name may be. Reads every field through the registry's
  * resolver, so an unset one shows the app default.
  */
-export function useSegmentEditing(registry: SegmentRegistry) {
+export function useSegmentEditing(
+  registry: SegmentRegistry,
+  imageId: MaybeRefOrGetter<Maybe<string>>
+) {
   const editingSegmentId = ref<Maybe<string>>(undefined);
   const editDialog = ref(false);
   const editState = reactive({
@@ -38,7 +48,8 @@ export function useSegmentEditing(registry: SegmentRegistry) {
   const invalidNames = computed(
     () =>
       new Set(
-        registry.segmentList.value
+        registry
+          .segmentList(toValue(imageId))
           .filter((segment) => segment.id !== editingSegmentId.value)
           .map((segment) => registry.appearanceOf(segment.id).name.trim())
       )
@@ -46,7 +57,8 @@ export function useSegmentEditing(registry: SegmentRegistry) {
 
   function startEditing(id: string) {
     const appearance = registry.appearanceOf(id);
-    if (!registry.getSegment(id) || appearance.locked) return;
+    if (!registry.belongsToImage(toValue(imageId), id) || appearance.locked)
+      return;
     editingSegmentId.value = id;
     editDialog.value = true;
     editState.name = appearance.name;
@@ -62,7 +74,7 @@ export function useSegmentEditing(registry: SegmentRegistry) {
     if (
       id &&
       commit &&
-      registry.getSegment(id) &&
+      registry.belongsToImage(toValue(imageId), id) &&
       !registry.appearanceOf(id).locked
     ) {
       const changed = <K extends keyof typeof editState>(key: K) =>
@@ -83,12 +95,18 @@ export function useSegmentEditing(registry: SegmentRegistry) {
     editDialog.value = false;
   }
 
-  // Deleting a segment takes its masks on every image and its shapes with it.
+  // A segment owns the masks and shapes drawn as it on this image.
   function deleteEditingSegment() {
     const id = editingSegmentId.value;
     if (id) deleteUnlockedSegment(registry, id);
     stopEditing(false);
   }
+
+  watch(
+    () => toValue(imageId),
+    () => stopEditing(false),
+    { flush: 'sync' }
+  );
 
   return {
     editDialog,

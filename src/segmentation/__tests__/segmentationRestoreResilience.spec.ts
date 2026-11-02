@@ -134,7 +134,8 @@ const restoreGroups = (
     manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(manifest, dataIDMap)
+      .segmentIdMap,
     labelmapSources: planLabelmapSources(manifest).sources,
     io: artifactIO,
   });

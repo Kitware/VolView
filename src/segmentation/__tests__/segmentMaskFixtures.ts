@@ -12,6 +12,9 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { useRulerStore } from '@/src/store/tools/rulers';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
 import {
   useSegmentationStore,
@@ -200,7 +203,7 @@ export const inMemoryArtifactIO = () => {
 export const segmentationSnapshot = (imageId: string) => {
   const segments = useSegmentStore().segments;
   const segmentation = store().getSegmentationForImage(imageId)!;
-  const selectedSegmentId = segments.selectedSegmentId.value;
+  const selectedSegmentId = segments.selectedSegmentId(imageId);
   return {
     name: segmentation.name,
     segments: segmentation.order.map((maskId) => {
@@ -267,6 +270,17 @@ export const manifestForImages = (
     ...extra,
   }) as unknown as Manifest;
 
+export const serializeAnnotations = (
+  manifest = manifestForImages(useImageCacheStore().imageIds, { tools: {} })
+) => {
+  const state = { zip: new JSZip(), manifest };
+  useSegmentStore().serialize(state);
+  useRulerStore().serialize(state);
+  useRectangleStore().serialize(state);
+  usePolygonStore().serialize(state);
+  return JSON.parse(JSON.stringify(manifest)) as Manifest;
+};
+
 const archivePathsIn = (parsed: any): string[] => [
   ...(parsed.segmentationArtifacts ?? []).flatMap((artifact: any) =>
     artifact.path ? [artifact.path] : []
@@ -307,15 +321,22 @@ export const makeSpecImage = () => makeImage();
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 
-export const mintSegment = (init: SegmentInit | string = {}) =>
+/** An image's segment names, in its own order. */
+export const segmentNames = (imageId: string) =>
+  useSegmentStore()
+    .segments.segmentList(imageId)
+    .map(({ name }) => name);
+
+export const mintSegment = (imageId: string, init: SegmentInit | string = {}) =>
   useSegmentStore().segments.mintSegment(
+    imageId,
     typeof init === 'string' ? { name: init } : init
   );
 
 /** A record with no storage: adding one never allocates voxels. */
 export function addMask(imageId: string, name?: string) {
   const segmentation = store().ensureSegmentationForImage(imageId);
-  return store().createMask(segmentation.id, mintSegment(name)).id;
+  return store().createMask(segmentation.id, mintSegment(imageId, name)).id;
 }
 
 export const bindEmptyMasks = (imageId: string, names: string[]) =>
@@ -363,7 +384,7 @@ export function addActiveSegment(
   const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
   const segment = segmentationStore.createMask(
     segmentation.id,
-    mintSegment({
+    mintSegment(imageId, {
       name: 'Segment 1',
     })
   );

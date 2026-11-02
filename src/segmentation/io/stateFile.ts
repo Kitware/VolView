@@ -522,10 +522,19 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     // Why a wire mask cannot become a record, or undefined when it can: a
     // mask whose segment did not restore has no identity to show, and a
     // second mask for a segment already on this image cannot exist.
-    const dropReason = (imageId: string, segmentId: Maybe<string>) => {
-      if (!segmentId) return 'its segment is not in the file';
+    const savedSegmentIds = new Set(
+      (manifest.segments ?? []).map(({ id }) => id)
+    );
+    const dropReason = (imageId: string, wireSegmentId: string) => {
+      const segmentId = segmentIdMap[wireSegmentId];
+      if (!segmentId)
+        return savedSegmentIds.has(wireSegmentId)
+          ? 'its segment did not restore'
+          : 'its segment is not in the file';
       if (!segmentRegistry.getSegment(segmentId))
         return 'its segment did not restore';
+      if (!segmentRegistry.belongsToImage(imageId, segmentId))
+        return 'its segment belongs to another image';
       if (maskFor(imageId, segmentId))
         return 'the image already has a mask for its segment';
       return undefined;
@@ -556,7 +565,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
       orderedWireMasks(wire).forEach((wireMask) => {
         const segmentId = segmentIdMap[wireMask.segmentId];
-        const reason = dropReason(parentImageId, segmentId);
+        const reason = dropReason(parentImageId, wireMask.segmentId);
         if (reason) {
           skipped.push({ name: maskLabel(wireMask), reason });
           return;
@@ -606,7 +615,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         const activeIndex = decoded.findIndex(
           (descriptor) => descriptor.value === item.activeValue
         );
-        segmentRegistry.restoreSelection(restored[activeIndex]?.segmentId);
+        segmentRegistry.restoreSelection(
+          parentImageId,
+          restored[activeIndex]?.segmentId
+        );
       } else {
         const segmentation = getSegmentationForImage(parentImageId);
         const targets = item.masks.flatMap(({ maskId, value }) => {

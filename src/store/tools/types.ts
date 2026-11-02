@@ -25,6 +25,11 @@ export interface IActivatableTool {
   deactivateTool: () => void;
 }
 
+export type SkippedTool = {
+  name: string;
+  reason: string;
+};
+
 export interface ISerializableTool {
   serialize: (state: StateFile) => void;
   deserialize: (
@@ -33,7 +38,7 @@ export interface ISerializableTool {
     // Save-time segment id -> restored segment id, for the tools that share
     // the segment registry.
     segmentIdMap: Record<string, string>
-  ) => void;
+  ) => void | SkippedTool[];
 }
 
 export interface IToolStore

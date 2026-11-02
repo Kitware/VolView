@@ -11,6 +11,7 @@ import {
   ImportDataSourcesResult,
   asIntermediateResult,
   StateFileSetupResult,
+  isVolumeResult,
 } from '@/src/io/import/common';
 import {
   DataSource,
@@ -30,7 +31,9 @@ import {
   completeStateFileRestore,
 } from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
-import handleConfig from '@/src/io/import/processors/handleConfig';
+import handleConfig, {
+  InvalidConfigError,
+} from '@/src/io/import/processors/handleConfig';
 import {
   applyPreStateConfig,
   applyPostStateConfig,
@@ -47,6 +50,7 @@ import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -69,11 +73,12 @@ function isSelectable(result: ImportResult): result is LoadableVolumeResult {
 }
 
 const applyConfigsPostState = (
-  results: Array<ConfigResult>
+  results: Array<ConfigResult>,
+  imageIds: string[]
 ): (ConfigResult | ErrorResult)[] =>
   results.map((result) => {
     try {
-      applyPostStateConfig(result.config);
+      applyPostStateConfig(result.config, undefined, imageIds);
       return result;
     } catch (err) {
       return asErrorResult(ensureError(err), result.dataSource);
@@ -132,6 +137,33 @@ export type RestoreProcessors = {
   completeStateFileRestore: typeof completeStateFileRestore;
 };
 
+const hasDataIntent = (result: ImportResult) => {
+  if (
+    result.type === 'config' ||
+    (result.type === 'error' && result.error instanceof InvalidConfigError)
+  )
+    return findStateFileLeaves(result.dataSource).length > 0;
+  if (result.type !== 'intermediate') return true;
+  return (
+    result.dataSources.length === 0 ||
+    result.dataSources.some(
+      (source) =>
+        source.type === 'chunk' || findStateFileLeaves(source).length > 0
+    )
+  );
+};
+
+// Config that arrives with data configures the loaded images; config alone
+// configures the image whose view started the import.
+const configTargetImageIds = (
+  observed: readonly ImportResult[],
+  loadables: readonly LoadableResult[],
+  standaloneImageIds: string[]
+) =>
+  observed.some(hasDataIntent)
+    ? loadables.filter(isVolumeResult).map(({ dataID }) => dataID)
+    : standaloneImageIds;
+
 export const appRestoreProcessors = (): RestoreProcessors => ({
   restoreStateFile,
   completeStateFileRestore,
@@ -140,7 +172,8 @@ export const appRestoreProcessors = (): RestoreProcessors => ({
 async function importDataSourcesWithPolicy(
   dataSources: DataSource[],
   policy: ImportPolicy,
-  restore: RestoreProcessors = appRestoreProcessors()
+  restore: RestoreProcessors,
+  standaloneImageIds: string[]
 ): Promise<ImportDataSourcesResult[]> {
   const cleanupHandlers: Array<() => void> = [];
   const onCleanup = (fn: () => void) => {
@@ -154,7 +187,7 @@ async function importDataSourcesWithPolicy(
     fetchFileCache: new Map<string, File>(),
     onCleanup,
     importDataSources: (sources: DataSource[]) =>
-      importDataSourcesWithPolicy(sources, policy, restore),
+      importDataSourcesWithPolicy(sources, policy, restore, standaloneImageIds),
   };
 
   // State files first: a manifest's top-level `segments` is also a config key.
@@ -193,6 +226,7 @@ async function importDataSourcesWithPolicy(
   const configResults: ConfigResult[] = [];
   const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
+  const observedResults: ImportResult[] = [];
 
   let queue = dataSources.map((src) => ({
     promise: evaluateChain(src, handlers, importContext),
@@ -203,6 +237,7 @@ async function importDataSourcesWithPolicy(
     const { index } = await asyncSelect(queue.map((item) => item.promise));
     const { promise, source } = queue[index];
     const result = await promise.catch((err) => asErrorResult(err, source));
+    observedResults.push(result);
     queue = queue.filter((_, i) => i !== index);
 
     switch (result.type) {
@@ -313,7 +348,12 @@ async function importDataSourcesWithPolicy(
     }
   }
 
-  results.push(...applyConfigsPostState(configResults));
+  results.push(
+    ...applyConfigsPostState(
+      configResults,
+      configTargetImageIds(observedResults, loadableResults, standaloneImageIds)
+    )
+  );
 
   // A failed state-file leaf is already counted in the restore's consolidated
   // missing-content notice, so this layer owns its reporting: it returns as an
@@ -331,17 +371,38 @@ async function importDataSourcesWithPolicy(
   });
 }
 
+function importFromCurrentImage(
+  dataSources: DataSource[],
+  policy: ImportPolicy,
+  restore: RestoreProcessors
+) {
+  const initiatingImageId = useCurrentImage('global').currentImageID.value;
+  // Standalone config belongs to the initiating image, even if focus changes
+  // while reading it. An explicit empty target updates only future defaults.
+  const standaloneImageIds = initiatingImageId ? [initiatingImageId] : [];
+  return importDataSourcesWithPolicy(
+    dataSources,
+    policy,
+    restore,
+    standaloneImageIds
+  );
+}
+
 export function importDataSources(
   dataSources: DataSource[],
   restore: RestoreProcessors = appRestoreProcessors()
 ): Promise<ImportDataSourcesResult[]> {
-  return importDataSourcesWithPolicy(dataSources, 'application', restore);
+  return importFromCurrentImage(dataSources, 'application', restore);
 }
 
 export function importVolumeDataSources(
   dataSources: DataSource[]
 ): Promise<ImportDataSourcesResult[]> {
-  return importDataSourcesWithPolicy(dataSources, 'volume-data');
+  return importFromCurrentImage(
+    dataSources,
+    'volume-data',
+    appRestoreProcessors()
+  );
 }
 
 export function toDataSelection(loadable: LoadableVolumeResult) {
