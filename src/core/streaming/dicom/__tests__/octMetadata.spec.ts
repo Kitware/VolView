@@ -1,10 +1,8 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { deflateRawSync } from 'node:zlib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { augmentOCTMetadata } from '@/src/core/streaming/dicom/octMetadata';
-import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
-import type { Chunk } from '@/src/core/streaming/chunk';
 
 import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
@@ -385,10 +383,8 @@ describe('OCT enhanced spatial metadata', () => {
         await augmentOCTMetadata(new Blob([bytes]), metadata)
       );
       expect(spatialMetadataError(tags)).toBeTruthy();
-      const image = allocateImageFromChunks([{ metadata: [...tags] } as Chunk]);
-      expect(image.getOrigin()).toEqual([9, 8, 7]);
-      expect(image.getDirection()).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-      image.delete();
+      expect(tags.get(Tags.ImagePositionPatient)).toBe('9\\8\\7');
+      expect(tags.get(Tags.ImageOrientationPatient)).toBe('1\\0\\0\\0\\1\\0');
     }
   );
   it.each([false, true])(

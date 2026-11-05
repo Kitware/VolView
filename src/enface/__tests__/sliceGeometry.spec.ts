@@ -7,7 +7,7 @@ import { defaultImageMetadata } from '@/src/core/progressiveImage';
 import { metadataFromVtkImageData } from '@/src/utils/imageMetadata';
 import { deriveSlabGeometry } from '@/src/core/slab/geometry';
 import type { SlabAxis } from '@/src/core/slab/types';
-import { slicePlane } from '@/src/referenceLines';
+import { slicePlane } from '@/src/referenceLines/geometry';
 import { enFaceSliceLine } from '@/src/enface/sliceGeometry';
 import { useEnFaceSliceLines } from '@/src/enface/useEnFaceSliceLines';
 import { useImageCacheStore } from '@/src/store/image-cache';

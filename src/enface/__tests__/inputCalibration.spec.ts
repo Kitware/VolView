@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { computed, defineComponent, h, markRaw, nextTick, ref } from 'vue';
 import { createVuetify } from 'vuetify';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -15,11 +15,12 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { allocateMask } from '@/src/segmentation/masks/storage';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { createOCTFixture, setImageChunks } from '@/tests/unit/octFixture';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type { mat3 } from 'gl-matrix';
 import type { Extent3D } from '@/src/segmentation/geometry';
+import { setDicomTag } from './dicomMetadataFixture';
 
 beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => {
@@ -30,8 +31,8 @@ afterEach(() => {
 async function inputFor(pixelSpacing: string, oblique = false) {
   const fixture = createOCTFixture();
   await fixture.chunk.loadMeta();
-  fixture.chunk.metadata!.push([Tags.PixelSpacing, pixelSpacing]);
-  await fixture.image.addChunks([fixture.chunk]);
+  setDicomTag(fixture.chunk.metadata!, Tags.PixelSpacing, pixelSpacing);
+  await setImageChunks(fixture.image, [fixture.chunk]);
   const cache = useImageCacheStore();
   const id = cache.addProgressiveImage(fixture.image);
   fixture.image.startLoad();

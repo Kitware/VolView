@@ -4,11 +4,12 @@ import { markRaw } from 'vue';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getOccupiedDepthSupport } from '@/src/enface/occupiedDepthSupport';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { createOCTFixture, setImageChunks } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { Tags } from '@/src/core/dicomTags';
-import { Chunk } from '@/src/core/streaming/chunk';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { removeDicomTag, setDicomTag } from './dicomMetadataFixture';
 
 describe('occupied-depth support for loaded volumes', () => {
   const pendingReads: (() => void)[] = [];
@@ -36,7 +37,7 @@ describe('occupied-depth support for loaded volumes', () => {
     pendingReads.push(fixture.releaseDecode);
     const id = useImageCacheStore().addProgressiveImage(fixture.image);
     await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
+    await setImageChunks(fixture.image, [fixture.chunk]);
     const chunks = vi.spyOn(fixture.image, 'getChunks');
     expect(getOccupiedDepthSupport(id).calibratedAxes).toBeUndefined();
     expect(chunks).not.toHaveBeenCalled();
@@ -66,15 +67,14 @@ describe('occupied-depth support for loaded volumes', () => {
     async ({ regionCount, calibrated }) => {
       const fixture = createOCTFixture();
       await fixture.chunk.loadMeta();
-      const metadata = fixture.chunk.metadata!.filter(
-        ([tag]) => ![Tags.Modality, Tags.PixelSpacing].includes(tag)
-      );
-      metadata.push([Tags.Modality, 'US']);
-      const blob = fixture.chunk.metaBlob!;
+      const metadata = fixture.chunk.metadata!;
+      removeDicomTag(metadata, Tags.PixelSpacing);
+      setDicomTag(metadata, Tags.Modality, 'US');
+      await fixture.chunk.loadData();
+      const blob = fixture.chunk.dataBlob!;
       const chunk = new Chunk({
         metaLoader: {
           meta: metadata,
-          metaBlob: blob,
           ultrasoundRegions: {
             regionCount,
             region: {
@@ -91,7 +91,7 @@ describe('occupied-depth support for loaded volumes', () => {
       });
       fixture.chunk.dispose();
       const id = useImageCacheStore().addProgressiveImage(fixture.image);
-      await fixture.image.addChunks([chunk]);
+      await setImageChunks(fixture.image, [chunk]);
       fixture.image.startLoad();
       await untilLoaded(id);
       expect(fixture.image.getVtkImageData().getSpacing()[1]).toBeCloseTo(

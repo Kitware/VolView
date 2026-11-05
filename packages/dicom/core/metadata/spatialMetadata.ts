@@ -43,15 +43,25 @@ export function declaredSpacing(raw: string | undefined, source: string) {
     : fallbackSpacing(`${source} has no usable positive spacing.`);
 }
 
+function singletonPixelSpacing(raw: string) {
+  const declared = declaredSpacing(raw, 'PixelSpacing');
+  if (declared.status === 'fallback') return declared;
+  return {
+    ...fallbackSpacing(
+      'PixelSpacing has only one value; square pixels are assumed for display.'
+    ),
+    value: declared.value,
+    source: 'Single PixelSpacing value',
+  };
+}
+
 /** Preserve a usable axis even when the other axis is missing or unusable. */
 export function readPixelSpacing(metadata: DicomDataset | null | undefined) {
   const raw = trimDicomPadding(getFrameTag(metadata, '00280030') ?? '');
   const parts = raw ? raw.split('\\') : undefined;
   if (parts && parts.length < 2) {
-    return [
-      fallbackSpacing('PixelSpacing does not contain two values.'),
-      fallbackSpacing('PixelSpacing does not contain two values.'),
-    ] as const;
+    const assumed = singletonPixelSpacing(parts[0]);
+    return [assumed, { ...assumed }] as const;
   }
   return [
     declaredSpacing(parts?.[1], 'PixelSpacing'),

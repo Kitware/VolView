@@ -1,9 +1,14 @@
 import dicomParser from 'dicom-parser';
-import { Chunk } from '@/src/core/streaming/chunk';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { blobFetcher } from '@/packages/dicom/core/streaming/blobFetcher';
+import { DicomMetaLoader } from '@/packages/dicom/core/streaming/dicom/dicomMetaLoader';
+import { DicomDataLoader } from '@/packages/dicom/core/streaming/dicom/dicomDataLoader';
+import { readGeometryFacts } from '@/packages/dicom/core/collections/instanceFacts';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
-import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
-import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
+import {
+  Tags,
+  toDicomParserKey,
+} from '@/packages/dicom/core/metadata/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useViewStore } from '@/src/store/views';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -14,7 +19,7 @@ import {
   overwriteDicomString,
 } from '../fixtures/oct/dicom';
 
-/** Reads the named VolView tags, standing in for the itk-wasm tag reader. */
+/** Reads raw named tags for assertions, independently of the structured loader. */
 export async function readDicomTags(file: Blob) {
   const data = dicomParser.parseDicom(
     new Uint8Array(await file.arrayBuffer()),
@@ -32,7 +37,25 @@ export async function readDicomTags(file: Blob) {
   });
 }
 
-/** Uses synthetic pixels and production chunk/file loaders without a browser WASM worker. */
+/** File fixtures use the same structured metadata and byte loaders as HTTP sources. */
+export function createDicomChunk(file: Blob) {
+  const source = blobFetcher(file);
+  return new Chunk({
+    metaLoader: new DicomMetaLoader(source),
+    dataLoader: new DicomDataLoader(source),
+  });
+}
+
+/** Keep deliberate fixture groups and order; production allocation judges their geometry. */
+export function setImageChunks(image: DicomChunkImage, chunks: Chunk[]) {
+  const metadata = chunks[0]?.metadata;
+  return image.setChunks(
+    chunks,
+    metadata ? readGeometryFacts(metadata).orientation : null
+  );
+}
+
+/** Uses synthetic pixels and production structured loaders without a browser WASM worker. */
 export function createOCTFixture(
   options: { scanPattern?: string; deferDecode?: boolean } = {}
 ) {
@@ -46,17 +69,13 @@ export function createOCTFixture(
     );
   }
   const file = new File([bytes], 'synthetic-oct.dcm');
-  const chunk = new Chunk({
-    metaLoader: new DicomFileMetaLoader(file, readDicomTags),
-    dataLoader: new DicomFileDataLoader(file),
-  });
+  const chunk = createDicomChunk(file);
   let releaseDecode = () => {};
   const decodeGate = new Promise<void>((resolve) => {
     releaseDecode = resolve;
   });
   if (!options.deferDecode) releaseDecode();
   const image = new DicomChunkImage({
-    splitAndSort: async (chunks) => ({ fixture: chunks }),
     readDicomImage: async (input) => {
       await decodeGate;
       const source = new Uint8Array(await input.arrayBuffer());
@@ -111,7 +130,7 @@ export async function loadOCT(
   releases.push(fixture.releaseDecode);
   useImageCacheStore().addProgressiveImage(fixture.image, { id });
   await fixture.chunk.loadMeta();
-  await fixture.image.addChunks([fixture.chunk]);
+  await setImageChunks(fixture.image, [fixture.chunk]);
   fixture.image.startLoad();
   if (!options.deferDecode) await untilLoaded(id);
   return id;

@@ -20,6 +20,7 @@ import {
   activateEnFace,
   createOCTFixture,
   loadOCT,
+  setImageChunks,
 } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 
@@ -66,7 +67,7 @@ it('enables pane interactions only when their projection source supports them', 
   releases.push(fixture.releaseDecode);
   useImageCacheStore().addProgressiveImage(fixture.image, { id: 'oct' });
   await fixture.chunk.loadMeta();
-  await fixture.image.addChunks([fixture.chunk]);
+  await setImageChunks(fixture.image, [fixture.chunk]);
   fixture.image.startLoad();
   views.setDataForView(viewID, 'oct');
   await nextTick();

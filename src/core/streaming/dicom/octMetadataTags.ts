@@ -1,4 +1,4 @@
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 
 export const OPHTHALMIC_TOMOGRAPHY_SOP = '1.2.840.10008.5.1.4.1.1.77.1.5.4';
 export const OPHTHALMIC_BSCAN_ANALYSIS_SOP = '1.2.840.10008.5.1.4.1.1.77.1.5.8';

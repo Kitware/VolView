@@ -4,12 +4,13 @@ import { computed, markRaw, nextTick } from 'vue';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { createOCTFixture, setImageChunks } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { setDicomTag } from './dicomMetadataFixture';
 
 describe('OCT view availability', () => {
   let emptyImage: DicomChunkImage | undefined;
@@ -40,7 +41,7 @@ describe('OCT view availability', () => {
     const reason = computed(() => getEnFaceUnavailableReason('pending'));
     expect(reason.value).not.toBeNull();
     await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
+    await setImageChunks(fixture.image, [fixture.chunk]);
     await nextTick();
     expect(reason.value).toMatch(/complete volume/);
     fixture.image.startLoad();
@@ -99,11 +100,9 @@ describe('OCT view availability', () => {
         MR: '1.2.840.10008.5.1.4.1.1.4',
         PT: '1.2.840.10008.5.1.4.1.1.128',
       }[modality];
-      fixture.chunk.metadata!.forEach((pair) => {
-        if (pair[0] === Tags.Modality) pair[1] = modality;
-        if (pair[0] === Tags.SOPClassUID) pair[1] = sop;
-      });
-      await fixture.image.addChunks([fixture.chunk]);
+      setDicomTag(fixture.chunk.metadata!, Tags.Modality, modality);
+      setDicomTag(fixture.chunk.metadata!, Tags.SOPClassUID, sop);
+      await setImageChunks(fixture.image, [fixture.chunk]);
       fixture.image.startLoad();
       await untilLoaded(id);
       expect(getEnFaceUnavailableReason(id)).toBeNull();
@@ -121,11 +120,12 @@ describe('OCT view availability', () => {
       });
       await fixture.chunk.loadMeta();
       if (kind === 'nonvolumetric')
-        fixture.chunk.metadata!.push([
+        setDicomTag(
+          fixture.chunk.metadata!,
           Tags.OphthalmicVolumetricPropertiesFlag,
-          'NO',
-        ]);
-      await fixture.image.addChunks([fixture.chunk]);
+          'NO'
+        );
+      await setImageChunks(fixture.image, [fixture.chunk]);
       fixture.image.startLoad();
       await untilLoaded('guarded');
       expect(getEnFaceUnavailableReason('guarded')).toMatch(

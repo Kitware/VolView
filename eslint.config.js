@@ -360,7 +360,12 @@ export default tseslint.config(
     },
     {
       dir: 'referenceLines',
-      publicModules: ['ReferenceLines.vue', 'store'],
+      publicModules: [
+        'ReferenceLines.vue',
+        'ReferenceLineSegments.vue',
+        'geometry',
+        'store',
+      ],
       pure: [
         'src/referenceLines/geometry.ts',
         'src/referenceLines/crossings.ts',

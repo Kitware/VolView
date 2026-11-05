@@ -1,7 +1,17 @@
-import dicomParser, { type DataSet } from 'dicom-parser';
+import dicomParser from 'dicom-parser';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
+import {
+  type OCTDataset,
+  parsedOCTDataset,
+  structuredOCTDataset,
+} from './octDataset';
 import { inflateSync } from 'fflate';
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
-import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
+import {
+  Tags,
+  toDicomParserKey,
+} from '@/packages/dicom/core/metadata/dicomTags';
 import {
   frameGridGeometry,
   imageDirection,
@@ -43,25 +53,22 @@ const sequenceTags = new Set([
   'x00289145',
 ]);
 
-const firstItem = (data: DataSet | undefined, tag: string) =>
-  data?.elements[tag]?.items?.[0]?.dataSet;
-const sequenceItems = (data: DataSet, tag: string) =>
-  data.elements[tag]?.items?.flatMap((item) =>
-    item.dataSet ? [item.dataSet] : []
-  ) ?? [];
-const stringValue = (data: DataSet | undefined, tag: string) =>
-  data?.string(tag)?.trim() || undefined;
+const firstItem = (data: OCTDataset | undefined, tag: string) =>
+  data?.items(tag)[0];
+const sequenceItems = (data: OCTDataset, tag: string) => data.items(tag);
+const stringValue = (data: OCTDataset | undefined, tag: string) =>
+  data?.value(tag)?.trim() || undefined;
 const vector = (value: string | undefined) => value?.split('\\').map(Number);
 
 function frameAttribute(
-  data: DataSet | undefined,
+  data: OCTDataset | undefined,
   sequence: string,
   attribute: string
 ) {
   return stringValue(firstItem(data, sequence), attribute);
 }
 
-function frameGeometry(data: DataSet) {
+function frameGeometry(data: OCTDataset) {
   const shared = firstItem(data, SHARED);
   const frames = sequenceItems(data, PER_FRAME);
   // Shared groups take precedence over the first frame, then the top level.
@@ -74,7 +81,10 @@ function frameGeometry(data: DataSet) {
   );
   return {
     frames,
-    declaredFrames: data.intString(toDicomParserKey(Tags.NumberOfFrames)),
+    declaredFrames: Number.parseInt(
+      stringValue(data, toDicomParserKey(Tags.NumberOfFrames)) ?? '',
+      10
+    ),
     orientation: attribute(ORIENTATION, IMAGE_ORIENTATION),
     spacing: attribute(MEASURES, PIXEL_SPACING),
     positions,
@@ -152,7 +162,7 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   return positionError(geometry);
 }
 
-function scanPattern(data: DataSet) {
+function scanPattern(data: OCTDataset) {
   const acquisitions = sequenceItems(data, ACQUISITION_PARAMETERS);
   const patterns = [data, ...acquisitions].flatMap((dataset) =>
     sequenceItems(dataset, SCAN_PATTERN).flatMap(
@@ -164,7 +174,7 @@ function scanPattern(data: DataSet) {
     : patterns[0];
 }
 
-function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
+function promoteOCTGeometry(data: OCTDataset, tags: Map<string, string>) {
   const geometry = frameGeometry(data);
   const set = (tag: string, value: Maybe<string>) => {
     if (value) tags.set(tag, value);
@@ -240,9 +250,18 @@ export async function augmentOCTMetadata(
   const tags = new Map(metadata);
   try {
     const data = await readOCTHeader(file);
-    promoteOCTGeometry(data, tags);
+    promoteOCTGeometry(parsedOCTDataset(data), tags);
   } catch {
     tags.set(OCT_GEOMETRY_ERROR, 'OCT spatial metadata could not be read.');
   }
+  return [...tags];
+}
+
+/** Application-only OCT eligibility and measurement metadata; raw core data stays unchanged. */
+export function dicomMetadataForDisplay(dataset: DicomDataset) {
+  const metadata = dicomDatasetToTags(dataset);
+  if (!isOCTMetadata(metadata)) return metadata;
+  const tags = new Map(metadata);
+  promoteOCTGeometry(structuredOCTDataset(dataset), tags);
   return [...tags];
 }

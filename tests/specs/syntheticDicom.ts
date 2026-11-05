@@ -65,8 +65,10 @@ export const LONG_FORM_VRS = new Set([
   'OD',
   'OF',
   'OL',
+  'OV',
   'OW',
   'SQ',
+  'SV',
   'UC',
   'UN',
   'UR',
@@ -125,22 +127,6 @@ const pnRaw = (g: number, e: number, v: Uint8Array) =>
     'PN',
     v.length % 2 === 0 ? v : combine(v, new Uint8Array([0x20]))
   );
-
-// VRs whose explicit form carries 2 reserved bytes and a 4-byte length.
-const LONG_FORM_VRS = new Set([
-  'OB',
-  'OD',
-  'OF',
-  'OL',
-  'OV',
-  'OW',
-  'SQ',
-  'SV',
-  'UC',
-  'UN',
-  'UR',
-  'UT',
-]);
 
 // One Explicit VR LE element, short or long form as the VR requires. Lets a
 // fixture write a VR this helper has no named writer for.

@@ -1,9 +1,10 @@
+import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
@@ -53,7 +54,7 @@ function acquisitionReason(image: ProgressiveImage) {
     if (!metadata) continue;
     let reason = metadataReasons.get(metadata);
     if (reason === undefined) {
-      reason = acquisitionMetadataReason(metadata);
+      reason = acquisitionMetadataReason(dicomMetadataForDisplay(metadata));
       metadataReasons.set(metadata, reason);
     }
     if (reason !== null) return reason;
