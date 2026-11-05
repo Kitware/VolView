@@ -4,7 +4,6 @@ import { mount } from '@vue/test-utils';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
-import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
 import { useVtkView, useWebGLRenderWindow } from '@/src/core/vtk/useVtkView';
@@ -62,22 +61,9 @@ function mountViewUnder(parent: VtkRenderWindowParentApi) {
 describe('useVtkView teardown', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    // newInstance freezes the API. Use the same implementation without freezing
-    // it so the tests can observe renders and inject a cleanup failure.
-    vi.spyOn(vtkRenderWindow, 'newInstance').mockImplementation(() => {
-      const api = {} as vtkRenderWindow;
-      vtkRenderWindow.extend(api, {});
-      return api;
-    });
-    vi.spyOn(vtkWidgetManager, 'newInstance').mockImplementation(() => {
-      const api = {} as vtkWidgetManager;
-      vtkWidgetManager.extend(api, {});
-      return api;
-    });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -86,25 +72,33 @@ describe('useVtkView teardown', () => {
     (state) => {
       const scope = effectScope(true);
       const view = scope.run(() => useVtkView(ref(null)))!;
-      // Observe render dispatch without needing a WebGL context in the test DOM.
-      const render = vi
-        .spyOn(view.renderWindow, 'render')
-        .mockImplementation(() => {});
-      const renderWidgets = vi
-        .spyOn(view.widgetManager, 'renderWidgets')
-        .mockImplementation(() => {});
+      // With no container, the interactor emits render events without drawing.
+      const events: string[] = [];
+      const rendered = view.interactor.onRenderEvent(() =>
+        events.push('render')
+      );
+      const widgetsModified = view.widgetManager.onModified(() =>
+        events.push('widgets')
+      );
 
       try {
         view.requestRender();
         expect(vi.getTimerCount()).toBe(1);
 
         if (state === 'cleanup throws') {
-          const error = new Error('selector cleanup failed');
-          vi.spyOn(view.widgetManager, 'delete').mockImplementationOnce(() => {
-            throw error;
+          const error = new Error('view removal listener failed');
+          // removeView emits Modified after the OpenGL view has been deleted,
+          // but before disposal reaches deferredRender.cancel().
+          const failure = view.renderWindow.onModified(() => {
+            if (!view.renderWindow.hasView(view.renderWindowView)) throw error;
           });
-          expect(() => scope.stop()).toThrow(error);
+          try {
+            expect(() => scope.stop()).toThrow(error);
+          } finally {
+            failure?.unsubscribe();
+          }
           expect(view.renderWindowView.isDeleted()).toBe(true);
+          expect(view.renderWindow.hasView(view.renderWindowView)).toBe(false);
           // Cleanup stopped before reaching deferredRender.cancel().
           expect(vi.getTimerCount()).toBe(1);
         } else if (state === 'disposed') {
@@ -114,10 +108,10 @@ describe('useVtkView teardown', () => {
 
         vi.runAllTimers();
 
-        const expectedRenders = state === 'live' ? 1 : 0;
-        expect(renderWidgets).toHaveBeenCalledTimes(expectedRenders);
-        expect(render).toHaveBeenCalledTimes(expectedRenders);
+        expect(events).toEqual(state === 'live' ? ['widgets', 'render'] : []);
       } finally {
+        rendered.unsubscribe();
+        widgetsModified?.unsubscribe();
         scope.stop();
         // A throwing scope cleanup does not resume on a second stop().
         [
