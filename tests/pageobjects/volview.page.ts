@@ -92,6 +92,15 @@ class VolViewPage extends Page {
     );
   }
 
+  async getNotificationTitles() {
+    await this.notifications.click();
+    const titles = $$(
+      '.message-center .v-expansion-panel-title .header > span'
+    );
+    await titles[0].waitForDisplayed();
+    return titles.map((title) => title.getText());
+  }
+
   async selectTool(icon: string) {
     const button = $(`button.tool-btn i[class~=${icon}]`);
     await button.waitForClickable();

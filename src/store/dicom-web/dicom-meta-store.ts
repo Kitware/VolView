@@ -49,6 +49,12 @@ interface State {
   studyPatient: Record<string, string>;
 }
 
+// The index has no slot for a series without its study, or an instance
+// without its series.
+const hasParentUids = (info: Instance) =>
+  (!info.SeriesInstanceUID || !!info.StudyInstanceUID) &&
+  (!info.SopInstanceUID || !!info.SeriesInstanceUID);
+
 export const useDicomMetaStore = defineStore('dicom-meta', {
   state: (): State => ({
     patientInfo: {},
@@ -64,7 +70,8 @@ export const useDicomMetaStore = defineStore('dicom-meta', {
     needsRebuild: {},
   }),
   actions: {
-    async importMeta(info: Instance) {
+    importMeta(info: Instance) {
+      if (!hasParentUids(info)) return;
       const patient = {
         PatientID: info.PatientID || ANONYMOUS_PATIENT_ID,
         PatientName: info.PatientName || ANONYMOUS_PATIENT,
