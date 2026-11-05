@@ -29,6 +29,7 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import {
   restoreStateFile,
   completeStateFileRestore,
+  type RestoreOptions,
 } from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig, {
@@ -166,9 +167,7 @@ async function completeStateFileSetups(
   stateFileSetups: StateFileSetupResult[],
   restore: RestoreProcessors,
   loadableResults: LoadableResult[],
-  failedLeaves: NonNullable<
-    Parameters<RestoreProcessors['completeStateFileRestore']>[3]
-  >['failedLeaves']
+  failedLeaves: RestoreOptions['failedLeaves']
 ) {
   const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
   // Leaf stateIDs covered by a consolidated notice that actually ran: only

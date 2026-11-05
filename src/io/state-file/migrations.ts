@@ -565,7 +565,7 @@ const migrate700To800 = (inputManifest: any, migration: ManifestMigration) => {
     ? manifest.segments
     : [];
   const datasets = manifestDatasets(manifest);
-  const imageIds = [...new Set<string>(datasets.map(({ id }) => id))];
+  const imageIds = [...new Set(datasets.map(({ id }) => id))];
   const referencedIds = [
     ...(manifest.segmentations ?? []).flatMap((segmentation: any) =>
       (segmentation.masks ?? []).map((mask: any) => mask.segmentId)

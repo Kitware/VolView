@@ -23,7 +23,9 @@ const viewImage = async (id: string) => {
 };
 
 const recordIdsOf = (imageId: string) =>
-  store().getSegmentationForImage(imageId)?.order ?? [];
+  store()
+    .imageMasks(imageId)
+    .map(({ id }) => id);
 
 const SQUARE: Vector3[] = [
   [0, 0, 0],
@@ -96,27 +98,29 @@ describe('independent segments across images', () => {
     const first = store().resolveEditTarget('img-1', source);
     store().resolveEditTarget('img-2', copied);
     const polygons = usePolygonStore();
-    const kept = polygons.addTool({ imageID: 'img-1', segmentId: source });
-    const removed = polygons.addTool({ imageID: 'img-2', segmentId: copied });
+    polygons.addTool({ imageID: 'img-1', segmentId: source, placing: false });
+    polygons.addTool({ imageID: 'img-2', segmentId: copied, placing: false });
 
     segments().deleteSegment(copied);
 
     expect(recordIdsOf('img-1')).toEqual([first]);
     expect(recordIdsOf('img-2')).toEqual([]);
-    expect(polygons.toolByID[kept]).toBeDefined();
-    expect(polygons.toolByID[removed]).toBeUndefined();
+    expect(polygons.serializeTools().tools).toEqual([
+      expect.objectContaining({ imageID: 'img-1', segmentId: source }),
+    ]);
     await viewImage('img-2');
     expect(segments().segmentList('img-2')).toEqual([]);
   });
 
   it('places an annotation against the destination image selection', async () => {
-    const { source, copied } = await copiedTumor();
+    const { copied } = await copiedTumor();
     const polygons = usePolygonStore();
 
     const toolId = polygons.addTool({ imageID: 'img-2', placing: false });
 
-    expect(polygons.toolByID[toolId].segmentId).toBe(copied);
-    expect(polygons.toolByID[toolId].segmentId).not.toBe(source);
+    expect(polygons.serializeTools().tools).toEqual([
+      expect.objectContaining({ id: toolId, segmentId: copied }),
+    ]);
   });
 
   it('rasterizes the destination copy without changing source voxels', async () => {

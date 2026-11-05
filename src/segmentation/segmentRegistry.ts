@@ -17,6 +17,7 @@ import type { ConfiguredSegments } from '@/src/io/import/configSegments';
 type ImageSegmentSet = {
   segmentIds: string[];
   selectedSegmentId?: string;
+  selectionRevision: number;
 };
 
 export type SegmentDefaults = Omit<
@@ -71,7 +72,7 @@ const configuredAppearance = ({
   strokeWidth,
 }: Appearance) => ({ color, fillOpacity, outlineOpacity, strokeWidth });
 
-// A config key seats in the palette color at its position in the config.
+// Palette colors wrap when an image exhausts the available colors.
 const configuredColor = (index: number) =>
   cssColorToRGBA(TOOL_COLORS[index % TOOL_COLORS.length]);
 
@@ -136,27 +137,27 @@ export const createSegmentRegistry = (
     Record<string, Segment>
   >;
   const imageSets = ref<Record<string, ImageSegmentSet>>(Object.create(null));
-  // Sets copied from another image that nobody has edited since. Incoming
-  // definitions from an import or restore replace them instead of merging.
-  const borrowed = new Set<string>();
   const owners = new Map<string, string>();
-  // Per-image lookups: names, suffix floors, the color cursor and the config
-  // overlay. They live and go with the image's set.
-  const indexes = new Map<
+  // Runtime metadata and cached lookups live and go with the image's set.
+  const metadataByImage = new Map<
     string,
     {
+      // An untouched inherited set can be replaced by incoming definitions.
+      borrowed: boolean;
       idsByName: Map<string, string[]>;
       suffixFloors: Map<string, number>;
       nextColorIndex: number;
       config: Map<string, ConfigEntry>;
       order: ComputedRef<Map<string, number>>;
+      segments: ComputedRef<Segment[]>;
     }
   >();
 
-  const indexFor = (imageId: string) => {
-    let index = indexes.get(imageId);
-    if (!index) {
-      index = {
+  const metadataFor = (imageId: string) => {
+    let metadata = metadataByImage.get(imageId);
+    if (!metadata) {
+      metadata = {
+        borrowed: false,
         idsByName: new Map(),
         suffixFloors: new Map(),
         nextColorIndex: 0,
@@ -170,38 +171,33 @@ export const createSegmentRegistry = (
               ])
             )
         ),
+        segments: computed(() =>
+          (imageSets.value[imageId]?.segmentIds ?? []).map(
+            (id) => segmentById.value[id]
+          )
+        ),
       };
-      indexes.set(imageId, index);
+      metadataByImage.set(imageId, metadata);
     }
-    return index;
+    return metadata;
   };
 
   const ensureSet = (imageId: string) => {
-    imageSets.value[imageId] ??= { segmentIds: [] };
+    imageSets.value[imageId] ??= { segmentIds: [], selectionRevision: 0 };
     return imageSets.value[imageId];
   };
 
-  const segmentLists = new Map<string, ComputedRef<Segment[]>>();
-  const segmentList = (imageId: Maybe<string>) => {
-    if (!imageId || !imageSets.value[imageId]) return [];
-    let list = segmentLists.get(imageId);
-    if (!list) {
-      list = computed(() =>
-        (imageSets.value[imageId]?.segmentIds ?? []).map(
-          (id) => segmentById.value[id]
-        )
-      );
-      segmentLists.set(imageId, list);
-    }
-    return list.value;
-  };
+  const segmentList = (imageId: Maybe<string>) =>
+    imageId && imageSets.value[imageId]
+      ? metadataFor(imageId).segments.value
+      : [];
 
   const ownerImageId = (id: Maybe<string>) => (id ? owners.get(id) : undefined);
   const belongsToImage = (imageId: Maybe<string>, id: Maybe<string>) =>
     !!imageId && !!id && ownerImageId(id) === imageId;
 
   const indexName = (imageId: string, name: string, id: string) => {
-    const { idsByName } = indexFor(imageId);
+    const { idsByName } = metadataFor(imageId);
     const key = name.trim();
     const ids = idsByName.get(key);
     if (ids) ids.push(id);
@@ -210,7 +206,7 @@ export const createSegmentRegistry = (
 
   // Releasing a name may free a suffix below its family's cached floor.
   const unindexName = (imageId: string, name: string, id: string) => {
-    const { idsByName, suffixFloors } = indexFor(imageId);
+    const { idsByName, suffixFloors } = metadataFor(imageId);
     const key = name.trim();
     const ids = idsByName.get(key);
     if (!ids) return;
@@ -221,14 +217,13 @@ export const createSegmentRegistry = (
   };
 
   const nameTaken = (imageId: string, name: string) =>
-    indexFor(imageId).idsByName.has(name);
+    metadataFor(imageId).idsByName.has(name);
 
   const getSegment = (id: Maybe<string>) =>
     id ? segmentById.value[id] : undefined;
 
-  const selectionRevisions = ref<Record<string, number>>(Object.create(null));
   const selectionRevision = (imageId: Maybe<string>) =>
-    imageId ? (selectionRevisions.value[imageId] ?? 0) : 0;
+    imageId ? (imageSets.value[imageId]?.selectionRevision ?? 0) : 0;
 
   const selectedSegmentId = (imageId: Maybe<string>) => {
     const set = imageId ? imageSets.value[imageId] : undefined;
@@ -238,9 +233,10 @@ export const createSegmentRegistry = (
   const selectSegment = (id: Maybe<string>) => {
     const imageId = ownerImageId(id);
     if (!imageId || !id) return;
-    ensureSet(imageId).selectedSegmentId = id;
+    const set = ensureSet(imageId);
+    set.selectedSegmentId = id;
     // Reselecting the same segment can still request that its row be revealed.
-    selectionRevisions.value[imageId] = selectionRevision(imageId) + 1;
+    set.selectionRevision += 1;
   };
 
   const appearanceOf = (id: Maybe<string>) =>
@@ -249,13 +245,13 @@ export const createSegmentRegistry = (
   // Cached per image: the export sort asks twice per comparison.
   const orderIndexOf = (id: string) => {
     const imageId = ownerImageId(id);
-    return imageId ? (indexFor(imageId).order.value.get(id) ?? -1) : -1;
+    return imageId ? (metadataFor(imageId).order.value.get(id) ?? -1) : -1;
   };
 
   const findSegmentByName = (imageId: string, name: string) => {
-    const matches = (indexFor(imageId).idsByName.get(name.trim()) ?? []).filter(
-      (id) => segmentById.value[id]?.name === name
-    );
+    const matches = (
+      metadataFor(imageId).idsByName.get(name.trim()) ?? []
+    ).filter((id) => segmentById.value[id]?.name === name);
     const [first] = matches.sort((a, b) => orderIndexOf(a) - orderIndexOf(b));
     return getSegment(first);
   };
@@ -267,7 +263,7 @@ export const createSegmentRegistry = (
     nameFor: (index: number) => string,
     first: number
   ) => {
-    const { suffixFloors } = indexFor(imageId);
+    const { suffixFloors } = metadataFor(imageId);
     let index = suffixFloors.get(family) ?? first;
     while (nameTaken(imageId, nameFor(index))) index += 1;
     suffixFloors.set(family, index);
@@ -295,14 +291,14 @@ export const createSegmentRegistry = (
     // Mutated in place: a copy per mint makes a large import quadratic.
     const segment = {
       name: stated.name ?? defaultName(imageId),
-      color: configuredColor(indexFor(imageId).nextColorIndex++),
+      color: configuredColor(metadataFor(imageId).nextColorIndex++),
       visible: true,
       locked: false,
       ...stated,
       id,
     };
     segmentById.value[id] = segment;
-    borrowed.delete(imageId);
+    markEdited(imageId);
     set.segmentIds.push(id);
     owners.set(id, imageId);
     indexName(imageId, segment.name, id);
@@ -316,7 +312,10 @@ export const createSegmentRegistry = (
     return id;
   };
 
-  const markEdited = (imageId: string) => borrowed.delete(imageId);
+  const markEdited = (imageId: string) => {
+    const metadata = metadataByImage.get(imageId);
+    if (metadata) metadata.borrowed = false;
+  };
 
   const updateSegment = (id: string, patch: SegmentInit) => {
     const segment = segmentById.value[id];
@@ -337,7 +336,7 @@ export const createSegmentRegistry = (
         : next[key as keyof Segment] === segment[key as keyof Segment]
     );
     if (unchanged) return;
-    borrowed.delete(ownerImageId(id)!);
+    markEdited(ownerImageId(id)!);
     if (next.name !== segment.name) {
       const imageId = ownerImageId(id)!;
       unindexName(imageId, segment.name, id);
@@ -353,7 +352,7 @@ export const createSegmentRegistry = (
     if (!segment) return;
     removeReferences(id);
     const imageId = ownerImageId(id)!;
-    borrowed.delete(imageId);
+    markEdited(imageId);
     const set = ensureSet(imageId);
     set.segmentIds = set.segmentIds.filter((key) => key !== id);
     if (set.selectedSegmentId === id) delete set.selectedSegmentId;
@@ -365,7 +364,7 @@ export const createSegmentRegistry = (
   const moveSegment = (id: string, target: string, after = false) => {
     const imageId = ownerImageId(id);
     if (!imageId || id === target || !belongsToImage(imageId, target)) return;
-    borrowed.delete(imageId);
+    markEdited(imageId);
     const set = ensureSet(imageId);
     const order = set.segmentIds.filter((key) => key !== id);
     order.splice(order.indexOf(target) + Number(after), 0, id);
@@ -373,7 +372,9 @@ export const createSegmentRegistry = (
   };
 
   const nextSegmentColor = (imageId: Maybe<string>) =>
-    configuredColor(imageId ? (indexes.get(imageId)?.nextColorIndex ?? 0) : 0);
+    configuredColor(
+      imageId ? (metadataByImage.get(imageId)?.nextColorIndex ?? 0) : 0
+    );
 
   const ensureSelectedSegment = (imageId: string) => {
     beforeEdit(imageId);
@@ -394,28 +395,19 @@ export const createSegmentRegistry = (
   // values into each destination's independently owned arrays.
   const snapshot = (imageId: string): SegmentSetSnapshot => {
     const segments = segmentList(imageId);
-    const indexesById = new Map(segments.map(({ id }, index) => [id, index]));
-    const selectedIndex = indexesById.get(
+    const metadata = metadataByImage.get(imageId);
+    const indexesById = metadata?.order.value;
+    const selectedIndex = indexesById?.get(
       imageSets.value[imageId]?.selectedSegmentId ?? ''
     );
     return {
       segments: segments.map((segment) => omit(segment, ['id'])),
       ...(selectedIndex === undefined ? {} : { selectedIndex }),
-      nextColorIndex: indexes.get(imageId)?.nextColorIndex ?? 0,
-      configured: [...(indexes.get(imageId)?.config ?? [])].flatMap(
+      nextColorIndex: metadata?.nextColorIndex ?? 0,
+      configured: [...(metadata?.config ?? [])].flatMap(
         ([name, { id, ...entry }]) => {
-          const index = indexesById.get(id);
-          return index === undefined
-            ? []
-            : [
-                {
-                  ...entry,
-                  name,
-                  index,
-                  appearance: entry.appearance,
-                  contribution: entry.contribution,
-                },
-              ];
+          const index = indexesById?.get(id);
+          return index === undefined ? [] : [{ ...entry, name, index }];
         }
       ),
     };
@@ -436,20 +428,20 @@ export const createSegmentRegistry = (
       })
     );
     if (source.nextColorIndex !== undefined)
-      indexFor(imageId).nextColorIndex = source.nextColorIndex;
+      metadataFor(imageId).nextColorIndex = source.nextColorIndex;
     if (source.selectedIndex !== undefined)
       selectSegment(set.segmentIds[source.selectedIndex]);
     source.configured.forEach(({ name, index, ...entry }) => {
       const id = set.segmentIds[index];
       if (id)
-        indexFor(imageId).config.set(name, {
+        metadataFor(imageId).config.set(name, {
           ...entry,
           id,
           appearance: withCopiedColor(entry.appearance),
-          contribution: cleanUndefined(withCopiedColor(entry.contribution)),
+          contribution: withCopiedColor(entry.contribution),
         });
     });
-    if (copied) borrowed.add(imageId);
+    if (copied) metadataFor(imageId).borrowed = true;
   };
 
   // --- config overlay --- //
@@ -458,24 +450,18 @@ export const createSegmentRegistry = (
   // New segments begin with automatic color and default optional appearance;
   // a restored segment begins with its session appearance.
   const overlayConfig = (imageId: string, name: string, entry: ConfigEntry) => {
-    indexFor(imageId).config.set(name, entry);
+    metadataFor(imageId).config.set(name, entry);
     updateSegment(entry.id, { ...entry.appearance, ...entry.contribution });
   };
 
-  const seatConfigured = (
-    imageId: string,
-    contribution: SegmentDefaults,
-    index: number
-  ) => {
+  const seatConfigured = (imageId: string, contribution: SegmentDefaults) => {
     const { name } = contribution;
-    const entry = configuredEntry(contribution, index);
     const matched = findSegmentByName(imageId, name);
-    const id =
-      matched?.id ?? mintSegment(imageId, { name, ...entry.appearance });
+    const id = matched?.id ?? mintSegment(imageId, { name });
     return {
-      ...entry,
       id,
-      appearance: matched ? configuredAppearance(matched) : entry.appearance,
+      appearance: configuredAppearance(getSegment(id)!),
+      contribution,
       minted: !matched,
     };
   };
@@ -485,10 +471,10 @@ export const createSegmentRegistry = (
     configured: Maybe<ConfiguredSegments>
   ) => {
     ensureSet(imageId);
-    const entries = indexFor(imageId).config;
+    const entries = metadataFor(imageId).config;
     const next = configured ?? {};
 
-    Object.entries(next).forEach(([name, props], index) => {
+    Object.entries(next).forEach(([name, props]) => {
       const held = entries.get(name);
       const contribution = fromConfigured(name, props);
       overlayConfig(
@@ -496,7 +482,7 @@ export const createSegmentRegistry = (
         name,
         held && getSegment(held.id)
           ? { ...held, contribution }
-          : seatConfigured(imageId, contribution, index)
+          : seatConfigured(imageId, contribution)
       );
     });
 
@@ -521,22 +507,20 @@ export const createSegmentRegistry = (
   // Image eviction also notifies each content store, which removes its own
   // masks and tools by image. Only the segment metadata belongs here.
   const removeImage = (imageId: string) => {
-    borrowed.delete(imageId);
-    delete selectionRevisions.value[imageId];
     const ids = imageSets.value[imageId]?.segmentIds ?? [];
     delete imageSets.value[imageId];
     ids.forEach((id) => {
       owners.delete(id);
       delete segmentById.value[id];
     });
-    segmentLists.delete(imageId);
-    indexes.delete(imageId);
+    metadataByImage.delete(imageId);
   };
 
   /** Drops a copied set that no user edit or incoming content has claimed. */
   const releaseBorrowed = (imageId: string) => {
     const ids = imageSets.value[imageId]?.segmentIds ?? [];
-    if (borrowed.has(imageId) && !ids.some(hasReferences)) removeImage(imageId);
+    if (metadataByImage.get(imageId)?.borrowed && !ids.some(hasReferences))
+      removeImage(imageId);
   };
 
   // The session's appearance replaces the reused segment's own and a config
@@ -550,7 +534,7 @@ export const createSegmentRegistry = (
       ...init,
     });
     const imageId = ownerImageId(id)!;
-    const held = [...indexFor(imageId).config].find(
+    const held = [...metadataFor(imageId).config].find(
       ([, entry]) => entry.id === id
     );
     // Now the session's segment as well, so dropping the key must not take it.

@@ -10,7 +10,7 @@ import {
   StateFileSetupResult,
 } from '@/src/io/import/common';
 import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
-import { partition, getURLBasename } from '@/src/utils';
+import { partition, getURLBasename, plural } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { useSegmentationStore } from '@/src/segmentation/store';
@@ -186,7 +186,7 @@ type RestoreServices = {
   >;
 };
 
-type RestoreOptions = {
+export type RestoreOptions = {
   missingFiles?: Array<{ stateID: string; path: string }>;
   failedLeaves?: Array<{ stateID: string; name: string }>;
   migration?: ManifestMigration;
@@ -199,7 +199,8 @@ const restoreOptions = ({
 }: RestoreOptions = {}) => ({ missingFiles, failedLeaves, migration });
 
 const repeatedSegmentNotices = (
-  repeated: Array<{ name: string; imageId: string; sourceRow: number }>
+  repeated: Array<{ name: string; imageId: string; sourceRow: number }>,
+  imageName: (imageId: string) => string
 ) => {
   const rows = new Map<number, { name: string; images: Set<string> }>();
   repeated.forEach(({ name, imageId, sourceRow }) => {
@@ -209,7 +210,7 @@ const repeatedSegmentNotices = (
   });
   return [...rows].map(
     ([sourceRow, { name, images }]) =>
-      `- segment: ${name} (catalog row ${sourceRow + 1}; image${images.size > 1 ? 's' : ''}: ${[...images].join(', ')}; repeats the id of an earlier segment)`
+      `- segment: ${name} (catalog row ${sourceRow + 1}; ${plural(images.size, 'image')}: ${[...images].map(imageName).join(', ')}; repeats the id of an earlier segment)`
   );
 };
 
@@ -227,6 +228,17 @@ export const createStateFileRestorer = ({
     const viewStore = views ?? useViewStore();
     const byId = dataSourcesById(manifest);
     const datasets = manifestDatasets(manifest);
+    const imageName = (imageId: string) => {
+      const dataset = datasets.find(({ id }) => id === imageId);
+      return dataset
+        ? summarizeDataSource(
+            dataset.dataSourceId,
+            byId,
+            manifest.datasetFilePath,
+            imageId
+          )
+        : imageId;
+    };
     const resolvedDatasets = datasets.filter((ds) => ds.id in stateIDToStoreID);
     const unresolvedDatasets = datasets.filter(
       (ds) => !(ds.id in stateIDToStoreID)
@@ -291,14 +303,7 @@ export const createStateFileRestorer = ({
       stateIDToStoreID
     );
 
-    const missingBases = unresolvedDatasets.map((ds) =>
-      summarizeDataSource(
-        ds.dataSourceId,
-        byId,
-        manifest.datasetFilePath,
-        String(ds.id)
-      )
-    );
+    const missingBases = unresolvedDatasets.map(({ id }) => imageName(id));
     // Partially restored datasets need member notices; unresolved datasets are named above.
     const missingMembers = missingFiles
       .filter(({ stateID }) => stateID in stateIDToStoreID)
@@ -330,7 +335,7 @@ export const createStateFileRestorer = ({
       ...skippedTools.map(
         ({ name, reason }) => `- annotation: ${name} (${reason})`
       ),
-      ...repeatedSegmentNotices(repeatedSegments),
+      ...repeatedSegmentNotices(repeatedSegments, imageName),
       ...unassigned.map(
         ({ name }) => `- segment: ${name} (is not assigned to an image)`
       ),

@@ -602,8 +602,8 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           {
             source: item.source,
             name: item.name,
-            // Migrated groups never merge, and this one's display would be
-            // dropped by a same-named segment another image already minted.
+            // Migrated groups keep their own display, even when this image
+            // already has a segment with the same name.
             ownSegments: Object.values(item.display).some(
               (value) => value !== undefined
             ),

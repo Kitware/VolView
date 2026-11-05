@@ -22,7 +22,8 @@ to add one, and its color dot or edit button to change its name and appearance. 
 row, or press Alt+Up or Alt+Down, to reorder segments and their keys. The selection
 applies across all four tools on that image. Each image keeps its own definitions,
 order and selection. A new image copies the previous image's definitions once,
-without copying its masks or shapes.
+without copying its masks or shapes. Until edited, that copy can be replaced by a
+session, companion segmentation or configuration loaded with data.
 
 Each segment row has Reveal, Edit, Lock, Hide and Delete buttons. Reveal jumps to the
 segment's mask or shapes on the current image and stays disabled when it has none

@@ -4,6 +4,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
   openThroughDialog,
+  overlayOption,
   makeTempDir,
   SESSION_SAVE_TIMEOUT,
   waitForDownload,
@@ -98,6 +99,22 @@ const openSixViewLayout = async () => {
   await gridCell.moveTo();
   await gridCell.click();
   await expect($$('.grid-item')).toBeElementsArrayOfSize(6);
+};
+
+const openSparseSession = async (activeView?: string) => {
+  writeMetaImage(THIRD, { size: 32, step: 7 });
+  const manifest = await writeManifestToFile(
+    {
+      version: '8.0.0',
+      datasets: [{ id: 'restored', dataSourceId: 1 }],
+      dataSources: [{ id: 1, type: 'uri', uri: `/tmp/${THIRD}` }],
+      activeView,
+    },
+    'segment-owner-sparse.volview.json'
+  );
+  await openThroughDialog(manifest);
+  await openAnnotationSegments();
+  await expect($('[data-testid="segment-image-name"]')).toHaveText(THIRD);
 };
 
 describe('Image segmentation sets', () => {
@@ -244,6 +261,45 @@ describe('Image segmentation sets', () => {
     await showImage(SECOND);
     await expectSegments(['Kidney']);
     expect(await volViewPage.getNotificationsCount()).toEqual(0);
+  });
+
+  it('inherits from the selected image when a sparse session reuses a replaced first view', async () => {
+    await openImages();
+    await addSegment();
+    await renameSegment('Segment 1', 'Liver');
+    await $$('.grid-item')[0].$('.view-type-select .v-field').click();
+    const coronal = overlayOption('Coronal');
+    await coronal.waitForClickable();
+    await coronal.click();
+    await expect($$('.grid-item')[0].$('.view-type-select input')).toHaveValue(
+      'Coronal'
+    );
+
+    await dropImageOnView(SECOND, 0);
+    await openAnnotationSegments();
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(SECOND);
+    await expectSegments(['Liver']);
+    await renameSegment('Liver', 'Kidney');
+    await expectSegments(['Kidney']);
+    await volViewPage.selectTool('mdi-cursor-default');
+    await $$('.grid-item')[1].$('canvas').click();
+    await expect($('[data-testid="segment-image-name"]')).toHaveText(FIRST);
+    await expectSegments(['Liver']);
+
+    await openSparseSession();
+
+    await expectSegments(['Liver']);
+    await expect($('.grid-item[style*="mediumseagreen"]')).toBeDisplayed();
+  });
+
+  it('keeps a visible image selected when a sparse session names an unknown view', async () => {
+    await volViewPage.open();
+
+    await openSparseSession('missing-view');
+
+    await expect($('.grid-item[style*="mediumseagreen"]')).toBeDisplayed();
+    await addSegment();
+    await expectSegments(['Segment 1']);
   });
 
   it('keeps a failed companion image config off the current image and accepts a standalone config', async () => {

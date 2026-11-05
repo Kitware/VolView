@@ -7,6 +7,7 @@ import { ManifestSchema } from '@/src/io/state-file/schema';
 import {
   inMemoryArtifactIO,
   manifestForImages,
+  savedSegmentNames,
   seatImage,
   serializeToStateFiles,
   serializeAnnotations,
@@ -87,9 +88,7 @@ describe('image segment set persistence', () => {
     );
     const store = useSegmentStore();
     const { segmentIdMap } = store.deserialize(manifest, { saved: 'runtime' });
-    expect(
-      store.segments.segmentList('runtime').map(({ name }) => name)
-    ).toEqual(['B', 'A']);
+    expect(savedSegmentNames('runtime')).toEqual(['B', 'A']);
     expect(
       serializeAnnotations().imageSegmentSets?.find(
         ({ imageId }) => imageId === 'runtime'
@@ -119,15 +118,12 @@ describe('image segment set persistence', () => {
       b: 'second',
     });
     expect(repeated.map(({ name }) => name)).toEqual(['Repeated A', 'B']);
-    expect(store.segments.segmentList('first').map(({ name }) => name)).toEqual(
-      ['B', 'A']
-    );
     const saved = serializeAnnotations();
+    expect(savedSegmentNames('first', saved)).toEqual(['B', 'A']);
     expect(
       saved.imageSegmentSets?.find(({ imageId }) => imageId === 'first')
         ?.segmentIds
     ).toContain(segmentIdMap.s2);
-    expect(store.segments.segmentList('second')).toEqual([]);
     expect(
       saved.imageSegmentSets?.find(({ imageId }) => imageId === 'second')
     ).toEqual({ imageId: 'second', segmentIds: [] });
@@ -183,12 +179,7 @@ describe('image segment set persistence', () => {
       'image-b': 'restored-b',
     });
 
-    expect(
-      useSegmentStore()
-        .segments.segmentList('restored-a')
-        .map(({ name }) => name)
-    ).toEqual(['Tumor']);
-    expect(useSegmentStore().segments.segmentList('restored-b')).toEqual([]);
+    expect(savedSegmentNames('restored-a')).toEqual(['Tumor']);
     expect(
       serializeAnnotations().imageSegmentSets?.find(
         ({ imageId }) => imageId === 'restored-b'
@@ -221,9 +212,7 @@ describe('image segment set persistence', () => {
     const registry = useSegmentStore().segments;
     registry.addSegment('image-a', { name: 'Tumor' });
     await showImage('image-b');
-    expect(registry.segmentList('image-b').map(({ name }) => name)).toEqual([
-      'Tumor',
-    ]);
+    expect(savedSegmentNames('image-b')).toEqual(['Tumor']);
   });
 
   it('skips a mask that names another image segment without losing valid masks', async () => {
@@ -255,7 +244,7 @@ describe('image segment set persistence', () => {
       a: 'image-a',
       b: 'missing-image',
     });
-    expect(registry.segments.segmentList('image-a')).toHaveLength(1);
+    expect(savedSegmentNames('image-a')).toEqual(['Tumor']);
     expect(
       serializeAnnotations().imageSegmentSets?.map(({ imageId }) => imageId)
     ).toEqual(['image-a']);

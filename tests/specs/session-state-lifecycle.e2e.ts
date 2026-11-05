@@ -112,8 +112,7 @@ describe('Session state lifecycle', () => {
     await openAnnotationSegments();
     await waitForNamedSegments();
 
-    // The list shows every segment in the registry, so pick the one the
-    // session's rectangle actually carries rather than the first row.
+    // Pick the rectangle's segment from the current image's list.
     const row = await segmentRow(RECTANGLE_SEGMENT_NAME);
     await row.waitForDisplayed();
     const editButton = await row.$('button[data-testid="edit-segment-button"]');

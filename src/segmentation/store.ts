@@ -1,5 +1,12 @@
 import { defineStore } from 'pinia';
-import { markRaw, reactive, readonly, ref, shallowReactive } from 'vue';
+import {
+  computed,
+  markRaw,
+  reactive,
+  readonly,
+  ref,
+  shallowReactive,
+} from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
@@ -333,6 +340,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (!imageCacheStore.getVtkImageData(parentImageId))
       throw new Error('No such parent image');
     edits.beforeEdit();
+    useSegmentStore().prepareForEdit(parentImageId);
     const segmentation = ensureSegmentationForImage(parentImageId);
     const created: SegmentMask[] = [];
 
@@ -692,15 +700,22 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return ensureMask(imageId, segmentId).id;
   }
 
-  /** A segment's mask on every image that has one, by the per-image index. */
+  /** The segment's mask, if present, found through the per-image indexes. */
   const masksOfSegment = (segmentId: string) =>
     Object.values(segmentations).flatMap((segmentation) => {
       const maskId = maskIdsBySegment.get(segmentation.id)?.get(segmentId);
       return maskId ? [segmentation.masks[maskId]] : [];
     });
 
+  const referencedSegments = computed(
+    () =>
+      new Set(
+        [...maskIdsBySegment.values()].flatMap((index) => [...index.keys()])
+      )
+  );
+
   segmentRegistry.declareReferences('labelmaps', {
-    has: (segmentId) => masksOfSegment(segmentId).length > 0,
+    has: (segmentId) => referencedSegments.value.has(segmentId),
     remove: (segmentId) =>
       masksOfSegment(segmentId).forEach((mask) => deleteMask(mask.id)),
   });

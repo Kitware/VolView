@@ -330,7 +330,11 @@ export const useViewStore = defineStore('view', () => {
     });
   }
 
-  function setDataForView(viewID: string, dataID: Maybe<string>) {
+  function setDataForView(
+    viewID: string,
+    dataID: Maybe<string>,
+    options?: { activateView?: boolean }
+  ) {
     const view = viewByID[viewID];
     if (!view) return;
 
@@ -338,7 +342,7 @@ export const useViewStore = defineStore('view', () => {
     ViewDataChangeEvent.trigger(viewID, dataID);
     // If activeView is null/stale, fall back to a visible view so global
     // tools (which resolve their image through activeView) have one to read.
-    ensureActiveViewIsVisible();
+    if (options?.activateView !== false) ensureActiveViewIsVisible();
   }
 
   function setDataForActiveView(dataID: Maybe<string>) {
@@ -351,9 +355,11 @@ export const useViewStore = defineStore('view', () => {
     selectedViewID?: Maybe<string>
   ) {
     viewIDs.value.forEach((viewID) => {
-      setDataForView(viewID, dataID);
+      setDataForView(viewID, dataID, { activateView: false });
     });
-    if (selectedViewID) setActiveView(selectedViewID);
+    if (visibleViews.value.some(({ id }) => id === selectedViewID))
+      setActiveView(selectedViewID);
+    ensureActiveViewIsVisible();
   }
 
   function removeDataFromViews(dataID: string) {

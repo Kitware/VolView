@@ -9,6 +9,7 @@ import {
 import { nextTick } from 'vue';
 
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { TOOL_COLORS } from '@/src/config';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
@@ -465,12 +466,15 @@ describe('configured defaults without an active image', () => {
     expect(segmentIdNamed('Tumor')).toBe(id);
   });
 
-  it('uses the same automatic configured colors for fresh rows and future defaults', async () => {
+  it('starts future defaults at the first palette color independently of existing rows', async () => {
     await seatAndView('img-1');
     segments().mintSegment('img-1', { name: 'User' });
     applyConfig({ segments: { First: {}, Second: {} } });
     const configuredColors = ['First', 'Second'].map(
       (name) => segments().findSegmentByName('img-1', name)!.color
+    );
+    expect(configuredColors).toEqual(
+      TOOL_COLORS.slice(1, 3).map(cssColorToRGBA)
     );
 
     setActivePinia(createPinia());
@@ -480,6 +484,6 @@ describe('configured defaults without an active image', () => {
       segments()
         .segmentList('img-2')
         .map(({ color }) => color)
-    ).toEqual(configuredColors);
+    ).toEqual(TOOL_COLORS.slice(0, 2).map(cssColorToRGBA));
   });
 });

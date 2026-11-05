@@ -281,6 +281,18 @@ export const serializeAnnotations = (
   return JSON.parse(JSON.stringify(manifest)) as Manifest;
 };
 
+export const savedSegmentNames = (
+  imageId: string,
+  manifest = serializeAnnotations()
+) => {
+  const set = manifest.imageSegmentSets?.find(
+    (entry) => entry.imageId === imageId
+  );
+  return (set?.segmentIds ?? []).map(
+    (id) => manifest.segments?.find((segment) => segment.id === id)?.name
+  );
+};
+
 const archivePathsIn = (parsed: any): string[] => [
   ...(parsed.segmentationArtifacts ?? []).flatMap((artifact: any) =>
     artifact.path ? [artifact.path] : []

@@ -33,17 +33,15 @@ stores or upper feature modules.
 
 ## Editing and persistence
 
-On first activation, an image without a segment set copies the last active image's
-definitions, order and selection, or configured defaults if no previous set exists.
+On first activation or edit, an image without a segment set copies the last active
+image's definitions, order and selection, falling back to configured defaults.
 Copies have fresh identities, start visible and unlocked, and contain no masks or
-shapes. An image edited before it is viewed copies the same way. Existing sets,
-including empty ones, are never reseeded.
+shapes.
 
-A copy stays borrowed until something edits it: a definition change, a mask or a
-shape. A restored set replaces a borrowed copy, and a companion segmentation
-replaces it with the configured defaults before binding its labels by name, so
-loading never waits and editing is never blocked. Once the copy is edited,
-incoming labels bind by name into it like any other import.
+A copy stays borrowed until its definitions, masks or shapes are edited. A restored
+set or a configuration loaded with data replaces a borrowed copy. A companion
+segmentation replaces it with configured defaults before binding its labels by
+name. Restored sets and companion labels merge into edited sets.
 
 Manifest 8.0.0 saves image membership, order, selection and defaults. Migration
 splits older shared catalogs by image without duplicating voxels. Restore preserves
@@ -51,9 +49,9 @@ distinct saved identities even when datasets resolve to the same image, while
 copies of the same legacy definition resolve to one segment on that image.
 Legacy identity and source-row mappings belong to the import context and are
 not part of the saved manifest.
-An image without a saved set starts from the restored defaults, even if another
-image was active before the restore. These sets are owned immediately, so later
-incoming definitions merge into them.
+An image without a saved set uses saved defaults when supplied, otherwise it
+inherits normally. Artifact-only sessions without saved defaults use configured
+defaults. Saved empty sets do not inherit.
 Open saved sessions with a build that supports their manifest version; earlier
 builds cannot preserve the image ownership recorded in 8.0.0.
 

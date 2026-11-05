@@ -8,9 +8,13 @@ import { completeStateFileRestore } from '@/src/io/import/processors/restoreStat
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import {
+  inMemoryArtifactIO,
+  makeLabelmap,
   manifestForImages,
+  savedSegmentNames,
   seatImage,
   serializeAnnotations,
+  serializeToStateFiles,
   segmentNames,
   showImage,
   viewImage,
@@ -21,16 +25,6 @@ import { useViewStore } from '@/src/store/views';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { defer } from '@/src/utils';
 import { Skip } from '@/src/utils/evaluateChain';
-
-const savedSegmentNames = (imageId: string) => {
-  const manifest = serializeAnnotations();
-  const set = manifest.imageSegmentSets?.find(
-    (entry) => entry.imageId === imageId
-  );
-  return (set?.segmentIds ?? []).map(
-    (id) => manifest.segments?.find((segment) => segment.id === id)?.name
-  );
-};
 
 describe('image segment initialization boundaries', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -317,6 +311,63 @@ describe('image segment initialization boundaries', () => {
       await showImage('destination-b');
       expect(savedSegmentNames('destination-b')).toEqual(['Site', 'Mask b']);
       expect(savedSegmentNames('existing')).toEqual(['Site', 'Unrelated']);
+    }
+  );
+
+  it.each([false, true])(
+    'inherits before matching a mixed manifest artifact, with destination viewed: %s',
+    async (viewed) => {
+      await viewImage('existing');
+      const segments = useSegmentStore();
+      segments.segments.addSegment('existing', { name: 'Tumor' });
+      segments.segments.addSegment('existing', { name: 'Unused' });
+      await seatImage('destination');
+      await seatImage('other');
+      if (viewed) await showImage('destination');
+      const manifest = manifestForImages(['target', 'other'], {
+        imageSegmentSets: [{ imageId: 'other', segmentIds: [] }],
+        segmentationArtifacts: [
+          {
+            id: 'artifact',
+            name: 'Tumor.vti',
+            path: 'Tumor.vti',
+            parentImage: 'target',
+          },
+        ],
+      });
+      const dataIDMap = { target: 'destination', other: 'other' };
+      const { segmentIdMap } = segments.deserialize(manifest, dataIDMap);
+      const io = inMemoryArtifactIO();
+      const encoded = await io.write(
+        'vti',
+        makeLabelmap({ values: new Uint8Array(64).fill(1) })
+      );
+
+      await useSegmentationStore().deserialize({
+        manifest,
+        dataIDMap,
+        segmentIdMap,
+        stateFiles: [
+          { archivePath: 'Tumor.vti', file: new File([encoded], 'Tumor.vti') },
+        ],
+        io,
+      });
+
+      expect(savedSegmentNames('destination')).toEqual(['Tumor', 'Unused']);
+      expect(savedSegmentNames('other')).toEqual([]);
+      const { parsed: saved } = await serializeToStateFiles(
+        manifestForImages(['destination']),
+        io
+      );
+      const { segmentIds } = saved.imageSegmentSets.find(
+        ({ imageId }: { imageId: string }) => imageId === 'destination'
+      );
+      expect(saved.segmentations).toEqual([
+        expect.objectContaining({
+          parentImage: 'destination',
+          masks: [expect.objectContaining({ segmentId: segmentIds[0] })],
+        }),
+      ]);
     }
   );
 

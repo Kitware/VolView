@@ -34,7 +34,7 @@ describe('restoring a manifest whose segments repeat an id', () => {
       'Some scene content could not be restored',
       {
         details:
-          '- segment: Spleen (catalog row 2; image: parent; repeats the id of an earlier segment)',
+          '- segment: Spleen (catalog row 2; image: parent.nrrd; repeats the id of an earlier segment)',
       }
     );
   });
@@ -63,7 +63,7 @@ describe('restoring a manifest whose segments repeat an id', () => {
       'Some scene content could not be restored',
       {
         details:
-          '- segment: Spleen (catalog row 2; images: a, b; repeats the id of an earlier segment)',
+          '- segment: Spleen (catalog row 2; images: a.nrrd, b.nrrd; repeats the id of an earlier segment)',
       }
     );
   });
@@ -99,7 +99,9 @@ describe('restoring a manifest whose segments repeat an id', () => {
       );
 
       const images = (imageId: string) =>
-        version === '7.0.0' ? 'images: a, b' : `image: ${imageId}`;
+        version === '7.0.0'
+          ? 'images: a.nrrd, b.nrrd'
+          : `image: ${imageId}.nrrd`;
       expect(addWarning).toHaveBeenCalledExactlyOnceWith(
         'Some scene content could not be restored',
         {

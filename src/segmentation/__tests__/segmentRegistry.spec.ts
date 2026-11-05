@@ -342,6 +342,49 @@ describe('segment registry', () => {
     expect(namesOf(registry)).toEqual(['Tumor', 'Edema']);
   });
 
+  it('continues the image palette beneath colors supplied by a config', () => {
+    const registry = createSegmentRegistry();
+    registry.addSegment('img-1');
+    registry.addSegment('img-1');
+
+    registry.replaceConfigSegments('img-1', {
+      Tumor: {},
+      Liver: { color: 'blue' },
+    });
+
+    expect(registry.segmentList('img-1').map(({ color }) => color)).toEqual(
+      [...TOOL_COLORS.slice(0, 3), 'blue'].map(cssColorToRGBA)
+    );
+
+    registry.replaceConfigSegments('img-1', { Tumor: {}, Liver: {} });
+    expect(registry.findSegmentByName('img-1', 'Liver')?.color).toEqual(
+      cssColorToRGBA(TOOL_COLORS[3])
+    );
+    expect(registry.getSegment(registry.addSegment('img-1'))?.color).toEqual(
+      cssColorToRGBA(TOOL_COLORS[4])
+    );
+  });
+
+  it('gives a prepended config key the next color without changing retained keys', () => {
+    const registry = createSegmentRegistry();
+    registry.replaceConfigSegments('img-1', { Tumor: {}, Liver: {} });
+    const retained = registry.serialize();
+
+    registry.replaceConfigSegments('img-1', {
+      Node: {},
+      Tumor: {},
+      Liver: {},
+    });
+
+    expect(registry.segmentList('img-1')).toEqual([
+      ...retained,
+      expect.objectContaining({
+        name: 'Node',
+        color: cssColorToRGBA(TOOL_COLORS[2]),
+      }),
+    ]);
+  });
+
   it('keeps the current color when a configured color does not parse', () => {
     const registry = createSegmentRegistry();
     const id = registry.mintSegment('img-1', {
@@ -777,7 +820,7 @@ describe('image segment sets', () => {
     registry.removeImage('first');
 
     expect(individualRemovals).toBe(0);
-    expect(registry.imageSets.value.first).toBeUndefined();
+    expect(registry.segmentList('first')).toEqual([]);
     expect(registry.getSegment(first)).toBeUndefined();
     expect(registry.getSegment(another)).toBeUndefined();
     expect(registry.belongsToImage('first', first)).toBe(false);
@@ -795,10 +838,17 @@ describe('image segment sets', () => {
   it('reads absent image context without initializing anything', () => {
     const registry = createSegmentRegistry();
 
-    expect(registry.segmentList(undefined)).toEqual([]);
-    expect(registry.selectedSegmentId(undefined)).toBeUndefined();
-    expect(registry.belongsToImage(undefined, 'missing')).toBe(false);
-    expect(registry.imageSets.value).toEqual({});
+    [undefined, 'missing'].forEach((imageId) => {
+      expect(registry.segmentList(imageId)).toEqual([]);
+      expect(registry.selectedSegmentId(imageId)).toBeUndefined();
+      expect(registry.belongsToImage(imageId, 'missing')).toBe(false);
+    });
+    expect(registry.serialize()).toEqual([]);
+    registry.initializeSet('missing', {
+      segments: [{ name: 'Initialized' }],
+      configured: [],
+    });
+    expect(namesOf(registry, 'missing')).toEqual(['Initialized']);
   });
 });
 
