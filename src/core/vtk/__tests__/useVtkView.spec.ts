@@ -67,6 +67,65 @@ describe('useVtkView teardown', () => {
     vi.useRealTimers();
   });
 
+  it.each(['live', 'disposed', 'cleanup throws'] as const)(
+    'only executes queued renders for a live view: %s',
+    (state) => {
+      const scope = effectScope(true);
+      const view = scope.run(() => useVtkView(ref(null)))!;
+      // With no container, the interactor emits render events without drawing.
+      const events: string[] = [];
+      const rendered = view.interactor.onRenderEvent(() =>
+        events.push('render')
+      );
+      const widgetsModified = view.widgetManager.onModified(() =>
+        events.push('widgets')
+      );
+
+      try {
+        view.requestRender();
+        expect(vi.getTimerCount()).toBe(1);
+
+        if (state === 'cleanup throws') {
+          const error = new Error('view removal listener failed');
+          // removeView emits Modified after the OpenGL view has been deleted,
+          // but before disposal reaches deferredRender.cancel().
+          const failure = view.renderWindow.onModified(() => {
+            if (!view.renderWindow.hasView(view.renderWindowView)) throw error;
+          });
+          try {
+            expect(() => scope.stop()).toThrow(error);
+          } finally {
+            failure?.unsubscribe();
+          }
+          expect(view.renderWindowView.isDeleted()).toBe(true);
+          expect(view.renderWindow.hasView(view.renderWindowView)).toBe(false);
+          // Cleanup stopped before reaching deferredRender.cancel().
+          expect(vi.getTimerCount()).toBe(1);
+        } else if (state === 'disposed') {
+          scope.stop();
+          expect(vi.getTimerCount()).toBe(0);
+        }
+
+        vi.runAllTimers();
+
+        expect(events).toEqual(state === 'live' ? ['widgets', 'render'] : []);
+      } finally {
+        rendered.unsubscribe();
+        widgetsModified?.unsubscribe();
+        scope.stop();
+        // A throwing scope cleanup does not resume on a second stop().
+        [
+          view.widgetManager,
+          view.renderer,
+          view.renderWindow,
+          view.interactor,
+        ].forEach((object) => {
+          if (!object.isDeleted()) object.delete();
+        });
+      }
+    }
+  );
+
   it('queues no render work once the view scope is disposed', () => {
     const container = document.createElement('div');
     const scope = effectScope(true);

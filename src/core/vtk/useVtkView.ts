@@ -153,6 +153,8 @@ export function useVtkView(
 
   // render API
   const deferredRender = batchForNextTask(() => {
+    // Cleanup can throw before the queued render is cancelled.
+    if (disposed) return;
     // don't need to re-render during animation
     if (interactor.isAnimating()) return;
     widgetManager.renderWidgets();
