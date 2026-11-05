@@ -39,6 +39,15 @@ const rasterizeMenuParts = async () => {
   return { item, activator: await item.$('..') };
 };
 
+const expectDisabledRasterizeReason = async (reason: string) => {
+  const { item, activator } = await rasterizeMenuParts();
+  expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
+  await activator.moveTo();
+  const tooltip = await tooltipOf(activator);
+  await expect(tooltip).toBeDisplayed();
+  await expect(tooltip).toHaveText(reason);
+};
+
 const openPolygonMenuAt = async (
   canvas: ChainablePromiseElement,
   x: number,
@@ -221,12 +230,7 @@ describe('Polygon rasterize target', () => {
       location.y + size.height / 2 - half
     );
 
-    const { item, activator } = await rasterizeMenuParts();
-    expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
-    await activator.moveTo();
-    const tooltip = await tooltipOf(activator);
-    await expect(tooltip).toBeDisplayed();
-    await expect(tooltip).toHaveText(
+    await expectDisabledRasterizeReason(
       'Unlock this segment to rasterize into it'
     );
   });
@@ -248,12 +252,7 @@ describe('Polygon rasterize target', () => {
     await AppPage.selectTool('mdi-cursor-default');
     await openPolygonMenuAt(canvas, centerX + half, centerY - half);
 
-    const { item, activator } = await rasterizeMenuParts();
-    expect(await item.getAttribute('class')).toContain('v-list-item--disabled');
-    await activator.moveTo();
-    const tooltip = $('.v-tooltip.v-overlay--active .v-overlay__content');
-    await expect(tooltip).toBeDisplayed();
-    await expect(tooltip).toHaveText(
+    await expectDisabledRasterizeReason(
       'Rasterization is not supported for cine images'
     );
   });
