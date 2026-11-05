@@ -1,13 +1,6 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { writeManifestToFile, writeMetaImage } from './utils';
 
-const notificationTitles = async () => {
-  await volViewPage.notifications.click();
-  const titles = $$('.message-center .v-expansion-panel-title .header > span');
-  await titles[0].waitForDisplayed();
-  return titles.map((title) => title.getText());
-};
-
 describe('An image with zero voxel spacing', () => {
   it('can be painted and reports the invalid spacing', async () => {
     // itk-wasm passes a MetaImage's zero ElementSpacing through unchanged.
@@ -26,6 +19,8 @@ describe('An image with zero voxel spacing', () => {
     const views2D = await volViewPage.getViews2D();
     await volViewPage.paintStrokeOnView(views2D[0]);
 
-    expect(await notificationTitles()).toEqual(['Invalid voxel spacing']);
+    expect(await volViewPage.getNotificationTitles()).toEqual([
+      'Invalid voxel spacing',
+    ]);
   });
 });

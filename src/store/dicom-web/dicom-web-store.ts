@@ -19,6 +19,7 @@ import {
   retrieveStudyMetadata,
   retrieveSeriesMetadata,
   parseUrl,
+  Instance,
 } from '@/src/core/dicom-web-api';
 import { useViewStore } from '@/src/store/views';
 
@@ -56,6 +57,20 @@ const levelToMetaKey = {
 };
 
 type InitialDicomListFetchProgress = 'Idle' | 'Pending' | 'Done';
+
+// One failed request should not hide what the other requests returned.
+const importSettled = (results: PromiseSettledResult<Instance[]>[]) => {
+  const dicoms = useDicomMetaStore();
+  results.forEach((result) => {
+    if (result.status === 'fulfilled')
+      result.value.forEach((instance) => dicoms.importMeta(instance));
+  });
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure)
+    useMessageStore().addError('Failed to fetch DICOMWeb metadata', {
+      error: failure.reason,
+    });
+};
 
 /**
  * Collect DICOM data from DICOMWeb
@@ -111,7 +126,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
   const fetchPatientMeta = async (patientKey: string) => {
     const dicoms = useDicomMetaStore();
-    const series = await Promise.all(
+    const series = await Promise.allSettled(
       dicoms.patientStudies[patientKey]
         .map((studyKey) => dicoms.studyInfo[studyKey])
         .map(async (studyMeta) => {
@@ -124,12 +139,12 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
           }));
         })
     );
-    series.flat().forEach((instance) => dicoms.importMeta(instance));
+    importSettled(series);
   };
 
   const fetchVolumesMeta = async (volumeKeys: string[]) => {
     const dicoms = useDicomMetaStore();
-    const series = await Promise.all(
+    const series = await Promise.allSettled(
       volumeKeys.map(async (volumeKey) => {
         const volumeMeta = dicoms.volumeInfo[volumeKey];
         const studyMeta = dicoms.studyInfo[dicoms.volumeStudy[volumeKey]];
@@ -144,7 +159,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         }));
       })
     );
-    series.flat().forEach((instance) => dicoms.importMeta(instance));
+    importSettled(series);
   };
 
   const volumes = ref({} as Progress);
@@ -161,12 +176,6 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       total: 0,
     };
 
-    const { SeriesInstanceUID: seriesInstanceUID } =
-      dicoms.volumeInfo[volumeKey];
-    const studyKey = dicoms.volumeStudy[volumeKey];
-    const { StudyInstanceUID: studyInstanceUID } = dicoms.studyInfo[studyKey];
-    const seriesInfo = { studyInstanceUID, seriesInstanceUID };
-
     const progressCallback = ({ loaded, total }: ProgressEvent) => {
       volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
@@ -176,6 +185,15 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     };
 
     try {
+      const volumeInfo = dicoms.volumeInfo[volumeKey];
+      if (!volumeInfo) {
+        throw new Error('DICOMWeb metadata is unavailable for this series');
+      }
+      const studyInfo = dicoms.studyInfo[dicoms.volumeStudy[volumeKey]];
+      const seriesInfo = {
+        studyInstanceUID: studyInfo.StudyInstanceUID,
+        seriesInstanceUID: volumeInfo.SeriesInstanceUID,
+      };
       const files = await fetchSeries(
         cleanHost.value,
         seriesInfo,
@@ -247,14 +265,14 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         ...fetchedMeta,
       }));
       fullMeta.forEach((instance) => dicoms.importMeta(instance));
+
+      // downloadVolume reports its own failures, so the list need not wait.
+      if (deepestLevel === 'series' && fullMeta.length > 0) {
+        downloadVolume(Object.values(parsedURL.value).pop() as string);
+      }
     } catch (error) {
       fetchError.value = error;
       console.error(error);
-    }
-
-    if (deepestLevel === 'series') {
-      const seriesID = Object.values(parsedURL.value).pop() as string;
-      downloadVolume(seriesID);
     }
 
     fetchDicomsProgress.value = 'Done';
