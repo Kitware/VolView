@@ -5,6 +5,8 @@ import { showImportedData } from '@/src/actions/loadUserFiles';
 import { asLoadableResult } from '@/src/io/import/common';
 import { importDataSources } from '@/src/io/import/importDataSources';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import { migrateManifest } from '@/src/io/state-file/migrations';
+import { ManifestSchema } from '@/src/io/state-file/schema';
 import {
   manifestForImages,
   seatImage,
@@ -19,6 +21,16 @@ import { useViewStore } from '@/src/store/views';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { defer } from '@/src/utils';
 import { Skip } from '@/src/utils/evaluateChain';
+
+const savedSegmentNames = (imageId: string) => {
+  const manifest = serializeAnnotations();
+  const set = manifest.imageSegmentSets?.find(
+    (entry) => entry.imageId === imageId
+  );
+  return (set?.segmentIds ?? []).map(
+    (id) => manifest.segments?.find((segment) => segment.id === id)?.name
+  );
+};
 
 describe('image segment initialization boundaries', () => {
   beforeEach(() => setActivePinia(createPinia()));
@@ -245,52 +257,111 @@ describe('image segment initialization boundaries', () => {
     }
   );
 
-  it('initializes every image in an artifact-only restore from configured defaults', async () => {
-    const store = useSegmentStore();
-    store.replaceConfigSegments({ Site: {} }, []);
-    await viewImage('existing');
-    store.segments.addSegment('existing', { name: 'Unrelated' });
-    await viewImage('destination-a');
-    await seatImage('destination-b');
-    const image = await seatImage('artifact', {
-      values: new Uint8Array(64).fill(1),
-    });
-    const segmentation = useSegmentationStore();
-    const deserialize = segmentation.deserialize;
-    vi.spyOn(segmentation, 'deserialize').mockImplementation((options) =>
-      deserialize({
-        ...options,
-        io: { read: async () => ({ image }), write: async () => '' },
-      })
-    );
-    const ids = ['a', 'b'];
-    await completeStateFileRestore(
-      manifestForImages(ids, {
-        primarySelection: 'a',
-        segmentationArtifacts: ids.map((id) => ({
-          id: `artifact-${id}`,
-          name: `Mask ${id}`,
-          parentImage: id,
-          path: `${id}.vti`,
+  it.each([
+    { version: '7.0.0' },
+    { version: '8.0.0' },
+    { version: '8.0.0', segments: [] },
+    { version: '8.0.0', segments: [], imageSegmentSets: [] },
+  ])(
+    'initializes artifact-only images from configured defaults: %j',
+    async (wire) => {
+      const store = useSegmentStore();
+      store.replaceConfigSegments({ Site: {} }, []);
+      await viewImage('existing');
+      store.segments.addSegment('existing', { name: 'Unrelated' });
+      await viewImage('destination-a');
+      await seatImage('destination-b');
+      const image = await seatImage('artifact', {
+        values: new Uint8Array(64).fill(1),
+      });
+      const segmentation = useSegmentationStore();
+      const deserialize = segmentation.deserialize;
+      vi.spyOn(segmentation, 'deserialize').mockImplementation((options) =>
+        deserialize({
+          ...options,
+          io: { read: async () => ({ image }), write: async () => '' },
+        })
+      );
+      const ids = ['a', 'b'];
+      const migrated = migrateManifest(
+        JSON.stringify(
+          manifestForImages(ids, {
+            ...wire,
+            primarySelection: 'a',
+            segmentationArtifacts: ids.map((id) => ({
+              id: `artifact-${id}`,
+              name: `Mask ${id}`,
+              parentImage: id,
+              path: `${id}.vti`,
+            })),
+          })
+        )
+      );
+      await completeStateFileRestore(
+        ManifestSchema.parse(migrated.manifest),
+        ids.map((id) => ({
+          archivePath: `${id}.vti`,
+          file: new File([], `${id}.vti`),
         })),
+        { a: 'destination-a', b: 'destination-b' },
+        { migration: migrated.migration }
+      );
+
+      ids.forEach((id) => {
+        expect(savedSegmentNames(`destination-${id}`)).toEqual([
+          'Site',
+          `Mask ${id}`,
+        ]);
+        expect(segmentation.imageMasks(`destination-${id}`)).toHaveLength(1);
+      });
+      await showImage('destination-b');
+      expect(savedSegmentNames('destination-b')).toEqual(['Site', 'Mask b']);
+      expect(savedSegmentNames('existing')).toEqual(['Site', 'Unrelated']);
+    }
+  );
+
+  it('keeps defaults separate when two sessions share an import map', async () => {
+    await seatImage('destination-a');
+    await seatImage('destination-b');
+    const dataIDMap = { a: 'destination-a', b: 'destination-b' };
+
+    await completeStateFileRestore(
+      manifestForImages(['a'], { seedSegmentDefaults: [{ name: 'Tumor' }] }),
+      [],
+      dataIDMap
+    );
+    await completeStateFileRestore(
+      manifestForImages(['b'], {
+        seedSegmentDefaults: [{ name: 'Kidney' }],
+        segments: [
+          {
+            id: 'kidney',
+            name: 'Kidney',
+            color: [1, 2, 3, 255],
+            visible: true,
+            locked: false,
+          },
+        ],
+        imageSegmentSets: [{ imageId: 'b', segmentIds: ['kidney'] }],
       }),
-      ids.map((id) => ({
-        archivePath: `${id}.vti`,
-        file: new File([], `${id}.vti`),
-      })),
-      { a: 'destination-a', b: 'destination-b' }
+      [],
+      dataIDMap
     );
 
-    ids.forEach((id) => {
-      expect(segmentNames(`destination-${id}`)).toEqual(['Site', `Mask ${id}`]);
-      expect(segmentation.imageMasks(`destination-${id}`)).toHaveLength(1);
-    });
-    expect(segmentNames('existing')).toEqual(['Site', 'Unrelated']);
+    expect(savedSegmentNames('destination-a')).toEqual(['Tumor']);
+    expect(savedSegmentNames('destination-b')).toEqual(['Kidney']);
   });
 
-  it.each([false, true])(
-    'ignores old view contents while replacing a restored layout (layout saved: %s)',
-    async (savedLayout) => {
+  it.each([
+    { savedLayout: false, savedViews: true, slotCount: 2 },
+    { savedLayout: true, savedViews: true, slotCount: 2 },
+    { savedLayout: true, savedViews: false, slotCount: 2 },
+    { savedLayout: true, savedViews: false, slotCount: 1 },
+    { savedLayout: true, savedViews: false, slotCount: 2, activeSlot: 0 },
+    { savedLayout: true, savedViews: false, slotCount: 2, activeSlot: 1 },
+  ])(
+    'ignores old view contents while replacing a restored layout: %j',
+    async ({ savedLayout, savedViews, slotCount, activeSlot }) => {
       ['existing', 'other', 'destination'].forEach((id) => {
         useImageStatsStore().stats[id] = {
           scalarMin: 0,
@@ -310,37 +381,47 @@ describe('image segment initialization boundaries', () => {
       views.setActiveView(previousViewId);
       const incomingViewId = views.viewIDs[0];
       views.setDataForView(incomingViewId, 'other');
+      const activeView = activeSlot === 1 ? previousViewId : incomingViewId;
       const manifest = manifestForImages(['saved'], {
-        activeView: incomingViewId,
+        ...(savedViews || activeSlot !== undefined ? { activeView } : {}),
         ...(savedLayout
           ? {
               layout: {
                 direction: 'row',
-                items: [
-                  { type: 'slot', slotIndex: 0 },
-                  { type: 'slot', slotIndex: 1 },
-                ],
+                items: Array.from({ length: slotCount }, (_, slotIndex) => ({
+                  type: 'slot',
+                  slotIndex,
+                })),
               },
             }
           : {}),
         layoutSlots: [incomingViewId, previousViewId],
         isActiveViewMaximized: true,
-        viewByID: {
-          [incomingViewId]: {
-            ...views.viewByID[incomingViewId],
-            dataID: 'saved',
-          },
-          [previousViewId]: { ...views.viewByID[previousViewId], dataID: null },
-        },
+        ...(savedViews
+          ? {
+              viewByID: {
+                [incomingViewId]: {
+                  ...views.viewByID[incomingViewId],
+                  dataID: 'saved',
+                },
+                [previousViewId]: {
+                  ...views.viewByID[previousViewId],
+                  dataID: null,
+                },
+              },
+            }
+          : {}),
       });
 
       views.deserializeLayout(manifest);
       await completeStateFileRestore(manifest, [], { saved: 'destination' });
 
-      expect(segmentNames('destination')).toEqual(['Previous']);
+      expect(savedSegmentNames('destination')).toEqual(['Previous']);
       expect(views.visibleViews.map(({ dataID }) => dataID)).toEqual([
         'destination',
       ]);
+      if (activeSlot !== undefined)
+        expect(views.visibleViews.map(({ id }) => id)).toEqual([activeView]);
     }
   );
 

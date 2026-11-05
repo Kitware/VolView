@@ -386,9 +386,6 @@ const ImageSegmentSet = z.object({
   imageId: z.string(),
   segmentIds: z.string().array(),
   selectedSegmentId: z.string().optional(),
-  // Migration-only: datasets can resolve to the same image, whose copies of
-  // each legacy shared definition must resolve to one segment.
-  legacySegmentIds: z.record(z.string(), z.string()).optional(),
 });
 
 const SegmentDefaults = Segment.omit({
@@ -569,9 +566,11 @@ export type Manifest = z.infer<typeof ManifestSchema>;
 
 // The manifest's base datasets; older manifests carry no `datasets`, so every
 // uri source stands in for one, keyed by its stringified source id.
-export const manifestDatasets = (manifest: Manifest) =>
+export const manifestDatasets = (
+  manifest: Partial<Pick<Manifest, 'datasets' | 'dataSources'>>
+) =>
   manifest.datasets ??
-  manifest.dataSources
+  (manifest.dataSources ?? [])
     .filter((ds) => ds.type === 'uri')
     .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
 

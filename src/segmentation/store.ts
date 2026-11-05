@@ -230,6 +230,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     segmentation.masks[id] = { id, segmentId, representations: {} };
     segmentation.order.push(id);
     maskIdsBySegment.get(segmentation.id)?.set(segmentId, id);
+    segmentRegistry.markEdited(segmentation.parentImageId);
     return segmentation.masks[id];
   }
 

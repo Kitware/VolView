@@ -166,7 +166,9 @@ async function completeStateFileSetups(
   stateFileSetups: StateFileSetupResult[],
   restore: RestoreProcessors,
   loadableResults: LoadableResult[],
-  failedLeaves: Parameters<RestoreProcessors['completeStateFileRestore']>[4]
+  failedLeaves: NonNullable<
+    Parameters<RestoreProcessors['completeStateFileRestore']>[3]
+  >['failedLeaves']
 ) {
   const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
   // Leaf stateIDs covered by a consolidated notice that actually ran: only
@@ -178,8 +180,11 @@ async function completeStateFileSetups(
         setup.manifest,
         setup.stateFiles,
         stateIDToStoreID,
-        setup.missingFiles,
-        failedLeaves
+        {
+          missingFiles: setup.missingFiles,
+          failedLeaves,
+          migration: setup.migration,
+        }
       );
       setup.dataSources.forEach((src) => {
         findStateFileLeaves(src).forEach((leaf) =>

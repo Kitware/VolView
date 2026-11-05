@@ -8,7 +8,11 @@ import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { useEnFaceViewStore } from '@/src/enface/store';
+import {
+  defaultEnFaceViewConfig,
+  useEnFaceViewStore,
+} from '@/src/enface/store';
+import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useEnFaceInput } from '@/src/enface/useEnFaceInput';
 import { useEnFaceOccupiedDepth } from '@/src/enface/useEnFaceOccupiedDepth';
 import EnFaceControls from '@/src/enface/EnFaceControls.vue';
@@ -21,6 +25,7 @@ import {
 } from '@/src/segmentation/measurements/occupiedDepth';
 import {
   activateAppPinia,
+  manifestForImages,
   makeImage,
   seatImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -41,6 +46,52 @@ const measureInProcess = () => ({
   measure: async (input: OccupiedDepthInput) => measureOccupiedDepth(input),
   release: () => {},
 });
+
+it.each(['foreign', 'missing'])(
+  'drops a %s segment selection when restoring an en-face view',
+  async (segmentId) => {
+    await seatImage('a');
+    await seatImage('b');
+    const manifest = ManifestSchema.parse(
+      manifestForImages(['saved-a', 'saved-b'], {
+        segments: [
+          { id: 'foreign', name: 'Other image', color: [255, 0, 0, 255] },
+        ],
+        imageSegmentSets: [
+          { imageId: 'saved-a', segmentIds: ['foreign'] },
+          { imageId: 'saved-b', segmentIds: [] },
+        ],
+        viewByID: {
+          view: {
+            id: 'view',
+            type: 'EnFace',
+            name: 'En face',
+            config: {
+              'saved-b': {
+                enFace: { ...defaultEnFaceViewConfig(), segmentId },
+              },
+            },
+          },
+        },
+      })
+    );
+    await completeStateFileRestore(manifest, [], {
+      'saved-a': 'a',
+      'saved-b': 'b',
+    });
+
+    const saved: StateFile = {
+      zip: new JSZip(),
+      manifest: manifestForImages(['a', 'b'], {
+        viewByID: { view: { id: 'view', type: 'EnFace', name: 'En face' } },
+      }),
+    };
+    useEnFaceViewStore().serialize(saved);
+    expect(
+      saved.manifest.viewByID!.view.config!.b.enFace?.segmentId
+    ).toBeNull();
+  }
+);
 
 it('keeps the projection ready and restores the non-first segment after deferred mask decoding', async () => {
   useImageStatsStore().stats.oct = {

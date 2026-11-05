@@ -50,7 +50,7 @@ const legacyManifest = ManifestSchema.parse(
         },
       ],
     })
-  )
+  ).manifest
 );
 
 const seatImage = (id: string, name: string) =>

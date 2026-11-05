@@ -1,21 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import { createVuetify } from 'vuetify';
 import { createPinia, setActivePinia } from 'pinia';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import {
   activateAppPinia,
+  inMemoryArtifactIO,
   manifestForImages,
   makeLabelmap,
-  markedVoxels,
   seatImage,
   seedVoxel,
   serializeAnnotations,
+  serializeToStateFiles,
   showImage,
   viewImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinator';
-import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
-import { maskScalars } from '@/src/segmentation/model';
+import ProcessWorkflow from '@/src/segmentation/components/ProcessWorkflow.vue';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -24,7 +27,10 @@ import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { AnnotationToolType } from '@/src/store/tools/types';
+import { removeSelectedTools, useToolStore } from '@/src/store/tools';
+import { AnnotationToolType, Tools } from '@/src/store/tools/types';
+
+enableAutoUnmount(afterEach);
 
 const detached = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -123,16 +129,16 @@ describe('bulk image segment removal', () => {
       ],
       retained: store.addTool(makeTool('b', b)),
     }));
-    const originalGeometry = tools.map(({ store, retained }) =>
-      detached(store.getPoints(retained))
+    const originalTools = tools.map(({ store }) =>
+      detached(
+        store.serializeTools().tools.filter(({ imageID }) => imageID === 'b')
+      )
     );
     const aMasks = aSegments.map(({ id }) => masks.resolveEditTarget('a', id));
     aMasks.forEach((id, index) => seedVoxel(id, [index, 0, 0]));
     const bMask = masks.resolveEditTarget('b', b);
     seedVoxel(bMask, [1, 1, 0]);
-    const originalB = detached(
-      rulers.serializeTools().tools.filter(({ imageID }) => imageID === 'b')
-    );
+    const originalB = originalTools[0];
     const segmentationA = masks.getSegmentationForImage('a')!;
     masks.updateSegmentationDisplay(segmentationA.id, {
       fillOpacity: 0.8,
@@ -151,21 +157,37 @@ describe('bulk image segment removal', () => {
     const saved = serializeAnnotations(manifestForImages(['b'], { tools: {} }));
     expect(saved.tools?.rulers?.tools).toEqual(originalB);
     expect(saved.segments).toEqual(registry.segmentList('b'));
-    tools.forEach(({ store, removed, retained }, index) => {
-      expect(removed.every((id) => !store.toolByID[id])).toBe(true);
-      expect(store.toolByID[retained]?.segmentId).toBe(b);
-      expect(store.getPoints(retained)).toEqual(originalGeometry[index]);
+    tools.forEach(({ store, removed }, index) => {
+      removed.forEach((id) => store.placeTool(id));
+      expect(store.serializeTools().tools).toEqual(originalTools[index]);
     });
-    expect(selection.isSelected(selectedA)).toBe(false);
-    expect(selection.isSelected(selectedB)).toBe(true);
-    expect(aMasks.every((id) => !masks.maskExists(id))).toBe(true);
-    expect(masks.getSegmentationForImage('a')).toBeUndefined();
-    expect(rulers.serializeTools().tools).toEqual(originalB);
-    expect(markedVoxels(bMask)).toEqual([[1, 1, 0, 1]]);
     expect(cancelPreview).toHaveBeenCalledTimes(1);
+    removeSelectedTools();
+    expect(rulers.serializeTools().tools).toEqual(
+      originalB.filter(({ id }) => id !== selectedB)
+    );
+    const io = inMemoryArtifactIO();
+    const { parsed } = await serializeToStateFiles(
+      manifestForImages(['b']),
+      io
+    );
+    expect(parsed.segmentations).toMatchObject([
+      {
+        parentImage: 'b',
+        masks: [
+          {
+            segmentId: b,
+            representations: { labelmap: { extent: [1, 1, 1, 1, 0, 0] } },
+          },
+        ],
+      },
+    ]);
+    expect(
+      io.snapshots.flatMap(({ values }) => values.filter(Boolean))
+    ).toEqual([1]);
   });
 
-  it('rolls back a process preview before eviction removes its mask storage', async () => {
+  it('closes the process preview when its image is removed', async () => {
     activateAppPinia();
     useImageStatsStore().stats.a = {
       scalarMin: 0,
@@ -176,21 +198,32 @@ describe('bulk image segment removal', () => {
     const masks = useSegmentationStore();
     const maskId = masks.resolveEditTarget('a');
     seedVoxel(maskId, [0, 0, 0]);
-    const image = masks.findMaskBinding(maskId)!.image;
-    const original = maskScalars(image).slice();
-    const process = usePaintProcessStore();
-    await process.startProcess(async ({ scalars, maskExtent }) => ({
-      scalars: new Uint8Array(scalars.length),
-      extent: maskExtent,
-    }));
-    expect(process.processStep).toBe('previewing');
-    expect(maskScalars(image)).not.toEqual(original);
+    useToolStore().setCurrentTool(Tools.Paint);
+    const workflow = mount(ProcessWorkflow, {
+      props: {
+        algorithm: async ({ scalars, maskExtent }) => ({
+          scalars: new Uint8Array(scalars.length),
+          extent: maskExtent,
+        }),
+      },
+      global: { plugins: [createVuetify()] },
+    });
+    await workflow.get('button').trigger('click');
+    await flushPromises();
+    expect(workflow.text()).toContain('Processed');
+    expect(workflow.text()).toContain('Cancel');
 
     useImageCacheStore().removeImage('a');
 
-    expect(process.processStep).toBe('start');
-    expect(maskScalars(image)).toEqual(original);
-    expect(masks.maskExists(maskId)).toBe(false);
+    await nextTick();
+    expect(workflow.text()).not.toContain('Cancel');
+    expect(workflow.get('button').text()).toBe('Preview');
+    expect(workflow.get('button').attributes('disabled')).toBeDefined();
+    const { parsed } = await serializeToStateFiles(
+      manifestForImages([]),
+      inMemoryArtifactIO()
+    );
+    expect(parsed.segmentations).toEqual([]);
   });
 
   it('releases every removed mask name without reserving it against another image', async () => {

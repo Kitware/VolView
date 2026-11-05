@@ -71,7 +71,7 @@ const manifestWith = (groups: Array<Record<string, unknown>>): Manifest =>
         datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
         segmentGroups: groups,
       })
-    )
+    ).manifest
   );
 
 function makeImage(fillValue = 0) {

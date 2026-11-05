@@ -594,7 +594,7 @@ const legacyPairManifest = (scene: Record<string, unknown>) =>
         datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
         ...scene,
       })
-    )
+    ).manifest
   );
 
 const restoreLegacyPair = async (manifest: Manifest) => {

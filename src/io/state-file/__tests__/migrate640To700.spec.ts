@@ -173,7 +173,7 @@ describe('migrate640To700: structural stage', () => {
     (version) => {
       const migrated = migrateManifest(
         JSON.stringify({ version, dataSources: [] })
-      ) as any;
+      ).manifest as any;
       expect(migrated.version).toBe(MANIFEST_VERSION);
     }
   );
@@ -1053,7 +1053,7 @@ const legacyScene = () =>
   });
 
 const restoreLegacyScene = async (scene = legacyScene()) => {
-  const manifest = ManifestSchema.parse(migrateManifest(scene));
+  const manifest = ManifestSchema.parse(migrateManifest(scene).manifest);
   await seatImage('store-ct', { name: 'CT', dimensions: SPEC_DIMENSIONS });
   const values = new Uint8Array(SPEC_VOXEL_COUNT);
   values.fill(1, 4, 12);

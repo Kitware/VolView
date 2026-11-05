@@ -126,6 +126,7 @@ describe('Paint preview color', () => {
     });
     await volViewPage.open(`?urls=[tmp/${first},tmp/${second}]`);
     await volViewPage.waitForViews();
+    await dropImageOnView(first, 0);
     await dropImageOnView(second, 1);
     await $$('.grid-item')[0].$('canvas').click();
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { createVuetify } from 'vuetify';
 import JSZip from 'jszip';
 import vtkXMLImageDataReader from '@kitware/vtk.js/IO/XML/XMLImageDataReader';
 import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
@@ -19,11 +20,12 @@ import { useImageStore } from '@/src/store/datasets-images';
 import { useViewStore } from '@/src/store/views';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import useLoadDataStore from '@/src/store/load-data';
+import MessageCenter from '@/src/components/MessageCenter.vue';
 import SegmentAssignmentList from '@/src/segmentation/components/SegmentAssignmentList.vue';
+import { planLabelmapExport } from '@/src/segmentation/io/composition';
+import { writeLabelmapParts } from '@/src/segmentation/io/export';
 import {
   activateAppPinia,
-  markedVoxels,
   serializeAnnotations,
   strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -133,14 +135,25 @@ const picker = (imageId: string) => {
   });
   return () => wrapper.findAll('.title').map((title) => title.text());
 };
-const paintedName = (imageId: string) => {
+const paintedName = async (imageId: string) => {
   strokeAt(imageId, [1, 1, 0]);
-  const store = useSegmentationStore();
-  const [maskId] = store.getSegmentationForImage(imageId)!.order;
-  expect(markedVoxels(maskId)!.length).toBeGreaterThan(0);
-  return useSegmentStore().segments.appearanceOf(
-    store.getMask(maskId).segmentId
-  ).name;
+  const names: Array<string | undefined> = [];
+  await writeLabelmapParts(
+    { parentId: imageId, ...planLabelmapExport(imageId) },
+    'painted',
+    'vti',
+    {
+      deliver: () => {},
+      write: async (_format, image, segments) => {
+        const label = image.getPointData().getScalars().getData()[5];
+        if (label)
+          names.push(segments.find(({ value }) => value === label)?.name);
+        return '';
+      },
+    }
+  );
+  expect(names).toHaveLength(1);
+  return names[0];
 };
 const duringPendingImage = async (check: () => Promise<void>) => {
   const pending = loadFiles([imageFile('pending.vti')]);
@@ -184,7 +197,7 @@ describe('image segment initialization through public loading', () => {
         useViewStore().setDataForAllViews(completed);
         await nextTick();
         expect(picker(completed)()).toEqual(['Liver']);
-        expect(paintedName(completed)).toBe('Liver');
+        expect(await paintedName(completed)).toBe('Liver');
       });
     }
   );
@@ -193,7 +206,7 @@ describe('image segment initialization through public loading', () => {
     await loadFiles([configFile('Liver')]);
     const completed = await openImage('completed.vti');
     expect(picker(completed)()).toEqual(['Liver']);
-    expect(paintedName(completed)).toBe('Liver');
+    expect(await paintedName(completed)).toBe('Liver');
   });
 
   it('merges its accompanying segmentation into the configured defaults', async () => {
@@ -211,7 +224,7 @@ describe('image segment initialization through public loading', () => {
       await converted;
       await flushPromises();
       expect(names()).toEqual(['Liver', 'Tumor']);
-      expect(paintedName(imageId)).toBe('Liver');
+      expect(await paintedName(imageId)).toBe('Liver');
     });
   });
 
@@ -245,7 +258,7 @@ describe('image segment initialization through public loading', () => {
       await own;
       await nextTick();
       expect(names()).toEqual(['Tumor']);
-      expect(paintedName(imageId)).toBe('Tumor');
+      expect(await paintedName(imageId)).toBe('Tumor');
     } finally {
       unsubscribe();
       releaseConfig();
@@ -346,7 +359,9 @@ describe('standalone config destination during asynchronous loading', () => {
         imageFile('active.vti'),
         configFile('Liver'),
       ]))!;
-      const setError = vi.spyOn(useLoadDataStore(), 'setError');
+      const notifications = mount(MessageCenter, {
+        global: { plugins: [createVuetify()] },
+      });
       const ids = await loadContainedFiles(container, [
         configFile('Tumor'),
         new File([contents], 'invalid-config.json'),
@@ -357,10 +372,11 @@ describe('standalone config destination during asynchronous loading', () => {
       expect(
         serializeAnnotations().seedSegmentDefaults?.map(({ name }) => name)
       ).toEqual(['Tumor']);
-      expect(setError).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({
-          message: expect.stringContaining('invalid-config.json'),
-        })
+      const errors = notifications.findAll('.error-message');
+      expect(errors).toHaveLength(1);
+      await errors[0].trigger('click');
+      expect(notifications.get('.details').text()).toContain(
+        'invalid-config.json'
       );
     }
   );
@@ -393,7 +409,7 @@ describe('background labelmap conversion', () => {
       await converted;
       await flushPromises();
       expect(names()).toEqual(['Liver', 'Tumor']);
-      expect(paintedName(imageId)).toBe('Liver');
+      expect(await paintedName(imageId)).toBe('Liver');
     } finally {
       unsubscribe();
       if (streamingId) cache.imageById[streamingId].status.value = 'complete';

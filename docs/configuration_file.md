@@ -179,6 +179,12 @@ its own applies to the image that was active when loading started. Either way, t
 configured segments also become the starting set for new images with no earlier image
 to copy from.
 
+Opening a saved session replaces these starting defaults when the session includes
+its own defaults. An explicitly empty list clears them; a session without saved
+defaults leaves them unchanged. Loading a configuration afterward sets the starting
+defaults again. Each image's saved segment set is restored independently of these
+defaults.
+
 Applying a configuration again restores each configured name and appearance. Omitting
 `segments` changes nothing. `{}` or `null` removes only unreferenced segments that
 the configuration created. Segments matched by name and segments that hold masks

@@ -132,7 +132,7 @@ describe('segmentation display state on the wire', () => {
 
   it('fills defaults for a manifest that carries no display state', () => {
     const parsed = ManifestSchema.parse(
-      migrateManifest(JSON.stringify(manifest700()))
+      migrateManifest(JSON.stringify(manifest700())).manifest
     );
     const wire = parsed.segmentations![0];
 
@@ -144,7 +144,7 @@ describe('segmentation display state on the wire', () => {
 
   it('restores a 7.0.0 manifest with default display state', async () => {
     const parsed = ManifestSchema.parse(
-      migrateManifest(JSON.stringify(manifest700()))
+      migrateManifest(JSON.stringify(manifest700())).manifest
     );
 
     await store().deserialize({

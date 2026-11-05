@@ -192,7 +192,8 @@ describe('restore stateID namespaces (collision)', () => {
       parent: BASE_STORE_ID,
     });
     expect(views.setDataForAllViews).toHaveBeenCalledExactlyOnceWith(
-      BASE_STORE_ID
+      BASE_STORE_ID,
+      undefined
     );
   });
 

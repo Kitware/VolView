@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
 import { buildStateIDToStoreID } from '@/src/io/import/importDataSources';
-import { migrateManifest } from '@/src/io/state-file/migrations';
+import type { ManifestMigration } from '@/src/io/state-file/migrations';
+import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import {
   makeLabelmap,
@@ -13,6 +14,20 @@ import {
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useRulerStore } from '@/src/store/tools/rulers';
+import { Skip } from '@/src/utils/evaluateChain';
+
+const readSession = async (manifest: unknown) => {
+  const setup = await restoreStateFile({
+    type: 'file',
+    file: new File([JSON.stringify(manifest)], 'session.volview.json', {
+      type: 'application/json',
+    }),
+    fileType: 'application/json',
+  });
+  if (setup === Skip || setup.type !== 'stateFileSetup')
+    throw new Error('Expected a session restore setup');
+  return setup;
+};
 
 const definitions = [
   {
@@ -81,7 +96,10 @@ const incoming = () =>
     })
   );
 
-const restoreMerged = async (manifest: Manifest) => {
+const restoreMerged = async (
+  manifest: Manifest,
+  migration?: ManifestMigration
+) => {
   await seatImage('merged', { dimensions: [2, 2, 1] });
   const dataIDMap = buildStateIDToStoreID([
     {
@@ -101,7 +119,8 @@ const restoreMerged = async (manifest: Manifest) => {
   ]);
   const { segmentIdMap, repeated } = useSegmentStore().deserialize(
     manifest,
-    dataIDMap
+    dataIDMap,
+    migration
   );
   const labelmaps = new Map([
     [
@@ -212,8 +231,11 @@ describe('saved image sets resolving to one runtime image', () => {
     old.segments = old.segments!.slice(0, 1);
     old.segmentations = old.segmentations!.slice(0, 1);
     old.tools!.rulers!.tools[1].segmentId = 'red';
-    const manifest = ManifestSchema.parse(migrateManifest(JSON.stringify(old)));
-    const { skipped, repeated } = await restoreMerged(manifest);
+    const migrated = await readSession(old);
+    const { skipped, repeated } = await restoreMerged(
+      migrated.manifest,
+      migrated.migration
+    );
     const registry = useSegmentStore().segments;
     expect(registry.segmentList('merged').map(({ name }) => name)).toEqual([
       'Tumor',
@@ -230,8 +252,11 @@ describe('saved image sets resolving to one runtime image', () => {
 
   it('preserves distinct legacy global definitions when their images resolve together', async () => {
     const old = { ...incoming(), version: '7.0.0', selectedSegment: 'red' };
-    const manifest = ManifestSchema.parse(migrateManifest(JSON.stringify(old)));
-    const { skipped, repeated } = await restoreMerged(manifest);
+    const migrated = await readSession(old);
+    const { skipped, repeated } = await restoreMerged(
+      migrated.manifest,
+      migrated.migration
+    );
     expect(skipped).toEqual([]);
     expect(repeated).toEqual([]);
     expect(

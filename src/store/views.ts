@@ -266,6 +266,7 @@ export const useViewStore = defineStore('view', () => {
     newLayout: Layout,
     options?: {
       updateSlots?: (viewCount: number) => void;
+      activateView?: boolean;
     }
   ) {
     isActiveViewMaximized.value = false;
@@ -276,17 +277,19 @@ export const useViewStore = defineStore('view', () => {
     }
 
     layout.value = newLayout;
-    ensureActiveViewIsVisible();
+    if (options?.activateView !== false) ensureActiveViewIsVisible();
+  }
+
+  function ensureLayoutSlots(viewCount: number) {
+    // Preserve non-visible views so their state remains available later.
+    while (layoutSlots.value.length < viewCount) {
+      layoutSlots.value.push(addView(DEFAULT_VIEW_INIT));
+    }
   }
 
   function setLayout(newLayout: Layout) {
     applyLayoutChange(newLayout, {
-      updateSlots: (viewCount) => {
-        // we don't remove non-visible views so we can preserve their state for later
-        while (layoutSlots.value.length < viewCount) {
-          layoutSlots.value.push(addView(DEFAULT_VIEW_INIT));
-        }
-      },
+      updateSlots: ensureLayoutSlots,
     });
   }
 
@@ -343,10 +346,14 @@ export const useViewStore = defineStore('view', () => {
     setDataForView(activeView.value, dataID);
   }
 
-  function setDataForAllViews(dataID: Maybe<string>) {
+  function setDataForAllViews(
+    dataID: Maybe<string>,
+    selectedViewID?: Maybe<string>
+  ) {
     viewIDs.value.forEach((viewID) => {
       setDataForView(viewID, dataID);
     });
+    if (selectedViewID) setActiveView(selectedViewID);
   }
 
   function removeDataFromViews(dataID: string) {
@@ -403,12 +410,16 @@ export const useViewStore = defineStore('view', () => {
       });
     }
     if (manifest.layout) {
-      setLayout(manifest.layout);
+      applyLayoutChange(manifest.layout, {
+        updateSlots: ensureLayoutSlots,
+        activateView: false,
+      });
     }
     if (manifest.isActiveViewMaximized !== undefined) {
       isActiveViewMaximized.value = manifest.isActiveViewMaximized;
     }
-    setActiveView(manifest.activeView);
+    // Reused views acquire their saved selection after their data is rebound.
+    if (manifest.viewByID) setActiveView(manifest.activeView);
   }
 
   function bindViewsToData(

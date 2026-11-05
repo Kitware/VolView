@@ -4,6 +4,12 @@ import { emptyExtent } from '@/src/segmentation/geometry';
 import { cssColorToRGBA, tryCssColorToRGBA } from '@/src/segmentation/color';
 import { makeDefaultSegmentName } from '@/src/segmentation/model';
 import { TOOL_COLORS } from '@/src/config';
+import { manifestDatasets } from '@/src/io/state-file/schema';
+
+export type ManifestMigration = {
+  legacySegmentIds: Record<string, string>;
+  segmentSourceRows: number[];
+};
 
 const migrateOrPass =
   (versions: Array<string>, migrationFunc: (manifest: any) => any) =>
@@ -553,16 +559,12 @@ const enFaceSegmentIds = (manifest: any) =>
 
 // Every saved image keeps the full catalog the global picker offered, including
 // unused rows. Mask buffers stay in place; only their segment references split.
-const migrate700To800 = (inputManifest: any) => {
+const migrate700To800 = (inputManifest: any, migration: ManifestMigration) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
   const catalog: any[] = Array.isArray(manifest.segments)
     ? manifest.segments
     : [];
-  const datasets: any[] =
-    manifest.datasets ??
-    (manifest.dataSources ?? [])
-      .filter((source: any) => source.type === 'uri')
-      .map((source: any) => ({ id: String(source.id) }));
+  const datasets = manifestDatasets(manifest);
   const imageIds = [...new Set<string>(datasets.map(({ id }) => id))];
   const referencedIds = [
     ...(manifest.segmentations ?? []).flatMap((segmentation: any) =>
@@ -588,6 +590,7 @@ const migrate700To800 = (inputManifest: any) => {
       if (id === undefined) {
         id = uniqueId(`image-${imageIndex + 1}-segment-${segmentIndex + 1}`);
         segmentIds.set(segment.id, id);
+        migration.legacySegmentIds[id] = segment.id;
       }
       // A repeated wire id remains repeated so restore reports the bad row
       // instead of converting it into a second, apparently valid definition.
@@ -596,14 +599,12 @@ const migrate700To800 = (inputManifest: any) => {
         id,
         ...(Array.isArray(segment.color) ? { color: [...segment.color] } : {}),
       });
+      migration.segmentSourceRows.push(segmentIndex);
     });
     const selectedSegmentId = segmentIds.get(manifest.selectedSegment);
     return {
       imageId,
       segmentIds: [...segmentIds.values()],
-      legacySegmentIds: Object.fromEntries(
-        [...segmentIds].map(([legacyId, id]) => [id, legacyId])
-      ),
       ...(selectedSegmentId ? { selectedSegmentId } : {}),
     };
   });
@@ -641,7 +642,11 @@ const migrate700To800 = (inputManifest: any) => {
 
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
-  return pipe(
+  const migration: ManifestMigration = {
+    legacySegmentIds: Object.create(null),
+    segmentSourceRows: [],
+  };
+  const manifest = pipe(
     inputManifest,
     migrateOrPass(['5.0.1'], migrate501To600),
     migrateOrPass(['6.0.0'], migrate600To610),
@@ -649,6 +654,7 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
     migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
-    migrateOrPass(['7.0.0'], migrate700To800)
+    migrateOrPass(['7.0.0'], (legacy) => migrate700To800(legacy, migration))
   );
+  return { manifest, migration };
 };

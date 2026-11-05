@@ -61,7 +61,7 @@ const legacyManifest = () =>
           },
         },
       })
-    )
+    ).manifest
   );
 
 describe('image segment set persistence', () => {
@@ -210,7 +210,7 @@ describe('image segment set persistence', () => {
           version: '7.0.0',
           segments: [],
         })
-      )
+      ).manifest
     );
     await seatImage('image-a');
     await seatImage('image-b');

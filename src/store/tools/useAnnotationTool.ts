@@ -84,7 +84,7 @@ export const useAnnotationTool = <
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  type FinishedTool = Tool & { placing: true };
+  type FinishedTool = Tool & { placing: false };
   const finishedTools = computed(() =>
     tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
@@ -126,14 +126,15 @@ export const useAnnotationTool = <
   const appearanceOfTool = (id: ToolID) =>
     registry.appearanceOf(toolByID.value[id]?.segmentId);
 
+  function removeToolRecord(id: ToolID) {
+    delete toolByID.value[id];
+    useToolSelectionStore().removeSelection(id);
+  }
+
   function removeTool(id: ToolID) {
     if (!(id in toolByID.value)) return;
-
     removeFromArray(toolIDs.value, id);
-    delete toolByID.value[id];
-
-    const selectionStore = useToolSelectionStore();
-    selectionStore.removeSelection(id);
+    removeToolRecord(id);
   }
 
   function removeToolsWhere(shouldRemove: (tool: Tool) => boolean) {
@@ -143,11 +144,7 @@ export const useAnnotationTool = <
     );
     if (!removed.length) return;
     toolIDs.value = retained;
-    const selectionStore = useToolSelectionStore();
-    removed.forEach((id) => {
-      delete toolByID.value[id];
-      selectionStore.removeSelection(id);
-    });
+    removed.forEach(removeToolRecord);
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {
@@ -265,13 +262,12 @@ export const useAnnotationTool = <
   const removeToolsOfSegment = (segmentId: string) =>
     removeToolsWhere((tool) => referencesSegment(tool, segmentId));
 
-  const hasToolsOfSegment = (segmentId: string) =>
-    toolIDs.value.some((id) =>
-      referencesSegment(toolByID.value[id], segmentId)
-    );
+  const referencedSegments = computed(
+    () => new Set(finishedTools.value.map(({ segmentId }) => segmentId))
+  );
 
   registry.declareReferences(manifestKey, {
-    has: hasToolsOfSegment,
+    has: (segmentId) => referencedSegments.value.has(segmentId),
     remove: removeToolsOfSegment,
   });
 

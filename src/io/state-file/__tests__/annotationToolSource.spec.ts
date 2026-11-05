@@ -98,7 +98,7 @@ describe('annotation tool source', () => {
       datasets: [{ id: 'img-1', dataSourceId: 1 }],
       tools: { rulers: { tools: [ruler()] } },
     });
-    const migrated = migrateManifest(old);
+    const migrated = migrateManifest(old).manifest;
     expect(migrated.version).toBe(MANIFEST_VERSION);
     expect(() => ManifestSchema.parse(migrated)).not.toThrow();
     // An unlabelled tool gains the segment its appearance mints, nothing else.

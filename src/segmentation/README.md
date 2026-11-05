@@ -49,6 +49,8 @@ Manifest 8.0.0 saves image membership, order, selection and defaults. Migration
 splits older shared catalogs by image without duplicating voxels. Restore preserves
 distinct saved identities even when datasets resolve to the same image, while
 copies of the same legacy definition resolve to one segment on that image.
+Legacy identity and source-row mappings belong to the import context and are
+not part of the saved manifest.
 An image without a saved set starts from the restored defaults, even if another
 image was active before the restore. These sets are owned immediately, so later
 incoming definitions merge into them.

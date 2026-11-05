@@ -4,8 +4,13 @@ import { markRaw, ref, watch } from 'vue';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
-import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import {
+  manifestDatasets,
+  type Manifest,
+  type StateFile,
+} from '@/src/io/state-file/schema';
 import type { ConfiguredSegments } from '@/src/io/import/configSegments';
+import type { ManifestMigration } from '@/src/io/state-file/migrations';
 import type { Segment } from '@/src/segmentation/segment';
 import {
   createSegmentRegistry,
@@ -47,6 +52,11 @@ declareManifestRefs('imageSegmentSets', (manifest) =>
   })
 );
 
+const hasOnlyArtifactSegments = (manifest: Manifest) =>
+  manifest.segmentationArtifacts?.length &&
+  !manifest.segments?.length &&
+  !manifest.imageSegmentSets?.length;
+
 /** Paint and annotation shapes share definitions within their owning image. */
 export const useSegmentStore = defineStore('segments', () => {
   const imageCacheStore = useImageCacheStore();
@@ -65,22 +75,24 @@ export const useSegmentStore = defineStore('segments', () => {
 
   const defaultSnapshot = () => snapshotFromDefaults(seedSegmentDefaults.value);
 
+  const sourceImageId = (imageId?: Maybe<string>) =>
+    [imageId, lastImageId.value].find(
+      (id): id is string => !!id && !!registry.imageSets.value[id]
+    );
+
   // A new set copies the last viewed image's, else starts from the defaults.
-  const inheritedSet = () =>
-    lastImageId.value && registry.imageSets.value[lastImageId.value]
-      ? registry.snapshot(lastImageId.value)
-      : defaultSnapshot();
+  const inheritedSet = () => {
+    const source = sourceImageId();
+    return source ? registry.snapshot(source) : defaultSnapshot();
+  };
 
   const previewSegmentColor = (imageId: Maybe<string>) => {
-    const sourceImageId =
-      imageId && registry.imageSets.value[imageId]
-        ? imageId
-        : lastImageId.value;
-    if (sourceImageId && registry.imageSets.value[sourceImageId]) {
-      const segmentId = registry.selectedSegmentId(sourceImageId);
+    const source = sourceImageId(imageId);
+    if (source) {
+      const segmentId = registry.selectedSegmentId(source);
       return segmentId
         ? registry.appearanceOf(segmentId).color
-        : registry.nextSegmentColor(sourceImageId);
+        : registry.nextSegmentColor(source);
     }
     return (
       seedSegmentDefaults.value[0]?.color ??
@@ -146,12 +158,7 @@ export const useSegmentStore = defineStore('segments', () => {
     // Artifact-only manifests provide incoming definitions through their masks.
     // Initialize every restored image before views or asynchronous decoding can
     // give the active image a different borrowed set.
-    if (
-      manifest.seedSegmentDefaults ||
-      (manifest.segmentationArtifacts?.length &&
-        !manifest.segments &&
-        !manifest.imageSegmentSets)
-    ) {
+    if (manifest.seedSegmentDefaults || hasOnlyArtifactSegments(manifest)) {
       if (manifest.seedSegmentDefaults)
         seedSegmentDefaults.value =
           manifest.seedSegmentDefaults.map(withCopiedColor);
@@ -160,23 +167,48 @@ export const useSegmentStore = defineStore('segments', () => {
           ({ imageId }) => dataIDMap[imageId]
         )
       );
-      [...new Set(Object.values(dataIDMap))]
-        .filter((imageId) => !savedImages.has(imageId))
+      const incomingImageIds = [
+        ...manifestDatasets(manifest).map(({ id }) => id),
+        ...(manifest.segmentationArtifacts ?? []).map(
+          ({ parentImage }) => parentImage
+        ),
+      ].map((id) => dataIDMap[id]);
+      [...new Set(incomingImageIds)]
+        .filter((imageId) => imageId && !savedImages.has(imageId))
         .forEach((imageId) => seedDefaults(imageId));
     }
   }
 
-  function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
+  function deserialize(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>,
+    migration?: ManifestMigration
+  ) {
     const segmentIdMap: Record<string, string> = Object.create(null);
-    const repeated: Segment[] = [];
+    const repeated: Array<{
+      name: string;
+      imageId: string;
+      sourceRow: number;
+    }> = [];
     const claimedTargets = new Set<string>();
     const legacyByImage = new Map<string, Map<string, string>>();
     const catalogById = new Map<string, Segment[]>();
-    for (const segment of manifest.segments ?? []) {
+    const sourceRows = new Map<Segment, number>();
+    for (const [index, segment] of (manifest.segments ?? []).entries()) {
+      sourceRows.set(segment, migration?.segmentSourceRows[index] ?? index);
       const entries = catalogById.get(segment.id);
       if (entries) entries.push(segment);
       else catalogById.set(segment.id, [segment]);
     }
+    const reportRepeated = (entries: Segment[], imageId: string) => {
+      entries.forEach((segment) =>
+        repeated.push({
+          name: segment.name,
+          imageId,
+          sourceRow: sourceRows.get(segment)!,
+        })
+      );
+    };
     (manifest.imageSegmentSets ?? []).forEach((set) => {
       const imageId = dataIDMap[set.imageId];
       if (!imageId || !imageCacheStore.imageById[imageId]) return;
@@ -188,11 +220,11 @@ export const useSegmentStore = defineStore('segments', () => {
         ({ id }) => Object.hasOwn(segmentIdMap, id),
         incoming
       );
-      repeated.push(...claimed);
+      reportRepeated(claimed, set.imageId);
       const legacy = legacyByImage.get(imageId) ?? new Map<string, string>();
       legacyByImage.set(imageId, legacy);
       const distinct = unclaimed.filter(({ id }) => {
-        const original = set.legacySegmentIds?.[id];
+        const original = migration?.legacySegmentIds[id];
         const target =
           original === undefined ? undefined : legacy.get(original);
         if (!target) return true;
@@ -201,9 +233,11 @@ export const useSegmentStore = defineStore('segments', () => {
       });
       const adopted = registry.adopt(imageId, distinct, claimedTargets);
       Object.assign(segmentIdMap, adopted.idMap);
-      repeated.push(...adopted.repeated);
-      Object.entries(set.legacySegmentIds ?? {}).forEach(([id, original]) => {
-        if (segmentIdMap[id]) legacy.set(original, segmentIdMap[id]);
+      reportRepeated(adopted.repeated, set.imageId);
+      set.segmentIds.forEach((id) => {
+        const original = migration?.legacySegmentIds[id];
+        if (original !== undefined && segmentIdMap[id])
+          legacy.set(original, segmentIdMap[id]);
       });
       registry.restoreSelection(
         imageId,

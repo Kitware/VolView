@@ -36,7 +36,7 @@ type SegmentSetSnapshot = {
 type ConfigEntry = {
   id: string;
   appearance: ReturnType<typeof configuredAppearance>;
-  contribution: ReturnType<typeof fromConfigured>;
+  contribution: Partial<SegmentDefaults>;
   minted: boolean;
 };
 
@@ -46,14 +46,18 @@ type SegmentReferenceHolder = {
 };
 
 // An unparseable color is left out, so the segment keeps the color it has.
-const fromConfigured = (name: string, configured: ConfiguredSegments[string]) =>
-  cleanUndefined({
-    name,
+const fromConfigured = (
+  name: string,
+  configured: ConfiguredSegments[string]
+) => ({
+  ...cleanUndefined({
     color: configured.color ? tryCssColorToRGBA(configured.color) : undefined,
     fillOpacity: configured.fillOpacity,
     outlineOpacity: configured.outlineOpacity,
     strokeWidth: configured.strokeWidth,
-  });
+  }),
+  name,
+});
 
 type Appearance = Pick<
   Segment,
@@ -80,31 +84,35 @@ export const withCopiedColor = <T extends { color?: RGBAColor }>(
 
 /** The definitions a config gives an image that has no earlier set to copy. */
 export const defaultsFromConfig = (configured: ConfiguredSegments) =>
-  Object.entries(configured).map(([name, props]) => ({
-    ...fromConfigured(name, props),
+  Object.entries(configured).map(([name, props]) =>
+    fromConfigured(name, props)
+  );
+
+const configuredEntry = (
+  { name, color, fillOpacity, outlineOpacity, strokeWidth }: SegmentDefaults,
+  index: number
+) => ({
+  appearance: configuredAppearance({ color: configuredColor(index) }),
+  contribution: cleanUndefined({
     name,
-  }));
+    color,
+    fillOpacity,
+    outlineOpacity,
+    strokeWidth,
+  }),
+  minted: true,
+});
 
 /** Seeds defaults as config-minted segments, as the config itself would. */
 export const snapshotFromDefaults = (
   defaults: readonly SegmentDefaults[]
 ): SegmentSetSnapshot => ({
   segments: [...defaults],
-  configured: defaults.map(
-    ({ name, color, fillOpacity, outlineOpacity, strokeWidth }, index) => ({
-      name,
-      index,
-      appearance: configuredAppearance({ color: configuredColor(index) }),
-      contribution: cleanUndefined({
-        name,
-        color,
-        fillOpacity,
-        outlineOpacity,
-        strokeWidth,
-      }),
-      minted: true,
-    })
-  ),
+  configured: defaults.map((segment, index) => ({
+    name: segment.name,
+    index,
+    ...configuredEntry(segment, index),
+  })),
 });
 
 /**
@@ -141,6 +149,7 @@ export const createSegmentRegistry = (
       suffixFloors: Map<string, number>;
       nextColorIndex: number;
       config: Map<string, ConfigEntry>;
+      order: ComputedRef<Map<string, number>>;
     }
   >();
 
@@ -152,6 +161,15 @@ export const createSegmentRegistry = (
         suffixFloors: new Map(),
         nextColorIndex: 0,
         config: new Map(),
+        order: computed(
+          () =>
+            new Map(
+              (imageSets.value[imageId]?.segmentIds ?? []).map((id, at) => [
+                id,
+                at,
+              ])
+            )
+        ),
       };
       indexes.set(imageId, index);
     }
@@ -228,17 +246,11 @@ export const createSegmentRegistry = (
   const appearanceOf = (id: Maybe<string>) =>
     resolveSegmentAppearance(getSegment(id));
 
-  // Cached: the export sort asks twice per comparison.
-  const orderIndex = computed(
-    () =>
-      new Map(
-        Object.values(imageSets.value).flatMap(({ segmentIds }) =>
-          segmentIds.map((id, index) => [id, index] as const)
-        )
-      )
-  );
-
-  const orderIndexOf = (id: string) => orderIndex.value.get(id) ?? -1;
+  // Cached per image: the export sort asks twice per comparison.
+  const orderIndexOf = (id: string) => {
+    const imageId = ownerImageId(id);
+    return imageId ? (indexFor(imageId).order.value.get(id) ?? -1) : -1;
+  };
 
   const findSegmentByName = (imageId: string, name: string) => {
     const matches = (indexFor(imageId).idsByName.get(name.trim()) ?? []).filter(
@@ -450,13 +462,20 @@ export const createSegmentRegistry = (
     updateSegment(entry.id, { ...entry.appearance, ...entry.contribution });
   };
 
-  const seatConfigured = (imageId: string, name: string, index: number) => {
-    const matched = findSegmentByName(imageId, name)?.id;
+  const seatConfigured = (
+    imageId: string,
+    contribution: SegmentDefaults,
+    index: number
+  ) => {
+    const { name } = contribution;
+    const entry = configuredEntry(contribution, index);
+    const matched = findSegmentByName(imageId, name);
     const id =
-      matched ?? mintSegment(imageId, { name, color: configuredColor(index) });
+      matched?.id ?? mintSegment(imageId, { name, ...entry.appearance });
     return {
+      ...entry,
       id,
-      appearance: configuredAppearance(getSegment(id)!),
+      appearance: matched ? configuredAppearance(matched) : entry.appearance,
       minted: !matched,
     };
   };
@@ -471,12 +490,14 @@ export const createSegmentRegistry = (
 
     Object.entries(next).forEach(([name, props], index) => {
       const held = entries.get(name);
-      overlayConfig(imageId, name, {
-        ...(held && getSegment(held.id)
-          ? held
-          : seatConfigured(imageId, name, index)),
-        contribution: fromConfigured(name, props),
-      });
+      const contribution = fromConfigured(name, props);
+      overlayConfig(
+        imageId,
+        name,
+        held && getSegment(held.id)
+          ? { ...held, contribution }
+          : seatConfigured(imageId, contribution, index)
+      );
     });
 
     [...entries.entries()]

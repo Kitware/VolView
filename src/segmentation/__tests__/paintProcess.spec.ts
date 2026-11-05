@@ -16,6 +16,10 @@ import {
   addMask,
   boundMasks,
   markedVoxels,
+  makeLabelmap,
+  serializeAnnotations,
+  serializeToStateFiles,
+  inMemoryArtifactIO,
   seedVoxel,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
@@ -402,6 +406,34 @@ describe('Paint process store', () => {
   const emptyingProcess = async (target: ProcessTarget) => ({
     scalars: new Uint8Array(target.scalars.length),
     extent: target.maskExtent,
+  });
+
+  it('keeps imported definitions and selection after a process removes their last mask', async () => {
+    const segments = useSegmentStore();
+    segments.replaceConfigSegments({ Lung: {} }, ['image-1']);
+    segments.segments.addSegment('image-1', { name: 'Unrelated' });
+    await viewImage('image-2', TWO_VOXELS);
+    const segmentationStore = useSegmentationStore();
+    segmentationStore.splitLabelmapIntoMasks(
+      'image-2',
+      makeLabelmap({ ...TWO_VOXELS, values: new Uint8Array([1, 1]) }),
+      [{ value: 1, name: 'Unrelated', color: [255, 0, 0, 255], visible: true }]
+    );
+    const saved = serializeAnnotations();
+    const processStore = usePaintProcessStore();
+
+    await processStore.startProcess(emptyingProcess);
+    processStore.confirmProcess();
+    segments.seedDefaults('image-2');
+
+    expect(serializeAnnotations()).toEqual(saved);
+    const { parsed } = await serializeToStateFiles(
+      serializeAnnotations(),
+      inMemoryArtifactIO()
+    );
+    expect(parsed.segmentations).toEqual([
+      expect.objectContaining({ parentImage: 'image-2', masks: [] }),
+    ]);
   });
 
   it('deletes a mask the applied result leaves empty once it is applied', async () => {

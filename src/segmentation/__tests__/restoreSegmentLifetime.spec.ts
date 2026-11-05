@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, disposePinia } from 'pinia';
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { useMessageStore } from '@/src/store/messages';
 import { defer } from '@/src/utils';
 import {
   activateAppPinia,
@@ -111,7 +110,8 @@ async function pendingRestore(kind: 'own' | 'legacy') {
       },
     })
   );
-  const completed = completeStateFileRestore(
+  const addWarning = vi.fn();
+  const completed = createStateFileRestorer({ addWarning })(
     manifest,
     ids.map((id) => ({
       archivePath: `${id}.vti`,
@@ -120,7 +120,12 @@ async function pendingRestore(kind: 'own' | 'legacy') {
     { parent: 'parent' }
   );
   await reading.promise;
-  return { completed, release, registry: useSegmentStore().segments };
+  return {
+    completed,
+    release,
+    registry: useSegmentStore().segments,
+    addWarning,
+  };
 }
 
 describe.each(['own', 'legacy'] as const)(
@@ -129,7 +134,8 @@ describe.each(['own', 'legacy'] as const)(
     it.each([false, true])(
       'honors deletion during IO, same-name recreation: %s',
       async (recreate) => {
-        const { completed, release, registry } = await pendingRestore(kind);
+        const { completed, release, registry, addWarning } =
+          await pendingRestore(kind);
         const deleted = registry
           .segmentList('parent')
           .find((segment) => segment.name === 'deleted')!;
@@ -158,11 +164,12 @@ describe.each(['own', 'legacy'] as const)(
           healthy.id,
           '',
         ]);
-        expect(
-          useMessageStore().messages.some((message) =>
-            message.options.details?.includes('belongs to another image')
-          )
-        ).toBe(false);
+        expect(addWarning).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            details: expect.stringContaining('belongs to another image'),
+          })
+        );
       }
     );
   }

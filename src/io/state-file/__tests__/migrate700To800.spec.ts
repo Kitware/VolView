@@ -39,7 +39,7 @@ const migrate = (overrides: Record<string, unknown> = {}) =>
         selectedSegment: tumor.id,
         ...overrides,
       })
-    )
+    ).manifest
   );
 
 const mask = (id: string) => ({
@@ -250,6 +250,8 @@ describe('7.0.0 image segment ownership migration', () => {
   it('leaves an 8.0.0 archive unchanged, including a deliberately empty set', () => {
     const manifest = migrate({ segments: [] });
     manifest.imageSegmentSets = [{ imageId: 'a', segmentIds: [] }];
-    expect(migrateManifest(JSON.stringify(manifest))).toEqual(manifest);
+    expect(migrateManifest(JSON.stringify(manifest)).manifest).toEqual(
+      manifest
+    );
   });
 });
