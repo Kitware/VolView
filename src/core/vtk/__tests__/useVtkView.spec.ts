@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
+import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
 import { useVtkView, useWebGLRenderWindow } from '@/src/core/vtk/useVtkView';
@@ -61,11 +62,75 @@ function mountViewUnder(parent: VtkRenderWindowParentApi) {
 describe('useVtkView teardown', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // newInstance freezes the API. Use the same implementation without freezing
+    // it so the tests can observe renders and inject a cleanup failure.
+    vi.spyOn(vtkRenderWindow, 'newInstance').mockImplementation(() => {
+      const api = {} as vtkRenderWindow;
+      vtkRenderWindow.extend(api, {});
+      return api;
+    });
+    vi.spyOn(vtkWidgetManager, 'newInstance').mockImplementation(() => {
+      const api = {} as vtkWidgetManager;
+      vtkWidgetManager.extend(api, {});
+      return api;
+    });
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
+
+  it.each(['live', 'disposed', 'cleanup throws'] as const)(
+    'only executes queued renders for a live view: %s',
+    (state) => {
+      const scope = effectScope(true);
+      const view = scope.run(() => useVtkView(ref(null)))!;
+      // Observe render dispatch without needing a WebGL context in the test DOM.
+      const render = vi
+        .spyOn(view.renderWindow, 'render')
+        .mockImplementation(() => {});
+      const renderWidgets = vi
+        .spyOn(view.widgetManager, 'renderWidgets')
+        .mockImplementation(() => {});
+
+      try {
+        view.requestRender();
+        expect(vi.getTimerCount()).toBe(1);
+
+        if (state === 'cleanup throws') {
+          const error = new Error('selector cleanup failed');
+          vi.spyOn(view.widgetManager, 'delete').mockImplementationOnce(() => {
+            throw error;
+          });
+          expect(() => scope.stop()).toThrow(error);
+          expect(view.renderWindowView.isDeleted()).toBe(true);
+          // Cleanup stopped before reaching deferredRender.cancel().
+          expect(vi.getTimerCount()).toBe(1);
+        } else if (state === 'disposed') {
+          scope.stop();
+          expect(vi.getTimerCount()).toBe(0);
+        }
+
+        vi.runAllTimers();
+
+        const expectedRenders = state === 'live' ? 1 : 0;
+        expect(renderWidgets).toHaveBeenCalledTimes(expectedRenders);
+        expect(render).toHaveBeenCalledTimes(expectedRenders);
+      } finally {
+        scope.stop();
+        // A throwing scope cleanup does not resume on a second stop().
+        [
+          view.widgetManager,
+          view.renderer,
+          view.renderWindow,
+          view.interactor,
+        ].forEach((object) => {
+          if (!object.isDeleted()) object.delete();
+        });
+      }
+    }
+  );
 
   it('queues no render work once the view scope is disposed', () => {
     const container = document.createElement('div');
