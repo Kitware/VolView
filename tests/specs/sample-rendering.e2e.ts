@@ -1,6 +1,7 @@
 import AppPage from '../pageobjects/volview.page';
 import { PROSTATEX_DATASET } from '../datasets';
 import { useCachedSample } from './utils';
+import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 
 const THRESHOLD = 12; // percent - handle pixel jitter in 3D view
 const RENDER_STABLE_TIMEOUT = 5000;
@@ -28,6 +29,7 @@ describe('VolView', () => {
           );
         }),
       {
+        timeout: DOWNLOAD_TIMEOUT,
         timeoutMsg: 'Expected all sample views to finish loading',
       }
     );

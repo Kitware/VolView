@@ -262,9 +262,10 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector: "Property[key.name='timeout']",
+          selector:
+            "Property[key.name='timeout']:not([value.type='Identifier'][value.name='DOWNLOAD_TIMEOUT'])",
           message:
-            'Wait for a state the page publishes rather than passing a timeout.',
+            'Wait for a state the page publishes; use DOWNLOAD_TIMEOUT for data-loading readiness.',
         },
         {
           selector:

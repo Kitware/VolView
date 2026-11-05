@@ -1,5 +1,6 @@
 import { Key, type ChainablePromiseElement } from 'webdriverio';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
 const SHAPE_ROW = '[data-testid="segment-shape-row"]';
@@ -67,7 +68,10 @@ export const waitForSegmentContent = async (name: string) => {
   const row = await segmentRow(name);
   await browser.waitUntil(
     async () => (await $(SEGMENT_LIST).getAttribute('aria-busy')) !== 'true',
-    { timeoutMsg: 'Expected the scene to finish loading' }
+    {
+      timeout: DOWNLOAD_TIMEOUT,
+      timeoutMsg: 'Expected the scene to finish loading',
+    }
   );
   await row.$('button[data-testid="reveal-segment-button"]').waitForEnabled();
 };
