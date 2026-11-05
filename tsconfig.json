@@ -24,23 +24,11 @@
       "@wdio/visual-service"
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@volview/dicom/core": [
-        "./packages/dicom/core/index.ts"
-      ],
-      "@volview/dicom/vtk": [
-        "./packages/dicom/vtk/index.ts"
-      ]
+      "@/*": ["./*"],
+      "@volview/dicom/core/*": ["./packages/dicom/core/*"],
+      "@volview/dicom/vtk/*": ["./packages/dicom/vtk/*"]
     },
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable",
-      "scripthost",
-      "WebWorker"
-    ]
+    "lib": ["esnext", "dom", "dom.iterable", "scripthost", "WebWorker"]
   },
   "include": [
     "src/**/*.ts",
@@ -52,10 +40,7 @@
     "tests/**/*.tsx",
     "packages/dicom/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "packages/dicom/dist"
-  ],
+  "exclude": ["node_modules", "packages/dicom/dist"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

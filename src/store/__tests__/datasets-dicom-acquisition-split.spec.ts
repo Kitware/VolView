@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/packages/dicom/core';
-import { Tags } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { uriToDataSource, type DataSource } from '@/src/io/import/dataSource';
 import type { ChunkSource } from '@/src/io/import/dataSource';

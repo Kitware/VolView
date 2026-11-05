@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { Tags, getChunkTag, readDicomDataset } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import type { DataSource } from '@/src/io/import/dataSource';
 import { fileToDataSource } from '@/src/io/import/dataSource';
 import handleDicom from '@/src/io/import/processors/handleDicom';

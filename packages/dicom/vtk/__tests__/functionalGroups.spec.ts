@@ -1,18 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { DicomDataset } from '../../core';
+import type { DicomDataset } from '../../core/metadata/dicomDataset';
+import { Chunk } from '../../core/streaming/chunk';
 import {
-  Chunk,
   readGeometryFacts,
   readInstanceFacts,
+} from '../../core/collections/instanceFacts';
+import {
   planDicomCollections,
   IRREGULAR_VOLUME_WARNING,
   REPEATED_POSITIONS_WARNING,
   UNREADABLE_FRAME_GEOMETRY_WARNING,
-} from '../../core';
+} from '../../core/collections/planDicomCollections';
 import { VtkDicomImage } from '../VtkDicomImage';
 import { getFrameTag } from '../../core/metadata/functionalGroups';
 import { allocateImageFromChunks } from '../allocateImageFromChunks';
 import { datasetFromTags } from '../../../../tests/dicomDataset';
+import { createDicomCollectionRegistry } from '../../core/collections/collectionRegistry';
 
 const tags = (values: Record<string, string>) =>
   datasetFromTags(Object.entries(values));
@@ -296,6 +299,46 @@ describe('intra-instance frame planning', () => {
       seriesKey: 'frames',
       instances: [readInstanceFacts(metadata)],
     }).collections[0];
+
+  it.each([1, -1])(
+    'preserves stored frame direction %s through registration and image allocation',
+    async (direction) => {
+      const positions = [0, 1, 2].map((index) => 10 + direction * index * 3);
+      const chunk = await loadedMetadata(
+        enhanced(
+          ctShared(),
+          positions.map((z) => positioned(`1\\2\\${z}`))
+        )
+      );
+      const registry = createDicomCollectionRegistry();
+      const { updates } = await registry.register([chunk]);
+      const { members, collection } = updates[0];
+      const volume = new VtkDicomImage({
+        readDicomImage: async () => ({
+          image: {
+            size: [2, 2, 3],
+            data: new Int32Array(12),
+            imageType: { components: 1 },
+          },
+        }),
+      });
+      try {
+        await volume.setChunks(
+          members,
+          collection.orientation,
+          collection.reconstruction
+        );
+        const image = volume.getVtkImageData();
+        expect(image.getSpacing()[2]).toBe(3);
+        positions.forEach((z, index) =>
+          expect(image.indexToWorld([0, 0, index])).toEqual([1, 2, z])
+        );
+      } finally {
+        volume.dispose();
+        chunk.dispose();
+      }
+    }
+  );
 
   it('rejects shared-plane temporal frames under strict geometry validation', () => {
     const shared = ctShared();

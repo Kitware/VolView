@@ -12,7 +12,7 @@ import { defineComponent, h } from 'vue';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import PatientStudyVolumeBrowser from '@/src/components/PatientStudyVolumeBrowser.vue';
-import { Chunk } from '@/packages/dicom/core';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { DicomChunkImageInit } from '@/src/core/streaming/dicomChunkImage';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';

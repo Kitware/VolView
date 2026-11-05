@@ -1,4 +1,4 @@
-import { Chunk } from '@/packages/dicom/core';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
 
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 

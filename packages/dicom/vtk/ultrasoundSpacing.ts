@@ -1,10 +1,10 @@
+import { type Chunk } from '../core/streaming/chunk';
+import { getChunkTag } from '../core/metadata/datasetAccess';
+import { unitToMm } from '../core/streaming/dicom/ultrasoundRegion';
 import {
-  type Chunk,
-  getChunkTag,
-  unitToMm,
   physicalSpacing,
   type SpatialMetadata,
-} from '../core/index';
+} from '../core/metadata/spatialMetadata';
 import type { allocateImageFromChunks } from './allocateImageFromChunks';
 
 const isUsableSpacing = (value: number) =>

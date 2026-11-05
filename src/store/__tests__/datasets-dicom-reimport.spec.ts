@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {

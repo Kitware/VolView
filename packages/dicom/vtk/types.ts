@@ -1,7 +1,8 @@
 import type { Image } from '@itk-wasm/image-io';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { Extent } from '@kitware/vtk.js/types';
-import type { Chunk, DicomDataset } from '../core/index';
+import type { Chunk } from '../core/streaming/chunk';
+import type { DicomDataset } from '../core/metadata/dicomDataset';
 import type { IrregularGeometryPolicy } from './allocateImageFromChunks';
 import type { ThumbnailSlice } from './thumbnail';
 

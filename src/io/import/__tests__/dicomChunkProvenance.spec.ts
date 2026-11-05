@@ -1,10 +1,10 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
-import { getChunkTag } from '@/packages/dicom/core';
+import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/packages/dicom/core';
-import { Tags } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import type { ChunkSource, DataSource } from '@/src/io/import/dataSource';
 import { uriToDataSource } from '@/src/io/import/dataSource';

@@ -3,13 +3,13 @@ import { datasetFromTags } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import {
   SOP_CLASS_ULTRASOUND_MULTIFRAME,
   SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED,
   Tags,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/metadata/dicomTags';
 import type {
   CineHeader,
   CineParseResult,
@@ -40,6 +40,17 @@ class FakeChunkImage {
   async setChunks(chunks: Chunk[], orientation: number[] | null) {
     this.chunks = chunks;
     this.orientation = orientation;
+  }
+
+  async prepareChunks(chunks: Chunk[], orientation: number[] | null) {
+    return {
+      changed: true,
+      commit: () => {
+        this.chunks = chunks;
+        this.orientation = orientation;
+      },
+      dispose: () => {},
+    };
   }
 
   getDicomMetadata() {

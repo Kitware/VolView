@@ -1,4 +1,4 @@
-import { Chunk } from '../core/index';
+import { Chunk } from '../core/streaming/chunk';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import type { TypedArray } from '@kitware/vtk.js/types';

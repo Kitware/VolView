@@ -36,7 +36,6 @@ export class DicomMetaLoader implements MetaLoader {
   private tags: Maybe<DicomDataset>;
   private generation = 0;
   private source: Fetcher | null;
-  private offset: Maybe<number>;
   private layout: Maybe<DicomLayout>;
   public ultrasoundRegions: UltrasoundRegions | undefined;
 
@@ -58,14 +57,6 @@ export class DicomMetaLoader implements MetaLoader {
 
   get meta() {
     return this.tags;
-  }
-
-  /**
-   * Where Pixel Data starts, or the file's length when it has none. Unset for
-   * a radiotherapy object, whose header past Modality is never read.
-   */
-  get pixelDataOffset() {
-    return this.offset;
   }
 
   /** How the bytes opened: with or without the Part 10 preamble and file meta. */
@@ -149,10 +140,6 @@ export class DicomMetaLoader implements MetaLoader {
     const dataset = await this.readDataset(header);
     if (generation !== this.generation)
       throw new DOMException('DICOM read cancelled', 'AbortError');
-    this.offset =
-      this.imageImportPolicy === 'skip-radiotherapy' && isRadiotherapy(modality)
-        ? undefined
-        : header.length;
     this.tags = dataset;
 
     if (modality === 'US') {

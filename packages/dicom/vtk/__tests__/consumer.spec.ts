@@ -1,8 +1,10 @@
 import { sliceFromChunk } from '../thumbnailSource';
 import { describe, expect, it } from 'vitest';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { Chunk, type Reconstruction } from '../../core';
-import { VtkDicomImage, type VtkDicomImageInit } from '..';
+import { Chunk } from '../../core/streaming/chunk';
+import { type Reconstruction } from '../../core/collections/reconstructVolume';
+import { VtkDicomImage } from '../VtkDicomImage';
+import { type VtkDicomImageInit } from '../types';
 import { datasetFromTags } from '@/tests/dicomDataset';
 
 const AXIAL = [1, 0, 0, 0, 1, 0];
@@ -63,6 +65,58 @@ function deferred<T>() {
 }
 
 describe('vtk DICOM consumer', () => {
+  it('keeps displayed pixels until prepared growth commits and can discard growth', async () => {
+    const chunks = await Promise.all([loadedChunk(1), loadedChunk(2)]);
+    const image = new VtkDicomImage({ readDicomImage: read });
+    const ready = completed(image);
+    await image.setChunks([chunks[0]], AXIAL);
+    await ready;
+    const original = image.getVtkImageData();
+    const replacements: number[][] = [];
+    image.addEventListener('imageChanged', (next) => {
+      replacements.push(next.getDimensions());
+    });
+
+    const abandoned = await image.prepareChunks(chunks, AXIAL);
+    expect(image.getVtkImageData()).toBe(original);
+    expect(pixels(image)).toEqual([1]);
+    expect(image.isLoaded()).toBe(true);
+    expect(replacements).toEqual([]);
+    abandoned.dispose();
+    abandoned.commit();
+    expect(original.isDeleted()).toBe(false);
+    expect(pixels(image)).toEqual([1]);
+
+    const update = await image.prepareChunks(chunks, AXIAL);
+    const grown = completed(image);
+    update.commit();
+    await grown;
+    expect(replacements).toEqual([[1, 1, 2]]);
+    expect(original.isDeleted()).toBe(true);
+    expect(pixels(image)).toEqual([1, 2]);
+    update.dispose();
+    expect(image.getVtkImageData().isDeleted()).toBe(false);
+    image.dispose();
+  });
+
+  it('does not publish prepared growth over a newer image', async () => {
+    const [first, second, third] = await Promise.all([
+      loadedChunk(1),
+      loadedChunk(2),
+      loadedChunk(3),
+    ]);
+    const image = new VtkDicomImage({ readDicomImage: read });
+    await image.setChunks([first], AXIAL);
+    const stale = await image.prepareChunks([first, second], AXIAL);
+    const ready = completed(image);
+    await image.setChunks([third], AXIAL);
+    await ready;
+    expect(() => stale.commit()).toThrow('changed after');
+    expect(pixels(image)).toEqual([3]);
+    expect(image.getVtkImageData().isDeleted()).toBe(false);
+    image.dispose();
+  });
+
   it('uses the plan spacing and slice mapping without reconstructing it', async () => {
     const chunks = await Promise.all([loadedChunk(1), loadedChunk(19)]);
     const image = new VtkDicomImage({ readDicomImage: read });

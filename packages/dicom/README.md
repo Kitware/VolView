@@ -1,18 +1,21 @@
 # Browser DICOM module
 
 This private directory uses VolView's root install, lockfile and checks. It has
-no workspace install or release workflow. VolView imports the source entry
-points; the root npm distribution includes the core and vtk source files
+no workspace install or release workflow. VolView imports defining source
+modules directly; the root npm distribution includes the core and vtk source files
 alongside `dist`, `src` and `backend-contract`. Package tests and standalone build
 output are excluded from that distribution.
 
-- `core/index.ts`: Blob and HTTP sources, structured `DicomDataset` metadata,
+- `core/`: Blob and HTTP sources, structured `DicomDataset` metadata,
   normalized facts, collection planning and stable identity, owned loading
   resources, and calibrated typed pixel arrays. It has no Vue, Pinia or vtk.js
   dependency.
-- `vtk/index.ts`: `VtkDicomImage`, allocation and validated pixel writes,
+- `vtk/`: `VtkDicomImage`, allocation and validated pixel writes,
   reconstruction policy, ranges, image notifications and vtk cleanup. vtk.js is
-  an optional peer, required only by consumers of this entry point.
+  an optional peer, required only by consumers of these modules.
+
+The package exports concrete module subpaths under `@volview/dicom/core/*` and
+`@volview/dicom/vtk/*`; there are no aggregate entry points.
 
 VolView owns its reactive wrappers, messages, browser state, selections,
 annotations, layers, import transactions and session provenance. The
@@ -27,7 +30,7 @@ GDCM image reader assets. Serve the emitted assets from a URL your application
 controls, and pass their locations explicitly:
 
 ```ts
-import { createDicomLoader } from '@volview/dicom/core';
+import { createDicomLoader } from '@volview/dicom/core/runtime/createDicomLoader';
 
 const loader = createDicomLoader({
   assets: {
@@ -87,9 +90,19 @@ rejects stale decode results after reallocation or disposal. It owns and deletes
 its vtk images, but borrows its chunks. Dispose the vtk consumer before releasing
 its borrowed chunks, then dispose the loader.
 
+`await volume.prepareChunks(members, orientation, reconstruction)` prepares an
+allocation without changing the displayed image, emitting image events or
+decoding loaded chunks. It returns `{ changed, commit, dispose }`. `commit()`
+publishes the prepared allocation synchronously; `dispose()` releases it if it
+has not been committed. Disposing the volume also releases its pending
+allocations. An importer can prepare all affected volumes, dispose preparations
+if any fails, and publish only after every preparation succeeds. Abandoning a
+preparation leaves the displayed pixels intact. `setChunks()` combines
+preparation and publication for an immediate update.
+
 ```ts
-import { createDicomCollectionRegistry } from '@volview/dicom/core';
-import { VtkDicomImage } from '@volview/dicom/vtk';
+import { createDicomCollectionRegistry } from '@volview/dicom/core/collections/collectionRegistry';
+import { VtkDicomImage } from '@volview/dicom/vtk/VtkDicomImage';
 
 const registry = createDicomCollectionRegistry();
 const { updates } = await registry.register(chunks);

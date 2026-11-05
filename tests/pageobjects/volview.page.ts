@@ -82,7 +82,7 @@ class VolViewPage extends Page {
       .sort((a, b) => a - b);
   }
 
-  async waitForVolumeCardSliceCounts(expected: number[], timeout = 30000) {
+  async waitForVolumeCardSliceCounts(expected: number[]) {
     await browser.waitUntil(
       async () => {
         const counts = await this.getVolumeCardSliceCounts();
@@ -92,7 +92,6 @@ class VolViewPage extends Page {
         );
       },
       {
-        timeout,
         timeoutMsg: `expected volume cards holding ${expected.join(
           ', '
         )} slices`,

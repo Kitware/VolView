@@ -1,5 +1,5 @@
-import { Chunk } from '@/packages/dicom/core';
-import { Fetcher } from '@/packages/dicom/core';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { Fetcher } from '@/packages/dicom/core/streaming/types';
 import { Maybe } from '@/src/types';
 
 /**

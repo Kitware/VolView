@@ -1,9 +1,7 @@
-import {
-  createDicomLoader,
-  getDatasetTag,
-  readInstanceFacts,
-  type Chunk,
-} from '@volview/dicom/core';
+import { createDicomLoader } from '@volview/dicom/core/runtime/createDicomLoader';
+import { getDatasetTag } from '@volview/dicom/core/metadata/datasetAccess';
+import { readInstanceFacts } from '@volview/dicom/core/collections/instanceFacts';
+import { type Chunk } from '@volview/dicom/core/streaming/chunk';
 import { fixtureBytes } from './fixtureData';
 
 export const loader = createDicomLoader({

@@ -1,15 +1,21 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
-import { getChunkTag } from '@/packages/dicom/core';
+import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import { describe, it, expect, vi } from 'vitest';
-import { Chunk } from '@/packages/dicom/core';
-import { ChunkState } from '@/packages/dicom/core';
-import { Tags } from '@/packages/dicom/core';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { ChunkState } from '@/packages/dicom/core/streaming/chunkStateMachine';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import DicomChunkImage, {
   DicomChunkImageInit,
 } from '@/src/core/streaming/dicomChunkImage';
-import { sliceToThumbnail, type ThumbnailSlice } from '@/packages/dicom/vtk';
-import { ChunkStatus } from '@/packages/dicom/vtk';
-import { US_UNIT_CENTIMETERS, UltrasoundRegions } from '@/packages/dicom/core';
+import {
+  sliceToThumbnail,
+  type ThumbnailSlice,
+} from '@/packages/dicom/vtk/thumbnail';
+import { ChunkStatus } from '@/packages/dicom/vtk/types';
+import {
+  US_UNIT_CENTIMETERS,
+  UltrasoundRegions,
+} from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
 
 const AXIAL = [1, 0, 0, 0, 1, 0];
 const ROWS = 2;

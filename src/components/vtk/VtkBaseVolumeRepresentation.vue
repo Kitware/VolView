@@ -38,7 +38,7 @@ import { useCroppingEffect } from '@/src/composables/useCroppingEffect';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useEventListener } from '@vueuse/core';
 import type { ChunkImage } from '@/src/core/streaming/chunkImage';
-import type { ChunkLoadedInfo } from '@/packages/dicom/vtk';
+import type { ChunkLoadedInfo } from '@/packages/dicom/vtk/types';
 
 interface Props {
   viewId: string;

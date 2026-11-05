@@ -1,19 +1,21 @@
+import { Chunk } from '../core/streaming/chunk';
+import { DicomDataset } from '../core/metadata/dicomDataset';
+import { getDatasetTag, getChunkTag } from '../core/metadata/datasetAccess';
 import {
-  Chunk,
-  DicomDataset,
-  getDatasetTag,
-  getChunkTag,
   readGeometryFacts,
   sliceNormalOf,
-  type Reconstruction,
-  multiframeGeometry,
+} from '../core/collections/instanceFacts';
+import { type Reconstruction } from '../core/collections/reconstructVolume';
+import { multiframeGeometry } from '../core/collections/multiframeGeometry';
+import { readChunkFacts } from '../core/collections/chunkFacts';
+import {
   declaredSpacing,
   physicalSpacing,
   readPixelSpacing,
   type SpatialMetadata,
-} from '../core/index';
+} from '../core/metadata/spatialMetadata';
 import { getFrameTag } from '../core/metadata/functionalGroups';
-import { numberOr } from '../core/utils';
+import { numberOr, trimDicomPadding } from '../core/utils';
 import { nmGeometry } from './nmGeometry';
 import { readModalityRescale } from '../core/metadata/modalityRescale';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -276,8 +278,16 @@ function assertRegularGeometry(
     );
 }
 
-const instanceGeometry = (metadata: DicomDataset, count: number) =>
-  nmGeometry(metadata) ?? multiframeGeometry(metadata, count);
+const instanceGeometry = (chunk: Chunk, count: number) => {
+  const metadata = chunk.metadata!;
+  const nm = nmGeometry(metadata);
+  if (nm) return nm;
+  if (count < 2) return null;
+  // SEG planning does not judge segment-major frames as one spatial stack.
+  if (trimDicomPadding(getDatasetTag(metadata, '00080060') ?? '') === 'SEG')
+    return multiframeGeometry(metadata, count);
+  return readChunkFacts(chunk).frameGeometry;
+};
 
 function allocationDirection(
   orientation: number[] | null,
@@ -295,7 +305,8 @@ function allocationGeometry(
 ) {
   const metadata = chunks[0].metadata!;
   const count = numberOr(getDatasetTag(metadata, NumberOfFrames), 1);
-  const frames = chunks.length === 1 ? instanceGeometry(metadata, count) : null;
+  const frames =
+    chunks.length === 1 ? instanceGeometry(chunks[0], count) : null;
   const geometry = frames ?? readGeometryFacts(metadata);
   const plan = frames?.reconstruction ?? reconstruction;
   assertRegularGeometry(plan, policy);

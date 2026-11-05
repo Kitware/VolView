@@ -118,14 +118,22 @@ describe('sliceChunks', () => {
 
 it('rejects an unverified resumed range while preserving the cached header', async () => {
   const prefix = new Uint8Array([1, 2, 3, 4]);
+  let requests = 0;
   const fetcher = new CachedStreamFetcher(
     'https://example.test/hidden-headers',
     {
       prefixChunks: [prefix],
-      fetch: async () => new Response(new Uint8Array([5, 6]), { status: 206 }),
+      fetch: async () =>
+        new Response(new Uint8Array([5, 6]), {
+          status: 206,
+          headers: requests++ === 0 ? {} : { 'content-range': 'bytes 4-5/6' },
+        }),
     }
   );
   await expect(fetcher.connect()).rejects.toThrow('readable content range');
-  expect(fetcher.cachedChunks).toEqual([prefix]);
   expect(fetcher.connected).toBe(false);
+  expect(new Uint8Array(await (await fetcher.blob()).arrayBuffer())).toEqual(
+    new Uint8Array([1, 2, 3, 4, 5, 6])
+  );
+  fetcher.close();
 });

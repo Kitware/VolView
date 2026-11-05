@@ -100,10 +100,6 @@ export class CachedStreamFetcher implements Fetcher {
     return this.chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   }
 
-  get cachedChunks() {
-    return this.chunks;
-  }
-
   get abortSignal() {
     return this.abortController?.signal;
   }

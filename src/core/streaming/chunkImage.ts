@@ -1,6 +1,7 @@
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import type { Chunk, Reconstruction } from '@/packages/dicom/core';
-import type { ChunkImageEvents, ChunkStatus } from '@/packages/dicom/vtk';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import type { Reconstruction } from '@/packages/dicom/core/collections/reconstructVolume';
+import type { ChunkImageEvents, ChunkStatus } from '@/packages/dicom/vtk/types';
 
 export type ChunkImage = ProgressiveImage & {
   setChunks(

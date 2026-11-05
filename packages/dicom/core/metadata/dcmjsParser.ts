@@ -169,7 +169,8 @@ const openFile = (bytes: Uint8Array) => {
 };
 
 const needsSequenceReader = (vr: string | undefined, length: number) =>
-  vr === 'SQ' || (vr === 'UN' && length === UNDEFINED_LENGTH);
+  vr === 'SQ' ||
+  ((vr === 'UN' || vr === undefined) && length === UNDEFINED_LENGTH);
 
 /**
  * A known UN retains its implicit encoding even inside an explicit dataset.
@@ -272,6 +273,8 @@ const readSequence = (
     unknown?: boolean;
   }
 ): ParsedElement => {
+  if (sequence.end !== null && sequence.end > dataSet.endOffset)
+    throw new Error('Sequence exceeds the available dataset bytes');
   if (sequence.unknown && sequence.end !== null) {
     // PS3.5 6.2.2: a known UN value retains Implicit VR Little Endian encoding.
     const value = new Uint8Array(
@@ -345,8 +348,15 @@ function readSequenceItems(
 ) {
   const items: ParsedElement[][] = [];
   while (end === null || dataSet.offset < end) {
+    assertSequenceBounds(dataSet.offset, end, 8);
     const length = readSequenceItemLength(dataSet, syntax);
-    if (length === null) return items;
+    if (length === null) {
+      assertSequenceBounds(dataSet.offset, end);
+      // A defined length still bounds the value after a premature delimiter.
+      // Its trailing bytes cannot become elements of the enclosing dataset.
+      if (end !== null) dataSet.offset = end;
+      return items;
+    }
     assertSequenceBounds(
       dataSet.offset,
       end,

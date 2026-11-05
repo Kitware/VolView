@@ -1,8 +1,7 @@
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
-import type { Reconstruction } from '@/packages/dicom/core';
 import { defineStore } from 'pinia';
 import { Image } from 'itk-wasm';
-import type { Chunk } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
@@ -10,9 +9,12 @@ import { parseCineDicom } from '@/src/core/cine/parseCineDicom';
 import {
   groupChunksBySeries,
   type CollectionUpdate,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/collections/collectionRegistry';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { isUltrasoundMultiframeSopClass, Tags } from '@/packages/dicom/core';
+import {
+  isUltrasoundMultiframeSopClass,
+  Tags,
+} from '@/packages/dicom/core/metadata/dicomTags';
 import { useMessageStore } from '@/src/store/messages';
 import { ensureError, removeFromArray } from '../utils';
 import {
@@ -153,15 +155,12 @@ export const getWindowLevels = (info: VolumeInfo) => {
 
 // A chunk volume, as this store uses it. An instanceof would refuse an
 // injected image, so the capability check names the method it calls.
-type ChunkVolume = Pick<
-  DicomChunkImage,
-  'setChunks' | 'getChunks' | 'getOrientation' | 'getReconstruction'
->;
+type ChunkVolume = Pick<DicomChunkImage, 'prepareChunks'>;
 
 const canHoldChunks = (
   image: ProgressiveImage
 ): image is ProgressiveImage & ChunkVolume =>
-  typeof (image as Partial<ChunkVolume>).setChunks === 'function';
+  typeof (image as Partial<ChunkVolume>).prepareChunks === 'function';
 
 export type ImportChunksDeps = {
   createChunkImage?: () => DicomChunkImage;
@@ -219,7 +218,7 @@ type DatabaseRecord = {
 
 /**
  * One collection's replacement, prepared before any store is touched. `add`
- * builds a fresh image off-store, `grow` has already applied its members to
+ * builds a fresh image off-store, `grow` holds an unpublished allocation for
  * the image an earlier import registered, and `none` is a collection already
  * loaded as it is planned.
  */
@@ -235,52 +234,20 @@ type Candidate =
       kind: 'grow';
       id: string;
       image: ProgressiveImage & ChunkVolume;
-      // The membership held before this batch grew the image, so a sibling's
-      // failure can put it back.
-      previous: Chunk[];
-      previousOrientation: number[] | null;
-      previousReconstruction: Reconstruction | null;
-      // Whether the batch changed the membership at all; a relabel or a
-      // second drop of the same folder does not.
-      changed: boolean;
+      update: Awaited<ReturnType<ChunkVolume['prepareChunks']>>;
       record: DatabaseRecord;
     };
 
-// Every image a batch builds, so a failure releases them all. An uncommitted
-// candidate owns a volume buffer nothing else can free.
+// Every unpublished image or allocation belongs to the preparing batch.
 const candidateTracker = () => {
-  const built: ProgressiveImage[] = [];
+  const built: Array<{ dispose: () => void }> = [];
   return {
-    track: <T extends ProgressiveImage>(image: T) => {
-      built.push(image);
-      return image;
+    track: <T extends { dispose: () => void }>(resource: T) => {
+      built.push(resource);
+      return resource;
     },
     release: () => built.forEach((image) => image.dispose()),
   };
-};
-
-/**
- * Puts the images a failed batch already grew back to the membership they held,
- * so an abandoned plan leaves no image holding members no record names. An
- * image the user removed meanwhile is disposed and left alone.
- */
-const undoGrowth = (candidates: Candidate[]) => {
-  const { imageById } = useImageCacheStore();
-  return Promise.all(
-    candidates.map((candidate) =>
-      candidate.kind === 'grow' && imageById[candidate.id] === candidate.image
-        ? candidate.image
-            .setChunks(
-              candidate.previous,
-              candidate.previousOrientation,
-              candidate.previousReconstruction ?? undefined
-            )
-            .catch((err) => {
-              console.error('Failed to restore DICOM volume membership', err);
-            })
-        : null
-    )
-  );
 };
 
 type PrepareDeps = {
@@ -419,26 +386,15 @@ async function prepareVolume(
   }
 
   const record = volumeRecord(update);
-  // Growth is part of preparation, not of the commit: the members have to be
-  // in the image before any record promises them, and a membership the image
-  // cannot hold has to fail while the batch can still be abandoned.
   if (cachedImage) {
-    const previous = cachedImage.getChunks();
-    const previousOrientation = cachedImage.getOrientation();
-    const previousReconstruction = cachedImage.getReconstruction();
-    await cachedImage.setChunks(members, orientation, reconstruction);
-    const changed =
-      previousOrientation?.join() !== orientation?.join() ||
-      previous.length !== members.length ||
-      previous.some((chunk, index) => chunk !== members[index]);
+    const prepared = deps.track(
+      await cachedImage.prepareChunks(members, orientation, reconstruction)
+    );
     return {
       kind: 'grow',
       id,
       image: cachedImage,
-      previous,
-      previousOrientation,
-      previousReconstruction,
-      changed,
+      update: prepared,
       record,
     };
   }
@@ -490,8 +446,7 @@ function commitPlan(
     if (candidate.kind === 'none') return;
 
     if (candidate.kind === 'grow') {
-      // The image already holds the members preparation gave it, so this load
-      // covers them.
+      candidate.update.commit();
       candidate.image.startLoad();
     } else {
       imageCacheStore.addProgressiveImage(candidate.image, {
@@ -503,7 +458,7 @@ function commitPlan(
     store._updateDatabase(patient, study, volume);
     candidate.image.setName(name);
     // A membership that did not change was already warned about.
-    if (candidate.kind === 'add' || candidate.changed)
+    if (candidate.kind === 'add' || candidate.update.changed)
       warnings.forEach((warning) =>
         messageStore.addWarning(
           'A DICOM series did not load as one sound volume',
@@ -590,18 +545,12 @@ export const useDICOMStore = defineStore('dicom', {
             ...removed,
           ]);
           if (failure || removedMeanwhile) {
-            // Every candidate has settled, so nothing is still writing to the
-            // images this puts back before the lane releases.
             try {
-              await undoGrowth(candidates);
+              release();
             } finally {
-              try {
-                release();
-              } finally {
-                // Failed incoming chunks remain available to their caller;
-                // only replayed user deletions release previous ownership.
-                this.releaseUnregisteredChunks(rollback([seriesKey]));
-              }
+              // Failed incoming chunks remain available to their caller;
+              // only replayed user deletions release previous ownership.
+              this.releaseUnregisteredChunks(rollback([seriesKey]));
             }
             throw failure
               ? failure.reason

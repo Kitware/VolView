@@ -1,9 +1,10 @@
+import { VtkDicomImage } from '@/packages/dicom/vtk/VtkDicomImage';
 import {
-  VtkDicomImage,
   type VtkDicomImageInit,
   type ChunkImageEvents,
-} from '@/packages/dicom/vtk';
-import type { Chunk, Reconstruction } from '@/packages/dicom/core';
+} from '@/packages/dicom/vtk/types';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import type { Reconstruction } from '@/packages/dicom/core/collections/reconstructVolume';
 import { BaseProgressiveImage } from '@/src/core/progressiveImage';
 import type { ChunkImage } from '@/src/core/streaming/chunkImage';
 import {
@@ -109,6 +110,14 @@ export default class DicomChunkImage
     reconstruction?: Reconstruction
   ) {
     return this.consumer.setChunks(chunks, orientation, reconstruction);
+  }
+
+  prepareChunks(
+    chunks: Chunk[],
+    orientation: number[] | null,
+    reconstruction?: Reconstruction
+  ) {
+    return this.consumer.prepareChunks(chunks, orientation, reconstruction);
   }
 
   addEventListener<T extends keyof ChunkImageEvents>(

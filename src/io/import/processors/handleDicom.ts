@@ -1,4 +1,4 @@
-import { getChunkTag } from '@/packages/dicom/core';
+import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { Skip } from '@/src/utils/evaluateChain';
 import {
@@ -9,12 +9,12 @@ import {
 import { DataSource, getDataSourceName } from '@/src/io/import/dataSource';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { getErrorDetail } from '@/src/utils';
-import { Tags } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import {
   IMPLICIT_VR_LITTLE_ENDIAN,
   type DicomLayout,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/metadata/dicomLayout';
 import { Maybe } from '@/src/types';
 
 // A folder of files that all depart from Part 10 the same way would raise one

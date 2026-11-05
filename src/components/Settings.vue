@@ -61,7 +61,7 @@ import { useLocalStorage } from '@vueuse/core';
 
 import { useKeyboardShortcutsStore } from '@/src/store/keyboard-shortcuts';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
-import { useReferenceLinesStore } from '@/src/referenceLines';
+import { useReferenceLinesStore } from '@/src/referenceLines/store';
 import DicomWebSettings from './dicom-web/DicomWebSettings.vue';
 import ServerSettings from './ServerSettings.vue';
 import { DarkTheme, LightTheme, ThemeStorageKey } from '../constants';

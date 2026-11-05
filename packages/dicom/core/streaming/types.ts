@@ -46,12 +46,6 @@ export type Fetcher = {
   getStream(): ReadableStream<Uint8Array>;
   blob(): Promise<Blob>;
   close(): void;
-  /**
-   * What the streams have delivered so far, kept by a fetcher whose source
-   * has to be cached to be read again. A fetcher over addressable bytes keeps
-   * none.
-   */
-  cachedChunks?: Uint8Array<ArrayBuffer>[];
   connected: boolean;
   size: number;
   contentType?: string;

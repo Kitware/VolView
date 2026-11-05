@@ -53,7 +53,6 @@ async function waitForVolumeCards(count: number) {
   await browser.waitUntil(
     async () => (await $$('.volume-card').length) === count,
     {
-      timeout: 30000,
       timeoutMsg: `expected exactly ${count} volume cards`,
     }
   );
@@ -99,7 +98,6 @@ describe('DICOM series with instances of two pixel geometries', () => {
         );
       },
       {
-        timeout: 30000,
         timeoutMsg:
           'expected both volume cards to render a data-URL thumbnail instead of the modality fallback',
       }

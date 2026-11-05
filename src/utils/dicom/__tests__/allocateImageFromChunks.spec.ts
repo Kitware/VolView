@@ -1,11 +1,11 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
 import {
   readGeometryFacts,
-  reconstructVolume,
   sliceNormalOf,
-} from '@/packages/dicom/core';
-import type { Chunk } from '@/packages/dicom/core';
-import { Tags } from '@/packages/dicom/core';
+} from '@/packages/dicom/core/collections/instanceFacts';
+import { reconstructVolume } from '@/packages/dicom/core/collections/reconstructVolume';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import {
   allocateImageFromChunks as allocatePlannedImage,
   getPixelFormat,
@@ -16,7 +16,7 @@ import {
   getVolumeBufferType,
   samplesAreIntegral,
   valuesFitBuffer,
-} from '@/packages/dicom/vtk';
+} from '@/packages/dicom/vtk/allocateImageFromChunks';
 import { describe, it, expect } from 'vitest';
 
 function chunk(overrides: Record<string, string> = {}) {

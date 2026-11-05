@@ -12,7 +12,9 @@ import {
   encodeCollectionKey,
   type CommittedCollection,
 } from './assignCollectionIds';
-import { readInstanceFacts, seriesKeyOf } from './instanceFacts';
+import { seriesKeyOf } from './instanceFacts';
+import { readChunkFacts } from './chunkFacts';
+import { groupBy } from './groupBy';
 
 export type CollectionUpdate = {
   id: string;
@@ -77,8 +79,6 @@ type SeriesEntry = {
   dissolving: Set<string>;
   // Every collection ID forgotten from this series, in order.
   forgotten: string[];
-  // Sequencing only: a settled queue holds no plan, so it pins no chunk.
-  queue: Promise<void>;
 };
 
 type Snapshot = {
@@ -99,23 +99,11 @@ const instanceKeyOf = (chunk: Chunk) =>
 const readChunk = (chunk: Chunk) => {
   const { metadata } = chunk;
   if (!metadata) throw unread();
-  const facts = readInstanceFacts(metadata);
+  const { facts } = readChunkFacts(chunk);
   return {
     seriesKey: seriesKeyOf(metadata),
     instance: { key: instanceKeyOf(chunk), chunk, facts },
   };
-};
-
-/** Groups preserve input order, both of the keys and of their members. */
-const groupBy = <T>(items: T[], keyOf: (item: T) => string) => {
-  const groups = new Map<string, T[]>();
-  items.forEach((item) => {
-    const key = keyOf(item);
-    const group = groups.get(key);
-    if (group) group.push(item);
-    else groups.set(key, [item]);
-  });
-  return groups;
 };
 
 /**
@@ -177,10 +165,11 @@ function planSeries(
 ) {
   // The first registration of an instance owns its chunk: a re-supply only
   // reports back, so the chunk an image already holds stays the member.
+  const registeredByKey = new Map(entry.instances);
   const conflictingInstanceUids = new Set<string>();
   batch.forEach((instance) => {
-    const existing = entry.instances.get(instance.key);
-    if (!existing) entry.instances.set(instance.key, instance);
+    const existing = registeredByKey.get(instance.key);
+    if (!existing) registeredByKey.set(instance.key, instance);
     else if (
       typeof instance.key === 'string' &&
       JSON.stringify(existing.facts) !== JSON.stringify(instance.facts)
@@ -188,7 +177,7 @@ function planSeries(
       conflictingInstanceUids.add(instance.key);
   });
 
-  const registered = [...entry.instances.values()];
+  const registered = [...registeredByKey.values()];
   const plan = planDicomCollections({
     seriesKey,
     instances: registered.map((instance) => instance.facts),
@@ -243,12 +232,12 @@ function planSeries(
     (id) => !planned.some((collection) => collection.id === id)
   );
 
-  entry.committed = new Map(
-    planned.map(({ id, committed }) => [id, committed])
-  );
-  entry.dissolving = new Set(removed);
-
   return {
+    state: {
+      instances: registeredByKey,
+      committed: new Map(planned.map(({ id, committed }) => [id, committed])),
+      dissolving: new Set(removed),
+    },
     updates,
     removed,
     conflictingInstanceUids: [...conflictingInstanceUids],
@@ -257,7 +246,8 @@ function planSeries(
 
 /**
  * Remembers every instance seen so far, per series, and replans the series a
- * batch touches. Registration is serialized per series.
+ * batch touches. Planning and publication are synchronous, so a registration
+ * either publishes every series or leaves the registry unchanged.
  */
 export function createDicomCollectionRegistry(): DicomCollectionRegistry {
   const series = new Map<string, SeriesEntry>();
@@ -270,9 +260,7 @@ export function createDicomCollectionRegistry(): DicomCollectionRegistry {
       committed: new Map(),
       dissolving: new Set(),
       forgotten: [],
-      queue: Promise.resolve(),
     };
-    series.set(seriesKey, created);
     return created;
   };
 
@@ -303,32 +291,23 @@ export function createDicomCollectionRegistry(): DicomCollectionRegistry {
   };
 
   const register = async (chunks: Chunk[]) => {
-    // Reading every chunk before touching a queue keeps a batch that names an
-    // unread chunk from half registering.
     const batches = groupBySeries(chunks);
     const snapshots = new Map<string, Snapshot>();
 
     const planned = [...batches].map(([seriesKey, batch]) => {
       const entry = entryFor(seriesKey);
-      const update = entry.queue.then(() => {
-        snapshots.set(seriesKey, {
-          entry,
-          instances: new Map(entry.instances),
-          committed: new Map(entry.committed),
-          dissolving: new Set(entry.dissolving),
-          forgotten: entry.forgotten.length,
-        });
-        return planSeries(entry, seriesKey, batch);
+      return { seriesKey, entry, result: planSeries(entry, seriesKey, batch) };
+    });
+    planned.forEach(({ seriesKey, entry, result }) => {
+      snapshots.set(seriesKey, {
+        entry,
+        instances: entry.instances,
+        committed: entry.committed,
+        dissolving: entry.dissolving,
+        forgotten: entry.forgotten.length,
       });
-      // A failed plan must not wedge the series behind it, and the queue
-      // outlives every batch it orders, so it keeps the outcome and not the
-      // plan: holding the members would pin the chunks of a collection the
-      // user has since removed for as long as the series has any other.
-      entry.queue = update.then(
-        () => {},
-        () => {}
-      );
-      return update;
+      Object.assign(entry, result.state);
+      series.set(seriesKey, entry);
     });
 
     // A forget empties and drops an entry once nothing is left in it, so the
@@ -363,7 +342,7 @@ export function createDicomCollectionRegistry(): DicomCollectionRegistry {
         return forgotten.flatMap((id) => forgetFrom(entry, seriesKey, id));
       });
 
-    const results = await Promise.all(planned);
+    const results = planned.map(({ result }) => result);
     return {
       updates: results.flatMap((result) => result.updates),
       conflictingInstanceUids: results.flatMap(

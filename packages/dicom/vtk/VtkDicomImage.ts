@@ -1,27 +1,20 @@
-import {
-  Chunk,
-  ChunkState,
-  getChunkTag,
-  readInstanceFacts,
-  reconstructInstances,
-  sliceNormalOf,
-  type Reconstruction,
-  type SpatialMetadata,
-} from '../core/index';
+import { Chunk } from '../core/streaming/chunk';
+import { ChunkState } from '../core/streaming/chunkStateMachine';
+import { getChunkTag } from '../core/metadata/datasetAccess';
+import { type Reconstruction } from '../core/collections/reconstructVolume';
+import { type SpatialMetadata } from '../core/metadata/spatialMetadata';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { TypedArray } from '@kitware/vtk.js/types';
 import mitt, { Emitter } from 'mitt';
-import {
-  allocateImageFromChunks,
-  type IrregularGeometryPolicy,
-} from './allocateImageFromChunks';
+import type { IrregularGeometryPolicy } from './allocateImageFromChunks';
 import {
   assertSamplesRepresentable,
   assertSingleFramePerFile,
   assertChunkFitsSlot,
 } from './pixelValidation';
-import { applyUltrasoundSpacing } from './ultrasoundSpacing';
+import { prepareChunkAllocation } from './prepareChunkAllocation';
+import { preparedChunks, unchangedChunks } from './preparedChunks';
 import {
   ChunkStatus,
   type ChunkImageEvents,
@@ -146,15 +139,18 @@ export class VtkDicomImage {
     const previous = this.image;
     this.image = image;
     this.spatialMetadata = spatialMetadata;
-    this.events.emit('imageChanged', image);
-    previous.delete();
+    try {
+      this.events.emit('imageChanged', image);
+    } finally {
+      previous.delete();
+    }
   }
 
   getModality() {
     return modalityOf(this.chunks);
   }
 
-  getChunkStatuses(): Array<ChunkStatus> {
+  getChunkStatuses() {
     return this.chunkStatus.slice();
   }
 
@@ -245,9 +241,10 @@ export class VtkDicomImage {
     const geometry = reconstruction
       ? structuredClone(reconstruction)
       : undefined;
-    const update = this.chunkUpdateQueue.then(() =>
-      this.applyChunks(ordered, axes, geometry)
-    );
+    const update = this.chunkUpdateQueue.then(async () => {
+      const prepared = await this.prepareChunks(ordered, axes, geometry);
+      prepared.commit();
+    });
     this.chunkUpdateQueue = update.catch(() => {});
     return update;
   }
@@ -275,64 +272,67 @@ export class VtkDicomImage {
     }
   }
 
-  private async applyChunks(
+  /** Prepares new membership without changing the image, events or decoding. */
+  async prepareChunks(
     chunks: Chunk[],
     orientation: number[] | null,
     supplied?: Reconstruction
   ) {
-    if (this.sameMembership(chunks, orientation, supplied)) return;
+    if (this.disposed || this.sameMembership(chunks, orientation, supplied))
+      return unchangedChunks;
+    const ordered = chunks.slice();
+    const axes = orientation?.slice() ?? null;
+    const geometry = supplied ? structuredClone(supplied) : undefined;
+    await this.loadMetadata(ordered);
+    if (this.disposed) return unchangedChunks;
+    const generation = this.allocationGeneration;
+    const allocated = prepareChunkAllocation(
+      ordered,
+      axes,
+      geometry,
+      this.irregularGeometry
+    );
+    return preparedChunks(
+      () => {
+        if (generation !== this.allocationGeneration)
+          throw new Error(
+            'The DICOM image changed after this update was prepared'
+          );
+        this.publishChunks(ordered, axes, allocated);
+      },
+      () => {
+        if (allocated.image !== this.image) allocated.image?.delete();
+      },
+      this.lifetime.signal
+    );
+  }
 
-    if (this.disposed) return;
-    await this.loadMetadata(chunks);
-    if (this.disposed) return;
-
+  private publishChunks(
+    chunks: Chunk[],
+    orientation: number[] | null,
+    allocated: ReturnType<typeof prepareChunkAllocation>
+  ) {
     const status = chunks.map(initialChunkStatus);
-    const needsFrameGeometry =
-      chunks.length === 1 && Number(getChunkTag(chunks[0], '00280008')) > 1;
-    const reconstruction =
-      supplied && !needsFrameGeometry
-        ? supplied
-        : reconstructInstances(
-            chunks.map((chunk) => readInstanceFacts(chunk.metadata!)),
-            sliceNormalOf(orientation),
-            supplied
-          );
-    const allocated =
-      modalityOf(chunks) === 'SEG'
-        ? null
-        : allocateImageFromChunks(
-            chunks,
-            orientation,
-            reconstruction,
-            this.irregularGeometry
-          );
-
     this.unregisterChunkListeners();
-
     this.allocationGeneration += 1;
     this.chunks = chunks;
     this.orientation = orientation;
-    this.reconstruction = reconstruction;
+    this.reconstruction = allocated.reconstruction;
     this.chunkStatus = status;
     this.invalidateThumbnail();
     this.segmentationMetadata = null;
     this.onChunksUpdated();
 
-    if (allocated) {
-      const spatialMetadata = applyUltrasoundSpacing(
-        allocated,
-        chunks,
-        this.warn
-      );
-      this.replaceImage(allocated.image, spatialMetadata);
-    }
+    if (allocated.image)
+      this.replaceImage(allocated.image, allocated.spatialMetadata);
 
     this.registerChunkListeners();
     this.processLoadedChunks();
 
-    if (allocated) {
+    if (allocated.image) {
       this.updateDataRangeFromChunks();
     }
+    allocated.warnings.forEach(([title, details]) => this.warn(title, details));
   }
 
   private invalidateThumbnail() {
@@ -361,7 +361,7 @@ export class VtkDicomImage {
     return this.thumbnail;
   }
 
-  private async readThumbnail(): Promise<string | null> {
+  private async readThumbnail() {
     const signal = this.thumbnailLifetime.signal;
     const middle = Math.floor(this.chunks.length / 2);
     const chunk = this.chunks[middle];
@@ -594,7 +594,7 @@ export class VtkDicomImage {
     );
   }
 
-  private computeStatus(): ProgressiveImageStatus {
+  private computeStatus() {
     const anyLoaded = this.chunkStatus.some(
       (status) => status === ChunkStatus.Loaded
     );

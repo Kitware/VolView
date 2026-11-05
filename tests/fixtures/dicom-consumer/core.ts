@@ -1,4 +1,4 @@
-import { createDicomLoader } from '@volview/dicom/core';
+import { createDicomLoader } from '@volview/dicom/core/runtime/createDicomLoader';
 import { describeMetadata, failed, loadChunk, loader, report } from './shared';
 import { fixtureBytes } from './fixtureData';
 

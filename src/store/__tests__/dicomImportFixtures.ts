@@ -1,11 +1,15 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
-import { getChunkTag, type Reconstruction } from '@/packages/dicom/core';
+import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { type Reconstruction } from '@/packages/dicom/core/collections/reconstructVolume';
 import { ref } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { SOP_CLASS_ULTRASOUND_MULTIFRAME, Tags } from '@/packages/dicom/core';
+import {
+  SOP_CLASS_ULTRASOUND_MULTIFRAME,
+  Tags,
+} from '@/packages/dicom/core/metadata/dicomTags';
 import { defaultImageMetadata } from '@/src/core/progressiveImage';
-import type { Chunk } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import type DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 
 export const SERIES_UID = '1.2.826.0.1.3680043.9.7';
@@ -108,10 +112,35 @@ export class FakeChunkImage {
     orientation: number[] | null,
     reconstruction: Reconstruction | null = null
   ) {
+    const prepared = await this.prepareChunks(
+      chunks,
+      orientation,
+      reconstruction
+    );
+    prepared.commit();
+  }
+
+  async prepareChunks(
+    chunks: Chunk[],
+    orientation: number[] | null,
+    reconstruction: Reconstruction | null = null
+  ) {
     await this.hooks.onPrepare?.(this.index, chunks);
-    this.setChunksCalls.push(chunks);
-    this.orientation = orientation;
-    this.reconstruction = reconstruction;
+    const previous = this.setChunksCalls.at(-1) ?? [];
+    const changed =
+      previous.length !== chunks.length ||
+      previous.some((chunk, index) => chunk !== chunks[index]) ||
+      this.orientation?.join() !== orientation?.join() ||
+      JSON.stringify(this.reconstruction) !== JSON.stringify(reconstruction);
+    return {
+      changed,
+      commit: () => {
+        this.setChunksCalls.push(chunks);
+        this.orientation = orientation;
+        this.reconstruction = reconstruction;
+      },
+      dispose: () => {},
+    };
   }
 
   getImageMetadata() {

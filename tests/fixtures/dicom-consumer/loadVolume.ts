@@ -1,9 +1,9 @@
 import {
   createDicomCollectionRegistry,
-  type Chunk,
   type CollectionUpdate,
-} from '@volview/dicom/core';
-import { VtkDicomImage } from '@volview/dicom/vtk';
+} from '@volview/dicom/core/collections/collectionRegistry';
+import { type Chunk } from '@volview/dicom/core/streaming/chunk';
+import { VtkDicomImage } from '@volview/dicom/vtk/VtkDicomImage';
 import { loader } from './shared';
 
 export async function loadVolume(chunk: Chunk, image?: VtkDicomImage) {

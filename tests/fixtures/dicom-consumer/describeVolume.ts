@@ -1,4 +1,4 @@
-import type { VtkDicomImage } from '@volview/dicom/vtk';
+import type { VtkDicomImage } from '@volview/dicom/vtk/VtkDicomImage';
 
 /** Public consumer output used to check geometry and every calibrated voxel. */
 export async function describeVolume(

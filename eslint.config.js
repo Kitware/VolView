@@ -12,7 +12,7 @@ import globals from 'globals';
 // not a dependency of this repo, and the built-in rule expresses the same
 // zones with no new dependency. Two zones per feature:
 //   1. Code OUTSIDE the feature directory may reach it ONLY through its public
-//      surface `@/src/<dir>` (the index), never a deep path.
+//      modules listed in its public surface.
 //   2. The feature's pure layer may not import stores, components, or the
 //      upper feature modules, and stays framework-free (no pinia, no vue) —
 //      dependencies point downward only.
@@ -65,14 +65,18 @@ const upperLayerMessage = (feature) =>
   `The ${feature.dir} pure layer must not import stores, components, or upper feature modules. Dependencies point downward only.`;
 
 const dicomPublicSurface = {
-  regex: '^@/packages/dicom/(?!core(?:/index)?$|vtk(?:/index)?$)',
-  message: 'Use the DICOM core or vtk public entry point.',
+  regex: '^@/packages/dicom/(?!core/.+|vtk/.+)',
+  message: 'Import the defining DICOM core or vtk module directly.',
 };
 
 const featureBoundaries = (features) => {
-  const publicSurface = ({ dir }) => ({
-    group: [`@/src/${dir}/*`, `@/src/${dir}/*/**`, `!@/src/${dir}/index`],
-    message: `Import the ${dir} feature only from its public surface \`@/src/${dir}\` (src/${dir}/index.ts). A deep import bypasses the feature boundary.`,
+  const publicSurface = ({ dir, publicModules }) => ({
+    group: [
+      `@/src/${dir}/*`,
+      `@/src/${dir}/*/**`,
+      ...publicModules.map((module) => `!@/src/${dir}/${module}`),
+    ],
+    message: `Import the ${dir} feature only through its defining public modules: ${publicModules.join(', ')}.`,
   });
   const publicFeatures = features.filter(
     (feature) => feature.publicSurface !== false
@@ -161,7 +165,6 @@ const E2E_TIMEOUT_DEBT = [
   'tests/specs/cine-ruler-session.e2e.ts',
   'tests/specs/crosshairs-multi-image.e2e.ts',
   'tests/specs/delete-selected-annotation.e2e.ts',
-  'tests/specs/dicom-dimension-mismatch.e2e.ts',
   'tests/specs/different-direction-labelmap.e2e.ts',
   'tests/specs/imageCacheUtils.ts',
   'tests/specs/layer-source-lifetime.e2e.ts',
@@ -348,6 +351,7 @@ export default tseslint.config(
     },
     {
       dir: 'processing',
+      publicModules: ['integration', 'store', 'types'],
       pure: [
         'src/processing/engine/**/*.{js,ts}',
         'src/processing/types.ts',
@@ -356,6 +360,7 @@ export default tseslint.config(
     },
     {
       dir: 'referenceLines',
+      publicModules: ['ReferenceLines.vue', 'store'],
       pure: [
         'src/referenceLines/geometry.ts',
         'src/referenceLines/crossings.ts',

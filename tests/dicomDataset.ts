@@ -1,4 +1,4 @@
-import type { DicomDataset } from '@/packages/dicom/core';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 
 /** Structured headers for fixtures whose values are written as tag strings. */
 export const datasetFromTags = (

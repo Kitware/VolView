@@ -14,7 +14,7 @@ import {
   StateFile,
 } from '@/src/io/state-file/schema';
 
-import { retypeFile } from '@/src/io';
+import { retypeFile } from '@/src/io/io';
 import { ARCHIVE_FILE_TYPES } from '@/src/io/mimeTypes';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useMessageStore, type MessageOptions } from '@/src/store/messages';

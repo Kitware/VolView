@@ -1,5 +1,5 @@
-import { StopSignal } from '@/packages/dicom/core';
-import type { Fetcher } from '@/packages/dicom/core';
+import { StopSignal } from '@/packages/dicom/core/streaming/cachedStreamFetcher';
+import type { Fetcher } from '@/packages/dicom/core/streaming/types';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import {
   buildSyntheticDicom,
@@ -41,7 +41,7 @@ export const dicomFile = (bytes: Uint8Array, name = 'slice.dcm') =>
  * them, so what a loader left undelivered says where it stopped.
  */
 export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
-  const cachedChunks: Uint8Array<ArrayBuffer>[] = [];
+  let delivered = 0;
   let abortController: AbortController | null = null;
 
   const fetcher: Fetcher = {
@@ -58,7 +58,7 @@ export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
           }
           const chunk = bytes.slice(offset, offset + chunkSize);
           offset += chunk.length;
-          cachedChunks.push(chunk);
+          delivered += chunk.length;
           controller.enqueue(chunk);
         },
       });
@@ -68,12 +68,11 @@ export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
     close: () => {
       abortController?.abort(StopSignal);
     },
-    cachedChunks,
     get connected() {
       return !!abortController;
     },
     get size() {
-      return cachedChunks.reduce((total, chunk) => total + chunk.length, 0);
+      return delivered;
     },
     contentType: FILE_EXT_TO_MIME.dcm,
     get abortSignal() {
@@ -82,12 +81,6 @@ export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
   };
   return fetcher;
 };
-
-export const deliveredBytes = (fetcher: Fetcher) =>
-  (fetcher.cachedChunks ?? []).reduce(
-    (total, chunk) => total + chunk.length,
-    0
-  );
 
 export type FetcherCounts = {
   connect: number;
@@ -120,9 +113,6 @@ export const countingFetcher = (inner: Fetcher) => {
     close: () => {
       counts.close += 1;
       inner.close();
-    },
-    get cachedChunks() {
-      return inner.cachedChunks;
     },
     get connected() {
       return inner.connected;

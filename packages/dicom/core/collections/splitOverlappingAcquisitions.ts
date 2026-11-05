@@ -86,29 +86,28 @@ const anySpansOverlap = (groups: InstanceFacts[][], positionOf: PositionOf) => {
   });
 };
 
-/** Members grouped by the axis value, in first-seen order; untagged apart. */
+/** Eligible groups in first-seen order, with all other members held apart. */
 const groupByAxis = (members: InstanceFacts[], axis: SemanticAxis) => {
   const tagged = new Map<string, InstanceFacts[]>();
-  const untagged: InstanceFacts[] = [];
   members.forEach((member) => {
     const value = member[axis.fact];
-    if (value === null) {
-      untagged.push(member);
-      return;
-    }
+    if (value === null) return;
     const group = tagged.get(value);
     if (group) group.push(member);
     else tagged.set(value, [member]);
   });
-  return { tagged, untagged };
+  // A counter stamped per slice cannot establish a separate acquisition.
+  const eligible = new Map(
+    [...tagged].filter(([, group]) => !axis.counter || group.length > 1)
+  );
+  const remainder = members.filter((member) => {
+    const value = member[axis.fact];
+    return value === null || !eligible.has(value);
+  });
+  return { tagged: eligible, remainder };
 };
 
 type Split = { value: string | null; members: InstanceFacts[] };
-
-// A counter stamped per slice yields one group per slice; a single repeated
-// position among them must not become one dataset per slice.
-const splittingGroups = (axis: SemanticAxis, tagged: InstanceFacts[][]) =>
-  axis.counter ? tagged.filter((group) => group.length > 1) : tagged;
 
 /**
  * The first axis whose tagged groups cover overlapping stretches of the slice
@@ -123,8 +122,8 @@ const firstSplittingAxis = (
 ) =>
   axes
     .map((axis) => ({ axis, ...groupByAxis(members, axis) }))
-    .find(({ axis, tagged }) => {
-      const groups = splittingGroups(axis, [...tagged.values()]);
+    .find(({ tagged }) => {
+      const groups = [...tagged.values()];
       return groups.length >= 2 && anySpansOverlap(groups, positionOf);
     });
 
@@ -176,13 +175,13 @@ function splitByAxes(
   if (!found)
     return unsplit(members, axes, hasRepeatedPositions(members, positionOf));
 
-  const { axis, tagged, untagged } = found;
+  const { axis, tagged, remainder } = found;
   const index = axes.indexOf(axis);
   const skipped = axes.slice(0, index);
   const rest = axes.slice(index + 1);
   const splits: Split[] = [
     ...[...tagged].map(([value, group]) => ({ value, members: group })),
-    ...(untagged.length > 0 ? [{ value: null, members: untagged }] : []),
+    ...(remainder.length > 0 ? [{ value: null, members: remainder }] : []),
   ];
 
   return splits.flatMap(({ value, members: group }) =>
@@ -215,10 +214,10 @@ function splitByAxes(
  * members that can be judged.
  *
  * Conservative on the members it does judge: one overlapping pair separates
- * every group at that level, and a counter axis neither fans out a repeated
- * single plane nor splits on groups of one slice. Members that lack the value
- * the level splits on form their own part rather than blocking the split, so
- * the result depends only on the members given.
+ * every eligible group at that level, and a counter axis neither fans out a
+ * repeated single plane nor splits on groups of one slice. Members that lack
+ * the level's value and singleton counter groups form a remainder part rather
+ * than blocking the split, so the result depends only on the members given.
  */
 export function splitOverlappingAcquisitions(
   members: InstanceFacts[],

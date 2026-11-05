@@ -21,7 +21,6 @@ import {
 import {
   bytesFetcher,
   countingFetcher,
-  deliveredBytes,
   pixelDataStart,
   syntheticSlice,
   withoutPixelData,
@@ -84,7 +83,6 @@ describe('DicomMetaLoader over a byte source', () => {
         ],
       });
       expect(loader.meta).toEqual(readDicomDataset(bytes));
-      expect(loader.pixelDataOffset).toBe(pixelDataStart(bytes));
     }
   );
 
@@ -97,13 +95,12 @@ describe('DicomMetaLoader over a byte source', () => {
     expect(loader.meta).toEqual(readDicomDataset(bytes));
   });
 
-  it('stops at Pixel Data', async () => {
+  it('reports the file layout', async () => {
     const bytes = syntheticSlice();
     const loader = new DicomMetaLoader(bytesFetcher(bytes));
 
     await loader.load();
 
-    expect(loader.pixelDataOffset).toBe(pixelDataStart(bytes));
     expect(loader.fileLayout).toEqual({ preamble: true, fileMeta: true });
   });
 
@@ -161,7 +158,7 @@ describe('DicomMetaLoader over a byte source', () => {
     await loader.load();
 
     expect(loader.meta).toEqual(readDicomDataset(bytes));
-    expect(deliveredBytes(fetcher)).toBeLessThan(bytes.length);
+    expect(fetcher.size).toBeLessThan(bytes.length);
   });
 
   it('hands the reader the header bytes, once', async () => {
@@ -180,7 +177,7 @@ describe('DicomMetaLoader over a byte source', () => {
     expect(seen[0]).toEqual(bytes.slice(0, pixelDataStart(bytes)));
   });
 
-  it('takes tags, offset and ultrasound regions from one pass', async () => {
+  it('takes tags and ultrasound regions from one pass', async () => {
     const bytes = syntheticSlice({ modality: 'US', ultrasoundRegion: REGION });
     const { fetcher, counts } = countingFetcher(bytesFetcher(bytes));
     const loader = new DicomMetaLoader(fetcher);
@@ -188,7 +185,6 @@ describe('DicomMetaLoader over a byte source', () => {
     await loader.load();
 
     expect(loader.meta).toEqual(readDicomDataset(bytes));
-    expect(loader.pixelDataOffset).toBe(pixelDataStart(bytes));
     expect(loader.ultrasoundRegions?.regionCount).toBe(1);
     expect(loader.ultrasoundRegions?.region?.physicalDeltaX).toBeCloseTo(
       REGION.physicalDeltaX
@@ -218,7 +214,6 @@ describe('DicomMetaLoader over a byte source', () => {
 
     expect(loader.meta).toEqual(readDicomDataset(bytes));
     expect(loader.meta!.elements.length).toBeGreaterThan(1);
-    expect(loader.pixelDataOffset).toBe(bytes.length);
   });
 
   // A structure set is megabytes of contours the importer drops unread, so
@@ -240,8 +235,7 @@ describe('DicomMetaLoader over a byte source', () => {
 
     expect(getDatasetTag(loader.meta, Tags.Modality)?.trim()).toBe('RTSTRUCT');
     expect(seen).toHaveLength(1);
-    expect(deliveredBytes(fetcher)).toBeLessThan(bytes.length);
-    expect(loader.pixelDataOffset).toBeUndefined();
+    expect(fetcher.size).toBeLessThan(bytes.length);
   });
 
   it('closes the byte source once the header is read', async () => {

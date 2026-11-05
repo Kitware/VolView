@@ -2,6 +2,7 @@ import { readDicomDataset, findElement } from '../dicomDataset';
 import { getDatasetTag } from '../datasetAccess';
 import { getFrameTag } from '../functionalGroups';
 import { DicomMetaLoader } from '../../streaming/dicom/dicomMetaLoader';
+import { createDicomParser } from '../../streaming/dicom/dicomParser';
 import { blobFetcher } from '../../streaming/blobFetcher';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
@@ -9,12 +10,15 @@ import { parseDicomElements } from '../dcmjsParser';
 import { PART_10_HEADER_LENGTH, PREAMBLE_LENGTH } from '../dicomLayout';
 import { concatBytes } from '../../utils';
 import { buildSlice } from '@/src/io/__tests__/readDicomTagsFixtures';
+import { bytesFetcher, pixelDataStart } from '@/tests/dicomSourceFixtures';
 import {
   rawElement,
   sequenceItem,
   toImplicitVr,
   stripFileMeta,
   stripPreamble,
+  undefinedLengthItem,
+  undefinedLengthSequence,
 } from '@/tests/specs/syntheticDicom';
 
 // (0002,0000) UL occupies twelve bytes, including its value.
@@ -128,6 +132,80 @@ describe('lenient headers with standards-defined values', () => {
     loader.dispose();
   });
 
+  it('keeps a prematurely delimited SQ inside its declared boundary', async () => {
+    const sequence = rawElement(
+      0x0008,
+      0x1140,
+      'SQ',
+      concatBytes([
+        new Uint8Array([0xfe, 0xff, 0xdd, 0xe0, 0, 0, 0, 0]),
+        rawElement(0x7fe0, 0x0010, 'OW', new Uint8Array(16)),
+      ])
+    );
+    const trailing = rawElement(0x0043, 0x1030, 'LO', encode('AFTER '));
+    const bytes = buildSlice({ extraElements: [sequence, trailing] });
+    const expectedPixelStart =
+      pixelDataStart(buildSlice()) + sequence.length + trailing.length;
+    const parse = createDicomParser({
+      stopAtElement: (group, element) => group === 0x7fe0 && element === 0x0010,
+    });
+    expect(parse(bytes)).toMatchObject({
+      done: true,
+      value: { position: expectedPixelStart },
+    });
+
+    const loader = new DicomMetaLoader(bytesFetcher(bytes, 7));
+    await loader.load();
+    expect(getDatasetTag(loader.meta, '00431030')).toBe('AFTER ');
+    expect(loader.meta).toEqual(readDicomDataset(bytes));
+    loader.dispose();
+  });
+
+  it('rejects a sequence whose declared boundary exceeds the file', async () => {
+    const sequence = rawElement(
+      0x0008,
+      0x1140,
+      'SQ',
+      concatBytes([
+        new Uint8Array([0xfe, 0xff, 0xdd, 0xe0, 0, 0, 0, 0]),
+        new Uint8Array(16),
+      ])
+    );
+    const base = buildSlice();
+    const bytes = concatBytes([
+      base.subarray(0, pixelDataStart(base)),
+      sequence.subarray(0, sequence.length - 2),
+    ]);
+    expect(() => readDicomDataset(bytes)).toThrow('available dataset bytes');
+    const loader = new DicomMetaLoader(bytesFetcher(bytes, 7));
+    await expect(loader.load()).rejects.toThrow('available dataset bytes');
+    loader.dispose();
+  });
+
+  it('does not recover a nested sequence past its enclosing item', async () => {
+    const inner = rawElement(
+      0x0008,
+      0x1140,
+      'SQ',
+      concatBytes([
+        new Uint8Array([0xfe, 0xff, 0xdd, 0xe0, 0, 0, 0, 0]),
+        new Uint8Array(16),
+      ])
+    );
+    const bytes = buildSlice({
+      extraElements: [
+        rawElement(0x0040, 0x0275, 'SQ', sequenceItem(inner.subarray(0, 20))),
+        rawElement(0x0043, 0x1030, 'LO', encode('AFTER ')),
+      ],
+    });
+    const dataset = readDicomDataset(bytes);
+    expect(findElement(dataset, '00400275')?.values.kind).toBe('unread');
+    expect(getDatasetTag(dataset, '00431030')).toBe('AFTER ');
+    const loader = new DicomMetaLoader(bytesFetcher(bytes, 7));
+    await expect(loader.load()).rejects.toThrow('enclosing sequence or item');
+    loader.dispose();
+  });
+
   it('decodes a known defined-length UN using the dataset character set', () => {
     const dataset = readDicomDataset(
       concatBytes([
@@ -206,6 +284,36 @@ describe('lenient headers with standards-defined values', () => {
     }
   );
 });
+
+it.each([sequenceItem, undefinedLengthItem])(
+  'reads an implicit private undefined-length sequence with %s',
+  async (item) => {
+    const encode = (text: string) => new TextEncoder().encode(text);
+    const content = toImplicitVr(
+      rawElement(0x0010, 0x0010, 'PN', encode('DOE^JANE'))
+    );
+    const explicit = undefinedLengthSequence(0x0043, 0x1029, item(content));
+    const implicit = concatBytes([
+      explicit.subarray(0, 4),
+      explicit.subarray(8),
+    ]);
+    const base = buildSlice({ implicitVr: true });
+    const pixelStart = pixelDataStart(base);
+    const bytes = concatBytes([
+      base.subarray(0, pixelStart),
+      implicit,
+      base.subarray(pixelStart),
+    ]);
+    const dataset = readDicomDataset(bytes);
+    const sequence = findElement(dataset, '00431029')!.values;
+    if (sequence.kind !== 'sequence') throw new Error('Expected a sequence');
+    expect(getDatasetTag(sequence.items[0], '00100010')).toBe('DOE^JANE');
+    const loader = new DicomMetaLoader(bytesFetcher(bytes, 7));
+    await loader.load();
+    expect(loader.meta).toEqual(dataset);
+    loader.dispose();
+  }
+);
 
 it('decodes a known UN nested inside an explicit sequence with inherited UTF-8', () => {
   const encode = (text: string) => new TextEncoder().encode(text);

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -52,9 +52,6 @@ const importsOf = (file: string) => {
 for (const entry of ['core', 'vtk']) {
   describe(`DICOM ${entry} dependency boundary`, () => {
     const sources = sourceFiles(resolve(root, entry));
-    it('has a public entry point', () => {
-      expect(sources).toContain(resolve(root, entry, 'index.ts'));
-    });
     it.each(sources.map((file) => relative(root, file)))(
       '%s stays inside its declared boundary',
       (name) => {
@@ -81,7 +78,7 @@ for (const entry of ['core', 'vtk']) {
   });
 }
 
-it('VolView reaches the package only through its public entry points', () => {
+it('VolView imports defining core and vtk modules directly', () => {
   const repository = resolve(root, '../..');
   for (const file of sourceFiles(resolve(repository, 'src'))) {
     for (const specifier of importsOf(file)) {
@@ -89,12 +86,10 @@ it('VolView reaches the package only through its public entry points', () => {
         ? resolve(repository, specifier.slice(2))
         : resolve(dirname(file), specifier);
       if (!target.startsWith(`${root}/`)) continue;
-      expect(
-        relative(root, target)
-          .replace(/\.ts$/, '')
-          .replace(/\/index$/, ''),
-        relative(repository, file)
-      ).toMatch(/^(core|vtk)$/);
+      const module = relative(root, target).replace(/\.ts$/, '');
+      expect(module, relative(repository, file)).toMatch(/^(core|vtk)\/.+/);
+      expect(module.endsWith('/index'), relative(repository, file)).toBe(false);
+      expect(existsSync(`${target.replace(/\.ts$/, '')}.ts`)).toBe(true);
     }
   }
 });

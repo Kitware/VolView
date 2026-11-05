@@ -1,3 +1,5 @@
+import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import { dicomDatasetToTags } from '../readDicomTags';
 import {
   attributeTagValue,
   buildSyntheticCineDicom,
@@ -7,6 +9,9 @@ import {
   undefinedLengthItem,
   undefinedLengthSequence,
 } from '@/tests/specs/syntheticDicom';
+
+export const readDicomTags = (bytes: Uint8Array) =>
+  dicomDatasetToTags(readDicomDataset(bytes));
 
 const concat = (...parts: Uint8Array[]) => {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));

@@ -225,6 +225,61 @@ describe('splitOverlappingAcquisitions', () => {
     expect(parts[0].repeatedPositions).toBe(true);
   });
 
+  it.each([
+    ['acquisition', Tags.AcquisitionNumber],
+    ['phase', Tags.TemporalPositionIdentifier],
+  ])(
+    'keeps singleton %s values with the remainder of overlapping scans',
+    (rule, tag) => {
+      const scans = ['1', '2'].flatMap((value) =>
+        [0, 2, 4, 6, 8].map((z) => slice(z, { [tag]: value }))
+      );
+      const remainder = [
+        slice(1, { [tag]: '3' }),
+        slice(3),
+        slice(5, { [tag]: '4' }),
+      ];
+
+      const parts = splitOverlappingAcquisitions(
+        [...scans, ...remainder].sort(byPosition)
+      );
+
+      expect(labels(parts)).toEqual([
+        `${rule} 1`,
+        `${rule} 2`,
+        `${rule} unknown`,
+      ]);
+      expect(partLabelled(parts, `${rule} unknown`).members).toEqual(remainder);
+      expect(
+        partValue(partLabelled(parts, `${rule} unknown`), rule)
+      ).toBeNull();
+    }
+  );
+
+  it('still separates contrasts within singleton counter values', () => {
+    const scans = [...stack('1', 0, 3), ...stack('2', 0, 3)];
+    const contrasts = ['1', '2'].map((echo, index) =>
+      slice(2.5, {
+        [Tags.AcquisitionNumber]: String(index + 3),
+        [Tags.EchoNumbers]: echo,
+      })
+    );
+
+    const parts = splitOverlappingAcquisitions([...scans, ...contrasts]);
+
+    expect(labels(parts)).toEqual([
+      'acquisition 1',
+      'acquisition 2',
+      'acquisition unknown, echo 1',
+      'acquisition unknown, echo 2',
+    ]);
+    contrasts.forEach((member, index) =>
+      expect(
+        partLabelled(parts, `acquisition unknown, echo ${index + 1}`).members
+      ).toEqual([member])
+    );
+  });
+
   it('leaves a repeated plane inside a split whole', () => {
     // A full stack plus a bolus-tracking pass of one plane, each frame with
     // its own phase: the pass is a time series, not twenty datasets.

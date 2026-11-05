@@ -1,7 +1,7 @@
 import { failed, loader, report } from './shared';
 import { loadVolume } from './loadVolume';
 import { describeVolume } from './describeVolume';
-import { VtkDicomImage } from '@volview/dicom/vtk';
+import { VtkDicomImage } from '@volview/dicom/vtk/VtkDicomImage';
 
 async function run() {
   const params = new URL(location.href).searchParams;

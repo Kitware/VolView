@@ -6,10 +6,10 @@ import { flushPromises } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { Chunk } from '@/packages/dicom/core';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { Tags } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { type LabelmapIO } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';

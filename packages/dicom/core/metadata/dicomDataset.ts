@@ -191,7 +191,7 @@ const elementValues = (
   if (parsed.items)
     return {
       kind: 'sequence',
-      items: parsed.items.map((item) => buildDataset(item, charset)),
+      items: parsed.items.map((item) => buildDataset(item, charset, decode)),
     };
   return classifiedValues(parsed.vr, parsed.values, decode);
 };
@@ -224,11 +224,15 @@ const declaredCharacterSet = (elements: ParsedElement[]) => {
 
 function buildDataset(
   elements: ParsedElement[],
-  inherited: string[] | null
+  inherited: string[] | null,
+  inheritedDecoder?: CharacterSetDecoder
 ): DicomDataset {
   const declared = declaredCharacterSet(elements);
   const charset = declared ?? inherited;
-  const decode = characterSetDecoder(charset ?? []);
+  const decode =
+    declared === null && inheritedDecoder
+      ? inheritedDecoder
+      : characterSetDecoder(charset ?? []);
   return {
     elements: elements.map((element) => buildElement(element, decode, charset)),
     specificCharacterSet: declared,

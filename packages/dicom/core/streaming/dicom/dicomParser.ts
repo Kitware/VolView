@@ -23,12 +23,22 @@ export type ElementTagCallback = (
   element: number
 ) => string | null;
 
-interface ParseOptions {
+type ParseOptions = {
   peek?: boolean;
   littleEndian?: boolean;
   explicitVr?: boolean;
+  endPosition?: number;
   onDataElement?: DataElementCallback;
-}
+};
+
+const assertReadBounds = (
+  reader: StreamingByteReader,
+  end: number | undefined,
+  length: number
+) => {
+  if (end !== undefined && reader.position + length > end)
+    throw new Error('Data element exceeds its enclosing sequence or item');
+};
 
 // This is based on the DICOM standard as of 2023. All links may point to whatever is the current at the time of visiting.
 
@@ -108,8 +118,13 @@ function* readElementValue(
   reader: StreamingByteReader,
   vr: string,
   length: number,
-  { explicitVr = false, littleEndian = false } = {}
+  { explicitVr = false, littleEndian = false, endPosition }: ParseOptions = {}
 ): Generator<Uint8Array | undefined, DataElement['data'], Uint8Array> {
+  assertReadBounds(
+    reader,
+    endPosition,
+    length === UndefinedLength ? 0 : length
+  );
   // See examples: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.2.html
   // PS3.5 6.2.2: an undefined-length UN holds sequence items encoded
   // in Implicit VR Little Endian, regardless of the enclosing syntax.
@@ -117,6 +132,7 @@ function* readElementValue(
     return yield* readSequenceValue(reader, length, {
       explicitVr: false,
       littleEndian: true,
+      endPosition,
     });
   }
 
@@ -124,6 +140,7 @@ function* readElementValue(
     return yield* readSequenceValue(reader, length, {
       explicitVr,
       littleEndian,
+      endPosition,
     });
   }
 
@@ -143,8 +160,12 @@ function* readElementValue(
  * https://dicom.nema.org/medical/dicom/current/output/chtml/part05/chapter_7.html#sect_7.1.1
  * @param {*} reader
  */
-function* readDataElement(reader: StreamingByteReader, opts?: ParseOptions) {
-  const { littleEndian = false, explicitVr = false } = opts ?? {};
+function* readDataElement(
+  reader: StreamingByteReader,
+  opts: ParseOptions = {}
+) {
+  const { littleEndian = false, explicitVr = false, endPosition } = opts;
+  assertReadBounds(reader, endPosition, 8);
   // read tag
   const [group, element] = yield* readElementTag(reader, { littleEndian });
   let length = 0;
@@ -179,6 +200,7 @@ function* readDataElement(reader: StreamingByteReader, opts?: ParseOptions) {
     data = yield* readElementValue(reader, vr, length, {
       littleEndian,
       explicitVr,
+      endPosition,
     });
   } else {
     length = yield* reader.readUint32({ littleEndian });
@@ -198,6 +220,7 @@ function* readDataElement(reader: StreamingByteReader, opts?: ParseOptions) {
     data = yield* readElementValue(reader, vr, length, {
       littleEndian,
       explicitVr,
+      endPosition,
     });
   }
 
@@ -217,6 +240,7 @@ function* readDataElementsUntil(
   opts: ParseOptions
 ) {
   while (true) {
+    assertReadBounds(reader, opts.endPosition, 4);
     const [group, element] = yield* peekElementTag(reader, opts);
     if (untilFn(group, element)) {
       return;
@@ -237,10 +261,38 @@ function* readFiniteDataElements(
   opts: ParseOptions
 ) {
   const endPosition = reader.position + byteLength;
+  assertReadBounds(reader, opts.endPosition, byteLength);
   while (reader.position < endPosition) {
-    const el = yield* readDataElement(reader, opts);
+    const el = yield* readDataElement(reader, { ...opts, endPosition });
     opts.onDataElement?.(el);
   }
+}
+
+function* readSequenceItem(reader: StreamingByteReader, opts: ParseOptions) {
+  const itemByteLength = yield* reader.readUint32(opts);
+  const itemDataset: DataElement[] = [];
+  const itemOptions = {
+    ...opts,
+    onDataElement: (el: DataElement) => itemDataset.push(el),
+  };
+  if (itemByteLength !== UndefinedLength) {
+    yield* readFiniteDataElements(reader, itemByteLength, itemOptions);
+  } else {
+    yield* readDataElementsUntil(
+      reader,
+      equalsToTag(Tags.ItemDelimiter),
+      itemOptions
+    );
+    assertReadBounds(reader, opts.endPosition, 8);
+    yield* reader.seek(8);
+  }
+  return itemDataset;
+}
+
+function* finishSequence(reader: StreamingByteReader, end?: number) {
+  yield* reader.seek(4);
+  // The declared boundary wins over a premature delimiter in a finite SQ.
+  if (end !== undefined) yield* reader.seek(end - reader.position);
 }
 
 /**
@@ -252,47 +304,23 @@ function* readFiniteDataElements(
 function* readSequenceValue(
   reader: StreamingByteReader,
   byteLength: number,
-  { explicitVr = false, littleEndian = false } = {}
+  opts: ParseOptions
 ) {
-  const items = [] as Array<DataElement[]>;
-  const isUndefinedLength = byteLength === UndefinedLength;
-  const endPosition = isUndefinedLength ? 0 : reader.position + byteLength;
-  while (true) {
-    if (!isUndefinedLength && reader.position >= endPosition) {
-      return items;
-    }
-
-    const [group, element] = yield* readElementTag(reader, { littleEndian });
+  const items: DataElement[][] = [];
+  const endPosition =
+    byteLength === UndefinedLength ? undefined : reader.position + byteLength;
+  const itemOptions = {
+    ...opts,
+    endPosition: endPosition ?? opts.endPosition,
+  };
+  while (endPosition === undefined || reader.position < endPosition) {
+    assertReadBounds(reader, itemOptions.endPosition, 8);
+    const [group, element] = yield* readElementTag(reader, opts);
 
     // Item tag
     // https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.2.html#table_7.5-3
     if (equalsToTag(Tags.Item)(group, element)) {
-      const itemDataset: DataElement[] = [];
-      const itemByteLength = yield* reader.readUint32({ littleEndian });
-
-      // length rules: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_7.5.html, heading 7.5.1
-      if (itemByteLength !== UndefinedLength) {
-        yield* readFiniteDataElements(reader, itemByteLength, {
-          explicitVr,
-          littleEndian,
-          onDataElement(el) {
-            itemDataset.push(el);
-          },
-        });
-      } else {
-        // read until item delimitation tag
-        yield* readDataElementsUntil(reader, equalsToTag(Tags.ItemDelimiter), {
-          explicitVr,
-          littleEndian,
-          onDataElement(el) {
-            itemDataset.push(el);
-          },
-        });
-        // skip the item delimitation tag and the 4-byte zero length
-        yield* reader.seek(4 + 4);
-      }
-
-      items.push(itemDataset);
+      items.push(yield* readSequenceItem(reader, itemOptions));
       continue;
     }
 
@@ -300,8 +328,7 @@ function* readSequenceValue(
     // "Otherwise, the Value Field has an Undefined Length and a Sequence Delimitation Item marks the end of the Value Field."
     // https://dicom.nema.org/medical/dicom/current/output/chtml/part05/chapter_7.html#sect_7.1.2
     if (group === 0xfffe && element === 0xe0dd) {
-      // skip the 4-byte zero length
-      yield* reader.seek(4);
+      yield* finishSequence(reader, endPosition);
       return items;
     }
 
@@ -311,6 +338,7 @@ function* readSequenceValue(
       )},${element.toString(16)})`
     );
   }
+  return items;
 }
 
 // Per Part 10: "File Meta Information shall be encoded using the Explicit VR Little Endian Transfer Syntax"

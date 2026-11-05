@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { sliceToThumbnail, THUMBNAIL_MAX_SIZE } from '@/packages/dicom/vtk';
+import {
+  sliceToThumbnail,
+  THUMBNAIL_MAX_SIZE,
+} from '@/packages/dicom/vtk/thumbnail';
 
 const bytes = (slice: { data: Uint8Array }) => Array.from(slice.data);
 

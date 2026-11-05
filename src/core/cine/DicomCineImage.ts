@@ -24,12 +24,12 @@ import {
   decodeJpegFrame,
   decodeNativeFrame,
 } from './frameCache';
+import { unitToMm } from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
 import {
-  unitToMm,
   physicalSpacing,
   fallbackSpacing,
   type SpatialMetadata,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/metadata/spatialMetadata';
 
 function spatialRegionSpacing(r: CineHeader['regions'][number]) {
   const sx = r.physicalUnitsX != null ? unitToMm(r.physicalUnitsX) : null;

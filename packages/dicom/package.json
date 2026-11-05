@@ -9,13 +9,13 @@
     "vtk"
   ],
   "exports": {
-    "./core": {
-      "types": "./dist/core/index.d.ts",
-      "import": "./dist/core.js"
+    "./core/*": {
+      "types": "./dist/core/*.d.ts",
+      "import": "./dist/core/*.js"
     },
-    "./vtk": {
-      "types": "./dist/vtk/index.d.ts",
-      "import": "./dist/vtk.js"
+    "./vtk/*": {
+      "types": "./dist/vtk/*.d.ts",
+      "import": "./dist/vtk/*.js"
     },
     "./assets/*": "./dist/assets/*"
   },

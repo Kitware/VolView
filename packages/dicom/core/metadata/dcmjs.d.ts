@@ -24,6 +24,7 @@ declare module 'dcmjs' {
 
   export type DicomReadStream = {
     offset: number;
+    readonly endOffset: number;
     reset(): DicomReadStream;
     end(): boolean;
     increment(count: number): void;

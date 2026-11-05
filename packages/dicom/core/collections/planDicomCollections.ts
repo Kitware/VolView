@@ -1,4 +1,5 @@
 import { orientationsAgree } from './orientation';
+import { groupBy } from './groupBy';
 import {
   splitOverlappingAcquisitions,
   type PositionOf,
@@ -313,21 +314,6 @@ const hardFactParts = (instance: InstanceFacts) =>
     (rule) => [rule, instance[rule]] as [string, string | null]
   );
 
-/** Groups preserve input order, both of the groups and of their members. */
-const groupBy = (
-  instances: InstanceFacts[],
-  signature: (instance: InstanceFacts) => string
-) => {
-  const groups = new Map<string, InstanceFacts[]>();
-  instances.forEach((instance) => {
-    const id = signature(instance);
-    const existing = groups.get(id);
-    if (existing) existing.push(instance);
-    else groups.set(id, [instance]);
-  });
-  return [...groups.values()];
-};
-
 /**
  * Greedy bucketing walked in SOP Instance UID then content order, so the
  * representative whose cosines become the key, and the membership the greedy
@@ -495,7 +481,7 @@ export function planDicomCollections(input: PlanInput) {
     ...groupBy(
       kept.filter((instance) => !multiframe(instance)),
       hardFactSignature
-    ),
+    ).values(),
     ...kept.filter(multiframe).map((instance) => [instance]),
   ];
   const planned = groups

@@ -1,9 +1,9 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
 import { describe, expect, it } from 'vitest';
-import { Tags } from '@/packages/dicom/core';
-import { readInstanceFacts } from '@/packages/dicom/core';
-import { readDicomTags } from '@/src/io/readDicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { readInstanceFacts } from '@/packages/dicom/core/collections/instanceFacts';
 import {
+  readDicomTags,
   buildSlice,
   CHINESE_NAME_BYTES,
   CHINESE_NAME_PADDED,

@@ -65,6 +65,11 @@ const sops = (chunks: Chunk[]) => chunks.map(sopOf);
 const byId = (updates: CollectionUpdate[]) =>
   [...updates].sort((left, right) => (left.id < right.id ? -1 : 1));
 
+const collidingMultiframeChunks = (series = SERIES_UID) =>
+  ['1', null].map((sop) =>
+    chunkFor({ sop, series, tags: { [Tags.NumberOfFrames]: '2' } })
+  );
+
 describe('DICOM collection registry', () => {
   it('plans one consistent series into one ordered collection', async () => {
     const registry = createDicomCollectionRegistry();
@@ -593,6 +598,45 @@ describe('DICOM collection registry', () => {
     expect(sops(firstResult.updates[0].members)).toEqual(['a']);
     expect(sops(secondResult.updates[0].members)).toEqual(['a', 'b']);
     expect(secondResult.updates[0].id).toBe(firstResult.updates[0].id);
+  });
+
+  it('preserves existing ownership when a failed plan precedes a healthy import', async () => {
+    const registry = createDicomCollectionRegistry();
+    const [original, invalid] = collidingMultiframeChunks();
+    const [{ id }] = (await registry.register([original])).updates;
+    const healthy = chunkFor({ sop: '1.2.3.4' });
+
+    const failed = registry.register([invalid]);
+    const next = registry.register([healthy]);
+
+    await expect(failed).rejects.toThrow(/two collections share the key/);
+    const { updates } = await next;
+    expect(updates).toHaveLength(1);
+    expect(updates[0].members).toEqual([healthy]);
+    expect(registry.has(invalid)).toBe(false);
+    expect(registry.forget(id)).toEqual([original]);
+    expect(registry.forget(updates[0].id)).toEqual([healthy]);
+  });
+
+  it('leaves every series unchanged when one series in a batch cannot be planned', async () => {
+    const registry = createDicomCollectionRegistry();
+    const original = chunkFor({ sop: 'original', z: 0 });
+    const [{ id }] = (await registry.register([original])).updates;
+    const incoming = chunkFor({ sop: 'incoming', z: 1 });
+    const invalid = collidingMultiframeChunks(OTHER_SERIES_UID);
+
+    await expect(registry.register([incoming, ...invalid])).rejects.toThrow(
+      /two collections share the key/
+    );
+
+    [incoming, ...invalid].forEach((chunk) =>
+      expect(registry.has(chunk)).toBe(false)
+    );
+    const replacement = chunkFor({ sop: 'replacement', z: 2 });
+    const [update] = (await registry.register([replacement])).updates;
+    expect(update.id).toBe(id);
+    expect(update.members).toEqual([original, replacement]);
+    expect(registry.forget(id)).toEqual([original, replacement]);
   });
 
   it('surfaces the planner order and diagnostics for a positionless series', async () => {

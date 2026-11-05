@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
+import { blobFetcher } from '@/packages/dicom/core/streaming/blobFetcher';
 import {
-  blobFetcher,
   createDicomLoader,
-  getChunkTag,
-  Tags,
   type DicomLoader,
-  type Fetcher,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/runtime/createDicomLoader';
+import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { type Fetcher } from '@/packages/dicom/core/streaming/types';
 import {
   buildSyntheticCineDicom,
   buildSyntheticDicom,
@@ -297,6 +297,7 @@ describe('DICOM source ownership in the application store', () => {
       const cineStarted = deferred();
       const cineGate = deferred();
       const volumePrepared = deferred();
+      let growingImage: DicomChunkImage | undefined;
       const source = blobFetcher(cineFile);
       const cine = loader.createChunk({
         ...source,
@@ -319,9 +320,15 @@ describe('DICOM source ownership in the application store', () => {
               },
             }) as never,
         });
-        image.addEventListener('status', () => {
-          if (image.getChunks().length === 3) volumePrepared.resolve();
-        });
+        const prepareChunks = image.prepareChunks.bind(image);
+        image.prepareChunks = async (...args) => {
+          const prepared = await prepareChunks(...args);
+          if (args[0].length === 3) {
+            growingImage = image;
+            volumePrepared.resolve();
+          }
+          return prepared;
+        };
         return image;
       };
       const store = useDICOMStore();
@@ -337,8 +344,7 @@ describe('DICOM source ownership in the application store', () => {
       const rolledBack = expect(pending).rejects.toThrow(/removed/);
       await Promise.all([cineStarted.promise, volumePrepared.promise]);
       const survivorId = Object.keys(initial.volumes).find(
-        (id) =>
-          (cache.imageById[id] as DicomChunkImage).getChunks().length === 3
+        (id) => cache.imageById[id] === growingImage
       )!;
       const dissolvingId = Object.keys(initial.volumes).find(
         (id) => id !== survivorId

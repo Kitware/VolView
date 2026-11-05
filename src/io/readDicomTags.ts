@@ -1,11 +1,10 @@
-import { binaryString, hex4 } from '@/packages/dicom/core';
-import { VALUE_DELIMITER } from '@/packages/dicom/core';
+import { binaryString, hex4 } from '@/packages/dicom/core/metadata/dcmjsParser';
+import { VALUE_DELIMITER } from '@/packages/dicom/core/metadata/dicomCharacterSet';
 import {
   DicomElement,
   DicomDataset,
   isPrivateElement,
-  readDicomDataset,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/metadata/dicomDataset';
 
 const SPECIFIC_CHARACTER_SET = '00080005';
 
@@ -78,17 +77,6 @@ const reportedByItk = (element: DicomElement) =>
   !isPrivateElement(element) &&
   element.values.kind !== 'sequence' &&
   element.values.kind !== 'unread';
-
-/**
- * Reads a DICOM file's header tags, stopping before Pixel Data, in the shape
- * and value formatting `@itk-wasm/dicom`'s `readDicomTags` produced: `gggg|eeee`
- * keys sorted by tag, multiple values joined with a backslash, binary VRs as
- * plain decimals, and text padding left as the file wrote it.
- */
-export function readDicomTags(bytes: Uint8Array): Array<[string, string]> {
-  const dataset = readDicomDataset(bytes);
-  return dicomDatasetToTags(dataset);
-}
 
 /** Projects structured metadata for VolView consumers of GDCM-shaped strings. */
 export function dicomDatasetToTags(

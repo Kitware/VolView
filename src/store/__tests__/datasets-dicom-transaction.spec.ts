@@ -1,8 +1,8 @@
-import { Tags } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Chunk } from '@/packages/dicom/core';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import type { ChunkSource, DataSource } from '@/src/io/import/dataSource';
 import { uriToDataSource } from '@/src/io/import/dataSource';
@@ -242,7 +242,7 @@ describe('DICOM store transactional commit', () => {
     const { store, id, first, created } = await growAndFail();
 
     const [loaded, candidate] = created;
-    // Growth is undone, so a failed sibling leaves the volume as it was.
+    // A failed sibling leaves the existing volume untouched.
     expect(loaded.getChunks()).toEqual([first]);
     expect(loaded.startLoadCount).toBe(1);
     expect(loaded.disposeCount).toBe(0);
@@ -441,7 +441,7 @@ describe('DICOM store transactional commit', () => {
     expect(store.volumeInfo[id]).toBeUndefined();
     expect(store.studyVolumes[STUDY_UID]).toBeUndefined();
     // The removed image is not asked to hold anything again.
-    expect(created[0].setChunksCalls).toHaveLength(2);
+    expect(created[0].setChunksCalls).toHaveLength(1);
 
     // The lane and registry stay usable: the series rebuilds from what a new
     // import brings, including the slice the abandoned batch carried.

@@ -1,9 +1,7 @@
-import {
-  createDicomCollectionRegistry,
-  getChunkTag,
-  type Chunk,
-} from '@volview/dicom/core';
-import type { VtkDicomImage } from '@volview/dicom/vtk';
+import { createDicomCollectionRegistry } from '@volview/dicom/core/collections/collectionRegistry';
+import { getChunkTag } from '@volview/dicom/core/metadata/datasetAccess';
+import { type Chunk } from '@volview/dicom/core/streaming/chunk';
+import type { VtkDicomImage } from '@volview/dicom/vtk/VtkDicomImage';
 import corpus from '../../dicomCompositionCorpus.json';
 import { loader, failed, report } from './shared';
 import { loadCollection } from './loadVolume';

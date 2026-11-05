@@ -32,8 +32,7 @@ export async function buildConsumer(
     base: './',
     resolve: {
       alias: {
-        '@volview/dicom/core': resolve(packageDist, 'core.js'),
-        '@volview/dicom/vtk': resolve(packageDist, 'vtk.js'),
+        '@volview/dicom': packageDist,
       },
     },
     plugins: [
@@ -67,8 +66,8 @@ async function checkDeclarations(directory) {
       types: ['node'],
       typeRoots: [resolve(root, 'node_modules/@types')],
       paths: {
-        '@volview/dicom/core': ['packages/dicom/dist/core/index.d.ts'],
-        '@volview/dicom/vtk': ['packages/dicom/dist/vtk/index.d.ts'],
+        '@volview/dicom/core/*': ['packages/dicom/dist/core/*'],
+        '@volview/dicom/vtk/*': ['packages/dicom/dist/vtk/*'],
       },
     },
     include: [`${fixture}/*.ts`],

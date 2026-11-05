@@ -139,9 +139,8 @@ export function readGeometryFacts(metadata: DicomDataset, frameIndex = 0) {
   };
 }
 
-/** Reads the planner's plain facts out of one instance's tag values. */
-export function readInstanceFacts(metadata: DicomDataset): InstanceFacts {
-  const { orientation, position, pixelSpacing } = readGeometryFacts(metadata);
+/** Reads planning facts and the full frame geometry from the same header. */
+export function readInstanceDetails(metadata: DicomDataset) {
   const frames =
     textOf(metadata, Tags.Modality) === 'SEG'
       ? null
@@ -149,8 +148,10 @@ export function readInstanceFacts(metadata: DicomDataset): InstanceFacts {
           metadata,
           numberOf(metadata, Tags.NumberOfFrames) ?? 1
         );
+  const { orientation, position, pixelSpacing } =
+    frames ?? readGeometryFacts(metadata);
 
-  return {
+  const facts: InstanceFacts = {
     ...(frames ? { frameReconstruction: frames.reconstruction } : {}),
     sopInstanceUid: textOf(metadata, Tags.SOPInstanceUID),
     seriesInstanceUid: textOf(metadata, Tags.SeriesInstanceUID),
@@ -175,6 +176,12 @@ export function readInstanceFacts(metadata: DicomDataset): InstanceFacts {
     echoNumbers: numericTextOf(metadata, Tags.EchoNumbers),
     diffusionBValue: numericTextOf(metadata, Tags.DiffusionBValue),
   };
+  return { facts, frameGeometry: frames };
+}
+
+/** Reads the planner's plain facts out of one instance's tag values. */
+export function readInstanceFacts(metadata: DicomDataset) {
+  return readInstanceDetails(metadata).facts;
 }
 
 // Carries a separator no UID can hold, so a fallback key never equals a real

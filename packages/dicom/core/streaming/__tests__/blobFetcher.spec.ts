@@ -90,12 +90,4 @@ describe('blobFetcher', () => {
 
     expect(await blobFetcher(blob).blob()).toBe(blob);
   });
-
-  it('keeps no copy of what it streamed', async () => {
-    const fetcher = blobFetcher(new Blob([bytesOf(10)]));
-    await fetcher.connect();
-    await readAll(fetcher.getStream());
-
-    expect(fetcher.cachedChunks).toBeUndefined();
-  });
 });

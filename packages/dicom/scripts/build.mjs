@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
@@ -19,6 +19,27 @@ const dependencies = Object.keys({
 const external = (id) =>
   dependencies.some((name) => id === name || id.startsWith(`${name}/`));
 
+async function sourceFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map((entry) => {
+      const file = resolve(directory, entry.name);
+      if (entry.isDirectory())
+        return entry.name === '__tests__' ? [] : sourceFiles(file);
+      return entry.name.endsWith('.ts') && !/\.(d|worker)\.ts$/.test(entry.name)
+        ? [file]
+        : [];
+    })
+  );
+  return files.flat();
+}
+
+const sources = (
+  await Promise.all(
+    ['core', 'vtk'].map((dir) => sourceFiles(resolve(packageRoot, dir)))
+  )
+).flat();
+
 await build({
   configFile: false,
   root: packageRoot,
@@ -29,10 +50,14 @@ await build({
     emptyOutDir: true,
     sourcemap: true,
     lib: {
-      entry: {
-        core: resolve(packageRoot, 'core/index.ts'),
-        vtk: resolve(packageRoot, 'vtk/index.ts'),
-      },
+      entry: Object.fromEntries(
+        sources.map((file) => [
+          relative(packageRoot, file)
+            .replaceAll('\\', '/')
+            .replace(/\.ts$/, ''),
+          file,
+        ])
+      ),
       formats: ['es'],
       fileName: (_format, entry) => `${entry}.js`,
     },

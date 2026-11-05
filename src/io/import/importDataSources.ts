@@ -43,7 +43,7 @@ import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import { ensureError, partition } from '@/src/utils';
-import { Chunk } from '@/packages/dicom/core';
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   PartialImportError,
@@ -182,8 +182,8 @@ const publishImportedChunks = ({ volumes }: ImportChunksResult) => {
     )
   );
   datasetStore.addDataSources(loadables);
-  // These name what this batch supplied, not what the merged dataset now holds;
-  // the store owns that. Callers may read a name off them, never persist one.
+  // These name every current member. The store can retain a remote source for
+  // a re-supplied local member, so its merged sources remain the session record.
   return loadables;
 };
 

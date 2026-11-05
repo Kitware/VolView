@@ -1,8 +1,8 @@
+import { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import {
-  Chunk,
   createDicomCollectionRegistry,
   type DicomCollectionRegistry,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/collections/collectionRegistry';
 
 // One import session per store instance, so a fresh pinia replans from nothing
 // and the chunks the registry holds stay outside reactive state.
