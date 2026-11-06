@@ -225,7 +225,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     // Asked before anything else: cancelling a preview and resolving the target
     // (which mints the mask and its segmentation) are both side effects a
     // refused stroke must not have.
-    if (segmentationStore.editTargetLocked()) return;
+    if (segmentationStore.editTargetLocked(imageID)) return;
 
     const parentImage = useImageCacheStore().getVtkImageData(imageID);
     if (!parentImage) return;
@@ -238,6 +238,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;
 
+    useSegmentStore().segments.markEdited(imageID);
     const { voxels, maskId } = target;
     const underlyingImagePixels = parentImage
       .getPointData()

@@ -20,8 +20,8 @@ describe('segment shapes', () => {
 
   it("groups the viewed image's finished shapes under their segments", () => {
     const { segments } = useSegmentStore();
-    const tumor = segments.mintSegment({ name: 'Tumor' });
-    const node = segments.mintSegment({ name: 'Node' });
+    const tumor = segments.mintSegment('img-1', { name: 'Tumor' });
+    const node = segments.mintSegment('img-1', { name: 'Node' });
     const placed = { frameOfReference: AXIAL_FRAME_OF_REFERENCE, slice: 2 };
     const ruler = useRulerStore().addTool({
       ...placed,
@@ -35,7 +35,11 @@ describe('segment shapes', () => {
       imageID: 'img-1',
       segmentId: node,
     });
-    useRulerStore().addTool({ ...placed, imageID: 'img-2', segmentId: tumor });
+    useRulerStore().addTool({
+      ...placed,
+      imageID: 'img-2',
+      segmentId: segments.mintSegment('img-2', { name: 'Tumor' }),
+    });
     useRulerStore().addTool({
       ...placed,
       imageID: 'img-1',

@@ -132,7 +132,8 @@ const restoreOnto = async (
     manifest: setup.manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(setup.manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(setup.manifest, dataIDMap)
+      .segmentIdMap,
     labelmapSources: planLabelmapSources(setup.manifest).sources,
     io: artifactIO,
   });
@@ -191,7 +192,8 @@ describe('restore stateID namespaces (collision)', () => {
       parent: BASE_STORE_ID,
     });
     expect(views.setDataForAllViews).toHaveBeenCalledExactlyOnceWith(
-      BASE_STORE_ID
+      BASE_STORE_ID,
+      undefined
     );
   });
 

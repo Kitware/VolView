@@ -71,7 +71,7 @@ const manifestWith = (groups: Array<Record<string, unknown>>): Manifest =>
         datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
         segmentGroups: groups,
       })
-    )
+    ).manifest
   );
 
 function makeImage(fillValue = 0) {
@@ -134,7 +134,8 @@ const restoreGroups = (
     manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(manifest, dataIDMap)
+      .segmentIdMap,
     labelmapSources: planLabelmapSources(manifest).sources,
     io: artifactIO,
   });

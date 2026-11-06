@@ -235,7 +235,7 @@ export const usePlacingAnnotationTool = (
   // The stub follows the selection, so it is drawn in the segment it will join.
   const patch = computed(() => ({
     ...metadata.value,
-    segmentId: selectedSegmentId.value ?? '',
+    segmentId: selectedSegmentId(metadata.value.imageID) ?? '',
   }));
 
   const commit = () => {

@@ -382,6 +382,20 @@ export const Segment = z.object({
   strokeWidth: z.number().optional(),
 }) satisfies z.ZodType<SegmentModel>;
 
+const ImageSegmentSet = z.object({
+  imageId: z.string(),
+  segmentIds: z.string().array(),
+  selectedSegmentId: z.string().optional(),
+});
+
+const SegmentDefaults = Segment.omit({
+  id: true,
+  visible: true,
+  locked: true,
+}).extend({
+  color: RGBAColor.optional(),
+});
+
 export const Segmentation = z.object({
   id: z.string(),
   name: z.string(),
@@ -535,7 +549,8 @@ export const ManifestSchema = z.object({
   segmentations: ImportedSegmentation.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
   segments: Segment.array().optional(),
-  selectedSegment: z.string().optional(),
+  imageSegmentSets: ImageSegmentSet.array().optional(),
+  seedSegmentDefaults: SegmentDefaults.array().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),
@@ -551,9 +566,11 @@ export type Manifest = z.infer<typeof ManifestSchema>;
 
 // The manifest's base datasets; older manifests carry no `datasets`, so every
 // uri source stands in for one, keyed by its stringified source id.
-export const manifestDatasets = (manifest: Manifest) =>
+export const manifestDatasets = (
+  manifest: Partial<Pick<Manifest, 'datasets' | 'dataSources'>>
+) =>
   manifest.datasets ??
-  manifest.dataSources
+  (manifest.dataSources ?? [])
     .filter((ds) => ds.type === 'uri')
     .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
 

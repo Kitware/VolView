@@ -266,6 +266,7 @@ export const useViewStore = defineStore('view', () => {
     newLayout: Layout,
     options?: {
       updateSlots?: (viewCount: number) => void;
+      activateView?: boolean;
     }
   ) {
     isActiveViewMaximized.value = false;
@@ -276,17 +277,19 @@ export const useViewStore = defineStore('view', () => {
     }
 
     layout.value = newLayout;
-    ensureActiveViewIsVisible();
+    if (options?.activateView !== false) ensureActiveViewIsVisible();
+  }
+
+  function ensureLayoutSlots(viewCount: number) {
+    // Preserve non-visible views so their state remains available later.
+    while (layoutSlots.value.length < viewCount) {
+      layoutSlots.value.push(addView(DEFAULT_VIEW_INIT));
+    }
   }
 
   function setLayout(newLayout: Layout) {
     applyLayoutChange(newLayout, {
-      updateSlots: (viewCount) => {
-        // we don't remove non-visible views so we can preserve their state for later
-        while (layoutSlots.value.length < viewCount) {
-          layoutSlots.value.push(addView(DEFAULT_VIEW_INIT));
-        }
-      },
+      updateSlots: ensureLayoutSlots,
     });
   }
 
@@ -327,7 +330,11 @@ export const useViewStore = defineStore('view', () => {
     });
   }
 
-  function setDataForView(viewID: string, dataID: Maybe<string>) {
+  function setDataForView(
+    viewID: string,
+    dataID: Maybe<string>,
+    options?: { activateView?: boolean }
+  ) {
     const view = viewByID[viewID];
     if (!view) return;
 
@@ -335,7 +342,7 @@ export const useViewStore = defineStore('view', () => {
     ViewDataChangeEvent.trigger(viewID, dataID);
     // If activeView is null/stale, fall back to a visible view so global
     // tools (which resolve their image through activeView) have one to read.
-    ensureActiveViewIsVisible();
+    if (options?.activateView !== false) ensureActiveViewIsVisible();
   }
 
   function setDataForActiveView(dataID: Maybe<string>) {
@@ -343,10 +350,16 @@ export const useViewStore = defineStore('view', () => {
     setDataForView(activeView.value, dataID);
   }
 
-  function setDataForAllViews(dataID: Maybe<string>) {
+  function setDataForAllViews(
+    dataID: Maybe<string>,
+    selectedViewID?: Maybe<string>
+  ) {
     viewIDs.value.forEach((viewID) => {
-      setDataForView(viewID, dataID);
+      setDataForView(viewID, dataID, { activateView: false });
     });
+    if (visibleViews.value.some(({ id }) => id === selectedViewID))
+      setActiveView(selectedViewID);
+    ensureActiveViewIsVisible();
   }
 
   function removeDataFromViews(dataID: string) {
@@ -382,13 +395,8 @@ export const useViewStore = defineStore('view', () => {
   }
 
   function deserializeLayout(manifest: Manifest) {
-    if (manifest.layout) {
-      setLayout(manifest.layout);
-    }
-    setActiveView(manifest.activeView);
-    if (manifest.isActiveViewMaximized !== undefined) {
-      isActiveViewMaximized.value = manifest.isActiveViewMaximized;
-    }
+    // No old view is current while the incoming layout replaces its contents.
+    setActiveView(undefined);
     if (manifest.layoutSlots) {
       layoutSlots.value = manifest.layoutSlots;
     }
@@ -407,6 +415,17 @@ export const useViewStore = defineStore('view', () => {
         } as unknown as ViewInfo;
       });
     }
+    if (manifest.layout) {
+      applyLayoutChange(manifest.layout, {
+        updateSlots: ensureLayoutSlots,
+        activateView: false,
+      });
+    }
+    if (manifest.isActiveViewMaximized !== undefined) {
+      isActiveViewMaximized.value = manifest.isActiveViewMaximized;
+    }
+    // Reused views acquire their saved selection after their data is rebound.
+    if (manifest.viewByID) setActiveView(manifest.activeView);
   }
 
   function bindViewsToData(

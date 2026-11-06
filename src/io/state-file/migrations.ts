@@ -4,6 +4,12 @@ import { emptyExtent } from '@/src/segmentation/geometry';
 import { cssColorToRGBA, tryCssColorToRGBA } from '@/src/segmentation/color';
 import { makeDefaultSegmentName } from '@/src/segmentation/model';
 import { TOOL_COLORS } from '@/src/config';
+import { manifestDatasets } from '@/src/io/state-file/schema';
+
+export type ManifestMigration = {
+  legacySegmentIds: Record<string, string>;
+  segmentSourceRows: number[];
+};
 
 const migrateOrPass =
   (versions: Array<string>, migrationFunc: (manifest: any) => any) =>
@@ -297,11 +303,21 @@ const dropLegacyViewDisplay = (manifest: any, groupIds: string[]) => {
   });
 };
 
+const ANNOTATION_TOOL_KEYS = ['rulers', 'rectangles', 'polygons'];
+
+// Suffixes a candidate until no id in `usedIds` has it, then claims it.
+const uniqueIdAmong = (usedIds: Set<string>) => (candidate: string) => {
+  let id = candidate;
+  for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
+  usedIds.add(id);
+  return id;
+};
+
 // 6.4.0 -> 7.0.0 moves identity off segment groups and tool labels onto
 // segments. JSON only: no voxels are read here, so each group becomes an
 // artifact the loaded restore stage splits into bounded masks, and every
 // binding's extent is a placeholder that stage replaces.
-const migrate640To700 = (inputManifest: any) => {
+export const migrate640To700 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
 
   // Insertion order is the migrated order: groups in manifest order, then per
@@ -310,13 +326,7 @@ const migrate640To700 = (inputManifest: any) => {
   const segments: any[] = [];
 
   // Joined legacy ids can collide, and restore keys a map on them.
-  const usedIds = new Set<string>();
-  const uniqueId = (candidate: string) => {
-    let id = candidate;
-    for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
-    usedIds.add(id);
-    return id;
-  };
+  const uniqueId = uniqueIdAmong(new Set<string>());
 
   const addSegment = (id: string, segment: any) => {
     segments.push({ id, ...segment });
@@ -405,8 +415,6 @@ const migrate640To700 = (inputManifest: any) => {
     };
   });
 
-  const toolKeys = ['rulers', 'rectangles', 'polygons'];
-
   const nextToolColor = cycle(TOOL_COLORS);
   const nextPaletteColor = () => cssColorToRGBA(nextToolColor());
 
@@ -417,7 +425,7 @@ const migrate640To700 = (inputManifest: any) => {
     tryCssColorToRGBA(css ?? '') ?? nextPaletteColor();
 
   const labelNames = new Set(
-    toolKeys.flatMap((key) =>
+    ANNOTATION_TOOL_KEYS.flatMap((key) =>
       Object.entries(manifest.tools?.[key]?.labels ?? {}).map(
         ([labelId, label]: [string, any]) => label.labelName || labelId
       )
@@ -493,7 +501,7 @@ const migrate640To700 = (inputManifest: any) => {
     delete entry.labels;
   };
 
-  toolKeys.forEach(migrateToolLabels);
+  ANNOTATION_TOOL_KEYS.forEach(migrateToolLabels);
 
   const segmentations = [...recordsByParent.entries()].map(
     ([parentImage, records]) => {
@@ -526,15 +534,127 @@ const migrate640To700 = (inputManifest: any) => {
   return manifest;
 };
 
+// View configs are keyed by the image they display.
+const remapEnFaceSegments = (
+  manifest: any,
+  mappedSegmentId: (imageId: string, segmentId: string) => string
+) => {
+  Object.values(manifest.viewByID ?? {}).forEach((view: any) => {
+    Object.entries(view?.config ?? {}).forEach(([imageId, config]: any) => {
+      if (typeof config?.enFace?.segmentId === 'string')
+        config.enFace.segmentId = mappedSegmentId(
+          imageId,
+          config.enFace.segmentId
+        );
+    });
+  });
+};
+
+const enFaceSegmentIds = (manifest: any) =>
+  Object.values(manifest.viewByID ?? {}).flatMap((view: any) =>
+    Object.values(view?.config ?? {}).map(
+      (config: any) => config?.enFace?.segmentId
+    )
+  );
+
+// Every saved image keeps the full catalog the global picker offered, including
+// unused rows. Mask buffers stay in place; only their segment references split.
+const migrate700To800 = (inputManifest: any, migration: ManifestMigration) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  const catalog: any[] = Array.isArray(manifest.segments)
+    ? manifest.segments
+    : [];
+  const datasets = manifestDatasets(manifest);
+  const imageIds = [...new Set(datasets.map(({ id }) => id))];
+  const referencedIds = [
+    ...(manifest.segmentations ?? []).flatMap((segmentation: any) =>
+      (segmentation.masks ?? []).map((mask: any) => mask.segmentId)
+    ),
+    ...ANNOTATION_TOOL_KEYS.flatMap((key) =>
+      (manifest.tools?.[key]?.tools ?? []).map((tool: any) => tool.segmentId)
+    ),
+    ...enFaceSegmentIds(manifest),
+  ];
+  // Missing references must stay missing rather than alias a newly minted id.
+  const uniqueId = uniqueIdAmong(
+    new Set<string>([...catalog.map(({ id }) => id), ...referencedIds])
+  );
+  const idsByImage = new Map<string, Map<string, string>>();
+  const segments: any[] = [];
+  const imageSegmentSets = imageIds.flatMap((imageId, imageIndex) => {
+    if (catalog.length === 0) return [];
+    const segmentIds = new Map<string, string>();
+    idsByImage.set(imageId, segmentIds);
+    catalog.forEach((segment, segmentIndex) => {
+      let id = segmentIds.get(segment.id);
+      if (id === undefined) {
+        id = uniqueId(`image-${imageIndex + 1}-segment-${segmentIndex + 1}`);
+        segmentIds.set(segment.id, id);
+        migration.legacySegmentIds[id] = segment.id;
+      }
+      // A repeated wire id remains repeated so restore reports the bad row
+      // instead of converting it into a second, apparently valid definition.
+      segments.push({
+        ...segment,
+        id,
+        ...(Array.isArray(segment.color) ? { color: [...segment.color] } : {}),
+      });
+      migration.segmentSourceRows.push(segmentIndex);
+    });
+    const selectedSegmentId = segmentIds.get(manifest.selectedSegment);
+    return {
+      imageId,
+      segmentIds: [...segmentIds.values()],
+      ...(selectedSegmentId ? { selectedSegmentId } : {}),
+    };
+  });
+
+  const mappedSegmentId = (imageId: string, segmentId: string) =>
+    idsByImage.get(imageId)?.get(segmentId) ?? segmentId;
+  (manifest.segmentations ?? []).forEach((segmentation: any) => {
+    (segmentation.masks ?? []).forEach((mask: any) => {
+      mask.segmentId = mappedSegmentId(
+        segmentation.parentImage,
+        mask.segmentId
+      );
+    });
+  });
+  ANNOTATION_TOOL_KEYS.forEach((key) => {
+    (manifest.tools?.[key]?.tools ?? []).forEach((tool: any) => {
+      if (tool.segmentId !== undefined)
+        tool.segmentId = mappedSegmentId(tool.imageID, tool.segmentId);
+    });
+  });
+  remapEnFaceSegments(manifest, mappedSegmentId);
+
+  if (imageIds.length === 0 && catalog.length > 0) {
+    manifest.seedSegmentDefaults = catalog.map((segment) =>
+      omit(segment, ['id', 'visible', 'locked'])
+    );
+  }
+  if (manifest.segments === undefined || Array.isArray(manifest.segments))
+    manifest.segments = segments;
+  manifest.imageSegmentSets = imageSegmentSets;
+  delete manifest.selectedSegment;
+  manifest.version = '8.0.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
-  return pipe(
+  const migration: ManifestMigration = {
+    legacySegmentIds: Object.create(null),
+    segmentSourceRows: [],
+  };
+  const manifest = pipe(
     inputManifest,
     migrateOrPass(['5.0.1'], migrate501To600),
     migrateOrPass(['6.0.0'], migrate600To610),
     migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
-    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700)
+    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
+    migrateOrPass(['7.0.0'], (legacy) => migrate700To800(legacy, migration))
   );
+  return { manifest, migration };
 };

@@ -152,12 +152,8 @@ This removes the specified view types from the dropdown menu and replaces them i
 
 ## Segments
 
-Paint, rectangles, polygons and rulers share one registry of segments, configured under
-`segments`. Each entry is keyed by name, and every appearance field is optional: an
-omitted one means the app default for a new segment. For an existing session segment,
-omitted fields keep the appearance it had before configuration. Replacing a config entry
-removes its previous appearance overrides, including color, while keeping the segment id,
-visibility and lock state.
+Use `segments` to define segments by name. Paint, rectangles, polygons and rulers on
+an image share its segments.
 
 ```json
 {
@@ -168,40 +164,44 @@ visibility and lock state.
 }
 ```
 
-Fields:
+- `color`: a 3, 4, 6 or 8 digit hex value (4 and 8 include alpha), or a CSS color
+  keyword. Invalid colors are reported and ignored.
+- `fillOpacity` and `outlineOpacity`: mask fill and outline opacity, from 0 to 1.
+  The Display sliders in "Annotations" scale these per image.
+- `strokeWidth`: line width for rectangles, polygons and rulers.
 
-- `color` takes a hex value of 3, 4, 6 or 8 digits such as `#ff0000` (the 4 and 8 digit
-  forms carry alpha) or a CSS color keyword such as `green`. Any other value is reported
-  as an error and ignored.
-- `fillOpacity` and `outlineOpacity`, from 0 to 1, set how strongly the segment's masks
-  are filled and outlined. The Display sliders in "Annotations" scale them per image.
-- `strokeWidth` sets the line width of the segment's rectangles, polygons and rulers.
+All fields are optional. On a new segment, omitted fields use the app defaults.
+On an existing segment matched by name, omitted fields preserve its underlying
+appearance.
 
-Omitting the key leaves the registry alone. An empty record (`{}`) or `null` drops the
-config's entries: a segment the config created is deleted unless a mask or shape
-references it, and any other segment stays with its last configured appearance.
+A configuration loaded with images applies to those images. A configuration loaded on
+its own applies to the image that was active when loading started. Either way, the
+configured segments also become the starting set for new images with no earlier image
+to copy from.
 
-Entries are keyed by name. A configured segment keeps its id while its key stays the
-same, so recoloring it never detaches its masks and shapes. Changing a key moves the
-entry to the segment of the new name, adding one if none exists, and drops the old entry
-as above. Applying a config again restores each key's name and configured appearance,
-undoing a rename made in the app.
+Opening a saved session replaces these starting defaults when the session includes
+its own defaults. An explicitly empty list clears them; a session without saved
+defaults leaves them unchanged. Loading a configuration afterward sets the starting
+defaults again. Each image's saved segment set is restored independently of these
+defaults.
 
-Configured segments outlive the images. Removing the last image deletes every other
-segment and keeps these.
+Applying a configuration again restores each configured name and appearance. Omitting
+`segments` changes nothing. `{}` or `null` removes only unreferenced segments that
+the configuration created. Segments matched by name and segments that hold masks
+or shapes remain.
 
 ### Legacy `labels`
 
 A legacy `labels` section is converted into `segments` at configuration ingestion, with
 a deprecation warning. Runtime configuration contains only `segments`. Its
-`defaultLabels`, `rulerLabels`, `rectangleLabels` and `polygonLabels` all describe the one
-registry now, so they read as `segments` entries. A name that appears in more than one
+`defaultLabels`, `rulerLabels`, `rectangleLabels` and `polygonLabels` become `segments`
+entries shared by the tools on each image. A name that appears in more than one
 becomes a single segment: the first record to declare it sets its appearance, reading
 `rulerLabels`, `rectangleLabels` and `polygonLabels` in that order and `defaultLabels`
 last. `defaultLabels` stood in for the tools that declared no record of their own, so it
 is read only when at least one of the three tool records is omitted. A section whose
-records are all omitted or `null` leaves the registry alone. A rectangle label's
-`fillColor` is dropped with a warning, since fill color is a property of the rectangle
+records are all omitted or `null` leaves segment definitions unchanged. A rectangle
+label's `fillColor` is dropped with a warning, since fill color is a property of the rectangle
 rather than of the segment. A config carrying both `segments` and `labels` has been
 converted already, so `segments` is read, `labels` is ignored, and the warning says so.
 

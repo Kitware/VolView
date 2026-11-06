@@ -11,6 +11,7 @@ import {
   ImportDataSourcesResult,
   asIntermediateResult,
   StateFileSetupResult,
+  isVolumeResult,
 } from '@/src/io/import/common';
 import {
   DataSource,
@@ -28,9 +29,12 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import {
   restoreStateFile,
   completeStateFileRestore,
+  type RestoreOptions,
 } from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
-import handleConfig from '@/src/io/import/processors/handleConfig';
+import handleConfig, {
+  InvalidConfigError,
+} from '@/src/io/import/processors/handleConfig';
 import {
   applyPreStateConfig,
   applyPostStateConfig,
@@ -47,6 +51,7 @@ import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -69,11 +74,13 @@ function isSelectable(result: ImportResult): result is LoadableVolumeResult {
 }
 
 const applyConfigsPostState = (
-  results: Array<ConfigResult>
+  results: Array<ConfigResult>,
+  imageIds: string[],
+  replaceBorrowed: boolean
 ): (ConfigResult | ErrorResult)[] =>
   results.map((result) => {
     try {
-      applyPostStateConfig(result.config);
+      applyPostStateConfig(result.config, imageIds, { replaceBorrowed });
       return result;
     } catch (err) {
       return asErrorResult(ensureError(err), result.dataSource);
@@ -120,7 +127,13 @@ async function importDicomChunkSources(sources: ChunkSource[]) {
   );
 }
 
-type ImportPolicy = 'application' | 'volume-data';
+type ImportPolicy =
+  | {
+      kind: 'application';
+      restore: RestoreProcessors;
+      standaloneImageIds: string[];
+    }
+  | { kind: 'volume-data' };
 
 /**
  * The two halves of a state-file restore: the handler that reads the manifest
@@ -132,15 +145,84 @@ export type RestoreProcessors = {
   completeStateFileRestore: typeof completeStateFileRestore;
 };
 
+const hasDataIntent = (result: ImportResult) => {
+  if (
+    result.type === 'config' ||
+    (result.type === 'error' && result.error instanceof InvalidConfigError)
+  )
+    return false;
+  if (result.type !== 'intermediate') return true;
+  return (
+    result.dataSources.length === 0 ||
+    result.dataSources.some((source) => source.type === 'chunk')
+  );
+};
+
 export const appRestoreProcessors = (): RestoreProcessors => ({
   restoreStateFile,
   completeStateFileRestore,
 });
 
+async function completeStateFileSetups(
+  stateFileSetups: StateFileSetupResult[],
+  restore: RestoreProcessors,
+  loadableResults: LoadableResult[],
+  failedLeaves: RestoreOptions['failedLeaves']
+) {
+  const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
+  // Leaf stateIDs covered by a consolidated notice that actually ran: only
+  // their errors may be suppressed by the import pipeline.
+  const reportedStateIDs = new Set<string>();
+  for (const setup of stateFileSetups) {
+    try {
+      await restore.completeStateFileRestore(
+        setup.manifest,
+        setup.stateFiles,
+        stateIDToStoreID,
+        {
+          missingFiles: setup.missingFiles,
+          failedLeaves,
+          migration: setup.migration,
+        }
+      );
+      setup.dataSources.forEach((src) => {
+        findStateFileLeaves(src).forEach((leaf) =>
+          reportedStateIDs.add(leaf.stateID)
+        );
+      });
+      setup.missingFiles.forEach(({ stateID }) =>
+        reportedStateIDs.add(stateID)
+      );
+    } catch (err) {
+      // Auto-degrade to an ephemeral open: a mid-restore throw leaves the
+      // already-loaded bases as plain datasets and the session's attached set
+      // stays empty, so a later save prunes every launch-composition entry.
+      // Restore steps already applied (layout, view bindings) are not rolled
+      // back. One notice here; this setup's leaf errors stay unflagged so the
+      // generic load-error dialog still names them.
+      useMessageStore().addWarning(
+        'Could not restore the saved session; opened its images instead',
+        { details: ensureError(err).message }
+      );
+    }
+  }
+  return reportedStateIDs;
+}
+
+// Config imported with data targets its loaded images; standalone config keeps
+// the image whose view started the import.
+const configTargetImageIds = (
+  importedData: boolean,
+  loadables: readonly LoadableResult[],
+  standaloneImageIds: string[]
+) =>
+  importedData
+    ? loadables.filter(isVolumeResult).map(({ dataID }) => dataID)
+    : standaloneImageIds;
+
 async function importDataSourcesWithPolicy(
   dataSources: DataSource[],
-  policy: ImportPolicy,
-  restore: RestoreProcessors = appRestoreProcessors()
+  policy: ImportPolicy
 ): Promise<ImportDataSourcesResult[]> {
   const cleanupHandlers: Array<() => void> = [];
   const onCleanup = (fn: () => void) => {
@@ -154,13 +236,13 @@ async function importDataSourcesWithPolicy(
     fetchFileCache: new Map<string, File>(),
     onCleanup,
     importDataSources: (sources: DataSource[]) =>
-      importDataSourcesWithPolicy(sources, policy, restore),
+      importDataSourcesWithPolicy(sources, policy),
   };
 
   // State files first: a manifest's top-level `segments` is also a config key.
   const applicationHandlers =
-    policy === 'application'
-      ? [restore.restoreStateFile, handleConfig, handleRemoteManifest]
+    policy.kind === 'application'
+      ? [policy.restore.restoreStateFile, handleConfig, handleRemoteManifest]
       : [];
 
   const handlers = [
@@ -193,6 +275,7 @@ async function importDataSourcesWithPolicy(
   const configResults: ConfigResult[] = [];
   const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
+  let importedData = false;
 
   let queue = dataSources.map((src) => ({
     promise: evaluateChain(src, handlers, importContext),
@@ -203,6 +286,7 @@ async function importDataSourcesWithPolicy(
     const { index } = await asyncSelect(queue.map((item) => item.promise));
     const { promise, source } = queue[index];
     const result = await promise.catch((err) => asErrorResult(err, source));
+    importedData ||= hasDataIntent(result);
     queue = queue.filter((_, i) => i !== index);
 
     switch (result.type) {
@@ -278,42 +362,27 @@ async function importDataSourcesWithPolicy(
       }))
     );
 
-  const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
-  // Leaf stateIDs covered by a consolidated notice that actually ran — only
-  // their errors may be suppressed below.
-  const reportedStateIDs = new Set<string>();
-  for (const setup of stateFileSetups) {
-    try {
-      await restore.completeStateFileRestore(
-        setup.manifest,
-        setup.stateFiles,
-        stateIDToStoreID,
-        setup.missingFiles,
-        failedLeaves
-      );
-      setup.dataSources.forEach((src) => {
-        findStateFileLeaves(src).forEach((leaf) =>
-          reportedStateIDs.add(leaf.stateID)
-        );
-      });
-      setup.missingFiles.forEach(({ stateID }) =>
-        reportedStateIDs.add(stateID)
-      );
-    } catch (err) {
-      // Auto-degrade to an ephemeral open: a mid-restore throw leaves the
-      // already-loaded bases as plain datasets and the session's attached set
-      // stays empty, so a later save prunes every launch-composition entry.
-      // Restore steps already applied (layout, view bindings) are not rolled
-      // back. One notice here; this setup's leaf errors stay unflagged so the
-      // generic load-error dialog still names them.
-      useMessageStore().addWarning(
-        'Could not restore the saved session; opened its images instead',
-        { details: ensureError(err).message }
-      );
-    }
-  }
+  let reportedStateIDs = new Set<string>();
+  if (policy.kind === 'application') {
+    reportedStateIDs = await completeStateFileSetups(
+      stateFileSetups,
+      policy.restore,
+      loadableResults,
+      failedLeaves
+    );
 
-  results.push(...applyConfigsPostState(configResults));
+    results.push(
+      ...applyConfigsPostState(
+        configResults,
+        configTargetImageIds(
+          importedData,
+          loadableResults,
+          policy.standaloneImageIds
+        ),
+        importedData
+      )
+    );
+  }
 
   // A failed state-file leaf is already counted in the restore's consolidated
   // missing-content notice, so this layer owns its reporting: it returns as an
@@ -335,13 +404,20 @@ export function importDataSources(
   dataSources: DataSource[],
   restore: RestoreProcessors = appRestoreProcessors()
 ): Promise<ImportDataSourcesResult[]> {
-  return importDataSourcesWithPolicy(dataSources, 'application', restore);
+  const initiatingImageId = useCurrentImage('global').currentImageID.value;
+  // Standalone config belongs to the initiating image, even if focus changes
+  // while reading it. An explicit empty target updates only future defaults.
+  return importDataSourcesWithPolicy(dataSources, {
+    kind: 'application',
+    restore,
+    standaloneImageIds: initiatingImageId ? [initiatingImageId] : [],
+  });
 }
 
 export function importVolumeDataSources(
   dataSources: DataSource[]
 ): Promise<ImportDataSourcesResult[]> {
-  return importDataSourcesWithPolicy(dataSources, 'volume-data');
+  return importDataSourcesWithPolicy(dataSources, { kind: 'volume-data' });
 }
 
 export function toDataSelection(loadable: LoadableVolumeResult) {
