@@ -51,11 +51,8 @@ describe('Oblique source windowing', () => {
     const before = await displayedWindow(child);
     expect(before).toEqual({ width: 1000, level: 500 });
     const beforeImage = (await canvasAppearance(peerCanvas)).image;
-    await $(WINDOW_TOOL).click();
-    await browser.keys('Escape');
-    await $('.v-overlay--active .manual-inputs input').waitForDisplayed({
-      reverse: true,
-    });
+    await volViewPage.openMenu($(WINDOW_TOOL));
+    await volViewPage.closeMenu($(WINDOW_TOOL));
     await dragContrast(canvas, 35, 25, { position: { x: 0.25, y: 0.25 } });
     let observed = before;
     await browser
