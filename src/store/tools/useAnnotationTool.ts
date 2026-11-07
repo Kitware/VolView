@@ -1,7 +1,7 @@
 import { Ref, computed, ref } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { Maybe, PartialWithRequired, UnwrapAll } from '@/src/types';
-import { isRecord, removeFromArray } from '@/src/utils';
+import { isRecord, partition, removeFromArray } from '@/src/utils';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
 import { declareManifestRefs } from '@/src/core/manifestRefs';
@@ -84,7 +84,7 @@ export const useAnnotationTool = <
     return toolIDs.value.map((id) => byID[id]);
   });
 
-  type FinishedTool = Tool & { placing: true };
+  type FinishedTool = Tool & { placing: false };
   const finishedTools = computed(() =>
     tools.value.filter((tool): tool is FinishedTool => !tool.placing)
   );
@@ -112,14 +112,25 @@ export const useAnnotationTool = <
   const appearanceOfTool = (id: ToolID) =>
     registry.appearanceOf(toolByID.value[id]?.segmentId);
 
+  function removeToolRecord(id: ToolID) {
+    delete toolByID.value[id];
+    useToolSelectionStore().removeSelection(id);
+  }
+
   function removeTool(id: ToolID) {
     if (!(id in toolByID.value)) return;
-
     removeFromArray(toolIDs.value, id);
-    delete toolByID.value[id];
+    removeToolRecord(id);
+  }
 
-    const selectionStore = useToolSelectionStore();
-    selectionStore.removeSelection(id);
+  function removeToolsWhere(shouldRemove: (tool: Tool) => boolean) {
+    const [removed, retained] = partition(
+      (id) => shouldRemove(toolByID.value[id]),
+      toolIDs.value
+    );
+    if (!removed.length) return;
+    toolIDs.value = retained;
+    removed.forEach(removeToolRecord);
   }
 
   function updateTool(id: ToolID, patch: ToolPatch) {
@@ -159,9 +170,7 @@ export const useAnnotationTool = <
   // backend's intentional fail-closed 400. Mirrors the segmentation cascade.
   onImageDeleted((deletedIDs) => {
     const deleted = new Set(deletedIDs);
-    toolIDs.value
-      .filter((id) => deleted.has(toolByID.value[id].imageID))
-      .forEach((id) => removeTool(id));
+    removeToolsWhere((tool) => deleted.has(tool.imageID));
   });
 
   const { currentImageID } = useCurrentImage('global');
@@ -224,21 +233,18 @@ export const useAnnotationTool = <
   // A tool still being placed is the widget's own stub, not content: taking it
   // with a deleted segment would leave the widget holding a dead id and no way
   // to place anything, and placing re-resolves the segment anyway.
-  const referencesSegment = (id: ToolID, segmentId: string) => {
-    const tool = toolByID.value[id];
-    return tool.segmentId === segmentId && !tool.placing;
-  };
+  const referencesSegment = (tool: Tool, segmentId: string) =>
+    tool.segmentId === segmentId && !tool.placing;
 
   const removeToolsOfSegment = (segmentId: string) =>
-    toolIDs.value
-      .filter((id) => referencesSegment(id, segmentId))
-      .forEach((id) => removeTool(id));
+    removeToolsWhere((tool) => referencesSegment(tool, segmentId));
 
-  const hasToolsOfSegment = (segmentId: string) =>
-    toolIDs.value.some((id) => referencesSegment(id, segmentId));
+  const referencedSegments = computed(
+    () => new Set(finishedTools.value.map(({ segmentId }) => segmentId))
+  );
 
   registry.declareReferences(manifestKey, {
-    has: hasToolsOfSegment,
+    has: (segmentId) => referencedSegments.value.has(segmentId),
     remove: removeToolsOfSegment,
   });
 
