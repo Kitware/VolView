@@ -2,7 +2,7 @@ import {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
-} from '@/src/store/view-configs/volume-coloring';
+} from '@/src/constants';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -135,9 +135,12 @@ export function setCinematicVolumeShading({
   );
 
   property.setShade(true);
-  property.setUseGradientOpacity(component, !enabled);
-  property.setGradientOpacityMinimumValue(component, 0.0);
   const dataRange = image.getPointData().getScalars().getRange();
+  property.setUseGradientOpacity(
+    component,
+    !enabled && dataRange[1] > dataRange[0]
+  );
+  property.setGradientOpacityMinimumValue(component, 0.0);
   property.setGradientOpacityMaximumValue(
     component,
     (dataRange[1] - dataRange[0]) * 0.01

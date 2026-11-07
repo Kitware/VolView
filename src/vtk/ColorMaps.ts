@@ -1,5 +1,6 @@
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import { ColorMapPreset } from '@/src/types/color-map-preset';
+import { ADAPTIVE_VOLUME_PRESETS } from '../utils/adaptiveVolumePresets';
 import MedicalPresets from './MedicalColorPresets.json';
 import DicomPresets from './DicomColorPresets.json';
 
@@ -16,8 +17,14 @@ DicomPresets.forEach((preset) =>
   vtkColorMaps.addPreset(preset as ColorMapPreset)
 );
 
+ADAPTIVE_VOLUME_PRESETS.forEach((name) => {
+  const preset = vtkColorMaps.getPresetByName('Grayscale');
+  if (preset) vtkColorMaps.addPreset({ ...preset, Name: name });
+});
+
 /* prettier-ignore */
 const GroupedPresets = [
+  { group: 'Adaptive', presets: [...ADAPTIVE_VOLUME_PRESETS] },
   {
     group: 'CT',
     presets: [

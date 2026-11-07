@@ -13,6 +13,10 @@ export const DefaultTheme = DarkTheme;
 // The slice rendering inflates the image box by half a voxel on every face.
 export const IMAGE_BOX_INFLATION = 0.5;
 
+export const DEFAULT_AMBIENT = 0.2;
+export const DEFAULT_DIFFUSE = 0.7;
+export const DEFAULT_SPECULAR = 0.3;
+
 export const Messages = {
   WebGLLost: {
     title: 'Viewer Error',

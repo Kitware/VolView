@@ -17,28 +17,26 @@ const OTHER_IMAGE_ID = 'img-2';
 
 // the real thumbnailer needs a WebGL context the test DOM cannot provide, so
 // this stands in for the surface the composable touches
-function createStubThumbnailer(capture?: Promise<string>) {
+function createStubThumbnailer(
+  capture?: Promise<string> | (() => Promise<string>)
+) {
   let deleted = false;
   let captureCount = 0;
-  const noopProxy = {
-    setDataRange: NOOP,
-    setMode: NOOP,
-    setPoints: NOOP,
-    setGaussians: NOOP,
-    setPresetName: NOOP,
-  };
   const renderWindow = {
     render: NOOP,
     captureImages: () => {
       captureCount += 1;
-      return [capture ?? Promise.resolve('')];
+      return [
+        typeof capture === 'function'
+          ? capture()
+          : (capture ?? Promise.resolve('')),
+      ];
     },
   };
   const thumbnailer = {
     scene: { getRenderWindow: () => renderWindow },
-    opacityFuncProxy: noopProxy,
-    colorTransferFuncProxy: noopProxy,
     setInputImage: NOOP,
+    setPreset: NOOP,
     resetCameraWithOrientation: NOOP,
     delete() {
       deleted = true;
@@ -66,8 +64,20 @@ function mountThumbnailing(
 ) {
   const component = defineComponent({
     setup() {
-      useVolumeThumbnailing(64, () => thumbnailer);
-      return () => h('div');
+      const { currentThumbnails } = useVolumeThumbnailing(
+        64,
+        () => thumbnailer
+      );
+      return () =>
+        h('div', [
+          h('img', {
+            src: currentThumbnails.value['Adaptive-Balanced'] ?? '',
+          }),
+          h('img', {
+            'data-preset': 'CT-AAA',
+            src: currentThumbnails.value['CT-AAA'] ?? '',
+          }),
+        ]);
     },
   });
   return mount(component, {
@@ -135,5 +145,74 @@ describe('useVolumeThumbnailing', () => {
     await flushPromises();
 
     expect(stub.getCaptureCount()).toBeGreaterThan(1);
+  });
+  it('keeps the thumbnail map renderable when a volume finishes loading', async () => {
+    const uri = 'data:image/png;base64,dGh1bWJuYWls';
+    const stub = createStubThumbnailer(Promise.resolve(uri));
+    addImageToCache();
+    const image = useImageCacheStore().imageById[IMAGE_ID];
+    image.loaded.value = false;
+    const wrapper = mountThumbnailing(stub.thumbnailer, ref(IMAGE_ID));
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe('');
+
+    image.loaded.value = true;
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe(uri);
+    wrapper.unmount();
+    await flushPromises();
+  });
+
+  it('shows the selected image thumbnails when its cache is already complete', async () => {
+    const firstURI = 'data:image/png;base64,Zmlyc3Q=';
+    const secondURI = 'data:image/png;base64,c2Vjb25k';
+    let captureURI = firstURI;
+    const stub = createStubThumbnailer(() => Promise.resolve(captureURI));
+    addImageToCache();
+    addImageToCache(OTHER_IMAGE_ID);
+    const imageID = ref<string | null>(IMAGE_ID);
+    const wrapper = mountThumbnailing(stub.thumbnailer, imageID);
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe(firstURI);
+
+    captureURI = secondURI;
+    imageID.value = OTHER_IMAGE_ID;
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe(secondURI);
+
+    imageID.value = IMAGE_ID;
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe(firstURI);
+    wrapper.unmount();
+    await flushPromises();
+  });
+
+  it('waits for complete data before rendering thumbnails, including background loads', async () => {
+    const partialURI = 'data:image/png;base64,cGFydGlhbA==';
+    const completeURI = 'data:image/png;base64,Y29tcGxldGU=';
+    let captureURI = partialURI;
+    const stub = createStubThumbnailer(() => Promise.resolve(captureURI));
+    addImageToCache();
+    addImageToCache(OTHER_IMAGE_ID);
+    const image = useImageCacheStore().imageById[IMAGE_ID];
+    image.loaded.value = false;
+    const imageID = ref<string | null>(IMAGE_ID);
+    const wrapper = mountThumbnailing(stub.thumbnailer, imageID);
+    await flushPromises();
+    expect(stub.getCaptureCount()).toBe(0);
+    expect(wrapper.get('[data-preset="CT-AAA"]').attributes('src')).toBe('');
+
+    imageID.value = OTHER_IMAGE_ID;
+    await flushPromises();
+    image.loaded.value = true;
+    captureURI = completeURI;
+    imageID.value = IMAGE_ID;
+    await flushPromises();
+
+    expect(wrapper.get('[data-preset="CT-AAA"]').attributes('src')).toBe(
+      completeURI
+    );
+    wrapper.unmount();
+    await flushPromises();
   });
 });

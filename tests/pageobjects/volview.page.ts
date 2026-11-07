@@ -377,6 +377,12 @@ class VolViewPage extends Page {
   async closeMenu(activator: ChainablePromiseElement) {
     const contentId = await activator.getAttribute('aria-controls');
     if ((await activator.getAttribute('aria-expanded')) === 'true') {
+      // Wait for the opening transition before Escape can dismiss the popup.
+      if (contentId) {
+        const content = $(`[id="${contentId}"] > .v-overlay__content`);
+        await content.waitForDisplayed();
+        await content.waitForStable();
+      }
       // A tall popup can cover its activator in a compact pane.
       await browser.keys(Key.Escape);
     }

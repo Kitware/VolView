@@ -83,12 +83,15 @@ async function openAxialPetLayer() {
   await $('[data-testid="layer-range-max"] input').waitForEnabled();
   await waitForModuleTransitions();
   await $('header').moveTo();
-  await browser.waitUntil(
-    async () => (await captureAxialPixels()).colored > 1000,
+  const initialPixels = await browser.waitUntil(
+    async () => {
+      const pixels = await captureAxialPixels();
+      return pixels.colored > 1000 ? pixels : false;
+    },
     { timeoutMsg: 'Expected the sample to display PET over CT' }
   );
   return {
-    pixels: await captureAxialPixels(),
+    pixels: initialPixels,
     range: await displayedPetRange(),
   };
 }
@@ -108,17 +111,18 @@ async function editPetColors(
   await coolToWarm.waitForClickable();
   await coolToWarm.click();
   await $('header').moveTo();
-  await browser.waitUntil(
+  const beforeRange = await browser.waitUntil(
     async () => {
       const pixels = await captureAxialPixels();
-      return pixels.colored > 1000 && pixels.checksum !== initial.checksum;
+      return pixels.colored > 1000 && pixels.checksum !== initial.checksum
+        ? pixels
+        : false;
     },
     {
       timeoutMsg:
         'Expected the selected palette to change the visible PET colors',
     }
   );
-  const beforeRange = await captureAxialPixels();
   const narrowedMaximum = String((Number(minimum) + Number(maximum)) / 2);
   await setValueVueInput(
     $('[data-testid="layer-range-max"] input'),
@@ -133,10 +137,12 @@ async function editPetColors(
     'title',
     narrowedMaximum
   );
-  await browser.waitUntil(
+  const editedPixels = await browser.waitUntil(
     async () => {
       const pixels = await captureAxialPixels();
-      return pixels.colored > 1000 && pixels.checksum !== beforeRange.checksum;
+      return pixels.colored > 1000 && pixels.checksum !== beforeRange.checksum
+        ? pixels
+        : false;
     },
     {
       timeoutMsg:
@@ -144,7 +150,7 @@ async function editPetColors(
     }
   );
   return {
-    pixels: await captureAxialPixels(),
+    pixels: editedPixels,
     range: [minimum, narrowedMaximum],
   };
 }
@@ -168,7 +174,6 @@ async function reopenSample(
   await sample.waitForExist();
   await waitForModuleTransitions();
   await sample.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await browser.saveScreenshot(path.join(TEMP_DIR, 'pet-ct-sample-reload.png'));
   await sample.waitForClickable();
   await sample.click();
   await expect(

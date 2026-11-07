@@ -3,7 +3,9 @@ import { computed, defineComponent, ref } from 'vue';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { CVRConfig } from '@/src/types/views';
-import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
+import useVolumeColoringStore, {
+  defaultVolumeColorConfig,
+} from '@/src/store/view-configs/volume-coloring';
 
 const LIGHTING_MODELS = {
   standard: 'Standard',
@@ -32,9 +34,16 @@ export default defineComponent({
 
     // --- CVR --- //
 
-    const cvrParams = computed(() => volumeColorConfig.value?.cvr);
+    const controlsDisabled = computed(() => !volumeColorConfig.value);
+    const cvrParams = computed(
+      () => volumeColorConfig.value?.cvr ?? defaultVolumeColorConfig().cvr
+    );
 
-    const setCVRParam = (key: keyof CVRConfig, value: any) => {
+    const setCVRParam = <K extends keyof CVRConfig>(
+      key: K,
+      value: CVRConfig[K]
+    ) => {
+      if (controlsDisabled.value) return;
       if (!viewId.value || !currentImageID.value) return;
       volumeColoringStore.updateCVRParameters(
         viewId.value,
@@ -45,16 +54,14 @@ export default defineComponent({
       );
     };
 
-    const laoEnabled = computed(
-      () => !!cvrParams.value?.useLocalAmbientOcclusion
-    );
     const vsbEnabled = computed(
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
     type LightingModel = keyof typeof LIGHTING_MODELS;
-    const lightingModel = computed<LightingModel>(() =>
-      cvrParams.value?.useVolumetricScatteringBlending ? 'hybrid' : 'standard'
+    const lightingModel = computed(
+      (): LightingModel =>
+        cvrParams.value?.useVolumetricScatteringBlending ? 'hybrid' : 'standard'
     );
     const selectLightingMode = (model: LightingModel) => {
       setCVRParam('useVolumetricScatteringBlending', model === 'hybrid');
@@ -71,9 +78,9 @@ export default defineComponent({
 
     return {
       LIGHTING_MODELS,
+      controlsDisabled,
       cvrParams,
       disableQualityWarning,
-      laoEnabled,
       lightingModel,
       selectLightingMode,
       setCVRParam,
@@ -86,9 +93,18 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="mx-2">
-    <div v-if="!!cvrParams">
+  <div
+    class="mx-2"
+    data-testid="volume-properties"
+    :tabindex="controlsDisabled ? 0 : undefined"
+  >
+    <v-tooltip v-if="controlsDisabled" activator="parent" location="top">
+      Cinematic rendering controls are available after the volume finishes
+      loading
+    </v-tooltip>
+    <div>
       <v-slider
+        :disabled="controlsDisabled"
         show-ticks="always"
         tick-size="4"
         :ticks="volumeQualityLabels"
@@ -133,6 +149,7 @@ export default defineComponent({
       </v-alert>
       <v-divider class="my-8" />
       <v-slider
+        :disabled="controlsDisabled"
         label="Ambient"
         min="0"
         max="1"
@@ -144,6 +161,7 @@ export default defineComponent({
         @update:model-value="setCVRParam('ambient', $event)"
       />
       <v-slider
+        :disabled="controlsDisabled"
         label="Diffuse"
         min="0"
         max="1"
@@ -155,6 +173,7 @@ export default defineComponent({
         @update:model-value="setCVRParam('diffuse', $event)"
       />
       <v-switch
+        :disabled="controlsDisabled"
         label="Light follows camera"
         density="compact"
         hide-details
@@ -164,6 +183,7 @@ export default defineComponent({
       <v-divider class="my-8" />
 
       <v-switch
+        :disabled="controlsDisabled"
         label="Local Ambient Occlusion"
         density="compact"
         hide-details
@@ -173,6 +193,7 @@ export default defineComponent({
 
       <v-row class="my-4">
         <v-btn-toggle
+          :disabled="controlsDisabled"
           :model-value="lightingModel"
           @update:model-value="selectLightingMode"
           mandatory
@@ -194,6 +215,7 @@ export default defineComponent({
       <v-spacer class="my-2" />
 
       <v-slider
+        :disabled="controlsDisabled"
         label="Scatter Blending"
         min="0"
         max="1"
