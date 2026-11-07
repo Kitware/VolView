@@ -47,6 +47,7 @@ import { Chunk } from '@/src/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
+import { shouldSkipImportSource } from '@/src/io/import/shouldSkipImportSource';
 
 const unhandledResource: ImportHandler = (dataSource) => {
   return asErrorResult(new Error('Failed to handle resource'), dataSource);
@@ -194,10 +195,15 @@ async function importDataSourcesWithPolicy(
   const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
 
-  let queue = dataSources.map((src) => ({
-    promise: evaluateChain(src, handlers, importContext),
-    source: src,
-  }));
+  const enqueue = (sources: DataSource[]) =>
+    sources
+      .filter((src) => !shouldSkipImportSource(src))
+      .map((src) => ({
+        promise: evaluateChain(src, handlers, importContext),
+        source: src,
+      }));
+
+  let queue = enqueue(dataSources);
 
   while (queue.length) {
     const { index } = await asyncSelect(queue.map((item) => item.promise));
@@ -216,12 +222,7 @@ async function importDataSourcesWithPolicy(
         );
         chunkSources.push(...chunks);
 
-        queue.push(
-          ...otherSources.map((src) => ({
-            promise: evaluateChain(src, handlers, importContext),
-            source: src,
-          }))
-        );
+        queue.push(...enqueue(otherSources));
         break;
       }
       case 'config':
