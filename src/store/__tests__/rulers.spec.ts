@@ -94,7 +94,7 @@ describe('Ruler segment references', () => {
   const segments = () => useSegmentStore().segments;
 
   // Adding selects, so this is the segment a new ruler picks up.
-  const seedSegment = () => segments().addSegment({ name: 'Tumor' });
+  const seedSegment = () => segments().addSegment('4', { name: 'Tumor' });
 
   it('draws out of the shared registry', () => {
     const store = useRulerStore();
@@ -180,7 +180,7 @@ describe('Ruler segment references', () => {
 
     const painted = useSegmentationStore().createMask(
       segmentation.id,
-      mintSegment({ name: 'Tumor' })
+      mintSegment('4', { name: 'Tumor' })
     );
 
     const id = store.addRuler({

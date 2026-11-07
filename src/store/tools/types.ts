@@ -1,4 +1,5 @@
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { SkippedRestoreItem } from '@/src/segmentation/io/restore';
 import { Store } from 'pinia';
 
 export enum AnnotationToolType {
@@ -33,7 +34,7 @@ export interface ISerializableTool {
     // Save-time segment id -> restored segment id, for the tools that share
     // the segment registry.
     segmentIdMap: Record<string, string>
-  ) => void;
+  ) => void | SkippedRestoreItem[];
 }
 
 export interface IToolStore

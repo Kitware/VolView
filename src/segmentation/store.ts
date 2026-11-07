@@ -1,5 +1,12 @@
 import { defineStore } from 'pinia';
-import { markRaw, reactive, readonly, ref, shallowReactive } from 'vue';
+import {
+  computed,
+  markRaw,
+  reactive,
+  readonly,
+  ref,
+  shallowReactive,
+} from 'vue';
 import type { RGBAColor } from '@kitware/vtk.js/types';
 
 import { CATEGORICAL_COLORS } from '@/src/config';
@@ -219,6 +226,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const segmentation = getSegmentation(segmentationId);
     if (!segmentRegistry.getSegment(segmentId))
       throw new Error('No such segment');
+    segmentRegistry.assertBelongsToImage(segmentation.parentImageId, segmentId);
     if (maskFor(segmentation.parentImageId, segmentId))
       throw new Error('Segment already has a mask on this image');
     const id = useIdStore().nextId();
@@ -290,12 +298,12 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   ) {
     const existing = ownSegment
       ? undefined
-      : segmentRegistry.findSegmentByName(descriptor.name);
+      : segmentRegistry.findSegmentByName(parentImageId, descriptor.name);
     if (existing && !maskFor(parentImageId, existing.id)) return existing.id;
     // A minted segment takes the file's whole description; a matched one keeps
     // what the registry already says, its visibility and lock included.
-    return segmentRegistry.mintSegment({
-      name: segmentRegistry.uniqueName(descriptor.name),
+    return segmentRegistry.mintSegment(parentImageId, {
+      name: segmentRegistry.uniqueName(parentImageId, descriptor.name),
       color: [...descriptor.color] as RGBAColor,
       visible: descriptor.visible,
       locked: descriptor.locked,
@@ -327,6 +335,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     if (!imageCacheStore.getVtkImageData(parentImageId))
       throw new Error('No such parent image');
     edits.beforeEdit();
+    useSegmentStore().prepareForEdit(parentImageId);
     const segmentation = ensureSegmentationForImage(parentImageId);
     const created: SegmentMask[] = [];
 
@@ -409,6 +418,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     const running = conversions.get(imageID)?.get(parentID);
     if (running) return running;
 
+    useSegmentStore().prepareForEdit(parentID);
+
     const bySourceValue = new Map(
       descriptions.map((descriptor) => [
         descriptor.value,
@@ -440,7 +451,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
           parentID,
           labelmap,
           // Identity is chosen by name, so explicit descriptions must precede
-          // binding to a segment shared by other images.
+          // binding to a segment on the destination image.
           descriptors.map((descriptor) => ({
             ...descriptor,
             ...bySourceValue.get(descriptor.value),
@@ -474,8 +485,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   }
 
   /**
-   * Starts a conversion nobody awaits, and reports its failure. A conversion
-   * outlives the load or the click that started it, and the parent image can
+   * Starts a conversion and reports its failure. A conversion can outlive
+   * the load or the click that started it, and the parent image can
    * be removed while the resample runs, so the rejection needs somewhere to
    * land instead of going unhandled.
    */
@@ -545,7 +556,8 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * lists. Masks share the parent grid, so one index addresses every mask.
    */
   const segmentsAt = (parentImageId: string, i: number, j: number, k: number) =>
-    segmentRegistry.segmentList.value
+    segmentRegistry
+      .segmentList(parentImageId)
       .filter((segment) => {
         const bounded = boundScalars(
           maskFor(parentImageId, segment.id)?.representations.labelmap
@@ -624,9 +636,16 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   // A segment the caller named that no longer exists is a stale reference, not
   // a target: the edit falls through to the selected one.
-  const targetSegmentId = (preferredSegmentId: Maybe<string>) =>
-    segmentRegistry.getSegment(preferredSegmentId)?.id ??
-    segmentRegistry.selectedSegmentId.value;
+  const targetSegmentId = (
+    imageId: string,
+    preferredSegmentId: Maybe<string>
+  ) => {
+    if (preferredSegmentId && segmentRegistry.getSegment(preferredSegmentId)) {
+      segmentRegistry.assertBelongsToImage(imageId, preferredSegmentId);
+      return preferredSegmentId;
+    }
+    return segmentRegistry.selectedSegmentId(imageId);
+  };
 
   /**
    * The mask an edit would land in, if it already exists. Creates nothing, so
@@ -634,7 +653,7 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * before a mask is created.
    */
   function findEditTarget(imageId: string, preferredSegmentId?: Maybe<string>) {
-    return maskFor(imageId, targetSegmentId(preferredSegmentId))?.id;
+    return maskFor(imageId, targetSegmentId(imageId, preferredSegmentId))?.id;
   }
 
   /**
@@ -644,8 +663,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
    * the lock, and a refused edit would leave both behind. This answers from the
    * segment alone, creating nothing, so every edit path can refuse first.
    */
-  const editTargetLocked = (preferredSegmentId?: Maybe<string>) =>
-    segmentLocked(targetSegmentId(preferredSegmentId));
+  const editTargetLocked = (
+    imageId: string,
+    preferredSegmentId?: Maybe<string>
+  ) => segmentLocked(targetSegmentId(imageId, preferredSegmentId));
 
   /**
    * Resolves or creates the mask an edit targets. With no segments the first
@@ -658,20 +679,27 @@ export const useSegmentationStore = defineStore('segmentation', () => {
   ) {
     edits.beforeEdit();
     const segmentId =
-      targetSegmentId(preferredSegmentId) ??
-      segmentRegistry.ensureSelectedSegment();
+      targetSegmentId(imageId, preferredSegmentId) ??
+      segmentRegistry.ensureSelectedSegment(imageId);
     return ensureMask(imageId, segmentId).id;
   }
 
-  /** A segment's mask on every image that has one, by the per-image index. */
+  /** The segment's mask, if present, found through the per-image indexes. */
   const masksOfSegment = (segmentId: string) =>
     Object.values(segmentations).flatMap((segmentation) => {
       const maskId = maskIdsBySegment.get(segmentation.id)?.get(segmentId);
       return maskId ? [segmentation.masks[maskId]] : [];
     });
 
+  const referencedSegments = computed(
+    () =>
+      new Set(
+        [...maskIdsBySegment.values()].flatMap((index) => [...index.keys()])
+      )
+  );
+
   segmentRegistry.declareReferences('labelmaps', {
-    has: (segmentId) => masksOfSegment(segmentId).length > 0,
+    has: (segmentId) => referencedSegments.value.has(segmentId),
     remove: (segmentId) =>
       masksOfSegment(segmentId).forEach((mask) => deleteMask(mask.id)),
   });

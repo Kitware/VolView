@@ -2,16 +2,12 @@ import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import {
-  createStateFileRestorer,
-  restoreStateFile,
-} from '@/src/io/import/processors/restoreStateFile';
-import type { StateFileSetupResult } from '@/src/io/import/common';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
+import { readSessionSetup } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { makeImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // Disjoint restore stateID namespaces: a composed
@@ -81,34 +77,12 @@ type UriLeaf = {
   stateFileLeaf?: { stateID: string };
 };
 
-async function prepareLeaves(manifest: Record<string, unknown>) {
-  const file = new File([JSON.stringify(manifest)], 'session.volview.json', {
-    type: 'application/json',
-  });
-  const result = await restoreStateFile({
-    type: 'file',
-    file,
-    fileType: 'application/json',
-  });
-  expect((result as StateFileSetupResult).type).toBe('stateFileSetup');
-  return result as StateFileSetupResult;
-}
-
-function makeImage(fillValue = 0) {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(4 * 4 * 4).fill(fillValue),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
-
 const seatImage = (id: string, name: string, fillValue = 0) =>
-  useImageCacheStore().addVTKImageData(makeImage(fillValue), name, { id });
+  useImageCacheStore().addVTKImageData(
+    makeImage({ values: new Uint8Array(4 * 4 * 4).fill(fillValue) }),
+    name,
+    { id }
+  );
 
 // Replays importDataSources' map assembly (stateIDToStoreID[leaf.stateID] =
 // dataID, in leaf COMPLETION order — last write wins), which is exactly where
@@ -132,7 +106,8 @@ const restoreOnto = async (
     manifest: setup.manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(setup.manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(setup.manifest, dataIDMap)
+      .segmentIdMap,
     labelmapSources: planLabelmapSources(setup.manifest).sources,
     io: artifactIO,
   });
@@ -155,7 +130,7 @@ describe('restore stateID namespaces (collision)', () => {
   });
 
   it('mints disjoint stateIDs for a dataset and a leaf sharing the numeral', async () => {
-    const setup = await prepareLeaves(collisionManifest());
+    const setup = await readSessionSetup(collisionManifest());
     const leaves = setup.dataSources as UriLeaf[];
 
     const base = leaves.find((leaf) => leaf.uri === BASE_URI);
@@ -191,7 +166,8 @@ describe('restore stateID namespaces (collision)', () => {
       parent: BASE_STORE_ID,
     });
     expect(views.setDataForAllViews).toHaveBeenCalledExactlyOnceWith(
-      BASE_STORE_ID
+      BASE_STORE_ID,
+      undefined
     );
   });
 
@@ -204,7 +180,7 @@ describe('restore stateID namespaces (collision)', () => {
   ])(
     'restores both loadables correctly when the $label',
     async ({ completionOrder }) => {
-      const setup = await prepareLeaves(collisionManifest());
+      const setup = await readSessionSetup(collisionManifest());
       const leaves = setup.dataSources as UriLeaf[];
       const stateIDToStoreID = assembleStateIdMap(leaves, completionOrder);
 
@@ -239,9 +215,11 @@ describe('restore stateID namespaces (collision)', () => {
     // Those keys must keep working with no prefix (wire compat with every
     // existing saved scene).
     seatImage(BASE_STORE_ID, 'CT Chest', 0);
-    artifactIO.read.mockResolvedValue({ image: makeImage(7) });
+    artifactIO.read.mockResolvedValue({
+      image: makeImage({ values: new Uint8Array(4 * 4 * 4).fill(7) }),
+    });
 
-    const setup = await prepareLeaves({
+    const setup = await readSessionSetup({
       version: '6.4.0',
       dataSources: [{ id: 1, type: 'uri', uri: BASE_URI, name: 'CT Chest' }],
       datasets: [{ id: '2', dataSourceId: 1 }],

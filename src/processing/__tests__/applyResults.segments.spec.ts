@@ -15,7 +15,9 @@ import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
 import { defer } from '@/src/utils';
 import {
+  savedSegmentNames,
   seatImage,
+  showImage,
   seedVoxel,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -28,7 +30,7 @@ const blue = [0, 0, 255, 255] as [number, number, number, number];
 const red = [255, 0, 0, 255] as [number, number, number, number];
 
 const existingMask = (imageId: string, name: string) => {
-  const segmentId = registry().mintSegment({ name, color: red });
+  const segmentId = registry().mintSegment(imageId, { name, color: red });
   const maskId = store().resolveEditTarget(imageId, segmentId);
   seedVoxel(maskId, [1, 1, 1]);
   return { segmentId, maskId };
@@ -78,6 +80,67 @@ beforeEach(async () => {
 });
 
 describe('processing segment identity', () => {
+  it('copies an unviewed destination before conversion waits while focus changes', async () => {
+    await showImage('parent-A');
+    registry().addSegment('parent-A', { name: 'Liver', color: red });
+    registry().addSegment('parent-A', { name: 'Node' });
+    await seatImage('parent-C');
+    registry().mintSegment('parent-C', { name: 'Kidney', color: blue });
+    const entered = defer<void>();
+    const released = defer<void>();
+    const conversion = store().convertImageToLabelmap;
+    vi.spyOn(store(), 'convertImageToLabelmap').mockImplementation(
+      (imageId, parentId, options) =>
+        conversion(imageId, parentId, {
+          ...options,
+          resample: async (_parent, image) => {
+            entered.resolve();
+            await released.promise;
+            return image;
+          },
+        })
+    );
+
+    const applying = importResult([{ value: 1, name: 'Tumor', color: blue }]);
+    await entered.promise;
+    await showImage('parent-C');
+    released.resolve();
+
+    expect(await applying).toEqual({ status: 'applied' });
+    const saved = await serializeScene(['parent-A', 'parent-B', 'parent-C']);
+    const destination = saved.manifest.imageSegmentSets!.find(
+      ({ imageId }) => imageId === 'parent-B'
+    )!;
+    const definitions = new Map(
+      saved.manifest.segments!.map((segment) => [segment.id, segment])
+    );
+    expect(
+      destination.segmentIds.map((id) => definitions.get(id)?.name)
+    ).toEqual(['Liver', 'Node', 'Tumor']);
+    expect(definitions.get(destination.selectedSegmentId!)?.name).toBe('Node');
+    expect(savedMasks(saved, 'parent-B')).toMatchObject([
+      { segment: { name: 'Tumor', color: blue } },
+    ]);
+  });
+
+  it('keeps the image copy when applying a segmentation result', async () => {
+    await showImage('parent-A');
+    registry().addSegment('parent-A', { name: 'Liver' });
+    await showImage('parent-B');
+
+    expect(
+      await importResult([{ value: 1, name: 'Tumor', color: blue }])
+    ).toEqual({ status: 'applied' });
+    const saved = await save();
+    expect(savedSegmentNames('parent-B', saved.manifest)).toEqual([
+      'Liver',
+      'Tumor',
+    ]);
+    expect(savedMasks(saved, 'parent-B')).toMatchObject([
+      { segment: { name: 'Tumor' } },
+    ]);
+  });
+
   it("does not change another image's segment named after the output file", async () => {
     const { segmentId, maskId } = existingMask('parent-A', 'output');
     const toolId = usePolygonStore().addTool({
@@ -111,7 +174,7 @@ describe('processing segment identity', () => {
     ]);
   });
 
-  it('reuses the declared segment across images and keeps its existing appearance', async () => {
+  it('keeps same-named segments independent across images', async () => {
     const { segmentId } = existingMask('parent-A', 'Tumor');
     registry().updateSegment(segmentId, { visible: false, locked: true });
 
@@ -122,11 +185,17 @@ describe('processing segment identity', () => {
     const saved = await save();
     expect(savedMasks(saved, 'parent-B')).toMatchObject([
       {
+        segment: { name: 'Tumor', color: blue, visible: true, locked: false },
+      },
+    ]);
+    expect(savedMasks(saved, 'parent-B')[0].segmentId).not.toBe(segmentId);
+    expect(savedMasks(saved, 'parent-A')).toMatchObject([
+      {
         segmentId,
         segment: { name: 'Tumor', color: red, visible: false, locked: true },
       },
     ]);
-    expect(saved.manifest.segments).toHaveLength(1);
+    expect(saved.manifest.segments).toHaveLength(2);
   });
 
   it('uses a distinct segment when the declared segment already has a mask on the target', async () => {

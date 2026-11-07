@@ -9,6 +9,7 @@ import { AnnotationTool, ToolID } from '@/src/types/annotation-tool';
 import { useIdStore } from '@/src/store/id';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
 import type { IToolStore } from '@/src/store/tools/types';
+import type { SkippedRestoreItem } from '@/src/segmentation/io/restore';
 import { applyLocator } from '@/src/core/annotations/locator';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -92,6 +93,9 @@ export const useAnnotationTool = <
   const registry = useSegmentStore().segments;
 
   function addTool(tool: ToolPatch): ToolID {
+    const segmentId =
+      tool.segmentId ?? registry.selectedSegmentId(tool.imageID) ?? '';
+    registry.assertBelongsToImage(tool.imageID, segmentId);
     const id = useIdStore().nextId() as ToolID;
     if (id in toolByID.value) {
       throw new Error('Cannot add tool with conflicting ID');
@@ -100,8 +104,8 @@ export const useAnnotationTool = <
     toolByID.value[id] = {
       ...makeAnnotationToolDefaults(),
       ...toolDefaults(),
-      segmentId: registry.selectedSegmentId.value ?? '',
       ...tool,
+      segmentId,
       id,
     };
 
@@ -135,8 +139,11 @@ export const useAnnotationTool = <
 
   function updateTool(id: ToolID, patch: ToolPatch) {
     if (!(id in toolByID.value)) return;
-
-    toolByID.value[id] = { ...toolByID.value[id], ...patch, id };
+    const next = { ...toolByID.value[id], ...patch, id };
+    // A stub being placed may still name a deleted segment; placing resolves it.
+    if (!next.placing || registry.getSegment(next.segmentId))
+      registry.assertBelongsToImage(next.imageID, next.segmentId);
+    toolByID.value[id] = next;
   }
 
   // Starting an annotation is the gesture that names the segment it delineates:
@@ -145,10 +152,11 @@ export const useAnnotationTool = <
   // placed. Idempotent, since the tool then names a live segment.
   function resolveToolSegment(id: ToolID) {
     const tool = toolByID.value[id];
-    if (!tool || registry.getSegment(tool.segmentId)) return;
-    updateTool(id, {
-      segmentId: registry.ensureSelectedSegment(),
-    } as ToolPatch);
+    if (!tool?.imageID) return;
+    if (!registry.belongsToImage(tool.imageID, tool.segmentId))
+      updateTool(id, {
+        segmentId: registry.ensureSelectedSegment(tool.imageID),
+      } as ToolPatch);
   }
 
   // Placing resolves too, for an annotation that arrived without one of the
@@ -208,8 +216,9 @@ export const useAnnotationTool = <
     segmentIdMap: Record<string, string> = {}
   ) {
     const imageCache = useImageCacheStore();
+    const skipped: SkippedRestoreItem[] = [];
     serialized?.tools
-      .filter(({ imageID, segmentId }) => {
+      .filter(({ imageID, segmentId, name }) => {
         // An image that did not load leaves its annotations with nothing to
         // hang on: they cannot be drawn, and seating them with a missing image
         // would make the next save's whole tools section invalid.
@@ -217,7 +226,15 @@ export const useAnnotationTool = <
         if (!mappedImageId || !imageCache.imageById[mappedImageId])
           return false;
         const mappedId = segmentId && segmentIdMap[segmentId];
-        return !mappedId || registry.getSegment(mappedId);
+        if (mappedId && !registry.getSegment(mappedId)) return false;
+        if (mappedId && !registry.belongsToImage(mappedImageId, mappedId)) {
+          skipped.push({
+            name: name ?? manifestKey,
+            reason: 'its segment belongs to another image',
+          });
+          return false;
+        }
+        return true;
       })
       .map(
         ({ imageID, segmentId, ...rest }) =>
@@ -228,6 +245,7 @@ export const useAnnotationTool = <
           }) as ToolPatch
       )
       .forEach((tool) => addTool(tool));
+    return skipped;
   }
 
   // A tool still being placed is the widget's own stub, not content: taking it

@@ -12,6 +12,7 @@ import {
   ImportDataSourcesResult,
   asIntermediateResult,
   StateFileSetupResult,
+  isVolumeResult,
 } from '@/src/io/import/common';
 import {
   DataSource,
@@ -29,6 +30,7 @@ import handleRemoteManifest from '@/src/io/import/processors/remoteManifest';
 import {
   restoreStateFile,
   completeStateFileRestore,
+  type RestoreOptions,
 } from '@/src/io/import/processors/restoreStateFile';
 import updateFileMimeType from '@/src/io/import/processors/updateFileMimeType';
 import handleConfig from '@/src/io/import/processors/handleConfig';
@@ -65,10 +67,6 @@ const handleCollections: ImportHandler = (dataSource) => {
     : dataSource.sources;
   return asIntermediateResult(sources);
 };
-
-function isSelectable(result: ImportResult): result is LoadableVolumeResult {
-  return result.type === 'data' && result.dataType === 'image';
-}
 
 const applyConfigsPostState = (
   results: Array<ConfigResult>
@@ -159,6 +157,15 @@ async function processImportQueue(
 
   let queue = enqueue(dataSources);
 
+  const enqueueChildren = (sources: DataSource[]) => {
+    const [chunks, otherSources] = partition(
+      (source) => source.type === 'chunk',
+      sources
+    );
+    chunkSources.push(...chunks);
+    queue.push(...enqueue(otherSources));
+  };
+
   while (queue.length) {
     const { index } = await asyncSelect(queue.map((item) => item.promise));
     const { promise, source } = queue[index];
@@ -169,16 +176,9 @@ async function processImportQueue(
       case 'stateFileSetup':
         stateFileSetups.push(result);
       // fallthrough to handle dataSources
-      case 'intermediate': {
-        const [chunks, otherSources] = partition(
-          (ds) => ds.type === 'chunk',
-          result.dataSources
-        );
-        chunkSources.push(...chunks);
-
-        queue.push(...enqueue(otherSources));
+      case 'intermediate':
+        enqueueChildren(result.dataSources);
         break;
-      }
       case 'config':
         configResults.push(result);
         try {
@@ -198,6 +198,52 @@ async function processImportQueue(
   }
 
   return { chunkSources, configResults, stateFileSetups, results };
+}
+
+async function completeStateFileSetups(
+  stateFileSetups: StateFileSetupResult[],
+  restore: RestoreProcessors,
+  loadableResults: LoadableResult[],
+  failedLeaves: RestoreOptions['failedLeaves']
+) {
+  const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
+  // Leaf stateIDs covered by a consolidated notice that actually ran: only
+  // their errors may be suppressed by the import pipeline.
+  const reportedStateIDs = new Set<string>();
+  for (const setup of stateFileSetups) {
+    try {
+      await restore.completeStateFileRestore(
+        setup.manifest,
+        setup.stateFiles,
+        stateIDToStoreID,
+        {
+          missingFiles: setup.missingFiles,
+          failedLeaves,
+          migration: setup.migration,
+        }
+      );
+      setup.dataSources.forEach((src) => {
+        findStateFileLeaves(src).forEach((leaf) =>
+          reportedStateIDs.add(leaf.stateID)
+        );
+      });
+      setup.missingFiles.forEach(({ stateID }) =>
+        reportedStateIDs.add(stateID)
+      );
+    } catch (err) {
+      // Auto-degrade to an ephemeral open: a mid-restore throw leaves the
+      // already-loaded bases as plain datasets and the session's attached set
+      // stays empty, so a later save prunes every launch-composition entry.
+      // Restore steps already applied (layout, view bindings) are not rolled
+      // back. One notice here; this setup's leaf errors stay unflagged so the
+      // generic load-error dialog still names them.
+      useMessageStore().addWarning(
+        'Could not restore the saved session; opened its images instead',
+        { details: ensureError(err).message }
+      );
+    }
+  }
+  return reportedStateIDs;
 }
 
 async function importDataSourcesWithPolicy(
@@ -291,40 +337,12 @@ async function importDataSourcesWithPolicy(
       }))
     );
 
-  const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
-  // Leaf stateIDs covered by a consolidated notice that actually ran — only
-  // their errors may be suppressed below.
-  const reportedStateIDs = new Set<string>();
-  for (const setup of stateFileSetups) {
-    try {
-      await restore.completeStateFileRestore(
-        setup.manifest,
-        setup.stateFiles,
-        stateIDToStoreID,
-        setup.missingFiles,
-        failedLeaves
-      );
-      setup.dataSources.forEach((src) => {
-        findStateFileLeaves(src).forEach((leaf) =>
-          reportedStateIDs.add(leaf.stateID)
-        );
-      });
-      setup.missingFiles.forEach(({ stateID }) =>
-        reportedStateIDs.add(stateID)
-      );
-    } catch (err) {
-      // Auto-degrade to an ephemeral open: a mid-restore throw leaves the
-      // already-loaded bases as plain datasets and the session's attached set
-      // stays empty, so a later save prunes every launch-composition entry.
-      // Restore steps already applied (layout, view bindings) are not rolled
-      // back. One notice here; this setup's leaf errors stay unflagged so the
-      // generic load-error dialog still names them.
-      useMessageStore().addWarning(
-        'Could not restore the saved session; opened its images instead',
-        { details: ensureError(err).message }
-      );
-    }
-  }
+  const reportedStateIDs = await completeStateFileSetups(
+    stateFileSetups,
+    restore,
+    loadableResults,
+    failedLeaves
+  );
 
   results.push(...applyConfigsPostState(configResults));
 
@@ -363,6 +381,6 @@ export function toDataSelection(loadable: LoadableVolumeResult) {
 }
 
 export function convertSuccessResultToDataSelection(result: ImportResult) {
-  if (!isSelectable(result)) return null;
+  if (!isVolumeResult(result)) return null;
   return toDataSelection(result);
 }

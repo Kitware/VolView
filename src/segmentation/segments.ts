@@ -1,46 +1,243 @@
 import { defineStore } from 'pinia';
-import { markRaw } from 'vue';
+import { markRaw, ref, watch } from 'vue';
 
 import { onImageDeleted } from '@/src/composables/onImageDeleted';
-import type { Manifest, StateFile } from '@/src/io/state-file/schema';
-import { createSegmentRegistry } from '@/src/segmentation/segmentRegistry';
+import { useCurrentImage } from '@/src/composables/useCurrentImage';
+import { declareManifestRefs } from '@/src/core/manifestRefs';
+import {
+  manifestDatasets,
+  type Manifest,
+  type StateFile,
+} from '@/src/io/state-file/schema';
+import type { ConfiguredSegments } from '@/src/io/import/configSegments';
+import type { ManifestMigration } from '@/src/io/state-file/migrations';
+import {
+  DEFAULT_SEGMENT_COLOR,
+  type Segment,
+  type SegmentDefaults,
+} from '@/src/segmentation/segment';
+import {
+  createSegmentRegistry,
+  defaultsFromConfig,
+  snapshotFromDefaults,
+} from '@/src/segmentation/segmentRegistry';
 import { useImageCacheStore } from '@/src/store/image-cache';
+import type { Maybe } from '@/src/types';
+import { isRecord, partition } from '@/src/utils';
 
-/**
- * Paint, rectangles, polygons and rulers share this registry and selection.
- * The same segment can hold masks and shapes on every image.
- */
+declareManifestRefs('imageSegmentSets', (manifest) =>
+  (Array.isArray(manifest.imageSegmentSets)
+    ? manifest.imageSegmentSets
+    : []
+  ).flatMap((set, index) => {
+    if (!isRecord(set)) return [];
+    const where = `imageSegmentSets[${index}]`;
+    return [
+      ...(typeof set.imageId === 'string'
+        ? [{ kind: 'dataset' as const, id: set.imageId, where }]
+        : []),
+      ...(Array.isArray(set.segmentIds) ? set.segmentIds : []).flatMap((id) =>
+        typeof id === 'string'
+          ? [{ kind: 'segment' as const, id, where: `${where}.segmentIds` }]
+          : []
+      ),
+      ...(typeof set.selectedSegmentId === 'string'
+        ? [
+            {
+              kind: 'segment' as const,
+              id: set.selectedSegmentId,
+              where: `${where}.selectedSegmentId`,
+            },
+          ]
+        : []),
+    ];
+  })
+);
+
+const hasOnlyArtifactSegments = (manifest: Manifest) =>
+  manifest.segmentationArtifacts?.length &&
+  !manifest.segments?.length &&
+  !manifest.imageSegmentSets?.length;
+
+/** Paint and annotation shapes share definitions within their owning image. */
 export const useSegmentStore = defineStore('segments', () => {
-  const registry = createSegmentRegistry();
   const imageCacheStore = useImageCacheStore();
+  // An image edited before it was ever viewed seeds as if it had been viewed.
+  const prepareForEdit = (imageId: string) => {
+    if (
+      !registry.imageSets.value[imageId] &&
+      imageCacheStore.imageById[imageId]
+    )
+      registry.initializeSet(imageId, inheritedSet());
+  };
+  const registry = createSegmentRegistry(prepareForEdit);
+  const seedSegmentDefaults = ref<SegmentDefaults[]>([]);
+  const { currentImageID: activeImageId } = useCurrentImage('global');
+  const lastImageId = ref<string>();
+
+  const sourceImageId = (imageId?: Maybe<string>) =>
+    [imageId, lastImageId.value].find(
+      (id): id is string => !!id && !!registry.imageSets.value[id]
+    );
+
+  // A new set copies the last viewed image's, else starts from the defaults.
+  const inheritedSet = () => {
+    const source = sourceImageId();
+    return source
+      ? registry.snapshot(source)
+      : snapshotFromDefaults(seedSegmentDefaults.value);
+  };
+
+  const previewSegmentColor = (imageId: Maybe<string>) => {
+    const source = sourceImageId(imageId);
+    if (source) {
+      const segmentId = registry.selectedSegmentId(source);
+      return segmentId
+        ? registry.appearanceOf(segmentId).color
+        : registry.nextSegmentColor(source);
+    }
+    return seedSegmentDefaults.value[0]?.color ?? DEFAULT_SEGMENT_COLOR;
+  };
+
+  watch(
+    activeImageId,
+    (imageId) => {
+      if (!imageId || !imageCacheStore.imageById[imageId]) return;
+      prepareForEdit(imageId);
+      lastImageId.value = imageId;
+    },
+    { immediate: true, flush: 'sync' }
+  );
+
+  // An existing set keeps its identity; incoming definitions merge into it.
+  function seedSet(imageId: string, defaults: readonly SegmentDefaults[] = []) {
+    if (!imageCacheStore.imageById[imageId]) return false;
+    if (!registry.imageSets.value[imageId])
+      registry.initializeSet(imageId, snapshotFromDefaults(defaults));
+    return true;
+  }
+
+  // An image without a set gets the configured segments as its set.
+  function replaceConfigSegments(configured: ConfiguredSegments | null) {
+    seedSegmentDefaults.value = defaultsFromConfig(configured ?? {});
+    imageCacheStore.imageIds.forEach((imageId) =>
+      registry.replaceConfigSegments(imageId, configured)
+    );
+  }
 
   function serialize(state: StateFile) {
     state.manifest.segments = registry.serialize();
-    const selected = registry.selectedSegmentId.value;
-    if (selected) state.manifest.selectedSegment = selected;
+    state.manifest.imageSegmentSets = Object.entries(
+      registry.imageSets.value
+    ).map(([imageId, set]) => ({
+      imageId,
+      segmentIds: [...set.segmentIds],
+      selectedSegmentId: registry.selectedSegmentId(imageId),
+    }));
+    state.manifest.seedSegmentDefaults = seedSegmentDefaults.value;
   }
 
-  /** Fresh ids for the incoming segments; segmentIdMap remaps every reference. */
-  function deserialize(manifest: Manifest) {
-    const { idMap: segmentIdMap, repeated } = registry.adopt(manifest.segments);
-    registry.restoreSelection(
-      manifest.selectedSegment && segmentIdMap[manifest.selectedSegment]
+  function restoreDefaults(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>
+  ) {
+    // Artifact-only manifests provide incoming definitions through their masks.
+    // Initialize every restored image before views or asynchronous decoding can
+    // give the active image a copied set.
+    if (manifest.seedSegmentDefaults || hasOnlyArtifactSegments(manifest)) {
+      // Defaults are only ever replaced, and seeding copies their colors.
+      if (manifest.seedSegmentDefaults)
+        seedSegmentDefaults.value = manifest.seedSegmentDefaults;
+      const savedImages = new Set(
+        (manifest.imageSegmentSets ?? []).map(
+          ({ imageId }) => dataIDMap[imageId]
+        )
+      );
+      const incomingImageIds = [
+        ...manifestDatasets(manifest).map(({ id }) => id),
+        ...(manifest.segmentationArtifacts ?? []).map(
+          ({ parentImage }) => parentImage
+        ),
+      ].map((id) => dataIDMap[id]);
+      [...new Set(incomingImageIds)]
+        .filter((imageId) => imageId && !savedImages.has(imageId))
+        .forEach((imageId) => seedSet(imageId, seedSegmentDefaults.value));
+    }
+  }
+
+  function deserialize(
+    manifest: Manifest,
+    dataIDMap: Record<string, string>,
+    migration?: ManifestMigration
+  ) {
+    const segmentIdMap: Record<string, string> = Object.create(null);
+    const repeated: Segment[] = [];
+    const legacyByImage = new Map<string, Map<string, string>>();
+    const catalogById = new Map<string, Segment[]>();
+    for (const segment of manifest.segments ?? []) {
+      const entries = catalogById.get(segment.id);
+      if (entries) entries.push(segment);
+      else catalogById.set(segment.id, [segment]);
+    }
+    (manifest.imageSegmentSets ?? []).forEach((set) => {
+      const imageId = dataIDMap[set.imageId];
+      if (!imageId || !seedSet(imageId)) return;
+      const incoming = [...new Set(set.segmentIds)].flatMap(
+        (id) => catalogById.get(id) ?? []
+      );
+      const [claimed, unclaimed] = partition(
+        ({ id }) => Object.hasOwn(segmentIdMap, id),
+        incoming
+      );
+      repeated.push(...claimed);
+      const legacy = legacyByImage.get(imageId) ?? new Map<string, string>();
+      legacyByImage.set(imageId, legacy);
+      const distinct = unclaimed.filter(({ id }) => {
+        const original = migration?.legacySegmentIds[id];
+        const target =
+          original === undefined ? undefined : legacy.get(original);
+        if (!target) return true;
+        segmentIdMap[id] = target;
+        return false;
+      });
+      const adopted = registry.adopt(imageId, distinct);
+      Object.assign(segmentIdMap, adopted.idMap);
+      repeated.push(...adopted.repeated);
+      set.segmentIds.forEach((id) => {
+        const original = migration?.legacySegmentIds[id];
+        if (original !== undefined && segmentIdMap[id])
+          legacy.set(original, segmentIdMap[id]);
+      });
+      registry.restoreSelection(
+        imageId,
+        set.selectedSegmentId && segmentIdMap[set.selectedSegmentId]
+      );
+    });
+    restoreDefaults(manifest, dataIDMap);
+    const assigned = new Set(
+      (manifest.imageSegmentSets ?? []).flatMap(({ segmentIds }) => segmentIds)
     );
-    return { segmentIdMap, repeated };
+    const unassigned = (manifest.segments ?? []).filter(
+      ({ id }) => !assigned.has(id)
+    );
+    return { segmentIdMap, repeated, unassigned };
   }
 
-  // Swept as the last image leaves, never later, so a following load keeps its segments.
-  onImageDeleted(() => {
-    if (imageCacheStore.imageIds.length > 0) return;
-    registry.segmentList.value
-      .filter(({ id }) => !registry.heldByConfig(id))
-      .forEach(({ id }) => registry.deleteSegment(id));
+  onImageDeleted((deleted) => {
+    deleted.forEach((imageId) => {
+      if (lastImageId.value === imageId) lastImageId.value = undefined;
+      registry.removeImage(imageId);
+    });
   });
 
-  // Raw: a pinia store is reactive, and a proxy of the registry would unwrap
-  // its refs out from under every consumer that holds them.
+  // Pinia must not unwrap the registry refs held by its consumers.
   return {
     segments: markRaw(registry),
+    seedSegmentDefaults,
+    prepareForEdit,
+    previewSegmentColor,
+    seedSet,
+    replaceConfigSegments,
     serialize,
     deserialize,
   };

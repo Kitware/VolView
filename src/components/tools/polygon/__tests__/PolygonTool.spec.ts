@@ -55,7 +55,7 @@ const rasterizeButton = (wrapper: ReturnType<typeof mountMenu>) =>
     .find((button) => button.text().includes('Rasterize'))!;
 
 const makePolygon = (imageID: string, slice = 2) => {
-  const segmentId = useSegmentStore().segments.addSegment({
+  const segmentId = useSegmentStore().segments.addSegment(imageID, {
     name: 'Tumor',
   });
   return usePolygonStore().addTool({
@@ -86,7 +86,7 @@ describe('PolygonTool rasterize context', () => {
       else await seatImage('b', { dimensions: [6, 6, 4] });
       await showImage('a');
       const polygonId = makePolygon('a');
-      useSegmentStore().segments.addSegment({ name: 'Kidney' });
+      useSegmentStore().segments.addSegment('b', { name: 'Kidney' });
       const wrapper = mountMenu(polygonId, 'a');
 
       await showImage('b');

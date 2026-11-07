@@ -12,12 +12,15 @@ import { usePaintToolStore } from '../store/tools/paint';
 import { PaintMode } from '../core/tools/paint';
 import { computeEffectiveView } from '../core/views/effectiveView';
 
-// One registry holds the segments every tool draws into, so cycling it is not
-// scoped to a tool: paint takes the selection the same way a polygon does.
+// Each image shares its selection across tools, so cycling applies equally to
+// paint and shape placement on the active image.
 const applySegmentOffset = (offset: number) => () => {
   const { segments } = useSegmentStore();
-  const ids = segments.segmentList.value.map(({ id }) => id);
-  const selectedIndex = ids.indexOf(segments.selectedSegmentId.value ?? '');
+  const { currentImageID } = useCurrentImage('global');
+  const ids = segments.segmentList(currentImageID.value).map(({ id }) => id);
+  const selectedIndex = ids.indexOf(
+    segments.selectedSegmentId(currentImageID.value) ?? ''
+  );
   if (selectedIndex === -1) return;
   // A negative index wraps, so cycling back from the first lands on the last.
   const next = ids.at((selectedIndex + offset) % ids.length);
@@ -26,7 +29,8 @@ const applySegmentOffset = (offset: number) => () => {
 
 const selectSegmentByIndex = (index: number) => () => {
   const { segments } = useSegmentStore();
-  const segment = segments.segmentList.value[index];
+  const { currentImageID } = useCurrentImage('global');
+  const segment = segments.segmentList(currentImageID.value)[index];
   if (segment) segments.selectSegment(segment.id);
 };
 

@@ -11,6 +11,7 @@ import {
   openAnnotationSegments,
   segmentNames,
   waitForNamedSegments,
+  createSegmentRow,
 } from './segmentationTestUtils';
 
 const STEM = 'clear-scene-segments';
@@ -31,7 +32,8 @@ describe('Clearing the scene', () => {
     expect(await segmentNames()).toEqual(['Tumor', 'Segment 1', 'Segment 2']);
 
     await browser.keys(['Control', '/']);
-    await $('[data-testid="segment-list"]').waitForExist({ reverse: true });
+    await browser.waitUntil(async () => (await segmentNames()).length === 0);
+    await expect(createSegmentRow()).toBeDisabled();
 
     await openThroughDialog(path.join(TEMP_DIR, image));
     await openAnnotationSegments();

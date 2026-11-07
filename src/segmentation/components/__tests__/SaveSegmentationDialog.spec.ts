@@ -58,7 +58,7 @@ const paintedSegmentation = (imageId: string) => {
   const segmentation = store().ensureSegmentationForImage(imageId);
   const mask = store().createMask(
     segmentation.id,
-    mintSegment({ name: 'Tumor' })
+    mintSegment(imageId, { name: 'Tumor' })
   );
   seedVoxel(mask.id, [1, 1, 0]);
   return segmentation;

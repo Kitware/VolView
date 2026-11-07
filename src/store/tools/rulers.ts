@@ -39,14 +39,17 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     deserializeTools,
   } = annotationTool;
 
-  const lengthByID = computed<Record<string, number>>(() => {
+  const lengthByID = computed(() => {
     const byID = rulerByID.value;
-    return rulerIDs.value.reduce((lengths, id) => {
-      const { firstPoint, secondPoint } = byID[id];
-      return Object.assign(lengths, {
-        [id]: Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint)),
-      });
-    }, {});
+    return Object.fromEntries(
+      rulerIDs.value.map((id) => {
+        const { firstPoint, secondPoint } = byID[id];
+        return [
+          id,
+          Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint)),
+        ] as const;
+      })
+    );
   });
 
   function getPoints(id: ToolID) {
@@ -66,7 +69,7 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     dataIDMap: Record<string, string>,
     segmentIdMap: Record<string, string>
   ) {
-    deserializeTools(manifest.tools?.rulers, dataIDMap, segmentIdMap);
+    return deserializeTools(manifest.tools?.rulers, dataIDMap, segmentIdMap);
   }
 
   return {
