@@ -1,5 +1,5 @@
 import medicalPresets from '@/src/vtk/MedicalColorPresets.json';
-import { DEFAULT_ADAPTIVE_VOLUME_PRESET } from '@/src/utils/adaptiveVolumePreset';
+import { DEFAULT_ADAPTIVE_VOLUME_PRESET } from '@/src/utils/adaptiveVolumePresets';
 import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
 
 type DefaultVolumePresetInput = {

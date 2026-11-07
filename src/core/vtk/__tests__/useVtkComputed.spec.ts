@@ -53,22 +53,26 @@ describe('useVtkComputed', () => {
   it('refreshes the displayed range after VTK modification and cancels queued work on unmount', async () => {
     vi.useFakeTimers();
     const image = vtkImageData.newInstance();
+    const getDimensions = vi.fn(() => image.getDimensions());
     const wrapper = mount(
       defineComponent({
         setup() {
-          const dimensions = useVtkComputed(image, () => image.getDimensions());
+          const dimensions = useVtkComputed(image, getDimensions);
           return () => h('output', dimensions.value.join(','));
         },
       })
     );
+    expect(getDimensions).toHaveBeenCalledTimes(1);
     image.setDimensions([2, 3, 4]);
     await vi.runAllTimersAsync();
     expect(wrapper.text()).toBe('2,3,4');
+    expect(getDimensions).toHaveBeenCalledTimes(2);
 
     image.setDimensions([5, 6, 7]);
     wrapper.unmount();
     image.delete();
     await vi.runAllTimersAsync();
     expect(vi.getTimerCount()).toBe(0);
+    expect(getDimensions).toHaveBeenCalledTimes(2);
   });
 });

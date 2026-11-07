@@ -25,6 +25,7 @@ async function openStreamingVolume(
     sliceCount = 8,
     finalPixelValue = 0,
     restoreColoring = false,
+    finalSliceFails = false,
   } = {}
 ) {
   const directory = `progressive-${modality}-${normalized}-${sliceCount}-${finalPixelValue}`;
@@ -83,7 +84,7 @@ async function openStreamingVolume(
   // Let the ordinary URI loader read every slice's metadata. Keep one slice's
   // pixel request outstanding until the test explicitly releases it.
   heldSlice = await browser.addInitScript(
-    ({ pathname, prefixLength }) => {
+    ({ pathname, prefixLength, fail }) => {
       const original = window.fetch.bind(window);
       const released = new Promise<void>((resolve) => {
         window.addEventListener('release-volume-slice', () => resolve(), {
@@ -96,6 +97,7 @@ async function openStreamingVolume(
           return original(input, init);
         if (request.headers.has('range')) {
           await released;
+          if (fail) return new Response('Slice unavailable', { status: 503 });
           return original(input, init);
         }
         const response = await original(input, init);
@@ -109,6 +111,7 @@ async function openStreamingVolume(
     {
       pathname: `/tmp/${directory}/slice-${sliceCount - 1}.dcm`,
       prefixLength: headerLength,
+      fail: finalSliceFails,
     }
   );
   await volViewPage.open(`?urls=[tmp/${config},tmp/${manifest}]`);
@@ -159,6 +162,10 @@ describe('progressive volume presets', () => {
       await expectVisibleVolume();
       await expect(loadingIndicator()).toBeDisplayed();
       await openVolumeRenderingControls();
+      const shift = $('[data-testid="volume-color-shift"]');
+      const opacity = $('[data-testid="volume-opacity-editor"]');
+      await expect(shift).not.toExist();
+      await expect(opacity).not.toExist();
       const preset = modality === 'CT' ? 'CT-AAA' : 'MR-Default';
       await expect(presetCard(preset)).toHaveElementClass('bg-blue');
       await expect(presetLabel()).toHaveText(
@@ -183,6 +190,8 @@ describe('progressive volume presets', () => {
       );
       await releaseSlice();
       await expectCompletedPreset(preset);
+      await expect(shift).toExist();
+      await expect(opacity).toExist();
       await expect(cinematic.$('.v-slider input')).toBeEnabled();
       await expect(cinematic.$('.v-switch input')).toBeEnabled();
     });
@@ -229,6 +238,38 @@ describe('progressive volume presets', () => {
     await expect(
       $('[data-testid="volume-reset-color-opacity"]')
     ).toBeDisabled();
+  });
+
+  it('enables controls and thumbnails for decoded data when the final slice fails', async () => {
+    await openStreamingVolume('MR', { finalSliceFails: true });
+    await expectVisibleVolume();
+    await openVolumeRenderingControls();
+    await releaseSlice();
+    await expect(loadingIndicator()).not.toExist();
+    await expect(presetCard('MR-Default')).toHaveElementClass('bg-blue');
+    await expect(presetCard('Adaptive-Balanced')).toHaveAttribute(
+      'aria-disabled',
+      'false'
+    );
+    await expect(
+      $('[data-testid="volume-properties"] .v-slider input')
+    ).toBeEnabled();
+    const card = presetCard('Adaptive-Balanced');
+    await card.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await expect(card.$('img')).toExist();
+    await browser.waitUntil(
+      () =>
+        card.$('img').execute((element) => {
+          const image = element as HTMLImageElement;
+          return (
+            image.src.startsWith('data:image/') &&
+            image.complete &&
+            image.naturalWidth > 0
+          );
+        }),
+      { timeoutMsg: 'Expected a preset thumbnail for the decoded slices' }
+    );
+    expect(await volViewPage.getNotificationsCount()).toBe(1);
   });
 
   it('updates restored adaptive Shift bounds when the final slice expands the intensities', async () => {

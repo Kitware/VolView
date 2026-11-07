@@ -6,10 +6,8 @@ import { useImageStore } from '../store/datasets-images';
 import { useCurrentImage } from './useCurrentImage';
 import { PresetNameList } from '../vtk/ColorMaps';
 import { logError } from '../utils/loggers';
-import {
-  getAdaptiveVolumePresetUnavailableReason,
-  isAdaptiveVolumePreset,
-} from '@/src/utils/adaptiveVolumePreset';
+import { getAdaptiveVolumePresetUnavailableReason } from '@/src/utils/adaptiveVolumePreset';
+import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePresets';
 
 export function useVolumeThumbnailing(
   thumbnailSize: number,

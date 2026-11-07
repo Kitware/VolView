@@ -468,28 +468,17 @@ describe('PET/CT sample', () => {
   });
 
   it('keeps one PET overlay with edited colors when reopening the sample repeatedly', async () => {
-    const started = Date.now();
-    const phase = (name: string) =>
-      console.info('PET sample %s: %d ms', name, Date.now() - started);
-    phase('open start');
     const initial = await openAxialPetLayer();
-    phase('open end');
-    phase('edit start');
     const { pixels: edited, range } = await editPetColors(
       initial.pixels,
       initial.range
     );
-    phase('edit end');
     for (let reopening = 0; reopening < 2; reopening++) {
-      phase('reopen ' + (reopening + 1) + ' start');
       await reopenSample(edited, range, 'Cool to Warm');
-      phase('reopen ' + (reopening + 1) + ' end');
     }
-    phase('final capture start');
     await browser.saveScreenshot(
       path.join(TEMP_DIR, 'pet-ct-sample-reopened.png')
     );
-    phase('final capture end');
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 

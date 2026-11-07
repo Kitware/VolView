@@ -27,8 +27,8 @@ import {
   ADAPTIVE_VOLUME_LIGHTING,
   getAdaptiveVolumePreset,
   getAdaptiveVolumePresetUnavailableReason,
-  isAdaptiveVolumePreset,
 } from '@/src/utils/adaptiveVolumePreset';
+import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePresets';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
 import { VolumeColorConfig } from './types';
@@ -92,8 +92,14 @@ function getConventionalColorAndOpacity(
 
 export function getColorAndOpacityFromPreset(
   image: vtkImageData,
-  preset: string
+  preset: string,
+  isLoaded: boolean
 ): ColorAndOpacity | null {
+  if (
+    isAdaptiveVolumePreset(preset) &&
+    getAdaptiveVolumePresetUnavailableReason(image, isLoaded)
+  )
+    return null;
   return isAdaptiveVolumePreset(preset)
     ? getAdaptiveVolumePreset(image, preset)
     : getConventionalColorAndOpacity(
@@ -237,7 +243,6 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     vtkImageData,
     { key: string; config: VolumeColorConfig }
   >();
-  const provisionalDefaults = defaultVolumeColorConfig();
 
   const getDefaultColorPreset = (imageID: string) =>
     defaultConfigs[imageID]?.transferFunction?.preset ??
@@ -245,14 +250,12 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
 
   const getInitialColorAndOpacity = (imageID: string, image: vtkImageData) => {
     const preset = getDefaultColorPreset(imageID);
-    const adaptiveUnavailable = getAdaptiveVolumePresetUnavailableReason(
-      image,
-      useImageCacheStore().imageById[imageID]?.isLoaded() ?? false
-    );
     return (
-      (isAdaptiveVolumePreset(preset) && adaptiveUnavailable
-        ? null
-        : getColorAndOpacityFromPreset(image, preset)) ??
+      getColorAndOpacityFromPreset(
+        image,
+        preset,
+        useImageCacheStore().imageById[imageID]?.isLoaded() ?? false
+      ) ??
       getConventionalColorAndOpacity(
         getConventionalVolumePreset(getImageModality(imageID)),
         image.getPointData().getScalars().getRange()
@@ -280,7 +283,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     if (previous?.key === key) return previous.config;
 
     const coloring = {
-      ...provisionalDefaults,
+      ...defaultVolumeColorConfig(),
       ...getConventionalColorAndOpacity(preset, range),
       colorBy: {
         arrayName: imageData.getPointData().getScalars().getName(),
@@ -299,13 +302,17 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     dataID: string,
     patch: Partial<VolumeColorConfig>
   ) => {
+    const current = getConfig(viewID, dataID);
     const config = {
       ...defaultVolumeColorConfig(),
-      ...(getConfig(viewID, dataID) ?? getProvisionalColoring(dataID)),
+      ...(current ?? getProvisionalColoring(dataID)),
       ...patch,
     };
 
-    patchDoubleKeyRecord(configs, viewID, dataID, config);
+    patchDoubleKeyRecord(configs, viewID, dataID, {
+      ...config,
+      cvr: config.cvr === current?.cvr ? config.cvr : { ...config.cvr },
+    });
   };
 
   const createUpdateFunc = <K extends keyof VolumeColorConfig>(
@@ -340,12 +347,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     if (!image) throw new Error('Invalid imageID');
 
     const loaded = imageCacheStore.imageById[imageID]?.isLoaded() ?? false;
-    if (
-      isAdaptiveVolumePreset(preset) &&
-      getAdaptiveVolumePresetUnavailableReason(image, loaded)
-    )
-      return;
-    const coloring = getColorAndOpacityFromPreset(image, preset);
+    const coloring = getColorAndOpacityFromPreset(image, preset, loaded);
     if (!coloring) return;
 
     pendingOpacityRanges[viewID] ??= {};
@@ -378,7 +380,8 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     if (!image) return false;
     const baseline = getColorAndOpacityFromPreset(
       image,
-      current.transferFunction.preset
+      current.transferFunction.preset,
+      true
     );
     return baseline !== null && equalColorAndOpacity(current, baseline);
   };

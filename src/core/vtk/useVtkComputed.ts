@@ -25,25 +25,23 @@ export function useVtkComputed<T extends Maybe<vtkObject>, R>(
   obj: MaybeRef<T>,
   propertyGetter: () => R
 ) {
-  const initialValue = propertyGetter();
-  const trackedValue = ref(
-    Array.isArray(initialValue) ? [...initialValue] : initialValue
-  ) as Ref<R>;
+  const trackedValue = ref() as Ref<R>;
+  let previousValue: R;
   const refresh = () => {
     if (unref(obj)?.isDeleted()) return;
 
     const currentValue = propertyGetter(); // Avoid unnecessary updates when array contents haven't changed
     if (Array.isArray(currentValue)) {
-      const previousValue = trackedValue.value;
       if (
         Array.isArray(previousValue) &&
         arrayEquals<unknown[]>(previousValue, currentValue)
       )
         return;
-      trackedValue.value = [...currentValue] as R;
+      previousValue = [...currentValue] as R;
     } else {
-      trackedValue.value = currentValue;
+      previousValue = currentValue;
     }
+    trackedValue.value = previousValue;
   };
   watchEffect(refresh);
   const onModified = batchForNextTask(refresh);

@@ -25,10 +25,8 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore, {
   getColorAndOpacityFromPreset,
 } from '@/src/store/view-configs/volume-coloring';
-import {
-  getAdaptiveVolumePresetUnavailableReason,
-  isAdaptiveVolumePreset,
-} from '@/src/utils/adaptiveVolumePreset';
+import { getAdaptiveVolumePresetUnavailableReason } from '@/src/utils/adaptiveVolumePreset';
+import { isAdaptiveVolumePreset } from '@/src/utils/adaptiveVolumePresets';
 import { getShiftedOpacityFromPreset } from '@/src/utils/vtk-helpers';
 
 const WIDGET_WIDTH = 250;
@@ -339,8 +337,11 @@ export default defineComponent({
       const image = currentImageData.value;
       return (
         (image &&
-          getColorAndOpacityFromPreset(image, preset)?.transferFunction
-            .mappingRange) ||
+          getColorAndOpacityFromPreset(
+            image,
+            preset,
+            !!currentImage.value?.isLoaded()
+          )?.transferFunction.mappingRange) ||
         imageDataRange.value
       );
     });

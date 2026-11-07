@@ -7,13 +7,6 @@ import {
   isAdaptiveVolumePreset,
 } from './adaptiveVolumePresets';
 
-export {
-  ADAPTIVE_VOLUME_PRESETS,
-  DEFAULT_ADAPTIVE_VOLUME_PRESET,
-  getAdaptiveVolumePresetDescription,
-  isAdaptiveVolumePreset,
-} from './adaptiveVolumePresets';
-
 export const ADAPTIVE_VOLUME_LIGHTING = {
   enabled: true,
   ambient: 0.6,

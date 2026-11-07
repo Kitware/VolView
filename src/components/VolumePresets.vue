@@ -9,11 +9,11 @@ import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
+import { getAdaptiveVolumePresetUnavailableReason } from '@/src/utils/adaptiveVolumePreset';
 import {
   getAdaptiveVolumePresetDescription,
-  getAdaptiveVolumePresetUnavailableReason,
   isAdaptiveVolumePreset,
-} from '@/src/utils/adaptiveVolumePreset';
+} from '@/src/utils/adaptiveVolumePresets';
 
 const THUMBNAIL_SIZE = 80;
 

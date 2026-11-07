@@ -6,10 +6,8 @@ import vtkPiecewiseGaussianWidget from '@kitware/vtk.js/Interaction/Widgets/Piec
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
-import {
-  ADAPTIVE_VOLUME_PRESETS,
-  getAdaptiveVolumePreset,
-} from '../adaptiveVolumePreset';
+import { getAdaptiveVolumePreset } from '../adaptiveVolumePreset';
+import { ADAPTIVE_VOLUME_PRESETS } from '../adaptiveVolumePresets';
 
 function makeImage(values: Float32Array, size: number) {
   const image = vtkImageData.newInstance();
