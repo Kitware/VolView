@@ -100,6 +100,11 @@ function writeVolume(
 }
 
 async function selectPreset(name: string) {
+  // Session-save notifications can cover a preset even after it is clickable.
+  await $('header').moveTo();
+  await browser.waitUntil(
+    async () => (await $$('.Vue-Toastification__toast--success').length) === 0
+  );
   const card = $(`[data-testid="volume-preset-${name}"]`);
   await card.scrollIntoView({ block: 'center', behavior: 'instant' });
   await card.waitForClickable();

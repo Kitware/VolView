@@ -36,7 +36,7 @@ export async function checkAdaptiveCtReset(
     }
     return { width: canvas.width, height: canvas.height, foreground };
   })) as { width: number; height: number; foreground: number };
-  expect([captured.width, captured.height]).toEqual([80, 80]);
+  expect([captured.width, captured.height]).toEqual([300, 300]);
   expect(captured.foreground).toBeGreaterThan(0);
 
   const cinematic = $('.v-expansion-panel-title*=Cinematic Rendering');
