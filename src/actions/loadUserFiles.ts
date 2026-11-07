@@ -29,6 +29,8 @@ import {
 } from '@/src/io/import/common';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { useViewStore } from '@/src/store/views';
+import { useMessageStore } from '@/src/store/messages';
+import { shouldSkipImportSource } from '@/src/io/import/shouldSkipImportSource';
 
 // higher value priority is preferred for picking a primary selection
 const BASE_MODALITY_TYPES = {
@@ -304,6 +306,19 @@ function loadDataSourcesWithOutcome(
   sources: DataSource[],
   importer: DataSourceImporter
 ): Promise<LoadDataSourcesOutcome> {
+  if (sources.length && sources.every(shouldSkipImportSource)) {
+    const names = sources.map((source) => `- ${getDataSourceName(source)}`);
+    useMessageStore().addInfo(
+      'No supported files to load',
+      `These files were skipped:\n${names.join('\n')}`
+    );
+    return Promise.resolve({
+      datasetIds: [],
+      hadErrors: false,
+      completed: true,
+    });
+  }
+
   const loadDataStore = useLoadDataStore();
   const viewStore = useViewStore();
 

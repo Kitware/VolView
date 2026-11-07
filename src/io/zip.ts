@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { basename, dirname } from '@/src/utils/path';
+import { isIgnoredFileName } from '@/src/io/import/shouldSkipImportSource';
 import { FileEntry } from './types';
 
 export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
@@ -8,7 +9,7 @@ export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
   const paths: string[] = [];
   zip.forEach((relPath, file) => {
     const fileName = basename(file.name);
-    if (!file.dir && fileName.toLowerCase() !== 'license') {
+    if (!file.dir && !isIgnoredFileName(fileName)) {
       const path = dirname(file.name);
       const fileEntry = zip.file(file.name);
       if (fileEntry) {
