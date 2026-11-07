@@ -1,4 +1,5 @@
 import {
+  ImportContext,
   ImportHandler,
   ImportResult,
   asErrorResult,
@@ -138,58 +139,11 @@ export const appRestoreProcessors = (): RestoreProcessors => ({
   completeStateFileRestore,
 });
 
-async function importDataSourcesWithPolicy(
+async function processImportQueue(
   dataSources: DataSource[],
-  policy: ImportPolicy,
-  restore: RestoreProcessors = appRestoreProcessors()
-): Promise<ImportDataSourcesResult[]> {
-  const cleanupHandlers: Array<() => void> = [];
-  const onCleanup = (fn: () => void) => {
-    cleanupHandlers.push(fn);
-  };
-  const cleanup = () => {
-    while (cleanupHandlers.length) cleanupHandlers.pop()!();
-  };
-
-  const importContext = {
-    fetchFileCache: new Map<string, File>(),
-    onCleanup,
-    importDataSources: (sources: DataSource[]) =>
-      importDataSourcesWithPolicy(sources, policy, restore),
-  };
-
-  // State files first: a manifest's top-level `segments` is also a config key.
-  const applicationHandlers =
-    policy === 'application'
-      ? [restore.restoreStateFile, handleConfig, handleRemoteManifest]
-      : [];
-
-  const handlers = [
-    handleCollections,
-
-    openUriStream,
-
-    // updating the file/uri type should be first step in the pipeline
-    updateFileMimeType,
-    updateUriType,
-    // before extractArchive as .zip extension is part of state file check
-    ...applicationHandlers,
-    handleGoogleCloudStorage,
-    handleAmazonS3,
-
-    // stream handling
-    handleDicomStream,
-    downloadStream,
-
-    extractArchive,
-    extractArchiveTarget,
-    // should be before importSingleFile, since DICOM is more specific
-    handleDicomFile, // collect DICOM files to import later
-    importSingleFile,
-    // catch any unhandled resource
-    unhandledResource,
-  ];
-
+  handlers: ImportHandler[],
+  importContext: ImportContext
+) {
   const chunkSources: DataSource[] = [];
   const configResults: ConfigResult[] = [];
   const stateFileSetups: StateFileSetupResult[] = [];
@@ -242,6 +196,64 @@ async function importDataSourcesWithPolicy(
         throw new Error(`Invalid result: ${result}`);
     }
   }
+
+  return { chunkSources, configResults, stateFileSetups, results };
+}
+
+async function importDataSourcesWithPolicy(
+  dataSources: DataSource[],
+  policy: ImportPolicy,
+  restore: RestoreProcessors = appRestoreProcessors()
+): Promise<ImportDataSourcesResult[]> {
+  const cleanupHandlers: Array<() => void> = [];
+  const onCleanup = (fn: () => void) => {
+    cleanupHandlers.push(fn);
+  };
+  const cleanup = () => {
+    while (cleanupHandlers.length) cleanupHandlers.pop()!();
+  };
+
+  const importContext = {
+    fetchFileCache: new Map<string, File>(),
+    onCleanup,
+    importDataSources: (sources: DataSource[]) =>
+      importDataSourcesWithPolicy(sources, policy, restore),
+  };
+
+  // State files first: a manifest's top-level `segments` is also a config key.
+  const applicationHandlers =
+    policy === 'application'
+      ? [restore.restoreStateFile, handleConfig, handleRemoteManifest]
+      : [];
+
+  const handlers = [
+    handleCollections,
+
+    openUriStream,
+
+    // updating the file/uri type should be first step in the pipeline
+    updateFileMimeType,
+    updateUriType,
+    // before extractArchive as .zip extension is part of state file check
+    ...applicationHandlers,
+    handleGoogleCloudStorage,
+    handleAmazonS3,
+
+    // stream handling
+    handleDicomStream,
+    downloadStream,
+
+    extractArchive,
+    extractArchiveTarget,
+    // should be before importSingleFile, since DICOM is more specific
+    handleDicomFile, // collect DICOM files to import later
+    importSingleFile,
+    // catch any unhandled resource
+    unhandledResource,
+  ];
+
+  const { chunkSources, configResults, stateFileSetups, results } =
+    await processImportQueue(dataSources, handlers, importContext);
 
   cleanup();
 
