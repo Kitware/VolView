@@ -1,34 +1,14 @@
-import {
-  ProgressiveImage,
-  ProgressiveImageEvents,
-} from '@/src/core/progressiveImage';
-import { Chunk } from '@/src/core/streaming/chunk';
-import { Extent } from '@kitware/vtk.js/types';
-
-export enum ChunkStatus {
-  NotLoaded,
-  Loading,
-  Loaded,
-  Errored,
-}
-
-export type ChunkLoadedInfo = {
-  updatedExtent: Extent;
-  chunk: Chunk;
-};
-
-export type ChunkErrorInfo = {
-  error: unknown;
-  chunk: Chunk;
-};
-
-export type ChunkImageEvents = {
-  chunkLoad: ChunkLoadedInfo;
-  chunkError: ChunkErrorInfo;
-} & ProgressiveImageEvents;
+import type { ProgressiveImage } from '@/src/core/progressiveImage';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import type { Reconstruction } from '@/packages/dicom/core/collections/reconstructVolume';
+import type { ChunkImageEvents, ChunkStatus } from '@/packages/dicom/vtk/types';
 
 export type ChunkImage = ProgressiveImage & {
-  addChunks(chunks: Chunk[]): void;
+  setChunks(
+    chunks: Chunk[],
+    orientation: number[] | null,
+    reconstruction?: Reconstruction
+  ): Promise<void>;
   addEventListener<T extends keyof ChunkImageEvents>(
     type: T,
     callback: (info: ChunkImageEvents[T]) => void

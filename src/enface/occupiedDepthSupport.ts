@@ -1,14 +1,17 @@
+import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import type { Maybe } from '@/src/types';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
+import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { unitToMm } from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
 
 function measurementMetadata(chunk: Chunk) {
-  const tags = new Map(chunk.metadata ?? []);
+  const tags = new Map(
+    chunk.metadata ? dicomMetadataForDisplay(chunk.metadata) : []
+  );
   const regions = chunk.ultrasoundRegions;
   if (
     tags.get(Tags.Modality)?.trim() !== 'US' ||

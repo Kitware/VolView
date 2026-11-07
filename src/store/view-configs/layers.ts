@@ -1,3 +1,4 @@
+import { getChunkWindowMetadata } from '@/src/utils/dicom/dicomChunks';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
@@ -124,7 +125,7 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
       source instanceof DicomChunkImage && source.getModality() === 'PT';
     const dicomRange = isPET
       ? getConsistentDicomWindowRange(
-          source.getChunks().map((chunk) => chunk.metadata)
+          source.getChunks().map(getChunkWindowMetadata)
         )
       : undefined;
     return {

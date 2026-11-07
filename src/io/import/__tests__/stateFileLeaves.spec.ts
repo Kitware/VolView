@@ -4,7 +4,10 @@ import {
   findStateFileLeaves,
   type DataSource,
 } from '@/src/io/import/dataSource';
-import { buildStateIDToStoreID } from '@/src/io/import/importDataSources';
+import {
+  buildStateIDToStoreID,
+  findSplitStateDatasets,
+} from '@/src/io/import/importDataSources';
 import type { LoadableResult } from '@/src/io/import/common';
 
 // ---------------------------------------------------------------------------
@@ -102,6 +105,64 @@ describe('buildStateIDToStoreID', () => {
       'ds-f2': 'store-dicom',
       'ds-f3': 'store-dicom',
       'leaf:4': 'store-seg',
+    });
+  });
+
+  it('leaves a dataset unmapped when its leaves load as several volumes', () => {
+    // A series saved as one dataset that a later build splits into several
+    // volumes (overlapping acquisitions) has no single owner for its saved
+    // state. Binding to either volume would attach annotations to an
+    // arbitrary sub-volume, so the dataset must go unresolved instead.
+    const loadables: LoadableResult[] = [
+      {
+        type: 'data',
+        dataID: 'store-acq1',
+        dataType: 'image',
+        dataSource: mergedDicomSource(['ds-split', 'ds-split']),
+      },
+      {
+        type: 'data',
+        dataID: 'store-acq2',
+        dataType: 'image',
+        dataSource: mergedDicomSource(['ds-split']),
+      },
+      {
+        type: 'data',
+        dataID: 'store-whole',
+        dataType: 'image',
+        dataSource: mergedDicomSource(['ds-whole']),
+      },
+    ];
+
+    expect(buildStateIDToStoreID(loadables)).toEqual({
+      'ds-whole': 'store-whole',
+    });
+  });
+
+  it('names the volumes a split dataset now loads as', () => {
+    const loadables: LoadableResult[] = [
+      {
+        type: 'data',
+        dataID: 'store-acq1',
+        dataType: 'image',
+        dataSource: mergedDicomSource(['ds-split']),
+      },
+      {
+        type: 'data',
+        dataID: 'store-acq2',
+        dataType: 'image',
+        dataSource: mergedDicomSource(['ds-split']),
+      },
+      {
+        type: 'data',
+        dataID: 'store-whole',
+        dataType: 'image',
+        dataSource: mergedDicomSource(['ds-whole']),
+      },
+    ];
+
+    expect(findSplitStateDatasets(loadables)).toEqual({
+      'ds-split': ['store-acq1', 'store-acq2'],
     });
   });
 });

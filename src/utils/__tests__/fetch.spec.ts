@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { $fetch, setGlobalHeader, deleteGlobalHeader } from '@/src/utils/fetch';
-import { RequestPool } from '@/src/core/streaming/requestPool';
+import { createPinia, disposePinia, setActivePinia } from 'pinia';
+import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 
 describe('$fetch global-header merging', () => {
   let fetchStub: ReturnType<typeof vi.fn>;
@@ -52,7 +53,7 @@ describe('$fetch global-header merging', () => {
   });
 });
 
-describe('RequestPool default fetch is the authenticated $fetch', () => {
+describe('the application DICOM loader uses authenticated $fetch', () => {
   let fetchStub: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -66,11 +67,13 @@ describe('RequestPool default fetch is the authenticated $fetch', () => {
     vi.unstubAllGlobals();
   });
 
-  it('routes a default-pool request through $fetch so the bearer is attached', async () => {
-    // No custom fetchFn: the singleton/default path the streaming importers use.
-    const pool = new RequestPool();
-    await pool.fetch(`${window.location.origin}/api/stream`);
+  it('attaches the bearer to requests through the application runtime', async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const { loader } = useDicomRuntimeStore();
+    await loader.fetch(`${window.location.origin}/api/stream`);
     const init = fetchStub.mock.calls[0][1] as RequestInit;
     expect(new Headers(init.headers).get('Authorization')).toBe('Bearer pool');
+    disposePinia(pinia);
   });
 });

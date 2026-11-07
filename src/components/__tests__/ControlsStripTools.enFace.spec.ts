@@ -13,6 +13,7 @@ import {
   activateEnFace,
   createOCTFixture,
   loadOCT,
+  setImageChunks,
 } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -69,7 +70,7 @@ describe('En face contrast toolbar availability', () => {
       windowAction(wrapper).get(':scope > [role="tooltip"]').text()
     ).toMatch(/complete volume/);
     await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
+    await setImageChunks(fixture.image, [fixture.chunk]);
     await nextTick();
     expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
     expect(

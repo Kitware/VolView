@@ -12,7 +12,7 @@ import globals from 'globals';
 // not a dependency of this repo, and the built-in rule expresses the same
 // zones with no new dependency. Two zones per feature:
 //   1. Code OUTSIDE the feature directory may reach it ONLY through its public
-//      surface `@/src/<dir>` (the index), never a deep path.
+//      modules listed in its public surface.
 //   2. The feature's pure layer may not import stores, components, or the
 //      upper feature modules, and stays framework-free (no pinia, no vue) —
 //      dependencies point downward only.
@@ -64,16 +64,27 @@ const ownFeatureExceptPure = (feature) => {
 const upperLayerMessage = (feature) =>
   `The ${feature.dir} pure layer must not import stores, components, or upper feature modules. Dependencies point downward only.`;
 
+const dicomPublicSurface = {
+  regex: '^@/packages/dicom/(?!core/.+|vtk/.+)',
+  message: 'Import the defining DICOM core or vtk module directly.',
+};
+
 const featureBoundaries = (features) => {
-  const publicSurface = ({ dir }) => ({
-    group: [`@/src/${dir}/*`, `@/src/${dir}/*/**`, `!@/src/${dir}/index`],
-    message: `Import the ${dir} feature only from its public surface \`@/src/${dir}\` (src/${dir}/index.ts). A deep import bypasses the feature boundary.`,
+  const publicSurface = ({ dir, publicModules }) => ({
+    group: [
+      `@/src/${dir}/*`,
+      `@/src/${dir}/*/**`,
+      ...publicModules.map((module) => `!@/src/${dir}/${module}`),
+    ],
+    message: `Import the ${dir} feature only through its defining public modules: ${publicModules.join(', ')}.`,
   });
   const publicFeatures = features.filter(
     (feature) => feature.publicSurface !== false
   );
-  const otherSurfaces = (feature) =>
-    publicFeatures.filter((other) => other !== feature).map(publicSurface);
+  const otherSurfaces = (feature) => [
+    dicomPublicSurface,
+    ...publicFeatures.filter((other) => other !== feature).map(publicSurface),
+  ];
 
   return [
     {
@@ -82,7 +93,12 @@ const featureBoundaries = (features) => {
       rules: {
         'no-restricted-imports': [
           'error',
-          { patterns: publicFeatures.map(publicSurface) },
+          {
+            patterns: [
+              dicomPublicSurface,
+              ...publicFeatures.map(publicSurface),
+            ],
+          },
         ],
       },
     },
@@ -149,7 +165,6 @@ const E2E_TIMEOUT_DEBT = [
   'tests/specs/cine-ruler-session.e2e.ts',
   'tests/specs/crosshairs-multi-image.e2e.ts',
   'tests/specs/delete-selected-annotation.e2e.ts',
-  'tests/specs/dicom-dimension-mismatch.e2e.ts',
   'tests/specs/different-direction-labelmap.e2e.ts',
   'tests/specs/imageCacheUtils.ts',
   'tests/specs/layer-source-lifetime.e2e.ts',
@@ -172,10 +187,10 @@ const E2E_TIMEOUT_DEBT = [
 export default tseslint.config(
   {
     ignores: [
-      'src/io/itk-dicom/emscripten-build/**',
       'src/io/resample/emscripten-build/**',
       '**/*.d.ts',
       'dist/**',
+      'packages/dicom/dist/**',
       'node_modules/**',
     ],
   },
@@ -247,9 +262,10 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector: "Property[key.name='timeout']",
+          selector:
+            "Property[key.name='timeout']:not([value.type='Identifier'][value.name='DOWNLOAD_TIMEOUT'])",
           message:
-            'Wait for a state the page publishes rather than passing a timeout.',
+            'Wait for a state the page publishes; use DOWNLOAD_TIMEOUT for data-loading readiness.',
         },
         {
           selector:
@@ -293,7 +309,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/vtk/**/*.{js,ts}'],
+    files: ['src/vtk/**/*.{js,ts}', 'packages/dicom/vtk/**/*.{js,ts}'],
     rules: {
       'no-param-reassign': [
         'error',
@@ -336,6 +352,7 @@ export default tseslint.config(
     },
     {
       dir: 'processing',
+      publicModules: ['integration', 'store', 'types'],
       pure: [
         'src/processing/engine/**/*.{js,ts}',
         'src/processing/types.ts',
@@ -344,6 +361,12 @@ export default tseslint.config(
     },
     {
       dir: 'referenceLines',
+      publicModules: [
+        'ReferenceLines.vue',
+        'ReferenceLineSegments.vue',
+        'geometry',
+        'store',
+      ],
       pure: [
         'src/referenceLines/geometry.ts',
         'src/referenceLines/crossings.ts',
@@ -372,8 +395,9 @@ export default tseslint.config(
   // level because the ratchet only fails a file whose debt grows, so existing
   // files stay over these numbers without failing `npm run lint`.
   {
-    files: ['src/**/*.{js,ts,vue}'],
+    files: ['src/**/*.{js,ts,vue}', 'packages/dicom/**/*.{js,ts}'],
     ignores: [
+      'packages/dicom/**/__tests__/**',
       'src/**/__tests__/**',
       'src/**/*.{spec,test}.{js,ts}',
       'src/**/*.d.ts',
@@ -389,5 +413,26 @@ export default tseslint.config(
       ],
     },
   },
+  ...['core', 'vtk'].map((entry) => ({
+    files: [`packages/dicom/${entry}/**/*.{js,ts}`],
+    ignores: ['**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                entry === 'core'
+                  ? '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$))'
+                  : '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/)',
+              message:
+                'DICOM package internals use relative imports and cannot depend on application state or UI frameworks. Core cannot depend on vtk.js.',
+            },
+          ],
+        },
+      ],
+    },
+  })),
   eslintConfigPrettier
 );

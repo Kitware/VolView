@@ -37,11 +37,16 @@ const configWithProvider = (
 const jsonFile = (obj: unknown, name = 'config.json') =>
   new File([JSON.stringify(obj)], name, { type: 'application/json' });
 
+const resetImportContext = () => {
+  vi.resetModules();
+  setActivePinia(createPinia());
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+};
+
 describe('processing config injection (config-by-shape, origin-gated)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  beforeEach(async () => {
+    resetImportContext();
+    await import('@/src/processing/integration');
   });
 
   afterEach(() => {
@@ -56,7 +61,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     ] = await Promise.all([
       import('@/src/io/import/importDataSources'),
       import('@/src/io/import/dataSource'),
-      import('@/src/processing'),
+      import('@/src/processing/store'),
     ]);
 
     const ordinaryDataSource: DataSource = {
@@ -90,7 +95,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     ] = await Promise.all([
       import('@/src/io/import/importDataSources'),
       import('@/src/io/import/dataSource'),
-      import('@/src/processing'),
+      import('@/src/processing/store'),
       import('@/src/store/view-configs/windowing'),
     ]);
 
@@ -125,7 +130,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     ] = await Promise.all([
       import('@/src/io/import/importDataSources'),
       import('@/src/io/import/dataSource'),
-      import('@/src/processing'),
+      import('@/src/processing/store'),
     ]);
 
     // A config that both points a provider cross-origin AND tries to bless that
@@ -156,7 +161,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     const [{ importVolumeDataSources }, { useProcessingJobsStore }] =
       await Promise.all([
         import('@/src/io/import/importDataSources'),
-        import('@/src/processing'),
+        import('@/src/processing/store'),
       ]);
 
     const dataSource: DataSource = {
@@ -194,11 +199,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
 });
 
 describe('multiple configs merge at section granularity, last-wins (in-flight decision)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
+  beforeEach(resetImportContext);
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -237,11 +238,7 @@ describe('multiple configs merge at section granularity, last-wins (in-flight de
 });
 
 describe('config with unknown top-level keys applies known sections (forward-compat)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
+  beforeEach(resetImportContext);
 
   afterEach(() => {
     vi.restoreAllMocks();
