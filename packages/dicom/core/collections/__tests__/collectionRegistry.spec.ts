@@ -71,6 +71,39 @@ const collidingMultiframeChunks = (series = SERIES_UID) =>
   );
 
 describe('DICOM collection registry', () => {
+  it('keeps anonymous clip ownership stable after deletion and another import', async () => {
+    const registry = createDicomCollectionRegistry();
+    const clips = [0, 1, 2].map(() =>
+      chunkFor({
+        sop: null,
+        tags: { [Tags.NumberOfFrames]: '3' },
+      })
+    );
+    const before = (await registry.register(clips.slice(0, 2))).updates;
+    const first = before.find((update) => update.members.includes(clips[0]))!;
+    const second = before.find((update) => update.members.includes(clips[1]))!;
+    expect(registry.forget(first.id)).toEqual([clips[0]]);
+
+    const after = await registry.register([clips[2]]);
+
+    expect(after.removed).not.toContain(second.id);
+    const updated = after.updates.find((update) => update.id === second.id);
+    if (updated) expect(updated.members[0]).toBe(clips[1]);
+    expect(registry.forget(second.id)[0]).toBe(clips[1]);
+  });
+
+  it('does not confuse a numeric UID with an anonymous clip identity', async () => {
+    const registry = createDicomCollectionRegistry();
+    const clips = collidingMultiframeChunks();
+    const { updates } = await registry.register(clips);
+
+    expect(updates).toHaveLength(2);
+    expect(new Set(updates.map((update) => update.id)).size).toBe(2);
+    expect(
+      new Set(updates.flatMap((update) => registry.forget(update.id)))
+    ).toEqual(new Set(clips));
+  });
+
   it('plans one consistent series into one ordered collection', async () => {
     const registry = createDicomCollectionRegistry();
     const first = chunkFor({ sop: 'a', z: 0 });
@@ -600,33 +633,33 @@ describe('DICOM collection registry', () => {
     expect(secondResult.updates[0].id).toBe(firstResult.updates[0].id);
   });
 
-  it('preserves existing ownership when a failed plan precedes a healthy import', async () => {
+  it('preserves existing ownership when a failed registration precedes a healthy import', async () => {
     const registry = createDicomCollectionRegistry();
-    const [original, invalid] = collidingMultiframeChunks();
+    const original = chunkFor({ sop: 'original' });
+    const invalid = { metadata: null } as unknown as Chunk;
     const [{ id }] = (await registry.register([original])).updates;
     const healthy = chunkFor({ sop: '1.2.3.4' });
 
     const failed = registry.register([invalid]);
     const next = registry.register([healthy]);
 
-    await expect(failed).rejects.toThrow(/two collections share the key/);
+    await expect(failed).rejects.toThrow(/metadata/i);
     const { updates } = await next;
     expect(updates).toHaveLength(1);
-    expect(updates[0].members).toEqual([healthy]);
+    expect(updates[0].members).toEqual([healthy, original]);
     expect(registry.has(invalid)).toBe(false);
-    expect(registry.forget(id)).toEqual([original]);
-    expect(registry.forget(updates[0].id)).toEqual([healthy]);
+    expect(registry.forget(id)).toEqual([healthy, original]);
   });
 
-  it('leaves every series unchanged when one series in a batch cannot be planned', async () => {
+  it('leaves every series unchanged when one chunk in a batch cannot be read', async () => {
     const registry = createDicomCollectionRegistry();
     const original = chunkFor({ sop: 'original', z: 0 });
     const [{ id }] = (await registry.register([original])).updates;
     const incoming = chunkFor({ sop: 'incoming', z: 1 });
-    const invalid = collidingMultiframeChunks(OTHER_SERIES_UID);
+    const invalid = [{ metadata: null } as unknown as Chunk];
 
     await expect(registry.register([incoming, ...invalid])).rejects.toThrow(
-      /two collections share the key/
+      /metadata/i
     );
 
     [incoming, ...invalid].forEach((chunk) =>

@@ -5,6 +5,7 @@ import { readInstanceFacts as readStructuredFacts } from '../instanceFacts';
 import type { InstanceFacts } from '../planDicomCollections';
 import {
   GEOMETRY_RULE,
+  DESCRIPTOR_AXES,
   SEMANTIC_AXES,
   UNREADABLE_GEOMETRY,
   UNREADABLE_GEOMETRY_LABEL,
@@ -95,6 +96,7 @@ describe('splitOverlappingAcquisitions', () => {
       'phase',
       'echo',
       'b-value',
+      ...DESCRIPTOR_AXES.map((axis) => axis.rule),
     ]);
   });
 
@@ -124,6 +126,7 @@ describe('splitOverlappingAcquisitions', () => {
       ['phase', null],
       ['echo', null],
       ['b-value', null],
+      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
     ]);
     expect(parts.every((part) => !part.repeatedPositions)).toBe(true);
   });
@@ -247,12 +250,10 @@ describe('splitOverlappingAcquisitions', () => {
       expect(labels(parts)).toEqual([
         `${rule} 1`,
         `${rule} 2`,
-        `${rule} unknown`,
+        `${rule} mixed`,
       ]);
-      expect(partLabelled(parts, `${rule} unknown`).members).toEqual(remainder);
-      expect(
-        partValue(partLabelled(parts, `${rule} unknown`), rule)
-      ).toBeNull();
+      expect(partLabelled(parts, `${rule} mixed`).members).toEqual(remainder);
+      expect(partValue(partLabelled(parts, `${rule} mixed`), rule)).toBeNull();
     }
   );
 
@@ -270,12 +271,13 @@ describe('splitOverlappingAcquisitions', () => {
     expect(labels(parts)).toEqual([
       'acquisition 1',
       'acquisition 2',
-      'acquisition unknown, echo 1',
-      'acquisition unknown, echo 2',
+      'acquisition 3, echo 1',
+      'acquisition 4, echo 2',
     ]);
     contrasts.forEach((member, index) =>
       expect(
-        partLabelled(parts, `acquisition unknown, echo ${index + 1}`).members
+        partLabelled(parts, `acquisition ${index + 3}, echo ${index + 1}`)
+          .members
       ).toEqual([member])
     );
   });
@@ -454,6 +456,7 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
       ['phase', null],
       ['echo', '1'],
       ['b-value', null],
+      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
     ]);
   });
 
@@ -605,6 +608,7 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
       ['phase', '2'],
       ['echo', '1'],
       ['b-value', null],
+      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
     ]);
     parts.forEach((part) => {
       expect(part.members).toHaveLength(10);
@@ -612,8 +616,7 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
   });
 
   it('gives distinct values distinct key parts however they are spelled', () => {
-    // A lossy encoder once mapped '1.5' and '1-5' to one suffix; the key
-    // carries the normalized value itself, so no two values can collide.
+    // Normalized values remain distinct even when their punctuation differs.
     const merged = [...stack('1.5', 0, 5), ...stack('1-5', 0, 5)].sort(
       byPosition
     );

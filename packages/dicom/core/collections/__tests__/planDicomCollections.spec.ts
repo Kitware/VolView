@@ -11,7 +11,10 @@ import {
   planDicomCollections,
   validateCollections,
 } from '../planDicomCollections';
-import { SEMANTIC_AXES } from '../splitOverlappingAcquisitions';
+import {
+  SEMANTIC_AXES,
+  DESCRIPTOR_AXES,
+} from '../splitOverlappingAcquisitions';
 import type { DicomCollection, InstanceFacts } from '../planDicomCollections';
 import {
   IDENTITY_ORIENTATION,
@@ -80,10 +83,6 @@ describe('planDicomCollections', () => {
       ...SEMANTIC_AXES.map((axis) => axis.rule),
     ]);
     expect(collections[0].key.parts).toEqual([
-      ['seriesNumber', '1'],
-      ['sequenceName', null],
-      ['sliceThickness', '1'],
-      ['seriesDate', '20240101'],
       ['rows', '4'],
       ['columns', '4'],
       ['samplesPerPixel', '1'],
@@ -93,14 +92,11 @@ describe('planDicomCollections', () => {
       ['phase', null],
       ['echo', null],
       ['b-value', null],
+      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
     ]);
   });
 
   const differingFacts: Array<[string, Partial<InstanceFacts>, string]> = [
-    ['seriesNumber', { seriesNumber: '2' }, '2'],
-    ['sequenceName', { sequenceName: 'SEQ' }, 'SEQ'],
-    ['sliceThickness', { sliceThickness: '5' }, '5'],
-    ['seriesDate', { seriesDate: '20240102' }, '20240102'],
     ['rows', { rows: '8' }, '8'],
     ['columns', { columns: '8' }, '8'],
     ['samplesPerPixel', { samplesPerPixel: '3' }, '3'],
@@ -127,10 +123,6 @@ describe('planDicomCollections', () => {
   const missingFacts: Array<
     [string, Partial<InstanceFacts>, Partial<InstanceFacts>]
   > = [
-    ['seriesNumber', { seriesNumber: '1' }, { seriesNumber: null }],
-    ['sequenceName', { sequenceName: 'SEQ' }, { sequenceName: null }],
-    ['sliceThickness', { sliceThickness: '1' }, { sliceThickness: null }],
-    ['seriesDate', { seriesDate: '20240101' }, { seriesDate: null }],
     ['rows', { rows: '4' }, { rows: null }],
     ['columns', { columns: '4' }, { columns: null }],
     ['samplesPerPixel', { samplesPerPixel: '1' }, { samplesPerPixel: null }],
@@ -723,6 +715,17 @@ describe('planDicomCollections semantic partition', () => {
     expect(collections[0].warnings).toEqual([NONPARALLEL_SLICES_WARNING]);
   });
 
+  it('does not assume a physical scale when judging an unknown pixel spacing', () => {
+    const members = wideStack('wide-stray', 0.001).map((member) => ({
+      ...member,
+      pixelSpacing: null,
+    }));
+
+    expect(plan(members).collections[0].warnings).not.toContain(
+      NONPARALLEL_SLICES_WARNING
+    );
+  });
+
   it('warns about a repeated position no axis separates', () => {
     const { collections } = plan(pass('1', [0, 2, 2, 4]));
 
@@ -855,6 +858,18 @@ describe('validateCollections', () => {
 });
 
 describe('independent multi-frame instances', () => {
+  it('keeps anonymous clip keys stable when an earlier clip is removed', () => {
+    const clips = [0, 1, 2].map(() => makeFacts(null, { numberOfFrames: '3' }));
+    const before = plan(clips.slice(0, 2)).collections;
+    const after = plan(clips.slice(1)).collections;
+    const keyOf = (collections: DicomCollection[], member: InstanceFacts) =>
+      collections.find((collection) => collection.members.includes(member))!
+        .key;
+
+    expect(keyOf(after, clips[1])).toEqual(keyOf(before, clips[1]));
+    expect(keyOf(after, clips[2])).not.toEqual(keyOf(before, clips[0]));
+  });
+
   it.each([null, 0])(
     'keeps equal-shaped clips separate at position %s',
     (position) => {
@@ -876,4 +891,150 @@ describe('independent multi-frame instances', () => {
       expect(plan([...instances].reverse())).toEqual(plan(instances));
     }
   );
+});
+
+describe('acquisition descriptors', () => {
+  const descriptors: Array<[keyof InstanceFacts, string]> = [
+    ['seriesNumber', '2'],
+    ['sequenceName', '*ep_b1000t'],
+    ['sliceThickness', '2'],
+    ['seriesDate', '20240202'],
+  ];
+
+  const run = (uid: string, zs: number[], facts: Partial<InstanceFacts>) =>
+    zs.map((z) => makeFacts(`${uid}-${z}`, { projectedPosition: z, ...facts }));
+
+  it.each(descriptors)(
+    'keeps independent single-plane images apart when %s differs',
+    (fact, value) => {
+      const { collections } = plan([
+        makeFacts('first', { [fact]: '1' }),
+        makeFacts('second', { [fact]: value }),
+      ]);
+
+      expect(collections).toHaveLength(2);
+      expect(
+        collections.map((collection) => collection.members.length)
+      ).toEqual([1, 1]);
+      expect(
+        collections.every(
+          (collection) => collection.reconstruction.kind === 'regular'
+        )
+      ).toBe(true);
+      expect(
+        new Set(collections.map((collection) => collection.label)).size
+      ).toBe(2);
+    }
+  );
+
+  it('keeps an unknown sequence separate from a named sequence on one plane', () => {
+    const { collections } = plan([
+      makeFacts('unknown', { sequenceName: null }),
+      makeFacts('known', { sequenceName: '*ep_b0' }),
+    ]);
+
+    expect(collections.map((collection) => collection.label).sort()).toEqual([
+      'sequence *ep_b0',
+      'sequence unknown',
+    ]);
+  });
+
+  it.each(descriptors)(
+    'keeps a stack whole across one differing %s',
+    (fact, value) => {
+      const slices = run('slice', [0, 1, 2, 3, 4], {});
+      slices[2] = { ...slices[2], [fact]: value };
+      const { collections } = plan(slices);
+
+      expect(collections).toHaveLength(1);
+      expect(collections[0].reconstruction).toEqual({
+        kind: 'regular',
+        sliceSpacing: 1,
+        slots: [0, 1, 2, 3, 4],
+      });
+    }
+  );
+
+  it.each(descriptors)(
+    'keeps adjoining stacks together across %s',
+    (fact, value) => {
+      const { collections } = plan([
+        ...run('first', [0, 1, 2], { [fact]: '1' }),
+        ...run('second', [3, 4, 5], { [fact]: value }),
+      ]);
+
+      expect(collections).toHaveLength(1);
+      expect(collections[0].reconstruction.kind).toBe('regular');
+    }
+  );
+
+  it.each(descriptors)(
+    'separates and labels overlapping stacks by %s',
+    (fact, value) => {
+      const { collections } = plan([
+        ...run('first', [0, 2, 4], { [fact]: '1' }),
+        ...run('second', [1, 3, 5], { [fact]: value }),
+      ]);
+
+      expect(collections).toHaveLength(2);
+      expect(collections.every((collection) => collection.label !== null)).toBe(
+        true
+      );
+      expect(
+        new Set(collections.map((collection) => collection.label)).size
+      ).toBe(2);
+    }
+  );
+
+  it('labels DWI stacks by b-value when sequence names also differ', () => {
+    const { collections } = plan([
+      ...run('b0', [0, 1, 2], { sequenceName: '*ep_b0', diffusionBValue: '0' }),
+      ...run('b1000', [0, 1, 2], {
+        sequenceName: '*ep_b1000t',
+        diffusionBValue: '1000',
+      }),
+    ]);
+
+    expect(collections.map((collection) => collection.label)).toEqual([
+      'b-value 0',
+      'b-value 1000',
+    ]);
+  });
+
+  it('keeps anonymous single-plane ordering stable across descriptor differences', () => {
+    const members = ['second', 'first'].map((sequenceName) =>
+      makeFacts(null, { sequenceName })
+    );
+
+    expect(plan(members)).toEqual(plan([...members].reverse()));
+  });
+
+  it('labels incompatible pixel shapes', () => {
+    const { collections } = plan([
+      makeFacts('small', { rows: '4' }),
+      makeFacts('large', { rows: '8' }),
+    ]);
+
+    expect(collections.map((collection) => collection.label)).toEqual([
+      'rows 4',
+      'rows 8',
+    ]);
+  });
+
+  it('keeps incompatible acquisition descriptors apart when geometry is unreadable', () => {
+    const { collections } = plan(
+      ['first', 'second'].map((sequenceName) =>
+        makeFacts(sequenceName, {
+          sequenceName,
+          orientation: null,
+          position: null,
+        })
+      )
+    );
+
+    expect(collections).toHaveLength(2);
+    expect(
+      new Set(collections.map((collection) => collection.label)).size
+    ).toBe(2);
+  });
 });

@@ -55,6 +55,7 @@ export const useImageCacheStore = defineStore('image-cache', () => {
       imageStatus[id] = status;
     };
     const onLoading = (loading: boolean) => {
+      if (loading && !imageLoading[id]) delete imageErrors[id];
       imageLoading[id] = loading;
     };
     const onError = (error: Error) => {

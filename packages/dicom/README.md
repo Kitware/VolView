@@ -50,6 +50,10 @@ const { image } = await loader.readDicomImage(
 );
 ```
 
+Chunk metadata omits private attributes, including private elements nested in
+public sequences. Source files retain all original bytes. Use `readDicomDataset`
+directly when private attributes are needed.
+
 The default metadata worker URL is relative to the module and is emitted by
 Vite. `metadataWorkerFactory` supplies a worker when a consumer uses another
 asset layout. Serve `pipelineWorkerUrl` from the same origin as the application.

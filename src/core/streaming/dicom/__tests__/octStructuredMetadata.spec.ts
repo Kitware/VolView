@@ -4,8 +4,7 @@ import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { blobFetcher } from '@/packages/dicom/core/streaming/blobFetcher';
 import { CachedStreamFetcher } from '@/packages/dicom/core/streaming/cachedStreamFetcher';
 import { DicomMetaLoader } from '@/packages/dicom/core/streaming/dicom/dicomMetaLoader';
-import { dicomDatasetToTags } from '@/src/io/readDicomTags';
-import { augmentOCTMetadata, dicomMetadataForDisplay } from '../octMetadata';
+import { dicomMetadataForDisplay } from '../octMetadata';
 import { OCT_GEOMETRY_ERROR, OCT_SCAN_PATTERN } from '../octMetadataTags';
 import {
   createSyntheticOCT,
@@ -18,40 +17,26 @@ import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 const positions = (values: number[]) =>
   values.map((z) => ({ position: `0\\0\\${z}` }));
 
-const projectedFields = (metadata: Iterable<[string, string]>) => {
-  const tags = new Map(metadata);
-  return [
-    Tags.PixelSpacing,
-    Tags.ImagePositionPatient,
-    Tags.ImageOrientationPatient,
-    Tags.SpacingBetweenSlices,
-    Tags.OphthalmicVolumetricPropertiesFlag,
-    OCT_SCAN_PATTERN,
-    OCT_GEOMETRY_ERROR,
-  ].map((key) => [key, tags.get(key)]);
-};
-
 describe('structured OCT application metadata', () => {
   it.each([
-    ['regular', [0, 0.2, 0.4]],
-    ['reversed', [0.4, 0.2, 0]],
-    ['uneven', [0, 0.1, 0.4]],
+    ['regular', [0, 0.2, 0.4], undefined],
+    ['reversed', [0.4, 0.2, 0], /image grid/],
+    ['uneven', [0, 0.1, 0.4], /nonuniform/],
   ] as const)(
     'retains the existing %s geometry policy without changing raw data',
-    async (_, z) => {
+    async (_, z, error) => {
       const file = enhancedFile(positions([...z]));
       const dataset = readDicomDataset(
         new Uint8Array(await file.arrayBuffer())
       );
       const before = structuredClone(dataset);
-      const legacy = await augmentOCTMetadata(
-        file,
-        dicomDatasetToTags(dataset)
-      );
-
-      expect(projectedFields(dicomMetadataForDisplay(dataset))).toEqual(
-        projectedFields(legacy)
-      );
+      const projected = new Map(dicomMetadataForDisplay(dataset));
+      if (error) expect(projected.get(OCT_GEOMETRY_ERROR)).toMatch(error);
+      else {
+        expect(projected.has(OCT_GEOMETRY_ERROR)).toBe(false);
+        expect(projected.get(Tags.ImagePositionPatient)).toBe('0\\0\\0');
+        expect(projected.get(Tags.SpacingBetweenSlices)).toBe('0.2');
+      }
       expect(dataset).toEqual(before);
     }
   );

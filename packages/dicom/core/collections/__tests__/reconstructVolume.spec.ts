@@ -68,6 +68,31 @@ describe('reconstructVolume', () => {
     expect(result.slots).toEqual([0]);
   });
 
+  it('accepts a single plane without patient position or orientation', () => {
+    expect(
+      reconstructVolume([
+        {
+          orientation: null,
+          position: null,
+          pixelSpacing: null,
+        },
+      ])
+    ).toEqual({ kind: 'regular', sliceSpacing: null, slots: [0] });
+  });
+
+  it('does not treat a positionless multi-frame instance as a single plane', () => {
+    expect(
+      reconstructVolume([
+        {
+          orientation: null,
+          position: null,
+          pixelSpacing: null,
+          numberOfFrames: '3',
+        },
+      ])
+    ).toMatchObject({ kind: 'irregular', reason: 'unreadable-geometry' });
+  });
+
   // IDC series 1.3.6.1.4.1.14519.5.2.1.7009.2403.337074050757748643824459343650
   // ("WB_3D_NON-AC"): whole-body PET stepping by 3.27mm with the occasional
   // 3.35mm step from printing precision. One lattice, printed unevenly.

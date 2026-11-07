@@ -1,12 +1,6 @@
-import dicomParser from 'dicom-parser';
 import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
-import {
-  type OCTDataset,
-  parsedOCTDataset,
-  structuredOCTDataset,
-} from './octDataset';
-import { inflateSync } from 'fflate';
+import { type OCTDataset, structuredOCTDataset } from './octDataset';
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 import {
   Tags,
@@ -41,18 +35,6 @@ const PIXEL_SPACING = toDicomParserKey(Tags.PixelSpacing);
 const SLICE_SPACING = toDicomParserKey(Tags.SpacingBetweenSlices);
 const IMAGE_ORIENTATION = toDicomParserKey(Tags.ImageOrientationPatient);
 const IMAGE_POSITION = toDicomParserKey(Tags.ImagePositionPatient);
-const sequenceTags = new Set([
-  SHARED,
-  PER_FRAME,
-  MEASURES,
-  ORIENTATION,
-  POSITION,
-  SCAN_PATTERN,
-  ACQUISITION_PARAMETERS,
-  'x00283000',
-  'x00289145',
-]);
-
 const firstItem = (data: OCTDataset | undefined, tag: string) =>
   data?.items(tag)[0];
 const sequenceItems = (data: OCTDataset, tag: string) => data.items(tag);
@@ -199,62 +181,6 @@ function promoteOCTGeometry(data: OCTDataset, tags: Map<string, string>) {
     );
   }
   set(Tags.SpacingBetweenSlices, sliceSpacing);
-}
-
-async function readOCTHeader(file: Blob) {
-  let length = Math.min(file.size, 64 * 1024);
-  for (;;) {
-    const isCompleteFile = length === file.size;
-    const headerBytes = new Uint8Array(
-      await file.slice(0, length).arrayBuffer()
-    );
-    let needsCompleteFile = false;
-    try {
-      const data = dicomParser.parseDicom(headerBytes, {
-        untilTag: 'x7fe00010',
-        vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
-        inflater: (bytes, position) => {
-          // Inflate only the complete stream, including trailing NULL padding.
-          if (!isCompleteFile) {
-            needsCompleteFile = true;
-            throw new Error('Deflated OCT requires the complete dataset');
-          }
-          const inflated = inflateSync(bytes.subarray(position));
-          const complete = new Uint8Array(position + inflated.length);
-          complete.set(bytes.subarray(0, position));
-          complete.set(inflated, position);
-          // The inflater resumes at zero. Skip the Part 10 header as one OB
-          // element while retaining the file-meta offsets in the same buffer.
-          complete.fill(0, 0, 12);
-          complete.set([0x4f, 0x42], 4);
-          new DataView(complete.buffer).setUint32(8, position - 12, true);
-          return complete;
-        },
-      });
-      // A successful parse of a prefix can still end between metadata elements.
-      // Only accept it once the complete Pixel Data header has been reached.
-      if (isCompleteFile || data.elements.x7fe00010) return data;
-    } catch (error) {
-      if (isCompleteFile) throw error;
-    }
-    length = needsCompleteFile ? file.size : Math.min(file.size, length * 4);
-  }
-}
-
-/** Promotes enhanced OCT geometry for the loader. */
-export async function augmentOCTMetadata(
-  file: Blob,
-  metadata: Array<[string, string]>
-) {
-  if (!isOCTMetadata(metadata)) return metadata;
-  const tags = new Map(metadata);
-  try {
-    const data = await readOCTHeader(file);
-    promoteOCTGeometry(parsedOCTDataset(data), tags);
-  } catch {
-    tags.set(OCT_GEOMETRY_ERROR, 'OCT spatial metadata could not be read.');
-  }
-  return [...tags];
 }
 
 /** Application-only OCT eligibility and measurement metadata; raw core data stays unchanged. */

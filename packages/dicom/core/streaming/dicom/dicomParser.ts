@@ -43,8 +43,11 @@ const assertReadBounds = (
 // This is based on the DICOM standard as of 2023. All links may point to whatever is the current at the time of visiting.
 
 const UndefinedLength = 0xffffffff;
+const isEncapsulatedValue = (vr: string, length: number) =>
+  length === UndefinedLength && (vr === 'OB' || vr === 'OW');
 export const ImplicitTransferSyntaxUID = '1.2.840.10008.1.2';
 export const ExplicitVRBigEndianUID = '1.2.840.10008.1.2.2';
+const DeflatedExplicitVRLittleEndianUID = '1.2.840.10008.1.2.1.99';
 
 const Tags = {
   TransferSyntaxUID: [0x0002, 0x0010] as Tag,
@@ -144,9 +147,28 @@ function* readElementValue(
     });
   }
 
+  if (isEncapsulatedValue(vr, length)) {
+    yield* readFragments(reader, { littleEndian, endPosition });
+    return undefined;
+  }
+
   if (length === UndefinedLength)
     throw new Error('cannot read a value of undefined length');
   return yield* reader.read(length);
+}
+
+/** Fragment lengths bound opaque pixels, which can contain delimiter bytes. */
+function* readFragments(reader: StreamingByteReader, opts: ParseOptions) {
+  for (;;) {
+    assertReadBounds(reader, opts.endPosition, 8);
+    const [group, element] = yield* readElementTag(reader, opts);
+    const length = yield* reader.readUint32(opts);
+    if (group === 0xfffe && element === 0xe0dd && length === 0) return;
+    if (!equalsToTag(Tags.Item)(group, element) || length === UndefinedLength)
+      throw new Error('Expected a defined-length encapsulated fragment');
+    assertReadBounds(reader, opts.endPosition, length);
+    yield* reader.seek(length);
+  }
 }
 
 /**
@@ -377,6 +399,11 @@ function* readFieldMetaInfo(
     }
   );
 
+  // Compressed bytes can resemble meta elements. The complete reader will
+  // locate the end of group 2 and inflate the dataset before walking it.
+  if (transferSyntaxUid === DeflatedExplicitVRLittleEndianUID)
+    return { transferSyntaxUid };
+
   // read until end of file meta info group block, which is the first non 0x0002 grouped element.
   // "Values of all Tags (0002,xxxx) are reserved for use by this Standard and later versions of DICOM."
   // https://dicom.nema.org/medical/dicom/current/output/html/part10.html#table_7.1-1
@@ -413,6 +440,9 @@ export function* readDicomUntilPixelData(opts?: ReadDicomOptions) {
         onDataElement: opts?.onDataElement,
       })).transferSyntaxUid
     : layout.transferSyntaxUid;
+  // A negative boundary asks the metadata loader to retain the complete file.
+  if (transferSyntaxUid === DeflatedExplicitVRLittleEndianUID)
+    return { position: -1 };
   const explicitVr = transferSyntaxUid !== ImplicitTransferSyntaxUID;
   const littleEndian = transferSyntaxUid !== ExplicitVRBigEndianUID;
 

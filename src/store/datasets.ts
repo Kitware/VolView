@@ -12,6 +12,7 @@ import { useImageStatsStore } from '@/src/store/image-stats';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import { getChunkTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { trimDicomPadding } from '@/packages/dicom/core/utils';
 
 export const DataType = {
   Image: 'Image',
@@ -24,7 +25,9 @@ interface LoadedData {
 }
 
 function dicomChunkIdentity(chunk: Chunk): string | undefined {
-  const sopInstanceUID = getChunkTag(chunk, Tags.SOPInstanceUID)?.trim();
+  const sopInstanceUID = trimDicomPadding(
+    getChunkTag(chunk, Tags.SOPInstanceUID) ?? ''
+  );
   return sopInstanceUID ? `dicom:${sopInstanceUID}` : undefined;
 }
 
@@ -64,7 +67,7 @@ const preferRemote = (incoming: DataSource, kept: DataSource) =>
  * The incoming collection names every member the dataset now covers, so it
  * decides membership: a member the dataset no longer holds (moved to a sibling
  * volume by a replan) is dropped. The existing collection only contributes a
- * remote copy of a member the incoming batch supplies locally.
+ * retained copy of a member unless the incoming source adds remote provenance.
  */
 function mergeCollectionSources(
   existing: DataSource,
@@ -104,7 +107,7 @@ function mergeCollectionSources(
 
     const prior = priorByIdentity.get(identity);
     indexByIdentity.set(identity, merged.length);
-    merged.push(prior && preferRemote(prior, source) ? prior : source);
+    merged.push(prior && !preferRemote(source, prior) ? prior : source);
   });
 
   return { type: 'collection', sources: merged };

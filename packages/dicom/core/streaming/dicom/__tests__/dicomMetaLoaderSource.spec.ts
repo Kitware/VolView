@@ -82,7 +82,7 @@ describe('DicomMetaLoader over a byte source', () => {
           },
         ],
       });
-      expect(loader.meta).toEqual(readDicomDataset(bytes));
+      expect(loader.meta).toEqual(readDicomDataset(syntheticSlice()));
     }
   );
 

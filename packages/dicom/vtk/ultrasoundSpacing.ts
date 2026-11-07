@@ -1,5 +1,5 @@
 import { type Chunk } from '../core/streaming/chunk';
-import { getChunkTag } from '../core/metadata/datasetAccess';
+import { getDatasetModality } from '../core/metadata/datasetAccess';
 import { unitToMm } from '../core/streaming/dicom/ultrasoundRegion';
 import {
   physicalSpacing,
@@ -23,8 +23,7 @@ export function applyUltrasoundSpacing(
   warn: (title: string, details: string) => void
 ): SpatialMetadata {
   const { image, spatialMetadata } = allocation;
-  if (getChunkTag(chunks[0], '00080060')?.trim() !== 'US')
-    return spatialMetadata;
+  if (getDatasetModality(chunks[0].metadata) !== 'US') return spatialMetadata;
 
   // Ultrasound DICOMs are typically a single multi-frame chunk, so the
   // region table on chunk[0] applies to the whole image. If a US series

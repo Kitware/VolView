@@ -65,6 +65,32 @@ function deferred<T>() {
 }
 
 describe('vtk DICOM consumer', () => {
+  it('routes a NUL-padded SEG modality to the segmentation decoder', async () => {
+    const chunk = await loadedChunk(1, 'SEG\u0000');
+    const segmentation = vtkImageData.newInstance();
+    segmentation.setDimensions(3, 4, 5);
+    const image = new VtkDicomImage({
+      readDicomImage: async () => {
+        throw new Error('SEG must use the segmentation decoder');
+      },
+      readSegmentation: async () => ({ image: segmentation, metadata: 'SEG' }),
+    });
+    const done = completed(image);
+    await image.setChunks([chunk], AXIAL);
+    expect(image.getModality()).toBe('SEG');
+    await done;
+    expect(image.getVtkImageData().getDimensions()).toEqual([3, 4, 5]);
+    expect(image.segmentationMetadata).toBe('SEG');
+    image.dispose();
+  });
+
+  it('normalizes a NUL-padded OPT modality for image consumers', async () => {
+    const image = new VtkDicomImage({ readDicomImage: read });
+    await image.setChunks([await loadedChunk(1, 'OPT\u0000')], AXIAL);
+    expect(image.getModality()).toBe('OPT');
+    image.dispose();
+  });
+
   it('keeps displayed pixels until prepared growth commits and can discard growth', async () => {
     const chunks = await Promise.all([loadedChunk(1), loadedChunk(2)]);
     const image = new VtkDicomImage({ readDicomImage: read });
@@ -115,6 +141,58 @@ describe('vtk DICOM consumer', () => {
     expect(pixels(image)).toEqual([3]);
     expect(image.getVtkImageData().isDeleted()).toBe(false);
     image.dispose();
+  });
+
+  it('commits prepared membership after loading is stopped', async () => {
+    const chunks = await Promise.all([loadedChunk(1), loadedChunk(2)]);
+    const image = new VtkDicomImage({ readDicomImage: read });
+    await image.setChunks([chunks[0]], AXIAL);
+    const prepared = await image.prepareChunks(chunks, AXIAL);
+    image.stopLoad();
+    const done = completed(image);
+    prepared.commit();
+    await done;
+    expect(pixels(image)).toEqual([1, 2]);
+    image.dispose();
+  });
+
+  it('settles both borrowers when a shared pending chunk is cancelled', async () => {
+    const bytes = deferred<void>();
+    const started = deferred<void>();
+    const chunk = new Chunk({
+      metaLoader: {
+        meta: (await loadedChunk(1)).metadata,
+        load() {},
+        stop() {},
+      },
+      dataLoader: {
+        data: new Blob(['1']),
+        load() {
+          started.resolve();
+          return bytes.promise;
+        },
+        stop() {},
+      },
+    });
+    const first = new VtkDicomImage({ readDicomImage: read });
+    const second = new VtkDicomImage({ readDicomImage: read });
+    await first.setChunks([chunk], AXIAL);
+    await second.setChunks([chunk], AXIAL);
+    first.startLoad();
+    second.startLoad();
+    await started.promise;
+    first.stopLoad();
+    expect(first.isLoading()).toBe(false);
+    expect(second.isLoading()).toBe(false);
+    expect(second.getStatus()).toBe('incomplete');
+    const done = completed(second);
+    second.startLoad();
+    bytes.resolve();
+    await done;
+    expect(pixels(second)).toEqual([1]);
+    first.dispose();
+    second.dispose();
+    chunk.dispose();
   });
 
   it('uses the plan spacing and slice mapping without reconstructing it', async () => {

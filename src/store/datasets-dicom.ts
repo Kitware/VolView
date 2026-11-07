@@ -1,7 +1,7 @@
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 import { defineStore } from 'pinia';
-import { Image } from 'itk-wasm';
 import type { Chunk } from '@/packages/dicom/core/streaming/chunk';
+import { getDatasetModality } from '@/packages/dicom/core/metadata/datasetAccess';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
@@ -25,10 +25,6 @@ import {
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
-
-export function imageCacheMultiKey(offset: number, asThumbnail: boolean) {
-  return `${offset}!!${asThumbnail}`;
-}
 
 export type VolumeKeys = {
   patientKey: string;
@@ -70,12 +66,6 @@ export type VolumeInfo = {
 };
 
 type State = {
-  // volumeKey -> imageCacheMultiKey -> ITKImage
-  sliceData: Record<string, Record<string, Image>>;
-
-  // volume invalidation information
-  needsRebuild: Record<string, boolean>;
-
   // patientKey -> patient info
   patientInfo: Record<string, PatientInfo>;
   // patientKey -> array of studyKeys
@@ -199,11 +189,18 @@ export class PartialImportError extends Error {
   // and not the whole batch.
   readonly failed: Chunk[];
 
-  constructor(cause: Error, failed: Chunk[]) {
+  readonly failures: { error: Error; chunks: Chunk[] }[];
+
+  constructor(
+    cause: Error,
+    failed: Chunk[],
+    failures = [{ error: cause, chunks: failed }]
+  ) {
     super(cause.message);
     this.name = 'PartialImportError';
     this.cause = cause;
     this.failed = failed;
+    this.failures = failures;
   }
 }
 
@@ -228,6 +225,7 @@ type Candidate =
       kind: 'add';
       id: string;
       image: ProgressiveImage;
+      update?: Awaited<ReturnType<ChunkVolume['prepareChunks']>>;
       record: DatabaseRecord;
     }
   | {
@@ -291,7 +289,7 @@ const volumeRecord = ({
       NumberOfSlices:
         members.length === 1 && frames > 1 ? frames : members.length,
       VolumeID: id,
-      Modality: metadata[Tags.Modality],
+      Modality: getDatasetModality(metaPairs) ?? '',
       SeriesInstanceUID: metadata[Tags.SeriesInstanceUID],
       SeriesNumber: metadata[Tags.SeriesNumber],
       SeriesDescription: metadata[Tags.SeriesDescription],
@@ -349,9 +347,7 @@ async function prepareCine(
 
   const cachedImage = useImageCacheStore().imageById[id];
   if (cachedImage && !(cachedImage instanceof DicomCineImage)) {
-    throw new Error(
-      `Volume ${id} is already loaded as a non-cine progressive image; cannot re-import as a cine clip.`
-    );
+    return null;
   }
 
   await chunk.loadData();
@@ -400,8 +396,10 @@ async function prepareVolume(
   }
 
   const image = deps.track(deps.createChunkImage());
-  await image.setChunks(members, orientation, reconstruction);
-  return { kind: 'add', id, image, record };
+  const prepared = deps.track(
+    await image.prepareChunks(members, orientation, reconstruction)
+  );
+  return { kind: 'add', id, image, update: prepared, record };
 }
 
 /** Builds a collection's replacement without touching any store. */
@@ -449,6 +447,7 @@ function commitPlan(
       candidate.update.commit();
       candidate.image.startLoad();
     } else {
+      candidate.update?.commit();
       imageCacheStore.addProgressiveImage(candidate.image, {
         id: candidate.id,
       });
@@ -482,7 +481,6 @@ function commitPlan(
 
 export const useDICOMStore = defineStore('dicom', {
   state: (): State => ({
-    sliceData: {},
     patientInfo: {},
     patientStudies: {},
     studyInfo: {},
@@ -490,7 +488,6 @@ export const useDICOMStore = defineStore('dicom', {
     volumeInfo: {},
     volumeStudy: {},
     studyPatient: {},
-    needsRebuild: {},
   }),
   actions: {
     async importChunks(
@@ -598,6 +595,16 @@ export const useDICOMStore = defineStore('dicom', {
           ensureError(failure.reason),
           settled.flatMap((result, index) =>
             result.status === 'rejected' ? batches[index][1] : []
+          ),
+          settled.flatMap((result, index) =>
+            result.status === 'rejected'
+              ? [
+                  {
+                    error: ensureError(result.reason),
+                    chunks: batches[index][1],
+                  },
+                ]
+              : []
           )
         );
 
@@ -636,7 +643,6 @@ export const useDICOMStore = defineStore('dicom', {
 
       if (!(volumeKey in this.volumeInfo)) {
         this.volumeStudy[volumeKey] = studyKey;
-        this.sliceData[volumeKey] = {};
         this.studyVolumes[studyKey].push(volumeKey);
       }
       // A re-import grows the membership, so the record is rewritten.
@@ -661,7 +667,6 @@ export const useDICOMStore = defineStore('dicom', {
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];
         delete this.volumeInfo[volumeKey];
-        delete this.sliceData[volumeKey];
         delete this.volumeStudy[volumeKey];
 
         removeFromArray(this.studyVolumes[studyKey], volumeKey);

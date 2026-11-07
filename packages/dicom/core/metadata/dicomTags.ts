@@ -70,16 +70,7 @@ export function isUltrasoundMultiframeSopClass(uid: string): boolean {
   );
 }
 
-export const TAG_TO_NAME = new Map(tags.map((t) => [t.tag, t.name]));
-export const NAME_TO_TAG = new Map(tags.map((t) => [t.name, t.tag]));
 export const Tags = Object.fromEntries(tags.map((t) => [t.name, t.tag]));
-
-// Splits an itk-wasm-style "GGGG|EEEE" tag into the numeric [group, element]
-// pair emitted by the streaming DICOM parser.
-export const tagToGroupElement = (tag: string): [number, number] => {
-  const [group, element] = tag.split('|');
-  return [parseInt(group, 16), parseInt(element, 16)];
-};
 
 // Converts an itk-wasm-style "GGGG|EEEE" tag to a dicom-parser element key.
 export const toDicomParserKey = (tag: string) => `x${tag.replace('|', '')}`;

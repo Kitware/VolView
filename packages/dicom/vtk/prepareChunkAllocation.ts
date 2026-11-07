@@ -1,5 +1,8 @@
 import type { Chunk } from '../core/streaming/chunk';
-import { getChunkTag } from '../core/metadata/datasetAccess';
+import {
+  getChunkTag,
+  getDatasetModality,
+} from '../core/metadata/datasetAccess';
 import { sliceNormalOf } from '../core/collections/instanceFacts';
 import { readChunkFacts } from '../core/collections/chunkFacts';
 import { reconstructInstances } from '../core/collections/reconstructVolume';
@@ -36,7 +39,7 @@ export function prepareChunkAllocation(
   if (chunks.length === 0)
     throw new Error('Cannot allocate an image from zero chunks');
   const reconstruction = reconstructionFor(chunks, orientation, supplied);
-  const modality = getChunkTag(chunks[0], '00080060')?.trim();
+  const modality = getDatasetModality(chunks[0].metadata);
   const allocated =
     modality === 'SEG'
       ? null

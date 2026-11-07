@@ -103,7 +103,7 @@ function sliceError(metadata: DicomDataset, count: number) {
   )
     return 'Unsupported NM volume with unordered or missing slice indices';
   const spacing = number(metadata, '00180088');
-  return (count === 1 && !text(metadata, '00180088')) ||
+  return !text(metadata, '00180088') ||
     (Number.isFinite(spacing) && spacing !== 0)
     ? null
     : 'Cannot allocate NM volume without nonzero slice spacing';

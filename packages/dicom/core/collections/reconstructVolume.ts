@@ -5,7 +5,7 @@ import { projectOnNormal, sliceNormalOf } from './instanceFacts';
 export type ReconstructionMember = Pick<
   InstanceFacts,
   'orientation' | 'position' | 'pixelSpacing'
-> & { frameReconstruction?: Reconstruction };
+> & { frameReconstruction?: Reconstruction; numberOfFrames?: string | null };
 
 export type IrregularReason =
   | 'unreadable-geometry'
@@ -187,8 +187,15 @@ export function reconstructVolume(
   members: ReconstructionMember[],
   normal?: number[] | null
 ): Reconstruction {
-  if (members.length === 0)
-    return { kind: 'regular', sliceSpacing: null, slots: [] };
+  if (
+    members.length < 2 &&
+    !members.some((member) => Number(member.numberOfFrames) > 1)
+  )
+    return {
+      kind: 'regular',
+      sliceSpacing: null,
+      slots: members.map(() => 0),
+    };
 
   const axis = normal ?? sliceNormalOf(members[0].orientation);
   const along = members.map((member) => projectOnNormal(axis, member.position));

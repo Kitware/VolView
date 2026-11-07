@@ -213,7 +213,6 @@ describe('DICOM store transactional commit', () => {
 
     expect(cachedIds()).toEqual([]);
     expect(store.volumeInfo).toEqual({});
-    expect(store.sliceData).toEqual({});
     expect(store.volumeStudy).toEqual({});
     expect(store.studyVolumes).toEqual({});
     expect(store.studyInfo).toEqual({});

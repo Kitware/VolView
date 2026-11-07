@@ -1,6 +1,8 @@
 import { orientationsAgree } from './orientation';
 import { groupBy } from './groupBy';
+import { instanceKey } from './instanceKey';
 import {
+  SEMANTIC_AXES,
   splitOverlappingAcquisitions,
   type PositionOf,
 } from './splitOverlappingAcquisitions';
@@ -21,11 +23,12 @@ export type InstanceFacts = {
   sopInstanceUid: string | null;
   seriesInstanceUid: string | null;
 
-  // Hard partition facts, compared for equality.
+  // Acquisition descriptors split spatial stacks only where their ranges overlap.
   seriesNumber: string | null;
   sequenceName: string | null;
   sliceThickness: string | null;
   seriesDate: string | null;
+  // Pixel shape must agree before slices can share an allocation.
   rows: string | null;
   columns: string | null;
   samplesPerPixel: string | null;
@@ -88,10 +91,6 @@ export { ORIENTATION_TOLERANCE } from './orientation';
 
 // The hard facts, in the order they appear in a collection key.
 export const HARD_FACT_RULES = [
-  'seriesNumber',
-  'sequenceName',
-  'sliceThickness',
-  'seriesDate',
   'rows',
   'columns',
   'samplesPerPixel',
@@ -193,6 +192,7 @@ const contentSignature = (instance: InstanceFacts) =>
       instance.sopInstanceUid,
       instance.seriesInstanceUid,
       ...HARD_FACT_RULES.map((rule) => instance[rule]),
+      ...SEMANTIC_AXES.map((axis) => instance[axis.fact]),
       instance.orientation,
       instance.position,
       instance.projectedPosition,
@@ -251,8 +251,9 @@ const mostDeclared = (orientations: number[][]) => {
  */
 const leanOffAxes = (axes: number[], member: InstanceFacts) => {
   const { orientation } = member;
-  if (!readableOrientation(orientation)) return 0;
-  const [rowSpacing, columnSpacing] = member.pixelSpacing ?? [1, 1];
+  if (!readableOrientation(orientation) || member.pixelSpacing === null)
+    return 0;
+  const [rowSpacing, columnSpacing] = member.pixelSpacing;
   const width = Number(member.columns) * columnSpacing;
   const height = Number(member.rows) * rowSpacing;
   return Math.hypot(
@@ -313,6 +314,22 @@ const hardFactParts = (instance: InstanceFacts) =>
   HARD_FACT_RULES.map(
     (rule) => [rule, instance[rule]] as [string, string | null]
   );
+
+const hardFactLabeler = (all: InstanceFacts[]) => {
+  const rules = HARD_FACT_RULES.filter((rule) =>
+    all.some((member) => member[rule] !== all[0][rule])
+  );
+  const names = {
+    rows: 'rows',
+    columns: 'columns',
+    samplesPerPixel: 'components',
+    numberOfFrames: 'frames',
+  };
+  return (instance: InstanceFacts) =>
+    rules
+      .map((rule) => `${names[rule]} ${instance[rule] ?? 'unknown'}`)
+      .join(', ');
+};
 
 /**
  * Greedy bucketing walked in SOP Instance UID then content order, so the
@@ -474,6 +491,7 @@ export function validateCollections(
 
 export function planDicomCollections(input: PlanInput) {
   const { kept, diagnostics: dedupeDiagnostics } = dedupe(input.instances);
+  const labelHardFacts = hardFactLabeler(kept);
 
   const multiframe = (instance: InstanceFacts) =>
     Number(instance.numberOfFrames) > 1;
@@ -514,12 +532,7 @@ export function planDicomCollections(input: PlanInput) {
           [ORIENTATION_RULE, bucket.value],
           ...part.parts,
           ...(multiframe(group[0])
-            ? [
-                [
-                  'instance',
-                  group[0].sopInstanceUid ?? String(kept.indexOf(group[0])),
-                ] as [string, string],
-              ]
+            ? [['instance', instanceKey(group[0])] as [string, string]]
             : []),
         ],
       };
@@ -529,7 +542,9 @@ export function planDicomCollections(input: PlanInput) {
         order: ordered.order,
         orientation: bucket.orientation,
         reconstruction,
-        label: part.label,
+        label:
+          [labelHardFacts(group[0]), part.label].filter(Boolean).join(', ') ||
+          null,
         diagnostics: [
           ...ordered.members.flatMap((member) => {
             const dropped = dedupeDiagnostics.get(member);

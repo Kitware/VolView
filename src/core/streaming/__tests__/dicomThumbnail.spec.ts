@@ -100,17 +100,17 @@ describe('sliceToThumbnail', () => {
     expect(slice.data).toHaveLength(THUMBNAIL_MAX_SIZE);
   });
 
-  it('reads the first component of a multi sample slice', () => {
+  it('samples RGB luminance for color slices', () => {
     const slice = sliceToThumbnail({
-      data: [0, 9, 9, 10, 9, 9, 30, 9, 9],
+      data: [255, 0, 0, 0, 255, 0, 0, 0, 255],
       width: 3,
       height: 1,
       components: 3,
-      range: [0, 30],
+      range: [0, 255],
       maxSize: 8,
     });
 
-    expect(bytes(slice)).toEqual([0, 85, 255]);
+    expect(bytes(slice)).toEqual([76, 150, 29]);
   });
 
   it('does not mutate the samples it reads', () => {

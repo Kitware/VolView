@@ -75,6 +75,18 @@ describe('DICOMweb loaded-series tracking', () => {
       total: 1,
     });
   });
+
+  it('allows downloading a padded series UID after its final volume is deleted', () => {
+    const store = useDICOMStore();
+    const remote = useDicomWebStore();
+    store._updateDatabase(patient, study, volume('first', '1.2.3 '));
+    store._updateDatabase(patient, study, volume('second', '1.2.3\0'));
+    remote.volumes['1.2.3'] = { state: 'Done', loaded: 2, total: 2 };
+    store.deleteVolume('first');
+    expect(remote.volumes['1.2.3'].state).toBe('Done');
+    store.deleteVolume('second');
+    expect(remote.volumes['1.2.3'].state).toBe('Remote');
+  });
 });
 
 describe('unsupported DICOMweb downloads', () => {

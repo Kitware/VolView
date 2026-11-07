@@ -142,7 +142,7 @@ describe('lenient headers with standards-defined values', () => {
         rawElement(0x7fe0, 0x0010, 'OW', new Uint8Array(16)),
       ])
     );
-    const trailing = rawElement(0x0043, 0x1030, 'LO', encode('AFTER '));
+    const trailing = rawElement(0x4008, 0x0103, 'LO', encode('AFTER '));
     const bytes = buildSlice({ extraElements: [sequence, trailing] });
     const expectedPixelStart =
       pixelDataStart(buildSlice()) + sequence.length + trailing.length;
@@ -156,7 +156,7 @@ describe('lenient headers with standards-defined values', () => {
 
     const loader = new DicomMetaLoader(bytesFetcher(bytes, 7));
     await loader.load();
-    expect(getDatasetTag(loader.meta, '00431030')).toBe('AFTER ');
+    expect(getDatasetTag(loader.meta, '40080103')).toBe('AFTER ');
     expect(loader.meta).toEqual(readDicomDataset(bytes));
     loader.dispose();
   });
@@ -306,11 +306,12 @@ it.each([sequenceItem, undefinedLengthItem])(
     ]);
     const dataset = readDicomDataset(bytes);
     const sequence = findElement(dataset, '00431029')!.values;
+    expect(findElement(dataset, '00431029')!.bytes).toBeUndefined();
     if (sequence.kind !== 'sequence') throw new Error('Expected a sequence');
     expect(getDatasetTag(sequence.items[0], '00100010')).toBe('DOE^JANE');
     const loader = new DicomMetaLoader(bytesFetcher(bytes, 7));
     await loader.load();
-    expect(loader.meta).toEqual(dataset);
+    expect(loader.meta).toEqual(readDicomDataset(base));
     loader.dispose();
   }
 );

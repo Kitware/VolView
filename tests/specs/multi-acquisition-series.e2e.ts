@@ -1,11 +1,6 @@
 // One DICOM series carrying several overlapping acquisitions must load as one
 // volume per acquisition, not as a single stack of interleaved slices.
 //
-// GDCM's series-detail key covers SeriesNumber, SliceThickness, Rows and
-// Columns but not AcquisitionNumber, so the categorize pipeline hands back all
-// of these slices as one volume. Sorted by position they no longer sit on any
-// single lattice, and the derived Z spacing describes none of the scans.
-//
 // Modelled on IDC series
 // 1.3.6.1.4.1.14519.5.2.1.3098.5025.295130953269492004748715270821, which
 // holds three 2.5mm chest/abdomen passes offset from each other by fractions

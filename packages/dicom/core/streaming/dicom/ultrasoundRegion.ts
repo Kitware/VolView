@@ -2,8 +2,7 @@ import { getDatasetTag } from '../../metadata/datasetAccess';
 import { sequenceItems } from '../../metadata/functionalGroups';
 import type { DicomDataset } from '../../metadata/dicomDataset';
 import { trimDicomPadding } from '../../utils';
-import { createDicomParser, type DataElement } from './dicomParser';
-import { Tags, tagToGroupElement } from '../../metadata/dicomTags';
+import { Tags } from '../../metadata/dicomTags';
 
 // DICOM unit codes for PhysicalUnitsXDirection / YDirection.
 // See DICOM PS3.3 C.8.5.5.1.15. The only spatial spacing code defined for
@@ -36,75 +35,6 @@ export type UltrasoundRegions = {
   regionCount: number;
 };
 
-export const SEQUENCE_OF_ULTRASOUND_REGIONS = tagToGroupElement(
-  Tags.SequenceOfUltrasoundRegions
-);
-const PHYSICAL_DELTA_X = tagToGroupElement(Tags.PhysicalDeltaX);
-const PHYSICAL_DELTA_Y = tagToGroupElement(Tags.PhysicalDeltaY);
-const PHYSICAL_UNITS_X_DIRECTION = tagToGroupElement(
-  Tags.PhysicalUnitsXDirection
-);
-const PHYSICAL_UNITS_Y_DIRECTION = tagToGroupElement(
-  Tags.PhysicalUnitsYDirection
-);
-
-const isTag = (el: DataElement, [group, element]: [number, number]) =>
-  el.group === group && el.element === element;
-
-const readFloat64LE = (bytes: Uint8Array) =>
-  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getFloat64(
-    0,
-    true
-  );
-
-const readUint16LE = (bytes: Uint8Array) =>
-  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint16(
-    0,
-    true
-  );
-
-/**
- * Decodes the first item of a SequenceOfUltrasoundRegions element and
- * reports the total number of regions found. The first region's spacing
- * is what gets applied to the VTK image; the count lets callers warn when
- * additional regions exist (multi-region images are only partially
- * supported because VTK image data has a single global spacing).
- */
-export function decodeUltrasoundRegion(
-  sequenceData: DataElement['data']
-): UltrasoundRegions {
-  if (!Array.isArray(sequenceData) || sequenceData.length === 0) {
-    return { regionCount: 0 };
-  }
-  const [firstItem] = sequenceData;
-
-  const findBytes = (target: [number, number]) => {
-    const el = firstItem.find((inner) => isTag(inner, target));
-    if (!el || !(el.data instanceof Uint8Array)) return undefined;
-    return el.data;
-  };
-
-  const deltaXBytes = findBytes(PHYSICAL_DELTA_X);
-  const deltaYBytes = findBytes(PHYSICAL_DELTA_Y);
-  const unitsXBytes = findBytes(PHYSICAL_UNITS_X_DIRECTION);
-  const unitsYBytes = findBytes(PHYSICAL_UNITS_Y_DIRECTION);
-
-  const regionCount = sequenceData.length;
-  if (!deltaXBytes || !deltaYBytes || !unitsXBytes || !unitsYBytes) {
-    return { regionCount };
-  }
-
-  return {
-    region: {
-      physicalDeltaX: readFloat64LE(deltaXBytes),
-      physicalDeltaY: readFloat64LE(deltaYBytes),
-      physicalUnitsXDirection: readUint16LE(unitsXBytes),
-      physicalUnitsYDirection: readUint16LE(unitsYBytes),
-    },
-    regionCount,
-  };
-}
-
 /** The structured header supplies regions in either transfer syntax. */
 export function readUltrasoundRegions(
   metadata: DicomDataset
@@ -127,40 +57,4 @@ export function readUltrasoundRegions(
     regionCount: items.length,
     ...(Object.values(region).every(Number.isFinite) ? { region } : {}),
   };
-}
-
-export async function parseUltrasoundRegionFromBlob(
-  blob: Blob
-): Promise<UltrasoundRegions | undefined> {
-  let regions: UltrasoundRegions | undefined;
-
-  const parse = createDicomParser({
-    stopAtElement(group, element) {
-      return group === 0x7fe0 && element === 0x0010;
-    },
-    onDataElement(el) {
-      if (regions) return;
-      if (isTag(el, SEQUENCE_OF_ULTRASOUND_REGIONS)) {
-        regions = decodeUltrasoundRegion(el.data);
-      }
-    },
-  });
-
-  const stream = blob.stream();
-  const reader = stream.getReader();
-  try {
-    while (!regions) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      const result = parse(value);
-      if (result.done) break;
-    }
-  } catch (err) {
-    console.warn('Failed to parse SequenceOfUltrasoundRegions:', err);
-    return undefined;
-  } finally {
-    reader.releaseLock();
-  }
-
-  return regions;
 }

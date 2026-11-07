@@ -684,7 +684,7 @@ describe('DicomChunkImage', () => {
     image.dispose();
   });
 
-  it('windows a multi component thumbnail on the component it reads', async () => {
+  it('windows a color thumbnail on luminance across the volume', async () => {
     const OTHER_COMPONENT = 1000;
     const readRgbImage: DicomChunkImageInit['readDicomImage'] = async (
       file
@@ -718,9 +718,13 @@ describe('DicomChunkImage', () => {
 
     await image.getThumbnail();
 
-    // Component 0 runs 100 to 300 across the volume, so the middle slice's 200
-    // is mid grey. The vector magnitude range would clamp it to black.
-    expect(Array.from(encoder.slices[0].data)).toEqual([128, 128, 128, 128]);
+    // The middle slice has the volume's middle luminance, within one byte of
+    // mid grey after floating-point windowing.
+    expect(
+      Array.from(encoder.slices[0].data).every(
+        (value) => Math.abs(value - 127.5) <= 0.5
+      )
+    ).toBe(true);
 
     image.dispose();
   });

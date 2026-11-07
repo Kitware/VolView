@@ -274,6 +274,22 @@ describe('DICOM store cine routing', () => {
     expect(store.volumeInfo[id].kind).toBe('volume');
   });
 
+  it('reuses an unsupported cine clip that already loaded as a volume', async () => {
+    const { created, createChunkImage } = imageFactory();
+    const parseCineDicom = () => parseResult(cineHeader());
+    const store = useDICOMStore();
+    const first = await store.importChunks([chunk()], {
+      createChunkImage,
+      parseCineDicom,
+    });
+    const repeated = await store.importChunks([chunk()], {
+      createChunkImage,
+      parseCineDicom,
+    });
+    expect(Object.keys(repeated.volumes)).toEqual(Object.keys(first.volumes));
+    expect(created).toHaveLength(1);
+  });
+
   it('refuses to reuse a cached image that cannot hold chunks', async () => {
     const parseCineDicom = vi.fn(() => parseResult(cineHeader()));
     const normalChunk = () =>

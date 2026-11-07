@@ -42,7 +42,7 @@ import downloadStream from '@/src/io/import/processors/downloadStream';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
-import { ensureError, partition } from '@/src/utils';
+import { ensureError } from '@/src/utils';
 import { Chunk } from '@/packages/dicom/core/streaming/chunk';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
@@ -84,6 +84,13 @@ const applyConfigsPostState = (
       return asErrorResult(ensureError(err), result.dataSource);
     }
   });
+
+const compareSourceOrder = (a: number[], b: number[]): number => {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return a.length - b.length;
+};
 
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
 // covers maps to its ONE store id. Many-to-one is the normal shape — a merged
@@ -146,16 +153,20 @@ export class PartialDicomImportError extends Error {
   // reported as loaded and failed at once.
   readonly failedSources: ChunkSource[];
 
+  readonly failures: { error: Error; sources: ChunkSource[] }[];
+
   constructor(
     cause: Error,
     loadables: LoadableResult[],
-    failedSources: ChunkSource[]
+    failedSources: ChunkSource[],
+    failures = [{ error: cause, sources: failedSources }]
   ) {
     super(cause.message);
     this.name = 'PartialDicomImportError';
     this.cause = cause;
     this.loadables = loadables;
     this.failedSources = failedSources;
+    this.failures = failures;
   }
 }
 
@@ -202,8 +213,23 @@ export async function importDicomChunkSources(
   sources.forEach((src) => chunkToDataSource.set(src.chunk, src));
 
   const loadables: LoadableResult[] = [];
+  const supplied = new Set<DataSource>(sources);
   const publish = (committed: ImportChunksResult) => {
-    loadables.push(...publishImportedChunks(committed));
+    const published = publishImportedChunks(committed);
+    loadables.push(
+      ...published.map((result) => ({
+        ...result,
+        dataSource: {
+          type: 'collection' as const,
+          sources:
+            result.dataSource.type === 'collection'
+              ? result.dataSource.sources.filter((source) =>
+                  supplied.has(source)
+                )
+              : [],
+        },
+      }))
+    );
   };
   // A replan folded the dissolved collection into others, so the dataset an
   // earlier import created for it no longer describes anything loaded. The
@@ -211,6 +237,10 @@ export async function importDicomChunkSources(
   // eviction needs.
   const datasetStore = useDatasetStore();
   const removeDissolved = (id: string) => datasetStore.remove(id);
+  const currentLoadables = () =>
+    loadables
+      .filter(({ dataID }) => datasetStore.getDataSource(dataID) !== undefined)
+      .sort((a, b) => (a.dataID < b.dataID ? -1 : Number(a.dataID > b.dataID)));
 
   await importChunks(
     sources.map((src) => src.chunk),
@@ -225,10 +255,16 @@ export async function importDicomChunkSources(
       // beside the failure rather than lost with it.
       throw new PartialDicomImportError(
         ensureError(err.cause),
-        loadables,
+        currentLoadables(),
         err.failed
           .map((chunk) => chunkToDataSource.get(chunk))
-          .filter((src): src is ChunkSource => src !== undefined)
+          .filter((src): src is ChunkSource => src !== undefined),
+        err.failures.map(({ error, chunks }) => ({
+          error,
+          sources: chunks
+            .map((chunk) => chunkToDataSource.get(chunk))
+            .filter((src): src is ChunkSource => src !== undefined),
+        }))
       );
     })
     .finally(() => {
@@ -237,7 +273,7 @@ export async function importDicomChunkSources(
       );
     });
 
-  return loadables;
+  return currentLoadables();
 }
 
 /**
@@ -252,16 +288,19 @@ async function importDicomResults(
     return await importDicomChunkSources(sources);
   } catch (err) {
     const partial = err instanceof PartialDicomImportError ? err : null;
-    const failed = partial?.failedSources.length
-      ? partial.failedSources
-      : sources;
-    const errorSource =
-      failed.length === 1
-        ? failed[0]
-        : ({ type: 'collection', sources: failed } as DataSource);
+    const failures = partial?.failures ?? [
+      { error: ensureError(err), sources },
+    ];
     return [
       ...(partial?.loadables ?? []),
-      asErrorResult(ensureError(err), errorSource),
+      ...failures.map(({ error, sources: failed }) =>
+        asErrorResult(
+          error,
+          failed.length === 1
+            ? failed[0]
+            : { type: 'collection', sources: failed.length ? failed : sources }
+        )
+      ),
     ];
   }
 }
@@ -336,19 +375,21 @@ async function importDataSourcesWithPolicy(
     unhandledResource,
   ];
 
-  const chunkSources: DataSource[] = [];
+  const chunkSources: Array<{ source: DataSource; order: number[] }> = [];
   const configResults: ConfigResult[] = [];
   const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
 
-  let queue = dataSources.map((src) => ({
+  const queuedSource = (src: DataSource, order: number[]) => ({
     promise: evaluateChain(src, handlers, importContext),
     source: src,
-  }));
+    order,
+  });
+  let queue = dataSources.map((src, index) => queuedSource(src, [index]));
 
   while (queue.length) {
     const { index } = await asyncSelect(queue.map((item) => item.promise));
-    const { promise, source } = queue[index];
+    const { promise, source, order } = queue[index];
     const result = await promise.catch((err) => asErrorResult(err, source));
     queue = queue.filter((_, i) => i !== index);
 
@@ -357,18 +398,12 @@ async function importDataSourcesWithPolicy(
         stateFileSetups.push(result);
       // fallthrough to handle dataSources
       case 'intermediate': {
-        const [chunks, otherSources] = partition(
-          (ds) => ds.type === 'chunk',
-          result.dataSources
-        );
-        chunkSources.push(...chunks);
-
-        queue.push(
-          ...otherSources.map((src) => ({
-            promise: evaluateChain(src, handlers, importContext),
-            source: src,
-          }))
-        );
+        result.dataSources.forEach((src, childIndex) => {
+          const childOrder = [...order, childIndex];
+          if (src.type === 'chunk')
+            chunkSources.push({ source: src, order: childOrder });
+          else queue.push(queuedSource(src, childOrder));
+        });
         break;
       }
       case 'config':
@@ -391,10 +426,13 @@ async function importDataSourcesWithPolicy(
 
   cleanup();
 
-  const dicomChunkSources = chunkSources.filter(
-    (src): src is ChunkSource =>
-      src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
-  );
+  const dicomChunkSources = chunkSources
+    .sort((a, b) => compareSourceOrder(a.order, b.order))
+    .map(({ source }) => source)
+    .filter(
+      (src): src is ChunkSource =>
+        src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
+    );
 
   const dicomResults = await importDicomResults(dicomChunkSources);
   results.push(...dicomResults);

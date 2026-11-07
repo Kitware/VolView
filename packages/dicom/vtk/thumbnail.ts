@@ -9,7 +9,7 @@ export type SliceToThumbnailInput = {
   data: ArrayLike<number>;
   width: number;
   height: number;
-  // Samples per pixel; only the first component is read.
+  // Samples per pixel; RGB samples are converted to luminance.
   components?: number;
   // The window mapped onto 0..255.
   range: readonly [number, number];
@@ -19,6 +19,27 @@ export type SliceToThumbnailInput = {
 export const THUMBNAIL_MAX_SIZE = 256;
 
 const BYTE_MAX = 255;
+
+const thumbnailSample = (
+  data: ArrayLike<number>,
+  offset: number,
+  components: number
+) =>
+  components >= 3
+    ? 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
+    : data[offset];
+
+export function thumbnailRange(data: ArrayLike<number>, components: number) {
+  let low = Infinity;
+  let high = -Infinity;
+  for (let offset = 0; offset < data.length; offset += components) {
+    const sample = thumbnailSample(data, offset, components);
+    if (!Number.isFinite(sample)) continue;
+    low = Math.min(low, sample);
+    high = Math.max(high, sample);
+  }
+  return [low, high] as const;
+}
 
 /** Downsamples one slice and casts it to 8 bit greyscale. */
 export function sliceToThumbnail({
@@ -48,7 +69,9 @@ export function sliceToThumbnail({
     (_, index) => {
       const column = (index % thumbWidth) * stride;
       const row = Math.floor(index / thumbWidth) * stride;
-      return toByte(data[(row * width + column) * components]);
+      return toByte(
+        thumbnailSample(data, (row * width + column) * components, components)
+      );
     }
   );
 

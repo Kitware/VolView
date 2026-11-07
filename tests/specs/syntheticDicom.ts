@@ -264,6 +264,14 @@ const frameBytes16 = (sampleCount: number, value: number) => {
   return bytes;
 };
 
+const rgbFrame = (samples: readonly number[], count: number, bits: number) => {
+  if (bits !== 8 || samples.length !== count * 3)
+    throw new Error('RGB fixtures require three 8-bit samples per pixel');
+  const bytes = new Uint8Array(samples.length + (samples.length % 2));
+  bytes.set(samples);
+  return bytes;
+};
+
 // A single-item sequence with an explicit item length, so a reader that skips
 // sequences and one that descends into them both stay in step.
 const sequenceOfOneItem = (g: number, e: number, item: Uint8Array) =>
@@ -301,6 +309,8 @@ export type SyntheticSliceOptions = {
   // Stored value written to every sample. Signed values are written as two's
   // complement, so they pair with pixelRepresentation 1.
   pixelValue?: number;
+  // Interleaved samples for one 8-bit RGB frame.
+  rgbPixels?: readonly number[];
   // One constant sample value per frame; writes NumberOfFrames when supplied.
   framePixelValues?: readonly number[];
   // Enhanced images carry these attributes in Functional Groups instead.
@@ -346,6 +356,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     rescaleSlope,
     rescaleIntercept,
     pixelValue = 0,
+    rgbPixels,
     framePixelValues,
     rootGeometry = true,
     pixelSpacing = [1, 1] as const,
@@ -371,13 +382,15 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     );
   }
 
-  const pixels = combine(
-    ...(framePixelValues ?? [pixelValue]).map((value) =>
-      bitsAllocated === 8
-        ? frameBytes8(rows * cols, value)
-        : frameBytes16(rows * cols, value)
-    )
-  );
+  const pixels = rgbPixels
+    ? rgbFrame(rgbPixels, rows * cols, bitsAllocated)
+    : combine(
+        ...(framePixelValues ?? [pixelValue]).map((value) =>
+          bitsAllocated === 8
+            ? frameBytes8(rows * cols, value)
+            : frameBytes16(rows * cols, value)
+        )
+      );
 
   const explicitDataset = combine(
     ...(specificCharacterSet == null
@@ -436,8 +449,9 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
           ),
         ]
       : []),
-    us(0x0028, 0x0002, 1),
-    cs(0x0028, 0x0004, 'MONOCHROME2'),
+    us(0x0028, 0x0002, rgbPixels ? 3 : 1),
+    cs(0x0028, 0x0004, rgbPixels ? 'RGB' : 'MONOCHROME2'),
+    ...(rgbPixels ? [us(0x0028, 0x0006, 0)] : []),
     ...(framePixelValues
       ? [is(0x0028, 0x0008, String(framePixelValues.length))]
       : []),

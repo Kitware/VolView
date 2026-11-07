@@ -51,7 +51,11 @@ it('keeps the displayed volume intact while growth prepares and a sibling fails'
         },
       }),
     });
-    if (images.length === 1) image.setChunks = () => sibling.promise;
+    if (images.length === 1)
+      image.prepareChunks = async () => {
+        await sibling.promise;
+        throw new Error('cannot allocate sibling');
+      };
     images.push(image);
     image.addEventListener('status', (status) => {
       if (status === 'complete') rendered.resolve();

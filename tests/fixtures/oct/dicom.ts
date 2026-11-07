@@ -64,7 +64,7 @@ const orientationSequence = (orientation: string) =>
 export function enhancedFile(
   frames: Frame[],
   extraHeader: Uint8Array[] = [],
-  extraShared: Uint8Array[] = []
+  orientation = '1\\0\\0\\0\\1\\0'
 ) {
   return new Blob([
     concat([
@@ -77,8 +77,7 @@ export function enhancedFile(
       sequence('52009229', [
         concat([
           measureSequence('0.01\\0.02'),
-          orientationSequence('1\\0\\0\\0\\1\\0'),
-          ...extraShared,
+          orientationSequence(orientation),
         ]),
       ]),
       sequence(

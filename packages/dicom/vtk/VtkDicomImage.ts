@@ -1,6 +1,9 @@
 import { Chunk } from '../core/streaming/chunk';
 import { ChunkState } from '../core/streaming/chunkStateMachine';
-import { getChunkTag } from '../core/metadata/datasetAccess';
+import {
+  getChunkTag,
+  getDatasetModality,
+} from '../core/metadata/datasetAccess';
 import { type Reconstruction } from '../core/collections/reconstructVolume';
 import { type SpatialMetadata } from '../core/metadata/spatialMetadata';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -33,12 +36,6 @@ const { fastComputeRange } = vtkDataArray;
 const DATA_RANGE_KEY = 'pixel-data-range';
 
 const getChunkId = (chunk: Chunk) => getChunkTag(chunk, '00080018');
-
-// A scan, not a map of the header: this runs once per decoded chunk.
-const modalityOf = (chunks: Chunk[]) =>
-  chunks.length > 0
-    ? (getChunkTag(chunks[0], '00080060')?.trim() ?? null)
-    : null;
 
 const sameChunkOrder = (first: Chunk[], second: Chunk[]) =>
   first.length === second.length &&
@@ -78,6 +75,7 @@ export class VtkDicomImage {
   private events: Emitter<ChunkImageEvents>;
   private chunkStatus: ChunkStatus[];
   private allocationGeneration: number;
+  private decodeGeneration = 0;
   private chunkUpdateQueue: Promise<void>;
   private disposed: boolean;
   private readonly lifetime = new AbortController();
@@ -147,18 +145,11 @@ export class VtkDicomImage {
   }
 
   getModality() {
-    return modalityOf(this.chunks);
+    return getDatasetModality(this.chunks[0]?.metadata);
   }
 
   getChunkStatuses() {
     return this.chunkStatus.slice();
-  }
-
-  getDicomMetadata(chunkNum = 0) {
-    if (chunkNum < 0 || chunkNum >= this.chunks.length) {
-      throw RangeError('chunkNum is out of bounds');
-    }
-    return this.chunks[chunkNum].metadata;
   }
 
   getOrientation() {
@@ -189,6 +180,7 @@ export class VtkDicomImage {
     this.lifetime.abort();
     this.thumbnailLifetime.abort();
     this.allocationGeneration += 1;
+    this.decodeGeneration += 1;
     this.unregisterChunkListeners();
     this.events.all.clear();
     this.chunks.length = 0;
@@ -217,7 +209,7 @@ export class VtkDicomImage {
 
   stopLoad() {
     this.invalidateThumbnail();
-    this.allocationGeneration += 1;
+    this.decodeGeneration += 1;
     this.chunks.forEach((chunk) => {
       chunk.stopLoad();
     });
@@ -315,6 +307,7 @@ export class VtkDicomImage {
     const status = chunks.map(initialChunkStatus);
     this.unregisterChunkListeners();
     this.allocationGeneration += 1;
+    this.decodeGeneration += 1;
     this.chunks = chunks;
     this.orientation = orientation;
     this.reconstruction = allocated.reconstruction;
@@ -385,9 +378,9 @@ export class VtkDicomImage {
   }
 
   private decodeChunk(chunk: Chunk) {
-    const generation = this.allocationGeneration;
+    const generation = this.decodeGeneration;
     this.onChunkHasData(chunk, generation).catch((err) => {
-      if (generation !== this.allocationGeneration) return;
+      if (generation !== this.decodeGeneration) return;
       this.onChunkErrored(chunk, err);
     });
   }
@@ -467,7 +460,7 @@ export class VtkDicomImage {
     const results = await this.readSegmentation(
       new File([chunk.dataBlob!], 'seg.dcm')
     );
-    if (generation !== this.allocationGeneration) {
+    if (generation !== this.decodeGeneration) {
       results.image.delete();
       return;
     }
@@ -493,7 +486,7 @@ export class VtkDicomImage {
       throw new Error(`No data read from chunk ${chunkId}`);
 
     // Only the decode started for the current allocation may update it.
-    if (generation !== this.allocationGeneration) return;
+    if (generation !== this.decodeGeneration) return;
 
     const sliceIndex = this.chunks.indexOf(chunk);
     if (sliceIndex === -1) return;

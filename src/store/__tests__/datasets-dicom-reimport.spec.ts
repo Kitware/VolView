@@ -254,13 +254,13 @@ describe('DICOM store incremental import', () => {
     let failing = true;
     const createChunkImage = () => {
       const image = new FakeChunkImage(created.length);
-      const { setChunks } = image;
-      image.setChunks = async (
+      const { prepareChunks } = image;
+      image.prepareChunks = async (
         chunks: Chunk[],
         orientation: number[] | null
       ) => {
         if (failing) throw new Error('cannot allocate the volume buffer');
-        return setChunks.call(image, chunks, orientation);
+        return prepareChunks.call(image, chunks, orientation);
       };
       created.push(image);
       return image as unknown as DicomChunkImage;

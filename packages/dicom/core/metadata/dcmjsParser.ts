@@ -376,9 +376,9 @@ function readSequenceItems(
 }
 
 /** Consumes an item delimiter, leaving any other element unread. */
-const readItemDelimiter = (dataSet: DicomReadStream) => {
+const readItemDelimiter = (dataSet: DicomReadStream, syntax: string) => {
   const start = dataSet.offset;
-  dataSet.setEndian(true);
+  dataSet.setEndian(syntax !== EXPLICIT_VR_BIG_ENDIAN);
   const group = dataSet.readUint16();
   const element = dataSet.readUint16();
   if (group !== 0xfffe || element !== 0xe00d) {
@@ -426,7 +426,8 @@ const readElements = (
   const elements: ParsedElement[] = [];
   let done = false;
   while (!done && !dataSet.end()) {
-    if (untilItemDelimiter && readItemDelimiter(dataSet)) return elements;
+    if (untilItemDelimiter && readItemDelimiter(dataSet, syntax))
+      return elements;
     const next = readNextElement(dataSet, syntax, stopAtPixelData);
     done = next.done;
     if (next.element) elements.push(next.element);

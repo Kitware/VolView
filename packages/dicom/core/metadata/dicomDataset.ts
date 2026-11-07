@@ -201,7 +201,8 @@ const buildElement = (
   decode: CharacterSetDecoder,
   charset: string[] | null
 ): DicomElement => {
-  const bytes = keepsBytes(parsed) ? rawBytesOf(parsed) : undefined;
+  const bytes =
+    !parsed.items && keepsBytes(parsed) ? rawBytesOf(parsed) : undefined;
   return {
     tag: tagKey(parsed.group, parsed.element),
     group: parsed.group,
@@ -246,3 +247,23 @@ function buildDataset(
  */
 export const readDicomDataset = (bytes: Uint8Array) =>
   buildDataset(parseDicomElements(bytes), null);
+
+/** Image loading uses public attributes; private payloads stay in the source. */
+export const withoutPrivateElements = (
+  dataset: DicomDataset
+): DicomDataset => ({
+  ...dataset,
+  elements: dataset.elements
+    .filter((element) => !isPrivateElement(element))
+    .map((element) =>
+      element.values.kind === 'sequence'
+        ? {
+            ...element,
+            values: {
+              ...element.values,
+              items: element.values.items.map(withoutPrivateElements),
+            },
+          }
+        : element
+    ),
+});

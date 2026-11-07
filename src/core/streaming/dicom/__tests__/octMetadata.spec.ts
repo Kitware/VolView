@@ -1,8 +1,13 @@
 import dicomParser, { type DataSet } from 'dicom-parser';
 import { deflateRawSync } from 'node:zlib';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { augmentOCTMetadata } from '@/src/core/streaming/dicom/octMetadata';
+import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
+import { DicomMetaLoader } from '@/packages/dicom/core/streaming/dicom/dicomMetaLoader';
+import { blobFetcher } from '@/packages/dicom/core/streaming/blobFetcher';
+import { bytesFetcher } from '@/tests/dicomSourceFixtures';
+import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 
 import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 import {
@@ -22,13 +27,6 @@ import {
   sequence,
   overwriteDicomString,
 } from '@/tests/fixtures/oct/dicom';
-
-const baseMetadata = (): Array<[string, string]> => [
-  [Tags.SOPClassUID, OPHTHALMIC_TOMOGRAPHY_SOP],
-  [Tags.Modality, 'OPT'],
-];
-
-afterEach(() => vi.restoreAllMocks());
 
 const firstItem = (data: DataSet, tag: string) =>
   data.elements[tag].items![0].dataSet!;
@@ -52,22 +50,18 @@ function hide(data: DataSet, tag: string) {
 const spatialMetadataError = (metadata: Iterable<[string, string]>) =>
   new Map(metadata).get(OCT_GEOMETRY_ERROR);
 
-async function augmented(bytes = fixtureBytes()) {
-  return new Map(
-    await augmentOCTMetadata(new Blob([bytes as BlobPart]), baseMetadata())
-  );
+async function projectFile(file: Blob) {
+  const loader = new DicomMetaLoader(blobFetcher(file));
+  try {
+    await loader.load();
+    return dicomMetadataForDisplay(loader.meta!);
+  } finally {
+    loader.dispose();
+  }
 }
 
-function recordBlobReads() {
-  const reads: number[] = [];
-  const arrayBuffer = Blob.prototype.arrayBuffer;
-  vi.spyOn(Blob.prototype, 'arrayBuffer').mockImplementation(function (
-    this: Blob
-  ) {
-    reads.push(this.size);
-    return arrayBuffer.call(this);
-  });
-  return reads;
+async function augmented(bytes = fixtureBytes()) {
+  return new Map(await projectFile(new Blob([bytes as BlobPart])));
 }
 
 describe('OCT DICOM activation', () => {
@@ -79,6 +73,7 @@ describe('OCT DICOM activation', () => {
       isOCTMetadata([[Tags.SOPClassUID, OPHTHALMIC_BSCAN_ANALYSIS_SOP]])
     ).toBe(true);
     expect(isOCTMetadata([[Tags.Modality, 'OPT ']])).toBe(true);
+    expect(isOCTMetadata([[Tags.Modality, 'OPT\0']])).toBe(true);
   });
 
   it('does not activate a volume projection for an existing enface image', () => {
@@ -97,45 +92,38 @@ describe('OCT DICOM activation', () => {
     }
   );
 
-  it('preserves metadata and skips parsing non-OCT files', async () => {
-    const tags: Array<[string, string]> = [[Tags.Modality, 'CT']];
-    expect(await augmentOCTMetadata(new Blob(['not a DICOM']), tags)).toBe(
-      tags
+  it('preserves non-OCT metadata without adding projection fields', () => {
+    const bytes = fixtureBytes();
+    const data = readDataset(bytes);
+    overwriteDicomString(data, 'x00080016', '1.2.840.10008.5.1.4.1.1.2');
+    overwriteDicomString(data, 'x00080060', 'CT');
+    const dataset = readDicomDataset(bytes);
+    expect(dicomMetadataForDisplay(dataset)).toEqual(
+      dicomDatasetToTags(dataset)
     );
   });
 });
 
 describe('OCT enhanced spatial metadata', () => {
-  it('reads the header without copying the volume pixels', async () => {
-    const source = fixtureBytes();
-    const expected = await augmented(source);
-    const reads = recordBlobReads();
-
-    expect(await augmented(source)).toEqual(expected);
-    expect(reads.reduce((total, bytes) => total + bytes, 0)).toBeLessThan(
-      source.length / 10
-    );
-  });
-
-  it('reads large OCT headers without copying the pixel payload', async () => {
+  it('stops streaming after large OCT headers before the pixel payload', async () => {
     const frames = [{ position: '0\\0\\0' }, { position: '0\\0\\0.2' }];
-    const expected = new Map(
-      await augmentOCTMetadata(enhancedFile(frames), baseMetadata())
-    );
     const file = new Blob([
       enhancedFile(frames, [
         element('00111010', 'OB', new Uint8Array(2 * 1024 * 1024)),
       ]),
       element('7fe00010', 'OW', new Uint8Array(16 * 1024 * 1024)),
     ]);
-    const reads = recordBlobReads();
-
-    expect(new Map(await augmentOCTMetadata(file, baseMetadata()))).toEqual(
-      expected
+    const source = bytesFetcher(
+      new Uint8Array(await file.arrayBuffer()),
+      64 * 1024
     );
-    expect(reads.reduce((total, bytes) => total + bytes, 0)).toBeLessThan(
-      file.size / 2
-    );
+    const loader = new DicomMetaLoader(source);
+    await loader.load();
+    const tags = new Map(dicomMetadataForDisplay(loader.meta!));
+    expect(tags.get(Tags.ImagePositionPatient)).toBe('0\\0\\0');
+    expect(tags.get(Tags.SpacingBetweenSlices)).toBe('0.2');
+    expect(source.size).toBeLessThan(file.size / 2);
+    loader.dispose();
   });
 
   it.each([64 * 1024, 2 * 1024 * 1024])(
@@ -155,8 +143,8 @@ describe('OCT enhanced spatial metadata', () => {
         header,
         element('7fe00010', 'OW', new Uint8Array(2)),
       ]);
-      expect(new Map(await augmentOCTMetadata(file, baseMetadata()))).toEqual(
-        new Map(await augmentOCTMetadata(enhancedFile(frames), baseMetadata()))
+      expect(new Map(await projectFile(file))).toEqual(
+        new Map(await projectFile(enhancedFile(frames)))
       );
     }
   );
@@ -195,11 +183,9 @@ describe('OCT enhanced spatial metadata', () => {
     expect(await augmented(bytes)).toEqual(await augmented(source));
   });
 
-  it('records unreadable spatial metadata when the deflated dataset is truncated', async () => {
+  it('rejects a truncated deflated dataset before projecting its metadata', async () => {
     const bytes = deflatedExplicitVR(fixtureBytes());
-    expect(
-      spatialMetadataError(await augmented(bytes.subarray(0, -10)))
-    ).toMatch(/could not be read/);
+    await expect(augmented(bytes.subarray(0, -10))).rejects.toThrow();
   });
 
   it.each([
@@ -253,11 +239,13 @@ describe('OCT enhanced spatial metadata', () => {
           ]),
         ]
       );
-      const tags = new Map(
-        await augmentOCTMetadata(file, [
-          [Tags.SOPClassUID, OPHTHALMIC_BSCAN_ANALYSIS_SOP],
-        ])
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      overwriteDicomString(
+        readDataset(bytes),
+        'x00080016',
+        OPHTHALMIC_BSCAN_ANALYSIS_SOP
       );
+      const tags = await augmented(bytes);
       expect(tags.get(OCT_SCAN_PATTERN)).toBe(pattern);
     }
   );
@@ -271,6 +259,7 @@ describe('OCT enhanced spatial metadata', () => {
       Buffer.alloc(128),
       Buffer.from('DICM'),
       element('00020010', 'UI', '1.2.840.10008.1.2'),
+      attribute('00080016', OPHTHALMIC_BSCAN_ANALYSIS_SOP),
       attribute('00280008', '2'),
       attribute('00180088', '0.2'),
       implicit(
@@ -279,11 +268,7 @@ describe('OCT enhanced spatial metadata', () => {
         ])
       ),
     ]);
-    const tags = new Map(
-      await augmentOCTMetadata(file, [
-        [Tags.SOPClassUID, OPHTHALMIC_BSCAN_ANALYSIS_SOP],
-      ])
-    );
+    const tags = new Map(await projectFile(file));
     expect(tags.get(OCT_SCAN_PATTERN)).toBe('128282');
   });
 
@@ -293,11 +278,9 @@ describe('OCT enhanced spatial metadata', () => {
       [{}, {}],
       [element('00180088', 'DS', '0.2'), sequence('00221640', [raster, raster])]
     );
-    expect(
-      new Map(await augmentOCTMetadata(file, baseMetadata())).get(
-        OCT_SCAN_PATTERN
-      )
-    ).toBe('multiple');
+    expect(new Map(await projectFile(file)).get(OCT_SCAN_PATTERN)).toBe(
+      'multiple'
+    );
   });
 
   it('preserves declarations marking a volume unsuitable for volumetric processing', async () => {
@@ -369,22 +352,14 @@ describe('OCT enhanced spatial metadata', () => {
           kind === 'orientation' ? '1\\0\\0\\0\\1' : '2\\0\\0\\0\\.5\\0'
         );
       }
-      const metadata: Array<[string, string]> = [
-        ...baseMetadata(),
-        [Tags.Rows, '2'],
-        [Tags.Columns, '2'],
-        [Tags.NumberOfFrames, '2'],
-        [Tags.BitsStored, '16'],
-        [Tags.PixelRepresentation, '0'],
-        [Tags.ImagePositionPatient, '9\\8\\7'],
-        [Tags.ImageOrientationPatient, '1\\0\\0\\0\\1\\0'],
-      ];
-      const tags = new Map(
-        await augmentOCTMetadata(new Blob([bytes]), metadata)
-      );
+      overwriteDicomString(data, 'x00200032', '9\\8\\7');
+      overwriteDicomString(data, 'x00200037', '1\\0\\0\\0\\1\\0');
+      const tags = await augmented(bytes);
       expect(spatialMetadataError(tags)).toBeTruthy();
-      expect(tags.get(Tags.ImagePositionPatient)).toBe('9\\8\\7');
-      expect(tags.get(Tags.ImageOrientationPatient)).toBe('1\\0\\0\\0\\1\\0');
+      expect(tags.get(Tags.ImagePositionPatient)?.trim()).toBe('9\\8\\7');
+      expect(tags.get(Tags.ImageOrientationPatient)?.trim()).toBe(
+        '1\\0\\0\\0\\1\\0'
+      );
     }
   );
   it.each([false, true])(
@@ -418,26 +393,24 @@ describe('OCT enhanced spatial metadata', () => {
   });
 
   it('derives inter-frame spacing from uniform positions', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await projectFile(
       enhancedFile([
         { position: '0\\0\\0' },
         { position: '0\\0\\0.2' },
         { position: '0\\0\\0.4' },
-      ]),
-      baseMetadata()
+      ])
     );
     expect(spatialMetadataError(tags)).toBeUndefined();
     expect(new Map(tags).get(Tags.SpacingBetweenSlices)).toBe('0.2');
   });
 
   it('accepts positions rounded to four decimal places', async () => {
-    const tags = await augmentOCTMetadata(
+    const tags = await projectFile(
       enhancedFile(
         Array.from({ length: 49 }, (_, i) => ({
           position: `0\\0\\${(i * 0.12306585).toFixed(4)}`,
         }))
-      ),
-      baseMetadata()
+      )
     );
     expect(spatialMetadataError(tags)).toBeUndefined();
   });
@@ -457,13 +430,8 @@ describe('OCT enhanced spatial metadata', () => {
     const normal = [-0.97088946, 0.17417332, 0.16458873];
     const position = normal.map((n) => (n * 0.2).toFixed(4)).join('\\');
     const tags = new Map(
-      await augmentOCTMetadata(
-        enhancedFile(
-          [{ position: '0\\0\\0' }, { position }],
-          [],
-          [sequence('00209116', [element('00200037', 'DS', orientation)])]
-        ),
-        baseMetadata()
+      await projectFile(
+        enhancedFile([{ position: '0\\0\\0' }, { position }], [], orientation)
       )
     );
     expect(spatialMetadataError(tags)).toBeUndefined();
@@ -505,13 +473,12 @@ describe('OCT enhanced spatial metadata', () => {
 
   it('does not promote geometry for frames stored against the positive normal', async () => {
     const tags = new Map(
-      await augmentOCTMetadata(
+      await projectFile(
         enhancedFile([
           { position: '0\\0\\0.4' },
           { position: '0\\0\\0.2' },
           { position: '0\\0\\0' },
-        ]),
-        baseMetadata()
+        ])
       )
     );
     expect(spatialMetadataError(tags)).toMatch(/image grid/);
@@ -527,7 +494,7 @@ describe('OCT enhanced spatial metadata', () => {
         [{}, {}, {}],
         spacing === undefined ? [] : [element('00180088', 'DS', spacing)]
       );
-      const tags = new Map(await augmentOCTMetadata(file, baseMetadata()));
+      const tags = new Map(await projectFile(file));
       expect(spatialMetadataError(tags)).toMatch(/slice spacing.*unavailable/);
       expect(tags.get(Tags.PixelSpacing)).toBe('0.01\\0.02');
     }
@@ -599,17 +566,11 @@ describe('OCT enhanced spatial metadata', () => {
       /Repeated/,
     ],
   ])('rejects %s', async (_label, frames, error) => {
-    const tags = await augmentOCTMetadata(enhancedFile(frames), baseMetadata());
+    const tags = await projectFile(enhancedFile(frames));
     expect(spatialMetadataError(tags)).toMatch(error);
   });
 
-  it('records unreadable spatial metadata when the OCT header cannot be parsed', async () => {
-    const tags = await augmentOCTMetadata(
-      new Blob(['corrupt OCT']),
-      baseMetadata()
-    );
-    expect(spatialMetadataError(tags)).toBe(
-      'OCT spatial metadata could not be read.'
-    );
+  it('rejects a corrupt OCT header before projecting metadata', async () => {
+    await expect(projectFile(new Blob(['corrupt OCT']))).rejects.toThrow();
   });
 });

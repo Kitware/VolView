@@ -23,6 +23,7 @@ import {
 } from '@/src/core/dicom-web-api';
 import { useViewStore } from '@/src/store/views';
 import { isVolumeResult } from '@/src/io/import/common';
+import { trimDicomPadding } from '@/packages/dicom/core/utils';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 
@@ -323,15 +324,16 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
     if (name !== 'deleteVolume') return;
 
     const [loadedVolumeKey] = args;
-    const seriesInstanceUID =
-      loadedDicoms.volumeInfo[loadedVolumeKey]?.SeriesInstanceUID;
+    const seriesInstanceUID = trimDicomPadding(
+      loadedDicoms.volumeInfo[loadedVolumeKey]?.SeriesInstanceUID ?? ''
+    );
 
     after(() => {
       if (!seriesInstanceUID || !(seriesInstanceUID in volumes.value)) return;
       // A split series loads as several volumes with one Series Instance UID;
       // only mark the series remote when the last of them is deleted.
       const stillLoaded = Object.values(loadedDicoms.volumeInfo).some(
-        (info) => info.SeriesInstanceUID === seriesInstanceUID
+        (info) => trimDicomPadding(info.SeriesInstanceUID) === seriesInstanceUID
       );
       if (stillLoaded) return;
       volumes.value[seriesInstanceUID] = {

@@ -464,6 +464,44 @@ function nmMetadata(overrides: Record<string, string> = {}) {
 }
 
 describe('reconstructed NM spatial volumes', () => {
+  it.each(['00200032', '00200037', '00280030', '00180088'])(
+    'displays NM frames when Type 2 geometry %s is empty',
+    (tag) => {
+      const metadata = nmMetadata();
+      const detector = metadata.elements.find(
+        (element) => element.tag === '00540022'
+      )!.values;
+      const source =
+        (tag === '00200032' || tag === '00200037') &&
+        detector.kind === 'sequence'
+          ? detector.items[0]
+          : metadata;
+      source.elements = source.elements.map((element) =>
+        element.tag === tag ? tags({ [tag]: '' }).elements[0] : element
+      );
+      const { image, spatialMetadata } = allocateImageFromChunks(
+        [{ metadata } as Chunk],
+        null,
+        { kind: 'regular', sliceSpacing: null, slots: [0] }
+      );
+      expect(image.getDimensions()).toEqual([2, 2, 3]);
+      if (tag === '00200032') {
+        expect(image.getOrigin()).toEqual([0, 0, 0]);
+        expect(spatialMetadata.notes.join(' ')).toContain('zero origin');
+      } else if (tag === '00200037') {
+        expect(image.getDirection()).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+        expect(spatialMetadata.notes.join(' ')).toContain('default axes');
+      } else {
+        const axis = tag === '00280030' ? 0 : 2;
+        expect(image.getSpacing()[axis]).toBe(1);
+        expect(spatialMetadata.axes[axis].status).toBe('fallback');
+      }
+      if (tag !== '00180088')
+        expect(image.getSpacing()[2]).toBe(4.7951998710632);
+      image.delete();
+    }
+  );
+
   it.each([-1, 1])(
     'uses the detector plane and signed NM slice progression %s',
     (sign) => {

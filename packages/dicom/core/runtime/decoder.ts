@@ -121,6 +121,7 @@ export function createDicomDecoder(
                 webWorker: worker,
                 pipelineWorkerUrl: assets.pipelineWorkerUrl,
                 pipelineBaseUrl: assets.imageIOUrl,
+                noCopy: true,
               }
             ),
             failed,

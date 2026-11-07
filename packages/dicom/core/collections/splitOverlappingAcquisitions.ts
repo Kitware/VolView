@@ -1,26 +1,39 @@
 import type { InstanceFacts } from './planDicomCollections';
+import { groupBy } from './groupBy';
+
+export const DESCRIPTOR_AXES = [
+  { rule: 'sequence', fact: 'sequenceName', counter: true },
+  { rule: 'thickness', fact: 'sliceThickness', counter: true },
+  { rule: 'series', fact: 'seriesNumber', counter: true },
+  { rule: 'date', fact: 'seriesDate', counter: true },
+] as const;
 
 /**
  * Facts tried, in order, as the identity of one scan within a series. An axis
  * that does not split hands the members to the next; an axis that does split
  * recurses into each part with the remaining axes, so a 4D multi-echo series
- * separates on both. Every entry traces to an IDC series in
- * __tests__/idcSeriesFixtures.ts. Stack ID is absent on purpose: bilateral
+ * separates on both. Acquisition descriptors provide a fallback when the
+ * specific contrast tags are absent. Stack ID is absent on purpose: bilateral
  * slab series put two stacks in one sound volume.
  *
- * A counter axis numbers passes over time. Scanners sometimes stamp it per
- * slice, and a repeated plane under it is a time series, so it earns two
- * guards a contrast axis (echo, b-value) does not: it never fans out a single
- * plane, and it splits only on groups that hold more than one slice.
+ * Acquisition and phase counters number passes over time. Scanners sometimes
+ * stamp them per slice, so they split only multi-slice groups and preserve a
+ * repeated single plane as a time series. Descriptors require multi-slice
+ * groups too, except when all images share one plane: separating those cannot
+ * remove a slice from a spatial stack.
  */
 export const SEMANTIC_AXES = [
   { rule: 'acquisition', fact: 'acquisitionNumber', counter: true },
   { rule: 'phase', fact: 'temporalPositionIdentifier', counter: true },
   { rule: 'echo', fact: 'echoNumbers', counter: false },
   { rule: 'b-value', fact: 'diffusionBValue', counter: false },
+  ...DESCRIPTOR_AXES,
 ] as const;
 
 type SemanticAxis = (typeof SEMANTIC_AXES)[number];
+
+const isDescriptor = (axis: SemanticAxis) =>
+  DESCRIPTOR_AXES.some((descriptor) => descriptor.fact === axis.fact);
 
 export type SemanticPart = {
   // One entry per axis, in SEMANTIC_AXES order: the value the part was split
@@ -87,22 +100,31 @@ const anySpansOverlap = (groups: InstanceFacts[][], positionOf: PositionOf) => {
 };
 
 /** Eligible groups in first-seen order, with all other members held apart. */
-const groupByAxis = (members: InstanceFacts[], axis: SemanticAxis) => {
-  const tagged = new Map<string, InstanceFacts[]>();
+const groupByAxis = (
+  members: InstanceFacts[],
+  axis: SemanticAxis,
+  singlePlane: boolean
+) => {
+  const independentImages = singlePlane && isDescriptor(axis);
+  const tagged = new Map<string | null, InstanceFacts[]>();
   members.forEach((member) => {
     const value = member[axis.fact];
-    if (value === null) return;
+    if (value === null && !independentImages) return;
     const group = tagged.get(value);
     if (group) group.push(member);
     else tagged.set(value, [member]);
   });
   // A counter stamped per slice cannot establish a separate acquisition.
+  // Descriptor differences on one plane distinguish images without removing
+  // a slice from a spatial stack.
   const eligible = new Map(
-    [...tagged].filter(([, group]) => !axis.counter || group.length > 1)
+    [...tagged].filter(
+      ([, group]) => !axis.counter || independentImages || group.length > 1
+    )
   );
   const remainder = members.filter((member) => {
     const value = member[axis.fact];
-    return value === null || !eligible.has(value);
+    return !eligible.has(value);
   });
   return { tagged: eligible, remainder };
 };
@@ -118,10 +140,11 @@ type Split = { value: string | null; members: InstanceFacts[] };
 const firstSplittingAxis = (
   members: InstanceFacts[],
   axes: SemanticAxis[],
-  positionOf: PositionOf
+  positionOf: PositionOf,
+  singlePlane: boolean
 ) =>
   axes
-    .map((axis) => ({ axis, ...groupByAxis(members, axis) }))
+    .map((axis) => ({ axis, ...groupByAxis(members, axis, singlePlane) }))
     .find(({ tagged }) => {
       const groups = [...tagged.values()];
       return groups.length >= 2 && anySpansOverlap(groups, positionOf);
@@ -156,21 +179,53 @@ const unreadableGeometry = (
   unreadablePositions: true,
 });
 
-const labelFor = (axis: SemanticAxis, value: string | null) =>
-  value === null ? `${axis.rule} unknown` : `${axis.rule} ${value}`;
+const labelFor = (axis: SemanticAxis, members: InstanceFacts[]) => {
+  const values = new Set(members.map((member) => member[axis.fact]));
+  const value = values.size === 1 ? [...values][0] : 'mixed';
+  return `${axis.rule} ${value ?? 'unknown'}`;
+};
+
+const splitUnreadable = (members: InstanceFacts[], axes: SemanticAxis[]) => {
+  const descriptors = DESCRIPTOR_AXES.filter((axis) => axes.includes(axis));
+  const groups = [
+    ...groupBy(members, (member) =>
+      JSON.stringify(descriptors.map((axis) => member[axis.fact]))
+    ).values(),
+  ];
+  const differing = descriptors.filter(
+    (axis) => new Set(members.map((member) => member[axis.fact])).size > 1
+  );
+  return groups.map((group) => {
+    const part = unreadableGeometry(group, axes);
+    return {
+      ...part,
+      parts: part.parts.map(([rule, value]): [string, string | null] => {
+        const descriptor = descriptors.find((axis) => axis.rule === rule);
+        return [rule, descriptor ? group[0][descriptor.fact] : value];
+      }),
+      label: [
+        ...differing.map((axis) => labelFor(axis, group)),
+        part.label,
+      ].join(', '),
+    };
+  });
+};
 
 function splitByAxes(
   members: InstanceFacts[],
   axes: SemanticAxis[],
   positionOf: PositionOf
 ): SemanticPart[] {
-  // One plane scanned repeatedly is a time series, not a stack of volumes;
-  // only a contrast axis may still tell its frames apart.
+  // Counters alone leave a repeatedly scanned plane as a time series. Contrast
+  // tags and descriptors can still distinguish independent images on it.
   const singlePlane = countDistinctPositions(members, positionOf) === 1;
   const found = firstSplittingAxis(
     members,
-    singlePlane ? axes.filter((axis) => !axis.counter) : axes,
-    positionOf
+    singlePlane
+      ? axes.filter((axis) => !axis.counter || isDescriptor(axis))
+      : axes,
+    positionOf,
+    singlePlane
   );
   if (!found)
     return unsplit(members, axes, hasRepeatedPositions(members, positionOf));
@@ -192,7 +247,7 @@ function splitByAxes(
         [axis.rule, value],
         ...child.parts,
       ],
-      label: [labelFor(axis, value), child.label]
+      label: [labelFor(axis, child.members), child.label]
         .filter((part) => part !== null)
         .join(', '),
     }))
@@ -214,10 +269,11 @@ function splitByAxes(
  * members that can be judged.
  *
  * Conservative on the members it does judge: one overlapping pair separates
- * every eligible group at that level, and a counter axis neither fans out a
- * repeated single plane nor splits on groups of one slice. Members that lack
- * the level's value and singleton counter groups form a remainder part rather
- * than blocking the split, so the result depends only on the members given.
+ * every eligible group at that level. Acquisition and phase counters preserve
+ * repeated single planes and require groups of multiple slices. Descriptors
+ * retain the group-size guard only where several planes form a spatial stack.
+ * Members that lack the level's value and excluded singleton groups form a
+ * remainder instead of blocking the split.
  */
 export function splitOverlappingAcquisitions(
   members: InstanceFacts[],
@@ -231,6 +287,6 @@ export function splitOverlappingAcquisitions(
 
   return [
     ...(judgeable.length > 0 ? splitByAxes(judgeable, axes, positionOf) : []),
-    ...(unreadable.length > 0 ? [unreadableGeometry(unreadable, axes)] : []),
+    ...splitUnreadable(unreadable, axes),
   ];
 }

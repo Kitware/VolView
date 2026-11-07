@@ -13,7 +13,6 @@ import {
 } from '@/src/io/dicom';
 import type { JsonCompatible } from '@itk-wasm/image-io';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
-import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { surfaceWarning } from '@/src/store/messages';
 import { computed } from 'vue';
@@ -73,11 +72,6 @@ export default class DicomChunkImage
 
   getChunkStatuses() {
     return this.consumer.getChunkStatuses();
-  }
-
-  getDicomMetadata(chunkNum = 0) {
-    const dataset = this.consumer.getDicomMetadata(chunkNum);
-    return dataset ? dicomDatasetToTags(dataset) : dataset;
   }
 
   getOrientation() {

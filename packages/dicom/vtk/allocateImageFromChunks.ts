@@ -1,6 +1,10 @@
 import { Chunk } from '../core/streaming/chunk';
 import { DicomDataset } from '../core/metadata/dicomDataset';
-import { getDatasetTag, getChunkTag } from '../core/metadata/datasetAccess';
+import {
+  getDatasetTag,
+  getChunkTag,
+  getDatasetModality,
+} from '../core/metadata/datasetAccess';
 import {
   readGeometryFacts,
   sliceNormalOf,
@@ -15,7 +19,7 @@ import {
   type SpatialMetadata,
 } from '../core/metadata/spatialMetadata';
 import { getFrameTag } from '../core/metadata/functionalGroups';
-import { numberOr, trimDicomPadding } from '../core/utils';
+import { numberOr } from '../core/utils';
 import { nmGeometry } from './nmGeometry';
 import { readModalityRescale } from '../core/metadata/modalityRescale';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -284,7 +288,7 @@ const instanceGeometry = (chunk: Chunk, count: number) => {
   if (nm) return nm;
   if (count < 2) return null;
   // SEG planning does not judge segment-major frames as one spatial stack.
-  if (trimDicomPadding(getDatasetTag(metadata, '00080060') ?? '') === 'SEG')
+  if (getDatasetModality(metadata) === 'SEG')
     return multiframeGeometry(metadata, count);
   return readChunkFacts(chunk).frameGeometry;
 };

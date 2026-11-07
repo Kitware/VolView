@@ -6,9 +6,11 @@ import { Awaitable } from '../../utils';
 
 import {
   readDicomDataset,
+  withoutPrivateElements,
   type DicomDataset,
 } from '../../metadata/dicomDataset';
 import type { DicomLayout } from '../../metadata/dicomLayout';
+import { getDatasetModality } from '../../metadata/datasetAccess';
 import { concatBytes, toAscii } from '../../utils';
 import { readUltrasoundRegions, UltrasoundRegions } from './ultrasoundRegion';
 
@@ -70,6 +72,7 @@ export class DicomMetaLoader implements MetaLoader {
   ) {
     const generation = this.generation;
     let pixelDataIdx = -1;
+    let parsing = true;
     // The bytes read so far live here rather than in the fetcher: the header
     // is parsed once and then done with, and a fetcher over a file has no
     // reason to keep a copy of it for the chunk's lifetime.
@@ -83,11 +86,12 @@ export class DicomMetaLoader implements MetaLoader {
         const { done, value } = await reader.read();
         if (done) break;
         received.push(value);
+        if (!parsing) continue;
         const result = parse(value);
-        if (result.done) {
-          pixelDataIdx = result.value.position;
-          break;
-        }
+        if (!result.done) continue;
+        pixelDataIdx = result.value.position;
+        parsing = false;
+        if (pixelDataIdx >= 0) break;
       }
     } catch (err) {
       if (err !== StopSignal) throw err;
@@ -140,10 +144,10 @@ export class DicomMetaLoader implements MetaLoader {
     const dataset = await this.readDataset(header);
     if (generation !== this.generation)
       throw new DOMException('DICOM read cancelled', 'AbortError');
-    this.tags = dataset;
+    this.tags = withoutPrivateElements(dataset);
 
-    if (modality === 'US') {
-      this.ultrasoundRegions = readUltrasoundRegions(dataset);
+    if (getDatasetModality(this.tags) === 'US') {
+      this.ultrasoundRegions = readUltrasoundRegions(this.tags);
     }
   }
 

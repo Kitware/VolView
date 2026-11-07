@@ -1,5 +1,6 @@
 import type { DicomDataset, DicomElement } from './dicomDataset';
 import type { Chunk } from '../streaming/chunk';
+import { trimDicomPadding } from '../utils';
 
 const canonicalTag = (tag: string) => tag.replace('|', '').toUpperCase();
 
@@ -28,3 +29,6 @@ export function getDatasetTag(
 
 export const getChunkTag = (chunk: Chunk, tag: string) =>
   getDatasetTag(chunk.metadata, tag);
+
+export const getDatasetModality = (dataset: DicomDataset | null | undefined) =>
+  trimDicomPadding(getDatasetTag(dataset, '00080060') ?? '') || null;

@@ -82,6 +82,27 @@ describe('dataset provenance dedup on re-import', () => {
       fileType: FILE_EXT_TO_MIME.dcm,
     }));
 
+  it('retains the original local file when a duplicate SOP supplies other pixels', async () => {
+    const store = useDatasetStore();
+    const original = localDicomBatch(['sop-1']);
+    const duplicate = dicomCollection(['sop-1'], () => ({
+      type: 'file',
+      file: new File(['different pixels'], 'sop-1.dcm'),
+      fileType: FILE_EXT_TO_MIME.dcm,
+    }));
+    store.addDataSources([{ dataID: 'series-1', dataSource: original }]);
+    store.addDataSources([{ dataID: 'series-1', dataSource: duplicate }]);
+    const zip = new JSZip();
+    const manifest = {
+      version: MANIFEST_VERSION,
+      datasets: [],
+      dataSources: [],
+    } as Manifest;
+    await store.serialize({ zip, manifest });
+    const [filePath] = Object.values(manifest.datasetFilePath!);
+    expect(await zip.file(filePath)!.async('string')).toBe('sop-1');
+  });
+
   // A re-import reports every member the volume now holds, so the later
   // collection is the complete one.
   it('saves the membership the latest import reports for a dataset', async () => {
