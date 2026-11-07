@@ -1,6 +1,6 @@
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import type { VolumeColorConfig } from '@/src/store/view-configs/types';
+import type { ColoringConfig } from '@/src/types/views';
 
 import {
   ADAPTIVE_VOLUME_PROFILES,
@@ -30,7 +30,7 @@ export function getAdaptiveVolumePresetUnavailableReason(
 }
 
 type AdaptiveColoring = Pick<
-  VolumeColorConfig,
+  ColoringConfig,
   'transferFunction' | 'opacityFunction'
 >;
 

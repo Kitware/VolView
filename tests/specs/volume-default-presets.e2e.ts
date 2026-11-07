@@ -202,9 +202,17 @@ describe('initial volume presets', () => {
     });
   }
 
-  for (const modality of ['CT', 'MR']) {
-    it(`uses the native DICOM ${modality} modality`, async () => {
-      const directory = `default-native-${modality}`;
+  for (const entry of [
+    { name: 'CT', metadata: { modality: 'CT' }, preset: 'CT-AAA' },
+    { name: 'MR', metadata: { modality: 'MR' }, preset: 'MR-Default' },
+    {
+      name: 'HU-without-modality',
+      metadata: { modality: '', rescaleType: 'HU' },
+      preset: 'CT-AAA',
+    },
+  ]) {
+    it(`uses ${entry.preset} for native DICOM ${entry.name}`, async () => {
+      const directory = `default-native-${entry.name}`;
       const folder = makeTempDir(directory);
       const studyUid = newUid();
       const seriesUid = newUid();
@@ -216,7 +224,7 @@ describe('initial volume presets', () => {
             studyUid,
             seriesUid,
             sopUid: newUid(),
-            modality,
+            ...entry.metadata,
             instanceNumber: index + 1,
             rows: 24,
             cols: 24,
@@ -233,7 +241,7 @@ describe('initial volume presets', () => {
       await writeManifestToFile({ resources }, manifest);
       await writeManifestToFile({ layouts: { default: layout } }, config);
       await volViewPage.open(`?urls=[tmp/${config},tmp/${manifest}]`);
-      await expectInitialPreset(modality === 'CT' ? 'CT-AAA' : 'MR-Default');
+      await expectInitialPreset(entry.preset);
     });
   }
 

@@ -60,7 +60,6 @@ export default defineComponent({
     );
     const presetUnavailableReason = (name: string) =>
       isAdaptiveVolumePreset(name) ? adaptiveUnavailableReason.value : '';
-    const hasCurrentImage = computed(() => !!currentImageData.value);
 
     const selectPreset = (name: string) => {
       if (!viewId.value || !currentImageID.value) return;
@@ -75,10 +74,8 @@ export default defineComponent({
       presetUnavailableReason,
       presetDescription: getAdaptiveVolumePresetDescription,
       thumbnails: currentThumbnails,
-      hasCurrentImage,
       preset: selectedPreset,
       presetList: PresetNameList,
-      size: THUMBNAIL_SIZE,
       selectPreset,
     };
   },

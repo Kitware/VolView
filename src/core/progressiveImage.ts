@@ -23,6 +23,7 @@ export type ProgressiveImage = {
    */
   getVtkImageData(): vtkImageData;
   getImageMetadata(): ImageMetadata;
+  getHeaderMetadata(): Iterable<readonly [string, string]> | undefined;
   startLoad(): void;
   stopLoad(): void;
   getStatus(): ProgressiveImageStatus;
@@ -131,6 +132,10 @@ export abstract class BaseProgressiveImage implements ProgressiveImage {
 
   getImageMetadata(): ImageMetadata {
     return this.imageMetadata.value;
+  }
+
+  getHeaderMetadata(): Iterable<readonly [string, string]> | undefined {
+    return this.headerMetadata;
   }
 
   getStatus(): ProgressiveImageStatus {

@@ -9,7 +9,6 @@ import {
 } from 'vue';
 import { onKeyDown, onKeyUp } from '@vueuse/core';
 import vtkPiecewiseWidget from '@/src/vtk/PiecewiseWidget';
-import type { vtkSubscription } from '@kitware/vtk.js/interfaces';
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
@@ -114,14 +113,6 @@ export default defineComponent({
     const colorTransferFunc = vtkColorTransferFunction.newInstance();
     pwfWidget.setColorTransferFunction(colorTransferFunc);
     const updateHistogram = usePiecewiseHistogram(pwfWidget);
-
-    const pwfSubscriptions: vtkSubscription[] = [];
-
-    onBeforeUnmount(() => {
-      while (pwfSubscriptions.length) {
-        pwfSubscriptions.pop()!.unsubscribe();
-      }
-    });
 
     function updateOpacityFunc() {
       if (recurseGuard || !currentImageID.value || !viewId.value) {
@@ -278,7 +269,6 @@ export default defineComponent({
     const selectedPreset = computed(
       () => colorTransferFunctionRef.value?.preset || null
     );
-    const hasCurrentImage = computed(() => !!currentImageData.value);
     const resetImageUnavailableReason = computed(() => {
       const image = currentImageData.value;
       if (!image) return 'Load a volume to reset contrast and opacity';
@@ -350,15 +340,6 @@ export default defineComponent({
       const range = fullMappingRange.value;
       return range[1] - range[0];
     });
-
-    const selectPreset = (name: string) => {
-      if (!viewId.value || !currentImageID.value) return;
-      volumeColoringStore.setColorPreset(
-        viewId.value,
-        currentImageID.value,
-        name
-      );
-    };
 
     // --- mapping range editing --- //
 
@@ -460,12 +441,6 @@ export default defineComponent({
       canResetColoring,
       resetColoringUnavailableReason,
       resetColorAndOpacity,
-      hasCurrentImage,
-      preset: selectedPreset,
-      fullMappingRange,
-      mappingRange: computed(
-        () => colorTransferFunctionRef.value!.mappingRange
-      ),
       colorSliderStep,
       widthSliderStep,
       rangeShiftMin: computed(() => rangeShiftBounds.value[0]),
@@ -476,7 +451,6 @@ export default defineComponent({
       rangeWidthMax: computed(() => rangeWidthBounds.value[1]),
       request3DAnimation,
       cancel3DAnimation,
-      selectPreset,
     };
   },
 });

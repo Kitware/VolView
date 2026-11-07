@@ -190,6 +190,10 @@ export default class DicomChunkImage
     return this.chunkStatus.slice();
   }
 
+  getHeaderMetadata() {
+    return this.chunks[0]?.metadata ?? undefined;
+  }
+
   getDicomMetadata(chunkNum = 0) {
     if (chunkNum < 0 || chunkNum >= this.chunks.length) {
       throw RangeError('chunkNum is out of bounds');

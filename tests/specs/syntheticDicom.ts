@@ -143,6 +143,7 @@ export type SyntheticSliceOptions = {
   pixelRepresentation?: number;
   rescaleSlope?: number;
   rescaleIntercept?: number;
+  rescaleType?: string;
   // Stored value written to every sample. Signed values are written as two's
   // complement, so they pair with pixelRepresentation 1.
   pixelValue?: number;
@@ -172,6 +173,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     pixelRepresentation = 0,
     rescaleSlope,
     rescaleIntercept,
+    rescaleType,
     pixelValue = 0,
     pixelSpacing = [1, 1] as const,
     spacingBetweenSlices,
@@ -231,6 +233,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       ? []
       : [ds(0x0028, 0x1052, String(rescaleIntercept))]),
     ...(rescaleSlope == null ? [] : [ds(0x0028, 0x1053, String(rescaleSlope))]),
+    ...(rescaleType == null ? [] : [cs(0x0028, 0x1054, rescaleType)]),
     bitsAllocated === 8
       ? elemLong(0x7fe0, 0x0010, 'OB', frameBytes8(rows * cols, pixelValue))
       : elemLong(0x7fe0, 0x0010, 'OW', frameBytes16(rows * cols, pixelValue))

@@ -2,7 +2,7 @@ import {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
-} from '@/src/store/view-configs/volume-coloring';
+} from '@/src/constants';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { getDiagonalLength } from '@kitware/vtk.js/Common/DataModel/BoundingBox';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';

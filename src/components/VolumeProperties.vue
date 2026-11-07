@@ -39,7 +39,10 @@ export default defineComponent({
       () => volumeColorConfig.value?.cvr ?? defaultVolumeColorConfig().cvr
     );
 
-    const setCVRParam = (key: keyof CVRConfig, value: any) => {
+    const setCVRParam = <K extends keyof CVRConfig>(
+      key: K,
+      value: CVRConfig[K]
+    ) => {
       if (controlsDisabled.value) return;
       if (!viewId.value || !currentImageID.value) return;
       volumeColoringStore.updateCVRParameters(
@@ -51,16 +54,14 @@ export default defineComponent({
       );
     };
 
-    const laoEnabled = computed(
-      () => !!cvrParams.value?.useLocalAmbientOcclusion
-    );
     const vsbEnabled = computed(
       () => !!cvrParams.value?.useVolumetricScatteringBlending
     );
 
     type LightingModel = keyof typeof LIGHTING_MODELS;
-    const lightingModel = computed<LightingModel>(() =>
-      cvrParams.value?.useVolumetricScatteringBlending ? 'hybrid' : 'standard'
+    const lightingModel = computed(
+      (): LightingModel =>
+        cvrParams.value?.useVolumetricScatteringBlending ? 'hybrid' : 'standard'
     );
     const selectLightingMode = (model: LightingModel) => {
       setCVRParam('useVolumetricScatteringBlending', model === 'hybrid');
@@ -80,7 +81,6 @@ export default defineComponent({
       controlsDisabled,
       cvrParams,
       disableQualityWarning,
-      laoEnabled,
       lightingModel,
       selectLightingMode,
       setCVRParam,

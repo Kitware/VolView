@@ -25,7 +25,7 @@ import {
 import { applyOpacityFunction } from '@/src/composables/useColoringEffect';
 import { setCinematicVolumeShading } from '@/src/utils/volumeProperties';
 
-export function createRenderingPipeline() {
+function createRenderingPipeline() {
   const actor = vtkVolume.newInstance();
   const mapper = vtkVolumeMapper.newInstance();
   const property = actor.getProperty();
@@ -134,9 +134,6 @@ export function createVolumeThumbnailer(size: number) {
 
   return {
     scene,
-    pipeline,
-    opacityFuncProxy,
-    colorTransferFuncProxy,
     setInputImage(image: vtkImageData | null) {
       if (image) {
         mapper.setInputData(image);

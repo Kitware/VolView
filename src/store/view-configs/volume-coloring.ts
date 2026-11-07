@@ -5,6 +5,11 @@ import {
   getOpacityFunctionFromPreset,
 } from '@/src/utils/vtk-helpers';
 import { DEFAULT_PRESET_BY_MODALITY, DEFAULT_PRESET } from '@/src/config';
+import {
+  DEFAULT_AMBIENT,
+  DEFAULT_DIFFUSE,
+  DEFAULT_SPECULAR,
+} from '@/src/constants';
 import type { OpacityFunction } from '@/src/types/views';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
@@ -15,10 +20,7 @@ import {
   patchDoubleKeyRecord,
 } from '@/src/utils/doubleKeyRecord';
 import { DeepPartial, Maybe } from '@/src/types';
-import { identity } from '@/src/utils';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import {
   getConventionalVolumePreset,
   getDefaultVolumePreset,
@@ -34,24 +36,12 @@ import { ViewConfig } from '../../io/state-file/schema';
 import { VolumeColorConfig } from './types';
 import { useDICOMStore } from '../datasets-dicom';
 
-export const DEFAULT_AMBIENT = 0.2;
-export const DEFAULT_DIFFUSE = 0.7;
-export const DEFAULT_SPECULAR = 0.3;
-export const DEFAULT_EDGE_GRADIENT = 0.2;
-export const DEFAULT_SAMPLING_DISTANCE = 0.2;
-
-function getVolumeMetadata(image: ProgressiveImage | undefined) {
-  return image instanceof DicomChunkImage && image.getChunks().length
-    ? (image.getDicomMetadata() ?? undefined)
-    : image?.headerMetadata;
-}
-
 function getImageModality(imageID: string) {
   const image = useImageCacheStore().imageById[imageID];
   const nativeModality = useDICOMStore().volumeInfo[imageID]?.Modality;
   return {
     nativeModality,
-    metadata: getVolumeMetadata(image),
+    metadata: image?.getHeaderMetadata(),
     fallbackPreset:
       DEFAULT_PRESET_BY_MODALITY[nativeModality ?? ''] ?? DEFAULT_PRESET,
   };
@@ -315,10 +305,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     });
   };
 
-  const createUpdateFunc = <K extends keyof VolumeColorConfig>(
-    key: K,
-    transform: (config: VolumeColorConfig[K]) => VolumeColorConfig[K] = identity
-  ) => {
+  const createUpdateFunc = <K extends keyof VolumeColorConfig>(key: K) => {
     return (
       viewID: string,
       dataID: string,
@@ -328,10 +315,10 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
         getConfig(viewID, dataID) ??
         getProvisionalColoring(dataID) ??
         defaultVolumeColorConfig();
-      const updatedConfig = transform({
+      const updatedConfig = {
         ...config[key],
         ...update,
-      });
+      };
       updateConfig(viewID, dataID, { [key]: updatedConfig });
     };
   };

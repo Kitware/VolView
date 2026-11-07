@@ -8,7 +8,7 @@ import {
   onScopeDispose,
 } from 'vue';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
-import { onPausableVTKEvent } from '@/src/composables/onPausableVTKEvent';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { batchForNextTask } from '@/src/utils/batchForNextTask';
 import { arrayEquals } from '@/src/utils';
 import type { Maybe } from '@/src/types';
@@ -21,8 +21,8 @@ import type { Maybe } from '@/src/types';
  * @param propertyGetter A function that computes the property value. It will be called reactively.
  * @returns A read-only ComputedRef to the derived property.
  */
-export function useVtkComputed<T extends Maybe<vtkObject>, R>(
-  obj: MaybeRef<T>,
+export function useVtkComputed<R>(
+  obj: MaybeRef<Maybe<vtkObject>>,
   propertyGetter: () => R
 ) {
   const trackedValue = ref() as Ref<R>;
@@ -47,7 +47,7 @@ export function useVtkComputed<T extends Maybe<vtkObject>, R>(
   const onModified = batchForNextTask(refresh);
   onScopeDispose(onModified.cancel);
 
-  onPausableVTKEvent(obj as vtkObject, 'onModified', onModified);
+  onVTKEvent(obj, 'onModified', onModified);
   return computed(() => {
     return trackedValue.value;
   });

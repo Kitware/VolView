@@ -22,13 +22,6 @@ function createStubThumbnailer(
 ) {
   let deleted = false;
   let captureCount = 0;
-  const noopProxy = {
-    setDataRange: NOOP,
-    setMode: NOOP,
-    setPoints: NOOP,
-    setGaussians: NOOP,
-    setPresetName: NOOP,
-  };
   const renderWindow = {
     render: NOOP,
     captureImages: () => {
@@ -42,8 +35,6 @@ function createStubThumbnailer(
   };
   const thumbnailer = {
     scene: { getRenderWindow: () => renderWindow },
-    opacityFuncProxy: noopProxy,
-    colorTransferFuncProxy: noopProxy,
     setInputImage: NOOP,
     setPreset: NOOP,
     resetCameraWithOrientation: NOOP,

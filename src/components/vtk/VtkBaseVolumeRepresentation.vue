@@ -18,7 +18,7 @@ import {
   DEFAULT_AMBIENT,
   DEFAULT_DIFFUSE,
   DEFAULT_SPECULAR,
-} from '@/src/store/view-configs/volume-coloring';
+} from '@/src/constants';
 import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
 import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColoringInitializer';
