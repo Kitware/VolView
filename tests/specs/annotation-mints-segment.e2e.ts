@@ -1,7 +1,14 @@
 import { type ChainablePromiseElement } from 'webdriverio';
 import AppPage from '../pageobjects/volview.page';
-import { clickAt, drawSquare, setupTest } from './annotationTestUtils';
 import {
+  clickAt,
+  drawSquare,
+  nudgeTo,
+  pressAtPointer,
+  setupTest,
+} from './annotationTestUtils';
+import {
+  deleteSegment,
   openAnnotationSegments,
   segmentNames,
   segmentRow,
@@ -27,6 +34,31 @@ const waitForSegmentCount = (expected: number, timeoutMsg: string) =>
   );
 
 describe('An annotation placed against no segment', () => {
+  it('mints a ruler segment on its first endpoint after deleting the selection', async () => {
+    const { axialView, centerX, centerY } = await setupTest();
+    await AppPage.selectTool('mdi-ruler');
+    await openAnnotationSegments();
+    for (const name of await segmentNames()) await deleteSegment(name);
+    expect(await segmentNames()).toEqual([]);
+
+    await nudgeTo(centerX - 40, centerY);
+    await pressAtPointer();
+
+    await waitForSegmentCount(
+      1,
+      'Starting a ruler with nothing selected should mint a segment'
+    );
+    const [name] = await segmentNames();
+    const segmentHex = await segmentDotHex(name);
+    await nudgeTo(centerX + 40, centerY);
+    await expect(axialView.$('svg line')).toBeDisplayed();
+    expect(await hexOf(axialView.$('svg line'), 'stroke')).toBe(segmentHex);
+
+    await pressAtPointer();
+    expect(await segmentNames()).toEqual([name]);
+    expect(await hexOf(axialView.$('svg line'), 'stroke')).toBe(segmentHex);
+  });
+
   it('mints one segment the rectangle and the polygon then share', async () => {
     const { axialView, centerX, centerY } = await setupTest();
     await openAnnotationSegments();
