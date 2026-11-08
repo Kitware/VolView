@@ -1,4 +1,4 @@
-import { MaybeRef, Ref, computed, unref } from 'vue';
+import { MaybeRef, Ref, computed, unref, watch } from 'vue';
 import { Maybe } from '@/src/types';
 import useViewCameraStore from '@/src/store/view-configs/camera';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
@@ -58,7 +58,20 @@ export function usePersistCameraConfig(
     {} as Record<KeyType, Ref<any>>
   );
 
-  keys.forEach((key) => {
-    syncRef(configRefs[key], cameraRefs[key]);
-  });
+  // Until the view fits an image, the camera still shows the previous one.
+  const cameraShowsImage = () =>
+    viewCameraStore.disableCameraAutoReset ||
+    viewCameraStore.isCameraInitialized(unref(viewID), unref(dataID));
+
+  // Rebind so an unchanged camera value is also saved for the new image.
+  watch(
+    [() => unref(viewID), () => unref(dataID), cameraShowsImage],
+    ([, , showsImage], _previous, onCleanup) => {
+      if (!showsImage) return;
+      const stop = keys.map((key) => syncRef(configRefs[key], cameraRefs[key]));
+      onCleanup(() => stop.forEach((unsubscribe) => unsubscribe()));
+    },
+    // Sync: the saved camera must land before views reset clipping ranges.
+    { immediate: true, flush: 'sync' }
+  );
 }
