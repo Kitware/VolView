@@ -90,6 +90,10 @@ async function mountInput(id: string) {
           h(EnFaceControls, {
             ...projection.controls.value,
             settings: input.settings.value,
+            footprints: {
+              segments: input.segmentOptions.value,
+              segmentationReason: input.segmentationReason.value,
+            },
             thickness: {
               thresholdMaximum: 200,
               segmentationReason: input.segmentationReason.value,

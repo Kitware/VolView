@@ -39,13 +39,24 @@ const spawnMeasurementWorker = () =>
 /** A view's worker, sent each mask revision once and reusing it across slabs. */
 export function createWorkerMeasurer(spawn = spawnMeasurementWorker) {
   const host = createWorkerHost<OccupiedDepthWorkerApi>(spawn);
-  let sent: { api: unknown; mask: OccupiedDepthInput['mask'] } | undefined;
+  const sent = new Map<
+    string,
+    { api: unknown; mask: OccupiedDepthInput['mask'] }
+  >();
   return {
-    measure: ({ mask, dimensions, axis, first, last }: OccupiedDepthInput) =>
+    measure: ({
+      mask,
+      dimensions,
+      axis,
+      first,
+      last,
+      segment = '',
+    }: OccupiedDepthInput & { segment?: string }) =>
       host.call((api) => {
         // A respawned worker holds no mask.
-        const fresh = sent?.api !== api || sent?.mask !== mask;
-        sent = { api, mask };
+        const previous = sent.get(segment);
+        const fresh = previous?.api !== api || previous?.mask !== mask;
+        sent.set(segment, { api, mask });
         const values = fresh ? new Uint8Array(mask.values) : undefined;
         return api.measure(
           { dimensions: [...dimensions], axis, first, last },
@@ -57,17 +68,29 @@ export function createWorkerMeasurer(spawn = spawnMeasurementWorker) {
                 extent: [...mask.extent],
               },
               [values.buffer]
-            )
+            ),
+          segment
         );
       }),
+    retain(segments: string[]) {
+      if (!sent.size) return;
+      const retained = new Set(segments);
+      sent.forEach((_snapshot, segment) => {
+        if (!retained.has(segment)) sent.delete(segment);
+      });
+      void host.call((api) => api.retain(segments)).catch(() => {});
+    },
     release() {
-      sent = undefined;
+      sent.clear();
       host.terminate();
     },
   };
 }
 
-export type OccupiedDepthMeasurer = ReturnType<typeof createWorkerMeasurer>;
+export type OccupiedDepthMeasurer = Pick<
+  ReturnType<typeof createWorkerMeasurer>,
+  'measure' | 'release'
+>;
 
 /** Measures the latest request, keeping a compatible result while it updates. */
 export function useOccupiedDepth(
@@ -121,7 +144,10 @@ export function useOccupiedDepth(
     },
     { immediate: true, flush: 'pre' }
   );
-  onScopeDispose(measurer.release);
+  onScopeDispose(() => {
+    pending = null;
+    measurer.release();
+  });
   const accepted = computed(() => {
     const input = unref(request);
     return input && latest.value && compatible(latest.value.input, input)

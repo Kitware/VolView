@@ -15,7 +15,7 @@ const props = defineProps<{
   geometry: MeasurementPlaneGeometry | null;
   measurement: OccupiedDepthResult | null;
   micronsPerVoxel: number;
-  threshold: number;
+  threshold: number | null;
   appearance: LabelmapAppearance | null;
 }>();
 const { geometry, measurement, micronsPerVoxel, threshold, appearance } =

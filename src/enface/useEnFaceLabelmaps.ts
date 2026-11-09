@@ -31,7 +31,7 @@ const sameGeometry = (
 export function useEnFaceLabelmaps(
   geometry: MaybeRef<MeasurementPlaneGeometry | null>,
   measurement: MaybeRef<OccupiedDepthResult | null>,
-  threshold: MaybeRef<number>,
+  threshold: MaybeRef<number | null>,
   micronsPerVoxel: MaybeRef<number>
 ) {
   const image = vtkImageData.newInstance();
@@ -42,9 +42,11 @@ export function useEnFaceLabelmaps(
   image.getPointData().setScalars(scalars);
   const cutoff = computed(() => {
     const result = unref(measurement);
-    return result
-      ? thinCountCutoff(result, unref(threshold), unref(micronsPerVoxel))
-      : 0;
+    const value = unref(threshold);
+    if (!result) return 0;
+    return value === null
+      ? result.maximumCount
+      : thinCountCutoff(result, value, unref(micronsPerVoxel));
   });
   // Threshold drags rebuild the plane only when the count cutoff moves.
   const pixels = computed(() => {

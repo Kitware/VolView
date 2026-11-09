@@ -31,6 +31,7 @@ const controlState = computed(() => {
     axes: [],
     depthMaximum: 0,
     projectionReason: reason,
+    footprints: { segments: [], segmentationReason: reason },
     thickness: {
       thresholdMaximum: 1,
       segmentationReason: reason,

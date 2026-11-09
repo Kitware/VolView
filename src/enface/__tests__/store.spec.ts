@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
-import { useEnFaceViewStore } from '@/src/enface/store';
+import {
+  defaultEnFaceViewConfig,
+  useEnFaceViewStore,
+} from '@/src/enface/store';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { parseNamedLayouts } from '@/src/utils/layoutParsing';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
@@ -32,6 +35,9 @@ describe('En face view settings', () => {
       depthStart: 20,
       depthEnd: 40,
       thresholdMicrons: 35,
+      showFootprints: true,
+      footprintSegmentIds: ['saved-segment'],
+      footprintScope: 'volume',
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -72,7 +78,7 @@ describe('En face view settings', () => {
       'restored',
       settings,
       { oct: 'new-oct' },
-      {}
+      { 'saved-segment': 'restored-segment' }
     );
     expect(store.configFor('restored', 'new-oct')).toMatchObject({
       method: 'sum',
@@ -80,6 +86,9 @@ describe('En face view settings', () => {
       depthEnd: 40,
       thresholdMicrons: 35,
       highlightThin: false,
+      showFootprints: true,
+      footprintSegmentIds: ['restored-segment'],
+      footprintScope: 'volume',
     });
     expect(store.configFor('restored', 'new-oct').segmentId).toBeNull();
     expect(useWindowingStore().getConfig('restored', 'new-oct')).toMatchObject({
@@ -128,13 +137,12 @@ describe('En face view settings', () => {
     const store = useEnFaceViewStore();
     const saved = (segmentId: string) => ({
       enFace: {
-        axis: 1 as const,
-        method: 'mean' as const,
-        depthStart: 0,
-        depthEnd: null,
+        ...defaultEnFaceViewConfig(),
         thresholdMicrons: 35,
         highlightThin: true,
         segmentId,
+        showFootprints: true,
+        footprintSegmentIds: [segmentId],
       },
     });
     store.deserialize(
@@ -144,6 +152,10 @@ describe('En face view settings', () => {
     );
     expect(store.configFor('view', 'kept').segmentId).toBe('chosen');
     expect(store.configFor('view', 'dropped').segmentId).toBeNull();
+    expect(store.configFor('view', 'kept').footprintSegmentIds).toEqual([
+      'chosen',
+    ]);
+    expect(store.configFor('view', 'dropped').footprintSegmentIds).toEqual([]);
   });
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {
