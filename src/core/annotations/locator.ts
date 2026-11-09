@@ -11,6 +11,9 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
+import { useEnFaceViewStore } from '@/src/enface/store';
+import { centerSlabOnSlice } from '@/src/core/slab/range';
+import { LPSAxes } from '@/src/utils/lps';
 import {
   computeEffectiveView,
   getEffectiveView,
@@ -47,7 +50,7 @@ export function viewLocator(
     if (cursors.frame == null) return { kind: 'none' };
     return { kind: 'temporal', frame: cursors.frame };
   }
-  if (effective.kind === 'volume2D') {
+  if (effective.kind === 'volume2D' || effective.kind === 'enface') {
     if (cursors.slice == null || !cursors.axis || !cursors.frameOfReference)
       return { kind: 'none' };
     return {
@@ -105,6 +108,38 @@ function revealCineFrame(imageID: string, frame: number) {
   useCinePlaybackStore().updateConfig(activeView, imageID, { frame });
 }
 
+function revealEnFaceSlices(
+  imageID: string,
+  sliceForAxis: (axis: LPSAxis) => number | undefined
+) {
+  const { metadata } = useImage(imageID);
+  const { dimensions, lpsOrientation } = metadata.value;
+  const enFaceStore = useEnFaceViewStore();
+  useViewStore()
+    .getAllViews()
+    .forEach((view) => {
+      const effective = getEffectiveView(view.id);
+      if (effective?.kind !== 'enface' || effective.renderDataID !== imageID)
+        return;
+      const settings = enFaceStore.configFor(view.id, imageID);
+      const axis = LPSAxes.find(
+        (name) => lpsOrientation[name] === settings.axis
+      );
+      if (!axis) return;
+      const slice = sliceForAxis(axis);
+      if (slice == null) return;
+      const { first, last } = centerSlabOnSlice(
+        {
+          first: settings.depthStart,
+          last: settings.depthEnd,
+          maximum: dimensions[settings.axis] - 1,
+        },
+        slice
+      );
+      Object.assign(settings, { depthStart: first, depthEnd: last });
+    });
+}
+
 export function applyLocator(imageID: string, tool: AnnotationTool) {
   const viewStore = useViewStore();
 
@@ -128,6 +163,9 @@ export function applyLocator(imageID: string, tool: AnnotationTool) {
     if (effective.axis !== toolImageFrame.axis) return;
     viewSliceStore.updateConfig(view.id, imageID, { slice: tool.slice });
   });
+  revealEnFaceSlices(imageID, (axis) =>
+    axis === toolImageFrame.axis ? tool.slice : undefined
+  );
 }
 
 /**
@@ -154,9 +192,9 @@ export type SegmentContent = {
 };
 
 /**
- * Reveals an occupied frame in the active cine view, or centers every volume
- * 2D view on the segment's content along its axis. Pan and zoom stay where the
- * user left them. A view whose axis holds nothing does not move.
+ * Reveals an occupied cine frame or centers bound slice and En face views on
+ * the segment's content along their axis. A view whose axis holds nothing does
+ * not move. Pan and zoom stay where the user left them.
  */
 export function revealSegmentContent(imageID: string, content: SegmentContent) {
   const frame = snappedCenter(content.frames);
@@ -165,16 +203,18 @@ export function revealSegmentContent(imageID: string, content: SegmentContent) {
   const { metadata } = useImage(imageID);
   const { lpsOrientation } = metadata.value;
   const viewSliceStore = useViewSliceStore();
+  const sliceForAxis = (axis: LPSAxis) =>
+    snappedCenter([
+      ...(content.paintedSlicesByIJK?.[lpsOrientation[axis]] ?? []),
+      ...(content.slicesByAxis[axis] ?? []),
+    ]);
 
   volume2DViewsOfImage(imageID, useViewStore().getAllViews()).forEach(
     ({ viewId, axis }) => {
-      const ijk = lpsOrientation[axis];
-      const slice = snappedCenter([
-        ...(content.paintedSlicesByIJK?.[ijk] ?? []),
-        ...(content.slicesByAxis[axis] ?? []),
-      ]);
+      const slice = sliceForAxis(axis);
       if (slice == null) return;
       viewSliceStore.updateConfig(viewId, imageID, { slice });
     }
   );
+  revealEnFaceSlices(imageID, sliceForAxis);
 }
