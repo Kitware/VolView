@@ -3,7 +3,8 @@ import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { createVuetify } from 'vuetify';
 import ControlsStripTools from '@/src/components/ControlsStripTools.vue';
 import { createPinia, setActivePinia } from 'pinia';
-import { nextTick } from 'vue';
+import { createApp, nextTick } from 'vue';
+import { CorePiniaProviderPlugin } from '@/src/core/provider';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import {
@@ -38,6 +39,10 @@ const supportedTools = new Set([
   Tools.Pan,
   Tools.Zoom,
   Tools.Crosshairs,
+  Tools.Paint,
+  Tools.Rectangle,
+  Tools.Ruler,
+  Tools.Polygon,
 ]);
 
 const decodeReleases: (() => void)[] = [];
@@ -55,7 +60,11 @@ function addRegularVolume(flat = false) {
   });
 }
 
-beforeEach(() => setActivePinia(createPinia()));
+beforeEach(() => {
+  const pinia = createPinia().use(CorePiniaProviderPlugin());
+  createApp({}).use(pinia);
+  setActivePinia(pinia);
+});
 afterEach(() => cleanupCachedImages(decodeReleases));
 afterEach(() => vi.unstubAllGlobals());
 enableAutoUnmount(afterEach);
@@ -150,16 +159,14 @@ describe('temporary crosshairs in the toolbar', () => {
         expect(button('Crosshairs').classes()).toContain('tool-btn-selected');
       }
       await crosshairsChord('keyup');
-      expect(
-        button(scenario === 'focus change' ? 'Select' : initial).classes()
-      ).toContain('tool-btn-selected');
+      expect(button(initial).classes()).toContain('tool-btn-selected');
     }
   );
 });
 
 describe('En face tool capabilities', () => {
   it.each(Object.values(Tools))(
-    'supports viewing tools when evaluating %s',
+    'supports viewing and slice annotation tools when evaluating %s',
     (tool) => {
       expect(isToolAllowedFor(tool, enFace)).toBe(supportedTools.has(tool));
     }
@@ -203,7 +210,7 @@ describe('activating an En face view', () => {
     expect(tools.currentTool).toBe(Tools.Crosshairs);
     tools.deactivateTemporaryCrosshairs();
     expect(tools.currentTool).toBe(Tools.WindowLevel);
-    expect(tools.paintUnavailableReason).toContain('En face projection');
+    expect(tools.paintUnavailableReason).toBe('');
   });
   it('allows standard contrast for a manually projected generic volume', async () => {
     const dataID = addRegularVolume();
@@ -252,7 +259,7 @@ describe('activating an En face view', () => {
       expect(tools.currentTool).toBe(Tools.WindowLevel);
     }
   );
-  it.each([Tools.WindowLevel, Tools.Pan, Tools.Zoom, Tools.Crosshairs])(
+  it.each([...supportedTools].filter((tool) => tool !== Tools.Select))(
     'preserves the selected tool when rejecting the unavailable %s shortcut',
     async (tool) => {
       activateEnFace(null);
@@ -297,7 +304,7 @@ describe('activating an En face view', () => {
       ).toBeNull();
     }
   );
-  it('refuses annotation shortcuts in an empty En face slot', async () => {
+  it('refuses unsupported shortcuts in an empty En face slot', async () => {
     const viewID = activateEnFace(null);
     const tools = useToolStore();
     await nextTick();
