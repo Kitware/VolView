@@ -1,3 +1,11 @@
+import {
+  extentContains,
+  extentSize,
+  isEmptyExtent,
+  maskOffset,
+  type Extent3D,
+} from '@/src/segmentation/geometry';
+
 export type OccupiedDepthInput = {
   dimensions: readonly number[];
   axis: 0 | 1 | 2;
@@ -17,6 +25,10 @@ export type OccupiedDepthResult = {
   counts: Uint32Array;
   maximumCount: number;
 };
+
+export type OccupiedDepthMaskUpdate =
+  | { kind: 'replace'; mask: OccupiedDepthInput['mask'] }
+  | { kind: 'patch'; extent: Extent3D; values: Uint8Array };
 
 function voxelCount(dimensions: readonly number[]) {
   if (
@@ -155,4 +167,52 @@ export function createOccupiedDepthMeasurer(mask: OccupiedDepthInput['mask']) {
 /** Counts occupied source cells inside the selected slab, excluding gaps. */
 export function measureOccupiedDepth(input: OccupiedDepthInput) {
   return createOccupiedDepthMeasurer(input.mask)(input);
+}
+
+function patchMask(
+  mask: OccupiedDepthInput['mask'],
+  patch: Extract<OccupiedDepthMaskUpdate, { kind: 'patch' }>
+) {
+  const [width, height, depth] = extentSize(patch.extent);
+  if (
+    patch.extent.some((value) => !Number.isInteger(value)) ||
+    isEmptyExtent(patch.extent) ||
+    !extentContains(mask.extent as Extent3D, patch.extent) ||
+    patch.values.length !== width * height * depth
+  )
+    throw new Error('Occupied depth patch must fit its mask storage.');
+  const target = {
+    extent: mask.extent as Extent3D,
+    mi: mask.dimensions[0],
+    mj: mask.dimensions[1],
+  };
+  let offset = 0;
+  for (let k = patch.extent[4]; k <= patch.extent[5]; k++) {
+    for (let j = patch.extent[2]; j <= patch.extent[3]; j++) {
+      mask.values.set(
+        patch.values.subarray(offset, offset + width),
+        maskOffset(target, patch.extent[0], j, k)
+      );
+      offset += width;
+    }
+  }
+}
+
+/** Owns the worker's mask copy and applies updates before measuring a slab. */
+export function createOccupiedDepthSession() {
+  let mask: OccupiedDepthInput['mask'] | undefined;
+  return (
+    input: Omit<OccupiedDepthInput, 'mask'>,
+    update?: OccupiedDepthMaskUpdate
+  ) => {
+    if (update?.kind === 'replace') {
+      // A rejected replacement must not leave the previous mask measurable.
+      mask = undefined;
+      validateMaskStorage(update.mask);
+      mask = update.mask;
+    }
+    if (!mask) throw new Error('Occupied depth has no measurable mask.');
+    if (update?.kind === 'patch') patchMask(mask, update);
+    return countOccupiedDepth({ ...input, mask });
+  };
 }

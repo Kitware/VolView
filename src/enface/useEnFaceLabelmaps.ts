@@ -5,6 +5,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 import { vec3, type mat4 } from 'gl-matrix';
 import type { OccupiedDepthResult } from '@/src/segmentation/measurements/occupiedDepth';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { arrayEquals } from '@/src/utils';
 import { createThinRegionMask, thinCountCutoff } from './thickness';
 
 export type MeasurementPlaneGeometry = {
@@ -46,10 +47,12 @@ export function useEnFaceLabelmaps(
       ? thinCountCutoff(result, unref(threshold), unref(micronsPerVoxel))
       : 0;
   });
-  // Threshold drags rebuild the plane only when the count cutoff moves.
-  const pixels = computed(() => {
+  // New counts or cutoffs need no render when the highlighted pixels agree.
+  const pixels = computed((previous: Uint8Array | null = null) => {
     const result = unref(measurement);
-    return result ? createThinRegionMask(result.counts, cutoff.value) : null;
+    if (!result) return null;
+    const values = createThinRegionMask(result.counts, cutoff.value);
+    return previous && arrayEquals(previous, values) ? previous : values;
   });
   watch(
     [() => unref(geometry), pixels],

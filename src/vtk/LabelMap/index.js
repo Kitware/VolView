@@ -8,6 +8,18 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 export function extend(publicAPI, model, initialValues = {}) {
   vtkImageData.extend(publicAPI, model, initialValues);
   model.classHierarchy.push('vtkLabelMap');
+
+  let modifiedExtent = null;
+  const modified = publicAPI.modified;
+  publicAPI.modified = (otherMTime) => {
+    modifiedExtent = null;
+    modified(otherMTime);
+  };
+  publicAPI.modifiedWithin = (extent) => {
+    modifiedExtent = [...extent];
+    modified();
+  };
+  publicAPI.getModifiedExtent = () => modifiedExtent;
 }
 
 // ----------------------------------------------------------------------------

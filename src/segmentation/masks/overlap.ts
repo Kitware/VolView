@@ -108,7 +108,7 @@ export function masksClearing<T extends BoundedScalars>(
     clear,
     finish: () => {
       const cleared = reaching.filter((_, index) => changed[index]);
-      cleared.forEach((bounded) => bounded.mask.modified());
+      cleared.forEach((bounded) => bounded.mask.modifiedWithin(within));
       changed.fill(0);
       return cleared;
     },

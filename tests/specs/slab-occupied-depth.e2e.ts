@@ -184,7 +184,7 @@ describe('Selected-slab occupied depth', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('remeasures mask storage grown by painting in an ordinary source slice', async () => {
+  it('updates thickness after mask growth and repeated paint and erase strokes', async () => {
     await openGappedMask();
     await setThicknessThreshold(50);
     await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '41.7');
@@ -233,6 +233,27 @@ describe('Selected-slab occupied depth', () => {
       }
     );
     await expect($(THRESHOLD)).toHaveValue('50');
+
+    const maximum = Number(
+      await $(THRESHOLD_SLIDER).getAttribute('aria-valuemax')
+    );
+    await setThicknessThreshold(maximum);
+    await expectHighlighted(true, [64, slice - 1]);
+    await browser.keys(Key.Escape);
+    await $(PANEL).waitForDisplayed({ reverse: true });
+    await source.click();
+    await volViewPage.activatePaint();
+    for (const [mode, highlighted] of [
+      ['Erase', false],
+      ['Paint', true],
+      ['Erase', false],
+    ] as const) {
+      await $(`button.mode-button*=${mode}`).click();
+      await expect($('button.mode-button.selected')).toHaveText(mode);
+      await volViewPage.paintStrokeOnView(source);
+      await browser.action('pointer').move({ x: 10, y: 10 }).perform();
+      await expectHighlighted(highlighted, [64, slice - 1]);
+    }
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 

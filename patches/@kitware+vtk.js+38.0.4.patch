@@ -1,3 +1,15 @@
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageMapper.js
+@@ -226,6 +226,8 @@
+                 #ifdef vtkImageLabelOutlineOn
+                   vec3 centerPosIS = fragCoordToIndexSpace(gl_FragCoord);
+                   float centerValue = texture2D(texture1, getSliceCoords(centerPosIS, sliceAxis)).r;
++                  // Skip lookup and blending work for empty label pixels.
++                  if (centerValue == 0.0) { discard; }
+                   bool pixelOnBorder = false;
+                   vec3 tColor = texture2D(colorTexture1, vec2(centerValue * cscale0 + cshift0, 0.5)).rgb;
+                   float scalarOpacity = texture2D(pwfTexture1, vec2(centerValue * pwfscale0 + pwfshift0, 0.5)).r;
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/ImageResliceMapper.js

@@ -12,9 +12,12 @@ import { getErrorDetail } from '@/src/utils';
 import { createWorkerHost } from '@/src/segmentation/editing/processWorker';
 import type { OccupiedDepthInput, OccupiedDepthResult } from './occupiedDepth';
 import type { OccupiedDepthWorkerApi } from './occupiedDepth.worker';
+import type vtkLabelMap from '@/src/vtk/LabelMap';
+import { createMaskSnapshot } from './maskSnapshot';
 
 export type OccupiedDepthRequest = OccupiedDepthInput & {
   source: object;
+  maskImage: vtkLabelMap;
   segment: string;
   grid: string;
 };
@@ -36,32 +39,50 @@ const spawnMeasurementWorker = () =>
     type: 'module',
   });
 
-/** A view's worker, sent each mask revision once and reusing it across slabs. */
+/** A view's worker, receiving changed voxel regions and reusing them across slabs. */
 export function createWorkerMeasurer(spawn = spawnMeasurementWorker) {
   const host = createWorkerHost<OccupiedDepthWorkerApi>(spawn);
-  let sent: { api: unknown; mask: OccupiedDepthInput['mask'] } | undefined;
+  let sentApi: unknown;
+  let source: vtkLabelMap | undefined;
+  let snapshot: ReturnType<typeof createMaskSnapshot> | undefined;
   return {
-    measure: ({ mask, dimensions, axis, first, last }: OccupiedDepthInput) =>
-      host.call((api) => {
-        // A respawned worker holds no mask.
-        const fresh = sent?.api !== api || sent?.mask !== mask;
-        sent = { api, mask };
-        const values = fresh ? new Uint8Array(mask.values) : undefined;
-        return api.measure(
-          { dimensions: [...dimensions], axis, first, last },
-          values &&
-            Comlink.transfer(
-              {
-                values,
-                dimensions: [...mask.dimensions],
-                extent: [...mask.extent],
-              },
-              [values.buffer]
-            )
-        );
-      }),
+    measure: ({
+      maskImage,
+      mask,
+      dimensions,
+      axis,
+      first,
+      last,
+    }: OccupiedDepthRequest) => {
+      if (source !== maskImage) {
+        snapshot?.dispose();
+        source = maskImage;
+        snapshot = createMaskSnapshot(maskImage);
+      }
+      const currentSnapshot = snapshot!;
+      return host
+        .call((api) => {
+          // A respawned worker holds no mask, even when its source is unchanged.
+          const update = currentSnapshot.take(mask, sentApi !== api);
+          sentApi = api;
+          const values =
+            update?.kind === 'replace' ? update.mask.values : update?.values;
+          return api.measure(
+            { dimensions: [...dimensions], axis, first, last },
+            update && values && Comlink.transfer(update, [values.buffer])
+          );
+        })
+        .catch((cause) => {
+          sentApi = undefined;
+          currentSnapshot.invalidate();
+          throw cause;
+        });
+    },
     release() {
-      sent = undefined;
+      sentApi = undefined;
+      source = undefined;
+      snapshot?.dispose();
+      snapshot = undefined;
       host.terminate();
     },
   };

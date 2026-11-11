@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, h, nextTick, shallowRef } from 'vue';
+import vtkLabelMap from '@/src/vtk/LabelMap';
 import {
   measureOccupiedDepth,
   type OccupiedDepthInput,
@@ -43,6 +44,7 @@ function controlledMeasurer() {
 function mountMeasurement() {
   const request = shallowRef<OccupiedDepthRequest | null>({
     source: {},
+    maskImage: vtkLabelMap.newInstance(),
     segment: 'segment',
     grid: 'grid',
     dimensions: [1, 6, 1],

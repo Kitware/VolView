@@ -171,6 +171,41 @@ export default class PaintTool {
     // The two in-plane axes, in the order the line's points state them.
     const [axisU, axisV] = inPlaneAxes(sliceAxis);
     const curPoint: number[] = [0, 0];
+    const minU = Math.max(origin[axisU], Math.min(start[0], end[0]) - centerX);
+    const minV = Math.max(origin[axisV], Math.min(start[1], end[1]) - centerY);
+    const maxU = Math.min(
+      origin[axisU] + labelmapDims[axisU] - 1,
+      Math.max(start[0], end[0]) + size[0] - 1 - centerX
+    );
+    const maxV = Math.min(
+      origin[axisV] + labelmapDims[axisV] - 1,
+      Math.max(start[1], end[1]) + size[1] - 1 - centerY
+    );
+    const visitedWidth = Math.max(0, maxU - minU + 1);
+    // Neighboring stencil lines revisit the same voxels. Keep their exact
+    // rounded paths, but evaluate the claim only once per voxel. The bitmap
+    // covers just the swept part of this slice, clipped to the mask.
+    const visited = new Uint8Array(visitedWidth * Math.max(0, maxV - minV + 1));
+
+    const paintVoxel = () => {
+      if (!isInBounds(rounded)) return;
+      const visitOffset =
+        rounded[axisU] - minU + (rounded[axisV] - minV) * visitedWidth;
+      if (visited[visitOffset]) return;
+      visited[visitOffset] = 1;
+      const offset =
+        rounded[0] -
+        originI +
+        (rounded[1] - originJ) * jStride +
+        (rounded[2] - originK) * kStride;
+      if (
+        shouldPaint(offset, rounded) &&
+        labelmapPixels[offset] !== brushValue
+      ) {
+        labelmapPixels[offset] = brushValue;
+        changed = true;
+      }
+    };
 
     const paintLine = () => {
       const dx = point2[0] - point1[0];
@@ -183,17 +218,7 @@ export default class PaintTool {
         rounded[axisU] = Math.round(curPoint[0]);
         rounded[axisV] = Math.round(curPoint[1]);
 
-        const offset =
-          rounded[0] -
-          originI +
-          (rounded[1] - originJ) * jStride +
-          (rounded[2] - originK) * kStride;
-        if (isInBounds(rounded) && shouldPaint(offset, rounded)) {
-          if (labelmapPixels[offset] !== brushValue) {
-            labelmapPixels[offset] = brushValue;
-            changed = true;
-          }
-        }
+        paintVoxel();
 
         curPoint[0] += incX;
         curPoint[1] += incY;
@@ -215,6 +240,9 @@ export default class PaintTool {
       }
     }
 
-    if (changed) labelmap.modified();
+    if (changed)
+      labelmap.modifiedWithin(
+        this.strokeBounds(sliceAxis, startPoint, endPoint)
+      );
   }
 }

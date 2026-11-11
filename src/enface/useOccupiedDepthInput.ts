@@ -236,6 +236,7 @@ export function useOccupiedDepthInput(
     return {
       dimensions: image.getDimensions(),
       source: image,
+      maskImage: selectedBinding.value!.image,
       segment: selectedMask.value!.id,
       grid: JSON.stringify([
         image.getOrigin(),
