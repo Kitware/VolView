@@ -20,8 +20,10 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
+import { piecewiseHistogram } from '@/src/utils/histogram';
 import {
   getColorFunctionRangeFromPreset,
+  getScalarSample,
   getShiftedOpacityFromPreset,
 } from '@/src/utils/vtk-helpers';
 
@@ -183,18 +185,24 @@ export default defineComponent({
       colorTransferFunc.delete();
     });
 
-    watch(
-      currentImageData,
-      (image) => {
-        if (image) {
-          const scalars = image.getPointData().getScalars();
-          // TODO(fli): setDataArray() re-computes the data range unnecessarily
-          pwfWidget.setDataArray(scalars.getData());
-          pwfWidget.render();
-        }
-      },
-      { immediate: true }
+    const opacityMappingRange = computed(
+      () => opacityFunction.value?.mappingRange
     );
+
+    watchEffect(() => {
+      const image = currentImageData.value;
+      const range = opacityMappingRange.value;
+      if (!image || !range) return;
+      pwfWidget.setHistogram(
+        piecewiseHistogram(
+          getScalarSample(image),
+          range,
+          pwfWidget.getNumberOfBins()
+        ),
+        range
+      );
+      pwfWidget.render();
+    });
 
     // update pwf widget when lut changes
     watch(

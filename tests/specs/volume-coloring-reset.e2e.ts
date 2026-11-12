@@ -6,6 +6,7 @@ import {
   nrrd,
   showColorPresets,
   openWith3DLayout,
+  radialRamp,
   selectedPreset,
   writeNrrd,
 } from './volumeTestUtils';
@@ -77,14 +78,7 @@ async function dragOpacityCurve(steps: number) {
 describe('3D rendering color and opacity reset', () => {
   it('restores Shift, Width, and the opacity curve while keeping lighting', async () => {
     const name = 'volume-coloring-reset';
-    const voxels = floatVoxels(SIZE, (index) => {
-      const offsets = [
-        index % SIZE,
-        Math.floor(index / SIZE) % SIZE,
-        Math.floor(index / SIZE ** 2),
-      ].map((c) => c - SIZE / 2);
-      return Math.max(0, 1000 * (1 - Math.hypot(...offsets) / (SIZE / 2)));
-    });
+    const voxels = floatVoxels(SIZE, radialRamp(SIZE));
     await openWith3DLayout(
       writeNrrd(name, nrrd(['modality:=MR'], 'float', SIZE), voxels),
       name

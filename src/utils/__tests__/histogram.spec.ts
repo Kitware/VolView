@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { histogram, histogramWindowRanges } from '@/src/utils/histogram';
+import {
+  histogram,
+  histogramWindowRanges,
+  piecewiseHistogram,
+} from '@/src/utils/histogram';
 
 describe('scalar image histograms', () => {
   it('keeps inclusive integer source bins', () => {
@@ -38,5 +42,20 @@ describe('scalar image histograms', () => {
       Object.values(histogramWindowRanges(constantBins, [65535, 65535]))
     ).toEqual(new Array(4).fill([65535, 65535]));
     expect(() => histogram([1, -Infinity], [0, 1], 512)).toThrow(/finite/);
+  });
+});
+
+describe('piecewiseHistogram', () => {
+  it('bins only the given range and scales by the second-largest bin', () => {
+    const values = [-5, 0, 0, 0, 0, 1, 1, 2, 3, 3, 4, 1e6, NaN];
+    expect(Array.from(piecewiseHistogram(values, [0, 4], 5))).toEqual([
+      2, 1, 0.5, 1, 0.5,
+    ]);
+  });
+
+  it('is empty for a zero-width range', () => {
+    expect(Array.from(piecewiseHistogram([3, 3], [3, 3], 4))).toEqual([
+      0, 0, 0, 0,
+    ]);
   });
 });
