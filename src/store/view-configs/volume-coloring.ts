@@ -17,6 +17,7 @@ import {
 import { DeepPartial, Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
 import { isDicomImage } from '@/src/utils/dataSelection';
+import { getDeclaredModality } from '@/src/utils/declaredModality';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { createViewConfigSerializer } from './common';
 import { ViewConfig } from '../../io/state-file/schema';
@@ -30,15 +31,14 @@ export const DEFAULT_EDGE_GRADIENT = 0.2;
 export const DEFAULT_SAMPLING_DISTANCE = 0.2;
 
 function getPresetFromImageModality(imageID: string) {
-  const dicomStore = useDICOMStore();
-  if (isDicomImage(imageID)) {
-    const volKey = imageID;
-    const { Modality } = dicomStore.volumeInfo[volKey];
-    if (Modality in DEFAULT_PRESET_BY_MODALITY) {
-      return DEFAULT_PRESET_BY_MODALITY[Modality];
-    }
-  }
-  return DEFAULT_PRESET;
+  const dicomModality = isDicomImage(imageID)
+    ? useDICOMStore().volumeInfo[imageID]?.Modality
+    : undefined;
+  const modality = getDeclaredModality(
+    dicomModality,
+    useImageCacheStore().imageById[imageID]?.headerMetadata
+  );
+  return DEFAULT_PRESET_BY_MODALITY[modality] ?? DEFAULT_PRESET;
 }
 
 /**
