@@ -5,7 +5,10 @@ import {
   floatVoxels,
   nrrd,
   openWith3DLayout,
+  pressOn,
   radialRamp,
+  sliderThumb,
+  stablePixels,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -13,9 +16,8 @@ const SIZE = 16;
 const EDITOR = '[data-testid="volume-opacity-editor"]';
 const RESET = '[data-testid="volume-reset-color-opacity"]';
 
-const thumb = (slider: string) => $(slider).$('[role="slider"]');
-const shiftThumb = () => thumb('[data-testid="volume-color-shift"]');
-const widthThumb = () => thumb('[data-testid="volume-color-width"]');
+const shiftThumb = () => sliderThumb('volume-color-shift');
+const widthThumb = () => sliderThumb('volume-color-width');
 const ambientThumb = () => $('.v-slider*=Ambient').$('[role="slider"]');
 const sliderValue = async (slider: ChainablePromiseElement) =>
   String(await slider.getAttribute('aria-valuenow'));
@@ -42,23 +44,6 @@ async function waitForPixels(
     },
     { timeoutMsg }
   );
-}
-
-async function stablePixels(selector: string, inset: number) {
-  let previous = await pixels(selector, inset, 'volume-coloring-stable.png');
-  await browser.waitUntil(async () => {
-    const next = await pixels(selector, inset, 'volume-coloring-stable.png');
-    const same = next.equals(previous);
-    previous = next;
-    return same;
-  });
-  return previous;
-}
-
-async function pressOn(slider: ChainablePromiseElement, key: string) {
-  await slider.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await slider.click();
-  await browser.keys(key);
 }
 
 async function dragOpacityCurve(steps: number) {

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, writeManifestToFile } from './utils';
+import { captureViewPixels, makeTempDir, writeManifestToFile } from './utils';
 
 const LAYOUT = {
   layouts: {
@@ -73,4 +73,27 @@ export function differingFraction(a: Buffer, b: Buffer) {
     if (delta > 8) differing++;
   }
   return differing / (a.length / 4);
+}
+
+export const sliderThumb = (testId: string) =>
+  $(`[data-testid="${testId}"]`).$('[role="slider"]');
+
+/** Captures a view until two consecutive frames match. */
+export async function stablePixels(selector: string, inset: number) {
+  const capture = async () =>
+    (await captureViewPixels(selector, inset, 'stable-pixels.png'))[0].data;
+  let previous = await capture();
+  await browser.waitUntil(async () => {
+    const next = await capture();
+    const same = next.equals(previous);
+    previous = next;
+    return same;
+  });
+  return previous;
+}
+
+export async function pressOn(slider: ChainablePromiseElement, key: string) {
+  await slider.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await slider.click();
+  await browser.keys(key);
 }
