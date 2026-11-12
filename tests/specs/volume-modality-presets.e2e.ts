@@ -15,6 +15,7 @@ import {
   showColorPresets,
   openWith3DLayout,
   selectedPreset,
+  stablePixels,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -116,6 +117,8 @@ describe('volume preset from declared modality', () => {
   });
 });
 
+const VIEW = '[data-testid~="vtk-volume-view"]';
+
 // The inset keeps only the view center, where every test volume has signal.
 const CENTER_INSET = 280;
 
@@ -130,26 +133,6 @@ async function brightCenterPixels(name: string, inset: number, level = 40) {
     if (Math.max(data[index], data[index + 1], data[index + 2]) > level)
       bright++;
   return { bright, fraction: bright / (data.length / 4) };
-}
-
-/** Captures the 3D view until two consecutive frames match. */
-async function stableViewPixels() {
-  const capture = async () =>
-    (
-      await captureViewPixels(
-        '[data-testid~="vtk-volume-view"]',
-        40,
-        'stable-view.png'
-      )
-    )[0].data;
-  let previous = await capture();
-  await browser.waitUntil(async () => {
-    const next = await capture();
-    const same = next.equals(previous);
-    previous = next;
-    return same;
-  });
-  return previous;
 }
 
 async function expectVisibleVolume(name: string) {
@@ -251,7 +234,7 @@ describe('grayscale default fitted to the data', () => {
         name
       );
       await expectVisibleVolume(name);
-      rendered.push(await stableViewPixels());
+      rendered.push(await stablePixels(VIEW, 40));
     }
     expect(differingFraction(rendered[0], rendered[1])).toBeLessThan(0.01);
   });
@@ -266,7 +249,7 @@ describe('grayscale default fitted to the data', () => {
       loadedName
     );
     await expectVisibleVolume(loadedName);
-    const loaded = await stableViewPixels();
+    const loaded = await stablePixels(VIEW, 40);
 
     const name = 'fitted-mr-dicom';
     const manifest = `${name}.json`;
@@ -277,7 +260,7 @@ describe('grayscale default fitted to the data', () => {
     await openWith3DLayout(`tmp/${manifest}`, name);
     // Ray jitter differs between sources on ~8%; a range left unfit differs on ~45%.
     await browser.waitUntil(
-      async () => differingFraction(loaded, await stableViewPixels()) < 0.2,
+      async () => differingFraction(loaded, await stablePixels(VIEW, 40)) < 0.2,
       { timeoutMsg: 'Expected the streamed series to match once refit' }
     );
   });
