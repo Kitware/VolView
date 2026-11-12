@@ -77,6 +77,14 @@ function vtkPiecewiseWidget(publicAPI, model) {
   model.opacityPointShift = 0;
   model.opacityValueShift = 0;
 
+  publicAPI.setHistogram = (histogram, dataRange) => {
+    model.histogram = histogram;
+    model.dataRange = [...dataRange];
+    // The color bar is cached per transfer function mtime, not per range.
+    model.colorCanvas = null;
+    publicAPI.modified();
+  };
+
   publicAPI.setGaussiansMode = () => {
     model.pwMode = Mode.Gaussians;
   };
