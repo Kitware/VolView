@@ -61,7 +61,7 @@ const cross = (left: number[], right: number[]) => [
  * rescales any axis it is given, so a value printed to three decimals loads
  * as the scanner meant it while a skewed basis still does not.
  */
-export const ORTHOGONALITY_TOLERANCE = 1e-3;
+const ORTHOGONALITY_TOLERANCE = 1e-3;
 
 const magnitude = (axis: number[]) => Math.sqrt(dot(axis, axis));
 

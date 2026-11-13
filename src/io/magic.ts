@@ -1,4 +1,4 @@
-import StreamingByteReader from '@/packages/dicom/core/streaming/streamingByteReader';
+import StreamingByteReader from '@/packages/dicom/core/header/streamingByteReader';
 import { Maybe } from '../types';
 
 interface MagicDatabase {

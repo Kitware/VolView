@@ -9,7 +9,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { readDicomTagsNode } from '@itk-wasm/dicom';
-import { readDicomTags, tagReaderCorpus } from './readDicomTagsFixtures';
+import { readDicomTags } from './readDicomTagsFixtures';
+import { tagReaderCorpus } from '@/tests/specs/dicomElementFixtures';
 
 let workDir = '';
 

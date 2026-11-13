@@ -64,11 +64,6 @@ const ownFeatureExceptPure = (feature) => {
 const upperLayerMessage = (feature) =>
   `The ${feature.dir} pure layer must not import stores, components, or upper feature modules. Dependencies point downward only.`;
 
-const dicomPublicSurface = {
-  regex: '^@/packages/dicom/(?!core/.+|vtk/.+)',
-  message: 'Import the defining DICOM core or vtk module directly.',
-};
-
 const featureBoundaries = (features) => {
   const publicSurface = ({ dir, publicModules }) => ({
     group: [
@@ -81,10 +76,8 @@ const featureBoundaries = (features) => {
   const publicFeatures = features.filter(
     (feature) => feature.publicSurface !== false
   );
-  const otherSurfaces = (feature) => [
-    dicomPublicSurface,
-    ...publicFeatures.filter((other) => other !== feature).map(publicSurface),
-  ];
+  const otherSurfaces = (feature) =>
+    publicFeatures.filter((other) => other !== feature).map(publicSurface);
 
   return [
     {
@@ -94,10 +87,7 @@ const featureBoundaries = (features) => {
         'no-restricted-imports': [
           'error',
           {
-            patterns: [
-              dicomPublicSurface,
-              ...publicFeatures.map(publicSurface),
-            ],
+            patterns: publicFeatures.map(publicSurface),
           },
         ],
       },
@@ -154,7 +144,6 @@ export default tseslint.config(
       'src/io/resample/emscripten-build/**',
       '**/*.d.ts',
       'dist/**',
-      'packages/dicom/dist/**',
       'node_modules/**',
     ],
   },
@@ -402,8 +391,8 @@ export default tseslint.config(
       ],
     },
   },
-  ...['core', 'vtk'].map((entry) => ({
-    files: [`packages/dicom/${entry}/**/*.{js,ts}`],
+  {
+    files: ['packages/dicom/core/**/*.{js,ts}'],
     ignores: ['**/__tests__/**'],
     rules: {
       'no-restricted-imports': [
@@ -411,17 +400,32 @@ export default tseslint.config(
         {
           patterns: [
             {
-              regex:
-                entry === 'core'
-                  ? '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$))'
-                  : '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/)',
+              regex: '^(?!\\.\\.?/|(comlink|dcmjs|itk-wasm)$)',
               message:
-                'DICOM package internals use relative imports and cannot depend on application state or UI frameworks. Core cannot depend on vtk.js.',
+                'DICOM core imports only relative paths and comlink, dcmjs and itk-wasm. A new dependency is a deliberate change to this list.',
             },
           ],
         },
       ],
     },
-  })),
+  },
+  {
+    files: ['packages/dicom/vtk/**/*.{js,ts}'],
+    ignores: ['**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/)',
+              message:
+                'DICOM module internals use relative imports and cannot depend on application state or UI frameworks.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintConfigPrettier
 );

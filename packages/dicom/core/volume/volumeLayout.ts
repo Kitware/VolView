@@ -1,11 +1,10 @@
 import type { DicomDataset } from '../metadata/dicomDataset';
-import { getDatasetTag, getDatasetModality } from '../metadata/datasetAccess';
+import { getDatasetTag } from '../metadata/datasetAccess';
 import { readGeometryFacts, sliceNormalOf } from '../collections/instanceFacts';
 import {
   reconstructInstances,
   type Reconstruction,
 } from '../collections/reconstructVolume';
-import { multiframeGeometry } from '../collections/multiframeGeometry';
 import { readDatasetDetails } from '../collections/datasetDetails';
 import {
   declaredSpacing,
@@ -14,7 +13,7 @@ import {
   type SpatialMetadata,
 } from '../metadata/spatialMetadata';
 import { getFrameTag } from '../metadata/functionalGroups';
-import type { UltrasoundRegions } from '../streaming/dicom/ultrasoundRegion';
+import type { UltrasoundRegions } from '../metadata/ultrasoundRegion';
 import { numberOr } from '../utils';
 import { nmGeometry } from './nmGeometry';
 import { getVolumeBufferType, instancePixelFormats } from './pixelFormat';
@@ -55,9 +54,6 @@ const instanceGeometry = (dataset: DicomDataset, count: number) => {
   const nm = nmGeometry(dataset);
   if (nm) return nm;
   if (count < 2) return null;
-  // SEG planning does not judge segment-major frames as one spatial stack.
-  if (getDatasetModality(dataset) === 'SEG')
-    return multiframeGeometry(dataset, count);
   return readDatasetDetails(dataset).frameGeometry;
 };
 
@@ -100,7 +96,7 @@ function assertSliceSlots(slots: number[], count: number) {
     (count > 0 && slots[0] !== 0)
   )
     throw new Error(
-      'Reconstruction must map each chunk to one distinct nonnegative slice slot, starting at zero'
+      'Reconstruction must map each instance to one distinct nonnegative slice slot, starting at zero'
     );
 }
 
@@ -112,7 +108,7 @@ function allocationShape(
   const numberOfFrames = numberOr(valueOf(NumberOfFrames), 1);
   if (numberOfFrames > 1 && sources.length > 1)
     throw new Error(
-      'First chunk in a group of chunks (size > 1) is a multi-frame chunk'
+      'A multi-frame instance cannot share a volume with other instances'
     );
   return {
     rows: numberOr(valueOf(RowsTag), 0),
@@ -199,7 +195,7 @@ export function volumeLayout(
   irregularGeometry: IrregularGeometryPolicy = 'preserve-order'
 ) {
   if (sources.length === 0)
-    throw new Error('Cannot allocate an image from zero chunks');
+    throw new Error('Cannot allocate an image from zero instances');
   assertRegularGeometry(reconstruction, irregularGeometry);
   assertSliceSlots(reconstruction.slots, sources.length);
   const shape = allocationShape(sources, reconstruction);
@@ -220,8 +216,6 @@ export function volumeLayout(
   };
 }
 
-export type VolumeLayout = ReturnType<typeof volumeLayout>;
-
 const reconstructionFor = (
   sources: readonly VolumeSource[],
   orientation: number[] | null,
@@ -238,10 +232,7 @@ const reconstructionFor = (
       );
 };
 
-/**
- * Plans an allocation for planned members. SEG yields no layout, since its
- * pixels are labels that a segmentation reader turns into its own image.
- */
+/** Plans an allocation for the planned members of an image collection. */
 export function planVolumeAllocation(
   sources: readonly VolumeSource[],
   orientation: number[] | null,
@@ -249,11 +240,9 @@ export function planVolumeAllocation(
   policy: IrregularGeometryPolicy
 ) {
   if (sources.length === 0)
-    throw new Error('Cannot allocate an image from zero chunks');
+    throw new Error('Cannot allocate an image from zero instances');
   const reconstruction = reconstructionFor(sources, orientation, supplied);
   const warnings: Array<[string, string]> = [];
-  if (getDatasetModality(sources[0].dataset) === 'SEG')
-    return { kind: 'segmentation' as const, reconstruction, warnings };
   const layout = volumeLayout(sources, orientation, reconstruction, policy);
   const spatialMetadata = applyUltrasoundSpacing(
     layout.spatialMetadata,
@@ -261,7 +250,6 @@ export function planVolumeAllocation(
     (...warning) => warnings.push(warning)
   );
   return {
-    kind: 'volume' as const,
     reconstruction,
     layout: { ...layout, spatialMetadata },
     warnings,

@@ -1,6 +1,6 @@
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 
 /** The VOI attributes used when choosing a shared display window. */
 export const getWindowMetadata = (dataset: DicomDataset) =>

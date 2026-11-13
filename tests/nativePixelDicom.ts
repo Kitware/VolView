@@ -2,7 +2,7 @@
 // for comparing frame decoders. Stored words are written as given, so high
 // bits above Bits Stored can carry anything a test wants.
 
-import { concatBytes } from '@/packages/dicom/core/utils';
+import { combine } from '@/tests/specs/syntheticDicom';
 
 export const IMPLICIT_LE = '1.2.840.10008.1.2';
 export const EXPLICIT_LE = '1.2.840.10008.1.2.1';
@@ -62,10 +62,10 @@ const numbers = (vr: string, values: number[], littleEndian: boolean) => {
 };
 
 const tagBytes = (tag: number, littleEndian: boolean) =>
-  concatBytes([
+  combine(
     uint(tag >>> 16, 2, littleEndian),
-    uint(tag & 0xffff, 2, littleEndian),
-  ]);
+    uint(tag & 0xffff, 2, littleEndian)
+  );
 
 function valueBytes(element: DataElement, encoding: Encoding): Uint8Array {
   const { vr, value } = element;
@@ -74,16 +74,16 @@ function valueBytes(element: DataElement, encoding: Encoding): Uint8Array {
     return new TextEncoder().encode(value.length % 2 ? value + pad : value);
   }
   if (value instanceof Uint8Array)
-    return value.length % 2 ? concatBytes([value, new Uint8Array(1)]) : value;
+    return value.length % 2 ? combine(value, new Uint8Array(1)) : value;
   if (vr === 'SQ')
-    return concatBytes(
-      (value as DataElement[][]).map((item) => {
+    return combine(
+      ...(value as DataElement[][]).map((item) => {
         const body = encodeElements(item, encoding);
-        return concatBytes([
+        return combine(
           tagBytes(0xfffee000, encoding.littleEndian),
           uint(body.length, 4, encoding.littleEndian),
-          body,
-        ]);
+          body
+        );
       })
     );
   return numbers(vr, value as number[], encoding.littleEndian);
@@ -104,12 +104,12 @@ function encodeElement(element: DataElement, encoding: Encoding) {
           uint(value.length, 2, littleEndian),
         ]
     : [uint(value.length, 4, littleEndian)];
-  return concatBytes([tagBytes(element.tag, littleEndian), ...head, value]);
+  return combine(tagBytes(element.tag, littleEndian), ...head, value);
 }
 
 const encodeElements = (elements: DataElement[], encoding: Encoding) =>
-  concatBytes(
-    [...elements]
+  combine(
+    ...[...elements]
       .sort((a, b) => a.tag - b.tag)
       .map((element) => encodeElement(element, encoding))
   );
@@ -138,13 +138,13 @@ function part10(
     explicit: transferSyntaxUid !== IMPLICIT_LE,
     littleEndian: transferSyntaxUid !== EXPLICIT_BE,
   };
-  return concatBytes([
+  return combine(
     new Uint8Array(128),
     new TextEncoder().encode('DICM'),
     groupLength,
     meta,
-    encodeElements(dataset, encoding),
-  ]);
+    encodeElements(dataset, encoding)
+  );
 }
 
 export type NativePixelOptions = {

@@ -8,6 +8,7 @@ import {
   pixelSlice,
   valueDecoder,
 } from '../../core/volume/__tests__/volumeFixture';
+import { decodingWith } from '@/tests/dicomVolumeFixtures';
 import type { Volume } from '../../core/volume/allocateVolume';
 import {
   applyVolumeUpdate,
@@ -29,7 +30,7 @@ const rangeOf = (image: vtkImageData) => [
 async function loadRanges(volume: Volume) {
   const image = toVtkImageData(volume);
   const runtime = createDicomRuntime({
-    decoder: valueDecoder(),
+    ...decodingWith(valueDecoder()),
     decodeConcurrency: 1,
   });
   const ranges: number[][] = [];
@@ -80,7 +81,7 @@ describe('vtk volume adapter', () => {
   it('replaces the placeholder even when every slice loaded before the first update applies', async () => {
     const volume = stack([300, 301, 302]);
     const image = toVtkImageData(volume);
-    const runtime = createDicomRuntime({ decoder: valueDecoder() });
+    const runtime = createDicomRuntime(decodingWith(valueDecoder()));
     const updates = [];
     for await (const update of loadVolume(volume, {
       runtime,

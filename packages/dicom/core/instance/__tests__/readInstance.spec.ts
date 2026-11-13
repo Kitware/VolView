@@ -7,7 +7,7 @@ import {
   withoutPixelData,
 } from '@/tests/dicomSourceFixtures';
 import { rawElement } from '@/tests/specs/syntheticDicom';
-import { trackedSource } from '../../source/__tests__/sourceFixtures';
+import { trackedSource } from '@/tests/byteSourceFixtures';
 
 const PATIENT_NAME = '00100010';
 const CHUNK = 256;

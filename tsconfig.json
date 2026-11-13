@@ -20,9 +20,7 @@
       "node"
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@volview/dicom/core/*": ["./packages/dicom/core/*"],
-      "@volview/dicom/vtk/*": ["./packages/dicom/vtk/*"]
+      "@/*": ["./*"]
     },
     "lib": ["esnext", "dom", "dom.iterable", "scripthost", "WebWorker"]
   },
@@ -36,7 +34,7 @@
     "tests/**/*.tsx",
     "packages/dicom/**/*.ts"
   ],
-  "exclude": ["node_modules", "packages/dicom/dist"],
+  "exclude": ["node_modules"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

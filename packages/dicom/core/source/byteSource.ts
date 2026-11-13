@@ -3,10 +3,10 @@ import {
   HTTP_STATUS_PARTIAL_CONTENT,
   HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE,
   HttpNotFound,
-} from '../streaming/httpCodes';
-import { linkedController } from '../utils/abort';
+} from './httpCodes';
+import { linkedController } from '../utils';
 import { concatBytes } from '../utils';
-import { parseContentRangeHeader } from '../utils/parseContentRangeHeader';
+import { parseContentRangeHeader } from './parseContentRangeHeader';
 
 /** Half-open byte interval; an absent end reads to the last byte. */
 export type ByteRange = { start: number; end?: number };
@@ -58,7 +58,7 @@ export const fromBlob = (blob: Blob): ByteSource => ({
 });
 
 /** Drops `skip` leading bytes and stops after `length` bytes. */
-export function sliceStream(
+function sliceStream(
   stream: ReadableStream<Uint8Array>,
   skip: number,
   length = Infinity

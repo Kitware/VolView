@@ -2,7 +2,7 @@ import type { InstanceFacts } from './planDicomCollections';
 import { projectOnNormal, sliceNormalOf } from './instanceFacts';
 
 /** The geometry a reconstruction judges. Nothing else about an instance. */
-export type ReconstructionMember = Pick<
+type ReconstructionMember = Pick<
   InstanceFacts,
   'orientation' | 'position' | 'pixelSpacing'
 > & { frameReconstruction?: Reconstruction; numberOfFrames?: string | null };
@@ -43,14 +43,14 @@ export type Reconstruction =
  * onto its normal jitters in the last digits; a genuine slab boundary or a
  * missed slice is orders of magnitude larger.
  */
-export const SLICE_SPACING_TOLERANCE_MM = 0.1;
-export const SLICE_SPACING_RELATIVE_TOLERANCE = 0.01;
+const SLICE_SPACING_TOLERANCE_MM = 0.1;
+const SLICE_SPACING_RELATIVE_TOLERANCE = 0.01;
 
 /** How far a slice may sit from the in-plane origin of the first, in mm. */
 export const IN_PLANE_TOLERANCE_MM = 0.1;
 
 /** How far two in-plane sample spacings may differ and still be one grid. */
-export const PIXEL_SPACING_TOLERANCE_MM = 1e-4;
+const PIXEL_SPACING_TOLERANCE_MM = 1e-4;
 
 const spacingTolerance = (gap: number) =>
   Math.max(
@@ -206,7 +206,7 @@ export function reconstructVolume(
     : irregular(fault, positionStep(members), members.length);
 }
 
-/** Instance slots index source chunks even when one source contains many frames. */
+/** Slots index source instances even when one instance holds many frames. */
 export function reconstructInstances(
   members: ReconstructionMember[],
   normal?: number[] | null,

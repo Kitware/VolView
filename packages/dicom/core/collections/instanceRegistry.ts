@@ -1,6 +1,6 @@
 import type { Instance } from '../instance/readInstance';
 import { trimDicomPadding } from '../utils';
-import { getDatasetTag } from '../metadata/datasetAccess';
+import { getDatasetModality, getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
 import {
   planDicomCollections,
@@ -15,8 +15,15 @@ import {
 import { seriesKeyOf } from './instanceFacts';
 import { readDatasetDetails } from './datasetDetails';
 import { groupBy } from './groupBy';
+import type { Reconstruction } from './reconstructVolume';
 
-export type InstanceCollectionUpdate = {
+/**
+ * How a collection differs from what was last committed under its ID:
+ * `unchanged` has the same members, key and geometry, re-supplied by the batch.
+ */
+type CollectionChange = 'new' | 'unchanged' | 'changed';
+
+type CollectionUpdateFields = {
   id: string;
   seriesKey: string;
   collection: DicomCollection;
@@ -24,6 +31,18 @@ export type InstanceCollectionUpdate = {
   members: Instance[];
   /** Aligned with members: the batch's own instance wherever it re-supplied one. */
   provenance: Instance[];
+  change: CollectionChange;
+};
+
+/**
+ * An image volume, or a SEG object whose pixels are labels rather than an
+ * image. A union so that checking `kind` narrows the update for allocateVolume.
+ */
+export type InstanceCollectionUpdate = CollectionUpdateFields &
+  ({ kind: 'image' } | { kind: 'segmentation' });
+
+export type ImageCollectionUpdate = InstanceCollectionUpdate & {
+  kind: 'image';
 };
 
 // An instance with no SOP Instance UID is identified by its object, so two of
@@ -40,6 +59,8 @@ type Committed = {
   members: readonly InstanceKey[];
   // Reported when relabelled even if its members did not move.
   key: string;
+  orientation: readonly number[] | null;
+  reconstruction: Reconstruction;
 };
 
 type SeriesState = {
@@ -90,11 +111,40 @@ const claimable = (committed: SeriesState['committed']) =>
     )
     .filter((collection) => collection.sopInstanceUids.length > 0);
 
-const unchanged = (before: Committed | undefined, after: Committed) =>
-  before !== undefined &&
+const sameList = <T>(a: readonly T[] | null, b: readonly T[] | null) =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.length === b.length &&
+    a.every((value, index) => value === b[index]));
+
+const reasonOf = (reconstruction: Reconstruction) =>
+  reconstruction.kind === 'irregular' ? reconstruction.reason : null;
+
+const sameReconstruction = (a: Reconstruction, b: Reconstruction) =>
+  a.kind === b.kind &&
+  reasonOf(a) === reasonOf(b) &&
+  a.sliceSpacing === b.sliceSpacing &&
+  sameList(a.slots, b.slots);
+
+const unchanged = (before: Committed, after: Committed) =>
   before.key === after.key &&
-  before.members.length === after.members.length &&
-  before.members.every((key, index) => key === after.members[index]);
+  sameList(before.members, after.members) &&
+  sameList(before.orientation, after.orientation) &&
+  sameReconstruction(before.reconstruction, after.reconstruction);
+
+const changeOf = (
+  before: Committed | undefined,
+  after: Committed
+): CollectionChange => {
+  if (!before) return 'new';
+  return unchanged(before, after) ? 'unchanged' : 'changed';
+};
+
+const kindOf = (first: Instance) =>
+  getDatasetModality(first.dataset) === 'SEG'
+    ? ('segmentation' as const)
+    : ('image' as const);
 
 // The first registration of an instance wins; a re-supply only reports back.
 function mergeBatch(series: SeriesState, batch: Registered[]) {
@@ -143,18 +193,24 @@ function planSeries(
     const committed: Committed = {
       members: entries.map((entry) => entry.key),
       key: encodeCollectionKey(collection.key),
+      orientation: collection.orientation,
+      reconstruction: collection.reconstruction,
     };
+    const members = entries.map((entry) => entry.instance);
+    const change = changeOf(series.committed.get(id), committed);
     const update: InstanceCollectionUpdate = {
       id,
       seriesKey,
       collection,
-      members: entries.map((entry) => entry.instance),
+      members,
       provenance: entries.map(provenanceOf),
+      change,
+      kind: kindOf(members[0]),
     };
     // A replan can move members or relabel a collection the batch brought nothing.
     const changed =
-      committed.members.some((key) => supplied.has(key)) ||
-      !unchanged(series.committed.get(id), committed);
+      change !== 'unchanged' ||
+      committed.members.some((key) => supplied.has(key));
     return { committed, update, changed };
   });
 
