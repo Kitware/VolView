@@ -222,6 +222,20 @@ describe('a second config replaces the first', () => {
     expect(store().getMask(mask.id).segmentId).toBe(id);
   });
 
+  it('lets an unviewed image copy the last image after an empty config', async () => {
+    segments().addSegment('img-1', { name: 'User' });
+    await seatSpecImage('img-2');
+
+    applyConfig({ segments: {} });
+    await viewImage('img-2');
+
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ name }) => name)
+    ).toEqual(['User']);
+  });
+
   it('drops an unreferenced segment the second config leaves out', () => {
     applyConfig(TWO_TYPES);
 

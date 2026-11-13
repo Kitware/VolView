@@ -117,12 +117,16 @@ export const useSegmentStore = defineStore('segments', () => {
     return true;
   }
 
-  // An image without a set gets the configured segments as its set.
+  // An image without a set gets the configured segments as its set. An empty
+  // config seats nothing, so such an image still inherits.
   function replaceConfigSegments(configured: ConfiguredSegments | null) {
     seedSegmentDefaults.value = defaultsFromConfig(configured ?? {});
-    imageCacheStore.imageIds.forEach((imageId) =>
-      registry.replaceConfigSegments(imageId, configured)
-    );
+    const seatsSegments = seedSegmentDefaults.value.length > 0;
+    imageCacheStore.imageIds
+      .filter((imageId) => seatsSegments || registry.imageSets.value[imageId])
+      .forEach((imageId) =>
+        registry.replaceConfigSegments(imageId, configured)
+      );
   }
 
   function serialize(state: StateFile) {
