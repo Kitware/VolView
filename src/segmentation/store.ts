@@ -684,13 +684,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     return ensureMask(imageId, segmentId).id;
   }
 
-  /** The segment's mask, if present, found through the per-image indexes. */
-  const masksOfSegment = (segmentId: string) =>
-    Object.values(segmentations).flatMap((segmentation) => {
-      const maskId = maskIdsBySegment.get(segmentation.id)?.get(segmentId);
-      return maskId ? [segmentation.masks[maskId]] : [];
-    });
-
   const referencedSegments = computed(
     () =>
       new Set(
@@ -700,8 +693,10 @@ export const useSegmentationStore = defineStore('segmentation', () => {
 
   segmentRegistry.declareReferences('labelmaps', {
     has: (segmentId) => referencedSegments.value.has(segmentId),
-    remove: (segmentId) =>
-      masksOfSegment(segmentId).forEach((mask) => deleteMask(mask.id)),
+    remove: (segmentId) => {
+      const mask = maskFor(segmentRegistry.ownerImageId(segmentId), segmentId);
+      if (mask) deleteMask(mask.id);
+    },
   });
 
   // --- render sync --- //
@@ -744,7 +739,6 @@ export const useSegmentationStore = defineStore('segmentation', () => {
     convertingLabelmaps: readonly(conversions),
     labelmapDescriptorByMask,
     maskFor,
-    masksOfSegment,
     findEditTarget,
     resolveEditTarget,
     editTargetLocked,

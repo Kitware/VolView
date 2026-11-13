@@ -557,6 +557,7 @@ export const createSegmentRegistry = (
     imageSets,
     initializeSet,
     snapshot,
+    ownerImageId,
     belongsToImage,
     assertBelongsToImage,
     removeImage,
