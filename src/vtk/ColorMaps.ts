@@ -3,8 +3,29 @@ import { ColorMapPreset } from '@/src/types/color-map-preset';
 import MedicalPresets from './MedicalColorPresets.json';
 import DicomPresets from './DicomColorPresets.json';
 
+// MR intensities have no standard scale, so MR presets fit each image's range.
+function toRelativePreset(preset: ColorMapPreset): ColorMapPreset {
+  const rgb = preset.RGBPoints ?? [];
+  const xs = rgb.filter((_, index) => index % 4 === 0);
+  const low = Math.min(...xs);
+  const span = Math.max(...xs) - low;
+  const toUnit = (stride: number) => (value: number, index: number) =>
+    index % stride === 0 ? (value - low) / span : value;
+  return {
+    ...preset,
+    AbsoluteRange: false,
+    EffectiveRange: undefined,
+    RGBPoints: rgb.map(toUnit(4)),
+    OpacityPoints: preset.OpacityPoints?.map(toUnit(2)),
+  };
+}
+
 MedicalPresets.forEach((preset) =>
-  vtkColorMaps.addPreset(preset as ColorMapPreset)
+  vtkColorMaps.addPreset(
+    preset.Name.startsWith('MR-')
+      ? toRelativePreset(preset as ColorMapPreset)
+      : (preset as ColorMapPreset)
+  )
 );
 vtkColorMaps.addPreset({
   ...vtkColorMaps.getPresetByName('2hot'),
@@ -64,6 +85,12 @@ const GroupedPresets = [
     group: 'US',
     presets: [
       'US-Fetal',
+    ],
+  },
+  {
+    group: 'Generic',
+    presets: [
+      'Grayscale',
     ],
   },
 ];
