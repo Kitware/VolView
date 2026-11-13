@@ -9,10 +9,12 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useModelStore } from '@/src/store/datasets-models';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
-import { trimDicomPadding } from '@/packages/dicom/core/utils';
+import {
+  getDatasetTag,
+  Tags,
+  trimDicomPadding,
+  type Instance,
+} from '@/packages/dicom/core';
 
 export const DataType = {
   Image: 'Image',

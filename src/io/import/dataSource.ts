@@ -1,5 +1,5 @@
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { Fetcher } from '@/packages/dicom/core/streaming/types';
+import type { Instance } from '@/packages/dicom/core';
+import type { Fetcher } from '@/src/core/streaming/types';
 import { Maybe } from '@/src/types';
 
 /**

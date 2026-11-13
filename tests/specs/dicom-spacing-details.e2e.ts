@@ -7,7 +7,7 @@ import {
   newUid,
   type SyntheticSliceOptions,
 } from './syntheticDicom';
-import { enhancedFixtureBytes } from '../fixtures/dicom-consumer/enhancedFixtures';
+import { enhancedFixtureBytes } from '../fixtures/dicom-pages/enhancedFixtures';
 import { dropFiles, SESSION_SAVE_TIMEOUT, waitForFileExists } from './utils';
 
 const dialog = () => $('[data-testid="image-spacing-details"]');

@@ -1,4 +1,4 @@
-import { datasetFromTags } from '@/tests/dicomDataset';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
@@ -13,8 +13,7 @@ import {
   isRemoteDataSource,
   type DataSource,
 } from '@/src/io/import/dataSource';
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 // ---------------------------------------------------------------------------

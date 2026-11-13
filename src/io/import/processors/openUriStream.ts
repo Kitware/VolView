@@ -1,5 +1,5 @@
 import { Skip } from '@/src/utils/evaluateChain';
-import { CachedStreamFetcher } from '@/packages/dicom/core/streaming/cachedStreamFetcher';
+import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import {
   ImportHandler,

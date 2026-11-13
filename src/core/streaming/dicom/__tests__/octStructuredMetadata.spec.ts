@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { readInstance } from '@/packages/dicom/core/instance/readInstance';
-import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
+import {
+  fromBlob,
+  fromUrl,
+  readDicomDataset,
+  readInstance,
+  Tags,
+} from '@/packages/dicom/core';
 import { dicomMetadataForDisplay } from '../octMetadata';
 import { OCT_GEOMETRY_ERROR, OCT_SCAN_PATTERN } from '../octMetadataTags';
 import {
@@ -11,7 +14,6 @@ import {
   enhancedFile,
   sequence,
 } from '@/tests/fixtures/oct/dicom';
-import { deflatedExplicitVR } from '@/tests/fixtures/oct/volumes';
 
 const positions = (values: number[]) =>
   values.map((z) => ({ position: `0\\0\\${z}` }));
@@ -76,8 +78,7 @@ describe('structured OCT application metadata', () => {
   it.each([false, true])(
     'matches file and HTTP OCT metadata after loading, deflated=%s',
     async (deflated) => {
-      const original = new Uint8Array(createSyntheticOCT());
-      const bytes = deflated ? deflatedExplicitVR(original) : original;
+      const bytes = new Uint8Array(createSyntheticOCT({ deflate: deflated }));
       const file = new File([bytes], 'oct.dcm');
       const fetch = vi.fn(
         async () =>

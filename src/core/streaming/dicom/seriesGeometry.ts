@@ -1,5 +1,5 @@
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import {
   frameGridGeometry,
   imageDirection,

@@ -1,6 +1,7 @@
 import * as path from 'path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import dicomParser from 'dicom-parser';
+import dcmjs from 'dcmjs';
+import { getDatasetTag, readDicomDataset } from '@/packages/dicom/core';
 import { TEMP_DIR } from '@/wdio.shared.conf';
 import { PET_CT_DICOM_DATASETS } from '../datasets';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -225,6 +226,18 @@ async function reopenSample(
   );
 }
 
+/** Rewrites the windows through a full read and write; null removes the tag. */
+function withWindow(file: Buffer, window: Record<string, string | null>) {
+  const message = dcmjs.data.DicomMessage.readFile(
+    Uint8Array.from(file).buffer
+  );
+  Object.entries(window).forEach(([tag, value]) => {
+    if (value === null) delete message.dict[tag];
+    else message.dict[tag]!.Value = [value];
+  });
+  return Buffer.from(message.write());
+}
+
 async function openPetMetadataVariant(
   variant: 'valid' | 'different' | 'missing' | 'invalid'
 ) {
@@ -232,29 +245,17 @@ async function openPetMetadataVariant(
   const petFiles = PET_CT_DICOM_DATASETS.filter(({ name }) =>
     name.startsWith('PET-CT-PT-')
   );
+  const lastWidth = {
+    valid: '6000',
+    different: '7000',
+    invalid: '0',
+    missing: null,
+  };
   for (const [index, { name }] of petFiles.entries()) {
-    const bytes = Buffer.from(readFileSync(path.join(TEMP_DIR, name)));
-    const dataset = dicomParser.parseDicom(bytes);
-    for (const [tag, value] of [
-      ['x00281050', '3000'],
-      ['x00281051', '6000'],
-    ]) {
-      const element = dataset.elements[tag];
-      let replacement = value;
-      if (index === petFiles.length - 1 && tag === 'x00281051') {
-        if (variant === 'different') replacement = '7000';
-        if (variant === 'invalid') replacement = '0';
-        if (variant === 'missing')
-          bytes.writeUInt16LE(0x7777, element.dataOffset - 8);
-      }
-      expect(replacement.length).toBeLessThanOrEqual(element.length);
-      bytes.write(
-        replacement.padEnd(element.length, ' '),
-        element.dataOffset,
-        element.length,
-        'ascii'
-      );
-    }
+    const bytes = withWindow(readFileSync(path.join(TEMP_DIR, name)), {
+      '00281050': '3000',
+      '00281051': index === petFiles.length - 1 ? lastWidth[variant] : '6000',
+    });
     writeFileSync(path.join(directory, name), bytes);
   }
   await useLocalSampleFiles(
@@ -308,11 +309,13 @@ describe('PET/CT sample', () => {
     const ctFile = PET_CT_DICOM_DATASETS.find(({ name }) =>
       name.startsWith('PET-CT-CT-')
     )!;
-    const tags = dicomParser.parseDicom(
+    const dataset = readDicomDataset(
       new Uint8Array(readFileSync(path.join(TEMP_DIR, ctFile.name)))
     );
-    const width = Number(tags.string('x00281051')!.split('\\')[0]);
-    const level = Number(tags.string('x00281050')!.split('\\')[0]);
+    const firstValue = (tag: string) =>
+      Number(getDatasetTag(dataset, tag)!.split('\\')[0]);
+    const width = firstValue('00281051');
+    const level = firstValue('00281050');
     expect(width).toBeGreaterThan(0);
     expect(Number.isFinite(level)).toBe(true);
     await volViewPage.open();

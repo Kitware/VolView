@@ -42,7 +42,7 @@ import downloadStream from '@/src/io/import/processors/downloadStream';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import { ensureError } from '@/src/utils';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import type { Instance } from '@/packages/dicom/core';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   PartialImportError,
@@ -168,30 +168,15 @@ export class PartialDicomImportError extends Error {
   }
 }
 
-/**
- * A committed series becomes datasets here, synchronously with its commit, so
- * another import cannot record a membership in between.
- */
-const publishImportedInstances = ({ volumes }: ImportInstancesResult) => {
-  // Every member reports back, so a collection that gained a member from a
-  // dissolved one carries its provenance too.
-  const loadables = Object.entries(volumes).map(([id, instances]) =>
-    asLoadableResult(
-      id,
-      { type: 'collection', sources: sourcesOf(instances) },
-      'image'
-    )
-  );
-  useDatasetStore().addDataSources(loadables);
-  return loadables;
-};
-
-/** What the import needs of its caller: where to publish and how to remove. */
+/** What the import needs of its caller: how to remove a dissolved dataset. */
 export type ImportInstancesHooks = Required<
-  Pick<ImportInstancesDeps, 'onCommitted' | 'removeDissolved'>
+  Pick<ImportInstancesDeps, 'removeDissolved'>
 >;
 
-export async function importDicomInstanceSources(
+const loadableOf = (id: string, sources: DicomInstanceSource[]) =>
+  asLoadableResult(id, { type: 'collection', sources }, 'image');
+
+export function importDicomInstanceSources(
   sources: DicomInstanceSource[],
   importInstances = (instances: Instance[], hooks: ImportInstancesHooks) =>
     useDICOMStore().importInstances(instances, hooks)
@@ -200,53 +185,47 @@ export async function importDicomInstanceSources(
 
   sources.forEach((src) => instanceToDataSource.set(src.instance, src));
 
-  const loadables: LoadableResult[] = [];
   const supplied = new Set<DataSource>(sources);
-  const publish = (committed: ImportInstancesResult) => {
-    const published = publishImportedInstances(committed);
-    loadables.push(
-      ...published.map((result) => ({
-        ...result,
-        dataSource: {
-          type: 'collection' as const,
-          sources:
-            result.dataSource.type === 'collection'
-              ? result.dataSource.sources.filter((source) =>
-                  supplied.has(source)
-                )
-              : [],
-        },
-      }))
-    );
-  };
-  // A replan folded the dissolved collection into others, so the dataset an
-  // earlier import created for it no longer describes anything loaded. The
-  // dataset store's removal clears every store that names it, in the order
-  // eviction needs.
   const datasetStore = useDatasetStore();
-  const removeDissolved = (id: string) => datasetStore.remove(id);
-  const currentLoadables = () =>
-    loadables
-      .filter(({ dataID }) => datasetStore.getDataSource(dataID) !== undefined)
-      .sort((a, b) => (a.dataID < b.dataID ? -1 : Number(a.dataID > b.dataID)));
+  // Every member reports back, so a collection that gained a member from a
+  // dissolved one saves its provenance too; the result names only this
+  // import's own sources.
+  const publish = ({ volumes }: ImportInstancesResult) => {
+    const entries = Object.entries(volumes);
+    datasetStore.addDataSources(
+      entries.map(([id, instances]) => loadableOf(id, sourcesOf(instances)))
+    );
+    return entries
+      .sort(([a], [b]) => (a < b ? -1 : Number(a > b)))
+      .map(([id, instances]) =>
+        loadableOf(
+          id,
+          sourcesOf(instances).filter((source) => supplied.has(source))
+        )
+      );
+  };
+  // The dataset store's removal clears every store that names a dissolved
+  // dataset, in the order eviction needs.
+  const hooks = { removeDissolved: (id: string) => datasetStore.remove(id) };
 
-  await importInstances(
-    sources.map((src) => src.instance),
-    { onCommitted: publish, removeDissolved }
-  ).catch((err) => {
+  try {
+    return publish(
+      importInstances(
+        sources.map((src) => src.instance),
+        hooks
+      )
+    );
+  } catch (err) {
     if (!(err instanceof PartialImportError)) throw err;
-    // The series that committed published themselves, so they are reported
-    // beside the failure rather than lost with it.
+    // The series that committed are reported beside the failure.
     throw new PartialDicomImportError(
-      currentLoadables(),
+      publish(err.committed),
       err.failures.map(({ error, instances }) => ({
         error,
         sources: sourcesOf(instances),
       }))
     );
-  });
-
-  return currentLoadables();
+  }
 }
 
 /**
@@ -254,11 +233,11 @@ export async function importDicomInstanceSources(
  * loaded, so their datasets are reported beside a failure rather than lost
  * with it, and only the sources of the series that failed are blamed for it.
  */
-async function importDicomResults(
+function importDicomResults(
   sources: DicomInstanceSource[]
-): Promise<ImportDataSourcesResult[]> {
+): ImportDataSourcesResult[] {
   try {
-    return await importDicomInstanceSources(sources);
+    return importDicomInstanceSources(sources);
   } catch (err) {
     const partial = err instanceof PartialDicomImportError ? err : null;
     const failures = partial?.failures ?? [
@@ -421,7 +400,7 @@ async function importDataSourcesWithPolicy(
     .map(({ source }) => source)
     .filter((src): src is DicomInstanceSource => src.type === 'dicom');
 
-  const dicomResults = await importDicomResults(dicomInstanceSources);
+  const dicomResults = importDicomResults(dicomInstanceSources);
   results.push(...dicomResults);
 
   const loadableResults = results.filter(

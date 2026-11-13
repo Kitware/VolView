@@ -4,9 +4,9 @@ import JSZip from 'jszip';
 import corpus from '../dicomVolumeCorpus.json';
 import composition from '../dicomCompositionCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
-import { openDicomConsumer } from '../dicomConsumer';
-import { fixtureBytes } from '../fixtures/dicom-consumer/fixtureData';
-import { startDicomConsumerFixtures } from '../fixtures/dicom-consumer/server.mjs';
+import { openDicomPage } from '../dicomPages';
+import { fixtureBytes } from '../fixtures/dicom-pages/fixtureData';
+import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
 import {
   EXPLICIT_BE,
   EXPLICIT_LE,
@@ -137,7 +137,7 @@ type ParityResult = {
 };
 
 describe('Native frame decoding parity with GDCM', () => {
-  let fixture: Awaited<ReturnType<typeof startDicomConsumerFixtures>>;
+  let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   const expectedNative = new Map<string, boolean>();
   let cases: string[] = [];
   before(async () => {
@@ -167,7 +167,7 @@ describe('Native frame decoding parity with GDCM', () => {
       if (!expectedNative.has(name))
         expectedNative.set(name, !/US_multiframe|jpeg_baseline/.test(name));
     });
-    fixture = await startDicomConsumerFixtures(fixtureBytes(), {
+    fixture = await startDicomPages(fixtureBytes(), {
       kinds: ['parity'],
       fixtures: {
         ...Object.fromEntries(files),
@@ -186,7 +186,7 @@ describe('Native frame decoding parity with GDCM', () => {
       it(`writes the volume natively as GDCM does from ${source}, page ${page + 1}`, async () => {
         const wanted = pageOf(page);
         const from = page * pageSize();
-        await openDicomConsumer(
+        await openDicomPage(
           `${fixture.urls.parity}?source=${source}&from=${from}&to=${from + wanted.length}`
         );
         const results: ParityResult[] = JSON.parse(
