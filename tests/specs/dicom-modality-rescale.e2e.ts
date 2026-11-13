@@ -49,16 +49,16 @@ async function writeRescaledSeries() {
 }
 
 describe('DICOM modality rescale', () => {
-  it('preserves the public DSC series Float64 output through volume loading', async () => {
+  it('keeps the public DSC series rescale to float32 precision through volume loading', async () => {
     const manifestName = await writeRescaledSeries();
     await volViewPage.open(`?urls=[tmp/${manifestName}]`);
     await volViewPage.waitForViews();
     const scalars = await waitForFirstCompleteCachedImageScalars();
 
     expect(await volViewPage.getNotificationsCount()).toBe(0);
-    expect(scalars.type).toBe('Float64Array');
+    expect(scalars.type).toBe('Float32Array');
     const expected = STORED_VALUES.flatMap((stored) =>
-      Array(ROWS * COLUMNS).fill(stored * PUBLIC_DSC_SLOPE)
+      Array(ROWS * COLUMNS).fill(Math.fround(stored * PUBLIC_DSC_SLOPE))
     );
     expect(scalars.values).toEqual(expected);
   });

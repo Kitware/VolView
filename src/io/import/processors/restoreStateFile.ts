@@ -28,9 +28,10 @@ import {
 } from '@/src/io/state-file/migrations';
 import { useMessageStore } from '@/src/store/messages';
 
-type LeafSource =
+type LeafSource = (
   | { type: 'uri'; uri: string; name: string; mime?: string }
-  | { type: 'file'; file: File; fileType: string };
+  | { type: 'file'; file: File; fileType: string }
+) & { archivePaths?: string[] };
 
 type LeafSourceContext = {
   byId: Record<number, DataSourceType>;
@@ -75,7 +76,10 @@ function resolveToLeafSources(
       return resolveFileLeaf(src, context);
 
     case 'archive':
-      return resolveToLeafSources(src.parent, context);
+      return resolveToLeafSources(src.parent, context).map((parent) => ({
+        ...parent,
+        archivePaths: [...(parent.archivePaths ?? []), src.path],
+      }));
 
     case 'collection':
       return src.sources.flatMap((sourceId) =>
@@ -159,19 +163,36 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
     const seen = new Set<string>();
     const uniqueSources = sources.filter((src) => {
       if (src.type !== 'uri') return true;
-      if (seen.has(src.uri)) return false;
-      seen.add(src.uri);
+      const key = JSON.stringify([src.uri, src.archivePaths]);
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 
-    return uniqueSources.map((src) => ({
+    return uniqueSources.map(({ archivePaths, ...src }) => ({
       ...src,
-      stateFileLeaf: { stateID: ds.id },
+      stateFileLeaf: {
+        stateID: ds.id,
+        ...(archivePaths ? { archivePaths } : {}),
+      },
     }));
   });
 
   return { dataSources, missingFiles };
 }
+
+const defaultRestoredDataset = (
+  manifest: Manifest,
+  stateIDToStoreID: Record<string, string>
+) => {
+  const primary = manifest.primarySelection
+    ? stateIDToStoreID[manifest.primarySelection]
+    : undefined;
+  const first = manifestDatasets(manifest).find(
+    (ds) => ds.id in stateIDToStoreID
+  );
+  return primary ?? (first ? stateIDToStoreID[first.id] : undefined);
+};
 
 type RestoreServices = {
   addWarning?: ReturnType<typeof useMessageStore>['addWarning'];
@@ -186,13 +207,20 @@ export type RestoreOptions = {
   missingFiles?: Array<{ stateID: string; path: string }>;
   failedLeaves?: Array<{ stateID: string; name: string }>;
   migration?: ManifestMigration;
+  splitDatasets?: Record<string, string[]>;
 };
 
 const restoreOptions = ({
   missingFiles = [],
   failedLeaves = [],
   migration,
-}: RestoreOptions = {}) => ({ missingFiles, failedLeaves, migration });
+  splitDatasets = {},
+}: RestoreOptions = {}) => ({
+  missingFiles,
+  failedLeaves,
+  migration,
+  splitDatasets,
+});
 
 export const createStateFileRestorer = ({
   addWarning = (title, options) => useMessageStore().addWarning(title, options),
@@ -205,7 +233,8 @@ export const createStateFileRestorer = ({
     stateIDToStoreID: Record<string, string>,
     options?: RestoreOptions
   ) {
-    const { missingFiles, failedLeaves, migration } = restoreOptions(options);
+    const { missingFiles, failedLeaves, migration, splitDatasets } =
+      restoreOptions(options);
     const viewStore = views ?? useViewStore();
     const byId = dataSourcesById(manifest);
     const datasets = manifestDatasets(manifest);
@@ -220,7 +249,6 @@ export const createStateFileRestorer = ({
           )
         : imageId;
     };
-    const resolvedDatasets = datasets.filter((ds) => ds.id in stateIDToStoreID);
     const unresolvedDatasets = datasets.filter(
       (ds) => !(ds.id in stateIDToStoreID)
     );
@@ -241,13 +269,7 @@ export const createStateFileRestorer = ({
       viewStore.bindViewsToData(stateID, storeID, manifest);
     });
 
-    const defaultStoreID =
-      (manifest.primarySelection
-        ? stateIDToStoreID[manifest.primarySelection]
-        : undefined) ??
-      (resolvedDatasets.length > 0
-        ? stateIDToStoreID[resolvedDatasets[0].id]
-        : undefined);
+    const defaultStoreID = defaultRestoredDataset(manifest, stateIDToStoreID);
 
     if (defaultStoreID !== undefined) {
       if (!manifest.viewByID) {
@@ -278,7 +300,18 @@ export const createStateFileRestorer = ({
 
     useToolStore().deserialize(manifest, resolveSegment, stateIDToStoreID);
 
-    const missingBases = unresolvedDatasets.map(({ id }) => imageName(id));
+    const missingBases = unresolvedDatasets
+      .filter(({ id }) => !(id in splitDatasets))
+      .map(({ id }) => imageName(id));
+    // Saved state has no single target when its dataset becomes several volumes.
+    const splitBases = unresolvedDatasets
+      .filter(({ id }) => id in splitDatasets)
+      .map(
+        ({ id }) =>
+          `- image: ${imageName(id)} (loaded as ${splitDatasets[id].length} ` +
+          'volumes; the annotations, layers and view settings saved on it were ' +
+          'not restored)'
+      );
     // Partially restored datasets need member notices; unresolved datasets are named above.
     const missingMembers = missingFiles
       .filter(({ stateID }) => stateID in stateIDToStoreID)
@@ -302,6 +335,7 @@ export const createStateFileRestorer = ({
     ];
     const missing = [
       ...missingBases.map((name) => `- image: ${name}`),
+      ...splitBases,
       ...missingMembers,
       ...failedMembers,
       ...[...(migration?.droppedMasks ?? []), ...skippedLabelmaps].map(

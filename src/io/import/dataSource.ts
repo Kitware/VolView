@@ -1,5 +1,5 @@
-import { Chunk } from '@/src/core/streaming/chunk';
-import { Fetcher } from '@/src/core/streaming/types';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import { Fetcher } from '@/packages/dicom/core/streaming/types';
 import { Maybe } from '@/src/types';
 
 /**
@@ -43,12 +43,11 @@ export type CollectionSource = {
 };
 
 /**
- * Represents a data chunk for further processing and import.
+ * A DICOM instance whose header was read, waiting to be planned into volumes.
  */
-export type ChunkSource = {
-  type: 'chunk';
-  chunk: Chunk;
-  mime: string;
+export type DicomInstanceSource = {
+  type: 'dicom';
+  instance: Instance;
 };
 
 /**
@@ -56,6 +55,8 @@ export type ChunkSource = {
  */
 export type StateFileLeaf = {
   stateID: string;
+  /** Archive members to select in order, from the outermost archive inwards. */
+  archivePaths?: string[];
 };
 
 /**
@@ -76,7 +77,13 @@ export const leafStateId = (dataSourceId: number): string =>
 export type DataSource = {
   parent?: DataSource;
   stateFileLeaf?: StateFileLeaf;
-} & (FileSource | UriSource | ArchiveSource | ChunkSource | CollectionSource);
+} & (
+  | FileSource
+  | UriSource
+  | ArchiveSource
+  | DicomInstanceSource
+  | CollectionSource
+);
 
 /**
  * Every state-file leaf a data source covers, provenance-first.

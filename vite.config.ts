@@ -249,13 +249,6 @@ export default defineConfig({
         {
           src: resolvePath(
             rootDir,
-            'src/io/itk-dicom/emscripten-build/**/dicom*'
-          ),
-          dest: 'itk/pipelines',
-        },
-        {
-          src: resolvePath(
-            rootDir,
             'src/io/resample/emscripten-build/**/resample*'
           ),
           dest: 'itk/pipelines',
@@ -289,6 +282,9 @@ export default defineConfig({
     environment: 'happy-dom',
     // canvas support. See: https://github.com/vitest-dev/vitest/issues/740
     maxWorkers: 1,
+    // A store that outlives an import must not pin its chunks, which only a
+    // collection proves.
+    execArgv: ['--expose-gc'],
     server: {
       deps: {
         inline: ['vuetify'],
