@@ -1,9 +1,11 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { captureViewPixels, waitForModuleTransitions } from './utils';
 import {
+  differingFraction,
   floatVoxels,
   nrrd,
   openWith3DLayout,
+  radialRamp,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -21,19 +23,6 @@ const sliderValue = async (slider: ChainablePromiseElement) =>
 async function pixels(selector: string, inset: number, file: string) {
   const [{ data }] = await captureViewPixels(selector, inset, file);
   return data;
-}
-
-function differingFraction(a: Buffer, b: Buffer) {
-  let differing = 0;
-  for (let index = 0; index < a.length; index += 4) {
-    const delta = Math.max(
-      Math.abs(a[index] - b[index]),
-      Math.abs(a[index + 1] - b[index + 1]),
-      Math.abs(a[index + 2] - b[index + 2])
-    );
-    if (delta > 8) differing++;
-  }
-  return differing / (a.length / 4);
 }
 
 async function waitForPixels(
@@ -87,14 +76,7 @@ async function dragOpacityCurve(steps: number) {
 describe('3D rendering color and opacity reset', () => {
   it('restores Shift, Width, and the opacity curve while keeping lighting', async () => {
     const name = 'volume-coloring-reset';
-    const voxels = floatVoxels(SIZE, (index) => {
-      const offsets = [
-        index % SIZE,
-        Math.floor(index / SIZE) % SIZE,
-        Math.floor(index / SIZE ** 2),
-      ].map((c) => c - SIZE / 2);
-      return Math.max(0, 1000 * (1 - Math.hypot(...offsets) / (SIZE / 2)));
-    });
+    const voxels = floatVoxels(SIZE, radialRamp(SIZE));
     await openWith3DLayout(
       writeNrrd(name, nrrd([], 'float', SIZE), voxels),
       name

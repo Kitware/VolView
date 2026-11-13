@@ -35,6 +35,16 @@ export function floatVoxels(size: number, valueAt: (index: number) => number) {
   return buffer;
 }
 
+/** 1000 at the cube center, falling linearly to 0 at half the edge length. */
+export const radialRamp = (size: number) => (index: number) => {
+  const offsets = [
+    index % size,
+    Math.floor(index / size) % size,
+    Math.floor(index / size ** 2),
+  ].map((c) => c - size / 2);
+  return Math.max(0, 1000 * (1 - Math.hypot(...offsets) / (size / 2)));
+};
+
 export function writeNrrd(name: string, header: string, voxels: Buffer) {
   const directory = makeTempDir(name);
   fs.writeFileSync(
@@ -49,4 +59,18 @@ export async function openWith3DLayout(dataUrl: string, name: string) {
   await writeManifestToFile(LAYOUT, config);
   await volViewPage.open(`?urls=[tmp/${config},${dataUrl}]`);
   await volViewPage.waitForViewCounts(0, true);
+}
+
+/** Fraction of RGBA pixels whose largest channel difference exceeds 8. */
+export function differingFraction(a: Buffer, b: Buffer) {
+  let differing = 0;
+  for (let index = 0; index < a.length; index += 4) {
+    const delta = Math.max(
+      Math.abs(a[index] - b[index]),
+      Math.abs(a[index + 1] - b[index + 1]),
+      Math.abs(a[index + 2] - b[index + 2])
+    );
+    if (delta > 8) differing++;
+  }
+  return differing / (a.length / 4);
 }

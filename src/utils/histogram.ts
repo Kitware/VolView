@@ -64,3 +64,20 @@ export function histogramWindowRanges(
     HighContrast: percentileRange(WLAutoRanges.HighContrast),
   };
 }
+
+/** Bins and scaling as vtkPiecewiseGaussianWidget draws them: bin i at min + i * span / (bins - 1). */
+export function piecewiseHistogram(
+  values: ArrayLike<number>,
+  [min, max]: readonly number[],
+  numberOfBins: number
+) {
+  const counts = new Float32Array(numberOfBins);
+  const span = max - min;
+  if (!(span > 0)) return counts;
+  for (let index = 0; index < values.length; index += 1) {
+    const bin = Math.floor(((numberOfBins - 1) * (values[index] - min)) / span);
+    if (bin >= 0 && bin < numberOfBins) counts[bin] += 1;
+  }
+  const scale = counts.slice().sort()[numberOfBins - 2] || 1;
+  return counts.map((count) => count / scale);
+}
