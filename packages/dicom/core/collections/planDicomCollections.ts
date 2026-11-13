@@ -15,8 +15,8 @@ import {
 } from './reconstructVolume';
 
 /**
- * Facts read once per instance from a chunk's metadata. Plain data: the planner
- * never sees a Chunk, a store, or an itk-wasm task.
+ * Facts read once per instance from its metadata. Plain data: the planner
+ * never sees a source, a store, or an itk-wasm task.
  */
 export type InstanceFacts = {
   // Identity. Instances without a SOP Instance UID are never deduplicated.
@@ -39,7 +39,7 @@ export type InstanceFacts = {
   position: number[] | null;
   projectedPosition: number | null;
   pixelSpacing: number[] | null;
-  /** Intra-instance frame geometry; slots still index source chunks. */
+  /** Intra-instance frame geometry; slots still index source instances. */
   frameReconstruction?: Reconstruction;
 
   // Ordering fallback.
@@ -58,7 +58,7 @@ export type CollectionKey = {
   parts: Array<[string, string | null]>;
 };
 
-export type MemberOrder = 'spatial' | 'instance-number' | 'input';
+type MemberOrder = 'spatial' | 'instance-number' | 'input';
 
 export type DicomCollection = {
   key: CollectionKey;
@@ -82,7 +82,7 @@ export type DicomCollectionPlan = {
   collections: DicomCollection[];
 };
 
-export type PlanInput = {
+type PlanInput = {
   seriesKey: string;
   instances: InstanceFacts[];
 };

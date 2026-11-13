@@ -8,7 +8,7 @@ import {
   type ImportInstancesResult,
 } from '@/src/store/datasets-dicom';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { mergingChunks } from '@/tests/dicomOrientationFixtures';
+import { mergingInstances } from '@/tests/dicomOrientationFixtures';
 import {
   ALLOCATION_FAILURE,
   imageFactory,
@@ -47,10 +47,10 @@ describe('DICOM store incremental import', () => {
     const second = sliceFor({ sop: 'b', z: 1 });
 
     const store = useDICOMStore();
-    const firstResult = await store.importInstances([first], { createImage });
+    const firstResult = store.importInstances([first], { createImage });
     const id = onlyId(firstResult);
     await untilLoaded(id);
-    const secondResult = await store.importInstances([second], {
+    const secondResult = store.importInstances([second], {
       createImage,
     });
     await untilLoaded(id);
@@ -68,11 +68,11 @@ describe('DICOM store incremental import', () => {
   it('builds the volume in planned order, not arrival order', async () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
-    await store.importInstances([sliceFor({ sop: 'b', z: 1 })], {
+    store.importInstances([sliceFor({ sop: 'b', z: 1 })], {
       createImage,
     });
     const id = onlyId(
-      await store.importInstances([sliceFor({ sop: 'a', z: 0 })], {
+      store.importInstances([sliceFor({ sop: 'a', z: 0 })], {
         createImage,
       })
     );
@@ -82,44 +82,42 @@ describe('DICOM store incremental import', () => {
     expect(sliceValues(created[0])).toEqual([1, 2]);
   });
 
-  it('gives one series the same volume id however it is imported', async () => {
-    const load = async (batches: string[][]) => {
+  it('gives one series the same volume id however it is imported', () => {
+    const load = (batches: string[][]) => {
       setActivePinia(createPinia());
       const { createImage } = imageFactory();
       const store = useDICOMStore();
       return batches.reduce(
-        (chain, batch) =>
-          chain.then(() =>
-            store
-              .importInstances(
-                batch.map((sop) => sliceFor({ sop, z: sop.charCodeAt(0) })),
-                { createImage }
-              )
-              .then(onlyId)
+        (_, batch) =>
+          onlyId(
+            store.importInstances(
+              batch.map((sop) => sliceFor({ sop, z: sop.charCodeAt(0) })),
+              { createImage }
+            )
           ),
-        Promise.resolve('')
+        ''
       );
     };
 
-    const oneBatch = await load([['a', 'b', 'c']]);
-    expect(await load([['a'], ['b', 'c']])).toBe(oneBatch);
-    expect(await load([['b', 'c'], ['a']])).toBe(oneBatch);
+    const oneBatch = load([['a', 'b', 'c']]);
+    expect(load([['a'], ['b', 'c']])).toBe(oneBatch);
+    expect(load([['b', 'c'], ['a']])).toBe(oneBatch);
     expect(
-      await load([
+      load([
         ['a', 'b', 'c'],
         ['a', 'b', 'c'],
       ])
     ).toBe(oneBatch);
   });
 
-  it('keeps one member when the same instance arrives twice', async () => {
+  it('keeps one member when the same instance arrives twice', () => {
     const { created, createImage } = imageFactory();
     const original = sliceFor({ sop: 'a', z: 0 });
     const resupplied = sliceFor({ sop: 'a', z: 0 });
 
     const store = useDICOMStore();
-    const first = await store.importInstances([original], { createImage });
-    const second = await store.importInstances([resupplied], { createImage });
+    const first = store.importInstances([original], { createImage });
+    const second = store.importInstances([resupplied], { createImage });
 
     expect(created).toHaveLength(1);
     expect(created[0].getInstances()).toEqual([original]);
@@ -127,27 +125,27 @@ describe('DICOM store incremental import', () => {
     expect(store.volumeInfo[onlyId(first)].NumberOfSlices).toBe(1);
   });
 
-  it('counts every member of the volume after a re-import', async () => {
+  it('counts every member of the volume after a re-import', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
 
-    const first = await store.importInstances([sliceFor({ sop: 'a', z: 0 })], {
+    const first = store.importInstances([sliceFor({ sop: 'a', z: 0 })], {
       createImage,
     });
-    await store.importInstances([sliceFor({ sop: 'b', z: 1 })], {
+    store.importInstances([sliceFor({ sop: 'b', z: 1 })], {
       createImage,
     });
 
     expect(store.volumeInfo[onlyId(first)].NumberOfSlices).toBe(2);
   });
 
-  it('splits incompatible instances of one series into two volumes', async () => {
+  it('splits incompatible instances of one series into two volumes', () => {
     const { created, createImage } = imageFactory();
     const scout = sliceFor({ sop: 'scout', rows: '8', z: 0 });
     const slices = [sliceFor({ sop: 'a', z: 0 }), sliceFor({ sop: 'b', z: 1 })];
 
     const store = useDICOMStore();
-    const result = await store.importInstances([scout, ...slices], {
+    const result = store.importInstances([scout, ...slices], {
       createImage,
     });
 
@@ -165,18 +163,18 @@ describe('DICOM store incremental import', () => {
     expect(store.studyVolumes[STUDY_UID].sort()).toEqual([...ids].sort());
   });
 
-  it('rebuilds a removed series from the instances the re-import brings', async () => {
+  it('rebuilds a removed series from the instances the re-import brings', () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
     const original = sliceFor({ sop: 'a', z: 0 });
 
-    const id = onlyId(await store.importInstances([original], { createImage }));
+    const id = onlyId(store.importInstances([original], { createImage }));
     useImageCacheStore().removeImage(id);
     store.deleteVolume(id);
 
     const resupplied = sliceFor({ sop: 'a', z: 0 });
     const reimported = onlyId(
-      await store.importInstances([resupplied], { createImage })
+      store.importInstances([resupplied], { createImage })
     );
 
     expect(reimported).toBe(id);
@@ -186,21 +184,21 @@ describe('DICOM store incremental import', () => {
     expect(created[1].getInstances()[0]).toBe(resupplied);
   });
 
-  const merging = () => mergingChunks(sliceFor);
+  const merging = () => mergingInstances(sliceFor);
 
-  it('drops the volume a replan dissolved', async () => {
+  it('drops the volume a replan dissolved', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
     const imageCacheStore = useImageCacheStore();
     const { between, straight, tilted } = merging();
 
-    const first = await store.importInstances([straight, tilted], {
+    const first = store.importInstances([straight, tilted], {
       createImage,
     });
     const ids = Object.keys(first.volumes);
     expect(ids).toHaveLength(2);
 
-    const merged = await store.importInstances([between], { createImage });
+    const merged = store.importInstances([between], { createImage });
     const survivor = onlyId(merged);
     const dissolved = ids.find((id) => id !== survivor)!;
 
@@ -214,36 +212,15 @@ describe('DICOM store incremental import', () => {
     expect(merged.volumes[survivor]).toEqual([straight, tilted, between]);
   });
 
-  it('does not resurrect a volume a concurrent import dissolved', async () => {
-    const { createImage } = imageFactory();
-    const store = useDICOMStore();
-    const imageCacheStore = useImageCacheStore();
-    const { between, straight, tilted } = merging();
-
-    const [first, second] = await Promise.all([
-      store.importInstances([straight, tilted], { createImage }),
-      store.importInstances([between], { createImage }),
-    ]);
-    const survivor = onlyId(second);
-
-    Object.keys(first.volumes)
-      .filter((id) => id !== survivor)
-      .forEach((id) => {
-        expect(imageCacheStore.imageById[id]).toBeUndefined();
-        expect(store.volumeInfo[id]).toBeUndefined();
-      });
-    expect(store.volumeInfo[survivor].NumberOfSlices).toBe(3);
-  });
-
-  it('lets a corrected re-import replace the instance a failed import brought', async () => {
+  it('lets a corrected re-import replace the instance a failed import brought', () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
-    await expect(
+    expect(() =>
       store.importInstances([unallocatableFor({ sop: 'a' })], { createImage })
-    ).rejects.toThrow(ALLOCATION_FAILURE);
+    ).toThrow(ALLOCATION_FAILURE);
 
     const corrected = sliceFor({ sop: 'a', rows: '8' });
-    await store.importInstances([corrected], { createImage });
+    store.importInstances([corrected], { createImage });
 
     // Identity, not shape: the failed import must not pin its instance.
     expect(created).toHaveLength(1);
@@ -251,13 +228,13 @@ describe('DICOM store incremental import', () => {
     expect(created[0].getInstances()[0]).toBe(corrected);
   });
 
-  it('keeps two series in one batch apart', async () => {
+  it('keeps two series in one batch apart', () => {
     const { createImage } = imageFactory();
     const first = sliceFor({ sop: 'a', series: SERIES_UID });
     const second = sliceFor({ sop: 'b', series: OTHER_SERIES_UID });
 
     const store = useDICOMStore();
-    const result = await store.importInstances([first, second], {
+    const result = store.importInstances([first, second], {
       createImage,
     });
 

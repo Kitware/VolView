@@ -1,14 +1,11 @@
 import {
-  emptyRegistry,
-  registerInstances,
-} from '../../collections/instanceRegistry';
-import {
   sliceDataset,
   type SliceOptions,
 } from '../../collections/__tests__/sliceFixture';
-import { instanceFor } from '../../instance/__tests__/instanceFixture';
+import { instanceFor } from '@/tests/dicomDataset';
+import { plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import type { Instance } from '../../instance/readInstance';
-import type { PixelDecoder } from '../../runtime/createDicomRuntime';
+import type { WholeInstanceDecode } from '../../pixels/pixelDecoder';
 import { fromBlob } from '../../source/byteSource';
 import {
   allocateVolume,
@@ -36,30 +33,30 @@ export const pixelSlice = (value: number, options: SliceOptions = {}) =>
     fromBlob(new Blob([String(value)]))
   );
 
-export const plannedUpdate = (members: Instance[]) =>
-  registerInstances(emptyRegistry, members).updates[0];
-
-export function allocated(
+export const allocated = (
   members: Instance[],
   previous?: Volume,
   options: AllocateVolumeOptions = {}
-) {
-  const result = allocateVolume(plannedUpdate(members), options, previous);
-  if (result.kind !== 'volume') throw new Error(`Allocated ${result.kind}`);
-  return result.volume;
-}
+) => allocateVolume(plannedUpdate(members), options, previous);
+
+/** The slice a source written by `pixelSlice` decodes to. */
+export const slicePixels = (bytes: Uint8Array) => {
+  const value = Number(new TextDecoder().decode(bytes));
+  return {
+    value,
+    size: [4, 4, 1] as const,
+    data: new Uint16Array(PIXELS_PER_SLICE).fill(value),
+    components: 1,
+  };
+};
 
 /** Decodes a source written by `pixelSlice`, recording each value it decodes. */
 export const valueDecoder =
-  (decoded: number[] = []): PixelDecoder =>
+  (decoded: number[] = []): WholeInstanceDecode =>
   async ({ bytes }) => {
-    const value = Number(new TextDecoder().decode(bytes));
+    const { value, ...pixels } = slicePixels(bytes);
     decoded.push(value);
-    return {
-      size: [4, 4, 1],
-      data: new Uint16Array(PIXELS_PER_SLICE).fill(value),
-      imageType: { components: 1 },
-    };
+    return pixels;
   };
 
 /** The first sample of every slice, or null where none is loaded yet. */

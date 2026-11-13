@@ -4,9 +4,9 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
+import { unitToMm } from '@/packages/dicom/core/metadata/ultrasoundRegion';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { unitToMm } from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
+import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 
 function measurementMetadata(instance: Instance) {
   const tags = new Map(dicomMetadataForDisplay(instance.dataset));

@@ -1,37 +1,28 @@
-import dicomParser from 'dicom-parser';
-import { elemShort, LONG_FORM_VRS } from '../../specs/syntheticDicom';
+import reference from './reference.json';
+import {
+  createSyntheticOCT,
+  syntheticScalars,
+  type Part10Options,
+} from './dicom';
 
-function paddingElement() {
-  return elemShort(0x0028, 0x0120, 'US', Uint8Array.of(255, 255));
-}
+const PADDING = 65535;
 
-/** Declared missing data added to a synthetic raster; original intensity retained elsewhere. */
-export function paddedSyntheticOCT(original: Uint8Array) {
-  const source = dicomParser.parseDicom(original);
-  const next = Object.keys(source.elements)
-    .sort()
-    .find((tag) => tag > 'x00280120')!;
-  const element = source.elements[next];
-  const longVR = LONG_FORM_VRS.has(element.vr!);
-  const position = element.dataOffset - (longVR ? 12 : 8);
-  const bytes = Buffer.concat([
-    original.subarray(0, position),
-    paddingElement(),
-    original.subarray(position),
-  ]);
-  const dataset = dicomParser.parseDicom(bytes);
-  const width = dataset.uint16('x00280011')!;
-  const depth = dataset.uint16('x00280010')!;
-  const offset = dataset.elements.x7fe00010.dataOffset;
-  const pixelOffset = (x: number, y: number, z: number) =>
-    offset + 2 * ((z * depth + y) * width + x);
+/** Declared missing data over two B-scan columns and one voxel; original intensity elsewhere. */
+export function paddedSyntheticOCT(options: Part10Options = {}) {
+  const [width, depth] = reference.size;
+  const scalars = syntheticScalars();
+  const voxel = (x: number, y: number, z: number) =>
+    (z * depth + y) * width + x;
   for (const [x, z] of [
     [0, 0],
     [5, 12],
   ]) {
-    for (let y = 0; y < depth; y++)
-      bytes.writeUInt16LE(65535, pixelOffset(x, y, z));
+    for (let y = 0; y < depth; y++) scalars[voxel(x, y, z)] = PADDING;
   }
-  bytes.writeUInt16LE(65535, pixelOffset(10, 0, 10));
-  return { bytes };
+  scalars[voxel(10, 0, 10)] = PADDING;
+  return createSyntheticOCT({
+    ...options,
+    scalars,
+    pixelPaddingValue: PADDING,
+  });
 }

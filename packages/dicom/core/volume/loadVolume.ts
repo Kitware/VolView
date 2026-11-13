@@ -1,22 +1,17 @@
-import type { DecodedDicomImage } from '../runtime/decoder';
 import type { DicomRuntime } from '../runtime/createDicomRuntime';
+import type { Instance } from '../instance/readInstance';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
-import { abortError, linkedController } from '../utils/abort';
+import { numberOr } from '../utils';
+import { abortError, linkedController } from '../utils';
+import { readBytes } from '../source/byteSource';
+import { planDecode, type DecoderTable } from '../pixels/decoderTable';
 import {
-  readBytes,
-  type ByteRange,
-  type ByteSource,
-} from '../source/byteSource';
-import {
-  planDecode,
-  type DecodePlan,
-  type DecoderTable,
-} from '../pixels/decoderTable';
-import {
-  instancePixelFormats,
-  type VolumeBufferConstructor,
-} from './pixelFormat';
+  frameCount,
+  type DecodedPixels,
+  type DecodeUnit,
+} from '../pixels/pixelDecoder';
+import { getPixelFormat, type VolumeBufferConstructor } from './pixelFormat';
 import {
   componentRanges,
   memberLoaded,
@@ -25,10 +20,10 @@ import {
   type Volume,
 } from './allocateVolume';
 import {
-  assertChunkFitsSlot,
   assertSamplesRepresentable,
   assertSingleFramePerFile,
-  type DecodedChunkImage,
+  assertUnitFits,
+  type UnitShape,
 } from './pixelValidation';
 import { pickNextSlot } from './slotOrder';
 
@@ -46,7 +41,7 @@ export type VolumeUpdate =
 export type LoadVolumeOptions = {
   runtime: Pick<
     DicomRuntime,
-    'decode' | 'decoders' | 'decodeConcurrency' | 'readConcurrency' | 'signal'
+    'decoders' | 'decodeConcurrency' | 'readConcurrency' | 'signal'
   >;
   signal: AbortSignal;
   /** Read before every read and decode; defaults to the middle member's slot. */
@@ -58,6 +53,10 @@ export type LoadVolumeOptions = {
    */
   readAhead?: number;
 };
+
+/** A planned unit placed in the volume; `slot` is its first slice. */
+type Unit = DecodeUnit &
+  Readonly<{ member: number; slices: readonly number[]; slot: number }>;
 
 const ensureError = (error: unknown) =>
   error instanceof Error ? error : new Error(String(error));
@@ -71,6 +70,16 @@ const sliceExtent = (volume: Volume, slices: readonly number[]): Extent => [
   Math.max(...slices),
 ];
 
+const failure = (
+  volume: Volume,
+  slices: readonly number[],
+  error: unknown
+): VolumeUpdate => ({
+  slot: Math.min(...slices),
+  extent: sliceExtent(volume, slices),
+  error: ensureError(error),
+});
+
 const memberName = (volume: Volume, member: number) => {
   const sop = getDatasetTag(
     volume.members[member].dataset,
@@ -79,347 +88,306 @@ const memberName = (volume: Volume, member: number) => {
   return `File ${sop ?? 'without SOP Instance UID'} (member ${member})`;
 };
 
-function assertMemberFits(
-  volume: Volume,
-  member: number,
-  image: DecodedChunkImage
-) {
-  const { dimensions, components, members } = volume;
-  const where = memberName(volume, member);
-  assertSingleFramePerFile(image.size[2], members.length, where);
-  assertChunkFitsSlot(
-    image,
-    {
-      dims: [...dimensions],
-      componentCount: components,
-      count: members.length,
-    },
-    where
-  );
+const unitName = (volume: Volume, unit: Unit) => {
+  const name = memberName(volume, unit.member);
+  return unit.frames === memberSlices(volume, unit.member).length
+    ? name
+    : `${name}, frame ${unit.firstFrame}`;
+};
+
+function headerShape(instance: Instance): UnitShape {
+  const value = (tag: string, fallback: number) =>
+    numberOr(getDatasetTag(instance.dataset, tag), fallback);
+  const [columns, rows] = [value(Tags.Columns, 0), value(Tags.Rows, 0)];
+  const components = value(Tags.SamplesPerPixel, 1);
+  const frames = frameCount(instance);
+  return {
+    size: [columns, rows, frames],
+    components,
+    samples: columns * rows * frames * components,
+  };
 }
 
-type Rescale = { rescaleSlope: number; rescaleIntercept: number };
+const roomFor = (volume: Volume, frames: number) => ({
+  dims: volume.dimensions,
+  components: volume.components,
+  frames,
+  multiFile: volume.members.length > 1,
+});
 
-function assertRepresentable(
+/** A Float32 volume holds rounded values, so the range it reports is rounded too. */
+const storedRange = (
   volume: Volume,
-  {
-    samples,
-    range,
-  }: { samples: ArrayLike<number>; range: Array<[number, number]> },
-  where: string,
-  rescales: readonly Rescale[]
-) {
+  range: ReadonlyArray<readonly [number, number]>
+) => {
+  const stored = volume.data instanceof Float32Array ? Math.fround : Number;
+  return range.map(([min, max]): [number, number] => [
+    stored(min),
+    stored(max),
+  ]);
+};
+
+/** Validates decoded pixels and writes them into the buffer. */
+function write(volume: Volume, unit: Unit, pixels: DecodedPixels) {
+  const where = unitName(volume, unit);
+  const { data, size, components } = pixels;
+  assertUnitFits(
+    { size, components, samples: data.length },
+    roomFor(volume, unit.frames),
+    where
+  );
+  const range = pixels.range ?? componentRanges(data, volume.components);
+  const { dataset } = volume.members[unit.member];
   assertSamplesRepresentable(
-    samples,
+    data,
     {
       min: Math.min(...range.map(([min]) => min)),
       max: Math.max(...range.map(([, max]) => max)),
     },
     volume.data,
-    { where, rescales }
+    {
+      where,
+      rescales: () =>
+        Array.from({ length: unit.frames }, (_, index) =>
+          getPixelFormat(dataset, unit.firstFrame + index)
+        ),
+    }
   );
-}
-
-/** A Float32 volume holds rounded values, so the range it reports is rounded too. */
-const storedRange = (volume: Volume, range: Array<[number, number]>) =>
-  volume.data instanceof Float32Array
-    ? range.map(([min, max]): [number, number] => [
-        Math.fround(min),
-        Math.fround(max),
-      ])
-    : range;
-
-function writeMember(volume: Volume, member: number, image: DecodedDicomImage) {
-  assertMemberFits(volume, member, image);
-  const range = componentRanges(image.data, volume.components);
-  assertRepresentable(
-    volume,
-    { samples: image.data, range },
-    memberName(volume, member),
-    instancePixelFormats(volume.members[member].dataset)
-  );
-  const slices = memberSlices(volume, member);
-  volume.data.set(image.data, sliceLength(volume) * slices[0]);
-  slices.forEach((slice) => {
-    volume.loaded[slice] = 1;
-  });
-  return {
-    slot: slices[0],
-    extent: sliceExtent(volume, slices),
-    range: storedRange(volume, range),
-  };
-}
-
-type FramePlan = Extract<DecodePlan, { kind: 'frames' }>;
-
-function writeFrame(
-  volume: Volume,
-  unit: FrameUnit,
-  plan: FramePlan,
-  bytes: Uint8Array
-) {
-  const { samples, range } = plan.decode(
-    bytes,
-    plan.format,
-    volume.data.constructor as VolumeBufferConstructor
-  );
-  const where = `${memberName(volume, unit.member)}, frame ${unit.frame}`;
-  assertRepresentable(volume, { samples, range }, where, [plan.format]);
-  volume.data.set(samples, sliceLength(volume) * unit.slot);
-  volume.loaded[unit.slot] = 1;
+  volume.data.set(data, sliceLength(volume) * unit.slot);
   return {
     slot: unit.slot,
-    extent: sliceExtent(volume, [unit.slot]),
+    extent: sliceExtent(volume, unit.slices),
     range: storedRange(volume, range),
   };
 }
 
-type WholeUnit = Readonly<{ kind: 'instance'; slot: number; member: number }>;
-type FrameUnit = Readonly<{
-  kind: 'frame';
-  slot: number;
-  member: number;
-  frame: number;
-  range: ByteRange;
-}>;
-type Unit = WholeUnit | FrameUnit;
+/** Whether the units cover frames 0 to `frames - 1` exactly once, in any order. */
+const tiles = (units: readonly DecodeUnit[], frames: number) => {
+  const covered = units.flatMap((unit) =>
+    Array.from({ length: unit.frames }, (_, index) => unit.firstFrame + index)
+  );
+  return (
+    units.every((unit) => Number.isInteger(unit.frames) && unit.frames >= 1) &&
+    covered.length === frames &&
+    covered.every(
+      (frame) => Number.isInteger(frame) && frame >= 0 && frame < frames
+    ) &&
+    new Set(covered).size === frames
+  );
+};
 
-/**
- * Units still to load and failures known from headers alone. An indexable
- * instance contributes a unit per frame; any other one is a single unit.
- */
-function planUnits(
-  volume: Volume,
-  decoders: DecoderTable
-): { units: Unit[]; plans: DecodePlan[]; failures: VolumeUpdate[] } {
+function planMember(volume: Volume, member: number, decoders: DecoderTable) {
+  const instance = volume.members[member];
+  const slices = memberSlices(volume, member);
+  const target = volume.data.constructor as VolumeBufferConstructor;
+  const planned = planDecode(decoders, instance, target);
+  if ('error' in planned) throw planned.error;
+  const where = memberName(volume, member);
+  const header = headerShape(instance);
+  assertSingleFramePerFile(header.size[2], volume.members.length, where);
+  assertUnitFits(header, roomFor(volume, slices.length), where);
+  if (!tiles(planned.units, slices.length))
+    throw new Error(
+      `${planned.decoder.name} planned units that do not cover frames 0 to ${slices.length - 1} of ${where} exactly once`
+    );
+  return planned.units.map((unit): Unit => {
+    const covered = slices.slice(
+      unit.firstFrame,
+      unit.firstFrame + unit.frames
+    );
+    return { ...unit, member, slices: covered, slot: covered[0] };
+  });
+}
+
+/** Units still to load, and failures known from headers alone. */
+function planUnits(volume: Volume, decoders: DecoderTable) {
   const units: Unit[] = [];
   const failures: VolumeUpdate[] = [];
-  const plans = volume.members.map((instance, member) => {
-    const plan = planDecode(decoders, instance);
-    const slices = memberSlices(volume, member);
-    const fail = (error: Error) =>
-      failures.push({
-        slot: slices[0],
-        extent: sliceExtent(volume, slices),
-        error,
-      });
-    if (memberLoaded(volume, member)) return plan;
-    if (plan.kind === 'unsupported') fail(plan.error);
-    else if (plan.kind === 'whole-instance')
-      units.push({ kind: 'instance', slot: slices[0], member });
-    else {
-      try {
-        const { rows, columns, samplesPerPixel } = plan.format;
-        const frames = plan.index.frames.length;
-        assertMemberFits(volume, member, {
-          size: [columns, rows, frames],
-          data: { length: columns * rows * frames * samplesPerPixel },
-          imageType: { components: samplesPerPixel },
-        });
-        plan.index.frames.forEach((range, frame) => {
-          const slot = slices[frame];
-          if (!volume.loaded[slot])
-            units.push({ kind: 'frame', slot, member, frame, range });
-        });
-      } catch (error) {
-        fail(ensureError(error));
-      }
+  volume.members.forEach((_, member) => {
+    if (memberLoaded(volume, member)) return;
+    try {
+      units.push(
+        ...planMember(volume, member, decoders).filter((unit) =>
+          unit.slices.some((slice) => !volume.loaded[slice])
+        )
+      );
+    } catch (error) {
+      failures.push(failure(volume, memberSlices(volume, member), error));
     }
-    return plan;
   });
-  return { units, plans, failures };
+  return { units, failures };
 }
 
 /** The first slice of the middle member, the default focus. */
 export const middleSlot = (volume: Volume) =>
   memberSlices(volume, Math.floor(volume.members.length / 2))[0];
 
-/** Wakes every waiter on any change; checks and waits happen in one turn. */
-function changes() {
-  const waiters: Array<() => void> = [];
-  return {
-    notify: () => waiters.splice(0).forEach((wake) => wake()),
-    next: () =>
-      new Promise<void>((resolve) => {
-        waiters.push(resolve);
-      }),
-  };
-}
-
-type Lanes = {
+type Loader = {
   volume: Volume;
   runtime: LoadVolumeOptions['runtime'];
   stopped: AbortSignal;
   focus: () => number;
+  readAhead: number;
 };
 
-const rangeSupport = (source: ByteSource) =>
-  source.rangeSupport?.() ?? 'honoured';
+/** An update waiting to be yielded, with the slices it marks loaded then. */
+type Settled = Readonly<{ update: VolumeUpdate; slices: readonly number[] }>;
 
-function createLanes({ volume, runtime, stopped, focus }: Lanes) {
-  const { units, plans, failures } = planUnits(volume, runtime.decoders);
-  const unitAt = new Map(units.map((unit) => [unit.slot, unit]));
-  const framesOf = (member: number) =>
-    units.filter((unit) => unit.kind === 'frame' && unit.member === member);
-  const claimed = new Set<number>();
-  /** Multiframe members whose source has not yet shown it honours ranges. */
+/**
+ * Starts reads and decodes whenever one settles: decodes first, up to the
+ * decode concurrency, then reads while fewer than `readAhead` units are being
+ * read or wait to decode. A decoded unit is written at once, so decoding never
+ * waits for the consumer.
+ */
+function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
+  const { units, failures } = planUnits(volume, runtime.decoders);
+  const waiting = new Map(units.map((unit) => [unit.slot, unit]));
+  const ready = new Map<number, { unit: Unit; bytes: Uint8Array }>();
+  /** Members whose source has not yet shown it honours ranges. */
   const probing = new Set<number>();
-  const fetched = new Map<number, Uint8Array>();
-  const updates: VolumeUpdate[] = [...failures];
-  const changed = changes();
+  const updates: Settled[] = failures.map((update) => ({
+    update,
+    slices: [],
+  }));
   let reading = 0;
-  let readers = 0;
-  stopped.addEventListener('abort', changed.notify, { once: true });
+  let decoding = 0;
+  let wake: (() => void) | undefined;
 
-  const loaded = (unit: Unit) =>
-    unit.kind === 'frame'
-      ? volume.loaded[unit.slot] === 1
-      : memberLoaded(volume, unit.member);
-  const failure = (slots: number[], error: unknown): VolumeUpdate => ({
-    slot: Math.min(...slots),
-    extent: sliceExtent(
+  const notify = () => {
+    wake?.();
+    wake = undefined;
+  };
+  const changed = () =>
+    new Promise<void>((resolve) => {
+      wake = resolve;
+    });
+  stopped.addEventListener('abort', notify, { once: true });
+
+  const settle = (settled: Settled) => {
+    if (!stopped.aborted) updates.push(settled);
+    notify();
+  };
+  const failed = (lost: Unit[], error: unknown): Settled => ({
+    update: failure(
       volume,
-      slots.flatMap((slot) => {
-        const unit = unitAt.get(slot)!;
-        return unit.kind === 'frame'
-          ? [slot]
-          : memberSlices(volume, unit.member);
-      })
+      lost.flatMap((unit) => unit.slices),
+      error
     ),
-    error: ensureError(error),
+    slices: [],
   });
-  const unclaimed = () =>
-    units
-      .filter(
-        (unit) =>
-          !claimed.has(unit.slot) && !probing.has(unit.member) && !loaded(unit)
-      )
-      .map((unit) => unit.slot);
+  const next = (slots: Iterable<number>) => pickNextSlot(slots, focus());
+  const sourceOf = (unit: Unit) => volume.members[unit.member].source;
+  const rangeSupport = (unit: Unit) =>
+    sourceOf(unit).rangeSupport?.() ?? 'honoured';
 
-  // A server that ignores Range would resend the file for every frame, so
-  // such a member's remaining frames come from one read of its pixel data.
-  const pending = (unit: FrameUnit) =>
-    rangeSupport(volume.members[unit.member].source) === 'ignored'
-      ? framesOf(unit.member).filter(
+  // A server that ignores Range would resend the file for every unit, so the
+  // remaining ranged units of that member come from one read.
+  const batchOf = (unit: Unit) =>
+    unit.range?.end !== undefined && rangeSupport(unit) === 'ignored'
+      ? [...waiting.values()].filter(
           (other) =>
-            other === unit || (!claimed.has(other.slot) && !loaded(other))
+            other.member === unit.member && other.range?.end !== undefined
         )
       : [unit];
 
-  const readFrames = async (frames: Unit[]) => {
-    const ranges = frames.map((unit) => (unit as FrameUnit).range);
-    const start = Math.min(...ranges.map((range) => range.start));
-    const end = Math.max(...ranges.map((range) => range.end!));
-    const bytes = await readBytes(
-      volume.members[frames[0].member].source,
-      stopped,
-      { start, end }
-    );
-    ranges.forEach((range, index) =>
-      fetched.set(
-        frames[index].slot,
-        bytes.subarray(range.start - start, range.end! - start)
-      )
+  const readUnits = async (batch: Unit[]) => {
+    const [first] = batch;
+    if (batch.length === 1)
+      return [
+        await readBytes(sourceOf(first), stopped, first.range ?? undefined),
+      ];
+    const start = Math.min(...batch.map((unit) => unit.range!.start));
+    const end = Math.max(...batch.map((unit) => unit.range!.end!));
+    const bytes = await readBytes(sourceOf(first), stopped, { start, end });
+    return batch.map(({ range }) =>
+      bytes.subarray(range!.start - start, range!.end! - start)
     );
   };
 
-  const read = async (unit: Unit) => {
-    const { source } = volume.members[unit.member];
-    const frames = unit.kind === 'frame' ? pending(unit) : [unit];
-    frames.forEach((each) => claimed.add(each.slot));
-    const plan = plans[unit.member];
+  const startRead = (unit: Unit) => {
+    const batch = batchOf(unit);
+    batch.forEach((each) => waiting.delete(each.slot));
     const probe =
-      plan.kind === 'frames' &&
-      plan.index.frames.length > 1 &&
-      rangeSupport(source) === 'unknown';
+      unit.range !== null &&
+      rangeSupport(unit) === 'unknown' &&
+      [...waiting.values()].some((other) => other.member === unit.member);
     if (probe) probing.add(unit.member);
     reading += 1;
+    readUnits(batch)
+      .then(
+        (bytes) =>
+          batch.forEach((each, index) =>
+            ready.set(each.slot, { unit: each, bytes: bytes[index] })
+          ),
+        (error) => settle(failed(batch, error))
+      )
+      .finally(() => {
+        if (probe) probing.delete(unit.member);
+        reading -= 1;
+        pump();
+      });
+  };
+
+  const written = (unit: Unit, pixels: DecodedPixels): Settled => {
     try {
-      if (unit.kind === 'frame') await readFrames(frames);
-      else fetched.set(unit.slot, await readBytes(source, stopped));
+      return { update: write(volume, unit, pixels), slices: unit.slices };
     } catch (error) {
-      if (!stopped.aborted)
-        updates.push(
-          failure(
-            frames.map((each) => each.slot),
-            error
-          )
-        );
-    } finally {
-      if (probe) probing.delete(unit.member);
-      reading -= 1;
-      changed.notify();
-    }
-  };
-  const decode = async (slot: number, bytes: Uint8Array) => {
-    const unit = unitAt.get(slot)!;
-    if (unit.kind === 'frame') {
-      stopped.throwIfAborted();
-      return writeFrame(volume, unit, plans[unit.member] as FramePlan, bytes);
-    }
-    const instance = volume.members[unit.member];
-    const image = await runtime.decode({ instance, bytes }, stopped);
-    stopped.throwIfAborted();
-    return writeMember(volume, unit.member, image);
-  };
-  const settle = async (slot: number, bytes: Uint8Array) => {
-    try {
-      updates.push(await decode(slot, bytes));
-    } catch (error) {
-      if (!stopped.aborted) updates.push(failure([slot], error));
+      return failed([unit], error);
     }
   };
 
-  const reader = async (readAhead: number) => {
-    while (!stopped.aborted) {
-      if (reading + fetched.size >= readAhead) await changed.next();
-      else {
-        const slot = pickNextSlot(unclaimed(), focus());
-        if (slot !== undefined) await read(unitAt.get(slot)!);
-        else if (probing.size === 0) return;
-        else await changed.next();
-      }
-    }
+  const startDecode = (slot: number) => {
+    const { unit, bytes } = ready.get(slot)!;
+    ready.delete(slot);
+    decoding += 1;
+    (async () => unit.decode(bytes, stopped))()
+      .then(
+        (pixels) => (stopped.aborted ? undefined : written(unit, pixels)),
+        (error) => failed([unit], error)
+      )
+      .then((settled) => {
+        decoding -= 1;
+        if (settled) settle(settled);
+        pump();
+      });
   };
 
-  const decoder = async () => {
-    while (!stopped.aborted) {
-      const slot = pickNextSlot(fetched.keys(), focus());
-      if (slot !== undefined) {
-        const bytes = fetched.get(slot)!;
-        fetched.delete(slot);
-        changed.notify();
-        await settle(slot, bytes);
-        changed.notify();
-      } else if (readers === 0) return;
-      else await changed.next();
-    }
-  };
+  const claimable = () =>
+    [...waiting.values()]
+      .filter((unit) => !probing.has(unit.member))
+      .map((unit) => unit.slot);
 
-  const start = (readAhead: number) => {
-    readers = readAhead;
-    Array.from({ length: readAhead }).forEach(() =>
-      reader(readAhead).finally(() => {
-        readers -= 1;
-        changed.notify();
-      })
-    );
-    return Promise.all(
-      Array.from({ length: runtime.decodeConcurrency }, decoder)
-    );
-  };
+  const nextDecode = () =>
+    !stopped.aborted && decoding < runtime.decodeConcurrency
+      ? next(ready.keys())
+      : undefined;
+  const nextRead = () =>
+    !stopped.aborted && reading + ready.size < readAhead
+      ? next(claimable())
+      : undefined;
 
-  return { start, updates, changed };
+  function pump() {
+    for (let slot = nextDecode(); slot !== undefined; slot = nextDecode())
+      startDecode(slot);
+    for (let slot = nextRead(); slot !== undefined; slot = nextRead())
+      startRead(waiting.get(slot)!);
+    notify();
+  }
+
+  const done = () => waiting.size + ready.size + reading + decoding === 0;
+
+  return { start: pump, updates, changed, done };
 }
 
 /**
  * Decodes the slices not yet loaded, the focused slot first and then coarse
- * to fine, writing each into the volume's buffer. An uncompressed instance
- * loads frame by frame from ranged reads; any other one is read and decoded
- * whole. Reads run ahead of decoding in the same order. A failed unit yields
- * an error update and loading goes on. Aborting `signal`, disposing the runtime or leaving the loop stops reads
- * and decodes; the iteration then returns rather than throwing, and yields
- * nothing more.
+ * to fine, writing each into the volume's buffer as it decodes and marking it
+ * loaded as its update is yielded. Each instance loads in the
+ * units its first willing decoder in the runtime's table plans. Reads run
+ * ahead of decoding in the same order. A failed unit yields an error update
+ * and loading goes on. Aborting `signal`, disposing the runtime or leaving
+ * the loop stops reads and decodes; the iteration then returns rather than
+ * throwing, and yields nothing more.
  */
 export async function* loadVolume(
   volume: Volume,
@@ -434,18 +402,18 @@ export async function* loadVolume(
     throw new Error('Read ahead must be a positive integer');
   const { controller, release } = linkedController(signal, runtime.signal);
   const stopped = controller.signal;
-  const lanes = createLanes({ volume, runtime, stopped, focus });
-  let finished = false;
-  lanes.start(readAhead).finally(() => {
-    finished = true;
-    lanes.changed.notify();
-  });
+  const loader = createLoader({ volume, runtime, stopped, focus, readAhead });
+  loader.start();
   try {
     for (;;) {
-      const next = stopped.aborted ? undefined : lanes.updates.shift();
-      if (next) yield next;
-      else if (stopped.aborted || finished) return;
-      else await lanes.changed.next();
+      const next = stopped.aborted ? undefined : loader.updates.shift();
+      if (next) {
+        next.slices.forEach((slice) => {
+          volume.loaded[slice] = 1;
+        });
+        yield next.update;
+      } else if (stopped.aborted || loader.done()) return;
+      else await loader.changed();
     }
   } finally {
     controller.abort(abortError('DICOM volume loading stopped'));
