@@ -5,7 +5,7 @@ import {
   processingSection,
   type ProcessingSection,
 } from '@/src/processing/config';
-import { processingConfigSection } from '@/src/processing';
+import { processingConfigSection } from '@/src/processing/integration';
 import { useProcessingJobsStore } from '@/src/processing/store';
 
 function providerSection(

@@ -1,6 +1,5 @@
 import type { DataSource } from '@/src/io/import/dataSource';
 import { getDataSourceName } from '@/src/io/import/dataSource';
-import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { basename } from '@/src/utils/path';
 import type { InputValue } from '@/backend-contract';
 import { TYPE_TAG_IMAGE } from '@/backend-contract';
@@ -34,9 +33,7 @@ const lastExtension = (name: string | undefined): string | undefined => {
 
 export const deriveFormat = (ds: DataSource): string | undefined => {
   if (ds.type === 'collection') {
-    const isDicom = ds.sources.some(
-      (s) => s.type === 'chunk' && s.mime === FILE_EXT_TO_MIME.dcm
-    );
+    const isDicom = ds.sources.some((s) => s.type === 'dicom');
     return isDicom ? 'dicom-series' : undefined;
   }
   return (

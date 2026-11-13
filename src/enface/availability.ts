@@ -1,9 +1,10 @@
+import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
@@ -44,16 +45,15 @@ function acquisitionMetadataReason(metadata: Iterable<[string, string]>) {
   return tags.get(OCT_GEOMETRY_ERROR) ?? null;
 }
 
-// A chunk's tag list is fixed once loaded, so each is scanned at most once.
+// An instance's dataset never changes, so each is scanned at most once.
 const metadataReasons = new WeakMap<object, string | null>();
 
 function acquisitionReason(image: ProgressiveImage) {
-  if (!(image instanceof DicomChunkImage)) return null;
-  for (const { metadata } of image.getChunks()) {
-    if (!metadata) continue;
+  if (!(image instanceof DicomVolumeImage)) return null;
+  for (const { dataset: metadata } of image.getInstances()) {
     let reason = metadataReasons.get(metadata);
     if (reason === undefined) {
-      reason = acquisitionMetadataReason(metadata);
+      reason = acquisitionMetadataReason(dicomMetadataForDisplay(metadata));
       metadataReasons.set(metadata, reason);
     }
     if (reason !== null) return reason;
@@ -64,7 +64,6 @@ function acquisitionReason(image: ProgressiveImage) {
 export function getEnFaceUnavailableReason(imageID: Maybe<string>) {
   const cache = useImageCacheStore();
   const image = cache.imageById[imageID || ''];
-  // Track allocation and progress even before raw DICOM chunks arrive.
   const loaded = Boolean(image?.isLoaded());
   const loading = Boolean(image?.isLoading());
   const data = cache.getVtkImageData(imageID);
