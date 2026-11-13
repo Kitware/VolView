@@ -10,7 +10,7 @@ import { toAscii } from '../utils';
  * nothing to name its transfer syntax but the shape of its first element.
  */
 export const PREAMBLE_LENGTH = 128;
-export const DICOM_PREFIX = 'DICM';
+const DICOM_PREFIX = 'DICM';
 /** The bytes a Part 10 file spends before its first element. */
 export const PART_10_HEADER_LENGTH = PREAMBLE_LENGTH + DICOM_PREFIX.length;
 

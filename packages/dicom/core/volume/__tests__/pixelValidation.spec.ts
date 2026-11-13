@@ -8,7 +8,10 @@ const intoFloat32 =
       new Float64Array([min, max]),
       { min, max },
       new Float32Array(1),
-      { where: 'File 1.2.3', rescales: [{ rescaleSlope, rescaleIntercept }] }
+      {
+        where: 'File 1.2.3',
+        rescales: () => [{ rescaleSlope, rescaleIntercept }],
+      }
     );
 
 describe('assertSamplesRepresentable into a Float32 volume', () => {
@@ -36,7 +39,7 @@ describe('assertSamplesRepresentable into a Float32 volume', () => {
         new Float32Array(1),
         {
           where: 'File 1.2.3',
-          rescales: [
+          rescales: () => [
             { rescaleSlope: 1, rescaleIntercept: 0 },
             { rescaleSlope: 0.25, rescaleIntercept: 0.5 },
           ],

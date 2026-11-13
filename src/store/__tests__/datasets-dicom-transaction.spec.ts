@@ -1,13 +1,8 @@
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags, type Instance } from '@/packages/dicom/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
 
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import {
-  fromBlob,
-  type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
 import type {
   DicomInstanceSource,
   DataSource,
@@ -27,10 +22,6 @@ import {
 } from '@/src/store/datasets-dicom';
 import { tilt } from '@/tests/dicomOrientationFixtures';
 import {
-  cineHeader,
-  cineParseResult,
-} from '@/src/core/cine/__tests__/cineFixtures';
-import {
   ALLOCATION_FAILURE,
   cineFor,
   imageFactory,
@@ -49,7 +40,15 @@ const onlyId = ({ volumes }: ImportInstancesResult) => {
   return ids[0];
 };
 
-const parseCineDicom = () => cineParseResult(cineHeader());
+/** The error a call throws, or null when it returns. */
+const failureOf = (run: () => unknown) => {
+  try {
+    run();
+    return null;
+  } catch (error) {
+    return error;
+  }
+};
 
 /**
  * Orientation agreement is a tolerance, so a bucket depends on which instance
@@ -69,12 +68,12 @@ const splitting = () => ({
 const cachedIds = () => Object.keys(useImageCacheStore().imageById);
 
 /** Loads the pair a later batch splits into two fresh collections. */
-const loadSplittablePair = async () => {
+const loadSplittablePair = () => {
   const instances = splitting();
   const loaded = imageFactory();
   const store = useDICOMStore();
   const id = onlyId(
-    await store.importInstances([instances.one, instances.three], {
+    store.importInstances([instances.one, instances.three], {
       createImage: loaded.createImage,
     })
   );
@@ -86,16 +85,16 @@ const growAndFail = async () => {
   const { created, createImage } = imageFactory();
   const store = useDICOMStore();
   const first = sliceFor({ sop: 'a', z: 0 });
-  const id = onlyId(await store.importInstances([first], { createImage }));
+  const id = onlyId(store.importInstances([first], { createImage }));
   await untilLoaded(id);
   const shown = created[0].getVtkImageData();
 
-  await expect(
+  expect(() =>
     store.importInstances(
       [sliceFor({ sop: 'b', z: 1 }), unallocatableFor({ sop: 'scout' })],
       { createImage }
     )
-  ).rejects.toThrow(ALLOCATION_FAILURE);
+  ).toThrow(ALLOCATION_FAILURE);
 
   return { store, id, first, created, shown };
 };
@@ -105,11 +104,11 @@ describe('DICOM store atomic series commit', () => {
     setActivePinia(createPinia());
   });
 
-  it('commits nothing for a series when one of its collections fails to allocate', async () => {
+  it('commits nothing for a series when one of its collections fails to allocate', () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
 
-    await expect(
+    expect(() =>
       store.importInstances(
         [
           unallocatableFor({ sop: 'scout' }),
@@ -118,7 +117,7 @@ describe('DICOM store atomic series commit', () => {
         ],
         { createImage }
       )
-    ).rejects.toThrow(ALLOCATION_FAILURE);
+    ).toThrow(ALLOCATION_FAILURE);
 
     expect(created).toEqual([]);
     expect(cachedIds()).toEqual([]);
@@ -151,7 +150,7 @@ describe('DICOM store atomic series commit', () => {
     const retry = imageFactory();
     const corrected = sliceFor({ sop: 'b', z: 1 });
     const scout = sliceFor({ sop: 'scout', rows: '8' });
-    const result = await store.importInstances([corrected, scout], {
+    const result = store.importInstances([corrected, scout], {
       createImage: retry.createImage,
     });
 
@@ -171,15 +170,15 @@ describe('DICOM store atomic series commit', () => {
     expect(store.volumeInfo[scoutId].NumberOfSlices).toBe(1);
   });
 
-  it('keeps a dissolved volume when the split that dissolves it fails', async () => {
-    const { store, id, zero, two, loaded } = await loadSplittablePair();
+  it('keeps a dissolved volume when the split that dissolves it fails', () => {
+    const { store, id, zero, two, loaded } = loadSplittablePair();
 
     const failing = imageFactory();
-    await expect(
+    expect(() =>
       store.importInstances([zero, two, unallocatableFor({ sop: 'scout' })], {
         createImage: failing.createImage,
       })
-    ).rejects.toThrow(ALLOCATION_FAILURE);
+    ).toThrow(ALLOCATION_FAILURE);
 
     expect(cachedIds()).toEqual([id]);
     expect(store.volumeInfo[id].NumberOfSlices).toBe(2);
@@ -188,26 +187,26 @@ describe('DICOM store atomic series commit', () => {
     expect(failing.created).toEqual([]);
   });
 
-  it('hands a dissolved volume to the given removal before reporting the commit', async () => {
-    const { store, id, zero, two } = await loadSplittablePair();
-    const calls: string[] = [];
+  it('hands a dissolved volume to the given removal', () => {
+    const { store, id, zero, two } = loadSplittablePair();
+    const removed: string[] = [];
 
-    await store.importInstances([zero, two], {
+    const result = store.importInstances([zero, two], {
       createImage: imageFactory().createImage,
-      removeDissolved: (removed) => calls.push(`remove:${removed}`),
-      onCommitted: ({ dissolved }) => calls.push(`commit:${dissolved.join()}`),
+      removeDissolved: (dissolved) => removed.push(dissolved),
     });
 
-    expect(calls).toEqual([`remove:${id}`, `commit:${id}`]);
+    expect(removed).toEqual([id]);
+    expect(result.dissolved).toEqual([id]);
     // The removal is the caller's whole, so the store evicted nothing itself.
     expect(cachedIds()).toContain(id);
     expect(store.volumeInfo[id]).toBeDefined();
   });
 
-  it('removes the dissolved volume once the split commits', async () => {
-    const { store, id, zero, one, two, three } = await loadSplittablePair();
+  it('removes the dissolved volume once the split commits', () => {
+    const { store, id, zero, one, two, three } = loadSplittablePair();
 
-    const result = await store.importInstances([zero, two], {
+    const result = store.importInstances([zero, two], {
       createImage: imageFactory().createImage,
     });
 
@@ -226,7 +225,7 @@ describe('DICOM store atomic series commit', () => {
     expect(Object.values(result.volumes)).toContainEqual([two, three]);
   });
 
-  it('converges on the one-shot plan when one series is imported concurrently', async () => {
+  it('converges on the one-shot plan when one series arrives in two imports', () => {
     const state = (created: ReturnType<typeof imageFactory>['created']) => {
       const store = useDICOMStore();
       return {
@@ -240,40 +239,38 @@ describe('DICOM store atomic series commit', () => {
       };
     };
 
-    const oneShot = async () => {
+    const oneShot = () => {
       setActivePinia(createPinia());
       const { created, createImage } = imageFactory();
-      await useDICOMStore().importInstances(
+      useDICOMStore().importInstances(
         [sliceFor({ sop: 'a', z: 0 }), sliceFor({ sop: 'b', z: 1 })],
         { createImage }
       );
       return state(created);
     };
 
-    const concurrent = async () => {
+    const twice = () => {
       setActivePinia(createPinia());
       const { created, createImage } = imageFactory();
       const store = useDICOMStore();
-      await Promise.all([
-        store.importInstances([sliceFor({ sop: 'a', z: 0 })], { createImage }),
-        store.importInstances([sliceFor({ sop: 'b', z: 1 })], { createImage }),
-      ]);
+      store.importInstances([sliceFor({ sop: 'a', z: 0 })], { createImage });
+      store.importInstances([sliceFor({ sop: 'b', z: 1 })], { createImage });
       return state(created);
     };
 
-    expect(await concurrent()).toEqual(await oneShot());
+    expect(twice()).toEqual(oneShot());
   });
 
-  it('registers no cine image when a sibling collection fails', async () => {
+  it('registers no cine image when a sibling collection fails', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
 
-    await expect(
+    expect(() =>
       store.importInstances(
         [cineFor('cine'), unallocatableFor({ sop: 'scout' })],
-        { createImage, parseCineDicom }
+        { createImage }
       )
-    ).rejects.toThrow(ALLOCATION_FAILURE);
+    ).toThrow(ALLOCATION_FAILURE);
 
     // A cine clip is planned like any other collection: it reaches no store alone.
     expect(cachedIds()).toEqual([]);
@@ -291,7 +288,7 @@ describe('DICOM store atomic series commit', () => {
       const scout = sliceFor({ sop: 'scout', rows: '8' });
       scoutRef = new WeakRef(scout);
       const { createImage } = imageFactory();
-      const { volumes } = await store.importInstances(
+      const { volumes } = store.importInstances(
         [scout, sliceFor({ sop: 'a', z: 0 }), sliceFor({ sop: 'b', z: 1 })],
         { createImage }
       );
@@ -334,59 +331,35 @@ const sopsOfDataset = (dataSource: DataSource | undefined) => {
   });
 };
 
-/** The pipeline's own shape: a series reaches the dataset store as it commits. */
+/** The pipeline's own shape: committed series reach the dataset store. */
 const load = (
   instances: Instance[],
   createImage = imageFactory().createImage
 ) =>
   importDicomInstanceSources(instances.map(sourceFor), (batch, hooks) =>
-    useDICOMStore().importInstances(batch, {
-      createImage,
-      parseCineDicom,
-      ...hooks,
-    })
+    useDICOMStore().importInstances(batch, { createImage, ...hooks })
   );
-
-/** A cine clip whose bytes arrive once the returned release is called. */
-const slowCine = () => {
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  const bytes = fromBlob(new Blob(['cine']));
-  const source: ByteSource = {
-    read: (signal) => {
-      const { readable, writable } = new TransformStream<Uint8Array>();
-      gate.then(() => bytes.read(signal).pipeTo(writable));
-      return readable;
-    },
-  };
-  return {
-    cine: cineFor('slow', { series: OTHER_SERIES_UID, source }),
-    release: () => release(),
-  };
-};
 
 describe('importDicomInstanceSources atomic series commit', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });
 
-  it('leaves the dataset list and its provenance unchanged when a commit fails', async () => {
+  it('leaves the dataset list and its provenance unchanged when a commit fails', () => {
     const { zero, one, two, three } = splitting();
     const store = useDICOMStore();
     const datasetStore = useDatasetStore();
 
-    const [loadable] = await load([one, three]);
+    const [loadable] = load([one, three]);
     const id = loadable.dataID;
     expect(sopsOfDataset(datasetStore.getDataSource(id))).toEqual([
       'sop-1',
       'sop-3',
     ]);
 
-    await expect(
-      load([zero, two, unallocatableFor({ sop: 'scout' })])
-    ).rejects.toThrow(ALLOCATION_FAILURE);
+    expect(() => load([zero, two, unallocatableFor({ sop: 'scout' })])).toThrow(
+      ALLOCATION_FAILURE
+    );
 
     expect(datasetStore.idsAsSelections).toEqual([id]);
     expect(sopsOfDataset(datasetStore.getDataSource(id))).toEqual([
@@ -397,54 +370,11 @@ describe('importDicomInstanceSources atomic series commit', () => {
     expect(store.volumeInfo[id].NumberOfSlices).toBe(2);
   });
 
-  it('records the membership a later import added while a cine read delays a batch', async () => {
-    const { cine, release } = slowCine();
+  it('grows a volume after the user removed its sibling', () => {
     const store = useDICOMStore();
     const datasetStore = useDatasetStore();
 
-    const delayed = load([sliceFor({ sop: 'a', z: 0 }), cine]);
-    const [grown] = await load([sliceFor({ sop: 'b', z: 1 })]);
-    release();
-    await delayed;
-
-    // The delayed batch plans against the series as it now stands, so the
-    // saved sources name the whole volume.
-    expect(sopsOfDataset(datasetStore.getDataSource(grown.dataID))).toEqual([
-      'a',
-      'b',
-    ]);
-    expect(store.volumeInfo[grown.dataID].NumberOfSlices).toBe(2);
-  });
-
-  it('keeps the growth an import landed while an earlier failing batch waited', async () => {
-    const { cine, release } = slowCine();
-    const store = useDICOMStore();
-    const datasetStore = useDatasetStore();
-
-    const [loadable] = await load([sliceFor({ sop: 'a', z: 0 })]);
-    const id = loadable.dataID;
-    const failing = load([
-      sliceFor({ sop: 'b', z: 1 }),
-      unallocatableFor({ sop: 'scout' }),
-      cine,
-    ]).then(
-      () => null,
-      (err) => err
-    );
-    await load([sliceFor({ sop: 'c', z: 2 })]);
-    release();
-
-    expect(await failing).toBeInstanceOf(PartialDicomImportError);
-    expect(sopsOfDataset(datasetStore.getDataSource(id))).toEqual(['a', 'c']);
-    expect(store.volumeInfo[id].NumberOfSlices).toBe(2);
-  });
-
-  it('grows a volume whose sibling the user removed while the batch waited', async () => {
-    const { cine, release } = slowCine();
-    const store = useDICOMStore();
-    const datasetStore = useDatasetStore();
-
-    const loaded = await load([
+    const loaded = load([
       sliceFor({ sop: 'scout', rows: '8' }),
       sliceFor({ sop: 'a', z: 0 }),
       sliceFor({ sop: 'b', z: 1 }),
@@ -458,10 +388,8 @@ describe('importDicomInstanceSources atomic series commit', () => {
     const scoutId = idOf(['scout']);
     const id = idOf(['a', 'b']);
 
-    const delayed = load([sliceFor({ sop: 'c', z: 2 }), cine]);
     datasetStore.remove(scoutId);
-    release();
-    await delayed;
+    load([sliceFor({ sop: 'c', z: 2 })]);
 
     expect(sopsOfDataset(datasetStore.getDataSource(id))).toEqual([
       'a',
@@ -473,21 +401,20 @@ describe('importDicomInstanceSources atomic series commit', () => {
     expect(store.volumeInfo[scoutId]).toBeUndefined();
   });
 
-  it('reports what a committed series landed and blames only what failed', async () => {
+  it('reports what a committed series landed and blames only what failed', () => {
     const { zero, one, two, three } = splitting();
     const store = useDICOMStore();
     const datasetStore = useDatasetStore();
 
-    const [loadable] = await load([one, three]);
+    const [loadable] = load([one, three]);
     const dissolvedId = loadable.dataID;
 
-    const failure = await load([
-      zero,
-      two,
-      unallocatableFor({ sop: 'other', series: OTHER_SERIES_UID }),
-    ]).then(
-      () => null,
-      (err) => err
+    const failure = failureOf(() =>
+      load([
+        zero,
+        two,
+        unallocatableFor({ sop: 'other', series: OTHER_SERIES_UID }),
+      ])
     );
 
     expect(failure).toBeInstanceOf(PartialDicomImportError);
@@ -515,20 +442,14 @@ describe('importDicomInstanceSources atomic series commit', () => {
 describe('DICOM record naming', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it('commits a nameless series with a usable fallback name', async () => {
+  it('commits a nameless series with a usable fallback name', () => {
     const nameless = sliceFor({
       sop: 'nameless',
       tags: { [Tags.SeriesNumber]: '', [Tags.SeriesDescription]: '' },
     });
     const store = useDICOMStore();
     const { created, createImage } = imageFactory();
-    const committed: ImportInstancesResult[] = [];
-    const result = await store.importInstances([nameless], {
-      createImage,
-      onCommitted: (r) => committed.push(r),
-    });
-    const id = onlyId(result);
-    expect(committed).toHaveLength(1);
+    const id = onlyId(store.importInstances([nameless], { createImage }));
     expect(created[0].getName()).toBe(SERIES_UID);
     expect(getDisplayName(store.volumeInfo[id])).toBe(SERIES_UID);
   });

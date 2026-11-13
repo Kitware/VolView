@@ -1,4 +1,4 @@
-import { datasetFromTags } from '@/tests/dicomDataset';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
@@ -6,17 +6,15 @@ import { flushPromises } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
-import { fromBlob } from '@/packages/dicom/core/source/byteSource';
 import {
-  emptyRegistry,
-  registerInstances,
-} from '@/packages/dicom/core/collections/instanceRegistry';
-import { allocateVolume } from '@/packages/dicom/core/volume/allocateVolume';
-import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
+  allocateVolume,
+  createDicomRuntime,
+  fromBlob,
+  Tags,
+} from '@/packages/dicom/core';
+import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { type LabelmapIO } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';
@@ -112,8 +110,8 @@ const pendingImage = async (id = 'parent') => {
     datasetFromTags(meta),
     fromBlob(new Blob(['pixels']))
   );
-  const runtime = createDicomRuntime({
-    decoder: async () => {
+  const runtime = createDicomRuntime(
+    decodingWith(async () => {
       started.resolve();
       await decoded.promise;
       return {
@@ -121,16 +119,12 @@ const pendingImage = async (id = 'parent') => {
         data: Uint16Array.from({ length: 16 }, (_, index) =>
           index === 5 ? 1 : 0
         ),
-        imageType: { components: 1 },
+        components: 1,
       };
-    },
-  });
-  const allocation = allocateVolume(
-    registerInstances(emptyRegistry, [instance]).updates[0]
+    })
   );
-  if (allocation.kind !== 'volume') throw new Error('Expected a volume');
   const image = new DicomVolumeImage({ runtime });
-  image.setVolume(allocation.volume);
+  image.setVolume(allocateVolume(plannedUpdate([instance])));
   cache().addProgressiveImage(image, { id });
   await started.promise;
   expect(image.loading.value).toBe(true);

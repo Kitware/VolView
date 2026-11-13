@@ -6,7 +6,7 @@ import {
   sniffDicomLayout,
 } from '../dicomLayout';
 import { stripFileMeta, stripPreamble } from '@/tests/specs/syntheticDicom';
-import { buildSlice } from '@/src/io/__tests__/readDicomTagsFixtures';
+import { buildSlice } from '@/tests/specs/dicomElementFixtures';
 
 const head = (bytes: Uint8Array) => bytes.subarray(0, PART_10_HEADER_LENGTH);
 

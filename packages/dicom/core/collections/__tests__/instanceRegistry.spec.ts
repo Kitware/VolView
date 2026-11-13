@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getDatasetTag } from '../../metadata/datasetAccess';
 import { Tags } from '../../metadata/dicomTags';
 import type { Instance } from '../../instance/readInstance';
-import { instanceFor } from '../../instance/__tests__/instanceFixture';
+import { instanceFor } from '@/tests/dicomDataset';
 import {
   emptyRegistry,
   forgetCollection,
@@ -10,7 +10,7 @@ import {
   registerInstances,
   type RegistryState,
 } from '../instanceRegistry';
-import { mergingChunks } from '@/tests/dicomOrientationFixtures';
+import { mergingInstances } from '@/tests/dicomOrientationFixtures';
 import {
   OTHER_SERIES_UID,
   SERIES_UID,
@@ -109,7 +109,7 @@ describe('pure instance registry', () => {
   });
 
   it('reports the id a replan dissolves when two collections merge', () => {
-    const { between, straight, tilted } = mergingChunks(slice);
+    const { between, straight, tilted } = mergingInstances(slice);
 
     const [first, second] = registerAll([[straight, tilted], [between]]);
 
@@ -150,6 +150,78 @@ describe('pure instance registry', () => {
     expect(relabelled.collection.label).toBe('rows 4, acquisition 1');
     expect(third.removed).toEqual([]);
   });
+
+  it('says how each collection differs from what was committed', () => {
+    const [a, b] = [0, 1].map((z) => slice({ sop: `c${z}`, z }));
+
+    const changes = registerAll([[a], [slice({ sop: 'c0', z: 0 })], [b]]).map(
+      ({ updates }) => updates.map((update) => update.change)
+    );
+
+    expect(changes).toEqual([['new'], ['unchanged'], ['changed']]);
+  });
+
+  it('reports a relabelled collection as changed', () => {
+    const acquisition = (number: string, zs: number[]) =>
+      zs.map((z) =>
+        slice({
+          sop: `${number}-${z}`,
+          z,
+          tags: { [Tags.AcquisitionNumber]: number },
+        })
+      );
+
+    const [, second] = registerAll([
+      acquisition('1', [0, 2]),
+      acquisition('2', [1, 3]),
+    ]);
+
+    expect(second.updates.map((update) => update.change)).toEqual([
+      'changed',
+      'new',
+    ]);
+  });
+
+  it('reports a collection whose axes a sibling pass outvoted as changed', () => {
+    // Within the orientation tolerance, so one bucket, but leaning the normal.
+    const tilted = '1\\0\\0\\0\\0.99995\\0.0099998';
+    const acquisition = (number: string, zs: number[], orientation?: string) =>
+      zs.map((z) =>
+        slice({
+          sop: `${number}-${z}`,
+          z,
+          orientation,
+          tags: { [Tags.AcquisitionNumber]: number },
+        })
+      );
+
+    const [first, second] = registerAll([
+      [...acquisition('1', [0, 2]), ...acquisition('2', [1, 3], tilted)],
+      acquisition('2', [5], tilted),
+    ]);
+
+    const before = first.updates.find((update) =>
+      sopsOf(update.members).includes('1-0')
+    )!;
+    const after = second.updates.find((update) => update.id === before.id)!;
+    expect(sopsOf(after.members)).toEqual(['1-0', '1-2']);
+    expect(after.collection.key).toEqual(before.collection.key);
+    expect(after.collection.orientation).not.toEqual(
+      before.collection.orientation
+    );
+    expect(after.change).toBe('changed');
+  });
+
+  it.each(['SEG', 'SEG\u0000'])(
+    'reports SEG modality %j as a segmentation collection',
+    (modality) => {
+      const [image, seg] = lastUpdates([
+        [slice({ sop: 'image' }), slice({ sop: 'seg', modality, rows: '8' })],
+      ]);
+
+      expect([image.kind, seg.kind]).toEqual(['image', 'segmentation']);
+    }
+  );
 
   it('plans series independently', () => {
     const first = slice({ sop: 'a', series: SERIES_UID });

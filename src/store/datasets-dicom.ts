@@ -1,39 +1,30 @@
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 import { defineStore } from 'pinia';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
-import {
-  getDatasetModality,
-  getDatasetTag,
-} from '@/packages/dicom/core/metadata/datasetAccess';
-import {
-  emptyRegistry,
-  forgetCollection,
-  registerInstances,
-  type InstanceCollectionUpdate,
-  type RegistryState,
-} from '@/packages/dicom/core/collections/instanceRegistry';
-import { seriesKeyOf } from '@/packages/dicom/core/collections/instanceFacts';
-import { groupBy } from '@/packages/dicom/core/collections/groupBy';
 import {
   allocateVolume,
-  type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
-import { readBytes } from '@/packages/dicom/core/source/byteSource';
-import {
-  isUltrasoundMultiframeSopClass,
+  emptyRegistry,
+  forgetCollection,
+  getDatasetModality,
+  registerInstances,
+  seriesKeyOf,
   Tags,
-} from '@/packages/dicom/core/metadata/dicomTags';
+  type Instance,
+  type InstanceCollectionUpdate,
+  type RegistryState,
+  type Volume,
+} from '@/packages/dicom/core';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
+import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
 import {
-  parseCineDicom,
-  type CineParseResult,
-} from '@/src/core/cine/parseCineDicom';
+  isCineInstance,
+  readCineHeader,
+  type CineHeader,
+} from '@/src/core/cine/cineInstance';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { viewedSlice } from '@/src/store/dicom-viewed-slice';
-import { ensureError, removeFromArray } from '../utils';
+import { ensureError, groupBy, removeFromArray } from '../utils';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';
@@ -115,16 +106,6 @@ export const getDisplayName = (info: VolumeInfo) => {
   return info.splitLabel ? `${name} (${info.splitLabel})` : name;
 };
 
-/** A single ultrasound multi-frame instance, which plays as a cine clip. */
-export function isCineInstance(dataset: DicomDataset) {
-  const sopClass = getDatasetTag(dataset, Tags.SOPClassUID)?.trim() ?? '';
-  const frames = parseInt(
-    (getDatasetTag(dataset, Tags.NumberOfFrames) ?? '0').trim(),
-    10
-  );
-  return isUltrasoundMultiframeSopClass(sopClass) && frames > 1;
-}
-
 export const getWindowLevels = (info: VolumeInfo) => {
   const { WindowWidth, WindowLevel } = info;
   if (
@@ -154,12 +135,6 @@ export const getWindowLevels = (info: VolumeInfo) => {
 
 export type ImportInstancesDeps = {
   createImage?: (id: string) => DicomVolumeImage;
-  parseCineDicom?: typeof parseCineDicom;
-  /**
-   * What one series committed, reported synchronously with the commit, so no
-   * other import can land between the two.
-   */
-  onCommitted?: (result: ImportInstancesResult) => void;
   /**
    * Removes a volume a replan dissolved from everything that names it, before
    * its replacements are reported. This store and the image cache alone by
@@ -178,18 +153,23 @@ export type ImportInstancesResult = {
 };
 
 /**
- * A batch whose series did not all commit. Each series commits on its own and
- * reports itself through `onCommitted`, so what landed is already published
- * when this is thrown.
+ * A batch whose series did not all commit. Each series commits on its own, so
+ * `committed` holds what the series that did commit landed.
  */
 export class PartialImportError extends Error {
   readonly failures: { error: Error; instances: Instance[] }[];
 
-  constructor(failures: { error: Error; instances: Instance[] }[]) {
+  readonly committed: ImportInstancesResult;
+
+  constructor(
+    failures: { error: Error; instances: Instance[] }[],
+    committed: ImportInstancesResult
+  ) {
     super(failures[0].error.message);
     this.name = 'PartialImportError';
     this.cause = failures[0].error;
     this.failures = failures;
+    this.committed = committed;
   }
 }
 
@@ -204,23 +184,14 @@ type DatabaseRecord = {
 
 /**
  * One collection's next value, computed before any store is touched. `keep`
- * is a collection already shown as it is planned.
+ * is a collection already shown as it is planned; `fill` gives a DICOM image
+ * its new volume or SEG object.
  */
-type Candidate =
-  | { kind: 'keep'; id: string; record: DatabaseRecord | null }
-  | {
-      kind: 'cine';
-      id: string;
-      image: DicomCineImage;
-      record: DatabaseRecord;
-    }
-  | { kind: 'volume'; id: string; volume: Volume; record: DatabaseRecord }
-  | {
-      kind: 'segmentation';
-      id: string;
-      instances: readonly Instance[];
-      record: DatabaseRecord;
-    };
+type Candidate = { id: string; record: DatabaseRecord } & (
+  | { kind: 'keep' }
+  | { kind: 'cine'; image: DicomCineImage }
+  | { kind: 'dicom'; fill: (image: DicomVolumeImage) => void }
+);
 
 const withDisplayName = (
   record: Omit<DatabaseRecord, 'name'>
@@ -269,10 +240,7 @@ const volumeRecord = ({
   });
 };
 
-const cineRecord = (
-  id: string,
-  header: CineParseResult['header']
-): DatabaseRecord =>
+const cineRecord = (id: string, header: CineHeader): DatabaseRecord =>
   withDisplayName({
     patient: header.patient,
     study: header.study,
@@ -290,87 +258,55 @@ const cineRecord = (
     warnings: [],
   });
 
-const tryParseCine = (parse: typeof parseCineDicom, bytes: Uint8Array) => {
-  try {
-    const parsed = parse(bytes);
-    return DicomCineImage.isSupported(parsed.header) ? parsed : null;
-  } catch (err) {
-    console.warn(
-      'Failed to parse cine DICOM; falling back to volume import',
-      err
-    );
-    return null;
-  }
-};
-
-/** Cine clips need their bytes to decide, so they are read before planning. */
-async function readCines(instances: Instance[], parse: typeof parseCineDicom) {
-  const never = new AbortController().signal;
-  const clips = instances.filter(({ dataset }) => isCineInstance(dataset));
-  const parsed = await Promise.all(
-    clips.map(async (instance) => {
-      // An unreadable clip falls back to the volume path, which reports it.
-      const bytes = await readBytes(instance.source, never).catch(() => null);
-      return [instance, bytes && tryParseCine(parse, bytes)] as const;
-    })
-  );
-  return new Map(
-    parsed.flatMap(([instance, clip]) => (clip ? [[instance, clip]] : []))
-  );
-}
-
-const samePlan = (volume: Volume, update: InstanceCollectionUpdate) =>
-  volume.members.length === update.members.length &&
-  volume.members.every((member, index) => member === update.members[index]) &&
-  volume.collection.orientation?.join() ===
-    update.collection.orientation?.join() &&
-  JSON.stringify(volume.reconstruction) ===
-    JSON.stringify(update.collection.reconstruction ?? volume.reconstruction);
-
-type PlanContext = {
-  loaded: Record<string, VolumeInfo>;
-  cines: Map<Instance, CineParseResult>;
-};
+const cineMember = ({ kind, members }: InstanceCollectionUpdate) =>
+  kind === 'image' && members.length === 1 && isCineInstance(members[0])
+    ? members[0]
+    : null;
 
 function cineCandidate(
-  update: InstanceCollectionUpdate,
-  { loaded, cines }: PlanContext
-): Candidate | null {
-  const { id, members } = update;
-  const parsed = members.length === 1 ? cines.get(members[0]) : undefined;
-  // A state-file reload already built this clip.
-  if (loaded[id]?.kind === 'cine') return { kind: 'keep', id, record: null };
-  const cached = useImageCacheStore().imageById[id];
-  if (!parsed || (cached && !(cached instanceof DicomCineImage))) return null;
-  return {
-    kind: 'cine',
-    id,
-    image: new DicomCineImage(parsed),
-    record: cineRecord(id, parsed.header),
+  id: string,
+  clip: Instance,
+  cached: ProgressiveImage | undefined
+): Candidate {
+  const header = readCineHeader(clip);
+  const record = cineRecord(id, header);
+  return cached
+    ? { kind: 'keep', id, record }
+    : { kind: 'cine', id, record, image: new DicomCineImage(clip, header) };
+}
+
+function fillFor(update: InstanceCollectionUpdate, previous?: Volume) {
+  if (update.kind === 'segmentation')
+    return (image: DicomVolumeImage) => image.setSegmentation(update.members);
+  const volume = allocateVolume(update, {}, previous);
+  return (image: DicomVolumeImage) => {
+    image.setVolume(volume);
+    volume.warnings.forEach(([title, details]) =>
+      surfaceWarning(title, details)
+    );
   };
 }
 
-/** The next value of one planned collection. Pure apart from reading stores. */
-function planCandidate(
-  update: InstanceCollectionUpdate,
-  context: PlanContext
-): Candidate {
-  const cine = cineCandidate(update, context);
-  if (cine) return cine;
+/** The next value of one planned collection. Pure apart from reading the cache. */
+function planCandidate(update: InstanceCollectionUpdate): Candidate {
   const { id } = update;
   const cached = useImageCacheStore().imageById[id];
+  const clip = cineMember(update);
+  if (clip) return cineCandidate(id, clip, cached);
+  const record = volumeRecord(update);
+  // A re-import retries whatever failed to load.
+  if (cached && update.change === 'unchanged')
+    return { kind: 'keep', id, record };
   if (cached && !(cached instanceof DicomVolumeImage))
     throw new Error(
       `Volume ${id} is already loaded as a non-DICOM progressive image; cannot re-import it as a DICOM volume.`
     );
-  const record = volumeRecord(update);
-  const previous = cached?.getVolume() ?? undefined;
-  if (previous && samePlan(previous, update))
-    return { kind: 'keep', id, record };
-  const allocation = allocateVolume(update, {}, previous);
-  if (allocation.kind === 'segmentation')
-    return { kind: 'segmentation', id, instances: update.members, record };
-  return { kind: 'volume', id, volume: allocation.volume, record };
+  return {
+    kind: 'dicom',
+    id,
+    record,
+    fill: fillFor(update, cached?.getVolume() ?? undefined),
+  };
 }
 
 type CommitTarget = {
@@ -403,12 +339,7 @@ function showCandidate(
   }
   const cached = cache.imageById[id] as DicomVolumeImage | undefined;
   const image = cached ?? createImage(id);
-  if (candidate.kind === 'volume') {
-    image.setVolume(candidate.volume);
-    candidate.volume.warnings.forEach(([title, details]) =>
-      surfaceWarning(title, details)
-    );
-  } else image.setSegmentation(candidate.instances);
+  candidate.fill(image);
   if (cached) image.startLoad();
   else cache.addProgressiveImage(image, { id });
   return image;
@@ -419,12 +350,9 @@ function commitCandidate(
   candidate: Candidate,
   createImage: (id: string) => DicomVolumeImage
 ) {
-  const { record } = candidate;
-  if (!record) return;
-  const { patient, study, volume, warnings, name } = record;
+  const { patient, study, volume, warnings, name } = candidate.record;
   store._updateDatabase(patient, study, volume);
   if (candidate.kind === 'keep') {
-    // A re-import retries whatever failed to load.
     const image = useImageCacheStore().imageById[candidate.id];
     image?.setName(name);
     image?.startLoad();
@@ -483,10 +411,10 @@ export const useDICOMStore = defineStore('dicom', {
      * synchronous step. A series that fails to plan or allocate changes
      * nothing, because nothing computed for it is assigned.
      */
-    async importInstances(
+    importInstances(
       instances: Instance[],
       deps: ImportInstancesDeps = {}
-    ): Promise<ImportInstancesResult> {
+    ): ImportInstancesResult {
       const createImage =
         deps.createImage ??
         ((id: string) =>
@@ -497,50 +425,37 @@ export const useDICOMStore = defineStore('dicom', {
           this.deleteVolume(id);
           useImageCacheStore().removeImage(id);
         });
-      const cines = await readCines(
-        instances,
-        deps.parseCineDicom ?? parseCineDicom
-      );
-
       const failures: PartialImportError['failures'] = [];
       const results = [
         ...groupBy(instances, (instance) => seriesKeyOf(instance.dataset)),
       ].flatMap(([, batch]) => {
         try {
-          const committed = this._commitSeries(batch, {
-            cines,
-            createImage,
-            removeDissolved,
-          });
-          deps.onCommitted?.(committed);
-          return [committed];
+          return [this._commitSeries(batch, { createImage, removeDissolved })];
         } catch (error) {
           failures.push({ error: ensureError(error), instances: batch });
           return [];
         }
       });
-      if (failures.length) throw new PartialImportError(failures);
-
-      return {
+      const committed = {
         volumes: Object.fromEntries(
           results.flatMap(({ volumes }) => Object.entries(volumes))
         ),
         dissolved: results.flatMap(({ dissolved }) => dissolved),
       };
+      if (failures.length) throw new PartialImportError(failures, committed);
+      return committed;
     },
 
     _commitSeries(
       batch: Instance[],
       context: {
-        cines: Map<Instance, CineParseResult>;
         createImage: (id: string) => DicomVolumeImage;
         removeDissolved: (id: string) => void;
       }
     ): ImportInstancesResult {
       const { state, updates, removed, conflictingInstanceUids } =
         registerInstances(registryOf(this), batch);
-      const plan = { loaded: this.volumeInfo, cines: context.cines };
-      const candidates = updates.map((update) => planCandidate(update, plan));
+      const candidates = updates.map(planCandidate);
 
       registries.set(this, state);
       candidates.forEach((candidate) =>

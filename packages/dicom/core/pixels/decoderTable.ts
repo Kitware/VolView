@@ -1,128 +1,104 @@
 import type { Instance } from '../instance/readInstance';
-import { indexFrames, type FrameIndex } from './frameIndex';
-import {
-  decodeNativeFrame,
-  nativeCapability,
-  type NativePixelFormat,
-} from './nativeFrame';
+import type { VolumeBufferConstructor } from '../volume/pixelFormat';
+import { nativeFrameDecoder } from './nativeFrame';
+import type { DecodeUnit, PixelDecoder } from './pixelDecoder';
 
-/**
- * How one transfer syntax decodes: per frame without a codec, as a whole
- * instance by the runtime's decoder, or not at all.
- */
-export type DecoderEntry =
-  | Readonly<{
-      kind: 'native';
-      name: string;
-      capability: typeof nativeCapability;
-      decode: typeof decodeNativeFrame;
-    }>
-  | Readonly<{ kind: 'whole-instance'; name: string }>
-  | Readonly<{ kind: 'unsupported'; name: string }>;
-
+/** Candidates per transfer syntax in preference order; the first that does not decline wins. */
 export type DecoderTable = Readonly<{
-  byTransferSyntax: ReadonlyMap<string, DecoderEntry>;
+  byTransferSyntax: ReadonlyMap<string, readonly PixelDecoder[]>;
   /** For transfer syntaxes the table does not list. */
-  fallback: DecoderEntry;
+  fallback: readonly PixelDecoder[];
+  /** Names of known transfer syntaxes, so an error can say which one has no decoder. */
+  names: ReadonlyMap<string, string>;
 }>;
 
-const native = (name: string): DecoderEntry => ({
-  kind: 'native',
-  name,
-  capability: nativeCapability,
-  decode: decodeNativeFrame,
+/** Every instance goes to `decoder`, whatever its transfer syntax. */
+export const singleDecoderTable = (decoder: PixelDecoder): DecoderTable => ({
+  byTransferSyntax: new Map(),
+  fallback: [decoder],
+  names: new Map(),
 });
-const wholeInstance = (name: string): DecoderEntry => ({
-  kind: 'whole-instance',
-  name,
-});
-const unsupported = (name: string): DecoderEntry => ({
-  kind: 'unsupported',
-  name,
-});
+
+type Codec = 'native' | 'gdcm' | 'none';
 
 // prettier-ignore
-const ENTRIES: Array<[string, DecoderEntry]> = [
-  ['1.2.840.10008.1.2', native('Implicit VR Little Endian')],
-  ['1.2.840.10008.1.2.1', native('Explicit VR Little Endian')],
-  ['1.2.840.10008.1.2.2', native('Explicit VR Big Endian')],
-  ['1.2.840.10008.1.2.1.99', wholeInstance('Deflated Explicit VR Little Endian')],
-  ['1.2.840.10008.1.2.4.50', wholeInstance('JPEG Baseline')],
-  ['1.2.840.10008.1.2.4.51', wholeInstance('JPEG Extended')],
-  ['1.2.840.10008.1.2.4.57', wholeInstance('JPEG Lossless')],
-  ['1.2.840.10008.1.2.4.70', wholeInstance('JPEG Lossless, First-Order Prediction')],
-  ['1.2.840.10008.1.2.4.80', wholeInstance('JPEG-LS Lossless')],
-  ['1.2.840.10008.1.2.4.81', wholeInstance('JPEG-LS Near-Lossless')],
-  ['1.2.840.10008.1.2.4.90', wholeInstance('JPEG 2000 Lossless')],
-  ['1.2.840.10008.1.2.4.91', wholeInstance('JPEG 2000')],
-  ['1.2.840.10008.1.2.5', wholeInstance('RLE Lossless')],
-  ['1.2.840.10008.1.2.4.94', unsupported('JPIP Referenced')],
-  ['1.2.840.10008.1.2.4.95', unsupported('JPIP Referenced Deflate')],
-  ['1.2.840.10008.1.2.4.100', unsupported('MPEG2 Main Profile')],
-  ['1.2.840.10008.1.2.4.101', unsupported('MPEG2 High Profile')],
-  ['1.2.840.10008.1.2.4.102', unsupported('MPEG-4 AVC/H.264 High Profile')],
-  ['1.2.840.10008.1.2.4.103', unsupported('MPEG-4 AVC/H.264 BD-compatible High Profile')],
-  ['1.2.840.10008.1.2.4.104', unsupported('MPEG-4 AVC/H.264 High Profile For 2D Video')],
-  ['1.2.840.10008.1.2.4.105', unsupported('MPEG-4 AVC/H.264 High Profile For 3D Video')],
-  ['1.2.840.10008.1.2.4.106', unsupported('MPEG-4 AVC/H.264 Stereo High Profile')],
-  ['1.2.840.10008.1.2.4.107', unsupported('HEVC/H.265 Main Profile')],
-  ['1.2.840.10008.1.2.4.108', unsupported('HEVC/H.265 Main 10 Profile')],
-  ['1.2.840.10008.1.2.4.110', unsupported('JPEG XL Lossless')],
-  ['1.2.840.10008.1.2.4.111', unsupported('JPEG XL JPEG Recompression')],
-  ['1.2.840.10008.1.2.4.112', unsupported('JPEG XL')],
+const SYNTAXES: Array<[string, string, Codec]> = [
+  ['1.2.840.10008.1.2', 'Implicit VR Little Endian', 'native'],
+  ['1.2.840.10008.1.2.1', 'Explicit VR Little Endian', 'native'],
+  ['1.2.840.10008.1.2.2', 'Explicit VR Big Endian', 'native'],
+  ['1.2.840.10008.1.2.1.99', 'Deflated Explicit VR Little Endian', 'gdcm'],
+  ['1.2.840.10008.1.2.4.50', 'JPEG Baseline', 'gdcm'],
+  ['1.2.840.10008.1.2.4.51', 'JPEG Extended', 'gdcm'],
+  ['1.2.840.10008.1.2.4.57', 'JPEG Lossless', 'gdcm'],
+  ['1.2.840.10008.1.2.4.70', 'JPEG Lossless, First-Order Prediction', 'gdcm'],
+  ['1.2.840.10008.1.2.4.80', 'JPEG-LS Lossless', 'gdcm'],
+  ['1.2.840.10008.1.2.4.81', 'JPEG-LS Near-Lossless', 'gdcm'],
+  ['1.2.840.10008.1.2.4.90', 'JPEG 2000 Lossless', 'gdcm'],
+  ['1.2.840.10008.1.2.4.91', 'JPEG 2000', 'gdcm'],
+  ['1.2.840.10008.1.2.5', 'RLE Lossless', 'gdcm'],
+  ['1.2.840.10008.1.2.4.94', 'JPIP Referenced', 'none'],
+  ['1.2.840.10008.1.2.4.95', 'JPIP Referenced Deflate', 'none'],
+  ['1.2.840.10008.1.2.4.100', 'MPEG2 Main Profile', 'none'],
+  ['1.2.840.10008.1.2.4.101', 'MPEG2 High Profile', 'none'],
+  ['1.2.840.10008.1.2.4.102', 'MPEG-4 AVC/H.264 High Profile', 'none'],
+  ['1.2.840.10008.1.2.4.103', 'MPEG-4 AVC/H.264 BD-compatible High Profile', 'none'],
+  ['1.2.840.10008.1.2.4.104', 'MPEG-4 AVC/H.264 High Profile For 2D Video', 'none'],
+  ['1.2.840.10008.1.2.4.105', 'MPEG-4 AVC/H.264 High Profile For 3D Video', 'none'],
+  ['1.2.840.10008.1.2.4.106', 'MPEG-4 AVC/H.264 Stereo High Profile', 'none'],
+  ['1.2.840.10008.1.2.4.107', 'HEVC/H.265 Main Profile', 'none'],
+  ['1.2.840.10008.1.2.4.108', 'HEVC/H.265 Main 10 Profile', 'none'],
+  ['1.2.840.10008.1.2.4.110', 'JPEG XL Lossless', 'none'],
+  ['1.2.840.10008.1.2.4.111', 'JPEG XL JPEG Recompression', 'none'],
+  ['1.2.840.10008.1.2.4.112', 'JPEG XL', 'none'],
 ];
 
-/** Native syntaxes per frame; GDCM for every other syntax it may know. */
-export const defaultDecoderTable: DecoderTable = {
-  byTransferSyntax: new Map(ENTRIES),
-  fallback: wholeInstance('Unlisted transfer syntax'),
-};
+/** Native frames for uncompressed syntaxes, then GDCM for every syntax it may know. */
+export function defaultDecoderTable(gdcm: PixelDecoder): DecoderTable {
+  const candidates = {
+    native: [nativeFrameDecoder, gdcm],
+    gdcm: [gdcm],
+    none: [],
+  };
+  return {
+    byTransferSyntax: new Map(
+      SYNTAXES.map(([uid, , codec]) => [uid, candidates[codec]])
+    ),
+    fallback: [gdcm],
+    names: new Map(SYNTAXES.map(([uid, name]) => [uid, name])),
+  };
+}
 
-/** Hands every instance to the runtime's whole-instance decoder. */
-export const wholeInstanceDecoderTable: DecoderTable = {
-  byTransferSyntax: new Map(),
-  fallback: wholeInstance('Whole-instance decoder'),
-};
+function noDecoder(
+  table: DecoderTable,
+  syntax: string | null | undefined,
+  declines: string[]
+) {
+  const name = syntax ? table.names.get(syntax) : undefined;
+  const what = name
+    ? `Known transfer syntax ${name} (${syntax})`
+    : `Transfer syntax ${syntax ?? 'unknown'}`;
+  const why = declines.length ? `: ${declines.join('; ')}` : '';
+  return new Error(`${what} has no decoder${why}`);
+}
 
-type IndexedFrames = Extract<FrameIndex, { kind: 'indexed' }>;
+type DecodePlan =
+  | Readonly<{ decoder: PixelDecoder; units: DecodeUnit[] }>
+  | Readonly<{ error: Error }>;
 
-export type DecodePlan =
-  | Readonly<{
-      kind: 'frames';
-      index: IndexedFrames;
-      format: NativePixelFormat;
-      decode: typeof decodeNativeFrame;
-    }>
-  /** `reason` says why a native syntax still needs the whole instance. */
-  | Readonly<{ kind: 'whole-instance'; reason?: string }>
-  | Readonly<{ kind: 'unsupported'; error: Error }>;
-
-/** How `instance` should decode under `table`. Pure: reads only the header. */
+/** The units the first willing decoder loads `instance` in. Pure: reads only the header. */
 export function planDecode(
   table: DecoderTable,
-  instance: Instance
+  instance: Instance,
+  target: VolumeBufferConstructor
 ): DecodePlan {
   const syntax = instance.transferSyntaxUid;
-  const entry =
+  const candidates =
     (syntax && table.byTransferSyntax.get(syntax)) || table.fallback;
-  if (entry.kind === 'unsupported')
-    return {
-      kind: 'unsupported',
-      error: new Error(
-        `Known transfer syntax ${entry.name} (${syntax}) has no decoder`
-      ),
-    };
-  if (entry.kind === 'whole-instance') return { kind: 'whole-instance' };
-  const index = indexFrames(instance);
-  if (index.kind === 'unindexed')
-    return { kind: 'whole-instance', reason: index.detail };
-  const capability = entry.capability(instance, index.littleEndian);
-  if (capability.kind === 'declined')
-    return { kind: 'whole-instance', reason: capability.reason };
-  return {
-    kind: 'frames',
-    index,
-    format: capability.format,
-    decode: entry.decode,
-  };
+  const declines: string[] = [];
+  for (const decoder of candidates) {
+    const units = decoder.plan(instance, target);
+    if (!('declined' in units)) return { decoder, units };
+    declines.push(`${decoder.name} declined (${units.declined})`);
+  }
+  return { error: noDecoder(table, syntax, declines) };
 }

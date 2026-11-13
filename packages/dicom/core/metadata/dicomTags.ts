@@ -46,6 +46,7 @@ const tags: Tag[] = [
   { name: 'SOPClassUID', tag: '0008|0016' },
   { name: 'OphthalmicVolumetricPropertiesFlag', tag: '0022|1622' },
   { name: 'PhotometricInterpretation', tag: '0028|0004' },
+  { name: 'PlanarConfiguration', tag: '0028|0006' },
   { name: 'FrameTime', tag: '0018|1063' },
   { name: 'SequenceOfUltrasoundRegions', tag: '0018|6011' },
   { name: 'PhysicalUnitsXDirection', tag: '0018|6024' },
@@ -71,6 +72,3 @@ export function isUltrasoundMultiframeSopClass(uid: string): boolean {
 }
 
 export const Tags = Object.fromEntries(tags.map((t) => [t.name, t.tag]));
-
-// Converts an itk-wasm-style "GGGG|EEEE" tag to a dicom-parser element key.
-export const toDicomParserKey = (tag: string) => `x${tag.replace('|', '')}`;

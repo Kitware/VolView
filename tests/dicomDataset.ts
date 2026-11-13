@@ -1,4 +1,9 @@
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import {
+  fromBlob,
+  type ByteSource,
+  type DicomDataset,
+  type Instance,
+} from '@/packages/dicom/core';
 
 /** Structured headers for fixtures whose values are written as tag strings. */
 export const datasetFromTags = (
@@ -16,3 +21,19 @@ export const datasetFromTags = (
     };
   }),
 });
+
+const noBytes = fromBlob(new Blob([]));
+
+/** An instance as `readInstance` returns it, from a header built in memory. */
+export const instanceFor = (
+  dataset: DicomDataset,
+  source: ByteSource = noBytes
+): Instance =>
+  Object.freeze({
+    source,
+    dataset,
+    layout: null,
+    ultrasoundRegions: null,
+    transferSyntaxUid: null,
+    pixelData: null,
+  });

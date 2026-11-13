@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { openDicomConsumer } from '../dicomConsumer';
-import { enhancedFixtureBytes } from '../fixtures/dicom-consumer/enhancedFixtures';
-import { fixtureBytes } from '../fixtures/dicom-consumer/fixtureData';
-import { startDicomConsumerFixtures } from '../fixtures/dicom-consumer/server.mjs';
+import { openDicomPage } from '../dicomPages';
+import { enhancedFixtureBytes } from '../fixtures/dicom-pages/enhancedFixtures';
+import { fixtureBytes } from '../fixtures/dicom-pages/fixtureData';
+import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
 import { volViewPage } from '../pageobjects/volview.page';
 
 const frames = {
@@ -80,9 +80,9 @@ const scenarios = [
 ];
 
 describe('Encoded multiframe reconstruction contracts', () => {
-  let fixture: Awaited<ReturnType<typeof startDicomConsumerFixtures>>;
+  let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   before(async () => {
-    fixture = await startDicomConsumerFixtures(fixtureBytes(), {
+    fixture = await startDicomPages(fixtureBytes(), {
       kinds: ['corpus'],
       fixtures: frames,
     });
@@ -95,10 +95,7 @@ describe('Encoded multiframe reconstruction contracts', () => {
         const params = new URLSearchParams({ name: scenario.name, source });
         if (scenario.policy) params.set('policy', scenario.policy);
         if (scenario.decoder) params.set('decoder', scenario.decoder);
-        await openDicomConsumer(
-          `${fixture.urls.corpus}?${params}`,
-          scenario.error
-        );
+        await openDicomPage(`${fixture.urls.corpus}?${params}`, scenario.error);
         if (scenario.values) {
           await expect($('#pixel-hash')).toHaveText(
             hashFrames(scenario.values)

@@ -98,7 +98,7 @@ describe('En face contrast toolbar availability', () => {
     ).toMatch(/scan pattern.*reconstruction/);
   });
 
-  it('shows the Paint panel reason on the disabled toolbar action', async () => {
+  it('shows the Paint panel reason on the disabled toolbar action', () => {
     const wrapper = mountToolbar('missing');
     const selector = 'button[data-testid^="control-button-Paint "]';
     const action = wrapper

@@ -1,6 +1,6 @@
 // Backing image for multi-frame ultrasound DICOM clips. Owns a single 2D
-// vtkImageData with 3-component RGB scalars; the per-frame compressed bytes
-// stay in this object and decoded frames live in an LRU cache.
+// vtkImageData with 3-component RGB scalars; the per-frame stored bytes are
+// read once loading starts and decoded frames live in an LRU cache.
 
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
@@ -12,11 +12,20 @@ import {
   ProgressiveImageEvents,
 } from '@/src/core/progressiveImage';
 import {
-  CineHeader,
-  CineParseResult,
+  fallbackSpacing,
+  physicalSpacing,
+  unitToMm,
+  type Instance,
+  type SpatialMetadata,
+} from '@/packages/dicom/core';
+import { abortError } from '@/src/utils';
+import {
+  type CineHeader,
   isNativeTransferSyntax,
   isSupportedCineTransferSyntax,
-} from './parseCineDicom';
+  readCineFrames,
+  readCineHeader,
+} from './cineInstance';
 import {
   DecodedFrame,
   FrameCache,
@@ -24,16 +33,10 @@ import {
   decodeJpegFrame,
   decodeNativeFrame,
 } from './frameCache';
-import { unitToMm } from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
-import {
-  physicalSpacing,
-  fallbackSpacing,
-  type SpatialMetadata,
-} from '@/packages/dicom/core/metadata/spatialMetadata';
 
 function spatialRegionSpacing(r: CineHeader['regions'][number]) {
-  const sx = r.physicalUnitsX != null ? unitToMm(r.physicalUnitsX) : null;
-  const sy = r.physicalUnitsY != null ? unitToMm(r.physicalUnitsY) : null;
+  const sx = unitToMm(r.physicalUnitsXDirection);
+  const sy = unitToMm(r.physicalUnitsYDirection);
   if (sx == null || sy == null) return null;
   const { physicalDeltaX: dx, physicalDeltaY: dy } = r;
   if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
@@ -90,26 +93,52 @@ function pickSpacing(header: CineHeader): SpatialMetadata {
   };
 }
 
+/** Encodes an RGB frame as a PNG data URI, or null without a 2D canvas. */
+function encodeFrameToUri({ width, height, rgb }: DecodedFrame) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+  const image = context.createImageData(width, height);
+  const rgba = image.data;
+  for (let pixel = 0; pixel < width * height; pixel++) {
+    rgba[pixel * 4] = rgb[pixel * 3];
+    rgba[pixel * 4 + 1] = rgb[pixel * 3 + 1];
+    rgba[pixel * 4 + 2] = rgb[pixel * 3 + 2];
+    rgba[pixel * 4 + 3] = 255;
+  }
+  context.putImageData(image, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
 export default class DicomCineImage extends BaseProgressiveImage {
   public readonly header: CineHeader;
 
-  private readonly frames: Uint8Array[];
-  private readonly encapsulated: boolean;
+  private readonly instance: Instance;
+  private frames: Promise<Uint8Array[]> | null = null;
+  private readonly reads = new AbortController();
   private readonly cache: FrameCache;
   private readonly inFlightFrames: Map<number, Promise<DecodedFrame>>;
   private readonly events: Emitter<ProgressiveImageEvents>;
   private readonly scalarBuffer: Uint8Array;
 
+  private readonly reported = new WeakSet<Error>();
+
+  private readonly encodeThumbnail: (frame: DecodedFrame) => string | null;
   private thumbnailPromise: Promise<string | null> | null = null;
   private disposed = false;
 
-  constructor(init: CineParseResult) {
+  constructor(
+    instance: Instance,
+    header = readCineHeader(instance),
+    encodeThumbnail: (frame: DecodedFrame) => string | null = encodeFrameToUri
+  ) {
     super();
 
-    const { header, frames, encapsulated } = init;
+    this.encodeThumbnail = encodeThumbnail;
     this.header = header;
-    this.frames = frames;
-    this.encapsulated = encapsulated;
+    this.instance = instance;
     this.cache = new FrameCache();
     this.inFlightFrames = new Map();
     this.events = mitt();
@@ -202,11 +231,12 @@ export default class DicomCineImage extends BaseProgressiveImage {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.reads.abort(abortError('Image disposed'));
     super.dispose();
     this.events.all.clear();
     this.cache.clear();
     this.inFlightFrames.clear();
-    this.frames.length = 0;
+    this.frames = null;
     this.vtkImageData.value.delete();
   }
 
@@ -217,34 +247,20 @@ export default class DicomCineImage extends BaseProgressiveImage {
   getThumbnail(): Promise<string | null> {
     if (this.disposed) return Promise.resolve(null);
     if (this.thumbnailPromise) return this.thumbnailPromise;
-    this.thumbnailPromise = (async () => {
+    const thumbnail = (async () => {
       try {
-        const frame = await this.getFrame(0);
-        const { cols, rows } = this.header;
-        const canvas = document.createElement('canvas');
-        canvas.width = cols;
-        canvas.height = rows;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return null;
-        const imageData = ctx.createImageData(cols, rows);
-        const dst = imageData.data;
-        const { rgb } = frame;
-        const pixels = cols * rows;
-        for (let i = 0; i < pixels; i++) {
-          const s = i * 3;
-          const d = i * 4;
-          dst[d] = rgb[s];
-          dst[d + 1] = rgb[s + 1];
-          dst[d + 2] = rgb[s + 2];
-          dst[d + 3] = 255;
-        }
-        ctx.putImageData(imageData, 0, 0);
-        return canvas.toDataURL('image/png');
+        return this.encodeThumbnail(await this.getFrame(0));
       } catch {
         return null;
       }
     })();
-    return this.thumbnailPromise;
+    this.thumbnailPromise = thumbnail;
+    // A failed read is not cached, so a later call tries again.
+    thumbnail.then((uri) => {
+      if (uri === null && this.thumbnailPromise === thumbnail)
+        this.thumbnailPromise = null;
+    });
+    return thumbnail;
   }
 
   // Concurrent requests for the same uncached frame share a single decode.
@@ -304,16 +320,32 @@ export default class DicomCineImage extends BaseProgressiveImage {
   // first-frame decode.
   private reportError(err: unknown): void {
     const error = err instanceof Error ? err : new Error(String(err));
+    // Every frame waiting on one failed read rejects with the same error.
+    if (this.reported.has(error)) return;
+    this.reported.add(error);
     this.events.emit('error', error);
     if (this.loading.value) {
       this.events.emit('loading', false);
     }
   }
 
+  // A failed read is forgotten, so the next load reads again.
+  private readFrames() {
+    this.frames ??= readCineFrames(
+      this.instance,
+      this.header,
+      this.reads.signal
+    ).catch((err) => {
+      this.frames = null;
+      throw err;
+    });
+    return this.frames;
+  }
+
   private async decode(frameIndex: number) {
-    const bytes = this.frames[frameIndex];
+    const bytes = (await this.readFrames())[frameIndex];
     if (!bytes) throw new Error(`Frame ${frameIndex} is missing`);
-    if (this.encapsulated) {
+    if (!isNativeTransferSyntax(this.header.transferSyntaxUID)) {
       return decodeJpegFrame(bytes, this.header.cols, this.header.rows);
     }
     return decodeNativeFrame(bytes, {
@@ -323,18 +355,5 @@ export default class DicomCineImage extends BaseProgressiveImage {
       photometric: this.header.photometricInterpretation,
       planarConfiguration: this.header.planarConfiguration,
     });
-  }
-
-  static isSupported(header: CineHeader): boolean {
-    if (!isSupportedCineTransferSyntax(header.transferSyntaxUID)) return false;
-    if (isNativeTransferSyntax(header.transferSyntaxUID)) {
-      // Native pixel data: only support 8-bit RGB or grayscale for v1.
-      if (header.bitsAllocated !== 8) return false;
-      const photometric = header.photometricInterpretation.trim();
-      if (header.samplesPerPixel === 1) return photometric === 'MONOCHROME2';
-      if (header.samplesPerPixel === 3) return photometric === 'RGB';
-      return false;
-    }
-    return true;
   }
 }

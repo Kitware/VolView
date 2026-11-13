@@ -1,10 +1,8 @@
-import { datasetFromTags } from '@/tests/dicomDataset';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
+import { getDatasetTag, Tags } from '@/packages/dicom/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import type {
   DicomInstanceSource,
@@ -45,32 +43,27 @@ describe('importDicomInstanceSources', () => {
     setActivePinia(createPinia());
   });
 
-  it('inherits a moved member and drops the dissolved dataset', async () => {
+  it('inherits a moved member and drops the dissolved dataset', () => {
     const datasetStore = useDatasetStore();
     const [a, b, c] = ['sop-a', 'sop-b', 'sop-c'].map(instanceSourceFor);
 
-    // Stands in for the store: a dissolved id is removed, then the commit
-    // is reported, as the store's commit does.
+    // Stands in for the store: a dissolved id is removed during the commit.
     const load = (
       sources: DicomInstanceSource[],
       result: ImportInstancesResult
     ) =>
-      importDicomInstanceSources(
-        sources,
-        async (_instances, { onCommitted, removeDissolved }) => {
-          result.dissolved.forEach(removeDissolved);
-          onCommitted(result);
-          return result;
-        }
-      );
+      importDicomInstanceSources(sources, (_instances, { removeDissolved }) => {
+        result.dissolved.forEach(removeDissolved);
+        return result;
+      });
 
-    await load([a, b], {
+    load([a, b], {
       volumes: { 'vol-1': [a.instance], 'vol-2': [b.instance] },
       dissolved: [],
     });
     expect(datasetStore.getDataSource('vol-2')).toBeDefined();
 
-    await load([c], {
+    load([c], {
       volumes: { 'vol-1': [a.instance, b.instance, c.instance] },
       dissolved: ['vol-2'],
     });

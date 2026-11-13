@@ -12,20 +12,13 @@ import {
   type DicomCollection,
 } from '../../collections/planDicomCollections';
 import type { Reconstruction } from '../../collections/reconstructVolume';
-import {
-  emptyRegistry,
-  registerInstances,
-} from '../../collections/instanceRegistry';
 import { getFrameTag } from '../../metadata/functionalGroups';
-import { instanceFor } from '../../instance/__tests__/instanceFixture';
+import { instanceFor } from '@/tests/dicomDataset';
 import { createDicomRuntime } from '../../runtime/createDicomRuntime';
 import { fromBlob } from '../../source/byteSource';
-import {
-  allocateVolume,
-  type Volume,
-  type VolumeAllocation,
-} from '../allocateVolume';
+import { allocateVolume, type Volume } from '../allocateVolume';
 import { loadVolume } from '../loadVolume';
+import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import type { IrregularGeometryPolicy } from '../volumeLayout';
 import { datasetFromTags } from '../../../../../tests/dicomDataset';
 
@@ -78,11 +71,6 @@ const ONE_SLOT: Reconstruction = {
   slots: [0],
 };
 
-const asVolume = (allocation: VolumeAllocation) => {
-  if (allocation.kind !== 'volume') throw new Error('Expected a volume');
-  return allocation.volume;
-};
-
 /** Allocates one instance against a supplied plan, as a planner would hand it. */
 const allocate = (
   metadata: DicomDataset,
@@ -91,15 +79,14 @@ const allocate = (
     Pick<DicomCollection, 'orientation' | 'reconstruction'>
   >
 ) =>
-  asVolume(
-    allocateVolume(
-      {
-        id: 'frames',
-        collection: { orientation, reconstruction } as DicomCollection,
-        members: [instanceFor(metadata)],
-      },
-      { irregularGeometry: policy }
-    )
+  allocateVolume(
+    {
+      kind: 'image',
+      id: 'frames',
+      collection: { orientation, reconstruction } as DicomCollection,
+      members: [instanceFor(metadata)],
+    },
+    { irregularGeometry: policy }
   );
 
 const indexToWorld = (volume: Volume, index: number[]) =>
@@ -177,14 +164,13 @@ describe('enhanced volume Functional Groups', () => {
     let suppliedMetadata: DicomDataset | undefined;
     const runtime = createDicomRuntime({
       decodeConcurrency: 1,
-      decoder: async ({ instance }) => {
+      ...decodingWith(async ({ instance }) => {
         suppliedMetadata = instance.dataset;
-        return { size: [2, 2, 2], imageType: { components: 1 }, data: decoded };
-      },
+        return { size: [2, 2, 2], components: 1, data: decoded };
+      }),
     });
     const instance = instanceFor(metadata, fromBlob(new Blob(['pixels'])));
-    const [update] = registerInstances(emptyRegistry, [instance]).updates;
-    const volume = asVolume(allocateVolume(update));
+    const volume = allocateVolume(plannedUpdate([instance]));
     for await (const loaded of loadVolume(volume, {
       runtime,
       signal: new AbortController().signal,
@@ -313,7 +299,7 @@ describe('intra-instance frame planning', () => {
 
   it.each([1, -1])(
     'preserves stored frame direction %s through registration and image allocation',
-    async (direction) => {
+    (direction) => {
       const positions = [0, 1, 2].map((index) => 10 + direction * index * 3);
       const instance = instanceFor(
         enhanced(
@@ -321,8 +307,7 @@ describe('intra-instance frame planning', () => {
           positions.map((z) => positioned(`1\\2\\${z}`))
         )
       );
-      const { updates } = registerInstances(emptyRegistry, [instance]);
-      const volume = asVolume(allocateVolume(updates[0]));
+      const volume = allocateVolume(plannedUpdate([instance]));
       expect(volume.spacing[2]).toBe(3);
       positions.forEach((z, index) =>
         expect(indexToWorld(volume, [0, 0, index])).toEqual([1, 2, z])
@@ -373,7 +358,7 @@ describe('intra-instance frame planning', () => {
     [[0, 0, 2], 'repeated-position', REPEATED_POSITIONS_WARNING],
   ] as const)(
     'reports intra-instance geometry %s while retaining one source slot',
-    async (positions, reason, warning) => {
+    (positions, reason, warning) => {
       const metadata = enhanced(
         ctShared(),
         positions.map((z) => positioned(`0\\0\\${z}`))

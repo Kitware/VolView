@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
-import { toVtkImageData } from '@/packages/dicom/vtk/volumeImage';
+import { Tags } from '@/packages/dicom/core';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
+import { toVtkImageData } from '@/packages/dicom/vtk';
 import { volumeOf } from '@/tests/unit/octFixture';
-import { datasetFromTags } from '@/tests/dicomDataset';
 import { OPHTHALMIC_TOMOGRAPHY_SOP } from '@/src/core/streaming/dicom/octMetadataTags';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 

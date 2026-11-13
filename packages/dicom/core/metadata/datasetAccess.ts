@@ -1,10 +1,11 @@
 import type { DicomDataset, DicomElement } from './dicomDataset';
 import { trimDicomPadding } from '../utils';
 
-const canonicalTag = (tag: string) => tag.replace('|', '').toUpperCase();
+/** `ggggeeee` or `gggg|eeee`, in either case. */
+export const canonicalTag = (tag: string) => tag.replace('|', '').toUpperCase();
 
 /** Text and numeric values retain multiplicity; sequences and opaque bytes do not become text. */
-export function getElementText(element: DicomElement): string | undefined {
+function getElementText(element: DicomElement): string | undefined {
   const { values } = element;
   switch (values.kind) {
     case 'text':

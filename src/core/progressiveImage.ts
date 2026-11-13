@@ -1,5 +1,5 @@
 import { computed, effectScope, ref, Ref, shallowRef } from 'vue';
-import type { SpatialMetadata } from '@/packages/dicom/core/metadata/spatialMetadata';
+import type { SpatialMetadata } from '@/packages/dicom/core';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { ImageMetadata } from '@/src/types/image';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';

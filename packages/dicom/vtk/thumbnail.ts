@@ -5,7 +5,7 @@ export type ThumbnailSlice = {
   data: Uint8Array;
 };
 
-export type SliceToThumbnailInput = {
+type SliceToThumbnailInput = {
   data: ArrayLike<number>;
   width: number;
   height: number;

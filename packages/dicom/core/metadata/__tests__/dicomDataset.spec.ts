@@ -13,7 +13,7 @@ import {
   MIXED_VR_ELEMENTS,
   UTF8_NAME,
   UTF8_NAME_BYTES,
-} from '@/src/io/__tests__/readDicomTagsFixtures';
+} from '@/tests/specs/dicomElementFixtures';
 
 const PATIENT_NAME = '00100010';
 const PIXEL_SPACING = '00280030';

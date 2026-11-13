@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readDicomDataset } from '../dicomDataset';
 import { createMetadataReader } from '../../runtime/metadataReader';
 const readDicomDatasetOffThread = createMetadataReader().read;
-import { buildSlice } from '@/src/io/__tests__/readDicomTagsFixtures';
+import { buildSlice } from '@/tests/specs/dicomElementFixtures';
 
 // The test DOM has no Worker, so this covers the in-place path only; the
 // worker path is the same reader behind a message.

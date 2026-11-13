@@ -11,14 +11,14 @@ export const EXPLICIT_VR_BIG_ENDIAN = '1.2.840.10008.1.2.2';
 export const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1.99';
 
 /** Transfer syntaxes whose Pixel Data is a plain run of fixed-size frames. */
-export const NATIVE_ENCODINGS: ReadonlyMap<string, { littleEndian: boolean }> =
+const NATIVE_ENCODINGS: ReadonlyMap<string, { littleEndian: boolean }> =
   new Map([
     [IMPLICIT_VR_LITTLE_ENDIAN, { littleEndian: true }],
     [EXPLICIT_VR_LITTLE_ENDIAN, { littleEndian: true }],
     [EXPLICIT_VR_BIG_ENDIAN, { littleEndian: false }],
   ]);
 
-export type UnindexedReason =
+type UnindexedReason =
   | 'no-pixel-data'
   | 'deflated'
   | 'encapsulated'
@@ -31,7 +31,7 @@ export type UnindexedReason =
  * encapsulated index (offset tables, then a fragment scan) would add an
  * `encoding: 'encapsulated'` variant whose frames list fragment ranges.
  */
-export type FrameIndex =
+type FrameIndex =
   | Readonly<{
       kind: 'indexed';
       encoding: 'native';

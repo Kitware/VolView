@@ -3,10 +3,8 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags, unitToMm, type Instance } from '@/packages/dicom/core';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { unitToMm } from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
 
 function measurementMetadata(instance: Instance) {
   const tags = new Map(dicomMetadataForDisplay(instance.dataset));

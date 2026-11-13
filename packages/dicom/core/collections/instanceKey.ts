@@ -3,7 +3,7 @@ import type { InstanceFacts } from './planDicomCollections';
 const anonymousKeys = new WeakMap<InstanceFacts, string>();
 let nextAnonymousKey = 0;
 
-// Chunk facts are cached for the lifetime of their metadata. Object identity
+// Instance facts are cached for the lifetime of their metadata. Object identity
 // survives replanning without retaining discarded facts, and the prefix cannot
 // be a DICOM UID, whose alphabet contains only digits and dots.
 export const instanceKey = (instance: InstanceFacts) => {

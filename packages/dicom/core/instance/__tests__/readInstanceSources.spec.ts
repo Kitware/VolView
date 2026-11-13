@@ -9,7 +9,7 @@ import {
   IMPLICIT_VR_LITTLE_ENDIAN,
 } from '../../metadata/dicomLayout';
 import { fromBlob, fromUrl, readBytes } from '../../source/byteSource';
-import { trackedSource } from '../../source/__tests__/sourceFixtures';
+import { trackedSource } from '@/tests/byteSourceFixtures';
 import { concatBytes } from '../../utils';
 import {
   rawElement,

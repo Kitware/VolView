@@ -1,31 +1,23 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import { datasetFromTags } from '@/tests/dicomDataset';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
-import { plannedUpdate } from '@/packages/dicom/core/volume/__tests__/volumeFixture';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import {
-  fromBlob,
-  type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import {
   allocateVolume,
-  type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
-import {
   createDicomRuntime,
+  fromBlob,
+  readInstance,
+  Tags,
+  type ByteSource,
+  type DecodedPixels,
   type DicomRuntime,
-  type PixelDecoder,
-} from '@/packages/dicom/core/runtime/createDicomRuntime';
-import type { Extent } from '@/packages/dicom/core/volume/loadVolume';
-import { US_UNIT_CENTIMETERS } from '@/packages/dicom/core/streaming/dicom/ultrasoundRegion';
-import {
-  sliceToThumbnail,
-  type ThumbnailSlice,
-} from '@/packages/dicom/vtk/thumbnail';
-import { defer } from '@/packages/dicom/core/utils';
-import { readInstance } from '@/packages/dicom/core/instance/readInstance';
+  type Extent,
+  type Instance,
+  type Volume,
+  type WholeInstanceDecode,
+} from '@/packages/dicom/core';
+import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
+import { sliceThumbnail, type ThumbnailSlice } from '@/packages/dicom/vtk';
+import { defer } from '@/src/utils';
 import { nativePixelDicom } from '@/tests/nativePixelDicom';
 import DicomVolumeImage, {
   type DicomVolumeImageInit,
@@ -34,6 +26,8 @@ import DicomVolumeImage, {
 const ROWS = 2;
 const COLUMNS = 2;
 const PIXELS_PER_SLICE = ROWS * COLUMNS;
+// Physical Units X/Y Direction code for centimeters.
+const CENTIMETERS = 3;
 const PUBLIC_DSC_SLOPE = 112067.85375182;
 
 // The slice's z position is also its pixel value, so decoded contents say
@@ -55,16 +49,11 @@ function sliceAt(z: number, overrides: Record<string, string> = {}) {
   return instanceFor(datasetFromTags(tags), fromBlob(new Blob([String(z)])));
 }
 
-function volumeOf(members: Instance[], previous?: Volume) {
-  const allocation = allocateVolume(plannedUpdate(members), {}, previous);
-  if (allocation.kind !== 'volume') throw new Error('Expected a volume');
-  return allocation.volume;
-}
+const volumeOf = (members: Instance[], previous?: Volume) =>
+  allocateVolume(plannedUpdate(members), {}, previous);
 
 const stack = (count: number) =>
   volumeOf(Array.from({ length: count }, (_, z) => sliceAt(z)));
-
-type Decoded = Awaited<ReturnType<PixelDecoder>>;
 
 /** Decodes a source written by `sliceAt`, recording the values it decodes. */
 function decodeTo(
@@ -72,13 +61,13 @@ function decodeTo(
   components = 1
 ) {
   const decoded: number[] = [];
-  const decoder: PixelDecoder = async ({ bytes }) => {
+  const decoder: WholeInstanceDecode = async ({ bytes }) => {
     const value = Number(new TextDecoder().decode(bytes));
     decoded.push(value);
     return {
       size: [COLUMNS, ROWS, 1],
-      data: dataFor(value) as Decoded['data'],
-      imageType: { components },
+      data: dataFor(value) as DecodedPixels['data'],
+      components,
     };
   };
   return { decoded, decoder };
@@ -95,12 +84,12 @@ afterEach(() => {
 });
 
 function holder(
-  decoder: PixelDecoder,
+  decoder: WholeInstanceDecode,
   init: Omit<DicomVolumeImageInit, 'runtime'> = {},
   requestConcurrency?: number
 ) {
   const runtime = createDicomRuntime({
-    decoder,
+    ...decodingWith(decoder),
     decodeConcurrency: 1,
     requestConcurrency,
   });
@@ -159,12 +148,7 @@ const scalarRange = (image: DicomVolumeImage) =>
 const filledWith = (value: number) => Array(PIXELS_PER_SLICE).fill(value);
 
 const thumbnailOf = (image: DicomVolumeImage, slice: number) =>
-  sliceToThumbnail({
-    data: sliceOf(image, slice),
-    width: COLUMNS,
-    height: ROWS,
-    range: scalarRange(image),
-  });
+  sliceThumbnail(image.getVtkImageData(), slice);
 
 describe('DicomVolumeImage loading', () => {
   it('fills every slice, reporting each decoded extent, then completes', async () => {
@@ -270,8 +254,8 @@ describe('DicomVolumeImage loading', () => {
             region: {
               physicalDeltaX,
               physicalDeltaY: 0.03,
-              physicalUnitsXDirection: US_UNIT_CENTIMETERS,
-              physicalUnitsYDirection: US_UNIT_CENTIMETERS,
+              physicalUnitsXDirection: CENTIMETERS,
+              physicalUnitsYDirection: CENTIMETERS,
             },
             regionCount: 1,
           },

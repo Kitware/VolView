@@ -12,22 +12,21 @@ import { defineComponent, h } from 'vue';
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import PatientStudyVolumeBrowser from '@/src/components/PatientStudyVolumeBrowser.vue';
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
-import { plannedUpdate } from '@/packages/dicom/core/volume/__tests__/volumeFixture';
-import { fromBlob } from '@/packages/dicom/core/source/byteSource';
-import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
-import type { DecodedDicomImage } from '@/packages/dicom/core/runtime/decoder';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
+import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import {
   allocateVolume,
+  createDicomRuntime,
+  fromBlob,
+  type DecodedPixels,
   type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
+} from '@/packages/dicom/core';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
-import { datasetFromTags } from '@/tests/dicomDataset';
 import { defer } from '@/src/utils';
 
 const messageTitles = () =>
@@ -73,10 +72,10 @@ function mountBrowser() {
   return mount(Host, { global: { stubs } });
 }
 
-const decoded = () => ({
+const decoded = (): DecodedPixels => ({
   size: [1, 1, 1],
   data: new Uint16Array([1]),
-  imageType: { components: 1 },
+  components: 1,
 });
 
 const sliceInstance = (z = 0) =>
@@ -103,20 +102,20 @@ const sliceInstance = (z = 0) =>
   );
 
 // The thumbnail is read from the volume, so it waits on the volume's decode.
-async function importPendingThumbnail() {
-  const decode = defer<DecodedDicomImage>();
+function importPendingThumbnail() {
+  const decode = defer<DecodedPixels>();
   const started = defer<void>();
-  const runtime = createDicomRuntime({
-    decoder: () => {
+  const runtime = createDicomRuntime(
+    decodingWith(() => {
       started.resolve();
       return decode.promise;
-    },
-  });
+    })
+  );
   const image = new DicomVolumeImage({
     runtime,
     encodeThumbnail: () => 'data:image/png;base64,current',
   });
-  const result = await useDICOMStore().importInstances([sliceInstance()], {
+  const result = useDICOMStore().importInstances([sliceInstance()], {
     createImage: () => image,
   });
   onTestFinished(() => {
@@ -153,7 +152,7 @@ describe('volume browser thumbnail lifetime', () => {
   });
 
   it('shows a decoded thumbnail', async () => {
-    const { started, decode } = await importPendingThumbnail();
+    const { started, decode } = importPendingThumbnail();
     const wrapper = mountBrowser();
     await started.promise;
     expect(wrapper.find('[role="progressbar"]').exists()).toBe(true);
@@ -177,7 +176,7 @@ describe('volume browser thumbnail lifetime', () => {
 
   it('reports a failed decode once, as a load error, and shows the modality', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { started, decode } = await importPendingThumbnail();
+    const { started, decode } = importPendingThumbnail();
     const wrapper = mountBrowser();
     await started.promise;
 
@@ -192,7 +191,7 @@ describe('volume browser thumbnail lifetime', () => {
   it.each([false, true])(
     'keeps Delete quiet during decoding when another volume remains: %s',
     async (keepBrowser) => {
-      const { id, started, decode } = await importPendingThumbnail();
+      const { id, started, decode } = importPendingThumbnail();
       if (keepBrowser) {
         seatVolume('remaining');
         cacheImage('remaining');
@@ -225,20 +224,13 @@ describe('volume browser thumbnail lifetime', () => {
   );
 
   it('settles a thumbnail after a growth is undone while it decodes', async () => {
-    const { image, started, decode } = await importPendingThumbnail();
+    const { image, started, decode } = importPendingThumbnail();
     const wrapper = mountBrowser();
     await started.promise;
 
     const original = image.getVolume()!;
-    const volumeOf = (members: Volume['members'], previous?: Volume) => {
-      const allocation = allocateVolume(
-        plannedUpdate([...members]),
-        {},
-        previous
-      );
-      if (allocation.kind !== 'volume') throw new Error('Expected a volume');
-      return allocation.volume;
-    };
+    const volumeOf = (members: Volume['members'], previous?: Volume) =>
+      allocateVolume(plannedUpdate([...members]), {}, previous);
     const grown = volumeOf([...original.members, sliceInstance(1)]);
     image.setVolume(grown);
     image.setVolume(volumeOf(original.members, grown));
@@ -250,7 +242,7 @@ describe('volume browser thumbnail lifetime', () => {
   });
 
   it('reports no thumbnail failure after the browser unmounts', async () => {
-    const { started, decode } = await importPendingThumbnail();
+    const { started, decode } = importPendingThumbnail();
     const wrapper = mountBrowser();
     await started.promise;
 

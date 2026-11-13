@@ -64,6 +64,10 @@ declare module 'dcmjs' {
         stream: DicomReadStream
       ) => DicomReadStream;
       DicomMessage: {
+        readFile(buffer: ArrayBuffer): {
+          dict: Record<string, DicomDataElement | undefined>;
+          write(): ArrayBuffer;
+        };
         _readTag(
           stream: DicomReadStream,
           syntax: string,

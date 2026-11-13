@@ -9,12 +9,6 @@ export type CommittedCollection = {
   sopInstanceUids: string[];
 };
 
-export type AssignedCollection = DicomCollection & { id: string };
-
-export type AssignedPlan = {
-  collections: AssignedCollection[];
-};
-
 // encodeURIComponent escapes every separator the key values can carry, so the
 // join characters below cannot appear inside an encoded component.
 const escape = (value: string) => encodeURIComponent(value);

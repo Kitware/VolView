@@ -7,6 +7,8 @@ import {
 } from '../metadata/modalityRescale';
 import { numberOr, trimDicomPadding } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
+import { indexFrames } from './frameIndex';
+import type { PixelDecoder } from './pixelDecoder';
 
 /** What decides how one native frame's bytes become samples. */
 export type NativePixelFormat = Readonly<{
@@ -25,7 +27,7 @@ export type NativePixelFormat = Readonly<{
   rescaleIntercept: number;
 }>;
 
-export type NativeCapability =
+type NativeCapability =
   | Readonly<{ kind: 'native'; format: NativePixelFormat }>
   | Readonly<{ kind: 'declined'; reason: string }>;
 
@@ -36,7 +38,7 @@ const number = (dataset: DicomDataset, tag: string) =>
   numberOr(getDatasetTag(dataset, tag), NaN);
 
 /** The header's pixel description, read without judging it. */
-export function readNativePixelFormat(
+function readNativePixelFormat(
   instance: Instance,
   littleEndian: boolean
 ): NativePixelFormat {
@@ -234,3 +236,33 @@ export function decodeNativeFrame(
     ),
   };
 }
+
+/** Decodes each frame of an instance it reproduces exactly from its own ranged read. */
+export const nativeFrameDecoder: PixelDecoder = {
+  name: 'Native frames',
+  plan: (instance, Target) => {
+    const index = indexFrames(instance);
+    if (index.kind === 'unindexed') return { declined: index.detail };
+    const capability = nativeCapability(instance, index.littleEndian);
+    if (capability.kind === 'declined') return { declined: capability.reason };
+    const { format } = capability;
+    return index.frames.map((range, frame) => ({
+      firstFrame: frame,
+      frames: 1,
+      range,
+      decode: (bytes) => {
+        const { samples, range: values } = decodeNativeFrame(
+          bytes,
+          format,
+          Target
+        );
+        return {
+          data: samples,
+          size: [format.columns, format.rows, 1],
+          components: format.samplesPerPixel,
+          range: values,
+        };
+      },
+    }));
+  },
+};

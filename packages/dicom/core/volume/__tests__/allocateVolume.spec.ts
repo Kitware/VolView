@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { instanceFor } from '../../instance/__tests__/instanceFixture';
-import { sliceDataset } from '../../collections/__tests__/sliceFixture';
+import { instanceFor } from '@/tests/dicomDataset';
 import { allocateVolume } from '../allocateVolume';
-import { allocated, pixelSlice, plannedUpdate } from './volumeFixture';
+import { allocated, pixelSlice } from './volumeFixture';
+import { plannedUpdate } from '@/tests/dicomVolumeFixtures';
 
 describe('allocateVolume', () => {
   it('allocates an empty buffer placed by the planned stack', () => {
@@ -57,14 +57,14 @@ describe('allocateVolume', () => {
       slots: [0, 2],
     };
 
-    const result = allocateVolume({
+    const volume = allocateVolume({
       ...update,
       collection: { ...update.collection, reconstruction },
     });
 
-    expect(result).toMatchObject({
-      kind: 'volume',
-      volume: { dimensions: [4, 4, 3], spacing: [0.5, 0.5, 9] },
+    expect(volume).toMatchObject({
+      dimensions: [4, 4, 3],
+      spacing: [0.5, 0.5, 9],
     });
   });
 
@@ -83,17 +83,6 @@ describe('allocateVolume', () => {
       })
     ).toThrow('slice slot');
   });
-
-  it.each(['SEG', 'SEG\u0000'])(
-    'reports SEG modality %j as a segmentation outcome instead of allocating it',
-    (modality) => {
-      const seg = instanceFor(sliceDataset({ modality }));
-
-      const result = allocateVolume(plannedUpdate([seg]));
-
-      expect(result).toMatchObject({ kind: 'segmentation', members: [seg] });
-    }
-  );
 
   it('applies the first ultrasound region as display spacing', () => {
     const { dataset, source } = pixelSlice(0, { modality: 'US' });

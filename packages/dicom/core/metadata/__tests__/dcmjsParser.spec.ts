@@ -1,13 +1,13 @@
 import { readDicomDataset, findElement } from '../dicomDataset';
 import { getDatasetTag } from '../datasetAccess';
 import { getFrameTag } from '../functionalGroups';
-import { createDicomParser } from '../../streaming/dicom/dicomParser';
+import { createDicomParser } from '../../header/dicomParser';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { parseDicomElements } from '../dcmjsParser';
 import { PART_10_HEADER_LENGTH, PREAMBLE_LENGTH } from '../dicomLayout';
 import { concatBytes } from '../../utils';
-import { buildSlice } from '@/src/io/__tests__/readDicomTagsFixtures';
+import { buildSlice } from '@/tests/specs/dicomElementFixtures';
 import { pixelDataStart, readHeader } from '@/tests/dicomSourceFixtures';
 import {
   rawElement,

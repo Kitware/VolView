@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { fromBlob, fromUrl, type ByteRange } from '../byteSource';
-import { readBytes } from './sourceFixtures';
+import { concatBytes } from '../../utils';
+
+const readStream = async (stream: ReadableStream<Uint8Array>) => {
+  const parts: Uint8Array[] = [];
+  const reader = stream.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return concatBytes(parts);
+    parts.push(value);
+  }
+};
 
 const bytes = Uint8Array.from({ length: 1000 }, (_, index) => index % 251);
 const expected = (range?: ByteRange) =>
@@ -64,7 +74,7 @@ describe('blob byte source', () => {
   ])('reads %j', async (range) => {
     const source = fromBlob(new Blob([bytes]));
     expect(source.size).toBe(bytes.length);
-    expect(await readBytes(source.read(signal(), range))).toEqual(
+    expect(await readStream(source.read(signal(), range))).toEqual(
       expected(
         range && {
           ...range,
@@ -78,7 +88,7 @@ describe('blob byte source', () => {
     const controller = new AbortController();
     const stream = fromBlob(new Blob([bytes])).read(controller.signal);
     controller.abort(new DOMException('stop', 'AbortError'));
-    await expect(readBytes(stream)).rejects.toMatchObject({
+    await expect(readStream(stream)).rejects.toMatchObject({
       name: 'AbortError',
     });
   });
@@ -88,7 +98,7 @@ describe('URL byte source', () => {
   it('reads the whole resource without a Range header', async () => {
     const http = server();
     const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
-    expect(await readBytes(source.read(signal()))).toEqual(bytes);
+    expect(await readStream(source.read(signal()))).toEqual(bytes);
     expect(http.requests).toEqual([null]);
   });
 
@@ -100,10 +110,10 @@ describe('URL byte source', () => {
     const http = server(options);
     const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
 
-    const bounded = await readBytes(
+    const bounded = await readStream(
       source.read(signal(), { start: 100, end: 300 })
     );
-    const open = await readBytes(source.read(signal(), { start: 900 }));
+    const open = await readStream(source.read(signal(), { start: 900 }));
 
     expect(bounded).toEqual(expected({ start: 100, end: 300 }));
     expect(open).toEqual(expected({ start: 900 }));
@@ -121,9 +131,9 @@ describe('URL byte source', () => {
         fetch: http.fetch,
       });
       expect(source.rangeSupport?.()).toBe('unknown');
-      await readBytes(source.read(signal()));
+      await readStream(source.read(signal()));
       expect(source.rangeSupport?.()).toBe('unknown');
-      await readBytes(source.read(signal(), { start: 10, end: 20 }));
+      await readStream(source.read(signal(), { start: 10, end: 20 }));
       expect(source.rangeSupport?.()).toBe(support);
       expect(http.caches).toEqual([undefined, 'no-store']);
     }
@@ -132,15 +142,15 @@ describe('URL byte source', () => {
   it('stops the ignored-Range body once the range is read', async () => {
     const http = server({ honorRange: false });
     const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
-    await readBytes(source.read(signal(), { start: 0, end: 10 }));
+    await readStream(source.read(signal(), { start: 0, end: 10 }));
     expect(http.bodies[0].cancelled).toBe(true);
   });
 
   it('opens a fresh request for every read', async () => {
     const http = server();
     const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
-    await readBytes(source.read(signal(), { start: 0, end: 4 }));
-    await readBytes(source.read(signal(), { start: 0, end: 4 }));
+    await readStream(source.read(signal(), { start: 0, end: 4 }));
+    await readStream(source.read(signal(), { start: 0, end: 4 }));
     expect(http.requests).toHaveLength(2);
   });
 
@@ -151,7 +161,7 @@ describe('URL byte source', () => {
     const http = server({ status });
     const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
     await expect(
-      readBytes(source.read(signal(), { start: 0, end: 4 }))
+      readStream(source.read(signal(), { start: 0, end: 4 }))
     ).rejects.toThrow(message);
   });
 

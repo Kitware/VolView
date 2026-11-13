@@ -16,9 +16,9 @@ import {
 const SPECIFIC_CHARACTER_SET = '00080005';
 
 /** A tag as `ggggeeee` in upper case hexadecimal. */
-export type DicomTagKey = string;
+type DicomTagKey = string;
 
-export type AttributeTag = { group: number; element: number };
+type AttributeTag = { group: number; element: number };
 
 /** VRs whose values are text under the default repertoire or a declared set. */
 const TEXT_VRS = new Set([
@@ -60,7 +60,7 @@ const KNOWN_VRS = new Set([
   'SQ',
 ]);
 
-export type DicomValues =
+type DicomValues =
   /** A text VR, one entry per value, with the Specific Character Set applied. */
   | { kind: 'text'; values: string[] }
   /** DS and IS: the numbers, next to the characters the file wrote. A value
@@ -94,7 +94,7 @@ export type DicomDataset = {
   specificCharacterSet: string[] | null;
 };
 
-export const tagKey = (group: number, element: number) =>
+const tagKey = (group: number, element: number) =>
   `${hex4(group)}${hex4(element)}`;
 
 export const isPrivateElement = ({ group }: DicomElement) => (group & 1) === 1;

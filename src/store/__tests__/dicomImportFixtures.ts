@@ -1,20 +1,16 @@
-import { datasetFromTags } from '@/tests/dicomDataset';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
-import {
-  SOP_CLASS_ULTRASOUND_MULTIFRAME,
-  Tags,
-} from '@/packages/dicom/core/metadata/dicomTags';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import {
   createDicomRuntime,
-  type PixelDecoder,
-} from '@/packages/dicom/core/runtime/createDicomRuntime';
-import {
   fromBlob,
+  getDatasetTag,
+  Tags,
   type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
+  type Instance,
+  type WholeInstanceDecode,
+} from '@/packages/dicom/core';
+import { decodingWith } from '@/tests/dicomVolumeFixtures';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
+import { cineInstance } from '@/src/core/cine/__tests__/cineFixtures';
 
 export const SERIES_UID = '1.2.826.0.1.3680043.9.7';
 export const OTHER_SERIES_UID = '1.2.826.0.1.3680043.9.8';
@@ -87,18 +83,18 @@ const numberTag = (instance: Instance, tag: string) =>
   Number(getDatasetTag(instance.dataset, tag));
 
 /** Fills each slice with its InstanceNumber, without a decoder worker. */
-export const instanceNumberDecoder: PixelDecoder = async ({ instance }) => {
+const instanceNumberDecoder: WholeInstanceDecode = async ({ instance }) => {
   const size = [
     numberTag(instance, Tags.Columns),
     numberTag(instance, Tags.Rows),
     1,
-  ];
+  ] as const;
   return {
     size,
     data: new Uint16Array(size[0] * size[1]).fill(
       numberTag(instance, Tags.InstanceNumber)
     ),
-    imageType: { components: 1 },
+    components: 1,
   };
 };
 
@@ -106,8 +102,13 @@ export const instanceNumberDecoder: PixelDecoder = async ({ instance }) => {
 const noThumbnail = () => '';
 
 /** Records every DICOM image the store creates, decoding without workers. */
-export function imageFactory(decoder: PixelDecoder = instanceNumberDecoder) {
-  const runtime = createDicomRuntime({ decoder, decodeConcurrency: 1 });
+export function imageFactory(
+  decoder: WholeInstanceDecode = instanceNumberDecoder
+) {
+  const runtime = createDicomRuntime({
+    ...decodingWith(decoder),
+    decodeConcurrency: 1,
+  });
   const created: DicomVolumeImage[] = [];
   const createImage = () => {
     const image = new DicomVolumeImage({
@@ -125,26 +126,11 @@ export const membersOf = (image: DicomVolumeImage) =>
   image.getInstances().map(sopOf);
 
 /** A single ultrasound multi-frame instance, which the store routes to cine. */
-export function cineFor(
-  sop: string,
-  { series = SERIES_UID, source = fromBlob(new Blob([sop])) } = {}
-) {
-  const metadata = [
-    [Tags.SOPClassUID, SOP_CLASS_ULTRASOUND_MULTIFRAME],
-    [Tags.NumberOfFrames, '2'],
-    [Tags.SOPInstanceUID, sop],
-    [Tags.PatientID, 'patient-1'],
-    [Tags.PatientName, 'Test Patient'],
-    [Tags.StudyInstanceUID, STUDY_UID],
-    [Tags.Modality, 'US'],
-    [Tags.SeriesInstanceUID, series],
-    [Tags.SeriesNumber, '7'],
-    [Tags.SeriesDescription, 'Imported cine'],
-    [Tags.Rows, '2'],
-    [Tags.Columns, '2'],
-    [Tags.SamplesPerPixel, '1'],
-    [Tags.BitsStored, '8'],
-    [Tags.PixelRepresentation, '0'],
-  ] as Array<[string, string]>;
-  return instanceFor(datasetFromTags(metadata), source);
-}
+export const cineFor = (sop: string, { series = SERIES_UID } = {}) =>
+  cineInstance({
+    [Tags.SOPInstanceUID]: sop,
+    [Tags.StudyInstanceUID]: STUDY_UID,
+    [Tags.SeriesInstanceUID]: series,
+    [Tags.SeriesNumber]: '7',
+    [Tags.SeriesDescription]: 'Imported cine',
+  });

@@ -38,7 +38,7 @@ import { useCroppingEffect } from '@/src/composables/useCroppingEffect';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useEventListener } from '@vueuse/core';
 import type DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
-import type { Extent } from '@/packages/dicom/core/volume/loadVolume';
+import type { Extent } from '@/packages/dicom/core';
 
 interface Props {
   viewId: string;
