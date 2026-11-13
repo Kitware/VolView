@@ -23,7 +23,7 @@ import {
 } from '@/src/core/dicom-web-api';
 import { useViewStore } from '@/src/store/views';
 import { isVolumeResult } from '@/src/io/import/common';
-import { trimDicomPadding } from '@/packages/dicom/core/utils';
+import { trimDicomPadding } from '@/packages/dicom/core';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 

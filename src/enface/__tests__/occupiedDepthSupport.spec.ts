@@ -6,7 +6,7 @@ import { getOccupiedDepthSupport } from '@/src/enface/occupiedDepthSupport';
 import { createOCTFixture, volumeOf } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { removeDicomTag, setDicomTag } from './dicomMetadataFixture';
 
 describe('occupied-depth support for loaded volumes', () => {
@@ -36,24 +36,24 @@ describe('occupied-depth support for loaded volumes', () => {
     pendingReads.push(fixture.releaseDecode);
     fixture.image.setVolume(volumeOf([fixture.instance]));
     const id = useImageCacheStore().addProgressiveImage(fixture.image);
-    const chunks = vi.spyOn(fixture.image, 'getInstances');
+    const getInstances = vi.spyOn(fixture.image, 'getInstances');
     expect(getOccupiedDepthSupport(id).calibratedAxes).toBeUndefined();
-    expect(chunks).not.toHaveBeenCalled();
+    expect(getInstances).not.toHaveBeenCalled();
     fixture.releaseDecode();
     await untilLoaded(id);
-    chunks.mockClear();
+    getInstances.mockClear();
     const initial = getOccupiedDepthSupport(id);
     const repeated = getOccupiedDepthSupport(id);
     expect(initial.reason).toBeNull();
     expect(repeated).toEqual(initial);
-    expect(chunks).toHaveBeenCalledTimes(1);
+    expect(getInstances).toHaveBeenCalledTimes(1);
     fixture.image.getVtkImageData().setSpacing([1, 1, 1]);
     expect(getOccupiedDepthSupport(id).calibratedAxes).toEqual([
       false,
       false,
       false,
     ]);
-    expect(chunks).toHaveBeenCalledTimes(2);
+    expect(getInstances).toHaveBeenCalledTimes(2);
   });
 
   it.each([

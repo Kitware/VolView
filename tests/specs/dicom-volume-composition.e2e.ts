@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import corpus from '../dicomCompositionCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
-import { waitForDicomConsumer } from '../dicomConsumer';
-import { startDicomConsumerFixtures } from '../fixtures/dicom-consumer/server.mjs';
-import { fixtureBytes } from '../fixtures/dicom-consumer/fixtureData';
+import { waitForDicomPage } from '../dicomPages';
+import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
+import { fixtureBytes } from '../fixtures/dicom-pages/fixtureData';
 import { volViewPage } from '../pageobjects/volview.page';
 import { waitForRenderedSlice } from './dicomRenderedSlice';
 
@@ -53,7 +53,7 @@ async function expectComposedVolumes(
 }
 
 describe('Downloaded DICOM volume composition', () => {
-  let fixture: Awaited<ReturnType<typeof startDicomConsumerFixtures>>;
+  let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   before(async () => {
     const fixtures = Object.fromEntries(
       corpus.datasets.map(({ name }) => [
@@ -61,7 +61,7 @@ describe('Downloaded DICOM volume composition', () => {
         readFileSync(resolve(DATASET_CACHE, name)),
       ])
     );
-    fixture = await startDicomConsumerFixtures(fixtureBytes(), {
+    fixture = await startDicomPages(fixtureBytes(), {
       kinds: ['composition'],
       fixtures,
     });
@@ -76,11 +76,11 @@ describe('Downloaded DICOM volume composition', () => {
             `${fixture.urls.composition}?${new URLSearchParams({ case: scenario.id, source, mode })}`
           );
           if (mode === 'incremental') {
-            await waitForDicomConsumer(undefined, 'partial');
+            await waitForDicomPage(undefined, 'partial');
             await expectComposedVolumes(scenario.volumes, true);
             await $('#complete-import').click();
           }
-          await waitForDicomConsumer();
+          await waitForDicomPage();
           await expectComposedVolumes(scenario.volumes, false);
         });
       }

@@ -12,8 +12,10 @@ export const tilt = (radians: number) => {
  * reference, and both others agree with it. Planned apart, the pair merges
  * into one collection once the between instance arrives.
  */
-export const mergingChunks = <T>(chunkFor: (slice: MergingSlice) => T) => ({
-  between: chunkFor({ sop: 'sop-1', z: 2, orientation: tilt(0.01) }),
-  straight: chunkFor({ sop: 'sop-2', z: 0, orientation: tilt(0) }),
-  tilted: chunkFor({ sop: 'sop-3', z: 1, orientation: tilt(0.02) }),
+export const mergingInstances = <T>(
+  instanceFor: (slice: MergingSlice) => T
+) => ({
+  between: instanceFor({ sop: 'sop-1', z: 2, orientation: tilt(0.01) }),
+  straight: instanceFor({ sop: 'sop-2', z: 0, orientation: tilt(0) }),
+  tilted: instanceFor({ sop: 'sop-3', z: 1, orientation: tilt(0.02) }),
 });

@@ -1,6 +1,6 @@
 import { beforeEach, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { hangingSource } from '@/packages/dicom/core/source/__tests__/sourceFixtures';
+import { hangingSource } from '@/tests/byteSourceFixtures';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -14,7 +14,7 @@ beforeEach(() => setActivePinia(createPinia()));
 it('cancels a pending pixel read when its dataset is removed', async () => {
   const hanging = hangingSource();
   const store = useDICOMStore();
-  const { volumes } = await store.importInstances(
+  const { volumes } = store.importInstances(
     [sliceFor({ sop: '1.2.3.5', source: hanging.source })],
     { createImage: imageFactory().createImage }
   );

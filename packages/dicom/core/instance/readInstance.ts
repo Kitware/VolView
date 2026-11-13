@@ -10,11 +10,11 @@ import {
   readDicomHeader,
   type ImageImportPolicy,
   type PixelDataElement,
-} from '../streaming/dicom/readDicomHeader';
+} from '../header/readDicomHeader';
 import {
   readUltrasoundRegions,
   type UltrasoundRegions,
-} from '../streaming/dicom/ultrasoundRegion';
+} from '../metadata/ultrasoundRegion';
 import type { Awaitable } from '../utils';
 
 /**

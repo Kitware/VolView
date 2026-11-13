@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createDicomRuntime } from '../createDicomRuntime';
+import { createGdcmDecoder } from '../gdcmDecoder';
 import { readDicomDataset } from '../../metadata/dicomDataset';
-import { instanceFor } from '../../instance/__tests__/instanceFixture';
-import { enhancedFixtureBytes } from '@/tests/fixtures/dicom-consumer/enhancedFixtures';
+import { instanceFor } from '@/tests/dicomDataset';
+import type { DecodeUnit } from '../../pixels/pixelDecoder';
+import { enhancedFixtureBytes } from '@/tests/fixtures/dicom-pages/enhancedFixtures';
 
 const assets = {
   pipelineWorkerUrl: '/unused-worker.js',
@@ -18,16 +19,21 @@ describe('Default DICOM decoder calibration', () => {
         [2, 0],
       ],
     });
-    const runtime = createDicomRuntime({ assets, decodeConcurrency: 1 });
-    try {
-      await expect(
-        runtime.decode(
-          { instance: instanceFor(readDicomDataset(bytes)), bytes },
-          new AbortController().signal
-        )
-      ).rejects.toThrow('differing modality rescale');
-    } finally {
-      runtime.dispose();
-    }
+    const runs: Uint8Array[] = [];
+    const gdcm = createGdcmDecoder(assets, 1, () => ({
+      run: async (_name: string, data: Uint8Array) => {
+        runs.push(data);
+        throw new Error('GDCM ran');
+      },
+      reset: () => {},
+    }));
+    const instance = instanceFor(readDicomDataset(bytes));
+    const [unit] = gdcm.decoder.plan(instance, Float32Array) as DecodeUnit[];
+
+    await expect(
+      Promise.resolve(unit.decode(bytes, new AbortController().signal))
+    ).rejects.toThrow('differing modality rescale');
+    expect(runs).toEqual([]);
+    gdcm.dispose(new Error('done'));
   });
 });

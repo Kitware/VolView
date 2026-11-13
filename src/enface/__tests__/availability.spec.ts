@@ -9,7 +9,7 @@ import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { setDicomTag } from './dicomMetadataFixture';
 
 describe('OCT view availability', () => {

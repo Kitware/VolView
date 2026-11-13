@@ -1,55 +1,16 @@
-import dicomParser from 'dicom-parser';
-import { deflateRawSync, gzipSync } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import reference from './reference.json';
-import { overwriteDicomString, syntheticScalars } from './dicom';
-import { elemShort } from '../../specs/syntheticDicom';
+import { createSyntheticOCT, syntheticScalars } from './dicom';
 
-/** Preserve a Part 10 dataset while changing only its transfer syntax. */
-export function deflatedExplicitVR(
-  source: Uint8Array,
-  deflate: (dataset: Uint8Array) => Uint8Array = deflateRawSync
-) {
-  const data = dicomParser.parseDicom(source, { untilTag: 'x7fe00010' });
-  const position = Math.max(
-    ...Object.values(data.elements)
-      .filter((element) => element.tag.startsWith('x0002'))
-      .map((element) => element.dataOffset + element.length)
-  );
-  const syntax = data.elements.x00020010;
-  const uid = Buffer.from('1.2.840.10008.1.2.1.99', 'ascii');
-  const syntaxElement = elemShort(2, 16, 'UI', uid);
-  let prefix = Buffer.concat([
-    source.subarray(0, syntax.dataOffset - 8),
-    syntaxElement,
-    source.subarray(syntax.dataOffset + syntax.length, position),
-  ]);
-  const groupLength = data.elements.x00020000;
-  if (!groupLength) {
-    const lengthElement = elemShort(2, 0, 'UL', new Uint8Array(4));
-    prefix = Buffer.concat([
-      prefix.subarray(0, 132),
-      lengthElement,
-      prefix.subarray(132),
-    ]);
-  }
-  const lengthOffset = groupLength?.dataOffset ?? 140;
-  prefix.writeUInt32LE(prefix.length - (lengthOffset + 4), lengthOffset);
-  const deflated = deflate(source.subarray(position));
-  // DICOM requires an even-length deflated stream with a trailing NULL if needed.
-  return Buffer.concat([prefix, deflated, Buffer.alloc(deflated.length % 2)]);
-}
-
-export function nonOCTDicom(source: Uint8Array) {
-  const bytes = Buffer.from(source);
-  const dicom = dicomParser.parseDicom(bytes);
-  for (const [tag, value] of [
-    ['x00020002', '1.2.840.10008.5.1.4.1.1.7.3'],
-    ['x00080016', '1.2.840.10008.5.1.4.1.1.7.3'],
-    ['x00080060', 'CT'],
-  ])
-    overwriteDicomString(dicom, tag, value, tag === 'x00080060' ? 0x20 : 0);
-  return bytes;
-}
+/** The synthetic raster declared as an ordinary CT. */
+export const nonOCTDicom = () =>
+  createSyntheticOCT({
+    set: {
+      '00020002': '1.2.840.10008.5.1.4.1.1.7.3',
+      '00080016': '1.2.840.10008.5.1.4.1.1.7.3',
+      '00080060': 'CT',
+    },
+  });
 
 type Volume = {
   scalars: Uint16Array;

@@ -1,11 +1,7 @@
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import { Tags, type DicomDataset } from '@/packages/dicom/core';
 import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 import { type OCTDataset, structuredOCTDataset } from './octDataset';
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
-import {
-  Tags,
-  toDicomParserKey,
-} from '@/packages/dicom/core/metadata/dicomTags';
 import {
   frameGridGeometry,
   imageDirection,
@@ -24,17 +20,17 @@ const finiteVector = (
   value?.length === length && value.every(Number.isFinite);
 const positiveNumber = (value: number) => Number.isFinite(value) && value > 0;
 
-const SHARED = 'x52009229';
-const PER_FRAME = 'x52009230';
-const MEASURES = 'x00289110';
-const ORIENTATION = 'x00209116';
-const POSITION = 'x00209113';
-const SCAN_PATTERN = 'x00221618';
-const ACQUISITION_PARAMETERS = 'x00221640';
-const PIXEL_SPACING = toDicomParserKey(Tags.PixelSpacing);
-const SLICE_SPACING = toDicomParserKey(Tags.SpacingBetweenSlices);
-const IMAGE_ORIENTATION = toDicomParserKey(Tags.ImageOrientationPatient);
-const IMAGE_POSITION = toDicomParserKey(Tags.ImagePositionPatient);
+const SHARED = '52009229';
+const PER_FRAME = '52009230';
+const MEASURES = '00289110';
+const ORIENTATION = '00209116';
+const POSITION = '00209113';
+const SCAN_PATTERN = '00221618';
+const ACQUISITION_PARAMETERS = '00221640';
+const PIXEL_SPACING = Tags.PixelSpacing;
+const SLICE_SPACING = Tags.SpacingBetweenSlices;
+const IMAGE_ORIENTATION = Tags.ImageOrientationPatient;
+const IMAGE_POSITION = Tags.ImagePositionPatient;
 const firstItem = (data: OCTDataset | undefined, tag: string) =>
   data?.items(tag)[0];
 const sequenceItems = (data: OCTDataset, tag: string) => data.items(tag);
@@ -64,7 +60,7 @@ function frameGeometry(data: OCTDataset) {
   return {
     frames,
     declaredFrames: Number.parseInt(
-      stringValue(data, toDicomParserKey(Tags.NumberOfFrames)) ?? '',
+      stringValue(data, Tags.NumberOfFrames) ?? '',
       10
     ),
     orientation: attribute(ORIENTATION, IMAGE_ORIENTATION),
@@ -148,7 +144,7 @@ function scanPattern(data: OCTDataset) {
   const acquisitions = sequenceItems(data, ACQUISITION_PARAMETERS);
   const patterns = [data, ...acquisitions].flatMap((dataset) =>
     sequenceItems(dataset, SCAN_PATTERN).flatMap(
-      (item) => stringValue(item, 'x00080100') ?? []
+      (item) => stringValue(item, '00080100') ?? []
     )
   );
   return acquisitions.length > 1 || new Set(patterns).size > 1
@@ -164,7 +160,7 @@ function promoteOCTGeometry(data: OCTDataset, tags: Map<string, string>) {
   set(Tags.PixelSpacing, geometry.spacing);
   set(
     Tags.OphthalmicVolumetricPropertiesFlag,
-    stringValue(data, toDicomParserKey(Tags.OphthalmicVolumetricPropertiesFlag))
+    stringValue(data, Tags.OphthalmicVolumetricPropertiesFlag)
   );
   set(OCT_SCAN_PATTERN, scanPattern(data));
   const reason = geometryError(geometry);

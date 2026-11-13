@@ -1,13 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import {
+  getDatasetTag,
+  readBytes,
   readDicomDataset,
-  withoutPrivateElements,
-} from '@/packages/dicom/core/metadata/dicomDataset';
-import { readBytes } from '@/packages/dicom/core/source/byteSource';
+  Tags,
+} from '@/packages/dicom/core';
 import type { DataSource } from '@/src/io/import/dataSource';
 import { fileToDataSource } from '@/src/io/import/dataSource';
 import handleDicom from '@/src/io/import/processors/handleDicom';
@@ -15,12 +14,58 @@ import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Skip } from '@/src/utils/evaluateChain';
 import { useMessageStore } from '@/src/store/messages';
 import { stripFileMeta, stripPreamble } from '@/tests/specs/syntheticDicom';
-import {
-  bytesFetcher,
-  dicomFile,
-  syntheticSlice,
-  withoutPixelData,
-} from '@/tests/dicomSourceFixtures';
+import { syntheticSlice, withoutPixelData } from '@/tests/dicomSourceFixtures';
+import { StopSignal } from '@/src/core/streaming/cachedStreamFetcher';
+import type { Fetcher } from '@/src/core/streaming/types';
+
+export const dicomFile = (bytes: Uint8Array, name = 'slice.dcm') =>
+  new File([bytes as BlobPart], name, { type: FILE_EXT_TO_MIME.dcm });
+
+/**
+ * A byte source that hands out its bytes a chunk at a time as the reader pulls
+ * them, so what a loader left undelivered says where it stopped.
+ */
+export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
+  let delivered = 0;
+  let abortController: AbortController | null = null;
+
+  const fetcher: Fetcher = {
+    connect: async () => {
+      abortController ??= new AbortController();
+    },
+    getStream: () => {
+      let offset = 0;
+      return new ReadableStream<Uint8Array>({
+        pull: (controller) => {
+          if (offset >= bytes.length) {
+            controller.close();
+            return;
+          }
+          const chunk = bytes.slice(offset, offset + chunkSize);
+          offset += chunk.length;
+          delivered += chunk.length;
+          controller.enqueue(chunk);
+        },
+      });
+    },
+    blob: async () =>
+      new Blob([bytes as BlobPart], { type: FILE_EXT_TO_MIME.dcm }),
+    close: () => {
+      abortController?.abort(StopSignal);
+    },
+    get connected() {
+      return !!abortController;
+    },
+    get size() {
+      return delivered;
+    },
+    contentType: FILE_EXT_TO_MIME.dcm,
+    get abortSignal() {
+      return abortController?.signal;
+    },
+  };
+  return fetcher;
+};
 
 const REGION = { physicalDeltaX: 0.0625, physicalDeltaY: 0.125 };
 
@@ -49,8 +94,8 @@ const instanceOf = (result: unknown) => {
   return source;
 };
 
-const headerOf = (bytes: Uint8Array) =>
-  withoutPrivateElements(readDicomDataset(bytes));
+// Synthetic slices carry no private elements, so the instance keeps them all.
+const headerOf = readDicomDataset;
 
 describe('handleDicom', () => {
   beforeEach(() => {

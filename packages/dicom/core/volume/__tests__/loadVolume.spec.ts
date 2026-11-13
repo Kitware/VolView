@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   createDicomRuntime,
   type DicomRuntime,
-  type PixelDecoder,
 } from '../../runtime/createDicomRuntime';
+import type { WholeInstanceDecode } from '../../pixels/pixelDecoder';
+import { singleDecoderTable } from '../../pixels/decoderTable';
+import type { GdcmLane } from '../../runtime/gdcmDecoder';
 import { defer } from '../../utils';
-import { hangingSource } from '../../source/__tests__/sourceFixtures';
+import { hangingSource } from '@/tests/byteSourceFixtures';
 import { loadedRange, type Volume } from '../allocateVolume';
 import type { ByteSource } from '../../source/byteSource';
 import {
@@ -16,15 +18,20 @@ import {
 import {
   allocated,
   pixelSlice,
+  slicePixels,
   sliceValues,
   valueDecoder,
 } from './volumeFixture';
+import { decodingWith } from '@/tests/dicomVolumeFixtures';
 
 const runtimes: DicomRuntime[] = [];
 afterEach(() => runtimes.splice(0).forEach((runtime) => runtime.dispose()));
 
-const runtimeWith = (decoder: PixelDecoder, decodeConcurrency = 1) => {
-  const runtime = createDicomRuntime({ decoder, decodeConcurrency });
+const runtimeWith = (decoder: WholeInstanceDecode, decodeConcurrency = 1) => {
+  const runtime = createDicomRuntime({
+    ...decodingWith(decoder),
+    decodeConcurrency,
+  });
   runtimes.push(runtime);
   return runtime;
 };
@@ -96,10 +103,10 @@ describe('loadVolume', () => {
 
   it('reports a failed slice and keeps loading the rest', async () => {
     const decode = valueDecoder();
-    const decoder: PixelDecoder = async (request, signal) => {
+    const decoder: WholeInstanceDecode = async (request, signal) => {
       const image = await decode(request, signal);
       if (image.data[0] === 1) throw new Error('corrupt pixel data');
-      if (image.data[0] === 3) return { ...image, size: [2, 8, 1] };
+      if (image.data[0] === 3) return { ...image, size: [2, 8, 1] as const };
       return image;
     };
     const volume = stack(5);
@@ -120,7 +127,7 @@ describe('loadVolume', () => {
     const decoded: number[] = [];
     const decode = valueDecoder(decoded);
     const resume = defer<void>();
-    const decoder: PixelDecoder = async (request, signal) => {
+    const decoder: WholeInstanceDecode = async (request, signal) => {
       const image = await decode(request, signal);
       if (decoded.length === 1) await resume.promise;
       return image;
@@ -149,7 +156,7 @@ describe('loadVolume', () => {
     const { volume, reads, readStarted } = recordedStack(8);
     let mostOutstanding = 0;
     const ahead = readStarted(1 + readAhead);
-    const decoder: PixelDecoder = async (request, signal) => {
+    const decoder: WholeInstanceDecode = async (request, signal) => {
       decodesStarted.push(0);
       mostOutstanding = Math.max(
         mostOutstanding,
@@ -165,6 +172,29 @@ describe('loadVolume', () => {
     expect(updates).toHaveLength(8);
     expect(reads).toHaveLength(8);
     expect(mostOutstanding).toBeLessThanOrEqual(readAhead);
+  });
+
+  it('runs at most decodeConcurrency decodes at once', async () => {
+    let active = 0;
+    let peak = 0;
+    const gate = defer<void>();
+    const twoStarted = defer<void>();
+    const decode = valueDecoder();
+    const decoder: WholeInstanceDecode = async (request, signal) => {
+      active += 1;
+      peak = Math.max(peak, active);
+      if (active === 2) twoStarted.resolve();
+      await gate.promise;
+      active -= 1;
+      return decode(request, signal);
+    };
+
+    const loading = loadAll(stack(5), runtimeWith(decoder, 2));
+    await twoStarted.promise;
+    gate.resolve();
+
+    expect(await loading).toHaveLength(5);
+    expect(peak).toBe(2);
   });
 
   it('reports a failed read and keeps loading the rest', async () => {
@@ -219,7 +249,7 @@ describe('loadVolume', () => {
 
   it('ends when the runtime is disposed during a decode', async () => {
     const started = defer<void>();
-    const decoder: PixelDecoder = () => {
+    const decoder: WholeInstanceDecode = () => {
       started.resolve();
       return new Promise(() => {});
     };
@@ -230,6 +260,90 @@ describe('loadVolume', () => {
     runtime.dispose();
 
     expect(await loading).toEqual([]);
+  });
+
+  it('keeps decoding while the consumer waits, marking slices loaded only as they are yielded', async () => {
+    const decoded: number[] = [];
+    const decode = valueDecoder(decoded);
+    const lastStarted = defer<void>();
+    const decoder: WholeInstanceDecode = (request, signal) => {
+      if (decoded.length === 4) lastStarted.resolve();
+      return decode(request, signal);
+    };
+    const volume = stack(5);
+    const updates = loadVolume(volume, {
+      runtime: runtimeWith(decoder),
+      signal: new AbortController().signal,
+    })[Symbol.asyncIterator]();
+
+    const first = await updates.next();
+    // One decode at a time, so the fifth starts only after four were written.
+    await lastStarted.promise;
+
+    expect(first.value).toMatchObject({ slot: 2 });
+    expect(decoded.slice(0, 4).map((slice) => volume.data[slice * 16])).toEqual(
+      decoded.slice(0, 4)
+    );
+    expect(sliceValues(volume)).toEqual([null, null, 2, null, null]);
+    const rest: VolumeUpdate[] = [];
+    for (
+      let next = await updates.next();
+      !next.done;
+      next = await updates.next()
+    )
+      rest.push(next.value);
+    expect(rest.map((update) => update.slot)).toEqual(decoded.slice(1));
+    expect(sliceValues(volume)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('writes nothing into the buffer once aborted', async () => {
+    const controller = new AbortController();
+    // Returning synchronously queues any write ahead of the load's own return.
+    const decoder: WholeInstanceDecode = ({ bytes }) => {
+      controller.abort();
+      return slicePixels(bytes);
+    };
+    const volume = stack(3);
+
+    const updates = await collect(
+      loadVolume(volume, {
+        runtime: runtimeWith(decoder),
+        signal: controller.signal,
+      })
+    );
+
+    expect(updates).toEqual([]);
+    expect(volume.data.every((sample) => sample === 0)).toBe(true);
+    expect(sliceValues(volume)).toEqual([null, null, null]);
+  });
+
+  it('ends and stops the GDCM worker when the runtime is disposed mid-decode', async () => {
+    const started = defer<void>();
+    const resets: unknown[] = [];
+    const hangingLane = (): GdcmLane => ({
+      run: () => {
+        started.resolve();
+        return new Promise(() => {});
+      },
+      reset: (reason) => resets.push(reason),
+    });
+    const runtime = createDicomRuntime(
+      {
+        assets: { pipelineWorkerUrl: '/unused', imageIOUrl: '/unused' },
+        decoders: singleDecoderTable,
+        decodeConcurrency: 1,
+      },
+      hangingLane
+    );
+    runtimes.push(runtime);
+
+    const loading = loadAll(stack(2), runtime);
+    await started.promise;
+    runtime.dispose();
+
+    expect(await loading).toEqual([]);
+    expect(resets).not.toHaveLength(0);
+    expect(resets[0]).toMatchObject({ name: 'AbortError' });
   });
 
   it('carries decoded slices into a grown volume without decoding them again', async () => {

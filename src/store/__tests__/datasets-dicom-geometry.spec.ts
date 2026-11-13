@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
 import {
@@ -36,9 +36,9 @@ const slices = (count: number, options?: Parameters<typeof slice>[1]) =>
 describe('planned DICOM geometry in the image cache', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it('builds on the axes most slices declare when the first spatial slice leans off them', async () => {
+  it('builds on the axes most slices declare when the first spatial slice leans off them', () => {
     const { created, createImage } = imageFactory();
-    const result = await useDICOMStore().importInstances(slices(121), {
+    const result = useDICOMStore().importInstances(slices(121), {
       createImage,
     });
     const [image] = created;
@@ -51,11 +51,11 @@ describe('planned DICOM geometry in the image cache', () => {
     image.dispose();
   });
 
-  it('warns when a slice leans further off the volume axes than a sample can hide', async () => {
+  it('warns when a slice leans further off the volume axes than a sample can hide', () => {
     // Four samples 90mm apart: a 0.001 rad lean moves the far corner 0.36mm.
     const wide = { stray: leaning(0.001), pixelSpacing: '90\\90' };
     const { created, createImage } = imageFactory();
-    await useDICOMStore().importInstances(slices(5, wide), { createImage });
+    useDICOMStore().importInstances(slices(5, wide), { createImage });
     const [image] = created;
 
     expect(image.getVtkImageData().getDirection()).toEqual([...AXIAL, 0, 0, 1]);
@@ -65,26 +65,26 @@ describe('planned DICOM geometry in the image cache', () => {
     image.dispose();
   });
 
-  it('takes new axes on an incremental import and keeps the old ones when it fails', async () => {
+  it('takes new axes on an incremental import and keeps the old ones when it fails', () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
     const first = slice(0);
-    await store.importInstances([first], { createImage });
+    store.importInstances([first], { createImage });
     const [image] = created;
     const direction = () => image.getVtkImageData().getDirection().slice(0, 6);
     expect(direction()).toEqual(TILTED);
 
     const rest = slices(121).slice(1);
     // A sibling collection of the series cannot be allocated.
-    await expect(
+    expect(() =>
       store.importInstances([...rest, unallocatableFor({ sop: 'scout' })], {
         createImage,
       })
-    ).rejects.toThrow(ALLOCATION_FAILURE);
+    ).toThrow(ALLOCATION_FAILURE);
     expect(image.getInstances()).toEqual([first]);
     expect(direction()).toEqual(TILTED);
 
-    await store.importInstances(rest, { createImage });
+    store.importInstances(rest, { createImage });
     expect(direction()).toEqual(AXIAL);
     expect(image.getVtkImageData().getSpacing()).toEqual([1, 1, 5]);
     image.dispose();

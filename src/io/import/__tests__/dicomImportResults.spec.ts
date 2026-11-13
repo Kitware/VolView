@@ -5,7 +5,7 @@ import {
   importDicomInstanceSources,
   PartialDicomImportError,
 } from '@/src/io/import/importDataSources';
-import { PartialImportError, useDICOMStore } from '@/src/store/datasets-dicom';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
 import type {
   DicomInstanceSource,
@@ -27,91 +27,32 @@ const source = (
   stateFileLeaf: { stateID },
 });
 
-const deferred = () => {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-};
-
 beforeEach(() => setActivePinia(createPinia()));
 
-it('returns a stable order regardless of series commit order', async () => {
+it('returns a stable order regardless of series commit order', () => {
   const sources = [source('a'), source('b')];
-  const loadables = await importDicomInstanceSources(
-    sources,
-    async (_, { onCommitted }) => {
-      const result = { volumes: {}, dissolved: [] };
-      onCommitted({ ...result, volumes: { b: [sources[1].instance] } });
-      onCommitted({ ...result, volumes: { a: [sources[0].instance] } });
-      return result;
-    }
-  );
+  const loadables = importDicomInstanceSources(sources, () => ({
+    volumes: { b: [sources[1].instance], a: [sources[0].instance] },
+    dissolved: [],
+  }));
   expect(loadables.map(({ dataID }) => dataID)).toEqual(['a', 'b']);
 });
 
-it.each([false, true])(
-  'omits a dissolved volume when an overlapping import overtakes it (failure=%s)',
-  async (fail) => {
-    const first = source('first');
-    const committed = deferred();
-    const finish = deferred();
-    const delayed = importDicomInstanceSources(
-      [first],
-      async (_, { onCommitted }) => {
-        const result = { volumes: { old: [first.instance] }, dissolved: [] };
-        onCommitted(result);
-        committed.resolve();
-        await finish.promise;
-        if (fail)
-          throw new PartialImportError([
-            { error: new Error('failed'), instances: [] },
-          ]);
-        return result;
-      }
-    ).catch((error: PartialDicomImportError) => error.loadables);
-    await committed.promise;
-    await importDicomInstanceSources(
-      [source('second')],
-      async (instances, hooks) => {
-        const result = { volumes: { current: instances }, dissolved: ['old'] };
-        hooks.removeDissolved('old');
-        hooks.onCommitted(result);
-        return result;
-      }
-    );
-    finish.resolve();
-    expect(await delayed).toEqual([]);
-  }
-);
-
-it('maps only leaves supplied by this restore while saving full membership', async () => {
+it('maps only leaves supplied by this restore while saving full membership', () => {
   const previous = source('previous', '1');
-  await importDicomInstanceSources(
-    [previous],
-    async (instances, { onCommitted }) => {
-      const result = { volumes: { existing: instances }, dissolved: [] };
-      onCommitted(result);
-      return result;
-    }
-  );
+  importDicomInstanceSources([previous], (instances) => ({
+    volumes: { existing: instances },
+    dissolved: [],
+  }));
   const current = source('current', '2');
   const other = source('other', '1');
-  const loadables = await importDicomInstanceSources(
-    [current, other],
-    async (_, { onCommitted }) => {
-      const result = {
-        volumes: {
-          existing: [previous.instance, current.instance],
-          other: [other.instance],
-        },
-        dissolved: [],
-      };
-      onCommitted(result);
-      return result;
-    }
-  );
+  const loadables = importDicomInstanceSources([current, other], () => ({
+    volumes: {
+      existing: [previous.instance, current.instance],
+      other: [other.instance],
+    },
+    dissolved: [],
+  }));
   expect(buildStateIDToStoreID(loadables)).toEqual({
     1: 'other',
     2: 'existing',
@@ -123,16 +64,20 @@ it('maps only leaves supplied by this restore while saving full membership', asy
   ]);
 });
 
-it('preserves the failure of every rejected series and blames its own sources', async () => {
+it('preserves the failure of every rejected series and blames its own sources', () => {
   const first = source('first');
   const second = source('second', 'second', '2');
   const { createImage } = imageFactory();
-  const failure = await importDicomInstanceSources(
-    [first, second],
-    (instances, hooks) =>
-      useDICOMStore().importInstances(instances, { ...hooks, createImage })
-  ).catch((error: PartialDicomImportError) => error);
-  expect(failure).toBeInstanceOf(PartialDicomImportError);
+  const failure = (() => {
+    try {
+      importDicomInstanceSources([first, second], (instances, hooks) =>
+        useDICOMStore().importInstances(instances, { ...hooks, createImage })
+      );
+      return null;
+    } catch (error) {
+      return error;
+    }
+  })();
   if (!(failure instanceof PartialDicomImportError))
     throw new Error('Expected failed import');
   expect(

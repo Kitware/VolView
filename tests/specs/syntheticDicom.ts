@@ -9,6 +9,7 @@ const SOP_CLASS_MR = '1.2.840.10008.5.1.4.1.1.4';
 const SOP_CLASS_ULTRASOUND_MULTIFRAME = '1.2.840.10008.5.1.4.1.1.3.1';
 const TS_EXPLICIT_VR_LE = '1.2.840.10008.1.2.1';
 const TS_IMPLICIT_VR_LE = '1.2.840.10008.1.2';
+const TS_JPEG_BASELINE = '1.2.840.10008.1.2.4.50';
 
 const enc = new TextEncoder();
 
@@ -35,7 +36,7 @@ const tagBytes = (group: number, element: number) => {
   return b;
 };
 
-const combine = (...arr: Uint8Array[]) => {
+export const combine = (...arr: Uint8Array[]) => {
   const total = arr.reduce((acc, a) => acc + a.length, 0);
   const out = new Uint8Array(total);
   let off = 0;
@@ -506,6 +507,50 @@ export const stripFileMeta = (bytes: Uint8Array) => {
   return meta.slice(12 + bodyLength);
 };
 
+/** One item of an encapsulated Pixel Data value, written with the length given. */
+export const pixelItem = (bytes: Uint8Array) =>
+  combine(tagBytes(ITEM_GROUP, ITEM_TAG), writeLong(bytes.length), bytes);
+
+export type EncapsulatedFrames = {
+  /** Each frame's fragments, in order. */
+  frames: readonly (readonly Uint8Array[])[];
+  /** Whether the Basic Offset Table lists where each frame starts. */
+  offsetTable?: boolean;
+};
+
+/** An encapsulated Pixel Data value: offset table item, fragments, delimiter. */
+export function encapsulatedPixelData({
+  frames,
+  offsetTable = false,
+}: EncapsulatedFrames) {
+  const items = frames.map((fragments) => combine(...fragments.map(pixelItem)));
+  const starts = items.reduce<number[]>(
+    (offsets, _, index) =>
+      index === 0
+        ? [0]
+        : [...offsets, offsets[index - 1] + items[index - 1].length],
+    []
+  );
+  const table = offsetTable
+    ? combine(...starts.map(writeLong))
+    : new Uint8Array();
+  return combine(
+    pixelItem(table),
+    ...items,
+    tagBytes(ITEM_GROUP, SEQUENCE_DELIMITER_TAG),
+    writeLong(0)
+  );
+}
+
+const encapsulatedElement = (value: Uint8Array) =>
+  combine(
+    tagBytes(0x7fe0, 0x0010),
+    enc.encode('OB'),
+    new Uint8Array(2),
+    writeLong(UNDEFINED_LENGTH),
+    value
+  );
+
 export type SyntheticCineOptions = {
   studyUid: string;
   seriesUid: string;
@@ -518,6 +563,10 @@ export type SyntheticCineOptions = {
   patientId?: string;
   seriesNumber?: number;
   studyDate?: string;
+  /** JPEG Baseline frames to encapsulate in place of native pixels. */
+  encapsulated?: EncapsulatedFrames;
+  /** Written just before Pixel Data. */
+  extraElements?: readonly Uint8Array[];
 };
 
 export function buildSyntheticCineDicom(
@@ -535,7 +584,11 @@ export function buildSyntheticCineDicom(
     patientId = 'TEST001',
     seriesNumber = 1,
     studyDate = '20260101',
+    encapsulated,
+    extraElements = [],
   } = opts;
+  const frames = encapsulated?.frames.length ?? numberOfFrames;
+  const transferSyntax = encapsulated ? TS_JPEG_BASELINE : TS_EXPLICIT_VR_LE;
 
   const pixelData = new Uint8Array(numberOfFrames * rows * cols);
   for (let i = 0; i < pixelData.length; i++) pixelData[i] = i % 251;
@@ -557,7 +610,7 @@ export function buildSyntheticCineDicom(
     is(0x0020, 0x0011, String(seriesNumber)),
     us(0x0028, 0x0002, 1),
     cs(0x0028, 0x0004, 'MONOCHROME2'),
-    is(0x0028, 0x0008, String(numberOfFrames)),
+    is(0x0028, 0x0008, String(frames)),
     us(0x0028, 0x0010, rows),
     us(0x0028, 0x0011, cols),
     ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\')),
@@ -565,14 +618,17 @@ export function buildSyntheticCineDicom(
     us(0x0028, 0x0101, 8),
     us(0x0028, 0x0102, 7),
     us(0x0028, 0x0103, 0),
-    elemLong(0x7fe0, 0x0010, 'OB', pixelData)
+    ...extraElements,
+    encapsulated
+      ? encapsulatedElement(encapsulatedPixelData(encapsulated))
+      : elemLong(0x7fe0, 0x0010, 'OB', pixelData)
   );
 
   const fileMetaBody = combine(
     elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
     ui(0x0002, 0x0002, SOP_CLASS_ULTRASOUND_MULTIFRAME),
     ui(0x0002, 0x0003, sopUid),
-    ui(0x0002, 0x0010, TS_EXPLICIT_VR_LE)
+    ui(0x0002, 0x0010, transferSyntax)
   );
   const fileMeta = combine(
     elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
