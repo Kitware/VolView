@@ -4,12 +4,12 @@ import { resolve } from 'node:path';
 import { Key } from 'webdriverio';
 import corpus from '../dicomVolumeCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
-import { openDicomConsumer } from '../dicomConsumer';
+import { openDicomPage } from '../dicomPages';
 import {
   fixtureBytes,
   nullPaddedFixtureBytes,
-} from '../fixtures/dicom-consumer/fixtureData';
-import { startDicomConsumerFixtures } from '../fixtures/dicom-consumer/server.mjs';
+} from '../fixtures/dicom-pages/fixtureData';
+import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   waitForRenderedSlice,
@@ -69,7 +69,7 @@ async function expectNumbers(id: string, expected: number[]) {
 }
 
 describe('Public DICOM volume corpus', () => {
-  let fixture: Awaited<ReturnType<typeof startDicomConsumerFixtures>>;
+  let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   before(async () => {
     const files = Object.fromEntries(
       corpus.map(({ name }) => [
@@ -77,7 +77,7 @@ describe('Public DICOM volume corpus', () => {
         readFileSync(resolve(DATASET_CACHE, name)),
       ])
     );
-    fixture = await startDicomConsumerFixtures(fixtureBytes(), {
+    fixture = await startDicomPages(fixtureBytes(), {
       kinds: ['corpus'],
       fixtures: {
         ...files,
@@ -95,10 +95,7 @@ describe('Public DICOM volume corpus', () => {
       const behavior = expectedError ? 'rejects' : 'preserves';
       it(`${behavior} ${name} pixels and geometry from ${source}`, async () => {
         const params = new URLSearchParams({ name, source });
-        await openDicomConsumer(
-          `${fixture.urls.corpus}?${params}`,
-          expectedError
-        );
+        await openDicomPage(`${fixture.urls.corpus}?${params}`, expectedError);
         if (expectedError) return;
         if (!expected) throw new Error(`Missing expectations for ${name}`);
         await expect($('#dimensions')).toHaveText(

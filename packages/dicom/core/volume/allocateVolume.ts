@@ -1,5 +1,5 @@
 import type { Instance } from '../instance/readInstance';
-import type { InstanceCollectionUpdate } from '../collections/instanceRegistry';
+import type { ImageCollectionUpdate } from '../collections/instanceRegistry';
 import type { DicomCollection } from '../collections/planDicomCollections';
 import type { Reconstruction } from '../collections/reconstructVolume';
 import type { SpatialMetadata } from '../metadata/spatialMetadata';
@@ -35,18 +35,6 @@ export type Volume = Readonly<{
   /** 1 where a slice holds decoded pixels, indexed by slice. */
   loaded: Uint8Array;
 }>;
-
-/** SEG pixels are labels that a segmentation reader turns into its own image. */
-export type SegmentationAllocation = {
-  kind: 'segmentation';
-  id: string;
-  members: readonly Instance[];
-  reconstruction: Reconstruction;
-};
-
-export type VolumeAllocation =
-  | { kind: 'volume'; volume: Volume }
-  | SegmentationAllocation;
 
 export type AllocateVolumeOptions = {
   irregularGeometry?: IrregularGeometryPolicy;
@@ -105,25 +93,22 @@ function copyDecoded(volume: Volume, previous: Volume) {
 }
 
 /**
- * Allocates the volume a planned collection fills. With `previous`, slices
- * already decoded there are copied across, so growth never decodes again.
+ * Allocates the volume a planned image collection fills. With `previous`,
+ * slices already decoded there are copied across, so growth never decodes
+ * again.
  */
 export function allocateVolume(
-  update: Pick<InstanceCollectionUpdate, 'id' | 'collection' | 'members'>,
+  update: Pick<ImageCollectionUpdate, 'kind' | 'id' | 'collection' | 'members'>,
   options: AllocateVolumeOptions = {},
   previous?: Volume
-): VolumeAllocation {
+) {
   const { id, collection, members } = update;
-  const planned = planVolumeAllocation(
+  const { reconstruction, layout, warnings } = planVolumeAllocation(
     members,
     collection.orientation,
     collection.reconstruction,
     options.irregularGeometry ?? 'preserve-order'
   );
-  const { reconstruction } = planned;
-  if (planned.kind === 'segmentation')
-    return { kind: 'segmentation', id, members, reconstruction };
-  const { layout } = planned;
   const { columns, rows, slices, samplesPerPixel } = layout;
   const volume: Volume = Object.freeze({
     id,
@@ -138,12 +123,12 @@ export function allocateVolume(
       (axis) => axis.value
     ) as unknown as Vector3,
     spatialMetadata: layout.spatialMetadata,
-    warnings: planned.warnings,
+    warnings,
     data: new layout.bufferType(columns * rows * slices * samplesPerPixel),
     loaded: new Uint8Array(slices),
   });
   if (previous) copyDecoded(volume, previous);
-  return { kind: 'volume', volume };
+  return volume;
 }
 
 /** Per-component [min, max] over the loaded slices; empty when none are. */

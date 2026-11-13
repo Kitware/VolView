@@ -1,48 +1,21 @@
-import dicomParser from 'dicom-parser';
 import {
+  allocateVolume,
+  createDicomRuntime,
+  fromBlob,
+  getDatasetTag,
   readInstance,
   type Instance,
-} from '@/packages/dicom/core/instance/readInstance';
-import { fromBlob } from '@/packages/dicom/core/source/byteSource';
-import { readGeometryFacts } from '@/packages/dicom/core/collections/instanceFacts';
-import type { DicomCollection } from '@/packages/dicom/core/collections/planDicomCollections';
-import { allocateVolume } from '@/packages/dicom/core/volume/allocateVolume';
-import {
-  createDicomRuntime,
-  type PixelDecoder,
-} from '@/packages/dicom/core/runtime/createDicomRuntime';
+  type InstanceCollectionUpdate,
+  type WholeInstanceDecode,
+} from '@/packages/dicom/core';
+import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
-import {
-  Tags,
-  toDicomParserKey,
-} from '@/packages/dicom/core/metadata/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useViewStore } from '@/src/store/views';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import type { Maybe } from '@/src/types';
 
-import {
-  createSyntheticOCT,
-  overwriteDicomString,
-} from '../fixtures/oct/dicom';
-
-/** Reads raw named tags for assertions, independently of the structured loader. */
-export async function readDicomTags(file: Blob) {
-  const data = dicomParser.parseDicom(
-    new Uint8Array(await file.arrayBuffer()),
-    {
-      untilTag: 'x7fe00010',
-    }
-  );
-  return Object.values(Tags).flatMap((tag): Array<[string, string]> => {
-    const key = toDicomParserKey(tag);
-    const element = data.elements[key];
-    if (!element || element.vr === 'SQ') return [];
-    const value =
-      element.vr === 'US' ? String(data.uint16(key)) : data.string(key);
-    return value === undefined ? [] : [[tag, value]];
-  });
-}
+import { createSyntheticOCT } from '../fixtures/oct/dicom';
 
 /** Reads a file's header the way the importer does, on the main thread. */
 export const readFixtureInstance = (file: Blob) =>
@@ -53,36 +26,28 @@ export const readFixtureInstance = (file: Blob) =>
  * deliberate groups, so geometry is judged by allocation, not by the planner.
  */
 export function volumeOf(instances: Instance[]) {
-  const { orientation } = readGeometryFacts(instances[0].dataset);
-  const allocation = allocateVolume({
+  // The first member planned alone gives the validated orientation.
+  const { orientation } = plannedUpdate([instances[0]]).collection;
+  return allocateVolume({
+    kind: 'image',
     id: 'fixture',
     members: instances,
-    collection: { orientation } as DicomCollection,
+    collection: { orientation } as InstanceCollectionUpdate['collection'],
   });
-  if (allocation.kind !== 'volume')
-    throw new Error(`Expected a volume, got ${allocation.kind}`);
-  return allocation.volume;
 }
 
 // Decodes every frame of an uncompressed little endian 16 bit instance.
-const decodeOCT: PixelDecoder = async ({ bytes }) => {
-  const data = dicomParser.parseDicom(bytes);
-  const pixel = data.elements.x7fe00010;
-  const values = new DataView(
-    bytes.buffer,
-    bytes.byteOffset + pixel.dataOffset,
-    pixel.length
-  );
+const decodeOCT: WholeInstanceDecode = ({ instance, bytes }) => {
+  const { valueOffset, length } = instance.pixelData!;
+  const values = new DataView(bytes.buffer, bytes.byteOffset + valueOffset);
+  const count = (tag: string, fallback?: number) =>
+    Number(getDatasetTag(instance.dataset, tag) ?? fallback);
   return {
-    size: [
-      data.uint16('x00280011')!,
-      data.uint16('x00280010')!,
-      data.intString('x00280008')!,
-    ],
-    data: Uint16Array.from({ length: pixel.length / 2 }, (_, index) =>
+    size: [count('00280011'), count('00280010'), count('00280008', 1)],
+    data: Uint16Array.from({ length: length! / 2 }, (_, index) =>
       values.getUint16(index * 2, true)
     ),
-    imageType: { components: data.uint16('x00280002')! },
+    components: count('00280002', 1),
   };
 };
 
@@ -90,15 +55,9 @@ const decodeOCT: PixelDecoder = async ({ bytes }) => {
 export async function createOCTFixture(
   options: { scanPattern?: string; deferDecode?: boolean } = {}
 ) {
-  const bytes = Uint8Array.from(createSyntheticOCT());
-  if (options.scanPattern) {
-    const data = dicomParser.parseDicom(bytes, { untilTag: 'x7fe00010' });
-    overwriteDicomString(
-      data.elements.x00221618.items![0].dataSet!,
-      'x00080100',
-      options.scanPattern
-    );
-  }
+  const bytes = Uint8Array.from(
+    createSyntheticOCT({ scanPattern: options.scanPattern })
+  );
   const instance = await readFixtureInstance(
     new File([bytes], 'synthetic-oct.dcm')
   );
@@ -108,12 +67,12 @@ export async function createOCTFixture(
   });
   if (!options.deferDecode) releaseDecode();
   const image = new DicomVolumeImage({
-    runtime: createDicomRuntime({
-      decoder: async (request, signal) => {
+    runtime: createDicomRuntime(
+      decodingWith(async (request, signal) => {
         await decodeGate;
         return decodeOCT(request, signal);
-      },
-    }),
+      })
+    ),
   });
   return { image, instance, releaseDecode };
 }

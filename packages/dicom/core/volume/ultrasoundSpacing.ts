@@ -1,5 +1,5 @@
 import { getDatasetModality } from '../metadata/datasetAccess';
-import { unitToMm } from '../streaming/dicom/ultrasoundRegion';
+import { unitToMm } from '../metadata/ultrasoundRegion';
 import {
   physicalSpacing,
   type SpatialMetadata,

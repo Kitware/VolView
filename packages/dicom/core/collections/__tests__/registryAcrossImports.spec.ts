@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getDatasetTag } from '../../metadata/datasetAccess';
 import { Tags } from '../../metadata/dicomTags';
 import type { Instance } from '../../instance/readInstance';
-import { instanceFor } from '../../instance/__tests__/instanceFixture';
+import { instanceFor } from '@/tests/dicomDataset';
 import {
   emptyRegistry,
   forgetCollection,
@@ -11,7 +11,7 @@ import {
   type InstanceCollectionUpdate,
 } from '../instanceRegistry';
 import { UNREADABLE_POSITION_WARNING } from '../planDicomCollections';
-import { mergingChunks, tilt } from '@/tests/dicomOrientationFixtures';
+import { mergingInstances, tilt } from '@/tests/dicomOrientationFixtures';
 import { SERIES_UID, sliceDataset, type SliceOptions } from './sliceFixture';
 
 const sliceInstance = (options: SliceOptions = {}) =>
@@ -100,14 +100,14 @@ describe('instance registry across imports', () => {
     expect(update.collection.diagnostics).toEqual([]);
   });
 
-  it('aligns the chunk members with the planned facts', () => {
+  it('aligns the instance members with the planned facts', () => {
     const registry = createRegistry();
-    const chunks = [
+    const instances = [
       sliceInstance({ sop: 'a', z: 2 }),
       sliceInstance({ sop: 'b', z: 0 }),
     ];
 
-    const { updates } = registry.register(chunks);
+    const { updates } = registry.register(instances);
     const [update] = updates;
 
     expect(update.collection.members.map((m) => m.sopInstanceUid)).toEqual(
@@ -221,23 +221,23 @@ describe('instance registry across imports', () => {
     expect(registry.has(original)).toBe(false);
   });
 
-  it('counts one chunk once however often a batch repeats it', () => {
+  it('counts one instance once however often a batch repeats it', () => {
     const registry = createRegistry();
-    const chunk = sliceInstance({ sop: 'a', z: 0 });
+    const instance = sliceInstance({ sop: 'a', z: 0 });
 
-    const [update] = registry.register([chunk, chunk]).updates;
+    const [update] = registry.register([instance, instance]).updates;
 
-    expect(update.members).toEqual([chunk]);
+    expect(update.members).toEqual([instance]);
   });
 
-  it('re-registers an anonymous chunk without duplicating it', () => {
+  it('re-registers an anonymous instance without duplicating it', () => {
     const registry = createRegistry();
-    const chunk = sliceInstance({ sop: null, z: 0 });
+    const instance = sliceInstance({ sop: null, z: 0 });
 
-    registry.register([chunk]);
-    const [update] = registry.register([chunk]).updates;
+    registry.register([instance]);
+    const [update] = registry.register([instance]).updates;
 
-    expect(update.members).toEqual([chunk]);
+    expect(update.members).toEqual([instance]);
   });
 
   it('splits one batch of incompatible instances into two collections', () => {
@@ -275,7 +275,7 @@ describe('instance registry across imports', () => {
 
   // The positions of the two passes already earned their separation; a later
   // slice nothing spatial can be said about must not dissolve it.
-  it('keeps two separated acquisitions when a positionless chunk arrives later', () => {
+  it('keeps two separated acquisitions when a positionless instance arrives later', () => {
     const registry = createRegistry();
     const first = [0, 2, 4].map((z) =>
       sliceInstance({
@@ -331,9 +331,9 @@ describe('instance registry across imports', () => {
     expect(updates[0].provenance).toEqual([slice]);
   });
 
-  const merging = () => mergingChunks(sliceInstance);
+  const merging = () => mergingInstances(sliceInstance);
 
-  it('reports a collection that lost members without gaining a chunk', () => {
+  it('reports a collection that lost members without gaining an instance', () => {
     const registry = createRegistry();
     const straight = sliceInstance({
       sop: 'sop-2',
@@ -371,7 +371,7 @@ describe('instance registry across imports', () => {
     const resupplied = sliceInstance({ sop: 'a', z: 0 });
     const second = registry.register([resupplied]);
 
-    // Identity, not shape: the released chunk is an equal but stale object.
+    // Identity, not shape: the released instance is an equal but stale object.
     expect(second.updates[0].members).toHaveLength(1);
     expect(second.updates[0].members[0]).toBe(resupplied);
     expect(second.updates[0].id).toBe(updates[0].id);
@@ -410,12 +410,12 @@ describe('instance registry across imports', () => {
 
   it('surfaces the planner order and diagnostics for a positionless series', () => {
     const registry = createRegistry();
-    const chunks = [
+    const instances = [
       sliceInstance({ sop: 'alpha', z: null, instanceNumber: 2 }),
       sliceInstance({ sop: 'beta', z: null, instanceNumber: 1 }),
     ];
 
-    const [update] = registry.register(chunks).updates;
+    const [update] = registry.register(instances).updates;
 
     expect(sops(update.members)).toEqual(['beta', 'alpha']);
     expect(update.collection.order).toBe('instance-number');
@@ -426,15 +426,15 @@ describe('instance registry across imports', () => {
 
   it('does not mutate the batch it registers', () => {
     const registry = createRegistry();
-    const chunks = [
+    const instances = [
       sliceInstance({ sop: 'a', z: 2 }),
       sliceInstance({ sop: 'b', z: 0 }),
     ];
-    const order = [...chunks];
+    const order = [...instances];
 
-    registry.register(chunks);
+    registry.register(instances);
 
-    expect(chunks).toEqual(order);
+    expect(instances).toEqual(order);
   });
 });
 

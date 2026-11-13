@@ -4,7 +4,7 @@ import { getFrameTag } from './functionalGroups';
 import { trimDicomPadding } from '../utils';
 
 /** Describes the spacing actually used by the image, not independent calibration. */
-export type AxisSpacing = {
+type AxisSpacing = {
   value: number;
   unit: 'mm' | 'unknown';
   status: 'declared' | 'derived' | 'fallback';

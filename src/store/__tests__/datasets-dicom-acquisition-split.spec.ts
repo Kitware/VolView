@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags, type Instance } from '@/packages/dicom/core';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { uriToDataSource, type DataSource } from '@/src/io/import/dataSource';
 import type { DicomInstanceSource } from '@/src/io/import/dataSource';
@@ -23,11 +22,12 @@ import {
 
 // Slices of one acquisition, interleaved with a second acquisition's slices
 // along the same stretch of the slice axis.
-const acquisition = (number: string, zs: number[]) =>
+const acquisition = (number: string, zs: number[], orientation?: string) =>
   zs.map((z, i) =>
     sliceFor({
       sop: `acq${number}-${i}`,
       z,
+      orientation,
       tags: { [Tags.AcquisitionNumber]: number },
     })
   );
@@ -69,11 +69,11 @@ describe('DICOM store acquisition split across imports', () => {
     setActivePinia(createPinia());
   });
 
-  it('loads one series holding two overlapping passes as two labelled volumes', async () => {
+  it('loads one series holding two overlapping passes as two labelled volumes', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
 
-    const result = await store.importInstances(
+    const result = store.importInstances(
       [...acquisitionOne(), ...acquisitionTwo()],
       { createImage }
     );
@@ -88,16 +88,16 @@ describe('DICOM store acquisition split across imports', () => {
     expect(useMessageStore().messages).toEqual([]);
   });
 
-  it('splits a series imported one acquisition at a time, keeping the first id', async () => {
+  it('splits a series imported one acquisition at a time, keeping the first id', () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
     const first = acquisitionOne();
 
-    const initial = await store.importInstances(first, { createImage });
+    const initial = store.importInstances(first, { createImage });
     const [firstId] = volumeIds(initial);
     expect(store.volumeInfo[firstId].splitLabel).toBeUndefined();
 
-    const second = await store.importInstances(acquisitionTwo(), {
+    const second = store.importInstances(acquisitionTwo(), {
       createImage,
     });
 
@@ -116,14 +116,14 @@ describe('DICOM store acquisition split across imports', () => {
     expect(created[0].getInstances()).toEqual(first);
   });
 
-  it('does not duplicate a subset re-imported after the full series', async () => {
+  it('does not duplicate a subset re-imported after the full series', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
 
-    await store.importInstances([...acquisitionOne(), ...acquisitionTwo()], {
+    store.importInstances([...acquisitionOne(), ...acquisitionTwo()], {
       createImage,
     });
-    const again = await store.importInstances(acquisitionOne(), {
+    const again = store.importInstances(acquisitionOne(), {
       createImage,
     });
 
@@ -134,15 +134,15 @@ describe('DICOM store acquisition split across imports', () => {
     });
   });
 
-  it('keeps an established split when a later slice lacks the discriminator', async () => {
+  it('keeps an established split when a later slice lacks the discriminator', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
 
-    await store.importInstances([...acquisitionOne(), ...acquisitionTwo()], {
+    store.importInstances([...acquisitionOne(), ...acquisitionTwo()], {
       createImage,
     });
     const untagged = sliceFor({ sop: 'untagged', z: 1.5 });
-    const result = await store.importInstances([untagged], { createImage });
+    const result = store.importInstances([untagged], { createImage });
 
     // The slice no axis can place forms its own volume; the two passes stay.
     expect(result.dissolved).toEqual([]);
@@ -153,7 +153,42 @@ describe('DICOM store acquisition split across imports', () => {
     ]);
   });
 
-  it('warns once per volume whose repeated positions no tag separates', async () => {
+  it('reorients a volume when a sibling pass outvotes its axes', () => {
+    const { createImage } = imageFactory();
+    const store = useDICOMStore();
+    // Within the orientation tolerance, so the passes share one set of axes.
+    const tilted = '1\\0\\0\\0\\0.99995\\0.0099998';
+    store.importInstances(
+      [...acquisition('1', [0, 2]), ...acquisition('2', [1, 3], tilted)],
+      { createImage }
+    );
+    const [id] = Object.entries(store.volumeInfo).find(
+      ([, info]) => info.splitLabel === 'acquisition 1'
+    )!;
+    const directionOf = () =>
+      Array.from(
+        useImageCacheStore().imageById[id]!.getVtkImageData().getDirection()
+      );
+    const before = directionOf();
+
+    store.importInstances(
+      [
+        sliceFor({
+          sop: 'acq2-late',
+          z: 5,
+          orientation: tilted,
+          tags: { [Tags.AcquisitionNumber]: '2' },
+        }),
+      ],
+      { createImage }
+    );
+
+    expect(before).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    expect(directionOf()[4]).toBeCloseTo(0.99995, 6);
+    expect(directionOf()[5]).toBeCloseTo(0.0099998, 6);
+  });
+
+  it('warns once per volume whose repeated positions no tag separates', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
     const doubled = () =>
@@ -165,9 +200,9 @@ describe('DICOM store acquisition split across imports', () => {
         })
       );
 
-    await store.importInstances(doubled(), { createImage });
+    store.importInstances(doubled(), { createImage });
     // Dropping the same folder again changes nothing worth repeating.
-    await store.importInstances(doubled(), { createImage });
+    store.importInstances(doubled(), { createImage });
 
     const { messages } = useMessageStore();
     expect(messages).toHaveLength(1);
@@ -177,7 +212,7 @@ describe('DICOM store acquisition split across imports', () => {
     );
   });
 
-  it('tells the user when a later import regroups a dataset away', async () => {
+  it('tells the user when a later import regroups a dataset away', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
     const tagged = (sop: string, z: number, number: string) =>
@@ -187,8 +222,8 @@ describe('DICOM store acquisition split across imports', () => {
     const first = [tagged('a', 0, '1'), tagged('b', 2, '2')];
     const second = [tagged('c', 2, '1'), tagged('d', 0, '2')];
 
-    const [id] = volumeIds(await store.importInstances(first, { createImage }));
-    const result = await store.importInstances(second, { createImage });
+    const [id] = volumeIds(store.importInstances(first, { createImage }));
+    const result = store.importInstances(second, { createImage });
 
     expect(result.dissolved).toEqual([id]);
     const regrouped = useMessageStore().messages.filter((message) =>
@@ -200,14 +235,14 @@ describe('DICOM store acquisition split across imports', () => {
     );
   });
 
-  it('repartitions saved provenance when a later import splits the series', async () => {
+  it('repartitions saved provenance when a later import splits the series', () => {
     const { createImage } = imageFactory();
     const datasetStore = useDatasetStore();
     const store = useDICOMStore();
     const first = acquisitionOne().map(instanceSource);
     const second = acquisitionTwo().map(instanceSource);
-    const load = async (sources: DicomInstanceSource[]) => {
-      const loadables = await importDicomInstanceSources(
+    const load = (sources: DicomInstanceSource[]) => {
+      const loadables = importDicomInstanceSources(
         sources,
         (instances, hooks) =>
           store.importInstances(instances, { createImage, ...hooks })
@@ -215,8 +250,8 @@ describe('DICOM store acquisition split across imports', () => {
       return loadables.map(({ dataID }) => dataID);
     };
 
-    const [firstId] = await load(first);
-    const ids = await load(second);
+    const [firstId] = load(first);
+    const ids = load(second);
     const secondId = ids.find((id) => id !== firstId)!;
 
     // Each dataset saves exactly its own pass, so a restore replans them the

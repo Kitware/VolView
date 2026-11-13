@@ -2,27 +2,24 @@ import { computed } from 'vue';
 import mitt from 'mitt';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { JsonCompatible } from '@itk-wasm/image-io';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { readBytes } from '@/packages/dicom/core/source/byteSource';
-import { getDatasetModality } from '@/packages/dicom/core/metadata/datasetAccess';
-import type { Volume } from '@/packages/dicom/core/volume/allocateVolume';
 import {
+  getDatasetModality,
   loadVolume,
   middleSlot,
+  readBytes,
+  type DicomRuntime,
   type Extent,
+  type Instance,
+  type Volume,
   type VolumeUpdate,
-} from '@/packages/dicom/core/volume/loadVolume';
-import type { DicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
-import { abortError } from '@/packages/dicom/core/utils/abort';
+} from '@/packages/dicom/core';
 import {
   applyVolumeUpdate,
+  encodeThumbnailToUri,
   sliceThumbnail,
   toVtkImageData,
-} from '@/packages/dicom/vtk/volumeImage';
-import {
-  encodeThumbnailToUri,
   type ThumbnailSlice,
-} from '@/packages/dicom/vtk/thumbnail';
+} from '@/packages/dicom/vtk';
 import {
   BaseProgressiveImage,
   type ProgressiveImageEvents,
@@ -33,7 +30,7 @@ import {
 } from '@/src/io/dicom';
 import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
-import { ensureError } from '@/src/utils';
+import { abortError, ensureError } from '@/src/utils';
 
 export type DicomVolumeImageEvents = ProgressiveImageEvents & {
   /** A decoded region of the current image, as an inclusive extent. */
@@ -48,7 +45,7 @@ type SegmentationResult = {
 export type DicomVolumeImageInit = {
   runtime?: Pick<
     DicomRuntime,
-    'decode' | 'decoders' | 'decodeConcurrency' | 'readConcurrency' | 'signal'
+    'decoders' | 'decodeConcurrency' | 'readConcurrency' | 'signal'
   >;
   readSegmentation?: (file: File) => Promise<SegmentationResult>;
   encodeThumbnail?: (slice: ThumbnailSlice) => string;
@@ -117,7 +114,8 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
 
   private thumbnail: Promise<string | null> | null = null;
 
-  private readonly watchers = new Set<() => void>();
+  /** Settles the pending thumbnail once its slice is known; null when none is pending. */
+  private settleThumbnail: (() => void) | null = null;
 
   private readonly events = mitt<DicomVolumeImageEvents>();
 
@@ -163,13 +161,13 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     this.replaceContent({ kind: 'volume', volume, failed: new Set() });
     this.spatialMetadata.value = volume.spatialMetadata;
     this.replaceImage(toVtkImageData(volume));
-    this.notify();
+    this.settleThumbnail?.();
   }
 
   /** A SEG object, which the segmentation reader turns into a labelmap. */
   setSegmentation(instances: readonly Instance[]) {
     this.replaceContent({ kind: 'segmentation', instances, loaded: false });
-    this.notify();
+    this.settleThumbnail?.();
   }
 
   startLoad() {
@@ -203,10 +201,10 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   getThumbnail(): Promise<string | null> {
     if (this.disposed) return Promise.reject(abortError('Image disposed'));
     this.thumbnail ??= new Promise((resolve, reject) => {
-      const check = () => {
+      this.settleThumbnail = () => {
         const slice = this.disposed ? null : this.thumbnailSlice();
         if (slice === undefined) return;
-        this.watchers.delete(check);
+        this.settleThumbnail = null;
         if (this.disposed) reject(abortError('Image disposed'));
         else if (slice === null) resolve(null);
         else
@@ -216,8 +214,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
             )
           );
       };
-      this.watchers.add(check);
-      check();
+      this.settleThumbnail();
     });
     return this.thumbnail;
   }
@@ -241,7 +238,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     this.disposed = true;
     this.load?.abort(abortError('Image disposed'));
     this.load = null;
-    this.notify();
+    this.settleThumbnail?.();
     this.events.all.clear();
     super.dispose();
     this.vtkImageData.value.delete();
@@ -250,7 +247,8 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   private replaceContent(content: Content) {
     this.stopLoad();
     this.content = content;
-    this.thumbnail = null;
+    // A pending thumbnail settles from the new content instead.
+    if (!this.settleThumbnail) this.thumbnail = null;
     this.segBuildInfo = null;
     this.updateStatus();
   }
@@ -271,7 +269,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     if (this.loading.value === loading) return;
     this.loading.value = loading;
     this.events.emit('loading', loading);
-    this.notify();
+    this.settleThumbnail?.();
   }
 
   private updateStatus() {
@@ -279,10 +277,6 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     if (this.status.value === status) return;
     this.status.value = status;
     this.events.emit('status', status);
-  }
-
-  private notify() {
-    [...this.watchers].forEach((check) => check());
   }
 
   /** Undefined while the slice to show may still load; null for none. */
@@ -313,7 +307,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     // Consumers read complete together with not loading, as one transition.
     if (volumeSettled(content)) this.finishLoad();
     this.updateStatus();
-    this.notify();
+    this.settleThumbnail?.();
   }
 
   private async loadPixels(
@@ -356,6 +350,6 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     content.loaded = true;
     this.finishLoad();
     this.updateStatus();
-    this.notify();
+    this.settleThumbnail?.();
   }
 }
