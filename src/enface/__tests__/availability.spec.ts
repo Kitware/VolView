@@ -1,18 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { computed, markRaw, nextTick } from 'vue';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
-import { createOCTFixture } from '@/tests/unit/octFixture';
+import { createOCTFixture, volumeOf } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { setDicomTag } from './dicomMetadataFixture';
 
 describe('OCT view availability', () => {
-  let emptyImage: DicomChunkImage | undefined;
+  let emptyImage: DicomVolumeImage | undefined;
   const decodeReleases: (() => void)[] = [];
 
   beforeEach(() => setActivePinia(createPinia()));
@@ -22,8 +23,8 @@ describe('OCT view availability', () => {
     emptyImage = undefined;
   });
 
-  it('keeps the view disabled while a cached DICOM image has no metadata chunks', () => {
-    emptyImage = new DicomChunkImage();
+  it('keeps the view disabled while a cached DICOM image has no volume yet', async () => {
+    emptyImage = (await createOCTFixture()).image;
     useImageCacheStore().imageById.pending = markRaw(emptyImage);
     expect(getEnFaceUnavailableReason('pending')).toMatch(/volume/);
   });
@@ -33,14 +34,13 @@ describe('OCT view availability', () => {
     expect(getEnFaceUnavailableReason('deleted')).toMatch(/volume/);
   });
 
-  it('reacts to metadata allocation and complete pixel loading after initially empty raw chunks', async () => {
-    const fixture = createOCTFixture({ deferDecode: true });
+  it('reacts to allocation and complete pixel loading after starting empty', async () => {
+    const fixture = await createOCTFixture({ deferDecode: true });
     decodeReleases.push(fixture.releaseDecode);
     useImageCacheStore().addProgressiveImage(fixture.image, { id: 'pending' });
     const reason = computed(() => getEnFaceUnavailableReason('pending'));
     expect(reason.value).not.toBeNull();
-    await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
+    fixture.image.setVolume(volumeOf([fixture.instance]));
     await nextTick();
     expect(reason.value).toMatch(/complete volume/);
     fixture.image.startLoad();
@@ -91,20 +91,16 @@ describe('OCT view availability', () => {
   it.each(['CT', 'MR', 'PT'] as const)(
     'allows a complete grayscale DICOM volume with modality %s',
     async (modality) => {
-      const fixture = createOCTFixture();
-      const id = useImageCacheStore().addProgressiveImage(fixture.image);
-      await fixture.chunk.loadMeta();
+      const fixture = await createOCTFixture();
       const sop = {
         CT: '1.2.840.10008.5.1.4.1.1.2',
         MR: '1.2.840.10008.5.1.4.1.1.4',
         PT: '1.2.840.10008.5.1.4.1.1.128',
       }[modality];
-      fixture.chunk.metadata!.forEach((pair) => {
-        if (pair[0] === Tags.Modality) pair[1] = modality;
-        if (pair[0] === Tags.SOPClassUID) pair[1] = sop;
-      });
-      await fixture.image.addChunks([fixture.chunk]);
-      fixture.image.startLoad();
+      setDicomTag(fixture.instance.dataset, Tags.Modality, modality);
+      setDicomTag(fixture.instance.dataset, Tags.SOPClassUID, sop);
+      fixture.image.setVolume(volumeOf([fixture.instance]));
+      const id = useImageCacheStore().addProgressiveImage(fixture.image);
       await untilLoaded(id);
       expect(getEnFaceUnavailableReason(id)).toBeNull();
     }
@@ -113,20 +109,19 @@ describe('OCT view availability', () => {
   it.each(['radial', 'nonvolumetric'])(
     'does not bypass declared OCT geometry guards: %s',
     async (kind) => {
-      const fixture = createOCTFixture({
+      const fixture = await createOCTFixture({
         scanPattern: kind === 'radial' ? '128281' : undefined,
       });
+      if (kind === 'nonvolumetric')
+        setDicomTag(
+          fixture.instance.dataset,
+          Tags.OphthalmicVolumetricPropertiesFlag,
+          'NO'
+        );
+      fixture.image.setVolume(volumeOf([fixture.instance]));
       useImageCacheStore().addProgressiveImage(fixture.image, {
         id: 'guarded',
       });
-      await fixture.chunk.loadMeta();
-      if (kind === 'nonvolumetric')
-        fixture.chunk.metadata!.push([
-          Tags.OphthalmicVolumetricPropertiesFlag,
-          'NO',
-        ]);
-      await fixture.image.addChunks([fixture.chunk]);
-      fixture.image.startLoad();
       await untilLoaded('guarded');
       expect(getEnFaceUnavailableReason('guarded')).toMatch(
         kind === 'radial' ? /reconstruction/ : /unsuitable/
