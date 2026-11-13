@@ -457,13 +457,14 @@ export const usePaintToolStore = defineStore('paint', () => {
   // store before any tool deserializes.
   function deserialize(this: _This, manifest: Manifest) {
     const paint = manifest.tools?.paint;
-    if (!paint) return;
+    if (!paint) return [];
 
     if (paint.brushSize !== undefined) {
       setBrushSize.call(this, paint.brushSize);
     }
     isActive.value = manifest.tools?.current === Tools.Paint;
     setCrossPlaneSync(paint.crossPlaneSync ?? false);
+    return [];
   }
 
   return {

@@ -34,7 +34,7 @@ export interface ISerializableTool {
     // Save-time segment id -> restored segment id, for the tools that share
     // the segment registry.
     segmentIdMap: Record<string, string>
-  ) => void | SkippedRestoreItem[];
+  ) => SkippedRestoreItem[];
 }
 
 export interface IToolStore

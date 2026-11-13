@@ -211,10 +211,9 @@ export const useToolStore = defineStore('tool', () => {
     const skipped = Object.values(ToolStoreMap)
       .map((useStore) => useStore?.())
       .filter((store): store is IToolStore => !!store)
-      .flatMap((store) => {
-        const result = store.deserialize?.(manifest, dataIDMap, segmentIdMap);
-        return Array.isArray(result) ? result : [];
-      });
+      .flatMap(
+        (store) => store.deserialize?.(manifest, dataIDMap, segmentIdMap) ?? []
+      );
 
     if (manifest.tools?.current) {
       currentTool.value = coerceForEffective(
