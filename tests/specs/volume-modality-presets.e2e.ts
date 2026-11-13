@@ -9,6 +9,7 @@ import {
   writeManifestToFile,
 } from './utils';
 import {
+  differingFraction,
   floatVoxels,
   nrrd,
   openWith3DLayout,
@@ -131,20 +132,6 @@ async function brightCenterPixels(name: string, inset: number, level = 40) {
     if (Math.max(data[index], data[index + 1], data[index + 2]) > level)
       bright++;
   return { bright, fraction: bright / (data.length / 4) };
-}
-
-/** Fraction of RGBA pixels whose largest channel difference exceeds 8. */
-function differingFraction(a: Buffer, b: Buffer) {
-  let differing = 0;
-  for (let index = 0; index < a.length; index += 4) {
-    const delta = Math.max(
-      Math.abs(a[index] - b[index]),
-      Math.abs(a[index + 1] - b[index + 1]),
-      Math.abs(a[index + 2] - b[index + 2])
-    );
-    if (delta > 8) differing++;
-  }
-  return differing / (a.length / 4);
 }
 
 /** Captures the 3D view until two consecutive frames match. */

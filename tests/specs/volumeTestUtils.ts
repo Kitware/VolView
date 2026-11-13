@@ -50,3 +50,17 @@ export async function openWith3DLayout(dataUrl: string, name: string) {
   await volViewPage.open(`?urls=[tmp/${config},${dataUrl}]`);
   await volViewPage.waitForViewCounts(0, true);
 }
+
+/** Fraction of RGBA pixels whose largest channel difference exceeds 8. */
+export function differingFraction(a: Buffer, b: Buffer) {
+  let differing = 0;
+  for (let index = 0; index < a.length; index += 4) {
+    const delta = Math.max(
+      Math.abs(a[index] - b[index]),
+      Math.abs(a[index + 1] - b[index + 1]),
+      Math.abs(a[index + 2] - b[index + 2])
+    );
+    if (delta > 8) differing++;
+  }
+  return differing / (a.length / 4);
+}

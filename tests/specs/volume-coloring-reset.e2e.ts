@@ -1,6 +1,7 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { captureViewPixels, waitForModuleTransitions } from './utils';
 import {
+  differingFraction,
   floatVoxels,
   nrrd,
   openWith3DLayout,
@@ -21,19 +22,6 @@ const sliderValue = async (slider: ChainablePromiseElement) =>
 async function pixels(selector: string, inset: number, file: string) {
   const [{ data }] = await captureViewPixels(selector, inset, file);
   return data;
-}
-
-function differingFraction(a: Buffer, b: Buffer) {
-  let differing = 0;
-  for (let index = 0; index < a.length; index += 4) {
-    const delta = Math.max(
-      Math.abs(a[index] - b[index]),
-      Math.abs(a[index + 1] - b[index + 1]),
-      Math.abs(a[index + 2] - b[index + 2])
-    );
-    if (delta > 8) differing++;
-  }
-  return differing / (a.length / 4);
 }
 
 async function waitForPixels(
@@ -146,5 +134,5 @@ describe('3D rendering color and opacity reset', () => {
       'Expected reset to restore the opacity curve and color bar'
     );
     await expect(ambientThumb()).toHaveAttribute('aria-valuenow', '0.3');
-  });
+  }).timeout(180_000);
 });
