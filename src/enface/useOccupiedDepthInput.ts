@@ -29,7 +29,12 @@ export type OccupiedDepthProjection = {
 /** Binds the selected segment mask and calibrated slab to a measurement request. */
 export function useOccupiedDepthInput(
   viewId: MaybeRef<string>,
-  { source, slab, blockedReason }: OccupiedDepthProjection
+  { source, slab, blockedReason }: OccupiedDepthProjection,
+  selection?: {
+    segmentId: MaybeRef<string | null>;
+    enabled: MaybeRef<boolean>;
+    calibrated: boolean;
+  }
 ) {
   const { currentImageID, currentImageData } = source;
   const segmentationStore = useSegmentationStore();
@@ -50,7 +55,9 @@ export function useOccupiedDepthInput(
   });
 
   const storedSegment = computed(() =>
-    segmentsRegistry.getSegment(settings.value.segmentId)
+    segmentsRegistry.getSegment(
+      selection ? unref(selection.segmentId) : settings.value.segmentId
+    )
   );
   const segmentOptions = computed(() => {
     if (!currentImageID.value) return [];
@@ -185,17 +192,20 @@ export function useOccupiedDepthInput(
       : Math.hypot(...image.getDirection().slice(axis * 3, axis * 3 + 3));
     return Math.abs(image.getSpacing()[axis]) * scale * 1000;
   });
+  const calibrationReason = computed(() => {
+    if (selection?.calibrated === false) return null;
+    if (support.value.reason) return support.value.reason;
+    if (support.value.calibratedAxes?.[slabAxis.value] === false)
+      return 'The projection axis has no reliable declared voxel spacing; occupied depth is unavailable.';
+    if (!Number.isFinite(micronsPerVoxel.value) || micronsPerVoxel.value <= 0)
+      return 'The projection axis has invalid voxel spacing; occupied depth is unavailable.';
+    return null;
+  });
   const highlightReason = computed(
     () =>
       segmentationReason.value ||
       (!selectedBinding.value ? maskStorageReason.value : null) ||
-      support.value.reason ||
-      (support.value.calibratedAxes?.[slabAxis.value] === false
-        ? 'The projection axis has no reliable declared voxel spacing; occupied depth is unavailable.'
-        : null) ||
-      (!Number.isFinite(micronsPerVoxel.value) || micronsPerVoxel.value <= 0
-        ? 'The projection axis has invalid voxel spacing; occupied depth is unavailable.'
-        : null)
+      calibrationReason.value
   );
   const thicknessReason = computed(
     () =>
@@ -228,7 +238,12 @@ export function useOccupiedDepthInput(
   });
 
   const request = computed((): OccupiedDepthRequest | null => {
-    if (!highlightThin.value) return null;
+    if (
+      !(selection
+        ? unref(selection.enabled) && !!storedSegment.value
+        : highlightThin.value)
+    )
+      return null;
     void volumeRevision.value;
     const image = currentImageData.value;
     const mask = measurementMask.value;

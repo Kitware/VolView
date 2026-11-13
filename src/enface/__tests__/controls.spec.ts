@@ -28,6 +28,15 @@ enableAutoUnmount(afterEach);
 
 function mountControls(overrides = {}) {
   const settings = reactive({ ...defaultEnFaceViewConfig(), ...overrides });
+  const thickness = {
+    thresholdMaximum: 200,
+    segmentationReason: null,
+    highlightReason: null,
+    thicknessReason: null,
+    segments: [{ value: 'retina', title: 'Retinal layer', color: '#ff0000' }],
+    segmentId: 'retina',
+    highlightThin: true,
+  };
   return mount(EnFaceControls, {
     attachTo: document.body,
     props: {
@@ -41,17 +50,8 @@ function mountControls(overrides = {}) {
         Object.assign(settings, patch),
       depthMaximum: 221,
       projectionReason: null,
-      thickness: {
-        thresholdMaximum: 200,
-        segmentationReason: null,
-        highlightReason: null,
-        thicknessReason: null,
-        segments: [
-          { value: 'retina', title: 'Retinal layer', color: '#ff0000' },
-        ],
-        segmentId: 'retina',
-        highlightThin: true,
-      },
+      thickness,
+      footprints: thickness,
     },
     global: { plugins: [createVuetify()] },
   });
@@ -471,6 +471,7 @@ function mountImageControls(spacing = 0.01) {
             input.source.currentImageID.value
           ),
           thickness: thickness.controls.value,
+          footprints: thickness.controls.value,
         });
     },
   });

@@ -211,6 +211,22 @@ export async function openEnFaceControls(view?: WebdriverIO.Element) {
   await panel.waitForStable();
 }
 
+export async function openEnFaceSidebarControls() {
+  await browser.keys(Key.Escape);
+  await $(PANEL).waitForDisplayed({ reverse: true });
+  await volViewPage.renderingModuleTab.click();
+  await waitForModuleTransitions();
+  const toggle = $('[data-testid="enface-rendering-toggle"]');
+  await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await toggle.waitForClickable();
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true')
+    await toggle.click();
+  const sidebar = '[data-testid="enface-sidebar-controls"]';
+  await $(sidebar).waitForDisplayed();
+  await toggle.$('..').waitForStable();
+  return sidebar;
+}
+
 export async function setThicknessThreshold(value: number) {
   await expandEnFaceSection('thickness');
   const input = $(THRESHOLD);

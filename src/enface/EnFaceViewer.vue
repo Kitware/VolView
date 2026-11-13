@@ -24,6 +24,7 @@ import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import EnFaceControlPanel from './EnFaceControlPanel.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
 import EnFaceMeasurementStatus from './EnFaceMeasurementStatus.vue';
+import EnFaceSegmentationProjection from './EnFaceSegmentationProjection.vue';
 import { useEnFaceViewStore } from './store';
 
 const props = defineProps<{ viewId: string }>();
@@ -89,6 +90,10 @@ const controlState = computed(() => ({
   ...controls.value,
   projectionReason: stateMessage.value,
   thickness: thicknessControls.value,
+  footprints: {
+    segments: thicknessControls.value.segments,
+    segmentationReason: thicknessControls.value.segmentationReason,
+  },
 }));
 watch(
   [viewId, currentImageID, controlState],
@@ -158,6 +163,13 @@ watch(
         :plane-normal="geometry.planeNormal"
       />
       <VtkEnFaceLabelmapRepresentation v-bind="thinRegions" />
+      <EnFaceSegmentationProjection
+        :view-id="viewId"
+        :source="source"
+        :slab="specification"
+        :geometry="geometry"
+        :blocked-reason="stateMessage"
+      />
     </VtkSliceView>
     <EnFaceStatus :message="stateMessage" :ready="projectionReady" />
     <EnFaceMeasurementStatus :message="measurementMessage" />

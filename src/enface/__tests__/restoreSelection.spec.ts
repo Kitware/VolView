@@ -158,6 +158,7 @@ it('keeps the projection ready and restores the non-first segment after deferred
             ...projection.controls.value,
             settings: useEnFaceViewStore().configFor('view', 'oct'),
             thickness: thickness.controls.value,
+            footprints: thickness.controls.value,
           });
       },
     }),

@@ -18,6 +18,9 @@ export type EnFaceViewConfig = {
   highlightThin: boolean;
   thresholdMicrons: number;
   segmentId: string | null;
+  showFootprints: boolean;
+  footprintSegmentIds: string[];
+  footprintScope: 'slab' | 'volume';
 };
 
 export type ThicknessControlState = {
@@ -35,6 +38,7 @@ export type EnFaceViewControlState = {
   depthMaximum: number;
   projectionReason: string | null;
   thickness: ThicknessControlState;
+  footprints: Pick<ThicknessControlState, 'segments' | 'segmentationReason'>;
 };
 
 export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
@@ -45,6 +49,9 @@ export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
   highlightThin: false,
   thresholdMicrons: 100,
   segmentId: null,
+  showFootprints: false,
+  footprintSegmentIds: [],
+  footprintScope: 'slab',
 });
 
 export const useEnFaceViewStore = defineStore('enface-view', () => {
@@ -106,6 +113,9 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
       if (!saved) return;
       Object.assign(configFor(viewID, dataID), saved, {
         segmentId: (saved.segmentId && segmentIdMap[saved.segmentId]) || null,
+        footprintSegmentIds: saved.footprintSegmentIds
+          .map((id) => segmentIdMap[id])
+          .filter((id): id is string => !!id),
       });
     });
   }

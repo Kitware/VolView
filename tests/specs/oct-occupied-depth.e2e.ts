@@ -2,9 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
 import { createNrrdVolume, createVtiVolume } from '../fixtures/oct/volumes';
-import { Key } from 'webdriverio';
 import {
-  PANEL,
   enFaceAppearance,
   enFacePixel,
   waitForEnFaceReady,
@@ -15,6 +13,7 @@ import {
   slabThumb,
   selectEnFace,
   openEnFaceControls,
+  openEnFaceSidebarControls,
   selectSetting,
   THRESHOLD,
   THRESHOLD_SLIDER,
@@ -30,7 +29,6 @@ import {
   openThroughDialog,
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
-  waitForModuleTransitions,
 } from './utils';
 import { setSegmentationDisplaySlider as setDisplaySlider } from './segmentationTestUtils';
 import {
@@ -277,18 +275,7 @@ describe('Retinal OCT occupied-depth', () => {
     await expectHighlight(false);
     await setThicknessThreshold(31);
     await expectHighlight(true);
-    await browser.keys(Key.Escape);
-    await $(PANEL).waitForDisplayed({ reverse: true });
-    await volViewPage.renderingModuleTab.click();
-    await waitForModuleTransitions();
-    const toggle = $('[data-testid="enface-rendering-toggle"]');
-    await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await toggle.waitForClickable();
-    if ((await toggle.getAttribute('aria-expanded')) !== 'true')
-      await toggle.click();
-    const sidebar = $('[data-testid="enface-sidebar-controls"]');
-    await sidebar.waitForDisplayed();
-    await toggle.$('..').waitForStable();
+    const sidebar = $(await openEnFaceSidebarControls());
     for (const selector of [
       '[data-testid="enface-thin-highlight"] input',
       '[data-testid="enface-segmentation-segment"] input',

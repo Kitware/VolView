@@ -290,6 +290,9 @@ const EnFaceViewConfig = z.object({
   highlightThin: z.boolean().default(false),
   thresholdMicrons: z.number().nonnegative().default(100),
   segmentId: z.string().nullable().default(null),
+  showFootprints: z.boolean().default(false),
+  footprintSegmentIds: z.array(z.string()).default([]),
+  footprintScope: z.enum(['slab', 'volume']).default('slab'),
 }) satisfies z.ZodType<EnFaceViewConfig>;
 
 const ViewConfig = z.object({
