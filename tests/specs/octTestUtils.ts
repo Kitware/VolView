@@ -160,10 +160,13 @@ const enFaceView = async (view?: WebdriverIO.Element) =>
   view ?? $(VIEWER).getElement();
 
 export async function selectEnFace(viewIndex = 0) {
-  const switcher = (await $$('.view-type-select .v-field'))[viewIndex];
+  const switcher = $$('.view-type-select .v-field')[viewIndex];
   await switcher.click();
   const option = overlayOption('En face');
   await option.waitForExist();
+  // Source canvases render progressively; En face stays disabled until the
+  // complete volume has loaded. Use that view's published loading state.
+  await volViewPage.waitForLoadingIndicator(switcher);
   await option.waitForClickable();
   await option.click();
   await $(CANVAS).waitForExist();
