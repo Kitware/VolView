@@ -1,0 +1,853 @@
+[
+  {
+    "id": "pydicom-CT_small",
+    "name": "dicom-corpus-CT_small.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/CT_small.dcm",
+    "sha256": "3dd31e5cc835b3f2cdd46c9da1982f59251e78518fefa8163d914631c66437d6",
+    "bytes": 39206,
+    "modality": "CT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "expected": {
+      "dimensions": [
+        128,
+        128,
+        1
+      ],
+      "range": [
+        -896.0,
+        1167.0
+      ],
+      "pixelHash": "ca969f2f193f5325ebbb4e75ed69a9968253f41a43f2498eefb612bb237ffb48",
+      "origin": [
+        -158.135803,
+        -179.035797,
+        -75.699997
+      ],
+      "spacing": [
+        0.661468,
+        0.661468,
+        5
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-MR_small",
+    "name": "dicom-corpus-MR_small.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small.dcm",
+    "sha256": "3f27d1c22f1a66e80d7bb7c911e8610fd0bb70325a76746a7adb1c0ddefcf2bb",
+    "bytes": 9830,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        1
+      ],
+      "range": [
+        127.0,
+        2145.0
+      ],
+      "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
+      "origin": [
+        -83.9063,
+        -91.2,
+        6.6406
+      ],
+      "spacing": [
+        0.3125,
+        0.3125
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-MR_small_implicit",
+    "name": "dicom-corpus-MR_small_implicit.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_implicit.dcm",
+    "sha256": "6077442c42a56fc7fcc7db8411a657dded9fc109e6d3275765c4de358292b299",
+    "bytes": 9702,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+    "transferSyntaxUID": "1.2.840.10008.1.2",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        1
+      ],
+      "range": [
+        127.0,
+        2145.0
+      ],
+      "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
+      "origin": [
+        -83.9063,
+        -91.2,
+        6.6406
+      ],
+      "spacing": [
+        0.3125,
+        0.3125
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-MR_small_bigendian",
+    "name": "dicom-corpus-MR_small_bigendian.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_bigendian.dcm",
+    "sha256": "3e4c8c9fe70de4f3be149bbd673fa56f211c8e8e2ff9bac63f70f9dc31b5d108",
+    "bytes": 9708,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+    "transferSyntaxUID": "1.2.840.10008.1.2.2",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        1
+      ],
+      "range": [
+        127.0,
+        2145.0
+      ],
+      "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
+      "origin": [
+        -83.9063,
+        -91.2,
+        6.6406
+      ],
+      "spacing": [
+        0.3125,
+        0.3125
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-MR_small_RLE",
+    "name": "dicom-corpus-MR_small_RLE.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_RLE.dcm",
+    "sha256": "2e5cb60878dc0acc494298ccdad28fce2cf14c51096e5d8cedab40248ea02e6c",
+    "bytes": 7790,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+    "transferSyntaxUID": "1.2.840.10008.1.2.5",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        1
+      ],
+      "range": [
+        127.0,
+        2145.0
+      ],
+      "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
+      "origin": [
+        -83.9063,
+        -91.2,
+        6.6406
+      ],
+      "spacing": [
+        0.3125,
+        0.3125
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-MR_small_jp2klossless",
+    "name": "dicom-corpus-MR_small_jp2klossless.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_jp2klossless.dcm",
+    "sha256": "4c0049e0355b560c8c846538d827afbdae5311b20fc5e5a93a3892e109bb140d",
+    "bytes": 6008,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+    "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        1
+      ],
+      "range": [
+        127.0,
+        2145.0
+      ],
+      "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
+      "origin": [
+        -83.9063,
+        -91.2,
+        6.6406
+      ],
+      "spacing": [
+        0.3125,
+        0.3125
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-MR_small_jpeg_ls_lossless",
+    "name": "dicom-corpus-MR_small_jpeg_ls_lossless.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_jpeg_ls_lossless.dcm",
+    "sha256": "b2b69dd2ae854bf7dfada6745709cd5d8a4573ea12387adbbdc56e8be6056206",
+    "bytes": 6124,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+    "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        1
+      ],
+      "range": [
+        127.0,
+        2145.0
+      ],
+      "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
+      "origin": [
+        -83.9063,
+        -91.2,
+        6.6406
+      ],
+      "spacing": [
+        0.3125,
+        0.3125
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-693_J2KR",
+    "name": "dicom-corpus-693_J2KR.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/693_J2KR.dcm",
+    "sha256": "c392d8bd1f952ed2d9387d5143d34c5a29ac9d74566688169731a50ac6a82aa2",
+    "bytes": 107060,
+    "modality": "CT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+    "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        1
+      ],
+      "range": [
+        -3024.0,
+        1468.0
+      ],
+      "pixelHash": "4d67876ea09570a5be1de299c66fc45935661a176cb5ec97be05e86b722564e9",
+      "origin": [
+        -122.5,
+        -112.4,
+        47.0
+      ],
+      "spacing": [
+        0.478516,
+        0.478516
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-693_UNCI",
+    "name": "dicom-corpus-693_UNCI.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/693_UNCI.dcm",
+    "sha256": "42d6c33d6666bf569a53951211be6fca2ab04956db43c3f75a9720d976ab128c",
+    "bytes": 526324,
+    "modality": "CT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        1
+      ],
+      "range": [
+        -3995.0,
+        1812.0
+      ],
+      "pixelHash": "86c60cefb8036e6090840b06ab0960e5a3ef9938c1639ec87c8a89f607f497bb",
+      "origin": [
+        -122.5,
+        -112.4,
+        47.0
+      ],
+      "spacing": [
+        0.478516,
+        0.478516
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-693_UNCR",
+    "name": "dicom-corpus-693_UNCR.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/693_UNCR.dcm",
+    "sha256": "cc4cdd599231922ecf63de2ddacf03d51c4588805c9154c2eef1ff49c23b32be",
+    "bytes": 525986,
+    "modality": "CT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        1
+      ],
+      "range": [
+        -3024.0,
+        1468.0
+      ],
+      "pixelHash": "4d67876ea09570a5be1de299c66fc45935661a176cb5ec97be05e86b722564e9",
+      "origin": [
+        -122.5,
+        -112.4,
+        47.0
+      ],
+      "spacing": [
+        0.478516,
+        0.478516
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-eCT_Supplemental",
+    "name": "dicom-corpus-eCT_Supplemental.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/eCT_Supplemental.dcm",
+    "sha256": "0a4c3aa02d1b0b4826daa5ffe85ef13be83c1433842a9a98b901e075136dd86f",
+    "bytes": 1052902,
+    "modality": "CT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.2.1",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        2
+      ],
+      "range": [
+        -1024.0,
+        172.0
+      ],
+      "pixelHash": "da30f5ab3d1573dc246f3968679f0fbdffde1f9158c6dabebf6d467d76d4b31e",
+      "origin": [
+        99.5,
+        -301.5,
+        -159.0
+      ],
+      "spacing": [
+        0.388672,
+        0.388672,
+        10.0
+      ],
+      "direction": [
+        -1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-emri_small",
+    "name": "dicom-corpus-emri_small.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small.dcm",
+    "sha256": "151233ec63f64ebb63b979df51aa827cd612a53422c073f6ef341770c7bc9a56",
+    "bytes": 84256,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        10
+      ],
+      "range": [
+        0.0,
+        467.0
+      ],
+      "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-emri_small_big_endian",
+    "name": "dicom-corpus-emri_small_big_endian.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_big_endian.dcm",
+    "sha256": "8e18ed3542bc4df70dc6acda87eab5095b19e2b4c1b7fb72ba457e7c217b1ab7",
+    "bytes": 84256,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+    "transferSyntaxUID": "1.2.840.10008.1.2.2",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        10
+      ],
+      "range": [
+        0.0,
+        467.0
+      ],
+      "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-emri_small_RLE",
+    "name": "dicom-corpus-emri_small_RLE.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_RLE.dcm",
+    "sha256": "93c19bca3fb6b7202dcd067de8d16cb6b3f7c6e9a0632e474aab81175ee45266",
+    "bytes": 49022,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+    "transferSyntaxUID": "1.2.840.10008.1.2.5",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        10
+      ],
+      "range": [
+        0.0,
+        467.0
+      ],
+      "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-emri_small_jpeg_2k_lossless",
+    "name": "dicom-corpus-emri_small_jpeg_2k_lossless.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_jpeg_2k_lossless.dcm",
+    "sha256": "b2b4063359a08ed3b0afa9f4e4f72f84af79e5116515b446d9a30da9dc7f1888",
+    "bytes": 40324,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+    "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        10
+      ],
+      "range": [
+        0.0,
+        467.0
+      ],
+      "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-emri_small_jpeg_ls_lossless",
+    "name": "dicom-corpus-emri_small_jpeg_ls_lossless.dcm",
+    "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_jpeg_ls_lossless.dcm",
+    "sha256": "24de03c9c0f8b5aa75d7fbcc894f94e612b66702175b4936589a0849ec9f87b4",
+    "bytes": 42834,
+    "modality": "MR",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+    "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
+    "expected": {
+      "dimensions": [
+        64,
+        64,
+        10
+      ],
+      "range": [
+        0.0,
+        467.0
+      ],
+      "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "pydicom-image_dfl",
+    "name": "dicom-corpus-image_dfl.dcm",
+    "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/image_dfl.dcm",
+    "sha256": "0029ebbba17e7c6f081408d433cd28b5d1cfee0eeb4cff509b4d972ffa9daf27",
+    "bytes": 4637,
+    "modality": "OT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1.99",
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        1
+      ],
+      "range": [
+        0.0,
+        255.0
+      ],
+      "pixelHash": "4b3989b8545f28dfaa64c94789b06710a8574af593a8a4caf87fb2bf2a13ab2d"
+    },
+    "provenance": {
+      "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "idc-ct-jpeg-lossless-slice",
+    "name": "dicom-corpus-16c331c4-6242-44e7-88c5-54e991d140f4.dcm",
+    "url": "https://idc-open-data.s3.amazonaws.com/578233f9-537b-411b-b742-403fdab164a5/16c331c4-6242-44e7-88c5-54e991d140f4.dcm",
+    "sha256": "a491cb2a944277b44b97feeb9deea0853e39cf0562c0fcb557cf6573989be930",
+    "bytes": 233204,
+    "modality": "CT",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+    "transferSyntaxUID": "1.2.840.10008.1.2.4.70",
+    "expected": {
+      "dimensions": [
+        512,
+        512,
+        1
+      ],
+      "range": [
+        -1024.0,
+        2602.0
+      ],
+      "pixelHash": "522ca4beec01da2abc9c379b641a6166f017c4e0b173f600a7b21d647000ccdd",
+      "origin": [
+        -189.62890625,
+        -336.12890625,
+        -121.578
+      ],
+      "spacing": [
+        0.7421875,
+        0.7421875
+      ],
+      "direction": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    },
+    "provenance": {
+      "source": "https://doi.org/10.7937/k9/tcia.2016.gkj0zwac",
+      "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    }
+  },
+  {
+    "id": "idc-nm-3e915859-015b-4c8f-9a67-f17db1bef1e1",
+    "name": "dicom-corpus-3e915859-015b-4c8f-9a67-f17db1bef1e1.dcm",
+    "url": "https://idc-open-data.s3.amazonaws.com/3e915859-015b-4c8f-9a67-f17db1bef1e1/e3577f45-0b62-46e0-9b4a-983fc811a403.dcm",
+    "sha256": "abc77c4e6239f4b0a605d4f4ad77e730e3c67d6057dea0265b591d7180b62de5",
+    "bytes": 1284048,
+    "modality": "NM",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "provenance": {
+      "source": "https://doi.org/10.7937/ghkn-md15",
+      "license": "CC BY 4.0",
+      "collection": "varepop_apollo",
+      "reference": "pydicom3.0.2, NumPy2.4.6",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    },
+    "expected": {
+      "dimensions": [
+        128,
+        128,
+        39
+      ],
+      "spacing": [
+        4.7951998710632,
+        4.7951998710632,
+        4.7951998710632
+      ],
+      "origin": [
+        -84.307189228102,
+        -560.03891452932,
+        1820.9574316383
+      ],
+      "direction": [
+        0.7969600011737011,
+        0.6040291437013309,
+        -0.0018841678936000028,
+        -0.18433537197109837,
+        0.24024041366395787,
+        -0.9530503734235916,
+        -0.5752175476891148,
+        0.7598903455117845,
+        0.30280593724116717
+      ],
+      "range": [
+        0.0,
+        8786.0
+      ],
+      "pixelHash": "67c8ffa6707cc36c649cae4d7ae3fe0240f40855cca87f18f4a148873cbaf5f1"
+    }
+  },
+  {
+    "id": "idc-nm-e518f6eb-c3ad-432c-933b-7676d3bdc752",
+    "name": "dicom-corpus-e518f6eb-c3ad-432c-933b-7676d3bdc752.dcm",
+    "url": "https://idc-open-data.s3.amazonaws.com/e518f6eb-c3ad-432c-933b-7676d3bdc752/64cbffec-caa9-4ee8-bc67-5586d24265c3.dcm",
+    "sha256": "2180e2ad8262907cf5c3baea36663b59d8f02250ab5768303ea81eae3aa000eb",
+    "bytes": 1445730,
+    "modality": "NM",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "provenance": {
+      "source": "https://doi.org/10.7937/tcia.bbag-2923",
+      "license": "CC BY 4.0",
+      "collection": "covid_19_ny_sbu",
+      "reference": "pydicom3.0.2, NumPy2.4.6",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    },
+    "expected": {
+      "dimensions": [
+        128,
+        128,
+        44
+      ],
+      "spacing": [
+        4.7951998710632,
+        4.7951998710632,
+        4.7951998710632
+      ],
+      "origin": [
+        -303.6479406672,
+        -462.85804050024,
+        1549.5870552885
+      ],
+      "direction": [
+        0.9999849232635268,
+        0.0003446298565199989,
+        -0.005480371876099983,
+        -0.00024031414620000066,
+        0.9998190041416026,
+        0.01902370117525005,
+        -0.005485936086894437,
+        0.019022097349032426,
+        -0.9998040129533861
+      ],
+      "range": [
+        0.0,
+        27893.0
+      ],
+      "pixelHash": "c959b2920236be466698716cc1ff46531bb3b59eebbaf777ccb80251cbf67c87"
+    }
+  },
+  {
+    "id": "idc-nm-f2827355-24e5-4d43-aa43-20534de8f631",
+    "name": "dicom-corpus-f2827355-24e5-4d43-aa43-20534de8f631.dcm",
+    "url": "https://idc-open-data.s3.amazonaws.com/f2827355-24e5-4d43-aa43-20534de8f631/f336328e-f7be-42f6-a549-3c3601987bb3.dcm",
+    "sha256": "70ee4d0ba4b4abed6a13245a97173a994771dc7d8c80b3d793169d40196daf17",
+    "bytes": 8658576,
+    "modality": "NM",
+    "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
+    "transferSyntaxUID": "1.2.840.10008.1.2.1",
+    "provenance": {
+      "source": "https://doi.org/10.7937/ghkn-md15",
+      "license": "CC BY 4.0",
+      "collection": "varepop_apollo",
+      "reference": "pydicom3.0.2, NumPy2.4.6",
+      "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major"
+    },
+    "expectedError": "Unsupported NM volume with multiple spatial/time dimensions",
+    "frameTopology": {
+      "slices": 33,
+      "timeSlots": 8,
+      "storedFrames": 264
+    }
+  }
+]

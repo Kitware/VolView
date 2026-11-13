@@ -2,7 +2,7 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useModelStore } from '@/src/store/datasets-models';
-import { FILE_READERS } from '@/src/io';
+import { FILE_READERS } from '@/src/io/readerRegistry';
 import { ImportHandler, asLoadableResult } from '@/src/io/import/common';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { Skip } from '@/src/utils/evaluateChain';

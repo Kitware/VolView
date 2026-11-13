@@ -37,10 +37,8 @@ import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useCroppingEffect } from '@/src/composables/useCroppingEffect';
 import { useCropStore } from '@/src/store/tools/crop';
 import { useEventListener } from '@vueuse/core';
-import {
-  ChunkImage,
-  type ChunkLoadedInfo,
-} from '@/src/core/streaming/chunkImage';
+import type DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
+import type { Extent } from '@/packages/dicom/core/volume/loadVolume';
 
 interface Props {
   viewId: string;
@@ -85,13 +83,13 @@ rep.property.setSpecular(DEFAULT_SPECULAR);
 });
 
 // watch for updated extents
-const updatedExtents = shallowRef<Array<ChunkLoadedInfo['updatedExtent']>>([]);
+const updatedExtents = shallowRef<Extent[]>([]);
 useEventListener(
-  // safely assume ChunkImage. If not, the event will never be triggered
-  image as Ref<ChunkImage | null>,
-  'chunkLoad',
-  (info: ChunkLoadedInfo) => {
-    updatedExtents.value = [...updatedExtents.value, info.updatedExtent];
+  // Only a DICOM volume emits this; other images never trigger it.
+  image as Ref<DicomVolumeImage | null>,
+  'extentLoaded',
+  (extent: Extent) => {
+    updatedExtents.value = [...updatedExtents.value, extent];
   }
 );
 

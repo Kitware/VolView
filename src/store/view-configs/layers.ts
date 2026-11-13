@@ -1,3 +1,4 @@
+import { getWindowMetadata } from '@/src/utils/dicom/windowMetadata';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
@@ -10,7 +11,7 @@ import {
 import { Maybe } from '@/src/types';
 import { resolveLayerColorPreset } from '@/src/vtk/LayerColorPresets';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { getConsistentDicomWindowRange } from '@/src/utils/dicomWindowRange';
 import { DEFAULT_PRESET_BY_MODALITY } from '@/src/config';
 import {
@@ -116,15 +117,15 @@ export const useLayerColoringStore = defineStore('layerColoring', () => {
     const source = layer && imageCacheStore.imageById[layer.selection];
     if (!scalarImage) {
       const modality =
-        source instanceof DicomChunkImage ? source.getModality() : undefined;
+        source instanceof DicomVolumeImage ? source.getModality() : undefined;
       return defaultMulticomponentConfig(imageDataRange, modality);
     }
 
     const isPET =
-      source instanceof DicomChunkImage && source.getModality() === 'PT';
+      source instanceof DicomVolumeImage && source.getModality() === 'PT';
     const dicomRange = isPET
       ? getConsistentDicomWindowRange(
-          source.getChunks().map((chunk) => chunk.metadata)
+          source.getInstances().map(({ dataset }) => getWindowMetadata(dataset))
         )
       : undefined;
     return {

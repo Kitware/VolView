@@ -5,7 +5,7 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { volume2DViewsOfImage } from '@/src/core/views/effectiveView';
 import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
-import { slicePlane } from '@/src/referenceLines';
+import { slicePlane } from '@/src/referenceLines/geometry';
 import { enFaceSliceLine } from './sliceGeometry';
 
 export function useEnFaceSliceLines(

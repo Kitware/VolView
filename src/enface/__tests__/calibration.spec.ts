@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { Tags } from '@/src/core/dicomTags';
-import { allocateImageFromChunks } from '@/src/utils/allocateImageFromChunks';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { instanceFor } from '@/packages/dicom/core/instance/__tests__/instanceFixture';
+import { toVtkImageData } from '@/packages/dicom/vtk/volumeImage';
+import { volumeOf } from '@/tests/unit/octFixture';
+import { datasetFromTags } from '@/tests/dicomDataset';
 import { OPHTHALMIC_TOMOGRAPHY_SOP } from '@/src/core/streaming/dicom/octMetadataTags';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 
@@ -9,17 +11,19 @@ describe('OCT occupied depth through DICOM allocation', () => {
   it.each(['0.0104\\0', '0.0104\\NaN'])(
     'measures the declared A-line spacing when another axis is unavailable: %s',
     (pixelSpacing) => {
-      const metadata = Object.entries({
-        [Tags.SOPClassUID]: OPHTHALMIC_TOMOGRAPHY_SOP,
-        [Tags.Rows]: '2',
-        [Tags.Columns]: '2',
-        [Tags.NumberOfFrames]: '2',
-        [Tags.BitsStored]: '16',
-        [Tags.PixelRepresentation]: '0',
-        [Tags.PixelSpacing]: pixelSpacing,
-        [Tags.SpacingBetweenSlices]: '0.1',
-      });
-      const image = allocateImageFromChunks([{ metadata } as unknown as Chunk]);
+      const metadata = datasetFromTags(
+        Object.entries({
+          [Tags.SOPClassUID]: OPHTHALMIC_TOMOGRAPHY_SOP,
+          [Tags.Rows]: '2',
+          [Tags.Columns]: '2',
+          [Tags.NumberOfFrames]: '2',
+          [Tags.BitsStored]: '16',
+          [Tags.PixelRepresentation]: '0',
+          [Tags.PixelSpacing]: pixelSpacing,
+          [Tags.SpacingBetweenSlices]: '0.1',
+        })
+      );
+      const image = toVtkImageData(volumeOf([instanceFor(metadata)]));
       expect(image.getSpacing()).toEqual([1, 0.0104, 0.1]);
       const result = measureOccupiedDepth({
         dimensions: image.getDimensions(),

@@ -4,6 +4,13 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
+import {
+  LoadedVtkImage,
+  type ProgressiveImage,
+  type ProgressiveImageEvents,
+} from '@/src/core/progressiveImage';
+import { getEnFaceUnavailableReason } from '@/src/enface/availability';
+import mitt from 'mitt';
 
 const seatImage = () => {
   const data = vtkImageData.newInstance();
@@ -41,5 +48,27 @@ describe('image cache lifecycle', () => {
     store.imageById['img-1'].dispose();
 
     expect(store.getVtkImageData('img-1')).toBeNull();
+  });
+
+  it('enables En face after a failed volume finishes a successful retry', () => {
+    const store = seatImage();
+    const data = store.getVtkImageData('img-1')!;
+    const image: ProgressiveImage = new LoadedVtkImage(data, 'Retry');
+    const events = mitt<ProgressiveImageEvents>();
+    image.addEventListener = events.on;
+    image.removeEventListener = events.off;
+    store.addProgressiveImage(image, { id: 'retry' });
+    events.emit('error', new Error('decode failed'));
+    expect(getEnFaceUnavailableReason('retry')).toBe(
+      'The volume failed to load completely.'
+    );
+    events.emit('status', 'complete');
+    expect(getEnFaceUnavailableReason('retry')).toBe(
+      'The volume failed to load completely.'
+    );
+    events.emit('loading', true);
+    events.emit('loading', false);
+    events.emit('status', 'complete');
+    expect(getEnFaceUnavailableReason('retry')).toBeNull();
   });
 });

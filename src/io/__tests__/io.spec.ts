@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { retypeFile } from '@/src/io';
+import { retypeFile } from '@/src/io/io';
 
 function makeEmptyFile(name: string) {
   return new File([], name);

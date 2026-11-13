@@ -28,7 +28,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .tmp/datasets
-          key: e2e-datasets-${{ hashFiles('tests/datasets.ts') }}
+          key: e2e-datasets-${{ hashFiles('tests/datasets.ts', 'tests/dicomVolumeCorpus.json', 'tests/dicomCompositionCorpus.json') }}
           restore-keys: e2e-datasets-
       - name: Run E2E on chrome (linux)
         if: matrix.os == 'ubuntu-latest'

@@ -3,7 +3,7 @@ import {
   getDataSourceName,
   isRemoteDataSource,
 } from '@/src/io/import/dataSource';
-import { Chunk } from '@/src/core/streaming/chunk';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 
 describe('isRemoteDatasource', () => {
   it('should work', () => {
@@ -65,17 +65,15 @@ describe('getDataSourceName', () => {
 
     expect(
       getDataSourceName({
-        type: 'chunk',
-        chunk: {} as Chunk,
-        mime: 'mime',
+        type: 'dicom',
+        instance: {} as Instance,
       })
     ).to.equal(null);
 
     expect(
       getDataSourceName({
-        type: 'chunk',
-        chunk: {} as Chunk,
-        mime: 'mime',
+        type: 'dicom',
+        instance: {} as Instance,
         parent: {
           type: 'file',
           file: new File([], 'name'),

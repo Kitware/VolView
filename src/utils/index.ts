@@ -315,25 +315,6 @@ export function addEventListenerOnce<T extends EventTarget>(
 }
 
 /**
- * Converts a byte sequence to ASCII.
- * @param bytes
- * @param param1
- * @returns
- */
-export function toAscii(
-  bytes: Uint8Array | Uint8ClampedArray,
-  { ignoreNulls = false } = {}
-) {
-  const chars = [];
-  for (let i = 0; i < bytes.length; i++) {
-    if (!(ignoreNulls && bytes[i] === 0)) {
-      chars.push(String.fromCharCode(bytes[i]));
-    }
-  }
-  return chars.join('');
-}
-
-/**
  * Wraps a generator as a coroutine.
  * @param generator
  * @param args

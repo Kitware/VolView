@@ -9,8 +9,8 @@
 import { describe, it, expect } from 'vitest';
 import { recognizeConfig } from '@/src/io/import/configJson';
 // Registers the `processing` config section (a module-evaluation side effect of
-// the feature entry point, mirroring the app's boot-time import).
-import '@/src/processing';
+// the integration module, mirroring the app's boot-time import).
+import '@/src/processing/integration';
 
 describe('config-by-shape recognition', () => {
   it('recognizes a JSON with only known top-level keys as config', async () => {
