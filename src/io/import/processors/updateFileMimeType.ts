@@ -1,5 +1,5 @@
 import { Skip } from '@/src/utils/evaluateChain';
-import { getFileMimeType } from '@/src/io';
+import { getFileMimeType } from '@/src/io/io';
 import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { MIME_TYPES } from '@/src/io/mimeTypes';
 

@@ -1,15 +1,14 @@
+import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags, unitToMm, type Instance } from '@/packages/dicom/core';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
-import type { Chunk } from '@/src/core/streaming/chunk';
-import { unitToMm } from '@/src/core/streaming/dicom/ultrasoundRegion';
 
-function measurementMetadata(chunk: Chunk) {
-  const tags = new Map(chunk.metadata ?? []);
-  const regions = chunk.ultrasoundRegions;
+function measurementMetadata(instance: Instance) {
+  const tags = new Map(dicomMetadataForDisplay(instance.dataset));
+  const regions = instance.ultrasoundRegions;
   if (
     tags.get(Tags.Modality)?.trim() !== 'US' ||
     !regions?.region ||
@@ -29,9 +28,9 @@ function measurementMetadata(chunk: Chunk) {
   return tags;
 }
 
-function dicomSupport(image: DicomChunkImage, data: vtkImageData) {
+function dicomSupport(image: DicomVolumeImage, data: vtkImageData) {
   const series = dicomSeriesGeometry(
-    image.getChunks().map(measurementMetadata),
+    image.getInstances().map(measurementMetadata),
     {
       spacing: data.getSpacing(),
       direction: data.getDirection(),
@@ -57,7 +56,7 @@ export function getOccupiedDepthSupport(imageID: Maybe<string>) {
   const image = cache.imageById[imageID || ''];
   const loaded = Boolean(image?.isLoaded()) && !image?.isLoading();
   const data = cache.getVtkImageData(imageID);
-  if (!(image instanceof DicomChunkImage) || !loaded || !data)
+  if (!(image instanceof DicomVolumeImage) || !loaded || !data)
     return { reason: null, calibratedAxes: undefined };
   const key = [
     ...data.getSpacing(),

@@ -1,5 +1,5 @@
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import {
   frameGridGeometry,
   imageDirection,
@@ -50,6 +50,20 @@ function seriesPositions(tags: Map<string, string>[]) {
   return positions.every((position) => position !== null) ? positions : null;
 }
 
+function matchesLoadedDirection(actual: ArrayLike<number>, declared: number[]) {
+  const axes = [declared.slice(0, 3), declared.slice(3, 6)].flatMap((axis) => {
+    const length = Math.hypot(...axis);
+    return axis.map((value) => value / length);
+  });
+  // The structured allocator normalizes valid, rounded direction cosines.
+  const normalized = imageDirection(axes);
+  return (
+    areEquals(Array.from(actual), declared, TOLERANCE) ||
+    (normalized !== null &&
+      areEquals(Array.from(actual), normalized, TOLERANCE))
+  );
+}
+
 function loadedGridReason(
   grid: Grid | undefined,
   direction: number[],
@@ -58,7 +72,7 @@ function loadedGridReason(
 ) {
   if (
     grid &&
-    (!areEquals(Array.from(grid.direction), direction, TOLERANCE) ||
+    (!matchesLoadedDirection(grid.direction, direction) ||
       !areEquals(Array.from(grid.origin), origin, TOLERANCE) ||
       !near(grid.spacing[2], distance, TOLERANCE))
   )

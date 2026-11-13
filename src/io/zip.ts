@@ -36,7 +36,8 @@ export async function extractFileFromZip(
   filePath: string
 ): Promise<File> {
   const zip = await JSZip.loadAsync(zipFile);
-  const zippedFile = zip.file(filePath);
+  const zippedFile =
+    zip.file(filePath) ?? zip.file(filePath.replace(/^\/+/, ''));
 
   if (!zippedFile)
     throw new Error(`File ${filePath} does not exist in the zip file`);

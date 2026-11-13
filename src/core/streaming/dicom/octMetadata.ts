@@ -1,7 +1,7 @@
-import dicomParser, { type DataSet } from 'dicom-parser';
-import { inflateSync } from 'fflate';
+import { Tags, type DicomDataset } from '@/packages/dicom/core';
+import { dicomDatasetToTags } from '@/src/io/readDicomTags';
+import { type OCTDataset, structuredOCTDataset } from './octDataset';
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
-import { Tags, toDicomParserKey } from '@/src/core/dicomTags';
 import {
   frameGridGeometry,
   imageDirection,
@@ -20,48 +20,33 @@ const finiteVector = (
   value?.length === length && value.every(Number.isFinite);
 const positiveNumber = (value: number) => Number.isFinite(value) && value > 0;
 
-const SHARED = 'x52009229';
-const PER_FRAME = 'x52009230';
-const MEASURES = 'x00289110';
-const ORIENTATION = 'x00209116';
-const POSITION = 'x00209113';
-const SCAN_PATTERN = 'x00221618';
-const ACQUISITION_PARAMETERS = 'x00221640';
-const PIXEL_SPACING = toDicomParserKey(Tags.PixelSpacing);
-const SLICE_SPACING = toDicomParserKey(Tags.SpacingBetweenSlices);
-const IMAGE_ORIENTATION = toDicomParserKey(Tags.ImageOrientationPatient);
-const IMAGE_POSITION = toDicomParserKey(Tags.ImagePositionPatient);
-const sequenceTags = new Set([
-  SHARED,
-  PER_FRAME,
-  MEASURES,
-  ORIENTATION,
-  POSITION,
-  SCAN_PATTERN,
-  ACQUISITION_PARAMETERS,
-  'x00283000',
-  'x00289145',
-]);
-
-const firstItem = (data: DataSet | undefined, tag: string) =>
-  data?.elements[tag]?.items?.[0]?.dataSet;
-const sequenceItems = (data: DataSet, tag: string) =>
-  data.elements[tag]?.items?.flatMap((item) =>
-    item.dataSet ? [item.dataSet] : []
-  ) ?? [];
-const stringValue = (data: DataSet | undefined, tag: string) =>
-  data?.string(tag)?.trim() || undefined;
+const SHARED = '52009229';
+const PER_FRAME = '52009230';
+const MEASURES = '00289110';
+const ORIENTATION = '00209116';
+const POSITION = '00209113';
+const SCAN_PATTERN = '00221618';
+const ACQUISITION_PARAMETERS = '00221640';
+const PIXEL_SPACING = Tags.PixelSpacing;
+const SLICE_SPACING = Tags.SpacingBetweenSlices;
+const IMAGE_ORIENTATION = Tags.ImageOrientationPatient;
+const IMAGE_POSITION = Tags.ImagePositionPatient;
+const firstItem = (data: OCTDataset | undefined, tag: string) =>
+  data?.items(tag)[0];
+const sequenceItems = (data: OCTDataset, tag: string) => data.items(tag);
+const stringValue = (data: OCTDataset | undefined, tag: string) =>
+  data?.value(tag)?.trim() || undefined;
 const vector = (value: string | undefined) => value?.split('\\').map(Number);
 
 function frameAttribute(
-  data: DataSet | undefined,
+  data: OCTDataset | undefined,
   sequence: string,
   attribute: string
 ) {
   return stringValue(firstItem(data, sequence), attribute);
 }
 
-function frameGeometry(data: DataSet) {
+function frameGeometry(data: OCTDataset) {
   const shared = firstItem(data, SHARED);
   const frames = sequenceItems(data, PER_FRAME);
   // Shared groups take precedence over the first frame, then the top level.
@@ -74,7 +59,10 @@ function frameGeometry(data: DataSet) {
   );
   return {
     frames,
-    declaredFrames: data.intString(toDicomParserKey(Tags.NumberOfFrames)),
+    declaredFrames: Number.parseInt(
+      stringValue(data, Tags.NumberOfFrames) ?? '',
+      10
+    ),
     orientation: attribute(ORIENTATION, IMAGE_ORIENTATION),
     spacing: attribute(MEASURES, PIXEL_SPACING),
     positions,
@@ -152,11 +140,11 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   return positionError(geometry);
 }
 
-function scanPattern(data: DataSet) {
+function scanPattern(data: OCTDataset) {
   const acquisitions = sequenceItems(data, ACQUISITION_PARAMETERS);
   const patterns = [data, ...acquisitions].flatMap((dataset) =>
     sequenceItems(dataset, SCAN_PATTERN).flatMap(
-      (item) => stringValue(item, 'x00080100') ?? []
+      (item) => stringValue(item, '00080100') ?? []
     )
   );
   return acquisitions.length > 1 || new Set(patterns).size > 1
@@ -164,7 +152,7 @@ function scanPattern(data: DataSet) {
     : patterns[0];
 }
 
-function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
+function promoteOCTGeometry(data: OCTDataset, tags: Map<string, string>) {
   const geometry = frameGeometry(data);
   const set = (tag: string, value: Maybe<string>) => {
     if (value) tags.set(tag, value);
@@ -172,7 +160,7 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.PixelSpacing, geometry.spacing);
   set(
     Tags.OphthalmicVolumetricPropertiesFlag,
-    stringValue(data, toDicomParserKey(Tags.OphthalmicVolumetricPropertiesFlag))
+    stringValue(data, Tags.OphthalmicVolumetricPropertiesFlag)
   );
   set(OCT_SCAN_PATTERN, scanPattern(data));
   const reason = geometryError(geometry);
@@ -191,58 +179,11 @@ function promoteOCTGeometry(data: DataSet, tags: Map<string, string>) {
   set(Tags.SpacingBetweenSlices, sliceSpacing);
 }
 
-async function readOCTHeader(file: Blob) {
-  let length = Math.min(file.size, 64 * 1024);
-  for (;;) {
-    const isCompleteFile = length === file.size;
-    const headerBytes = new Uint8Array(
-      await file.slice(0, length).arrayBuffer()
-    );
-    let needsCompleteFile = false;
-    try {
-      const data = dicomParser.parseDicom(headerBytes, {
-        untilTag: 'x7fe00010',
-        vrCallback: (tag) => (sequenceTags.has(tag) ? 'SQ' : undefined),
-        inflater: (bytes, position) => {
-          // Inflate only the complete stream, including trailing NULL padding.
-          if (!isCompleteFile) {
-            needsCompleteFile = true;
-            throw new Error('Deflated OCT requires the complete dataset');
-          }
-          const inflated = inflateSync(bytes.subarray(position));
-          const complete = new Uint8Array(position + inflated.length);
-          complete.set(bytes.subarray(0, position));
-          complete.set(inflated, position);
-          // The inflater resumes at zero. Skip the Part 10 header as one OB
-          // element while retaining the file-meta offsets in the same buffer.
-          complete.fill(0, 0, 12);
-          complete.set([0x4f, 0x42], 4);
-          new DataView(complete.buffer).setUint32(8, position - 12, true);
-          return complete;
-        },
-      });
-      // A successful parse of a prefix can still end between metadata elements.
-      // Only accept it once the complete Pixel Data header has been reached.
-      if (isCompleteFile || data.elements.x7fe00010) return data;
-    } catch (error) {
-      if (isCompleteFile) throw error;
-    }
-    length = needsCompleteFile ? file.size : Math.min(file.size, length * 4);
-  }
-}
-
-/** Promotes enhanced OCT geometry for the loader. */
-export async function augmentOCTMetadata(
-  file: Blob,
-  metadata: Array<[string, string]>
-) {
+/** Application-only OCT eligibility and measurement metadata; raw core data stays unchanged. */
+export function dicomMetadataForDisplay(dataset: DicomDataset) {
+  const metadata = dicomDatasetToTags(dataset);
   if (!isOCTMetadata(metadata)) return metadata;
   const tags = new Map(metadata);
-  try {
-    const data = await readOCTHeader(file);
-    promoteOCTGeometry(data, tags);
-  } catch {
-    tags.set(OCT_GEOMETRY_ERROR, 'OCT spatial metadata could not be read.');
-  }
+  promoteOCTGeometry(structuredOCTDataset(dataset), tags);
   return [...tags];
 }

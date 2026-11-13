@@ -1,4 +1,4 @@
-import { RequestPool } from '@/src/core/streaming/requestPool';
+import { createDicomRuntime } from '@/packages/dicom/core';
 import {
   CachedStreamFetcher,
   sliceChunks,
@@ -72,9 +72,12 @@ describe('CachedStreamFetcher', () => {
         },
       });
     };
-    const pool = new RequestPool(1, fetchRange);
+    const runtime = createDicomRuntime({
+      requestConcurrency: 1,
+      fetch: fetchRange,
+    });
     const fetcher = new CachedStreamFetcher('https://example.test/data', {
-      fetch: pool.fetch,
+      fetch: runtime.fetch,
     });
 
     await fetcher.connect();
@@ -95,6 +98,7 @@ describe('CachedStreamFetcher', () => {
     expect(requestedRanges).toHaveLength(2);
 
     fetcher.close();
+    runtime.dispose();
   });
 });
 
@@ -117,4 +121,26 @@ describe('sliceChunks', () => {
       sliceChunks([new Uint8Array([1, 2]), new Uint8Array([3, 4])], 3)
     ).toEqual([new Uint8Array([1, 2]), new Uint8Array([3])]);
   });
+});
+
+it('rejects an unverified resumed range while preserving the cached header', async () => {
+  const prefix = new Uint8Array([1, 2, 3, 4]);
+  let requests = 0;
+  const fetcher = new CachedStreamFetcher(
+    'https://example.test/hidden-headers',
+    {
+      prefixChunks: [prefix],
+      fetch: async () =>
+        new Response(new Uint8Array([5, 6]), {
+          status: 206,
+          headers: requests++ === 0 ? {} : { 'content-range': 'bytes 4-5/6' },
+        }),
+    }
+  );
+  await expect(fetcher.connect()).rejects.toThrow('readable content range');
+  expect(fetcher.connected).toBe(false);
+  expect(new Uint8Array(await (await fetcher.blob()).arrayBuffer())).toEqual(
+    new Uint8Array([1, 2, 3, 4, 5, 6])
+  );
+  fetcher.close();
 });

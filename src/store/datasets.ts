@@ -9,7 +9,12 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { useModelStore } from '@/src/store/datasets-models';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { Tags } from '@/src/core/dicomTags';
+import {
+  getDatasetTag,
+  Tags,
+  trimDicomPadding,
+  type Instance,
+} from '@/packages/dicom/core';
 
 export const DataType = {
   Image: 'Image',
@@ -21,12 +26,17 @@ interface LoadedData {
   dataSource: DataSource;
 }
 
+function dicomInstanceIdentity(instance: Instance): string | undefined {
+  const sopInstanceUID = trimDicomPadding(
+    getDatasetTag(instance.dataset, Tags.SOPInstanceUID) ?? ''
+  );
+  return sopInstanceUID ? `dicom:${sopInstanceUID}` : undefined;
+}
+
 function sourceIdentity(dataSource: DataSource): string | undefined {
-  if (dataSource.type === 'chunk') {
-    const sopInstanceUID = dataSource.chunk.metadata
-      ?.find(([tag]) => tag === Tags.SOPInstanceUID)?.[1]
-      ?.trim();
-    if (sopInstanceUID) return `dicom:${sopInstanceUID}`;
+  if (dataSource.type === 'dicom') {
+    const identity = dicomInstanceIdentity(dataSource.instance);
+    if (identity) return identity;
   }
 
   if (dataSource.type === 'uri') return `uri:${dataSource.uri}`;
@@ -50,21 +60,37 @@ function sourceIdentity(dataSource: DataSource): string | undefined {
   return undefined;
 }
 
+// Remote provenance survives a merge: it is the copy that can be re-fetched
+// when the session is restored.
+const preferRemote = (incoming: DataSource, kept: DataSource) =>
+  isRemoteDataSource(incoming) && !isRemoteDataSource(kept);
+
+/**
+ * The incoming collection names every member the dataset now covers, so it
+ * decides membership: a member the dataset no longer holds (moved to a sibling
+ * volume by a replan) is dropped. The existing collection only contributes a
+ * retained copy of a member unless the incoming source adds remote provenance.
+ */
 function mergeCollectionSources(
   existing: DataSource,
   incoming: DataSource
 ): DataSource {
   if (existing.type !== 'collection' || incoming.type !== 'collection') {
-    return isRemoteDataSource(incoming) && !isRemoteDataSource(existing)
-      ? incoming
-      : existing;
+    return preferRemote(incoming, existing) ? incoming : existing;
   }
+
+  const priorByIdentity = new Map<string, DataSource>();
+  existing.sources.forEach((source) => {
+    const identity = sourceIdentity(source);
+    if (identity !== undefined && !priorByIdentity.has(identity))
+      priorByIdentity.set(identity, source);
+  });
 
   const merged: DataSource[] = [];
   const indexByIdentity = new Map<string, number>();
   const seenByReference = new Set<DataSource>();
 
-  [...existing.sources, ...incoming.sources].forEach((source) => {
+  incoming.sources.forEach((source) => {
     const identity = sourceIdentity(source);
     if (identity === undefined) {
       if (!seenByReference.has(source)) {
@@ -75,16 +101,15 @@ function mergeCollectionSources(
     }
 
     const existingIndex = indexByIdentity.get(identity);
-    if (existingIndex === undefined) {
-      indexByIdentity.set(identity, merged.length);
-      merged.push(source);
+    if (existingIndex !== undefined) {
+      if (preferRemote(source, merged[existingIndex]))
+        merged[existingIndex] = source;
       return;
     }
 
-    const kept = merged[existingIndex];
-    if (isRemoteDataSource(source) && !isRemoteDataSource(kept)) {
-      merged[existingIndex] = source;
-    }
+    const prior = priorByIdentity.get(identity);
+    indexByIdentity.set(identity, merged.length);
+    merged.push(prior && !preferRemote(source, prior) ? prior : source);
   });
 
   return { type: 'collection', sources: merged };
@@ -102,6 +127,7 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
   const serializedDependencies: Array<Schema.DataSourceType> = [];
   const dataIDToDataSourceID: Record<string, number> = {};
   const files: Record<string, File> = {};
+  const fileToSourceId = new Map<File, number>();
 
   function serializeDataSource(ds: DataSource): number {
     if (dataSourceToId.has(ds)) {
@@ -116,8 +142,11 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
         return serializeDataSource(ds.parent);
       }
 
+      const existingFile = fileToSourceId.get(ds.file);
+      if (existingFile !== undefined) return existingFile;
       const id = nextId();
       dataSourceToId.set(ds, id);
+      fileToSourceId.set(ds.file, id);
 
       const fileId = nextId();
       files[fileId] = ds.file;
@@ -170,12 +199,12 @@ function serializeLoadedData(loadedDataSources: Array<LoadedData>) {
       return id;
     }
 
-    if (type === 'chunk') {
-      // chunk derives from the parent. Just return the serialized parent.
+    if (type === 'dicom') {
+      // An instance derives from the parent. Just return the serialized parent.
       if (ds.parent) {
         return serializeDataSource(ds.parent);
       }
-      throw new Error('Chunk does not have a parent');
+      throw new Error('DICOM instance does not have a parent');
     }
 
     throw new Error(`Invalid data source type: ${type as string}`);
@@ -279,10 +308,10 @@ export const useDatasetStore = defineStore('dataset', () => {
 
   function addDataSources(sources: Array<LoadedData>) {
     // Re-importing the same data yields the same dataID (e.g. the same DICOM
-    // series dragged in twice). Keep one dataset entry while merging distinct
-    // collection members so incremental imports retain every slice. Duplicate
-    // DICOM instances are keyed by SOP Instance UID, preferring remote
-    // provenance when both local and remote forms are available.
+    // series dragged in twice). Keep one dataset entry and let the incoming
+    // collection, which names every member the volume now holds, decide its
+    // provenance. Duplicate DICOM instances are keyed by SOP Instance UID,
+    // preferring remote provenance when both local and remote forms exist.
     const byId = new Map(loadedData.value.map((d) => [d.dataID, d]));
     sources.forEach((d) => {
       const existing = byId.get(d.dataID);

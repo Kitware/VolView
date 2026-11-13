@@ -13,11 +13,11 @@ import { Maybe } from '@/src/types';
 
 type FetchFunction = typeof fetch;
 
-export interface CachedStreamFetcherRequestInit extends RequestInit {
+export type CachedStreamFetcherRequestInit = RequestInit & {
   prefixChunks?: Uint8Array[];
   contentLength?: number;
   fetch?: FetchFunction;
-}
+};
 
 export const StopSignal = Symbol('StopSignal');
 
@@ -87,7 +87,9 @@ export class CachedStreamFetcher implements Fetcher {
   ) {
     this.chunks = [...(init?.prefixChunks ?? [])] as Uint8Array<ArrayBuffer>[];
     this.contentLength = init?.contentLength ?? null;
-    this.fetch = init?.fetch ?? globalThis.fetch;
+    const fetchFn =
+      init?.fetch ?? ((input, options) => globalThis.fetch(input, options));
+    this.fetch = (input, options) => fetchFn(input, options);
   }
 
   get connected() {
@@ -98,10 +100,6 @@ export class CachedStreamFetcher implements Fetcher {
     return this.chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   }
 
-  get cachedChunks() {
-    return this.chunks;
-  }
-
   get abortSignal() {
     return this.abortController?.signal;
   }
@@ -110,6 +108,7 @@ export class CachedStreamFetcher implements Fetcher {
     if (this.connected) return;
 
     this.abortController = init?.abortController ?? new AbortController();
+    const connection = this.abortController;
     this.abortController.signal.addEventListener('abort', () => {
       this.cleanupAfterAbort();
     });
@@ -130,6 +129,7 @@ export class CachedStreamFetcher implements Fetcher {
       signal: this.abortController.signal,
     });
 
+    this.validateConnection(connection, response);
     this.contentType = response.headers.get('content-type') ?? '';
     this.contentDisposition = response.headers.get('content-disposition') ?? '';
 
@@ -172,23 +172,36 @@ export class CachedStreamFetcher implements Fetcher {
     }
 
     if (response.status === HTTP_STATUS_PARTIAL_CONTENT) {
-      if (contentRange.type === 'invalid-range')
-        throw new Error('Invalid content-range header');
-      if (contentRange.type === 'unsatisfied-range')
-        throw new Error('Range could not be satisfied');
-
-      let start: number = 0;
-      if (contentRange.type === 'range') {
-        start = contentRange.start;
-      }
-
-      this.chunks = sliceChunks(this.chunks, start);
+      this.resumeChunks(response, contentRange);
     } else if (!noMoreContent) {
       this.chunks = [];
     }
 
     this.activeNetworkStream = response.body;
     this.activeNetworkStreamReader = this.activeNetworkStream.getReader();
+  }
+
+  private resumeChunks(response: Response, contentRange: ContentRange) {
+    if (contentRange.type === 'invalid-range')
+      throw new Error('Invalid content-range header');
+    if (contentRange.type === 'unsatisfied-range')
+      throw new Error('Range could not be satisfied');
+    if (contentRange.type === 'empty-range' && this.size > 0) {
+      response.body?.cancel().catch(() => {});
+      this.close();
+      throw new Error(
+        'Cannot resume a DICOM download without a readable content range'
+      );
+    }
+    const start = contentRange.type === 'range' ? contentRange.start : 0;
+    this.chunks = sliceChunks(this.chunks, start);
+  }
+
+  private validateConnection(connection: AbortController, response: Response) {
+    if (connection.signal.aborted || connection !== this.abortController) {
+      response.body?.cancel().catch(() => {});
+      throw new DOMException('DICOM request cancelled', 'AbortError');
+    }
   }
 
   close() {
@@ -203,6 +216,7 @@ export class CachedStreamFetcher implements Fetcher {
       pull: async (controller) => {
         if (!this.connected) {
           controller.close();
+          return;
         }
 
         if (chunkIndex > this.chunks.length)
@@ -232,9 +246,11 @@ export class CachedStreamFetcher implements Fetcher {
       });
 
     if (!this.promise) {
+      const connection = this.abortController;
       this.promise = this.activeNetworkStreamReader
         .read()
         .then((result) => {
+          if (connection !== this.abortController) throw StopSignal;
           if (!result.done) {
             this.chunks.push(result.value as Uint8Array<ArrayBuffer>);
           } else if (this.contentLength === null) {
@@ -244,7 +260,7 @@ export class CachedStreamFetcher implements Fetcher {
           return result;
         })
         .finally(() => {
-          this.promise = null;
+          if (connection === this.abortController) this.promise = null;
         });
     }
     return this.promise;
@@ -260,6 +276,7 @@ export class CachedStreamFetcher implements Fetcher {
   }
 
   private cleanupAfterAbort() {
+    this.promise = null;
     this.activeNetworkStreamReader = null;
     this.activeNetworkStream = null;
     this.abortController = null;

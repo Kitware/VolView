@@ -1,5 +1,5 @@
 import { Skip } from '@/src/utils/evaluateChain';
-import StreamingByteReader from '@/src/core/streaming/streamingByteReader';
+import { StreamingByteReader } from '@/packages/dicom/core';
 import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { getFileMimeFromMagicStream } from '@/src/io/magic';
 import { getMimeTypeFromFilename } from '@/src/io/io';

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentPublicInstance, nextTick } from 'vue';
 import PlayControls from '@/src/components/PlayControls.vue';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
+import { Tags } from '@/packages/dicom/core';
 
 type PlayControlsProps = { viewId: string; imageId: string | null };
 type PlayControlsWrapper = VueWrapper<
@@ -15,8 +16,8 @@ describe('PlayControls', () => {
     setActivePinia(createPinia());
     vi.useFakeTimers();
     // Frame time drives the default FPS: 50ms is 20fps, 25ms is 40fps.
-    seatCineImage('image-1', { frameTimeMs: 50 });
-    seatCineImage('image-2', { frameTimeMs: 25 });
+    seatCineImage('image-1', { [Tags.FrameTime]: '50' });
+    seatCineImage('image-2', { [Tags.FrameTime]: '25' });
   });
 
   afterEach(() => {

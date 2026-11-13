@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
 import type { DataSource } from '@/src/io/import/dataSource';
-import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import {
   collectProvenanceUris,
   deriveFormat,
@@ -21,31 +20,29 @@ const uriSource = (uri: string): DataSource => ({
   name: uri.split('/').pop() ?? uri,
 });
 
-// `chunk` is never read by the mint, so a placeholder is cast in.
-const dicomChunk = (uri: string): DataSource =>
+// `instance` is never read by the mint, so a placeholder is cast in.
+const dicomInstance = (uri: string): DataSource =>
   ({
-    type: 'chunk',
-    chunk: undefined,
-    mime: FILE_EXT_TO_MIME.dcm,
+    type: 'dicom',
+    instance: undefined,
     parent: uriSource(uri),
   }) as unknown as DataSource;
 
 const dicomVolume = (uris: string[]): DataSource => ({
   type: 'collection',
-  sources: uris.map(dicomChunk),
+  sources: uris.map(dicomInstance),
 });
 
-const localChunk = (): DataSource =>
+const localInstance = (): DataSource =>
   ({
-    type: 'chunk',
-    chunk: undefined,
-    mime: FILE_EXT_TO_MIME.dcm,
+    type: 'dicom',
+    instance: undefined,
     parent: { type: 'file', file: new File([], 'local.dcm'), fileType: '' },
   }) as unknown as DataSource;
 
 const mixedProvenanceVolume = (uris: string[]): DataSource => ({
   type: 'collection',
-  sources: [...uris.map(dicomChunk), localChunk()],
+  sources: [...uris.map(dicomInstance), localInstance()],
 });
 
 const remoteFile = (uri: string, filename: string): DataSource => ({

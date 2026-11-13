@@ -1,3 +1,4 @@
+import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { nextTick } from 'vue';
@@ -5,10 +6,15 @@ import { flushPromises } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import { Chunk } from '@/src/core/streaming/chunk';
+import {
+  allocateVolume,
+  createDicomRuntime,
+  fromBlob,
+  Tags,
+} from '@/packages/dicom/core';
+import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
-import { Tags } from '@/src/core/dicomTags';
+import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { type LabelmapIO } from '@/src/segmentation/store';
 import { useToolStore } from '@/src/store/tools';
@@ -84,7 +90,7 @@ const expectPartialRestore = (
   expect(store().imageMasks('healthy')).toHaveLength(1);
 };
 
-// Real chunk loading and terminal status transitions, with only pixel decoding
+// Real volume loading and terminal status transitions, with only pixel decoding
 // held at the IO seam so deletion/completion can occur during the restore.
 const pendingImage = async (id = 'parent') => {
   const decoded = defer<void>();
@@ -100,34 +106,25 @@ const pendingImage = async (id = 'parent') => {
     [Tags.PixelRepresentation, '0'],
     [Tags.SamplesPerPixel, '1'],
   ] as Array<[string, string]>;
-  const chunk = new Chunk({
-    metaLoader: {
-      meta,
-      metaBlob: new Blob(['meta']),
-      load: () => {},
-      stop: () => {},
-    },
-    dataLoader: { data: new Blob(['pixels']), load: () => {}, stop: () => {} },
-  });
-  await chunk.loadMeta();
-  await chunk.loadData();
-  const image = new DicomChunkImage({
-    splitAndSort: async (chunks) => ({ volume: chunks }),
-    readDicomImage: async () => {
+  const instance = instanceFor(
+    datasetFromTags(meta),
+    fromBlob(new Blob(['pixels']))
+  );
+  const runtime = createDicomRuntime(
+    decodingWith(async () => {
       started.resolve();
       await decoded.promise;
       return {
-        image: {
-          size: [4, 4, 1],
-          data: Uint16Array.from({ length: 16 }, (_, index) =>
-            index === 5 ? 1 : 0
-          ),
-          imageType: { components: 1 },
-        },
+        size: [4, 4, 1],
+        data: Uint16Array.from({ length: 16 }, (_, index) =>
+          index === 5 ? 1 : 0
+        ),
+        components: 1,
       };
-    },
-  });
-  await image.addChunks([chunk]);
+    })
+  );
+  const image = new DicomVolumeImage({ runtime });
+  image.setVolume(allocateVolume(plannedUpdate([instance])));
   cache().addProgressiveImage(image, { id });
   await started.promise;
   expect(image.loading.value).toBe(true);

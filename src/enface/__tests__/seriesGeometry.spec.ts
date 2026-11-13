@@ -1,63 +1,69 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { Chunk } from '@/src/core/streaming/chunk';
-import { DicomFileMetaLoader } from '@/src/core/streaming/dicom/dicomFileMetaLoader';
-import { DicomFileDataLoader } from '@/src/core/streaming/dicom/dicomFileDataLoader';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags, type Instance } from '@/packages/dicom/core';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { createOCTFixture, readDicomTags } from '@/tests/unit/octFixture';
+import {
+  createOCTFixture,
+  readFixtureInstance,
+  volumeOf,
+} from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { getOccupiedDepthSupport } from '@/src/enface/occupiedDepthSupport';
-import {
-  OCT_GEOMETRY_ERROR,
-  OCT_SCAN_PATTERN,
-} from '@/src/core/streaming/dicom/octMetadataTags';
+import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
+import { datasetFromTags } from '@/tests/dicomDataset';
+import {
+  removeDicomTag,
+  setDicomTag,
+  setDicomSequence,
+} from './dicomMetadataFixture';
 
-describe('assembled OCT series through real chunk and file collaborators', () => {
+const displayMetadata = (instance: Instance) =>
+  new Map(dicomMetadataForDisplay(instance.dataset));
+
+describe('assembled OCT series through real header and file collaborators', () => {
   beforeEach(() => setActivePinia(createPinia()));
   afterEach(() => cleanupCachedImages([]));
 
   async function assemble(
     positions = [0, 0.2, 0.4],
-    change?: (chunks: Chunk[]) => void,
+    change?: (instances: Instance[]) => void,
     modality = 'OPT'
   ) {
-    const chunks = positions.map((z, index) => {
-      const bytes = buildSyntheticDicom({
-        studyUid: '1.2.3.1',
-        seriesUid: '1.2.3.2',
-        sopUid: '1.2.3.3.' + index,
-        instanceNumber: index + 1,
-        modality,
-        imageOrientationPatient: [1, 0, 0, 0, 1, 0],
-        imagePositionPatient: [0, 0, z],
-        pixelSpacing: [0.0104, 0.02],
-        rows: 2,
-        cols: 2,
-        pixelValue: index + 1,
-      });
-      const file = new File([Uint8Array.from(bytes)], 'oct-' + index + '.dcm');
-      return new Chunk({
-        metaLoader: new DicomFileMetaLoader(file, readDicomTags),
-        dataLoader: new DicomFileDataLoader(file),
-      });
-    });
-    await Promise.all(chunks.map((chunk) => chunk.loadMeta()));
-    change?.(chunks);
-    // Existing real-pixel fixture supplies a deterministic parser/decoder; only
-    // grouping is injected because production grouping needs a browser WASM worker.
-    const fixture = createOCTFixture();
-    fixture.chunk.dispose();
-    const id = useImageCacheStore().addProgressiveImage(fixture.image);
-    await fixture.image.addChunks(chunks);
-    fixture.image.startLoad();
+    const instances = await Promise.all(
+      positions.map((z, index) => {
+        const bytes = buildSyntheticDicom({
+          studyUid: '1.2.3.1',
+          seriesUid: '1.2.3.2',
+          sopUid: '1.2.3.3.' + index,
+          instanceNumber: index + 1,
+          modality,
+          imageOrientationPatient: [1, 0, 0, 0, 1, 0],
+          imagePositionPatient: [0, 0, z],
+          pixelSpacing: [0.0104, 0.02],
+          rows: 2,
+          cols: 2,
+          pixelValue: index + 1,
+        });
+        const file = new File(
+          [Uint8Array.from(bytes)],
+          'oct-' + index + '.dcm'
+        );
+        return readFixtureInstance(file);
+      })
+    );
+    change?.(instances);
+    // Exercise the source geometry guards on one candidate volume, including
+    // intentionally incompatible instances that collection planning would split.
+    const { image } = await createOCTFixture();
+    image.setVolume(volumeOf(instances));
+    const id = useImageCacheStore().addProgressiveImage(image);
     await untilLoaded(id);
-    return { id, image: fixture.image, chunks };
+    return { id, image, instances };
   }
 
   it('derives slow spacing from complete uniform positions when optional spacing is absent', async () => {
@@ -122,9 +128,9 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
   });
 
   it('uses uniform file positions when optional slice spacing disagrees', async () => {
-    const { id, image } = await assemble(undefined, (chunks) => {
-      chunks.forEach((chunk) =>
-        chunk.metadata!.push([Tags.SpacingBetweenSlices, '0.3'])
+    const { id, image } = await assemble(undefined, (instances) => {
+      instances.forEach((instance) =>
+        setDicomTag(instance.dataset, Tags.SpacingBetweenSlices, '0.3')
       );
     });
     expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
@@ -132,24 +138,22 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
   });
 
   it('accepts orthogonal direction cosines rounded to four decimals', async () => {
-    const { id } = await assemble(undefined, (chunks) => {
-      chunks.forEach((chunk) =>
-        chunk.metadata!.push([
+    const { id } = await assemble(undefined, (instances) => {
+      instances.forEach((instance) =>
+        setDicomTag(
+          instance.dataset,
           Tags.ImageOrientationPatient,
-          '0.9986\\0.0523\\0\\-0.0523\\0.9986\\0',
-        ])
+          '0.9986\\0.0523\\0\\-0.0523\\0.9986\\0'
+        )
       );
     });
     expect(getOccupiedDepthSupport(id).reason).toBeNull();
   });
 
   it('does not calibrate in-plane axes when every file omits pixel spacing', async () => {
-    const { id } = await assemble(undefined, (chunks) => {
-      chunks.forEach((chunk) => {
-        const index = chunk.metadata!.findIndex(
-          ([tag]) => tag === Tags.PixelSpacing
-        );
-        chunk.metadata!.splice(index, 1);
+    const { id } = await assemble(undefined, (instances) => {
+      instances.forEach((instance) => {
+        removeDicomTag(instance.dataset, Tags.PixelSpacing);
       });
     });
     expect(getOccupiedDepthSupport(id).calibratedAxes).toEqual([
@@ -160,32 +164,52 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
   });
 
   it.each([
-    { positions: [0, 0.1, 0.4] },
-    { positions: [0, 0.2, 0.4003, 0.6, 0.8] },
+    { positions: [0, 0.1, 0.4], displayedSpacing: 0.1 },
+    { positions: [0, 0.2, 0.4003, 0.6, 0.8], displayedSpacing: 0.2 },
   ])(
     'keeps a nonuniform series projection-only: $positions',
-    async ({ positions }) => {
-      const { id, image, chunks } = await assemble(positions);
-      expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(0.2, 7);
+    async ({ positions, displayedSpacing }) => {
+      const { id, image, instances } = await assemble(positions);
+      expect(image.getVtkImageData().getSpacing()[2]).toBeCloseTo(
+        displayedSpacing,
+        7
+      );
       expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(getOccupiedDepthSupport(id).reason).toMatch(/nonuniform/);
       expect(
-        dicomSeriesGeometry(chunks.map((chunk) => new Map(chunk.metadata!)))
-          .reason
+        dicomSeriesGeometry(instances.map(displayMetadata)).reason
       ).toMatch(/nonuniform/);
     }
   );
 
   it.each([
-    [Tags.OphthalmicVolumetricPropertiesFlag, 'NO', /unsuitable/],
-    [OCT_SCAN_PATTERN, '128282', /scan pattern/],
-    [OCT_GEOMETRY_ERROR, 'Later OCT spatial metadata is corrupt.', /corrupt/],
-  ])(
-    'rejects an unsupported later acquisition declaration %s',
-    async (tag, value, reason) => {
-      const { id } = await assemble(undefined, (chunks) =>
-        chunks[2].metadata!.push([tag, value])
-      );
+    ['nonvolumetric', /unsuitable/],
+    ['radial', /scan pattern/],
+    ['invalid orientation', /orientation.*invalid/],
+    ['incomplete frame geometry', /geometry.*Number of Frames/],
+  ] as const)(
+    'rejects an unsupported later structured acquisition: %s',
+    async (kind, reason) => {
+      const { id } = await assemble(undefined, (instances) => {
+        const metadata = instances[2].dataset;
+        if (kind === 'nonvolumetric')
+          setDicomTag(metadata, Tags.OphthalmicVolumetricPropertiesFlag, 'NO');
+        else if (kind === 'radial')
+          setDicomSequence(metadata, '00221618', [
+            datasetFromTags([['00080100', '128282']]),
+          ]);
+        else if (kind === 'invalid orientation')
+          setDicomTag(
+            metadata,
+            Tags.ImageOrientationPatient,
+            '2\\0\\0\\0\\1\\0'
+          );
+        else
+          setDicomSequence(metadata, '52009230', [
+            datasetFromTags([]),
+            datasetFromTags([]),
+          ]);
+      });
       expect(getEnFaceUnavailableReason(id)).toMatch(reason);
     }
   );
@@ -193,18 +217,16 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
   it.each([
     [Tags.PixelSpacing, '0.02\\0.02', /pixel spacing/],
     [Tags.ImageOrientationPatient, '0\\1\\0\\1\\0\\0', /orientation/],
-    [Tags.ImageOrientationPatient, '2\\0\\0\\0\\1\\0', /orientation/],
   ])(
     'keeps inconsistent %s geometry projection-only',
     async (tag, value, reason) => {
-      const { id, chunks } = await assemble(undefined, (pending) =>
-        pending[2].metadata!.push([tag, value])
+      const { id, instances } = await assemble(undefined, (pending) =>
+        setDicomTag(pending[2].dataset, tag, value)
       );
       expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(getOccupiedDepthSupport(id).reason).toMatch(reason);
       expect(
-        dicomSeriesGeometry(chunks.map((chunk) => new Map(chunk.metadata!)))
-          .reason
+        dicomSeriesGeometry(instances.map(displayMetadata)).reason
       ).toMatch(reason);
     }
   );
@@ -212,39 +234,32 @@ describe('assembled OCT series through real chunk and file collaborators', () =>
   it.each([false, true])(
     'requires complete positions for occupied-depth measurements: allMissing=%s',
     async (allMissing) => {
-      const { id, chunks } = await assemble(undefined, (pending) => {
+      const { id, instances } = await assemble(undefined, (pending) => {
         const selected = allMissing ? pending : [pending[1]];
-        selected.forEach((chunk) => {
-          const index = chunk.metadata!.findIndex(
-            ([tag]) => tag === Tags.ImagePositionPatient
-          );
-          chunk.metadata!.splice(index, 1);
+        selected.forEach((instance) => {
+          removeDicomTag(instance.dataset, Tags.ImagePositionPatient);
         });
       });
       expect(getEnFaceUnavailableReason(id)).toBeNull();
       expect(getOccupiedDepthSupport(id).reason).toMatch(/incomplete/);
       expect(
-        dicomSeriesGeometry(chunks.map((chunk) => new Map(chunk.metadata!)))
-          .reason
+        dicomSeriesGeometry(instances.map(displayMetadata)).reason
       ).toMatch(/incomplete/);
     }
   );
 
   it('keeps an altered loaded grid projection-only', async () => {
-    const { id, image, chunks } = await assemble();
+    const { id, image, instances } = await assemble();
     const data = image.getVtkImageData();
     data.setSpacing([0.02, 0.0104, 1]);
     expect(getEnFaceUnavailableReason(id)).toBeNull();
     expect(getOccupiedDepthSupport(id).reason).toMatch(/loaded.*grid/);
     expect(
-      dicomSeriesGeometry(
-        chunks.map((chunk) => new Map(chunk.metadata!)),
-        {
-          spacing: data.getSpacing(),
-          direction: data.getDirection(),
-          origin: data.getOrigin(),
-        }
-      ).reason
+      dicomSeriesGeometry(instances.map(displayMetadata), {
+        spacing: data.getSpacing(),
+        direction: data.getDirection(),
+        origin: data.getOrigin(),
+      }).reason
     ).toMatch(/loaded.*grid/);
   });
 });

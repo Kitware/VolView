@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/packages/dicom/core';
 import { getConsistentDicomWindowRange } from '@/src/utils/dicomWindowRange';
 
 function windowTags(center: string, width: string, voiFunction?: string) {
@@ -27,7 +27,7 @@ describe('DICOM window display range', () => {
     }
   );
 
-  it('compares parsed values across chunks and defaults an absent function to LINEAR', () => {
+  it('compares parsed values across instances and defaults an absent function to LINEAR', () => {
     expect(
       getConsistentDicomWindowRange([
         windowTags('1000', '2000'),
@@ -47,7 +47,7 @@ describe('DICOM window display range', () => {
   });
 
   it.each([
-    ['no chunks', []],
+    ['no instances', []],
     ['missing first metadata', [undefined, windowTags('50', '100')]],
     ['missing later metadata', [windowTags('50', '100'), null]],
     ['missing center', [[[Tags.WindowWidth, '100']]]],
