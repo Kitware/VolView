@@ -13,6 +13,7 @@ import {
   floatVoxels,
   nrrd,
   openWith3DLayout,
+  stablePixels,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -118,6 +119,8 @@ describe('volume preset from declared modality', () => {
   });
 });
 
+const VIEW = '[data-testid~="vtk-volume-view"]';
+
 // The inset keeps only the view center, where every test volume has signal.
 const CENTER_INSET = 280;
 
@@ -132,26 +135,6 @@ async function brightCenterPixels(name: string, inset: number, level = 40) {
     if (Math.max(data[index], data[index + 1], data[index + 2]) > level)
       bright++;
   return { bright, fraction: bright / (data.length / 4) };
-}
-
-/** Captures the 3D view until two consecutive frames match. */
-async function stableViewPixels() {
-  const capture = async () =>
-    (
-      await captureViewPixels(
-        '[data-testid~="vtk-volume-view"]',
-        40,
-        'stable-view.png'
-      )
-    )[0].data;
-  let previous = await capture();
-  await browser.waitUntil(async () => {
-    const next = await capture();
-    const same = next.equals(previous);
-    previous = next;
-    return same;
-  });
-  return previous;
 }
 
 async function expectVisibleVolume(name: string) {
@@ -248,7 +231,7 @@ describe('grayscale default fitted to the data', () => {
         name
       );
       await expectVisibleVolume(name);
-      rendered.push(await stableViewPixels());
+      rendered.push(await stablePixels(VIEW, 40));
     }
     expect(differingFraction(rendered[0], rendered[1])).toBeLessThan(0.01);
   });
@@ -265,7 +248,7 @@ describe('grayscale default fitted to the data', () => {
       $('[data-testid~="vtk-volume-view"]')
     );
     await expectVisibleVolume(name);
-    const streamed = await stableViewPixels();
+    const streamed = await stablePixels(VIEW, 40);
 
     const loadedName = 'fitted-mr-nrrd';
     const voxels = Buffer.alloc(2 * 8 ** 3);
@@ -277,8 +260,8 @@ describe('grayscale default fitted to the data', () => {
     );
     await expectVisibleVolume(loadedName);
     // Ray jitter differs between sources on ~8%; a range left unfit differs on ~45%.
-    expect(differingFraction(streamed, await stableViewPixels())).toBeLessThan(
-      0.2
-    );
+    expect(
+      differingFraction(streamed, await stablePixels(VIEW, 40))
+    ).toBeLessThan(0.2);
   });
 });
