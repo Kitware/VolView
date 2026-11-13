@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": [],
+    "baseUrl": ".",
+    "paths": {}
+  },
+  "include": [
+    "core/**/*.ts",
+    "vtk/**/*.ts"
+  ],
+  "exclude": [
+    "**/__tests__/**",
+    "dist"
+  ]
+}

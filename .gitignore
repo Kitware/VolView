@@ -39,3 +39,5 @@ blob-report/
 .github/copilot
 CLAUDE.md
 .claude/
+
+/packages/dicom/dist/

@@ -18,9 +18,11 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Enforce code style
-        run: npx prettier --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue"
+        run: npx prettier --list-different "src/**/*.[jt]s" "tests/**/*.[jt]s" "src/**/*.vue" "packages/dicom/**/*.{ts,mjs,json,md}"
       - name: Lint
         run: npm run lint
+      - name: Build independent DICOM consumers
+        run: npm run dicom:check
       - name: Quality ratchets
         # A file may not get worse than it is on the pull request's target branch.
         if: github.event_name == 'pull_request'
