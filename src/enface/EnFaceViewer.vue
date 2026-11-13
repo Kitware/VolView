@@ -11,8 +11,22 @@ import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSlabProjectionRepresentation from '@/src/components/vtk/VtkSlabProjectionRepresentation.vue';
 import CrosshairsWidget from '@/src/components/tools/crosshairs/CrosshairsWidget.vue';
+import PaintTool from '@/src/components/tools/paint/PaintTool.vue';
+import PolygonTool from '@/src/components/tools/polygon/PolygonTool.vue';
+import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
+import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
+import SelectTool from '@/src/components/tools/SelectTool.vue';
+import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
+import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import {
+  doesToolFrameMatchViewAxis,
+  isToolVisible,
+} from '@/src/composables/annotationTool';
+import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
+import { useViewStore } from '@/src/store/views';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { ReferenceLineSegments } from '@/src/referenceLines';
-import { useToolStore } from '@/src/store/tools';
+import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
 import type { VtkViewApi } from '@/src/types/vtk-types';
@@ -37,6 +51,33 @@ const {
   currentImageMetadata,
   isImageLoading: sourceLoading,
 } = source;
+const annotationSlice = useSliceInfo(viewId, currentImageID);
+const annotationKey = computed(() =>
+  [
+    currentImageID.value,
+    specification.value.axis,
+    annotationSlice.value?.slice,
+  ].join(':')
+);
+const selectionStore = useToolSelectionStore();
+const selectionPoints = computed(() => {
+  const slice = annotationSlice.value;
+  if (!slice) return [];
+  return selectionStore.selection
+    .map(({ id, type }) => {
+      const store = useAnnotationToolStore(type);
+      return { store, tool: store.toolByID[id] };
+    })
+    .filter(
+      ({ tool }) =>
+        !!tool &&
+        tool.imageID === currentImageID.value &&
+        tool.slice === slice.slice &&
+        isToolVisible(tool) &&
+        doesToolFrameMatchViewAxis(slice.axisName, tool, currentImageMetadata)
+    )
+    .flatMap(({ store, tool }) => store.getPoints(tool.id));
+});
 const autoRanges = computed(() =>
   geometry.value && currentImageData.value
     ? slabWindowRanges(currentImageData.value, specification.value)
@@ -86,6 +127,30 @@ const {
   blockedReason: stateMessage,
 });
 const enFaceStore = useEnFaceViewStore();
+const views = useViewStore();
+const { selectedSegmentId } = useSegmentStore().segments;
+watch(
+  [
+    () => tools.currentTool,
+    selectedSegmentId,
+    currentImageID,
+    () => views.activeView,
+  ],
+  ([tool, segmentId, imageId, activeView]) => {
+    if (
+      tool !== Tools.Paint ||
+      !segmentId ||
+      !imageId ||
+      activeView !== viewId.value
+    )
+      return;
+    const config = enFaceStore.configFor(viewId.value, imageId);
+    config.showFootprints = true;
+    if (!config.footprintSegmentIds.includes(segmentId))
+      config.footprintSegmentIds = [...config.footprintSegmentIds, segmentId];
+  },
+  { immediate: true }
+);
 const controlState = computed(() => ({
   ...controls.value,
   projectionReason: stateMessage.value,
@@ -170,6 +235,36 @@ watch(
         :geometry="geometry"
         :blocked-reason="stateMessage"
       />
+      <div
+        v-if="projectionReady"
+        :key="annotationKey"
+        class="overlay-no-events"
+      >
+        <PaintTool
+          :view-id="viewId"
+          :image-id="currentImageID"
+          :view-direction="orientation.viewDirection"
+        />
+        <PolygonTool
+          :view-id="viewId"
+          :image-id="currentImageID"
+          :view-direction="orientation.viewDirection"
+        />
+        <RulerTool
+          :view-id="viewId"
+          :image-id="currentImageID"
+          :view-direction="orientation.viewDirection"
+        />
+        <RectangleTool
+          :view-id="viewId"
+          :image-id="currentImageID"
+          :view-direction="orientation.viewDirection"
+        />
+        <SelectTool />
+        <svg class="overlay-no-events">
+          <BoundingRectangle :points="selectionPoints" />
+        </svg>
+      </div>
     </VtkSliceView>
     <EnFaceStatus :message="stateMessage" :ready="projectionReady" />
     <EnFaceMeasurementStatus :message="measurementMessage" />
@@ -208,6 +303,19 @@ watch(
         ><div class="annotation-cell">
           <DicomQuickInfoButton :image-id="currentImageID" /></div
       ></template>
+      <template #bottom-left>
+        <div v-if="projectionReady && annotationSlice" class="annotation-cell">
+          <ReasonedAction
+            class="pointer-events-all"
+            tooltip="Annotations use the source slice nearest the slab midpoint. Painting and polygon rasterization edit only that slice."
+          >
+            <span data-testid="enface-annotation-slice">
+              Annotations: {{ annotationSlice.axisName }} slice
+              {{ annotationSlice.slice + 1 }}
+            </span>
+          </ReasonedAction>
+        </div>
+      </template>
       <template #bottom-right>
         <div class="annotation-cell corner-controls" @click.stop @dblclick.stop>
           <v-menu
