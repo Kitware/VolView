@@ -22,6 +22,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
 import {
   getColorFunctionRangeFromPreset,
+  getRelativePresetRange,
   getShiftedOpacityFromPreset,
 } from '@/src/utils/vtk-helpers';
 
@@ -254,11 +255,13 @@ export default defineComponent({
       return [0, 1];
     });
 
-    const fullMappingRange = computed(
-      () =>
+    const fullMappingRange = computed(() => {
+      const image = currentImageData.value;
+      return (
         getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
-        imageDataRange.value
-    );
+        (image ? getRelativePresetRange(image) : imageDataRange.value)
+      );
+    });
     const fullMappingRangeWidth = computed(() => {
       const range = fullMappingRange.value;
       return range[1] - range[0];

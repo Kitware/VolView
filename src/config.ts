@@ -196,6 +196,9 @@ export const DEFAULT_PRESET_BY_MODALITY: Record<string, string> = {
 
 export const DEFAULT_PRESET = 'CT-AAA';
 
+// Maps onto each image's robust scalar range.
+export const DEFAULT_GRAYSCALE_PRESET = 'Grayscale';
+
 // Keyboard shortcuts/hotkeys. Can add modifiers: 'Shift+Ctrl+a'
 export const ACTION_TO_KEY = {
   windowLevel: 'l',
