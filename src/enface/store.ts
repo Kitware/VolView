@@ -9,6 +9,7 @@ import {
 import type { ViewConfig } from '@/src/io/state-file/schema';
 import type { SlabAxis, SlabMethod } from '@/src/core/slab/types';
 import type { Maybe } from '@/src/types';
+import { useSegmentStore } from '@/src/segmentation/segments';
 
 export type EnFaceViewConfig = {
   axis: SlabAxis;
@@ -101,11 +102,15 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     config: Record<string, ViewConfig>,
     segmentIdMap: Record<string, string>
   ) {
+    const { segments } = useSegmentStore();
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       const saved = viewConfig.enFace;
       if (!saved) return;
+      const segmentId = saved.segmentId && segmentIdMap[saved.segmentId];
       Object.assign(configFor(viewID, dataID), saved, {
-        segmentId: (saved.segmentId && segmentIdMap[saved.segmentId]) || null,
+        segmentId: segments.belongsToImage(dataID, segmentId)
+          ? segmentId
+          : null,
       });
     });
   }

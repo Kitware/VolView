@@ -20,7 +20,9 @@ function appearanceScene() {
   const store = useSegmentationStore();
   const registry = useSegmentStore().segments;
   const group = store.ensureSegmentationForImage(parentId);
-  const segmentId = registry.addSegment({ color: [35, 215, 190, 255] });
+  const segmentId = registry.addSegment(parentId, {
+    color: [35, 215, 190, 255],
+  });
   const mask = store.createMask(group.id, segmentId);
   const binding = store.ensureLabelmapBinding(mask.id);
   const maskId = ref<string | null>(mask.id);
@@ -70,7 +72,9 @@ describe('thin-region appearance from the source segmentation', () => {
 
   it('changes appearance with the selected mask and drops missing selections', () => {
     const { appearance, registry, store, group, maskId } = appearanceScene();
-    const second = registry.addSegment({ color: [0, 255, 0, 255] });
+    const second = registry.addSegment(group.parentImageId, {
+      color: [0, 255, 0, 255],
+    });
     const mask = store.createMask(group.id, second);
     store.ensureLabelmapBinding(mask.id);
     maskId.value = mask.id;

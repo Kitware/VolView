@@ -7,6 +7,7 @@ import {
   capture2DViewScreenshotMetrics,
   captureViewPixels,
   openVolViewPage,
+  selectGrid,
   selectLayout,
   waitForModuleTransitions,
   writeManifestToFile,
@@ -35,18 +36,6 @@ const coloredPixelCount = (data: Buffer) =>
         Math.min(red, data[i + 1], data[i + 2]) >
         40
   ).length;
-
-async function selectGrid(index: number, count: number) {
-  await volViewPage.layoutButton.click();
-  const cell = $(`.v-menu .grid-cell:nth-child(${index + 1}) .grid-cell-box`);
-  await cell.waitForDisplayed();
-  await cell.waitForStable();
-  await cell.moveTo();
-  await cell.waitForClickable();
-  await cell.click();
-  await cell.waitForDisplayed({ reverse: true });
-  await expect($$('.grid-item')).toBeElementsArrayOfSize(count);
-}
 
 async function showBaseInAllViews() {
   await $('[data-testid="module-tab-Data"]').click();

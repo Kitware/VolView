@@ -22,21 +22,42 @@ import type { FileEntry } from '@/src/io/types';
 import { Skip } from '@/src/utils/evaluateChain';
 import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
-import { migrateManifest } from '@/src/io/state-file/migrations';
+import {
+  migrateManifest,
+  type ManifestMigration,
+} from '@/src/io/state-file/migrations';
 import { useMessageStore } from '@/src/store/messages';
 
 type LeafSource =
   | { type: 'uri'; uri: string; name: string; mime?: string }
   | { type: 'file'; file: File; fileType: string };
 
+type LeafSourceContext = {
+  byId: Record<number, DataSourceType>;
+  datasetFilePath: Record<string, string> | undefined;
+  pathToFile: Record<string, File>;
+  onMissingFile?: (path: string) => void;
+};
+
+function resolveFileLeaf(
+  src: Extract<DataSourceType, { type: 'file' }>,
+  { datasetFilePath, pathToFile, onMissingFile }: LeafSourceContext
+): LeafSource[] {
+  const filePath = datasetFilePath?.[src.fileId];
+  const file = filePath ? pathToFile[filePath] : undefined;
+  if (file) {
+    return [{ type: 'file', file, fileType: src.fileType }];
+  }
+  // Missing members must be reported even if surviving files resolve the dataset.
+  onMissingFile?.(filePath ?? String(src.fileId));
+  return [];
+}
+
 function resolveToLeafSources(
   id: number,
-  byId: Record<number, DataSourceType>,
-  datasetFilePath: Record<string, string> | undefined,
-  pathToFile: Record<string, File>,
-  onMissingFile?: (path: string) => void
+  context: LeafSourceContext
 ): LeafSource[] {
-  const src = byId[id];
+  const src = context.byId[id];
   if (!src) return [];
 
   switch (src.type) {
@@ -50,37 +71,15 @@ function resolveToLeafSources(
         },
       ];
 
-    case 'file': {
-      const filePath = datasetFilePath?.[src.fileId];
-      const file = filePath ? pathToFile[filePath] : undefined;
-      if (file) {
-        return [{ type: 'file', file, fileType: src.fileType }];
-      }
-      // Recorded for the consolidated missing-content notice — the dataset's
-      // SURVIVING files may still resolve it, and a partial restore must not
-      // pass silently.
-      onMissingFile?.(filePath ?? String(src.fileId));
-      return [];
-    }
+    case 'file':
+      return resolveFileLeaf(src, context);
 
     case 'archive':
-      return resolveToLeafSources(
-        src.parent,
-        byId,
-        datasetFilePath,
-        pathToFile,
-        onMissingFile
-      );
+      return resolveToLeafSources(src.parent, context);
 
     case 'collection':
       return src.sources.flatMap((sourceId) =>
-        resolveToLeafSources(
-          sourceId,
-          byId,
-          datasetFilePath,
-          pathToFile,
-          onMissingFile
-        )
+        resolveToLeafSources(sourceId, context)
       );
 
     default:
@@ -150,13 +149,12 @@ function prepareLeafDataSources(manifest: Manifest, datasetFiles: FileEntry[]) {
     ...datasets,
     ...planLabelmapSources(manifest).leaves,
   ].flatMap((ds) => {
-    const sources = resolveToLeafSources(
-      ds.dataSourceId,
+    const sources = resolveToLeafSources(ds.dataSourceId, {
       byId,
-      manifest.datasetFilePath,
+      datasetFilePath: manifest.datasetFilePath,
       pathToFile,
-      (path) => missingFiles.push({ stateID: ds.id, path })
-    );
+      onMissingFile: (path) => missingFiles.push({ stateID: ds.id, path }),
+    });
 
     const seen = new Set<string>();
     const uniqueSources = sources.filter((src) => {
@@ -183,6 +181,18 @@ type RestoreServices = {
   >;
 };
 
+export type RestoreOptions = {
+  missingFiles?: Array<{ stateID: string; path: string }>;
+  failedLeaves?: Array<{ stateID: string; name: string }>;
+  migration?: ManifestMigration;
+};
+
+const restoreOptions = ({
+  missingFiles = [],
+  failedLeaves = [],
+  migration,
+}: RestoreOptions = {}) => ({ missingFiles, failedLeaves, migration });
+
 export const createStateFileRestorer = ({
   addWarning = (title, options) => useMessageStore().addWarning(title, options),
   views,
@@ -191,20 +201,34 @@ export const createStateFileRestorer = ({
     manifest: Manifest,
     stateFiles: FileEntry[],
     stateIDToStoreID: Record<string, string>,
-    missingFiles: Array<{ stateID: string; path: string }> = [],
-    failedLeaves: Array<{ stateID: string; name: string }> = []
+    options?: RestoreOptions
   ) {
+    const { missingFiles, failedLeaves, migration } = restoreOptions(options);
     const viewStore = views ?? useViewStore();
     const byId = dataSourcesById(manifest);
     const datasets = manifestDatasets(manifest);
+    const imageName = (imageId: string) => {
+      const dataset = datasets.find(({ id }) => id === imageId);
+      return dataset
+        ? summarizeDataSource(
+            dataset.dataSourceId,
+            byId,
+            manifest.datasetFilePath,
+            imageId
+          )
+        : imageId;
+    };
     const resolvedDatasets = datasets.filter((ds) => ds.id in stateIDToStoreID);
     const unresolvedDatasets = datasets.filter(
       (ds) => !(ds.id in stateIDToStoreID)
     );
 
     // Registries first: masks and shapes name the segment identities minted here.
-    const { segmentIdMap, repeated: repeatedSegments } =
-      useSegmentStore().deserialize(manifest);
+    const {
+      segmentIdMap,
+      repeated: repeatedSegments,
+      unassigned,
+    } = useSegmentStore().deserialize(manifest, stateIDToStoreID, migration);
 
     // Restore camera and contrast before asynchronous mask decoding.
     useViewConfigStore().deserializeAll(
@@ -226,7 +250,7 @@ export const createStateFileRestorer = ({
 
     if (defaultStoreID !== undefined) {
       if (!manifest.viewByID) {
-        viewStore.setDataForAllViews(defaultStoreID);
+        viewStore.setDataForAllViews(defaultStoreID, manifest.activeView);
       } else {
         // A saved view whose image could not be restored uses the default image.
         const unresolvedIDs = new Set(unresolvedDatasets.map((ds) => ds.id));
@@ -252,16 +276,13 @@ export const createStateFileRestorer = ({
 
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 
-    useToolStore().deserialize(manifest, segmentIdMap, stateIDToStoreID);
-
-    const missingBases = unresolvedDatasets.map((ds) =>
-      summarizeDataSource(
-        ds.dataSourceId,
-        byId,
-        manifest.datasetFilePath,
-        String(ds.id)
-      )
+    const skippedTools = useToolStore().deserialize(
+      manifest,
+      segmentIdMap,
+      stateIDToStoreID
     );
+
+    const missingBases = unresolvedDatasets.map(({ id }) => imageName(id));
     // Partially restored datasets need member notices; unresolved datasets are named above.
     const missingMembers = missingFiles
       .filter(({ stateID }) => stateID in stateIDToStoreID)
@@ -290,9 +311,15 @@ export const createStateFileRestorer = ({
       ...skippedLabelmaps.map(
         ({ name, reason }) => `- labelmap: ${name} (${reason})`
       ),
-      ...repeatedSegments.map(
-        ({ name }) =>
-          `- segment: ${name} (repeats the id of an earlier segment)`
+      ...skippedTools.map(
+        ({ name, reason }) => `- annotation: ${name} (${reason})`
+      ),
+      // A migrated catalog repeats each bad row on every image it was copied to.
+      ...[...new Set(repeatedSegments.map(({ name }) => name))].map(
+        (name) => `- segment: ${name} (repeats the id of an earlier segment)`
+      ),
+      ...unassigned.map(
+        ({ name }) => `- segment: ${name} (is not assigned to an image)`
       ),
     ];
     if (missing.length > 0) {
@@ -335,8 +362,11 @@ export const restoreStateFile: ImportHandler = async (dataSource) => {
     // Parse/validate BEFORE applying any restore: a file that fails here
     // opened nothing, so the live session must stay exactly as it was.
     let manifest: Manifest;
+    let migration: ManifestMigration;
     try {
-      manifest = ManifestSchema.parse(migrateManifest(manifestString));
+      const migrated = migrateManifest(manifestString);
+      manifest = ManifestSchema.parse(migrated.manifest);
+      migration = migrated.migration;
     } catch (e) {
       return asErrorResult(
         new Error(`Unsupported state file schema or version: ${e}`),
@@ -354,6 +384,7 @@ export const restoreStateFile: ImportHandler = async (dataSource) => {
       type: 'stateFileSetup',
       dataSources,
       manifest,
+      migration,
       stateFiles,
       missingFiles,
     } as StateFileSetupResult;

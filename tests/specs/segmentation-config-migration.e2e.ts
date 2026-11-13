@@ -5,12 +5,16 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import { writeConfigImages } from './configurationImage';
 import {
+  addSegment,
   openAnnotationSegments,
+  segmentColor,
   segmentNames,
   waitForNamedSegments,
   waitForSegmentContent,
+  segmentImageName,
 } from './segmentationTestUtils';
 import {
+  openThroughDialog,
   writeManifestToFile,
   waitForDownload,
   SESSION_SAVE_TIMEOUT,
@@ -31,6 +35,37 @@ const openConfigured = async (config: unknown) => {
 const labels = { rulerLabels: { Configured: { color: '#ff0000' } } };
 
 describe('Segmentation configuration migration', () => {
+  it('continues automatic colors when adding and extending a configuration', async () => {
+    const stem = 'segmentation-config-colors';
+    writeConfigImages(stem);
+    await volViewPage.open(`?urls=[tmp/${stem}.nrrd]`);
+    await volViewPage.waitForViews();
+    await openAnnotationSegments();
+    await expect(segmentImageName()).toHaveText(`${stem}.nrrd`);
+    await addSegment();
+    await addSegment();
+    const colors = [
+      await segmentColor('Segment 1'),
+      await segmentColor('Segment 2'),
+    ];
+    const configPath = await writeManifestToFile(
+      { segments: { Tumor: {}, Liver: {} } },
+      `${stem}.json`
+    );
+    await openThroughDialog(configPath);
+    colors.push(await segmentColor('Tumor'), await segmentColor('Liver'));
+    expect(new Set(colors).size).toBe(4);
+
+    const extendedPath = await writeManifestToFile(
+      { segments: { Node: {}, Tumor: {}, Liver: {} } },
+      `${stem}-extended.json`
+    );
+    await openThroughDialog(extendedPath);
+    expect(colors).not.toContain(await segmentColor('Node'));
+    expect(await segmentColor('Tumor')).toBe(colors[2]);
+    expect(await segmentColor('Liver')).toBe(colors[3]);
+  });
+
   for (const key of ['segmentationSaveFormat', 'segmentGroupSaveFormat']) {
     it(`saves session masks as ${key} specifies and migrates label configuration`, async () => {
       await openConfigured({

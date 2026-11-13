@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { leafStateId } from '@/src/io/import/dataSource';
@@ -12,7 +10,10 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
-import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  boundMasks,
+  makeImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // Resilient segment-group restore:
@@ -71,21 +72,8 @@ const manifestWith = (groups: Array<Record<string, unknown>>): Manifest =>
         datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
         segmentGroups: groups,
       })
-    )
+    ).manifest
   );
-
-function makeImage(fillValue = 0) {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(4 * 4 * 4).fill(fillValue),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
 
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(makeImage(), name, { id });
@@ -93,18 +81,7 @@ const seatImage = (id: string, name: string) =>
 // An image that IS registered in the cache (imageById) but whose zero-length
 // scalars make getVtkImageData return null — so a path-less restore throws
 // AFTER the temp artifact has already materialized.
-function makeEmptyScalarsImage() {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(0),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
+const makeEmptyScalarsImage = () => makeImage({ values: new Uint8Array(0) });
 
 // A restored legacy group is split into one bounded mask per segment, so what a
 // survivor leaves behind is its segments, not a group record.
@@ -134,7 +111,8 @@ const restoreGroups = (
     manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+    segmentIdMap: useSegmentStore().deserialize(manifest, dataIDMap)
+      .segmentIdMap,
     labelmapSources: planLabelmapSources(manifest).sources,
     io: artifactIO,
   });

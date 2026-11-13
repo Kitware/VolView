@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
 import { leafStateId } from '@/src/io/import/dataSource';
-import type { StateFileSetupResult } from '@/src/io/import/common';
+import { readSessionSetup } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
 // ---------------------------------------------------------------------------
@@ -36,19 +35,6 @@ const composedManifest = (extras: Record<string, unknown>) => ({
   segmentationArtifacts: [segmentationArtifact(extras)],
 });
 
-async function prepareLeaves(manifest: Record<string, unknown>) {
-  const file = new File([JSON.stringify(manifest)], 'session.volview.json', {
-    type: 'application/json',
-  });
-  const result = await restoreStateFile({
-    type: 'file',
-    file,
-    fileType: 'application/json',
-  });
-  expect((result as StateFileSetupResult).type).toBe('stateFileSetup');
-  return (result as StateFileSetupResult).dataSources;
-}
-
 type UriLeaf = {
   type: 'uri';
   uri: string;
@@ -61,9 +47,10 @@ describe('prepareLeafDataSources: composed-manifest artifacts', () => {
   });
 
   it('synthesizes a leaf for the artifact a dataSourceId-only entry references', async () => {
-    const leaves = (await prepareLeaves(
+    const { dataSources } = await readSessionSetup(
       composedManifest({ dataSourceId: 3 })
-    )) as UriLeaf[];
+    );
+    const leaves = dataSources as UriLeaf[];
 
     const artifact = leaves.find((leaf) => leaf.uri === ARTIFACT_URI);
     expect(artifact).toBeDefined();
@@ -81,12 +68,13 @@ describe('prepareLeafDataSources: composed-manifest artifacts', () => {
   });
 
   it('synthesizes nothing for an artifact whose bytes ride in the zip under path', async () => {
-    const leaves = (await prepareLeaves(
+    const { dataSources } = await readSessionSetup(
       composedManifest({
         dataSourceId: 3,
         path: 'segmentations/Tumor.seg.nrrd',
       })
-    )) as UriLeaf[];
+    );
+    const leaves = dataSources as UriLeaf[];
 
     // path wins for bytes; the artifact uri is provenance only, not a fetch.
     expect(leaves.some((leaf) => leaf.uri === ARTIFACT_URI)).toBe(false);

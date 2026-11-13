@@ -95,7 +95,7 @@ const lockTooltip = (locked: boolean) =>
   </v-btn>
   <reasoned-action
     :reason="locked ? 'Unlock this segment to delete it' : ''"
-    tooltip="Delete from every image"
+    tooltip="Delete from this image"
     v-slot="{ disabled }"
   >
     <v-btn
@@ -104,7 +104,7 @@ const lockTooltip = (locked: boolean) =>
       density="compact"
       variant="plain"
       data-testid="delete-segment-button"
-      :aria-label="`Delete ${name} from every image`"
+      :aria-label="`Delete ${name} from this image`"
       @click.stop="$emit('delete')"
       :disabled="disabled"
     />

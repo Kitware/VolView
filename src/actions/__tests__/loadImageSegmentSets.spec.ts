@@ -1,0 +1,391 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import { createVuetify } from 'vuetify';
+import JSZip from 'jszip';
+import vtkXMLImageDataReader from '@kitware/vtk.js/IO/XML/XMLImageDataReader';
+import vtkSTLReader from '@kitware/vtk.js/IO/Geometry/STLReader';
+import { z } from 'zod';
+
+import { loadDataSources, loadFiles } from '@/src/actions/loadUserFiles';
+import { FILE_READERS } from '@/src/io';
+import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+import { readFile } from '@/src/io/vtk/common';
+import { fileToDataSource } from '@/src/io/import/dataSource';
+import { registerConfigSection } from '@/src/io/import/configJson';
+import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import { useImageCacheStore } from '@/src/store/image-cache';
+import { useImageStore } from '@/src/store/datasets-images';
+import { useViewStore } from '@/src/store/views';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { useSegmentationStore } from '@/src/segmentation/store';
+import MessageCenter from '@/src/components/MessageCenter.vue';
+import SegmentAssignmentList from '@/src/segmentation/components/SegmentAssignmentList.vue';
+import { planLabelmapExport } from '@/src/segmentation/io/composition';
+import { writeLabelmapParts } from '@/src/segmentation/io/export';
+import {
+  activateAppPinia,
+  serializeAnnotations,
+  strokeAt,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import { defer } from '@/src/utils';
+
+enableAutoUnmount(afterEach);
+
+const imageFile = (name: string, mask = false) =>
+  new File(
+    [
+      `<?xml version="1.0"?>
+<VTKFile type="ImageData" version="0.1" byte_order="LittleEndian">
+<ImageData WholeExtent="0 3 0 3 0 1" Origin="0 0 0" Spacing="1 1 1">
+<Piece Extent="0 3 0 3 0 1"><PointData Scalars="Scalars">
+<DataArray type="UInt8" Name="Scalars" NumberOfComponents="1" format="ascii">${Array.from({ length: 32 }, (_, i) => (mask ? Number(i === 5) : i)).join(' ')}</DataArray>
+</PointData><CellData/></Piece></ImageData></VTKFile>`,
+    ],
+    name
+  );
+
+const configFile = (name: string, extra = {}) =>
+  new File(
+    [JSON.stringify({ segments: { [name]: { color: '#ff0000' } }, ...extra })],
+    'config.json'
+  );
+const gatedConfig = (name: string) => {
+  const file = configFile(name);
+  const readText = file.text.bind(file);
+  const entered = defer<void>();
+  const gate = defer<void>();
+  vi.spyOn(file, 'text').mockImplementation(async () => {
+    entered.resolve();
+    await gate.promise;
+    return readText();
+  });
+  return { file, entered: entered.promise, release: () => gate.resolve() };
+};
+const vtiMime = FILE_EXT_TO_MIME.vti;
+const stlMime = FILE_EXT_TO_MIME.stl;
+const originalReaders = new Map([
+  [vtiMime, FILE_READERS.get(vtiMime)!],
+  [stlMime, FILE_READERS.get(stlMime)!],
+]);
+const conversionListeners: Array<() => void> = [];
+const nextLabelmapConversion = () => {
+  const completed = defer<void>();
+  conversionListeners.push(
+    useSegmentationStore().$onAction(({ name, after, onError }) => {
+      if (name !== 'startLabelmapConversion') return;
+      after(() => completed.resolve());
+      onError((error) => completed.reject(error));
+    })
+  );
+  void completed.promise.catch(() => {});
+  return completed.promise;
+};
+
+let slowEntered = defer<void>();
+let slowGate = defer<void>();
+
+beforeEach(() => {
+  activateAppPinia();
+  slowEntered = defer<void>();
+  slowGate = defer<void>();
+  // Read VTI/STL geometry in process and supply synthetic segmentation metadata.
+  FILE_READERS.set(vtiMime, async (file) => {
+    if (file.name === 'pending.vti') {
+      slowEntered.resolve();
+      await slowGate.promise;
+    }
+    const dataObject = await readFile(file, vtkXMLImageDataReader);
+    const headerMetadata = file.name.endsWith('.seg.vti')
+      ? buildSegNrrdMetadata(
+          [{ value: 1, name: 'Tumor', color: [0, 0, 255, 255], visible: true }],
+          [4, 4, 2]
+        )
+      : undefined;
+    return { dataObject, headerMetadata };
+  });
+  FILE_READERS.set(stlMime, async (file) => ({
+    dataObject: await readFile(file, vtkSTLReader, false),
+  }));
+});
+
+afterEach(() => {
+  conversionListeners.splice(0).forEach((unsubscribe) => unsubscribe());
+  originalReaders.forEach((reader, mime) => FILE_READERS.set(mime, reader));
+  vi.restoreAllMocks();
+});
+
+const openImage = async (name: string) => {
+  const ids = await loadFiles([imageFile(name)]);
+  expect(ids).toHaveLength(1);
+  return ids![0];
+};
+const picker = (imageId: string) => {
+  const wrapper = mount(SegmentAssignmentList, {
+    props: { imageId },
+    global: {
+      stubs: {
+        VList: { template: '<ul><slot /></ul>' },
+        VListItem: { template: '<li><slot /></li>' },
+        VListItemTitle: { template: '<span class="title"><slot /></span>' },
+      },
+    },
+  });
+  return () => wrapper.findAll('.title').map((title) => title.text());
+};
+const paintedName = async (imageId: string) => {
+  strokeAt(imageId, [1, 1, 0]);
+  const names: Array<string | undefined> = [];
+  await writeLabelmapParts(
+    { parentId: imageId, ...planLabelmapExport(imageId) },
+    'painted',
+    'vti',
+    {
+      deliver: () => {},
+      write: async (_format, image, segments) => {
+        const label = image.getPointData().getScalars().getData()[5];
+        if (label)
+          names.push(segments.find(({ value }) => value === label)?.name);
+        return '';
+      },
+    }
+  );
+  expect(names).toHaveLength(1);
+  return names[0];
+};
+const duringPendingImage = async (check: () => Promise<void>) => {
+  const pending = loadFiles([imageFile('pending.vti')]);
+  await slowEntered.promise;
+  try {
+    await check();
+  } finally {
+    slowGate.resolve();
+    await pending;
+  }
+};
+const loadContainedFiles = async (
+  container: 'files' | 'collection' | 'archive',
+  files: File[]
+) => {
+  if (container === 'collection')
+    return loadDataSources([
+      { type: 'collection', sources: files.map(fileToDataSource) },
+    ]);
+  if (container === 'archive') {
+    const zip = new JSZip();
+    for (const file of files) zip.file(file.name, await file.text());
+    return loadFiles([
+      new File([await zip.generateAsync({ type: 'arraybuffer' })], 'batch.zip'),
+    ]);
+  }
+  return loadFiles(files);
+};
+
+describe('image segment initialization through public loading', () => {
+  it.each(['configured', 'copied'] as const)(
+    'keeps %s definitions usable while an unrelated image is unfinished',
+    async (source) => {
+      if (source === 'configured') await loadFiles([configFile('Liver')]);
+      else {
+        const first = await openImage('first.vti');
+        useSegmentStore().segments.addSegment(first, { name: 'Liver' });
+      }
+      await duringPendingImage(async () => {
+        const completed = await openImage('completed.vti');
+        useViewStore().setDataForAllViews(completed);
+        await nextTick();
+        expect(picker(completed)()).toEqual(['Liver']);
+        expect(await paintedName(completed)).toBe('Liver');
+      });
+    }
+  );
+
+  it('seeds configured defaults with no other operation pending', async () => {
+    await loadFiles([configFile('Liver')]);
+    const completed = await openImage('completed.vti');
+    expect(picker(completed)()).toEqual(['Liver']);
+    expect(await paintedName(completed)).toBe('Liver');
+  });
+
+  it('merges its accompanying segmentation into the configured defaults', async () => {
+    await loadFiles([configFile('Liver')]);
+    await duringPendingImage(async () => {
+      const converted = nextLabelmapConversion();
+      const ids = await loadFiles([
+        imageFile('scan.vti'),
+        imageFile('scan.seg.vti', true),
+      ]);
+      const views = useViewStore();
+      const imageId = views.getView(views.activeView)!.dataID!;
+      expect(ids).toContain(imageId);
+      const names = picker(imageId);
+      await converted;
+      await flushPromises();
+      expect(names()).toEqual(['Liver', 'Tumor']);
+      expect(await paintedName(imageId)).toBe('Liver');
+    });
+  });
+
+  it('applies a companion config to an image shown before the config is read', async () => {
+    await loadFiles([configFile('Liver')]);
+    const {
+      file: config,
+      entered: configEntered,
+      release: releaseConfig,
+    } = gatedConfig('Tumor');
+    const published = defer<string>();
+    const unsubscribe = useImageStore().$onAction(({ name, args, after }) => {
+      if (name === 'addVTKImageData' && args[0] === 'owned.vti')
+        after((id) => published.resolve(id));
+    });
+    const unrelated = loadFiles([imageFile('pending.vti')]);
+    await slowEntered.promise;
+    const own = loadFiles([imageFile('owned.vti'), config]);
+    try {
+      const imageId = await published.promise;
+      await configEntered;
+      useViewStore().setDataForAllViews(imageId);
+      await nextTick();
+      const names = picker(imageId);
+      expect(names()).toEqual(['Liver']);
+      slowGate.resolve();
+      await unrelated;
+      await nextTick();
+      expect(names()).toEqual(['Liver']);
+      releaseConfig();
+      await own;
+      await nextTick();
+      expect(names()).toEqual(['Tumor']);
+      expect(await paintedName(imageId)).toBe('Tumor');
+    } finally {
+      unsubscribe();
+      releaseConfig();
+      slowGate.resolve();
+      await Promise.all([own, unrelated]);
+    }
+  });
+});
+
+describe('config loaded alone', () => {
+  it.each(['files', 'collection', 'archive'] as const)(
+    'applies beside ignored metadata through %s',
+    async (container) => {
+      const [active] = (await loadFiles([
+        imageFile('active.vti'),
+        configFile('Liver'),
+      ]))!;
+      const names = picker(active);
+
+      const ids = await loadContainedFiles(container, [
+        configFile('Tumor'),
+        new File(['metadata'], '.DS_Store'),
+        new File(['metadata'], '._scan.vti'),
+        new File(['license'], 'LICENSE'),
+      ]);
+      await nextTick();
+
+      expect(ids).toEqual([]);
+      expect(names()).toEqual(['Tumor']);
+    }
+  );
+
+  it.each(
+    (['files', 'collection', 'archive'] as const).flatMap((container) => [
+      {
+        container,
+        failure: 'recognized config validation',
+        contents: JSON.stringify({ segments: 17 }),
+      },
+      {
+        container,
+        failure: 'unrecognized JSON syntax',
+        contents: '{',
+      },
+    ])
+  )(
+    'applies beside a $failure failure through $container',
+    async ({ container, contents }) => {
+      const [active] = (await loadFiles([
+        imageFile('active.vti'),
+        configFile('Liver'),
+      ]))!;
+      const notifications = mount(MessageCenter, {
+        global: { plugins: [createVuetify()] },
+      });
+      const ids = await loadContainedFiles(container, [
+        configFile('Tumor'),
+        new File([contents], 'invalid-config.json'),
+      ]);
+      await nextTick();
+      expect(ids).toEqual([]);
+      expect(picker(active)()).toEqual(['Tumor']);
+      expect(
+        serializeAnnotations().seedSegmentDefaults?.map(({ name }) => name)
+      ).toEqual(['Tumor']);
+      const errors = notifications.findAll('.error-message');
+      expect(errors).toHaveLength(1);
+      await errors[0].trigger('click');
+      expect(notifications.get('.details').text()).toContain(
+        'invalid-config.json'
+      );
+    }
+  );
+});
+
+describe('background labelmap conversion', () => {
+  it('finishes the file load while its segmentation is still streaming', async () => {
+    await loadFiles([configFile('Liver')]);
+    const cache = useImageCacheStore();
+    let streamingId: string | undefined;
+    const unsubscribe = cache.$onAction(({ name, args, after }) => {
+      if (name === 'addVTKImageData' && args[1] === 'stream.seg.vti')
+        after((id) => {
+          streamingId = id;
+          cache.imageById[id].status.value = 'incomplete';
+        });
+    });
+    try {
+      const converted = nextLabelmapConversion();
+      const ids = await loadFiles([
+        imageFile('stream.vti'),
+        imageFile('stream.seg.vti', true),
+      ]);
+      expect(ids).toHaveLength(2);
+      const views = useViewStore();
+      const imageId = views.getView(views.activeView)!.dataID!;
+      const names = picker(imageId);
+      expect(names()).toEqual(['Liver']);
+      cache.imageById[streamingId!].status.value = 'complete';
+      await converted;
+      await flushPromises();
+      expect(names()).toEqual(['Liver', 'Tumor']);
+      expect(await paintedName(imageId)).toBe('Liver');
+    } finally {
+      unsubscribe();
+      if (streamingId) cache.imageById[streamingId].status.value = 'complete';
+    }
+  });
+});
+
+describe('config beside failed imports', () => {
+  it.each([false, true])(
+    'still applies config with a pre-state failure of %s',
+    async (failPreState) => {
+      const [active] = (await loadFiles([
+        imageFile('active.vti'),
+        configFile('Liver'),
+      ]))!;
+      registerConfigSection({
+        key: 'loadingBoundaryFailure',
+        schema: z.boolean().optional(),
+        apply: (value) => {
+          if (value) throw new Error('Unavailable config section');
+        },
+      });
+      await loadFiles([
+        configFile('Tumor', { loadingBoundaryFailure: failPreState }),
+      ]);
+      expect(picker(active)()).toEqual(['Tumor']);
+    }
+  );
+});

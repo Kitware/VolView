@@ -1,25 +1,10 @@
-import JSZip from 'jszip';
 import type { Manifest } from '@/src/io/state-file/schema';
-import { useRulerStore } from '@/src/store/tools/rulers';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { usePolygonStore } from '@/src/store/tools/polygons';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   inMemoryArtifactIO,
   manifestForImages,
   serializeToStateFiles,
+  serializeAnnotations,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-
-export const serializeAnnotations = (
-  manifest = manifestForImages([], { tools: {} })
-) => {
-  const state = { zip: new JSZip(), manifest };
-  useSegmentStore().serialize(state);
-  useRulerStore().serialize(state);
-  useRectangleStore().serialize(state);
-  usePolygonStore().serialize(state);
-  return JSON.parse(JSON.stringify(manifest)) as Manifest;
-};
 
 export const serializeScene = async (imageIds: string[]) => {
   const codec = inMemoryArtifactIO();

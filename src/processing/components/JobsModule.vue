@@ -232,8 +232,11 @@ watch(
 async function loadWhileCurrent(
   onCleanup: (fn: () => void) => void,
   stillWanted: () => boolean,
-  state: { loading: Ref<boolean>; error: Ref<string | null> },
-  fallbackError: string,
+  feedback: {
+    loading: Ref<boolean>;
+    error: Ref<string | null>;
+    fallbackError: string;
+  },
   body: (current: () => boolean) => Promise<void>
 ) {
   let active = true;
@@ -241,15 +244,15 @@ async function loadWhileCurrent(
     active = false;
   });
   const current = () => active && stillWanted();
-  state.loading.value = true;
-  state.error.value = null;
+  feedback.loading.value = true;
+  feedback.error.value = null;
   try {
     await body(current);
   } catch (err) {
     if (!current()) return;
-    state.error.value = getErrorDetail(err, fallbackError);
+    feedback.error.value = getErrorDetail(err, feedback.fallbackError);
   } finally {
-    if (current()) state.loading.value = false;
+    if (current()) feedback.loading.value = false;
   }
 }
 
@@ -269,8 +272,11 @@ watch(
       () =>
         selectedProviderId.value === id &&
         providerLoadVersion.value === version,
-      { loading: loadingProvider, error: providerError },
-      'Failed to load provider',
+      {
+        loading: loadingProvider,
+        error: providerError,
+        fallbackError: 'Failed to load provider',
+      },
       async (current) => {
         const p = await providers.getProvider(id);
         if (!current()) return;
@@ -306,8 +312,11 @@ watch(
         selectedTaskId.value === id &&
         taskLoadVersion.value === version &&
         provider.value === activeProvider,
-      { loading: loadingTask, error: taskError },
-      'Failed to load task spec',
+      {
+        loading: loadingTask,
+        error: taskError,
+        fallbackError: 'Failed to load task spec',
+      },
       async (current) => {
         const envelope = await activeProvider.getTaskSpec(id);
         if (!current()) return;
@@ -546,10 +555,11 @@ const overlapSignal = () => {
   return [
     imageId,
     maskRevision.value,
-    segmentRegistry.selectedSegmentId.value,
+    segmentRegistry.selectedSegmentId(imageId),
     // The first or last finished tool can move a union input off the labelmap.
     finishedAnnotationCount.value > 0,
-    segmentRegistry.segmentList.value
+    segmentRegistry
+      .segmentList(imageId)
       .map(({ id, name }) => `${id}:${name}`)
       .join(),
     imageId
