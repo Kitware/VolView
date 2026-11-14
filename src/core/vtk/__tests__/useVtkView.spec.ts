@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, effectScope, h, ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
-import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
@@ -19,9 +18,6 @@ function createParent() {
 
 function createRecordingParent(calls: Array<string>) {
   const { renderWindow, renderWindowView, contextLost } = createParent();
-  // an uninitialized interactor keeps the parent's renders inert: the test DOM
-  // has no WebGL context to traverse
-  renderWindow.setInteractor(vtkRenderWindowInteractor.newInstance());
 
   return {
     contextLost,
