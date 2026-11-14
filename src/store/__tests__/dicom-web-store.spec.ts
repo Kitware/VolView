@@ -1,6 +1,11 @@
 import { useDicomMetaStore } from '@/src/store/dicom-web/dicom-meta-store';
 import { useViewStore } from '@/src/store/views';
-import { asOkayResult } from '@/src/io/import/common';
+import {
+  asErrorResult,
+  asLoadableResult,
+  asOkayResult,
+} from '@/src/io/import/common';
+import { useMessageStore } from '@/src/store/messages';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
@@ -89,23 +94,26 @@ describe('DICOMweb loaded-series tracking', () => {
   });
 });
 
+/** A remote series listed by the DICOMweb browser, and a spy on view selection. */
+function remoteSeries() {
+  useDicomMetaStore().importMeta({
+    ...patient,
+    ...study,
+    ...volume('remote', 'series-uid'),
+    SopInstanceUID: 'instance',
+    StudyName: '',
+    InstanceNumber: '1',
+    Rows: '4',
+    Columns: '4',
+  });
+  const select = vi.spyOn(useViewStore(), 'setDataForAllViews');
+  return { select, store: useDicomWebStore() };
+}
+
 describe('unsupported DICOMweb downloads', () => {
   beforeEach(() => setActivePinia(createPinia()));
   it('keeps existing views and a retryable card when every result was skipped', async () => {
-    const remote = useDicomMetaStore();
-    remote.importMeta({
-      ...patient,
-      ...study,
-      ...volume('remote', 'series-uid'),
-      SopInstanceUID: 'instance',
-      StudyName: '',
-      InstanceNumber: '1',
-      Rows: '4',
-      Columns: '4',
-    });
-    const views = useViewStore();
-    const select = vi.spyOn(views, 'setDataForAllViews');
-    const store = useDicomWebStore();
+    const { select, store } = remoteSeries();
     const retrieve = vi.fn(async () => [new File([], 'rt.dcm')]);
     const importSources = async (
       sources: Parameters<typeof asOkayResult>[0][]
@@ -115,5 +123,35 @@ describe('unsupported DICOMweb downloads', () => {
     expect(select).not.toHaveBeenCalled();
     await store.downloadVolume('series-uid', retrieve, importSources);
     expect(retrieve).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('partly failed DICOMweb downloads', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+  it('shows the loaded volume and tells the user which files failed', async () => {
+    const { select, store } = remoteSeries();
+    const retrieve = async () => [
+      new File([], 'good.dcm'),
+      new File([], 'bad.dcm'),
+    ];
+    const importSources = async ([good, bad]: Parameters<
+      typeof asOkayResult
+    >[0][]) => [
+      asLoadableResult('volume-1', good, 'image'),
+      asErrorResult(new Error('bad.dcm is not DICOM'), bad),
+    ];
+
+    await store.downloadVolume('series-uid', retrieve, importSources);
+
+    expect(store.volumes['series-uid'].state).toBe('Done');
+    expect(select).toHaveBeenCalledWith('volume-1');
+    expect(useMessageStore().messages).toEqual([
+      expect.objectContaining({
+        title: expect.stringMatching(/may be incomplete/),
+        options: expect.objectContaining({
+          details: expect.stringMatching(/bad\.dcm is not DICOM/),
+        }),
+      }),
+    ]);
   });
 });
