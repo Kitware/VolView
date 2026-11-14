@@ -2,8 +2,7 @@ import type { DicomRuntime } from '../runtime/createDicomRuntime';
 import type { Instance } from '../instance/readInstance';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
-import { numberOr } from '../utils';
-import { abortError, linkedController } from '../utils';
+import { abortError, linkedController, numberOr } from '../utils';
 import { readBytes } from '../source/byteSource';
 import { planDecode, type DecoderTable } from '../pixels/decoderTable';
 import {
