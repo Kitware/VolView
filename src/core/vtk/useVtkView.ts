@@ -152,29 +152,30 @@ export function useVtkView(
   const widgetManager = useWidgetManager(renderer);
 
   // render API
-  const deferredRender = batchForNextTask(() => {
-    // Cleanup can throw before the queued render is cancelled.
-    if (disposed) return;
+  const render = () => {
     // don't need to re-render during animation
     if (interactor.isAnimating()) return;
     widgetManager.renderWidgets();
     renderWindow.render();
-  });
-
-  const immediateRender = () => {
-    if (interactor.isAnimating()) return;
-    parent?.renderWindow.render();
-    renderWindow.render();
   };
+
+  const deferredRender = batchForNextTask(() => {
+    // Cleanup can throw before the queued render is cancelled.
+    if (disposed) return;
+    render();
+  });
 
   // requests outlive the view: vtk event handlers and promises that settle
   // after dispose has deleted the scene graph nodes a render would traverse
   const requestRender = ({ immediate } = { immediate: false }) => {
     if (disposed) return;
-    if (immediate) {
-      immediateRender();
+    if (!immediate) {
+      deferredRender();
+      return;
     }
-    deferredRender();
+    // the immediate render covers any queued one
+    deferredRender.cancel();
+    render();
   };
 
   onVTKEvent(renderer, 'onModified', () => {
@@ -195,8 +196,9 @@ export function useVtkView(
     renderWindowView.setSize(scaledWidth, scaledHeight);
     imageRenderer.resetCameraClippingRange(unref(clippingBounds));
 
+    // Sibling views keep their own canvases, so only this view redraws, and
+    // right away because resizing cleared its canvas.
     parent?.renderWindowView.resizeFromChildRenderWindows();
-    parent?.renderWindow.render();
     requestRender({ immediate: true });
   };
 
