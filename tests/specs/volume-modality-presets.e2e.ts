@@ -217,7 +217,8 @@ async function expectVisibleVolume(name: string) {
 }
 
 describe('grayscale default fitted to the data', () => {
-  const SIZE = 64;
+  // Software-rendered 3D frames on CI cost time in proportion to volume depth.
+  const SIZE = 32;
   const coordinates = (index: number) => [
     index % SIZE,
     Math.floor(index / SIZE) % SIZE,
@@ -228,8 +229,8 @@ describe('grayscale default fitted to the data', () => {
     const name = 'fitted-untagged-hu';
     const voxels = floatVoxels(SIZE, (index) => {
       const radius = Math.hypot(...coordinates(index).map((c) => c - SIZE / 2));
-      if (radius < 8) return 700;
-      return radius < 24 ? 40 : -1024;
+      if (radius < SIZE / 8) return 700;
+      return radius < (3 * SIZE) / 8 ? 40 : -1024;
     });
     await openWith3DLayout(
       writeNrrd(name, nrrd([], 'float', SIZE), voxels),
@@ -243,7 +244,9 @@ describe('grayscale default fitted to the data', () => {
     const name = 'fitted-sparse';
     const voxels = floatVoxels(SIZE, (index) => {
       if (index === 0) return 1e6;
-      const inBlock = coordinates(index).every((c) => c >= 28 && c < 36);
+      const inBlock = coordinates(index).every(
+        (c) => c >= SIZE / 2 - 4 && c < SIZE / 2 + 4
+      );
       return inBlock ? 500 + (index % 7) : 0;
     });
     await openWith3DLayout(
@@ -257,7 +260,9 @@ describe('grayscale default fitted to the data', () => {
   it('renders the brightest voxels opaque, so a binary mask face is solid', async () => {
     const name = 'fitted-binary';
     const voxels = floatVoxels(SIZE, (index) =>
-      coordinates(index).every((c) => c >= 16 && c < 48) ? 1 : 0
+      coordinates(index).every((c) => c >= SIZE / 4 && c < (3 * SIZE) / 4)
+        ? 1
+        : 0
     );
     await openWith3DLayout(
       writeNrrd(name, nrrd([], 'float', SIZE), voxels),
@@ -288,8 +293,8 @@ describe('grayscale default fitted to the data', () => {
   it('fits an MR preset to the intensity scale', async () => {
     const shell = (scale: number) => (index: number) => {
       const radius = Math.hypot(...coordinates(index).map((c) => c - SIZE / 2));
-      if (radius < 8) return 300 * scale;
-      return radius < 24 ? 100 * scale : 0;
+      if (radius < SIZE / 8) return 300 * scale;
+      return radius < (3 * SIZE) / 8 ? 100 * scale : 0;
     };
     const rendered = [];
     for (const scale of [1, 10]) {
