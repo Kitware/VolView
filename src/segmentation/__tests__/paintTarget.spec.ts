@@ -19,7 +19,10 @@ import {
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 function boundSegment(segmentationId: string, name: string) {
-  const segment = store().createMask(segmentationId, mintSegment({ name }));
+  const segment = store().createMask(
+    segmentationId,
+    mintSegment(store().segmentations[segmentationId].parentImageId, { name })
+  );
   store().ensureLabelmapBinding(segment.id);
   return segment;
 }
@@ -57,9 +60,8 @@ describe('paint edit target', () => {
 
     strokeAt('img-2', [1, 1, 0]);
 
-    // The segment is shared; this image gets its own record and its own mask.
     const painted = store().findEditTarget('img-2')!;
-    expect(store().getMask(painted).segmentId).toBe(source.segmentId);
+    expect(store().getMask(painted).segmentId).not.toBe(source.segmentId);
     const paintedBinding = bindingOf(painted)!;
     const sourceBinding = bindingOf(source.id)!;
     expect(paintedBinding.image).not.toBe(sourceBinding.image);
@@ -79,7 +81,9 @@ describe('paint edit target', () => {
     expect(useSegmentStore().segments.appearanceOf(segmentId).name).toBe(
       'Segment 1'
     );
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
+    expect(useSegmentStore().segments.selectedSegmentId('img-1')).toBe(
+      segmentId
+    );
     expect(maskValueAt(maskId, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 

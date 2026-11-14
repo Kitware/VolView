@@ -3,7 +3,6 @@ import { setActivePinia, createPinia } from 'pinia';
 import {
   seatSpecImage,
   inMemoryArtifactIO,
-  mintSegment,
   segmentOfMask,
   manifestForImages,
   segmentationSnapshot,
@@ -29,19 +28,25 @@ async function buildScene() {
 
   const first = store.ensureSegmentationForImage('img-1');
   // No binding: a segment created by "add" has no voxels until a first edit.
-  const planned = store.createMask(first.id, mintSegment({ name: 'Planned' }));
+  const planned = store.createMask(
+    first.id,
+    useSegmentStore().segments.mintSegment('img-1', { name: 'Planned' })
+  );
   useSegmentStore().segments.updateSegment(segmentOfMask(planned.id), {
     locked: true,
     visible: false,
   });
-  const tumor = store.createMask(first.id, mintSegment({ name: 'Tumor' }));
+  const tumor = store.createMask(
+    first.id,
+    useSegmentStore().segments.mintSegment('img-1', { name: 'Tumor' })
+  );
   store.ensureLabelmapBinding(tumor.id).source = SOURCE;
 
   // Same name on another image: still a distinct segment.
   const second = store.ensureSegmentationForImage('img-2');
   const otherTumor = store.createMask(
     second.id,
-    mintSegment({ name: 'Tumor' })
+    useSegmentStore().segments.mintSegment('img-2', { name: 'Tumor' })
   );
   store.ensureLabelmapBinding(otherTumor.id);
 
@@ -74,7 +79,10 @@ describe('segmentation state-file round trip', () => {
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
     await seatSpecImage('new-2', 'CT B');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
+    const { segmentIdMap } = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+      'img-2': 'new-2',
+    });
     await useSegmentationStore().deserialize({
       manifest: parsed,
       stateFiles: stateFiles,
@@ -85,9 +93,6 @@ describe('segmentation state-file round trip', () => {
     await nextTick();
 
     expect(segmentationSnapshot('new-1')).toEqual(before.first);
-    expect(segmentationSnapshot('new-2')).toEqual({
-      ...before.second,
-      segments: [{ ...before.second.segments[0], name: 'Tumor (2)' }],
-    });
+    expect(segmentationSnapshot('new-2')).toEqual(before.second);
   });
 });

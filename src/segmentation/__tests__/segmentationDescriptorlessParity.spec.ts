@@ -33,7 +33,7 @@ const labelValues = () => new Uint8Array(4 * 4 * 4).fill(1, 20, 44).fill(2, 44);
 // NO segments. The migration turns it into an artifact no mask names, and the
 // LOADED restore stage is what enumerates its voxels.
 const migrated = (manifest: Record<string, unknown>): Manifest =>
-  ManifestSchema.parse(migrateManifest(JSON.stringify(manifest)));
+  ManifestSchema.parse(migrateManifest(JSON.stringify(manifest)).manifest);
 
 const descriptorlessComposedManifest = (visibility = true) =>
   migrated({

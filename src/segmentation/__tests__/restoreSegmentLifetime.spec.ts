@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, disposePinia } from 'pinia';
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -35,6 +35,7 @@ async function pendingRestore(kind: 'own' | 'legacy') {
   const ids = ['deleted', 'healthy'];
   const manifest = ManifestSchema.parse(
     manifestForImages(['parent'], {
+      imageSegmentSets: [{ imageId: 'parent', segmentIds: ids }],
       segments: ids.map((id) => ({
         id,
         name: id,
@@ -109,7 +110,8 @@ async function pendingRestore(kind: 'own' | 'legacy') {
       },
     })
   );
-  const completed = completeStateFileRestore(
+  const addWarning = vi.fn();
+  const completed = createStateFileRestorer({ addWarning })(
     manifest,
     ids.map((id) => ({
       archivePath: `${id}.vti`,
@@ -118,7 +120,12 @@ async function pendingRestore(kind: 'own' | 'legacy') {
     { parent: 'parent' }
   );
   await reading.promise;
-  return { completed, release, registry: useSegmentStore().segments };
+  return {
+    completed,
+    release,
+    registry: useSegmentStore().segments,
+    addWarning,
+  };
 }
 
 describe.each(['own', 'legacy'] as const)(
@@ -127,24 +134,25 @@ describe.each(['own', 'legacy'] as const)(
     it.each([false, true])(
       'honors deletion during IO, same-name recreation: %s',
       async (recreate) => {
-        const { completed, release, registry } = await pendingRestore(kind);
-        const deleted = registry.segmentList.value.find(
-          (segment) => segment.name === 'deleted'
-        )!;
-        const healthy = registry.segmentList.value.find(
-          (segment) => segment.name === 'healthy'
-        )!;
+        const { completed, release, registry, addWarning } =
+          await pendingRestore(kind);
+        const deleted = registry
+          .segmentList('parent')
+          .find((segment) => segment.name === 'deleted')!;
+        const healthy = registry
+          .segmentList('parent')
+          .find((segment) => segment.name === 'healthy')!;
         registry.deleteSegment(deleted.id);
         const replacement = recreate
-          ? registry.addSegment({ name: deleted.name })
+          ? registry.addSegment('parent', { name: deleted.name })
           : undefined;
         release.resolve();
         await completed;
 
         expect(registry.getSegment(deleted.id)).toBeUndefined();
-        expect(registry.segmentList.value.map((segment) => segment.id)).toEqual(
-          replacement ? [healthy.id, replacement] : [healthy.id]
-        );
+        expect(
+          registry.segmentList('parent').map((segment) => segment.id)
+        ).toEqual(replacement ? [healthy.id, replacement] : [healthy.id]);
         const masks = store().imageMasks('parent');
         expect(masks.map((mask) => mask.segmentId)).toEqual([healthy.id]);
         expect(Array.from(store().maskVoxels(masks[0].id).scalars())).toContain(
@@ -156,6 +164,12 @@ describe.each(['own', 'legacy'] as const)(
           healthy.id,
           '',
         ]);
+        expect(addWarning).not.toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            details: expect.stringContaining('belongs to another image'),
+          })
+        );
       }
     );
   }

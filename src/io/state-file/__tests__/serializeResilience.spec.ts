@@ -303,7 +303,14 @@ describe('state-file serialization resilience', () => {
           locked: true,
         },
       ],
-      selectedSegment: 'segment-1',
+      imageSegmentSets: [
+        {
+          imageId: 'dataset-1',
+          segmentIds: ['segment-1'],
+          selectedSegmentId: 'segment-1',
+        },
+      ],
+      seedSegmentDefaults: [],
     } as unknown as Manifest;
 
     const zip = new JSZip();
@@ -329,7 +336,25 @@ describe('state-file serialization resilience', () => {
         locked: true,
       },
     ]);
-    expect(normalized.manifest.selectedSegment).toBe('segment-1');
+    expect(normalized.manifest.imageSegmentSets).toEqual([
+      {
+        imageId: 'dataset-1',
+        segmentIds: ['segment-1'],
+        selectedSegmentId: 'segment-1',
+      },
+    ]);
+    expect(normalized.manifest.seedSegmentDefaults).toEqual([]);
+  });
+
+  it('keeps an initialized empty image set through normalization', () => {
+    const manifest = {
+      ...manifestWithSelection('dataset-1'),
+      segments: [],
+      imageSegmentSets: [{ imageId: 'dataset-1', segmentIds: [] }],
+    };
+    expect(
+      normalizeManifest(manifest, new JSZip()).manifest.imageSegmentSets
+    ).toEqual([{ imageId: 'dataset-1', segmentIds: [] }]);
   });
 
   it('saves no import instructions', () => {

@@ -226,18 +226,6 @@ const reportUnparseableColors = (
   if (message) addError(message);
 };
 
-// An omitted section leaves the registry alone; an empty record or null
-// clears what an earlier config contributed to it.
-const applySegments = (
-  manifest: Config,
-  addError: (message: string) => void
-) => {
-  const configured = manifest.segments;
-  if (configured === undefined) return;
-  if (configured) reportUnparseableColors(configured, addError);
-  useSegmentStore().segments.replaceConfigSegments(configured);
-};
-
 const applyLayout = (manifest: Config) => {
   if (!manifest.layouts) return;
 
@@ -335,5 +323,10 @@ export const applyPostStateConfig = (
   addError: (message: string) => void = (message) =>
     useMessageStore().addError(message)
 ) => {
-  applySegments(manifest, addError);
+  // An omitted section leaves the registry alone; an empty record or null
+  // clears what an earlier config contributed to it.
+  const configured = manifest.segments;
+  if (configured === undefined) return;
+  if (configured) reportUnparseableColors(configured, addError);
+  useSegmentStore().replaceConfigSegments(configured);
 };

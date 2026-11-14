@@ -11,8 +11,10 @@ import {
   seatDataSource,
   seatVolume,
 } from '@/src/store/__tests__/datasetFixtures';
-import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { serializeAnnotations } from './serializedScene';
+import {
+  seatImage,
+  serializeAnnotations,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const jobRef = { providerId: 'analysis', jobId: 'saved-job' };
 const baseUris = ['/ct/2.dcm', '/ct/1.dcm'];

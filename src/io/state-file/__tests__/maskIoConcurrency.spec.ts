@@ -138,7 +138,9 @@ describe('mask io concurrency', () => {
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
+    const { segmentIdMap } = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+    });
     const result = await store().deserialize({
       manifest: parsed,
       stateFiles,
@@ -187,7 +189,9 @@ describe('mask io concurrency', () => {
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
+    const { segmentIdMap } = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+    });
     await store().deserialize({
       manifest: parsed,
       stateFiles,
@@ -229,7 +233,8 @@ describe('mask io concurrency', () => {
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(parsed, { 'img-1': 'new-1' })
+        .segmentIdMap,
       io: save.io,
     });
     await nextTick();
@@ -256,6 +261,23 @@ describe('mask io concurrency', () => {
 
     expect(save.described[MASK_IO_CONCURRENCY].map(({ name }) => name)).toEqual(
       [`Segment ${MASK_IO_CONCURRENCY}`]
+    );
+  });
+
+  it('keeps saved segment references consistent when a segment is added during encoding', async () => {
+    await seatSpecImage('img-1', 'CT A');
+    seedMasks(MASK_IO_CONCURRENCY);
+
+    const save = startGatedSave();
+    await save.queued;
+    useSegmentStore().segments.addSegment('img-1', {
+      name: 'Added during save',
+    });
+    await save.finish();
+
+    const parsed = ManifestSchema.parse(save.manifest);
+    expect(parsed.imageSegmentSets?.[0].segmentIds).toEqual(
+      parsed.segments?.map(({ id }) => id)
     );
   });
 });

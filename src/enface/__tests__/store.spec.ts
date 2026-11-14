@@ -7,6 +7,8 @@ import { parseNamedLayouts } from '@/src/utils/layoutParsing';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
+import { useSegmentStore } from '@/src/segmentation/segments';
+import { manifestForImages } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 beforeEach(() => setActivePinia(createPinia()));
 
@@ -126,6 +128,9 @@ describe('En face view settings', () => {
 
   it('remaps saved segment ids and drops unknown ones on restore', () => {
     const store = useEnFaceViewStore();
+    const chosen = useSegmentStore().segments.addSegment('kept', {
+      name: 'Layer',
+    });
     const saved = (segmentId: string) => ({
       enFace: {
         axis: 1 as const,
@@ -140,10 +145,18 @@ describe('En face view settings', () => {
     store.deserialize(
       'view',
       { kept: saved('saved-layer'), dropped: saved('missing-layer') },
-      { 'saved-layer': 'chosen' }
+      { 'saved-layer': chosen }
     );
-    expect(store.configFor('view', 'kept').segmentId).toBe('chosen');
-    expect(store.configFor('view', 'dropped').segmentId).toBeNull();
+    const state: StateFile = {
+      zip: new JSZip(),
+      manifest: manifestForImages(['kept', 'dropped'], {
+        viewByID: { view: { id: 'view', type: 'EnFace', name: 'En face' } },
+      }),
+    };
+    store.serialize(state);
+    const config = state.manifest.viewByID!.view.config!;
+    expect(config.kept.enFace?.segmentId).toBe(chosen);
+    expect(config.dropped.enFace?.segmentId).toBeNull();
   });
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {

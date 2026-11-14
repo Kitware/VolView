@@ -60,7 +60,9 @@ async function seatConvertible() {
 }
 
 const segmentNames = () =>
-  useSegmentStore().segments.segmentList.value.map((segment) => segment.name);
+  useSegmentStore()
+    .segments.segmentList('parent')
+    .map((segment) => segment.name);
 
 const expectNothingMinted = () => {
   expect(Object.keys(store().segmentations)).toEqual([]);

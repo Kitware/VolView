@@ -522,10 +522,19 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
     // Why a wire mask cannot become a record, or undefined when it can: a
     // mask whose segment did not restore has no identity to show, and a
     // second mask for a segment already on this image cannot exist.
-    const dropReason = (imageId: string, segmentId: Maybe<string>) => {
-      if (!segmentId) return 'its segment is not in the file';
+    const savedSegmentIds = new Set(
+      (manifest.segments ?? []).map(({ id }) => id)
+    );
+    const dropReason = (imageId: string, wireSegmentId: string) => {
+      const segmentId = segmentIdMap[wireSegmentId];
+      if (!segmentId)
+        return savedSegmentIds.has(wireSegmentId)
+          ? 'its segment did not restore'
+          : 'its segment is not in the file';
       if (!segmentRegistry.getSegment(segmentId))
         return 'its segment did not restore';
+      if (!segmentRegistry.belongsToImage(imageId, segmentId))
+        return 'its segment belongs to another image';
       if (maskFor(imageId, segmentId))
         return 'the image already has a mask for its segment';
       return undefined;
@@ -556,7 +565,7 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
 
       orderedWireMasks(wire).forEach((wireMask) => {
         const segmentId = segmentIdMap[wireMask.segmentId];
-        const reason = dropReason(parentImageId, segmentId);
+        const reason = dropReason(parentImageId, wireMask.segmentId);
         if (reason) {
           skipped.push({ name: maskLabel(wireMask), reason });
           return;
@@ -593,8 +602,8 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
           {
             source: item.source,
             name: item.name,
-            // Migrated groups never merge, and this one's display would be
-            // dropped by a same-named segment another image already minted.
+            // Migrated groups keep their own display, even when this image
+            // already has a segment with the same name.
             ownSegments: Object.values(item.display).some(
               (value) => value !== undefined
             ),
@@ -606,7 +615,10 @@ export function createSegmentationWire(deps: SegmentationWireDeps) {
         const activeIndex = decoded.findIndex(
           (descriptor) => descriptor.value === item.activeValue
         );
-        segmentRegistry.restoreSelection(restored[activeIndex]?.segmentId);
+        segmentRegistry.restoreSelection(
+          parentImageId,
+          restored[activeIndex]?.segmentId
+        );
       } else {
         const segmentation = getSegmentationForImage(parentImageId);
         const targets = item.masks.flatMap(({ maskId, value }) => {

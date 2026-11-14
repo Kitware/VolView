@@ -37,7 +37,7 @@ import { toolRenderSlice } from '@/src/core/annotations/locator';
 
 export default defineComponent({
   name: 'RulerWidget2D',
-  emits: ['placed', 'contextmenu', 'widgetHover'],
+  emits: ['placing', 'placed', 'contextmenu', 'widgetHover'],
   props: {
     toolId: {
       type: String as unknown as PropType<ToolID>,
@@ -103,7 +103,11 @@ export default defineComponent({
       }
     });
 
-    // --- placed event --- //
+    // --- placement events --- //
+
+    onVTKEvent(widget, 'onStartInteractionEvent', () => {
+      if (isPlacing.value) emit('placing');
+    });
 
     onVTKEvent(widget, 'onPlacedEvent', () => {
       emit('placed');

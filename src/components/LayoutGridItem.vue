@@ -54,8 +54,8 @@ function onDrop(event: DragEvent) {
 
   const droppedImageID = event.dataTransfer?.getData(IMAGE_DRAG_MEDIA_TYPE);
   if (droppedImageID) {
-    viewStore.setActiveView(props.viewId);
     viewStore.setDataForView(props.viewId, droppedImageID);
+    viewStore.setActiveView(props.viewId);
   }
 }
 </script>

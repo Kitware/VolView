@@ -30,7 +30,10 @@ const SQUARE: Vector3[] = [
 const segments = () => useSegmentStore().segments;
 
 const lockedSelection = () => {
-  const segmentId = segments().mintSegment({ name: 'Locked', locked: true });
+  const segmentId = segments().mintSegment('img-1', {
+    name: 'Locked',
+    locked: true,
+  });
   segments().selectSegment(segmentId);
   return segmentId;
 };
@@ -73,8 +76,11 @@ describe('a refused edit on a locked segment', () => {
   });
 
   it('creates no mask record for a polygon naming a locked segment', () => {
-    const locked = segments().mintSegment({ name: 'Locked', locked: true });
-    const active = segments().mintSegment({ name: 'Active' });
+    const locked = segments().mintSegment('img-1', {
+      name: 'Locked',
+      locked: true,
+    });
+    const active = segments().mintSegment('img-1', { name: 'Active' });
     segments().selectSegment(active);
 
     const result = rasterizePolygon({

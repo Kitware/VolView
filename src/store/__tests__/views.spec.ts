@@ -31,6 +31,26 @@ describe('View store', () => {
     expect(store.activeView).toBe(store.visibleViews[0].id);
   });
 
+  it.each(['missing', 'hidden'])(
+    'selects a visible view when a sparse session selects a %s view',
+    (selection) => {
+      const store = useViewStore();
+      const selectedView =
+        selection === 'hidden' ? store.layoutViews[1].id : 'missing';
+      store.setLayoutFromGrid([1, 1]);
+      store.deserializeLayout({
+        version: '8.0.0',
+        dataSources: [],
+        activeView: selectedView,
+      });
+
+      store.setDataForAllViews('image-1', selectedView);
+
+      expect(store.activeView).toBe(store.visibleViews[0].id);
+      expect(store.getView(store.activeView)?.dataID).toBe('image-1');
+    }
+  );
+
   it('preserves stored view types when cine data is attached', () => {
     const store = useViewStore();
 

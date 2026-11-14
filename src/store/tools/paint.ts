@@ -225,7 +225,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     // Asked before anything else: cancelling a preview and resolving the target
     // (which mints the mask and its segmentation) are both side effects a
     // refused stroke must not have.
-    if (segmentationStore.editTargetLocked()) return;
+    if (segmentationStore.editTargetLocked(imageID)) return;
 
     const parentImage = useImageCacheStore().getVtkImageData(imageID);
     if (!parentImage) return;
@@ -457,13 +457,14 @@ export const usePaintToolStore = defineStore('paint', () => {
   // store before any tool deserializes.
   function deserialize(this: _This, manifest: Manifest) {
     const paint = manifest.tools?.paint;
-    if (!paint) return;
+    if (!paint) return [];
 
     if (paint.brushSize !== undefined) {
       setBrushSize.call(this, paint.brushSize);
     }
     isActive.value = manifest.tools?.current === Tools.Paint;
     setCrossPlaneSync(paint.crossPlaneSync ?? false);
+    return [];
   }
 
   return {

@@ -1,6 +1,8 @@
 import type { DataSource } from '@/src/io/import/dataSource';
 import type { ImportHandler } from '@/src/io/import/common';
 import type { RestoreProcessors } from '@/src/io/import/importDataSources';
+import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
+import { Skip } from '@/src/utils/evaluateChain';
 
 type CompletionCall = Parameters<RestoreProcessors['completeStateFileRestore']>;
 
@@ -22,6 +24,20 @@ export const recordingRestoreProcessors = (options: {
     },
   };
   return { completions, processors };
+};
+
+/** The setup a session file yields, read but not yet applied. */
+export const readSessionSetup = async (manifest: unknown) => {
+  const setup = await restoreStateFile({
+    type: 'file',
+    file: new File([JSON.stringify(manifest)], 'session.volview.json', {
+      type: 'application/json',
+    }),
+    fileType: 'application/json',
+  });
+  if (setup === Skip || setup.type !== 'stateFileSetup')
+    throw new Error('Expected a session restore setup');
+  return setup;
 };
 
 export const yields =

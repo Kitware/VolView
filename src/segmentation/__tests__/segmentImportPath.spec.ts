@@ -77,7 +77,7 @@ describe('importing a labelmap onto a parent image', () => {
     await store().convertImageToLabelmap('child-img', 'parent-img');
 
     const segments = segmentsOf('parent-img');
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(
+    expect(useSegmentStore().segments.selectedSegmentId('parent-img')).toBe(
       segments[0].segmentId
     );
     expect(segments.map(appearanceOf)).toEqual([
@@ -187,6 +187,10 @@ describe('importing a labelmap onto a parent image', () => {
     async (_kind, values) => {
       await seatImage('parent-img', { name: 'CT' });
       await seatImage('healthy-img', { name: 'MR' });
+      const healthySegment = useSegmentStore().segments.addSegment(
+        'healthy-img',
+        { name: 'Surviving label' }
+      );
       await seatImage('child-img', { name: 'Tumor.seg.nrrd', values });
       const decoding = defer<void>();
       const started = defer<void>();
@@ -217,7 +221,12 @@ describe('importing a labelmap onto a parent image', () => {
       await expect(conversion).rejects.toThrow(/no longer loaded/i);
       expect(store().getSegmentationForImage('parent-img')).toBeUndefined();
       expect(useImageCacheStore().imageById['healthy-img']).toBeDefined();
-      expect(useSegmentStore().segments.segmentList.value).toEqual([]);
+      expect(
+        useSegmentStore()
+          .segments.segmentList('healthy-img')
+          .map(({ id }) => id)
+      ).toEqual([healthySegment]);
+      expect(useSegmentStore().segments.segmentList('parent-img')).toEqual([]);
       expect(boundMasks()).toEqual([]);
     }
   );
@@ -387,7 +396,7 @@ describe('the decode color cursor', () => {
     await seatImage('other-img', { name: 'MR' });
     const other = store().ensureSegmentationForImage('other-img');
     ['A', 'B', 'C'].forEach((name) =>
-      store().createMask(other.id, mintSegment({ name }))
+      store().createMask(other.id, mintSegment('other-img', { name }))
     );
     expect(await convertedColors()).toEqual([categorical(0), categorical(1)]);
   });

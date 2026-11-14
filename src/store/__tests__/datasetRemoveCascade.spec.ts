@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 import {
   boundMasks,
   mintSegment,
+  serializeAnnotations,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
@@ -65,7 +66,10 @@ const makeRuler = (imageID: string) =>
 const seatMask = (imageId: string) => {
   const segmentations = useSegmentationStore();
   const segmentationId = segmentations.ensureSegmentationForImage(imageId).id;
-  const maskId = segmentations.createMask(segmentationId, mintSegment()).id;
+  const maskId = segmentations.createMask(
+    segmentationId,
+    mintSegment(imageId)
+  ).id;
   segmentations.maskVoxels(maskId).materialize();
   return { segmentationId, maskId };
 };
@@ -82,7 +86,7 @@ describe('dataset remove — synchronous reference cascade', () => {
     const rest = ['A', 'B'].map((name) => {
       const segment = segmentations.createMask(
         first.segmentationId,
-        mintSegment({
+        mintSegment('img-1', {
           name,
         })
       );
@@ -182,7 +186,7 @@ describe('dataset remove — synchronous reference cascade', () => {
     expect('img-1' in cropStore.croppingByImageID).toBe(false);
   });
 
-  it('removes the records of a deleted image and keeps their segment', () => {
+  it('removes the records and definitions of a deleted image', () => {
     seatImage('img-1', 'CT');
     seatImage('img-2', 'PET');
     const segmentationStore = useSegmentationStore();
@@ -193,8 +197,11 @@ describe('dataset remove — synchronous reference cascade', () => {
     useDatasetStore().remove('img-1');
 
     expect(segmentationStore.maskExists(maskId)).toBe(false);
-    // A segment outlives an image it was painted on while another remains.
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
+    const saved = serializeAnnotations();
+    expect(saved.segments?.map(({ id }) => id)).not.toContain(segmentId);
+    expect(saved.imageSegmentSets?.map(({ imageId }) => imageId)).not.toContain(
+      'img-1'
+    );
   });
 
   it('leaves references to OTHER datasets intact', () => {

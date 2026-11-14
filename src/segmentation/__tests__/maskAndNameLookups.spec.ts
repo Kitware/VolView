@@ -50,7 +50,9 @@ describe('the mask index a segment is looked up through', () => {
   });
 
   it('answers for the segments beside one that was detached', () => {
-    const [first, second, third] = ['a', 'b', 'c'].map(() => mintSegment());
+    const [first, second, third] = ['a', 'b', 'c'].map(() =>
+      mintSegment('img-1')
+    );
     const masks = [first, second, third].map((segmentId) => {
       const segmentation = store().ensureSegmentationForImage('img-1');
       return store().createMask(segmentation.id, segmentId).id;
@@ -64,7 +66,7 @@ describe('the mask index a segment is looked up through', () => {
   });
 
   it('reaches a computed when a mask appears and when it goes', () => {
-    const segmentId = mintSegment();
+    const segmentId = mintSegment('img-1');
     const seen = computed(() => maskIdFor(segmentId));
 
     expect(seen.value).toBeUndefined();

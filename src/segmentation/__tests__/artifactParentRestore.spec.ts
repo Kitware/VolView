@@ -607,7 +607,9 @@ describe('an archive artifact', () => {
       manifest,
       stateFiles: [{ archivePath: 'a.vti', file: new File([''], 'a.vti') }],
       dataIDMap: { parent: 'parent' },
-      segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(manifest, {
+        parent: 'parent',
+      }).segmentIdMap,
       io: {
         write: async () => '',
         read: async () => ({ image, headerMetadata }),
@@ -632,6 +634,7 @@ describe('an archive artifact', () => {
       new Uint8Array([0, 1, 2, 0]),
       {
         segments: [{ id: 's1', name: 'Liver', color: [255, 0, 0, 255] }],
+        imageSegmentSets: [{ imageId: 'parent', segmentIds: ['s1'] }],
         segmentations: [
           {
             id: 'wire',
@@ -682,6 +685,7 @@ describe('an artifact-backed mask whose id spells a prototype member', () => {
     const manifest = ManifestSchema.parse(
       manifestForImages(['parent'], {
         segments: [{ id: 'tumor', name: 'Tumor', color: [255, 0, 0, 255] }],
+        imageSegmentSets: [{ imageId: 'parent', segmentIds: ['tumor'] }],
         segmentations: [
           {
             id: 'segmentation',
@@ -719,7 +723,9 @@ describe('an artifact-backed mask whose id spells a prototype member', () => {
         { archivePath: 'mask.vti', file: new File([''], 'mask.vti') },
       ],
       dataIDMap: { parent: 'parent' },
-      segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+      segmentIdMap: useSegmentStore().deserialize(manifest, {
+        parent: 'parent',
+      }).segmentIdMap,
       io: { write: async () => '', read: async () => ({ image }) },
     });
     return { result, mask: store().imageMasks('parent')[0] };

@@ -16,10 +16,9 @@ export function planSegmentationInput(
     return { ...base, parts, warning: undefined };
   }
   const registry = useSegmentStore().segments;
-  // The selection is shared across images, so it can name a segment this image
-  // holds no mask for. Packing then starts from the first mask in registry
-  // order instead, and the advice to select a segment has to say where.
-  const selected = registry.selectedSegmentId.value;
+  // An unpainted definition has no mask to prioritize, so packing falls back
+  // to the first mask in this image's segment order.
+  const selected = registry.selectedSegmentId(parentImageId);
   const preferred =
     selected && segmentationStore.maskFor(parentImageId, selected)
       ? selected

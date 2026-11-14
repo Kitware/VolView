@@ -9,7 +9,11 @@ import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { listMasks } from '@/src/segmentation/model';
-import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  seatImage,
+  serializeAnnotations,
+  viewImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // A pre-7 group with no descriptors has no segments to activate when
@@ -58,7 +62,7 @@ const twoGroupManifest = (activeValue: number): Manifest =>
           paint: { activeSegmentGroupID: 'sg-b', activeSegment: activeValue },
         },
       })
-    )
+    ).manifest
   );
 
 async function restoreTwoGroups(activeValue: number, populate = () => {}) {
@@ -84,7 +88,8 @@ const catalog = () => {
 // that segment has on this image. Both groups decode two segments each, in
 // ascending source value, so a segment's place says which value it came from.
 const selectedIndex = () => {
-  const segmentId = useSegmentStore().segments.selectedSegmentId.value;
+  const segmentId =
+    useSegmentStore().segments.selectedSegmentId('parent-store');
   const index = catalog().findIndex(
     (segment) => segment.segmentId === segmentId
   );
@@ -119,15 +124,40 @@ describe('restoring a descriptorless active group', () => {
     expect(selectedIndex()).toBe(3);
   });
 
+  it('restores defaults and the active group over an unrelated image selection', async () => {
+    const store = useSegmentStore();
+    store.replaceConfigSegments({ Site: {} });
+    await viewImage('existing');
+    store.segments.addSegment('existing', { name: 'Unrelated' });
+
+    await restoreTwoGroups(2);
+
+    const saved = serializeAnnotations();
+    const set = saved.imageSegmentSets?.find(
+      ({ imageId }) => imageId === 'parent-store'
+    );
+    const names = (set?.segmentIds ?? []).map(
+      (id) => saved.segments?.find((segment) => segment.id === id)?.name
+    );
+    expect(names).toHaveLength(5);
+    expect(names[0]).toBe('Site');
+    expect(names).not.toContain('Unrelated');
+    expect(
+      saved.segments?.find(({ id }) => id === set?.selectedSegmentId)?.name
+    ).toMatch(/^B/);
+  });
+
   it('leaves a selection the scene already has alone', async () => {
     let liver = '';
     await restoreTwoGroups(1, () => {
       const registry = useSegmentStore().segments;
-      liver = registry.segmentNamed('Liver');
+      liver = registry.segmentNamed('parent-store', 'Liver');
       registry.selectSegment(liver);
     });
 
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(liver);
+    expect(useSegmentStore().segments.selectedSegmentId('parent-store')).toBe(
+      liver
+    );
   });
 
   it('selects the first segment when no source value matches', async () => {

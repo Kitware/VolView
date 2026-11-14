@@ -42,7 +42,7 @@ declareManifestRefs('primarySelection', (manifest) =>
 );
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '7.0.0';
+export const MANIFEST_VERSION = '8.0.0';
 
 type ManifestCandidate = Record<string, unknown>;
 
@@ -120,6 +120,30 @@ function validateCoreGraph(core: Manifest, zip: JSZip) {
   return datasetIds;
 }
 
+function normalizeLayerRelationships(
+  rawLayers: unknown,
+  datasetIds: Set<string>,
+  omitted: string[]
+): ParentToLayers | undefined {
+  if (Array.isArray(rawLayers)) {
+    return rawLayers.flatMap((raw, index) => {
+      const parsed = ParentToLayers.element.safeParse(raw);
+      if (
+        !parsed.success ||
+        !datasetIds.has(parsed.data.selectionKey) ||
+        parsed.data.sourceSelectionKeys.some((id) => !datasetIds.has(id))
+      ) {
+        omitted.push(`layer relationship ${index}: missing or invalid dataset`);
+        return [];
+      }
+      return [parsed.data];
+    });
+  }
+  if (rawLayers !== undefined)
+    omitted.push('parentToLayers: invalid optional state');
+  return undefined;
+}
+
 // Validate the source graph and saved mask files before writing an archive.
 // Optional invalid content is reported and omitted; an invalid source graph
 // aborts the save. Dataset and tool references are kept clean by their stores'
@@ -173,23 +197,11 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     return [{ ...parsed.data, masks }];
   });
 
-  let validLayers: ParentToLayers | undefined;
-  if (Array.isArray(candidate.parentToLayers)) {
-    validLayers = candidate.parentToLayers.flatMap((raw, index) => {
-      const parsed = ParentToLayers.element.safeParse(raw);
-      if (
-        !parsed.success ||
-        !datasetIds.has(parsed.data.selectionKey) ||
-        parsed.data.sourceSelectionKeys.some((id) => !datasetIds.has(id))
-      ) {
-        omitted.push(`layer relationship ${index}: missing or invalid dataset`);
-        return [];
-      }
-      return [parsed.data];
-    });
-  } else if (candidate.parentToLayers !== undefined) {
-    omitted.push('parentToLayers: invalid optional state');
-  }
+  const validLayers = normalizeLayerRelationships(
+    candidate.parentToLayers,
+    datasetIds,
+    omitted
+  );
 
   // Dev-only cascade-gap backstop (DCE'd in prod by the NODE_ENV guard).
   // Referential integrity of these dataset/segment/view-keyed sections is owned
@@ -250,7 +262,8 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'layerDisplay',
     'tools',
     'segments',
-    'selectedSegment',
+    'imageSegmentSets',
+    'seedSegmentDefaults',
     'activeView',
     'isActiveViewMaximized',
     'viewByID',
