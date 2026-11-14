@@ -156,12 +156,24 @@ describe('Projection default contrast', () => {
   });
 
   it('opens the non-DICOM retinal Mean projection with visible grayscale contrast', async () => {
-    await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
-    const sample = volViewPage.samplesList.$('div[title="Retinal OCT layers"]');
-    await sample.waitForClickable();
-    await sample.click();
-    await waitForEnFaceReady();
-    await expectVisibleContrast(35);
+    try {
+      // Software GL blocks the page while it renders the full-depth projection.
+      await browser.setViewport({
+        ...CONTENT_VIEWPORT,
+        height: 400,
+        devicePixelRatio: 1,
+      });
+      await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
+      const sample = volViewPage.samplesList.$(
+        'div[title="Retinal OCT layers"]'
+      );
+      await sample.waitForClickable();
+      await sample.click();
+      await waitForEnFaceReady();
+      await expectVisibleContrast(35);
+    } finally {
+      await applyTestViewport(browser);
+    }
   });
 
   for (const manual of [false, true]) {
