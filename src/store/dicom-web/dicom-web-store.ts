@@ -22,7 +22,10 @@ import {
   Instance,
 } from '@/src/core/dicom-web-api';
 import { useViewStore } from '@/src/store/views';
-import { isVolumeResult } from '@/src/io/import/common';
+import {
+  isVolumeResult,
+  type ImportDataSourcesResult,
+} from '@/src/io/import/common';
 import { trimDicomPadding } from '@/packages/dicom/core/utils';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
@@ -73,6 +76,35 @@ const importSettled = (results: PromiseSettledResult<Instance[]>[]) => {
       error: failure.reason,
     });
 };
+
+/**
+ * The volume to show from a series download. Files that failed beside a
+ * loaded volume are reported without hiding it.
+ */
+function primaryVolumeResult(results: ImportDataSourcesResult[]) {
+  const failures = results.filter((result) => result.type === 'error');
+  const selectable = results.filter(isVolumeResult);
+  if (selectable.length === 0)
+    throw (
+      failures[0]?.error ??
+      new Error('The series contains no supported image data')
+    );
+  failures.forEach(({ error }) =>
+    useMessageStore().addError(
+      'Some files of the DICOM series failed to load; the volume may be incomplete',
+      { error }
+    )
+  );
+  // A series holding overlapping acquisitions loads as several volumes;
+  // show the one with the most slices rather than whichever import
+  // happened to finish first.
+  const dicomStore = useDICOMStore();
+  const sliceCount = (result: (typeof selectable)[number]) =>
+    dicomStore.volumeInfo[result.dataID]?.NumberOfSlices ?? 0;
+  return selectable.reduce((best, result) =>
+    sliceCount(result) > sliceCount(best) ? result : best
+  );
+}
 
 /**
  * Collect DICOM data from DICOMWeb
@@ -214,22 +246,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
       if (results.length === 0) {
         throw new Error('Did not receive a load result');
       }
-      const failed = results.find((result) => result.type === 'error');
-      if (failed) throw failed.error;
-
-      // A series holding overlapping acquisitions loads as several volumes;
-      // show the one with the most slices rather than whichever import
-      // happened to finish first.
-      const dicomStore = useDICOMStore();
-      const selectable = results.filter(isVolumeResult);
-      if (selectable.length === 0)
-        throw new Error('The series contains no supported image data');
-      const sliceCount = (result: (typeof selectable)[number]) =>
-        dicomStore.volumeInfo[result.dataID]?.NumberOfSlices ?? 0;
-      const primaryResult = selectable.reduce((best, result) =>
-        sliceCount(result) > sliceCount(best) ? result : best
-      );
-
+      const primaryResult = primaryVolumeResult(results);
       const selection = convertSuccessResultToDataSelection(primaryResult);
       useViewStore().setDataForAllViews(selection);
       volumes.value[volumeKey] = {
