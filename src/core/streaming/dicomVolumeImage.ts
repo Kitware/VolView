@@ -61,6 +61,8 @@ type Content =
       kind: 'segmentation';
       instances: readonly Instance[];
       loaded: boolean;
+      /** The last load failed, so no thumbnail is coming. */
+      failed: boolean;
     };
 
 const readSegmentationFile = async (file: File) => {
@@ -168,7 +170,12 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
 
   /** A SEG object, which the segmentation reader turns into a labelmap. */
   setSegmentation(instances: readonly Instance[]) {
-    this.replaceContent({ kind: 'segmentation', instances, loaded: false });
+    this.replaceContent({
+      kind: 'segmentation',
+      instances,
+      loaded: false,
+      failed: false,
+    });
     this.settleThumbnail?.();
   }
 
@@ -285,7 +292,10 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   private thumbnailSlice() {
     const { content } = this;
     if (!content) return undefined;
-    if (content.kind === 'segmentation') return content.loaded ? 0 : undefined;
+    if (content.kind === 'segmentation') {
+      if (content.loaded) return 0;
+      return content.failed ? null : undefined;
+    }
     const middle = middleSlot(content.volume);
     if (content.volume.loaded[middle]) return middle;
     if (!volumeSettled(content)) return undefined;
@@ -332,6 +342,19 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   }
 
   private async loadSegmentation(
+    content: Content & { kind: 'segmentation' },
+    signal: AbortSignal
+  ) {
+    content.failed = false;
+    try {
+      await this.readSegmentationContent(content, signal);
+    } catch (error) {
+      if (!signal.aborted) content.failed = true;
+      throw error;
+    }
+  }
+
+  private async readSegmentationContent(
     content: Content & { kind: 'segmentation' },
     signal: AbortSignal
   ) {
