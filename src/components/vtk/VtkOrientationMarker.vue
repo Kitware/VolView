@@ -12,7 +12,7 @@ const actor = vtkAnnotatedCubeActor.newInstance();
 AnnotatedCubePresets.applyPreset('default', actor); // applies color
 AnnotatedCubePresets.applyPreset('lps', actor);
 
-useOrientationMarker(actor, view.interactor);
+useOrientationMarker(actor, view);
 onScopeDispose(() => actor.delete());
 </script>
 
