@@ -565,4 +565,18 @@ describe('DicomVolumeImage segmentation', () => {
     ]);
     expect(image.isLoaded()).toBe(false);
   });
+
+  it('has no thumbnail when the segmentation reader fails', async () => {
+    const { image } = holder(constantSlices().decoder, {
+      readSegmentation: async () => {
+        throw new Error('unreadable SEG');
+      },
+    });
+
+    image.setSegmentation([segInstance()]);
+    const thumbnail = image.getThumbnail();
+    image.startLoad();
+
+    expect(await thumbnail).toBeNull();
+  });
 });
