@@ -19,6 +19,13 @@ export type SliceOptions = {
 
 let sopCounter = 0;
 
+// A null value leaves its tag out.
+const present = <T>(
+  tag: string,
+  value: T | null,
+  format: (value: T) => string = String
+): Array<[string, string]> => (value === null ? [] : [[tag, format(value)]]);
+
 /** A planner-ready MR slice header; every call mints a fresh SOP UID by default. */
 export function sliceDataset(options: SliceOptions = {}) {
   const {
@@ -32,7 +39,7 @@ export function sliceDataset(options: SliceOptions = {}) {
     tags = {},
   } = options;
 
-  const entries: Array<[string, string]> = [
+  return datasetFromTags([
     [Tags.StudyInstanceUID, '1.2.826.0.1.3680043.9.1'],
     [Tags.PatientID, 'patient-1'],
     [Tags.SeriesNumber, '1'],
@@ -40,17 +47,13 @@ export function sliceDataset(options: SliceOptions = {}) {
     [Tags.Rows, rows],
     [Tags.Columns, '4'],
     [Tags.SamplesPerPixel, '1'],
-  ];
-  if (orientation !== null)
-    entries.push([Tags.ImageOrientationPatient, orientation]);
-  if (series !== null) entries.push([Tags.SeriesInstanceUID, series]);
-  if (sop !== null) entries.push([Tags.SOPInstanceUID, sop]);
-  if (z !== null) entries.push([Tags.ImagePositionPatient, `0\\0\\${z}`]);
-  if (instanceNumber !== null)
-    entries.push(['0020|0013', String(instanceNumber)]);
-  entries.push(...Object.entries(tags));
-
-  return datasetFromTags(entries);
+    ...present(Tags.ImageOrientationPatient, orientation),
+    ...present(Tags.SeriesInstanceUID, series),
+    ...present(Tags.SOPInstanceUID, sop),
+    ...present(Tags.ImagePositionPatient, z, (value) => `0\\0\\${value}`),
+    ...present('0020|0013', instanceNumber),
+    ...Object.entries(tags),
+  ]);
 }
 
 /** The planner's facts for one slice, read the way a real header is. */

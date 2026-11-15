@@ -6,9 +6,6 @@
 // into two volumes. The session saved afterwards must restore both. Deleting
 // one volume and saving again must restore only the survivor: a dataset the
 // user removed cannot come back.
-//
-// Synthetic DICOMs are generated on the fly so the test carries no binary
-// fixtures.
 import * as path from 'path';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';

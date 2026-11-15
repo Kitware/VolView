@@ -1,9 +1,5 @@
-// Minimal synthetic DICOM (Explicit VR Little Endian) for tests.
-// Emits just enough tags for ITK/GDCM to categorize and load a series:
-// SOP Class/Instance UIDs, Study/SeriesInstanceUID, AcquisitionNumber,
-// Modality, Patient identifiers, ImageOrientationPatient,
-// ImagePositionPatient, PixelSpacing, SliceThickness, image geometry, and
-// constant-valued PixelData. SeriesNumber is written only when given.
+// Synthetic Part 10 DICOM files for tests, written in Explicit VR Little Endian
+// unless a writer says otherwise.
 
 const SOP_CLASS_MR = '1.2.840.10008.5.1.4.1.1.4';
 const SOP_CLASS_ULTRASOUND_MULTIFRAME = '1.2.840.10008.5.1.4.1.1.3.1';
@@ -12,9 +8,6 @@ const TS_IMPLICIT_VR_LE = '1.2.840.10008.1.2';
 const TS_JPEG_BASELINE = '1.2.840.10008.1.2.4.50';
 
 const enc = new TextEncoder();
-
-const padUi = (s: string) => (s.length % 2 === 0 ? s : `${s}\0`);
-const padText = (s: string) => (s.length % 2 === 0 ? s : `${s} `);
 
 const writeShort = (v: number) => {
   const b = new Uint8Array(2);
@@ -25,6 +18,12 @@ const writeShort = (v: number) => {
 const writeLong = (v: number) => {
   const b = new Uint8Array(4);
   new DataView(b.buffer).setUint32(0, v, true);
+  return b;
+};
+
+const writeDouble = (v: number) => {
+  const b = new Uint8Array(8);
+  new DataView(b.buffer).setFloat64(0, v, true);
   return b;
 };
 
@@ -47,99 +46,66 @@ export const combine = (...arr: Uint8Array[]) => {
   return out;
 };
 
-// Short-form explicit VR (2-byte length): UI, CS, DA, DS, IS, LO, PN, SH, US, UL, ...
-export const elemShort = (
+/** VRs whose explicit header has 2 reserved bytes and a 4-byte length. */
+export const LONG_FORM_VRS = new Set(
+  'OB OD OF OL OV OW SQ SV UC UN UR UT'.split(' ')
+);
+
+const elementHeader = (
   group: number,
   element: number,
   vr: string,
-  value: Uint8Array
+  length: number
 ) =>
   combine(
     tagBytes(group, element),
     enc.encode(vr),
-    writeShort(value.length),
-    value
+    ...(LONG_FORM_VRS.has(vr)
+      ? [new Uint8Array(2), writeLong(length)]
+      : [writeShort(length)])
   );
 
-export const LONG_FORM_VRS = new Set([
-  'OB',
-  'OD',
-  'OF',
-  'OL',
-  'OV',
-  'OW',
-  'SQ',
-  'SV',
-  'UC',
-  'UN',
-  'UR',
-  'UT',
-]);
-
-// Long-form explicit VR (2-byte reserved + 4-byte length): LONG_FORM_VRS.
-export const elemLong = (
-  group: number,
-  element: number,
-  vr: string,
-  value: Uint8Array
-) =>
-  combine(
-    tagBytes(group, element),
-    enc.encode(vr),
-    new Uint8Array(2),
-    writeLong(value.length),
-    value
-  );
-
-const ui = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'UI', enc.encode(padUi(v)));
-const cs = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'CS', enc.encode(padText(v)));
-const pn = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'PN', enc.encode(padText(v)));
-const lo = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'LO', enc.encode(padText(v)));
-const sh = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'SH', enc.encode(padText(v)));
-const da = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'DA', enc.encode(padText(v)));
-const is = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'IS', enc.encode(padText(v)));
-const ds = (g: number, e: number, v: string) =>
-  elemShort(g, e, 'DS', enc.encode(padText(v)));
-const us = (g: number, e: number, v: number) =>
-  elemShort(g, e, 'US', writeShort(v));
-
-const writeDouble = (v: number) => {
-  const b = new Uint8Array(8);
-  new DataView(b.buffer).setFloat64(0, v, true);
-  return b;
-};
-
-const fd = (g: number, e: number, v: number) =>
-  elemShort(g, e, 'FD', writeDouble(v));
-
-// A PN whose bytes are already encoded in some Specific Character Set, padded
-// to DICOM's even length with a space.
-const pnRaw = (g: number, e: number, v: Uint8Array) =>
-  elemShort(
-    g,
-    e,
-    'PN',
-    v.length % 2 === 0 ? v : combine(v, new Uint8Array([0x20]))
-  );
-
-// One Explicit VR LE element, short or long form as the VR requires. Lets a
-// fixture write a VR this helper has no named writer for.
+/** One Explicit VR LE element, short or long form as the VR requires. */
 export const rawElement = (
   group: number,
   element: number,
   vr: string,
   value: Uint8Array
-) =>
-  LONG_FORM_VRS.has(vr)
-    ? elemLong(group, element, vr, value)
-    : elemShort(group, element, vr, value);
+) => combine(elementHeader(group, element, vr, value.length), value);
+
+const textElement =
+  (vr: string) => (group: number, element: number, value: string) =>
+    rawElement(
+      group,
+      element,
+      vr,
+      enc.encode(value.length % 2 ? value + (vr === 'UI' ? '\0' : ' ') : value)
+    );
+
+const ui = textElement('UI');
+const cs = textElement('CS');
+const pn = textElement('PN');
+const lo = textElement('LO');
+const sh = textElement('SH');
+const da = textElement('DA');
+const is = textElement('IS');
+export const ds = textElement('DS');
+const us = (g: number, e: number, v: number) =>
+  rawElement(g, e, 'US', writeShort(v));
+export const ul = (g: number, e: number, v: number) =>
+  rawElement(g, e, 'UL', writeLong(v));
+const fd = (g: number, e: number, v: number) =>
+  rawElement(g, e, 'FD', writeDouble(v));
+
+// A PN whose bytes are already encoded in some Specific Character Set, padded
+// to DICOM's even length with a space.
+const pnRaw = (g: number, e: number, v: Uint8Array) =>
+  rawElement(
+    g,
+    e,
+    'PN',
+    v.length % 2 === 0 ? v : combine(v, new Uint8Array([0x20]))
+  );
 
 // An AT value is the referenced tag as two little-endian unsigned shorts.
 export const attributeTagValue = (group: number, element: number) =>
@@ -147,22 +113,41 @@ export const attributeTagValue = (group: number, element: number) =>
 
 const ITEM_GROUP = 0xfffe;
 const ITEM_TAG = 0xe000;
-const ITEM_DELIMITER_TAG = 0xe00d;
-const SEQUENCE_DELIMITER_TAG = 0xe0dd;
 const UNDEFINED_LENGTH = 0xffffffff;
+
+const itemHeader = (length: number) =>
+  combine(tagBytes(ITEM_GROUP, ITEM_TAG), writeLong(length));
+
+const delimiter = (tag: number) =>
+  combine(tagBytes(ITEM_GROUP, tag), writeLong(0));
+const ITEM_DELIMITER = delimiter(0xe00d);
+const SEQUENCE_DELIMITER = delimiter(0xe0dd);
 
 // One sequence item of defined length, holding the elements given.
 export const sequenceItem = (content: Uint8Array) =>
-  combine(tagBytes(ITEM_GROUP, ITEM_TAG), writeLong(content.length), content);
+  combine(itemHeader(content.length), content);
+
+/**
+ * A defined-length sequence of defined-length items, so a reader that skips
+ * sequences and one that descends into them both stay in step.
+ */
+export const sequence = (group: number, element: number, items: Uint8Array[]) =>
+  rawElement(group, element, 'SQ', combine(...items.map(sequenceItem)));
 
 // One sequence item whose length the delimiter that follows it declares.
 export const undefinedLengthItem = (content: Uint8Array) =>
+  combine(itemHeader(UNDEFINED_LENGTH), content, ITEM_DELIMITER);
+
+const undefinedLengthElement = (
+  group: number,
+  element: number,
+  vr: string,
+  items: Uint8Array
+) =>
   combine(
-    tagBytes(ITEM_GROUP, ITEM_TAG),
-    writeLong(UNDEFINED_LENGTH),
-    content,
-    tagBytes(ITEM_GROUP, ITEM_DELIMITER_TAG),
-    writeLong(0)
+    elementHeader(group, element, vr, UNDEFINED_LENGTH),
+    items,
+    SEQUENCE_DELIMITER
   );
 
 /**
@@ -174,27 +159,14 @@ export const undefinedLengthSequence = (
   group: number,
   element: number,
   items: Uint8Array
-) =>
-  combine(
-    tagBytes(group, element),
-    enc.encode('SQ'),
-    new Uint8Array(2),
-    writeLong(UNDEFINED_LENGTH),
-    items,
-    tagBytes(ITEM_GROUP, SEQUENCE_DELIMITER_TAG),
-    writeLong(0)
-  );
+) => undefinedLengthElement(group, element, 'SQ', items);
 
 /** An unknown sequence retains its Implicit VR LE items inside an explicit UN. */
 export const undefinedLengthUnknown = (
   group: number,
   element: number,
   items: Uint8Array
-) => {
-  const bytes = undefinedLengthSequence(group, element, items);
-  bytes.set(enc.encode('UN'), 4);
-  return bytes;
-};
+) => undefinedLengthElement(group, element, 'UN', items);
 
 // Items and delimiters carry no VR in either syntax, so only the elements
 // inside each item change shape. Item lengths must be defined.
@@ -207,7 +179,7 @@ const itemsToImplicitVr = (value: Uint8Array): Uint8Array => {
     const element = view.getUint16(offset + 2, true);
     const length = view.getUint32(offset + 4, true);
     const contentStart = offset + 8;
-    if (group !== 0xfffe)
+    if (group !== ITEM_GROUP)
       throw new Error(`Expected an item tag, got ${group.toString(16)}`);
     if (element !== ITEM_TAG) {
       out.push(value.subarray(offset, contentStart));
@@ -216,10 +188,11 @@ const itemsToImplicitVr = (value: Uint8Array): Uint8Array => {
     }
     if (length === UNDEFINED_LENGTH)
       throw new Error('Undefined-length items are not supported');
-    const content = toImplicitVr(
-      value.subarray(contentStart, contentStart + length)
+    out.push(
+      sequenceItem(
+        toImplicitVr(value.subarray(contentStart, contentStart + length))
+      )
     );
-    out.push(tagBytes(group, element), writeLong(content.length), content);
     offset = contentStart + length;
   }
   return combine(...out);
@@ -243,7 +216,7 @@ export const toImplicitVr = (dataset: Uint8Array): Uint8Array => {
     const explicitValue = dataset.subarray(valueStart, valueStart + length);
     const value =
       vr === 'SQ' ? itemsToImplicitVr(explicitValue) : explicitValue;
-    out.push(combine(tagBytes(group, element), writeLong(value.length), value));
+    out.push(tagBytes(group, element), writeLong(value.length), value);
     offset = valueStart + length;
   }
   return combine(...out);
@@ -272,11 +245,6 @@ const rgbFrame = (samples: readonly number[], count: number, bits: number) => {
   bytes.set(samples);
   return bytes;
 };
-
-// A single-item sequence with an explicit item length, so a reader that skips
-// sequences and one that descends into them both stay in step.
-const sequenceOfOneItem = (g: number, e: number, item: Uint8Array) =>
-  elemLong(g, e, 'SQ', sequenceItem(item));
 
 export type SyntheticSliceOptions = {
   studyUid: string;
@@ -335,7 +303,29 @@ export type SyntheticSliceOptions = {
   extraElements?: readonly Uint8Array[];
 };
 
-export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
+/** Wraps an encoded data set in a preamble and Explicit VR LE file meta. */
+export const part10File = (
+  sopClassUid: string,
+  sopInstanceUid: string,
+  transferSyntaxUid: string,
+  dataset: Uint8Array
+) => {
+  const meta = combine(
+    rawElement(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
+    ui(0x0002, 0x0002, sopClassUid),
+    ui(0x0002, 0x0003, sopInstanceUid),
+    ui(0x0002, 0x0010, transferSyntaxUid)
+  );
+  return combine(
+    new Uint8Array(128),
+    enc.encode('DICM'),
+    ul(0x0002, 0x0000, meta.length),
+    meta,
+    dataset
+  );
+};
+
+export function buildSyntheticDicom(opts: SyntheticSliceOptions) {
   const {
     studyUid,
     seriesUid,
@@ -355,7 +345,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     rgbPixels,
     framePixelValues,
     rootGeometry = true,
-    pixelSpacing = [1, 1] as const,
+    pixelSpacing = [1, 1],
     spacingBetweenSlices,
     sliceThickness = 1,
     modality = 'MR',
@@ -410,16 +400,14 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     ...(ultrasoundRegion == null
       ? []
       : [
-          sequenceOfOneItem(
-            0x0018,
-            0x6011,
+          sequence(0x0018, 0x6011, [
             combine(
               us(0x0018, 0x6024, 3),
               us(0x0018, 0x6026, 3),
               fd(0x0018, 0x602c, ultrasoundRegion.physicalDeltaX),
               fd(0x0018, 0x602e, ultrasoundRegion.physicalDeltaY)
-            )
-          ),
+            ),
+          ]),
         ]),
     ui(0x0020, 0x000d, studyUid),
     ui(0x0020, 0x000e, seriesUid),
@@ -433,18 +421,8 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
     is(0x0020, 0x0013, String(instanceNumber)),
     ...(rootGeometry
       ? [
-          ds(
-            0x0020,
-            0x0032,
-            imagePositionPatient === null
-              ? ''
-              : imagePositionPatient.map((n) => n.toString()).join('\\')
-          ),
-          ds(
-            0x0020,
-            0x0037,
-            imageOrientationPatient.map((n) => n.toString()).join('\\')
-          ),
+          ds(0x0020, 0x0032, imagePositionPatient?.join('\\') ?? ''),
+          ds(0x0020, 0x0037, imageOrientationPatient.join('\\')),
         ]
       : []),
     us(0x0028, 0x0002, rgbPixels ? 3 : 1),
@@ -455,9 +433,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       : []),
     us(0x0028, 0x0010, rows),
     us(0x0028, 0x0011, cols),
-    ...(rootGeometry
-      ? [ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\'))]
-      : []),
+    ...(rootGeometry ? [ds(0x0028, 0x0030, pixelSpacing.join('\\'))] : []),
     us(0x0028, 0x0100, bitsAllocated),
     us(0x0028, 0x0101, bitsStored),
     us(0x0028, 0x0102, highBit),
@@ -467,23 +443,15 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       : [ds(0x0028, 0x1052, String(rescaleIntercept))]),
     ...(rescaleSlope == null ? [] : [ds(0x0028, 0x1053, String(rescaleSlope))]),
     ...extraElements,
-    elemLong(0x7fe0, 0x0010, bitsAllocated === 8 ? 'OB' : 'OW', pixels)
+    rawElement(0x7fe0, 0x0010, bitsAllocated === 8 ? 'OB' : 'OW', pixels)
   );
 
-  const dataset = implicitVr ? toImplicitVr(explicitDataset) : explicitDataset;
-
-  const fileMetaBody = combine(
-    elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
-    ui(0x0002, 0x0002, sopClassUid),
-    ui(0x0002, 0x0003, sopUid),
-    ui(0x0002, 0x0010, implicitVr ? TS_IMPLICIT_VR_LE : TS_EXPLICIT_VR_LE)
+  return part10File(
+    sopClassUid,
+    sopUid,
+    implicitVr ? TS_IMPLICIT_VR_LE : TS_EXPLICIT_VR_LE,
+    implicitVr ? toImplicitVr(explicitDataset) : explicitDataset
   );
-  const fileMeta = combine(
-    elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
-    fileMetaBody
-  );
-
-  return combine(new Uint8Array(128), enc.encode('DICM'), fileMeta, dataset);
 }
 
 /** The bytes a Part 10 file spends on its preamble and DICM prefix. */
@@ -519,32 +487,14 @@ export function encapsulatedPixelData({
   const items = frames.map((fragments) =>
     combine(...fragments.map(sequenceItem))
   );
-  const starts = items.reduce<number[]>(
-    (offsets, _, index) =>
-      index === 0
-        ? [0]
-        : [...offsets, offsets[index - 1] + items[index - 1].length],
-    []
+  const starts = items.map((_, index) =>
+    items.slice(0, index).reduce((offset, item) => offset + item.length, 0)
   );
   const table = offsetTable
     ? combine(...starts.map(writeLong))
     : new Uint8Array();
-  return combine(
-    sequenceItem(table),
-    ...items,
-    tagBytes(ITEM_GROUP, SEQUENCE_DELIMITER_TAG),
-    writeLong(0)
-  );
+  return combine(sequenceItem(table), ...items, SEQUENCE_DELIMITER);
 }
-
-const encapsulatedElement = (value: Uint8Array) =>
-  combine(
-    tagBytes(0x7fe0, 0x0010),
-    enc.encode('OB'),
-    new Uint8Array(2),
-    writeLong(UNDEFINED_LENGTH),
-    value
-  );
 
 export type SyntheticCineOptions = {
   studyUid: string;
@@ -564,9 +514,7 @@ export type SyntheticCineOptions = {
   extraElements?: readonly Uint8Array[];
 };
 
-export function buildSyntheticCineDicom(
-  opts: SyntheticCineOptions
-): Uint8Array {
+export function buildSyntheticCineDicom(opts: SyntheticCineOptions) {
   const {
     studyUid,
     seriesUid,
@@ -574,7 +522,7 @@ export function buildSyntheticCineDicom(
     numberOfFrames = 3,
     rows = 4,
     cols = 5,
-    pixelSpacing = [1, 1] as const,
+    pixelSpacing = [1, 1],
     patientName = 'TEST',
     patientId = 'TEST001',
     seriesNumber = 1,
@@ -583,10 +531,6 @@ export function buildSyntheticCineDicom(
     extraElements = [],
   } = opts;
   const frames = encapsulated?.frames.length ?? numberOfFrames;
-  const transferSyntax = encapsulated ? TS_JPEG_BASELINE : TS_EXPLICIT_VR_LE;
-
-  const pixelData = new Uint8Array(numberOfFrames * rows * cols);
-  for (let i = 0; i < pixelData.length; i++) pixelData[i] = i % 251;
 
   const dataset = combine(
     ui(0x0008, 0x0016, SOP_CLASS_ULTRASOUND_MULTIFRAME),
@@ -608,29 +552,34 @@ export function buildSyntheticCineDicom(
     is(0x0028, 0x0008, String(frames)),
     us(0x0028, 0x0010, rows),
     us(0x0028, 0x0011, cols),
-    ds(0x0028, 0x0030, pixelSpacing.map((n) => n.toString()).join('\\')),
+    ds(0x0028, 0x0030, pixelSpacing.join('\\')),
     us(0x0028, 0x0100, 8),
     us(0x0028, 0x0101, 8),
     us(0x0028, 0x0102, 7),
     us(0x0028, 0x0103, 0),
     ...extraElements,
     encapsulated
-      ? encapsulatedElement(encapsulatedPixelData(encapsulated))
-      : elemLong(0x7fe0, 0x0010, 'OB', pixelData)
+      ? combine(
+          elementHeader(0x7fe0, 0x0010, 'OB', UNDEFINED_LENGTH),
+          encapsulatedPixelData(encapsulated)
+        )
+      : rawElement(
+          0x7fe0,
+          0x0010,
+          'OB',
+          Uint8Array.from(
+            { length: numberOfFrames * rows * cols },
+            (_, i) => i % 251
+          )
+        )
   );
 
-  const fileMetaBody = combine(
-    elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
-    ui(0x0002, 0x0002, SOP_CLASS_ULTRASOUND_MULTIFRAME),
-    ui(0x0002, 0x0003, sopUid),
-    ui(0x0002, 0x0010, transferSyntax)
+  return part10File(
+    SOP_CLASS_ULTRASOUND_MULTIFRAME,
+    sopUid,
+    encapsulated ? TS_JPEG_BASELINE : TS_EXPLICIT_VR_LE,
+    dataset
   );
-  const fileMeta = combine(
-    elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
-    fileMetaBody
-  );
-
-  return combine(new Uint8Array(128), enc.encode('DICM'), fileMeta, dataset);
 }
 
 // Pseudo-UID unique per call within a test process. All-numeric so it

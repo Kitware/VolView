@@ -1,6 +1,6 @@
-import { DicomDataset } from '../metadata/dicomDataset';
+import type { DicomDataset } from '../metadata/dicomDataset';
 import { readGeometryFacts, sliceNormalOf } from '../collections/instanceFacts';
-import { type Reconstruction } from '../collections/reconstructVolume';
+import type { Reconstruction } from '../collections/reconstructVolume';
 import { readNmReconstruction } from '../metadata/nmReconstruction';
 
 export function nmGeometry(metadata: DicomDataset) {

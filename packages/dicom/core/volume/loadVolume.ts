@@ -410,12 +410,12 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
 /**
  * Decodes the slices not yet loaded, the focused slot first and then coarse
  * to fine, writing each into the volume's buffer as it decodes and marking it
- * loaded as its update is yielded. Each instance loads in the
- * units its first willing decoder in the runtime's table plans. Reads run
- * ahead of decoding in the same order. A failed unit yields an error update
- * and loading goes on. Aborting `signal`, disposing the runtime or leaving
- * the loop stops reads and decodes; the iteration then returns rather than
- * throwing, and yields nothing more.
+ * loaded as its update is yielded. Each instance loads in the units its first
+ * willing decoder in the runtime's table plans. Reads run ahead of decoding in
+ * the same order. A failed unit yields an error update and loading goes on.
+ * Aborting `signal`, disposing the runtime or leaving the loop stops reads and
+ * decodes; the iteration then returns rather than throwing, and yields
+ * nothing more.
  */
 export async function* loadVolume(
   volume: Volume,
@@ -425,7 +425,7 @@ export async function* loadVolume(
     focus = () => middleSlot(volume),
     readAhead = runtime.readConcurrency,
   }: LoadVolumeOptions
-): AsyncGenerator<VolumeUpdate, void, undefined> {
+) {
   if (!Number.isInteger(readAhead) || readAhead < 1)
     throw new Error('Read ahead must be a positive integer');
   const { controller, release } = linkedController(signal, runtime.signal);

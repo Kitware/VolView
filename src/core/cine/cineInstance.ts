@@ -76,7 +76,6 @@ const transferSyntaxOf = (instance: Instance) =>
 /** What a cine clip shows and plays, from the header alone. */
 export function readCineHeader(instance: Instance): CineHeader {
   const { dataset } = instance;
-  const tag = (name: string) => text(dataset, name);
   return {
     transferSyntaxUID: transferSyntaxOf(instance),
     rows: countOr(dataset, Tags.Rows, 0),
@@ -84,7 +83,7 @@ export function readCineHeader(instance: Instance): CineHeader {
     numberOfFrames: countOr(dataset, Tags.NumberOfFrames, 1),
     samplesPerPixel: countOr(dataset, Tags.SamplesPerPixel, 1),
     planarConfiguration: countOr(dataset, Tags.PlanarConfiguration, 0),
-    photometricInterpretation: tag(Tags.PhotometricInterpretation),
+    photometricInterpretation: text(dataset, Tags.PhotometricInterpretation),
     pixelSpacing: positivePair(dataset, Tags.PixelSpacing),
     frameTimeMs: finiteOrNull(dataset, Tags.FrameTime),
     regions: ultrasoundRegionsOf(dataset),

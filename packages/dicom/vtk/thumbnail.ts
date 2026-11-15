@@ -47,7 +47,7 @@ export function sliceToThumbnail({
   height,
   components,
   range,
-}: SliceToThumbnailInput): ThumbnailSlice {
+}: SliceToThumbnailInput) {
   const [low, high] = range;
   const span = high - low;
 

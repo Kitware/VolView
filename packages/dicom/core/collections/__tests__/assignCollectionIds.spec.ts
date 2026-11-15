@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { assignIds, encodeCollectionKey } from '../assignCollectionIds';
-import type { CommittedCollection } from '../assignCollectionIds';
 import { ORIENTATION_TOLERANCE } from '../orientation';
 import { planDicomCollections } from '../planDicomCollections';
 import type { CollectionKey, DicomCollection } from '../planDicomCollections';
@@ -92,9 +91,7 @@ describe('assignIds', () => {
 
   it('keeps the committed id when key and members are unchanged', () => {
     const collection = collectionOf(['a', 'b']);
-    const committed: CommittedCollection[] = [
-      { id: 'visible-1', sopInstanceUids: ['a', 'b'] },
-    ];
+    const committed = [{ id: 'visible-1', sopInstanceUids: ['a', 'b'] }];
 
     const collections = assignIds([collection], committed);
 
@@ -148,7 +145,7 @@ describe('assignIds', () => {
   it('gives a committed id to the collection holding most of its members', () => {
     const majority = collectionOf(['a', 'b', 'c'], keyOf('1,0,0,0,1,0'));
     const remainder = collectionOf(['d'], keyOf('0,1,0,0,0,1'));
-    const committed: CommittedCollection[] = [
+    const committed = [
       { id: 'visible-1', sopInstanceUids: ['a', 'b', 'c', 'd'] },
     ];
 
@@ -161,7 +158,7 @@ describe('assignIds', () => {
   it('mints for both halves of an evenly split committed collection', () => {
     const left = collectionOf(['a', 'b'], keyOf('1,0,0,0,1,0'));
     const right = collectionOf(['c', 'd'], keyOf('0,1,0,0,0,1'));
-    const committed: CommittedCollection[] = [
+    const committed = [
       { id: 'visible-1', sopInstanceUids: ['a', 'b', 'c', 'd'] },
     ];
 
@@ -173,9 +170,7 @@ describe('assignIds', () => {
 
   it('mints when nothing overlaps, without reusing a committed id', () => {
     const collection = collectionOf(['a']);
-    const committed: CommittedCollection[] = [
-      { id: 'visible-1', sopInstanceUids: ['x', 'y'] },
-    ];
+    const committed = [{ id: 'visible-1', sopInstanceUids: ['x', 'y'] }];
 
     const collections = assignIds([collection], committed);
 
@@ -185,7 +180,7 @@ describe('assignIds', () => {
 
   it('never mints an id already taken by a committed collection', () => {
     const collection = collectionOf(['a']);
-    const committed: CommittedCollection[] = [
+    const committed = [
       {
         id: encodeCollectionKey(collection.key),
         sopInstanceUids: ['x'],
@@ -199,7 +194,7 @@ describe('assignIds', () => {
 
   it('prefers the committed collection it overlaps most', () => {
     const collection = collectionOf(['a', 'b', 'c', 'd', 'e']);
-    const committed: CommittedCollection[] = [
+    const committed = [
       { id: 'small', sopInstanceUids: ['a', 'b'] },
       { id: 'large', sopInstanceUids: ['c', 'd', 'e'] },
     ];
@@ -211,7 +206,7 @@ describe('assignIds', () => {
 
   it('breaks an equal overlap on the smallest committed id', () => {
     const collection = collectionOf(['a', 'b', 'c', 'd']);
-    const committed: CommittedCollection[] = [
+    const committed = [
       { id: 'zeta', sopInstanceUids: ['a', 'b'] },
       { id: 'alpha', sopInstanceUids: ['c', 'd'] },
     ];
@@ -223,9 +218,7 @@ describe('assignIds', () => {
 
   it('measures overlap only on members that have a SOP Instance UID', () => {
     const collection = collectionOf([null, 'a']);
-    const committed: CommittedCollection[] = [
-      { id: 'visible-1', sopInstanceUids: ['a'] },
-    ];
+    const committed = [{ id: 'visible-1', sopInstanceUids: ['a'] }];
 
     const collections = assignIds([collection], committed);
 
@@ -234,9 +227,7 @@ describe('assignIds', () => {
 
   it('mints for a collection whose members all lack a SOP Instance UID', () => {
     const collection = collectionOf([null, null]);
-    const committed: CommittedCollection[] = [
-      { id: 'visible-1', sopInstanceUids: ['a'] },
-    ];
+    const committed = [{ id: 'visible-1', sopInstanceUids: ['a'] }];
 
     const collections = assignIds([collection], committed);
 

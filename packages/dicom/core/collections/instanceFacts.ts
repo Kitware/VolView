@@ -35,18 +35,14 @@ const vectorOf = (
   metadata: DicomDataset,
   tag: string,
   length: number,
-  frameIndex = 0
+  frameIndex: number
 ) => {
-  const raw = getFrameTag(metadata, tag, frameIndex);
-  const text = raw === undefined ? null : trimDicomPadding(raw);
-  if (text === null) return null;
-  const parts = text.split('\\').map(trimDicomPadding);
+  const parts = getFrameTag(metadata, tag, frameIndex)
+    ?.split('\\')
+    .map(trimDicomPadding);
+  if (parts?.length !== length || !parts.every(Boolean)) return null;
   const values = parts.map(Number);
-  return parts.length === length &&
-    parts.every((part) => part.length > 0) &&
-    values.every((value) => Number.isFinite(value))
-    ? values
-    : null;
+  return values.every((value) => Number.isFinite(value)) ? values : null;
 };
 
 const cross = (left: number[], right: number[]) => [

@@ -29,8 +29,6 @@ function slice(options: Partial<SyntheticSliceOptions> = {}) {
     instanceNumber: 1,
     imageOrientationPatient: [1, 0, 0, 0, 1, 0],
     imagePositionPatient: [0, 0, 0],
-    rows: 4,
-    cols: 4,
     pixelSpacing: [0.5, 0.25],
     pixelValue: 80,
     ...options,

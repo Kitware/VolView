@@ -79,6 +79,21 @@ export function sliceFor({
   return instanceFor(datasetFromTags(merged), source);
 }
 
+/** Slices of one acquisition pass, tagged with its Acquisition Number. */
+export const acquisition = (
+  number: string,
+  zs: number[],
+  orientation?: string
+) =>
+  zs.map((z, i) =>
+    sliceFor({
+      sop: `acq${number}-${i}`,
+      z,
+      orientation,
+      tags: { [Tags.AcquisitionNumber]: number },
+    })
+  );
+
 /**
  * Orientation agreement is a tolerance, so a bucket depends on which instance
  * the walk meets first. `one` and `three` agree with each other and plan as a
@@ -121,7 +136,7 @@ export const onlyFailure = ({
 /** An instance as the import pipeline hands it on, read from a URL. */
 export const sourceFor = (instance: Instance) => {
   const name = `${sopOf(instance)}.dcm`;
-  const source: DataSource = {
+  return {
     type: 'dicom',
     instance,
     parent: uriToDataSource(
@@ -129,8 +144,7 @@ export const sourceFor = (instance: Instance) => {
       name,
       FILE_EXT_TO_MIME.dcm
     ),
-  };
-  return source as DataSource & DicomInstanceSource;
+  } satisfies DataSource & DicomInstanceSource;
 };
 
 /** The SOP Instance UIDs a dataset's saved provenance names, in order. */

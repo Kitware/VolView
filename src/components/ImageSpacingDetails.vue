@@ -4,15 +4,15 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 
 const imageID = defineModel<string | null>({ required: true });
 const cache = useImageCacheStore();
-const image = computed(() => cache.getImageMetadata(imageID.value));
-const spatial = computed(() => image.value?.spatialMetadata);
+const metadata = computed(() => cache.getImageMetadata(imageID.value));
+const spatial = computed(() => metadata.value?.spatialMetadata);
 const rows = computed(
   () =>
     spatial.value?.axes.map((axis, index) => ({
       ...axis,
       label: ['X', 'Y', 'Z'][index],
       value: Number(axis.value.toPrecision(7)).toString(),
-      singleton: image.value?.dimensions[index] === 1,
+      singleton: metadata.value?.dimensions[index] === 1,
     })) ?? []
 );
 const statuses = {

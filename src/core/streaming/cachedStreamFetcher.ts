@@ -1,4 +1,3 @@
-import { HTTP_STATUS_OK, HttpNotFound } from '@/src/core/streaming/httpCodes';
 import type { Fetcher } from '@/src/core/streaming/types';
 
 type FetchFunction = typeof fetch;
@@ -47,8 +46,10 @@ export class CachedStreamFetcher implements Fetcher {
         ...this.init,
         signal: request.signal,
       });
-      if (response.status !== HTTP_STATUS_OK)
-        throw new HttpNotFound(this.url.toString());
+      if (response.status !== 200)
+        throw new Error(
+          `The following resource could not be found: ${this.url}`
+        );
       if (!response.body) throw new Error('Did not receive a response body');
       this.contentType = response.headers.get('content-type') ?? '';
       this.contentDisposition =

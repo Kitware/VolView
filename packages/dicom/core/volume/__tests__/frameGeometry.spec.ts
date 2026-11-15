@@ -204,13 +204,12 @@ describe('enhanced volume Functional Groups', () => {
     'preserves stored frame direction %s through registration and image allocation',
     (direction) => {
       const positions = [0, 1, 2].map((index) => 10 + direction * index * 3);
-      const instance = instanceFor(
+      const volume = allocate(
         enhanced(
           ctShared(),
           positions.map((z) => positioned(`1\\2\\${z}`))
         )
       );
-      const volume = allocateVolume(plannedUpdate([instance]));
       expect(volume.spacing[2]).toBe(3);
       positions.forEach((z, index) =>
         expect(indexToWorld(volume, [0, 0, index])).toEqual([1, 2, z])

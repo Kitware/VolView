@@ -5,6 +5,7 @@ import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,
@@ -46,15 +47,15 @@ function acquisitionMetadataReason(metadata: Iterable<[string, string]>) {
 }
 
 // An instance's dataset never changes, so each is scanned at most once.
-const metadataReasons = new WeakMap<object, string | null>();
+const datasetReasons = new WeakMap<DicomDataset, string | null>();
 
 function acquisitionReason(image: ProgressiveImage) {
   if (!(image instanceof DicomVolumeImage)) return null;
-  for (const { dataset: metadata } of image.getInstances()) {
-    let reason = metadataReasons.get(metadata);
+  for (const { dataset } of image.getInstances()) {
+    let reason = datasetReasons.get(dataset);
     if (reason === undefined) {
-      reason = acquisitionMetadataReason(enFaceTags(metadata));
-      metadataReasons.set(metadata, reason);
+      reason = acquisitionMetadataReason(enFaceTags(dataset));
+      datasetReasons.set(dataset, reason);
     }
     if (reason !== null) return reason;
   }
