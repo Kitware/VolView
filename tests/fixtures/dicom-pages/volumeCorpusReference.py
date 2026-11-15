@@ -29,10 +29,33 @@ def macro(groups, sequence, keyword):
     return None
 
 
+# IODs whose functional groups define Pixel Value Transformation; others keep
+# Rescale Slope and Intercept at the root.
+FUNCTIONAL_GROUP_RESCALE = {
+    '1.2.840.10008.5.1.4.1.1.2.1',  # Enhanced CT
+    '1.2.840.10008.5.1.4.1.1.2.2',  # Legacy Converted Enhanced CT
+    '1.2.840.10008.5.1.4.1.1.4.1',  # Enhanced MR
+    '1.2.840.10008.5.1.4.1.1.4.4',  # Legacy Converted Enhanced MR
+    '1.2.840.10008.5.1.4.1.1.130',  # Enhanced PET
+    '1.2.840.10008.5.1.4.1.1.128.1',  # Legacy Converted Enhanced PET
+    '1.2.840.10008.5.1.4.1.1.13.1.1',  # X-Ray 3D Angiographic
+    '1.2.840.10008.5.1.4.1.1.13.1.2',  # X-Ray 3D Craniofacial
+    '1.2.840.10008.5.1.4.1.1.13.1.3',  # Breast Tomosynthesis
+    '1.2.840.10008.5.1.4.1.1.13.1.4',  # Breast Projection X-Ray For Presentation
+    '1.2.840.10008.5.1.4.1.1.13.1.5',  # Breast Projection X-Ray For Processing
+    '1.2.840.10008.5.1.4.1.1.66.4',  # Segmentation
+}
+
+
 def rescale(ds, frame):
-    """Slope and intercept of one frame: Functional Groups first, then the root."""
+    """Slope and intercept of one frame: Functional Groups first where the IOD
+    defines them there, then the root."""
     shared, per_frame = frame_groups(ds)
-    groups = [per_frame[frame] if per_frame else None, shared]
+    groups = (
+        [per_frame[frame] if per_frame else None, shared]
+        if str(ds.get('SOPClassUID', '')) in FUNCTIONAL_GROUP_RESCALE
+        else []
+    )
     slope = macro(groups, 'PixelValueTransformationSequence', 'RescaleSlope')
     intercept = macro(groups, 'PixelValueTransformationSequence', 'RescaleIntercept')
     return (

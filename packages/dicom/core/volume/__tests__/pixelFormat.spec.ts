@@ -5,7 +5,9 @@ import {
   getPixelFormat,
   getRescaledValueRange,
   getVolumeBufferType,
+  instancePixelFormats,
 } from '../pixelFormat';
+import { enhanced, groups, sequence } from './enhancedFixture';
 
 // Builds a format from exactly the tags given, with no defaults filled in, so
 // each test states the whole instance it is describing.
@@ -260,5 +262,27 @@ describe('getVolumeBufferType', () => {
   it('chooses one type that represents every instance in the volume', () => {
     expect(getVolumeBufferType([UNSIGNED_8, UNSIGNED_16])).toBe(Uint16Array);
     expect(getVolumeBufferType([UNSIGNED_16, PUBLIC_DSC])).toBe(Float32Array);
+  });
+});
+
+describe('instancePixelFormats', () => {
+  it('reads frames past the per-frame groups from the root, however many are declared', () => {
+    const metadata = enhanced(
+      groups([]),
+      [
+        groups([
+          sequence('00289145', [
+            datasetFromTags([
+              ['00281053', '.5'],
+              ['00281052', '-500'],
+            ]),
+          ]),
+        ]),
+      ],
+      { '00280008': String(2 ** 32), '00281052': '1e9' }
+    );
+    expect(getVolumeBufferType(instancePixelFormats(metadata))).toBe(
+      Float64Array
+    );
   });
 });

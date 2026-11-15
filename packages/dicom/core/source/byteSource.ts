@@ -172,21 +172,29 @@ export const fromUrl = (
   return {
     rangeSupport: () => rangeSupport,
     read: (signal, range) => {
-      const { controller, release } = linkedController(signal);
+      const { controller } = linkedController(signal);
       const opened = open(controller.signal, range);
+      // Abort is how a pooled fetch learns it is done, failed reads included.
+      const abort = () => controller.abort();
       // Observed here so a stream nobody pulls does not reject unhandled.
-      opened.catch(release);
+      opened.catch(abort);
+      const pull = async (
+        stream: ReadableStreamDefaultController<Uint8Array>
+      ) => {
+        const { done, value } = await (await opened).read();
+        if (!done) {
+          stream.enqueue(value);
+          return;
+        }
+        abort();
+        stream.close();
+      };
       return new ReadableStream<Uint8Array>({
-        pull: async (stream) => {
-          const { done, value } = await (await opened).read();
-          if (!done) {
-            stream.enqueue(value);
-            return;
-          }
-          // Abort is how a pooled fetch learns its body is done.
-          controller.abort();
-          stream.close();
-        },
+        pull: (stream) =>
+          pull(stream).catch((error) => {
+            abort();
+            throw error;
+          }),
         cancel: async (reason) => {
           controller.abort(reason);
           const reader = await opened.catch(() => null);

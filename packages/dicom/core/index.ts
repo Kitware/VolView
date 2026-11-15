@@ -3,7 +3,9 @@ export {
   fromBlob,
   fromUrl,
   readBytes,
+  type ByteRange,
   type ByteSource,
+  type RangeSupport,
 } from './source/byteSource';
 
 // Instances
@@ -12,6 +14,10 @@ export {
   type Instance,
   type ReadInstanceOptions,
 } from './instance/readInstance';
+export type {
+  ImageImportPolicy,
+  PixelDataElement,
+} from './header/readDicomHeader';
 export {
   IMPLICIT_VR_LITTLE_ENDIAN,
   EXPLICIT_VR_LITTLE_ENDIAN,
@@ -19,7 +25,11 @@ export {
 } from './metadata/dicomLayout';
 
 // Datasets
-export { readDicomDataset, type DicomDataset } from './metadata/dicomDataset';
+export {
+  readDicomDataset,
+  type DicomDataset,
+  type DicomElement,
+} from './metadata/dicomDataset';
 export { getDatasetTag, getDatasetModality } from './metadata/datasetAccess';
 export { sequenceItems } from './metadata/functionalGroups';
 export { trimDicomPadding } from './utils';
@@ -45,6 +55,7 @@ export { allocateVolume, type Volume } from './volume/allocateVolume';
 export {
   loadVolume,
   middleSlot,
+  type LoadVolumeOptions,
   type VolumeUpdate,
   type Extent,
 } from './volume/loadVolume';
@@ -60,7 +71,11 @@ export {
   fallbackSpacing,
   type SpatialMetadata,
 } from './metadata/spatialMetadata';
-export { unitToMm, ultrasoundRegionsOf } from './metadata/ultrasoundRegion';
+export {
+  unitToMm,
+  ultrasoundRegionsOf,
+  type UltrasoundRegions,
+} from './metadata/ultrasoundRegion';
 
 // Decoders
 export {
@@ -86,6 +101,7 @@ export {
   type DicomRuntime,
   type DicomRuntimeOptions,
 } from './runtime/createDicomRuntime';
+export type { DicomAssets } from './runtime/gdcmDecoder';
 
 // The byte reader under the header parser, which the app also uses to sniff file types
 export { default as StreamingByteReader } from './header/streamingByteReader';

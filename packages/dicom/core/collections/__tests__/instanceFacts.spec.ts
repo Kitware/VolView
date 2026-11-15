@@ -278,10 +278,10 @@ describe('instance facts', () => {
 });
 
 describe('seriesKeyOf', () => {
-  it('is the series instance uid so a collection id carries it as a prefix', () => {
-    expect(seriesKeyOf(metadata())).toBe('1.2.3');
+  it('leads with the series instance uid so a collection id carries it as a prefix', () => {
+    expect(seriesKeyOf(metadata())).toBe('1.2.3|1.2');
     expect(seriesKeyOf(metadata({ [Tags.SeriesInstanceUID]: '1.2.3 ' }))).toBe(
-      '1.2.3'
+      '1.2.3|1.2'
     );
   });
 
