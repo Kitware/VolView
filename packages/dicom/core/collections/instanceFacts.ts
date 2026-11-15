@@ -180,17 +180,21 @@ export function readInstanceDetails(metadata: DicomDataset) {
 const NO_SERIES_UID = 'no-series';
 
 /**
- * The grouping key for one instance's series. Instances of different series
- * are planned independently.
+ * The grouping key for one instance's series, led by its Series Instance UID.
+ * Instances of different series are planned independently.
  */
 export function seriesKeyOf(metadata: DicomDataset) {
   const seriesUid = textOf(metadata, Tags.SeriesInstanceUID);
-  if (seriesUid !== null) return seriesUid;
+  const studyUid = encodeURIComponent(
+    textOf(metadata, Tags.StudyInstanceUID) ?? ''
+  );
+  // A series is identified within its study, as DICOMweb addresses it.
+  if (seriesUid !== null) return `${encodeURIComponent(seriesUid)}|${studyUid}`;
 
   // Escaped, so moving a separator from one part to the other changes the key.
   return [
     NO_SERIES_UID,
-    encodeURIComponent(textOf(metadata, Tags.StudyInstanceUID) ?? ''),
+    studyUid,
     encodeURIComponent(textOf(metadata, Tags.PatientID) ?? ''),
   ].join('|');
 }

@@ -49,8 +49,11 @@ export type WholeInstanceDecode = (
   signal: AbortSignal
 ) => Awaitable<DecodedPixels>;
 
-export const frameCount = (dataset: DicomDataset) =>
-  numberOr(getDatasetTag(dataset, Tags.NumberOfFrames), 1);
+// Some writers emit Number of Frames 0 on a single-frame instance.
+export const frameCount = (dataset: DicomDataset) => {
+  const declared = numberOr(getDatasetTag(dataset, Tags.NumberOfFrames), 1);
+  return Number.isSafeInteger(declared) && declared > 0 ? declared : 1;
+};
 
 /** A decoder that reads and decodes every instance whole. */
 export const wholeInstanceDecoder = (

@@ -94,7 +94,7 @@ export function createDicomRuntime(
     signal: lifetime.signal,
     decodeConcurrency,
     decoders: (options.decoders ?? defaultDecoderTable)(gdcm.decoder),
-    /** Concurrent requests, which also bounds how far reads run ahead of decoding. */
+    /** Requests awaiting headers at once; also how far reads run ahead of decoding. */
     readConcurrency: requests.poolSize,
     readInstance: read,
     dispose,

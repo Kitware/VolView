@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import {
   buildStateIDToStoreID,
+  findMergedStateDatasets,
   importDicomInstanceSources,
 } from '@/src/io/import/importDataSources';
 import type { DicomInstanceSource } from '@/src/io/import/dataSource';
@@ -103,14 +104,13 @@ describe('importDicomInstanceSources with a given commit', () => {
 });
 
 describe('importDicomInstanceSources through the DICOM store', () => {
-  const load = (instances: Instance[]) => {
+  const loadSources = (sources: DicomInstanceSource[]) => {
     const { createImage } = imageFactory();
-    return importDicomInstanceSources(
-      instances.map(sourceFor),
-      (batch, hooks) =>
-        useDICOMStore().importInstances(batch, { createImage, ...hooks })
+    return importDicomInstanceSources(sources, (batch, hooks) =>
+      useDICOMStore().importInstances(batch, { createImage, ...hooks })
     );
   };
+  const load = (instances: Instance[]) => loadSources(instances.map(sourceFor));
 
   const failedSops = ({ failures }: ReturnType<typeof load>) =>
     failures.map(({ error, sources }) => [
@@ -222,5 +222,23 @@ describe('importDicomInstanceSources through the DICOM store', () => {
     expect(sopsOfDataset(datasetStore.getDataSource(secondId))).toEqual(
       second.map(sopOf)
     );
+  });
+
+  it('binds no saved state when two saved volumes restore as one', () => {
+    // Without the first pass's last slice the passes no longer overlap.
+    const first = acquisition('1', [0, 2.5]);
+    const second = acquisition('2', [4, 6.5, 9]);
+
+    const { loadables } = loadSources([
+      ...first.map((instance) => restored(instance, 'pass-1')),
+      ...second.map((instance) => restored(instance, 'pass-2')),
+    ]);
+
+    const [mergedId] = idsOf(loadables);
+    expect(buildStateIDToStoreID(loadables)).toEqual({});
+    expect(findMergedStateDatasets(loadables)).toEqual({
+      'pass-1': mergedId,
+      'pass-2': mergedId,
+    });
   });
 });

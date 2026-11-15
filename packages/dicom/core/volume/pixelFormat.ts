@@ -1,6 +1,6 @@
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { Tags } from '../metadata/dicomTags';
-import { getFrameTag } from '../metadata/functionalGroups';
+import { getFrameTag, perFrameGroups } from '../metadata/functionalGroups';
 import { readModalityRescale } from '../metadata/modalityRescale';
 import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr } from '../utils';
@@ -193,8 +193,15 @@ export function getVolumeBufferType(
     : integralBufferType(usable);
 }
 
-/** One format per frame, since enhanced instances calibrate frames separately. */
+/**
+ * One format per frame, since enhanced instances calibrate frames separately.
+ * Frames past the per-frame groups all read the shared or root tags, so one
+ * format stands for them however many frames the header declares.
+ */
 export const instancePixelFormats = (dataset: DicomDataset) =>
-  Array.from({ length: frameCount(dataset) }, (_, index) =>
-    getPixelFormat(dataset, index)
+  Array.from(
+    {
+      length: Math.min(frameCount(dataset), perFrameGroups(dataset).length + 1),
+    },
+    (_, index) => getPixelFormat(dataset, index)
   );

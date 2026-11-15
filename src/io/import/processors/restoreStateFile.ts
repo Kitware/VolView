@@ -209,6 +209,8 @@ export type RestoreOptions = {
   migration?: ManifestMigration;
   /** State dataset id to the store ids a replan split it into. */
   splitDatasets?: Record<string, string[]>;
+  /** State dataset id to the one store id it now shares with another. */
+  mergedDatasets?: Record<string, string>;
 };
 
 const restoreOptions = ({
@@ -216,11 +218,13 @@ const restoreOptions = ({
   failedLeaves = [],
   migration,
   splitDatasets = {},
+  mergedDatasets = {},
 }: RestoreOptions = {}) => ({
   missingFiles,
   failedLeaves,
   migration,
   splitDatasets,
+  mergedDatasets,
 });
 
 export const createStateFileRestorer = ({
@@ -234,8 +238,13 @@ export const createStateFileRestorer = ({
     stateIDToStoreID: Record<string, string>,
     options?: RestoreOptions
   ) {
-    const { missingFiles, failedLeaves, migration, splitDatasets } =
-      restoreOptions(options);
+    const {
+      missingFiles,
+      failedLeaves,
+      migration,
+      splitDatasets,
+      mergedDatasets,
+    } = restoreOptions(options);
     const viewStore = views ?? useViewStore();
     const byId = dataSourcesById(manifest);
     const datasets = manifestDatasets(manifest);
@@ -302,7 +311,7 @@ export const createStateFileRestorer = ({
     useToolStore().deserialize(manifest, resolveSegment, stateIDToStoreID);
 
     const missingBases = unresolvedDatasets
-      .filter(({ id }) => !(id in splitDatasets))
+      .filter(({ id }) => !(id in splitDatasets) && !(id in mergedDatasets))
       .map(({ id }) => imageName(id));
     // Saved state has no single target when its dataset becomes several volumes.
     const splitBases = unresolvedDatasets
@@ -311,6 +320,14 @@ export const createStateFileRestorer = ({
         ({ id }) =>
           `- image: ${imageName(id)} (loaded as ${splitDatasets[id].length} ` +
           'volumes; the annotations, layers and view settings saved on it were ' +
+          'not restored)'
+      );
+    const mergedBases = unresolvedDatasets
+      .filter(({ id }) => id in mergedDatasets && !(id in splitDatasets))
+      .map(
+        ({ id }) =>
+          `- image: ${imageName(id)} (loaded as one volume with another saved ` +
+          'image; the annotations, layers and view settings saved on it were ' +
           'not restored)'
       );
     // Partially restored datasets need member notices; unresolved datasets are named above.
@@ -337,6 +354,7 @@ export const createStateFileRestorer = ({
     const missing = [
       ...missingBases.map((name) => `- image: ${name}`),
       ...splitBases,
+      ...mergedBases,
       ...missingMembers,
       ...failedMembers,
       ...[...(migration?.droppedMasks ?? []), ...skippedLabelmaps].map(

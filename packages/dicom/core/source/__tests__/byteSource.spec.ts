@@ -243,6 +243,35 @@ describe('URL byte source', () => {
     ).rejects.toThrow(message);
   });
 
+  it.each([
+    ['answers 404', { status: 404 }],
+    ['answers a 206 that starts late', { startShift: 50 }],
+    ['answers an unreadable Content-Range', { contentRange: 'bytes 100-' }],
+  ])('aborts its request when the server %s', async (_name, options) => {
+    const { http, source } = urlSource(options);
+    await expect(
+      readStream(source.read(signal(), { start: 100, end: 300 }))
+    ).rejects.toThrow();
+    expect(http.signals[0]?.aborted).toBe(true);
+  });
+
+  it('aborts its request when the body fails partway', async () => {
+    const signals: Array<AbortSignal | null | undefined> = [];
+    const failing: typeof fetch = async (_input, init = {}) => {
+      signals.push(init.signal);
+      return new Response(
+        new ReadableStream({
+          pull: () => Promise.reject(new Error('connection reset')),
+        })
+      );
+    };
+    const source = fromUrl('https://example.test/a.dcm', { fetch: failing });
+    await expect(readStream(source.read(signal()))).rejects.toThrow(
+      'connection reset'
+    );
+    expect(signals[0]?.aborted).toBe(true);
+  });
+
   it('cancels the response body when the reader cancels', async () => {
     const { http, source } = urlSource();
     const reader = source.read(signal()).getReader();

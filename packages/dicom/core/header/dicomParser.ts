@@ -1,5 +1,5 @@
 import StreamingByteReader from './streamingByteReader';
-import { toAscii, asCoroutine } from '../utils';
+import { toAscii, asCoroutine, trimDicomPadding } from '../utils';
 import {
   DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN,
   EXPLICIT_VR_BIG_ENDIAN,
@@ -267,9 +267,10 @@ function* readFileMetaInfo(
   if (!transferSyntaxUidElement.data)
     throw new Error('Did not get data for the transfer syntax UID element');
 
-  const transferSyntaxUid = toAscii(transferSyntaxUidElement.data, {
-    ignoreNulls: true,
-  });
+  // Some writers pad the UID with a space rather than the null UI requires.
+  const transferSyntaxUid = trimDicomPadding(
+    toAscii(transferSyntaxUidElement.data, { ignoreNulls: true })
+  );
 
   // Compressed bytes can resemble meta elements. The complete reader will
   // locate the end of group 2 and inflate the dataset before walking it.

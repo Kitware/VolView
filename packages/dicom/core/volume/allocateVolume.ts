@@ -2,6 +2,7 @@ import type { Instance } from '../instance/readInstance';
 import type { ImageCollectionUpdate } from '../collections/instanceRegistry';
 import type { SpatialMetadata } from '../metadata/spatialMetadata';
 import type { VolumeBuffer } from './pixelFormat';
+import { nativeFramesOverrun } from '../pixels/frameIndex';
 import { planVolumeAllocation } from './volumeLayout';
 
 type Triple = [number, number, number];
@@ -91,6 +92,12 @@ export function allocateVolume(
   previous?: Volume
 ) {
   const { collection, members } = update;
+  // A lone instance's frames are the volume's slices, so they must exist.
+  const overrun = members.length === 1 && nativeFramesOverrun(members[0]);
+  if (overrun)
+    throw new Error(
+      `The instance declares more frames than its Pixel Data holds: ${overrun}`
+    );
   const { layout, warnings } = planVolumeAllocation(
     members,
     collection.orientation,

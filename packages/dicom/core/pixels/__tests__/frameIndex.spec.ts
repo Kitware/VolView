@@ -61,8 +61,8 @@ describe('indexFrames', () => {
     ],
     [
       'misshapen',
-      { extra: [{ tag: 0x00280008, vr: 'IS', value: '0' }] },
-      /Number of Frames is unusable/,
+      { rows: 0 },
+      /Rows, Columns or Samples per Pixel is unusable/,
     ],
   ] as const)(
     'reports %s Pixel Data as unindexed',

@@ -88,6 +88,18 @@ describe('multiframe geometry', () => {
     }
   );
 
+  it('reports more declared frames than per-frame groups as unreadable, however many are declared', () => {
+    const metadata = enhanced(
+      ctShared(),
+      [0, 1].map((z) => positioned(`0\\0\\${z}`)),
+      { '00280008': String(2 ** 32) }
+    );
+    expect(collectionOf(metadata).reconstruction).toMatchObject({
+      kind: 'irregular',
+      reason: 'unreadable-geometry',
+    });
+  });
+
   it('does not report normal segment-major SEG frames as an irregular volume', () => {
     const metadata = enhanced(
       ctShared(),

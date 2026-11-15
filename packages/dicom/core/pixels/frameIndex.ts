@@ -49,8 +49,16 @@ export const shapeOf = ({ dataset }: Instance) => {
 const positiveInteger = (value: number) =>
   Number.isSafeInteger(value) && value > 0;
 
-/** Byte ranges of every frame, from the header alone. */
-export function indexFrames(instance: Instance): FrameIndex {
+type NativeLayout = Readonly<{
+  kind: 'native';
+  littleEndian: boolean;
+  frameLength: number;
+  frames: number;
+  valueOffset: number;
+  length: number;
+}>;
+
+function nativeLayout(instance: Instance): NativeLayout | FrameIndex {
   const { pixelData, transferSyntaxUid } = instance;
   if (!pixelData || !transferSyntaxUid)
     return unindexed('The header locates no Pixel Data');
@@ -65,27 +73,49 @@ export function indexFrames(instance: Instance): FrameIndex {
     return unindexed('Pixel Data has undefined length');
   const { rows, columns, samplesPerPixel, bitsAllocated, frames } =
     shapeOf(instance);
-  if (![rows, columns, samplesPerPixel, frames].every(positiveInteger))
-    return unindexed(
-      'Rows, Columns, Samples per Pixel or Number of Frames is unusable'
-    );
+  if (![rows, columns, samplesPerPixel].every(positiveInteger))
+    return unindexed('Rows, Columns or Samples per Pixel is unusable');
   if (!positiveInteger(bitsAllocated) || bitsAllocated % 8 !== 0)
     return unindexed(
       `Bits Allocated ${bitsAllocated} packs samples across bytes`
     );
-  const frameLength = rows * columns * samplesPerPixel * (bitsAllocated / 8);
+  return {
+    kind: 'native',
+    littleEndian: encoding.littleEndian,
+    frameLength: rows * columns * samplesPerPixel * (bitsAllocated / 8),
+    frames,
+    valueOffset: pixelData.valueOffset,
+    length: pixelData.length,
+  };
+}
+
+const overrun = ({ frameLength, frames, length }: NativeLayout) => {
   const needed = frameLength * frames;
+  return needed > length
+    ? `Pixel Data holds ${length} bytes; its frames need ${needed}`
+    : null;
+};
+
+/** Why a native instance's Pixel Data is too short for its declared frames, or null. */
+export function nativeFramesOverrun(instance: Instance) {
+  const layout = nativeLayout(instance);
+  return layout.kind === 'native' ? overrun(layout) : null;
+}
+
+/** Byte ranges of every frame, from the header alone. */
+export function indexFrames(instance: Instance): FrameIndex {
+  const layout = nativeLayout(instance);
+  if (layout.kind !== 'native') return layout;
   // Frames past the element's end would read whatever follows it.
-  if (needed > pixelData.length)
-    return unindexed(
-      `Pixel Data holds ${pixelData.length} bytes; its frames need ${needed}`
-    );
+  const detail = overrun(layout);
+  if (detail) return unindexed(detail);
+  const { littleEndian, frameLength, frames, valueOffset } = layout;
   return {
     kind: 'indexed',
-    littleEndian: encoding.littleEndian,
+    littleEndian,
     frameLength,
     frames: Array.from({ length: frames }, (_, frame) => {
-      const start = pixelData.valueOffset + frame * frameLength;
+      const start = valueOffset + frame * frameLength;
       return { start, end: start + frameLength };
     }),
   };
