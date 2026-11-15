@@ -87,6 +87,7 @@ export class RequestPool {
   private async startRequest(request: FetchRequest) {
     this.inflight.add(request);
     try {
+      // Called unbound: a native fetch rejects any other `this`.
       const fetchFn = this.fetchFn;
       const response = await fetchFn(request.request, {
         ...request.init,

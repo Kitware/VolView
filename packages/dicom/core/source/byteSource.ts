@@ -1,10 +1,9 @@
-import {
-  HTTP_STATUS_OK,
-  HTTP_STATUS_PARTIAL_CONTENT,
-  HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE,
-} from './httpCodes';
 import { concatBytes, linkedController } from '../utils';
 import { parseContentRangeHeader } from './parseContentRangeHeader';
+
+const HTTP_STATUS_OK = 200;
+const HTTP_STATUS_PARTIAL_CONTENT = 206;
+const HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE = 416;
 
 /** Half-open byte interval; an absent end reads to the last byte. */
 export type ByteRange = { start: number; end?: number };

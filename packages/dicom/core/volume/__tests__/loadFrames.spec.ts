@@ -403,17 +403,11 @@ describe('loadVolume with native frames', () => {
 
       const { volume, updates } = await load([instance], { runtime });
 
-      expect(updates).toEqual([
-        {
-          slot: 0,
-          extent: [0, 2, 0, 1, 0, FRAMES - 1],
-          error: expect.objectContaining({
-            message: expect.stringMatching(
-              /^Partial codec planned units that do not cover frames 0 to 4 of File .* exactly once$/
-            ),
-          }),
-        },
-      ]);
+      expect(updates).toEqual(
+        failsWhole(
+          /^Partial codec planned units that do not cover frames 0 to 4 of File .* exactly once$/
+        )
+      );
       expect(ranges).toEqual([undefined]);
       expect(volume.loaded).toEqual(new Uint8Array(FRAMES));
     }

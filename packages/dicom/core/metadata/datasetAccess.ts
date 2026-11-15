@@ -5,8 +5,7 @@ import { trimDicomPadding } from '../utils';
 export const canonicalTag = (tag: string) => tag.replace('|', '').toUpperCase();
 
 /** Text and numeric values retain multiplicity; sequences and opaque bytes do not become text. */
-function getElementText(element: DicomElement): string | undefined {
-  const { values } = element;
+function getElementText({ values }: DicomElement) {
   switch (values.kind) {
     case 'text':
     case 'number':

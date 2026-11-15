@@ -1,6 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 import reference from './reference.json' with { type: 'json' };
-import { elemShort, elemLong, LONG_FORM_VRS } from '../../specs/syntheticDicom';
+import { rawElement, sequenceItem, ul } from '../../specs/syntheticDicom';
 
 const concat = (chunks: Uint8Array[]) => Buffer.concat(chunks);
 
@@ -8,8 +8,7 @@ export function element(tag: string, vr: string, value: string | Uint8Array) {
   let payload = typeof value === 'string' ? Buffer.from(value) : value;
   if (payload.length % 2)
     payload = concat([payload, Uint8Array.of(vr === 'UI' ? 0 : 32)]);
-  const encode = LONG_FORM_VRS.has(vr) ? elemLong : elemShort;
-  return encode(
+  return rawElement(
     parseInt(tag.slice(0, 4), 16),
     parseInt(tag.slice(4), 16),
     vr,
@@ -18,19 +17,7 @@ export function element(tag: string, vr: string, value: string | Uint8Array) {
 }
 
 export function sequence(tag: string, datasets: Uint8Array[]) {
-  return element(
-    tag,
-    'SQ',
-    concat(
-      datasets.map((dataset) => {
-        const header = Buffer.alloc(8);
-        header.writeUInt16LE(0xfffe);
-        header.writeUInt16LE(0xe000, 2);
-        header.writeUInt32LE(dataset.length, 4);
-        return concat([header, dataset]);
-      })
-    )
-  );
+  return element(tag, 'SQ', concat(datasets.map(sequenceItem)));
 }
 
 /** An element to encode, an SQ holding its items; bytes pass through as encoded. */
@@ -134,15 +121,13 @@ function part10(
         : node
     );
   const metaBytes = encode(meta);
-  const length = Buffer.alloc(4);
-  length.writeUInt32LE(metaBytes.length);
   const dataset = encode(edited.filter((node) => !isFileMeta(node)));
   const deflateWith = deflate === true ? deflateRawSync : deflate;
   const body = deflateWith ? deflateWith(dataset) : dataset;
   return concat([
     Buffer.alloc(128),
     Buffer.from('DICM'),
-    ...(groupLength || deflate ? [element('00020000', 'UL', length)] : []),
+    ...(groupLength || deflate ? [ul(0x0002, 0x0000, metaBytes.length)] : []),
     metaBytes,
     body,
     // DICOM requires an even-length deflated stream with a trailing NULL if needed.

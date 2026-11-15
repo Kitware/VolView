@@ -102,7 +102,6 @@ describe('VolView downloaded collection import', () => {
       await volViewPage.waitForViewsLoaded();
       await waitForRenderedSlice(
         `composition-${scenario.id}.png`,
-        0,
         scenario.id === 'pet-ct'
       );
       expect(await volViewPage.getNotificationsCount()).toBe(0);

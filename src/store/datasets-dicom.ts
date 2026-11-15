@@ -445,10 +445,7 @@ export const useDICOMStore = defineStore('dicom', {
 
     _commitSeries(
       batch: Instance[],
-      context: {
-        createImage: (id: string) => DicomVolumeImage;
-        removeDissolved: (id: string) => void;
-      }
+      context: Required<ImportInstancesDeps>
     ): ImportInstancesResult['volumes'] {
       const { state, updates, removed, conflictingInstanceUids } =
         registerInstances(registryOf(this), batch);

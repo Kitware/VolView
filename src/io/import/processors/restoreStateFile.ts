@@ -207,6 +207,7 @@ export type RestoreOptions = {
   missingFiles?: Array<{ stateID: string; path: string }>;
   failedLeaves?: Array<{ stateID: string; name: string }>;
   migration?: ManifestMigration;
+  /** State dataset id to the store ids a replan split it into. */
   splitDatasets?: Record<string, string[]>;
 };
 

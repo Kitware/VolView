@@ -231,16 +231,6 @@ describe('instance facts', () => {
     expect(facts.projectedPosition).toBeCloseTo(30, 3);
   });
 
-  it.each([
-    ['zero', '0\\0.5'],
-    ['negative', '-1\\0.5'],
-    ['blank', '\\0.5'],
-  ])('reads a %s pixel spacing as unknown', (_case, value) => {
-    expect(
-      factsOf(metadata({ [Tags.PixelSpacing]: value })).pixelSpacing
-    ).toBeNull();
-  });
-
   it('projects the position onto the slice normal, not onto z', () => {
     // Rows run along +y and columns along +z, so the normal is +x.
     const facts = factsOf(
@@ -258,13 +248,12 @@ describe('instance facts', () => {
   });
 
   it.each([
-    ['a missing tag', without(Tags.PixelSpacing), null],
-    ['a single value', metadata({ [Tags.PixelSpacing]: '0.5' }), null],
-    [
-      'a non numeric value',
-      metadata({ [Tags.PixelSpacing]: '0.5\\bad' }),
-      null,
-    ],
+    ['a missing tag', without(Tags.PixelSpacing)],
+    ['a single value', metadata({ [Tags.PixelSpacing]: '0.5' })],
+    ['a non numeric value', metadata({ [Tags.PixelSpacing]: '0.5\\bad' })],
+    ['a zero value', metadata({ [Tags.PixelSpacing]: '0\\0.5' })],
+    ['a negative value', metadata({ [Tags.PixelSpacing]: '-1\\0.5' })],
+    ['a blank value', metadata({ [Tags.PixelSpacing]: '\\0.5' })],
   ])('reads a pixel spacing with %s as unknown', (_case, entries) => {
     expect(factsOf(entries).pixelSpacing).toBeNull();
   });
@@ -344,11 +333,8 @@ describe('single-frame and spacing normalization', () => {
     'defaults NumberOfFrames %s to one',
     (frames) => {
       expect(
-        readInstanceDetails(
-          datasetFromTags(
-            frames === undefined ? [] : [[Tags.NumberOfFrames, frames]]
-          )
-        ).facts.numberOfFrames
+        factsOf(frames === undefined ? [] : [[Tags.NumberOfFrames, frames]])
+          .numberOfFrames
       ).toBe('1');
     }
   );

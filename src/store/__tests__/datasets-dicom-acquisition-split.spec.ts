@@ -10,24 +10,14 @@ import {
   type ImportInstancesResult,
 } from '@/src/store/datasets-dicom';
 import {
+  acquisition,
   imageFactory,
   OTHER_SERIES_UID,
   SERIES_UID,
   sliceFor,
 } from '@/src/store/__tests__/dicomImportFixtures';
 
-// Slices of one acquisition, interleaved with a second acquisition's slices
-// along the same stretch of the slice axis.
-const acquisition = (number: string, zs: number[], orientation?: string) =>
-  zs.map((z, i) =>
-    sliceFor({
-      sop: `acq${number}-${i}`,
-      z,
-      orientation,
-      tags: { [Tags.AcquisitionNumber]: number },
-    })
-  );
-
+// Two passes interleaved along the same stretch of the slice axis.
 const acquisitionOne = () => acquisition('1', [0, 2.5, 5]);
 const acquisitionTwo = () => acquisition('2', [0.75, 3.25, 5.75]);
 

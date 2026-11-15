@@ -1,4 +1,5 @@
 import { UNDEFINED_LENGTH } from '../metadata/dicomLayout';
+import { concatBytes } from '../utils';
 
 const ITEM = 0xe000;
 const SEQUENCE_DELIMITER = 0xe0dd;
@@ -53,17 +54,10 @@ function readOffsetTable(table: Uint8Array) {
   );
 }
 
-const joinFragments = (fragments: readonly Fragment[]) => {
-  if (fragments.length === 1) return fragments[0].bytes;
-  const out = new Uint8Array(
-    fragments.reduce((total, { bytes }) => total + bytes.length, 0)
-  );
-  fragments.reduce((offset, { bytes }) => {
-    out.set(bytes, offset);
-    return offset + bytes.length;
-  }, 0);
-  return out;
-};
+const joinFragments = (fragments: readonly Fragment[]) =>
+  fragments.length === 1
+    ? fragments[0].bytes
+    : concatBytes(fragments.map(({ bytes }) => bytes));
 
 function framesFromOffsets(fragments: readonly Fragment[], offsets: number[]) {
   const starts = offsets.map((offset, frame) => {
@@ -119,12 +113,11 @@ export function splitEncapsulatedFrames(value: Uint8Array, frameCount: number) {
   const items = readItems(value);
   if (items.length === 0) throw malformed('no Basic Offset Table item');
   const [table, ...rest] = items;
-  const base = rest[0]?.position ?? 0;
+  if (rest.length === 0) throw malformed('no fragments');
   const fragments = rest.map(({ position, bytes }) => ({
-    offset: position - base,
+    offset: position - rest[0].position,
     bytes,
   }));
-  if (fragments.length === 0) throw malformed('no fragments');
   const offsets = readOffsetTable(table.bytes);
   const frames =
     offsets.length === frameCount

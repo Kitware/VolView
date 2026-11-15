@@ -28,11 +28,9 @@ const unsupported = () =>
     [Tags.PhotometricInterpretation]: 'MONOCHROME1',
   });
 
-describe('DICOM store cine routing', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia());
-  });
+beforeEach(() => setActivePinia(createPinia()));
 
+describe('DICOM store cine routing', () => {
   it('imports a clip the cine player does not support as a volume', () => {
     const { created, createImage } = imageFactory();
     const clip = unsupported();
@@ -83,7 +81,6 @@ describe('DICOM store cine routing', () => {
 });
 
 it('imports two same-shaped ultrasound clips as separate playable cine volumes', () => {
-  setActivePinia(createPinia());
   const clips = ['clip-1', 'clip-2'].map((sop) =>
     cineInstance({ [Tags.SOPInstanceUID]: sop })
   );
@@ -106,7 +103,6 @@ it('imports two same-shaped ultrasound clips as separate playable cine volumes',
 });
 
 it('files a clip and a volume of one study under one patient', () => {
-  setActivePinia(createPinia());
   const { createImage } = imageFactory();
   const store = useDICOMStore();
   // An odd-length value is padded with a space, which the reader keeps.

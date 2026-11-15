@@ -29,10 +29,6 @@ const ORIENTATION = '00209116';
 const POSITION = '00209113';
 const SCAN_PATTERN = '00221618';
 const ACQUISITION_PARAMETERS = '00221640';
-const PIXEL_SPACING = Tags.PixelSpacing;
-const SLICE_SPACING = Tags.SpacingBetweenSlices;
-const IMAGE_ORIENTATION = Tags.ImageOrientationPatient;
-const IMAGE_POSITION = Tags.ImagePositionPatient;
 // The attributes en face reads off an instance, beside the ones derived below.
 const EN_FACE_TAGS = [
   Tags.Modality,
@@ -66,7 +62,7 @@ function frameGeometry(data: DicomDataset) {
     frameAttribute(frames[0], sequence, tag) ??
     stringValue(data, tag);
   const positions = frames.map((frame) =>
-    vector(frameAttribute(frame, POSITION, IMAGE_POSITION))
+    vector(frameAttribute(frame, POSITION, Tags.ImagePositionPatient))
   );
   return {
     frames,
@@ -74,11 +70,12 @@ function frameGeometry(data: DicomDataset) {
       stringValue(data, Tags.NumberOfFrames) ?? '',
       10
     ),
-    orientation: attribute(ORIENTATION, IMAGE_ORIENTATION),
-    spacing: attribute(MEASURES, PIXEL_SPACING),
+    orientation: attribute(ORIENTATION, Tags.ImageOrientationPatient),
+    spacing: attribute(MEASURES, Tags.PixelSpacing),
     positions,
-    origin: positions[0]?.join('\\') ?? stringValue(data, IMAGE_POSITION),
-    sliceSpacing: attribute(MEASURES, SLICE_SPACING),
+    origin:
+      positions[0]?.join('\\') ?? stringValue(data, Tags.ImagePositionPatient),
+    sliceSpacing: attribute(MEASURES, Tags.SpacingBetweenSlices),
   };
 }
 
@@ -107,7 +104,7 @@ function positionError(geometry: ReturnType<typeof frameGeometry>) {
     return 'OCT image orientation is missing; spatial reconstruction is required.';
   if (
     positions.length < 2 &&
-    (geometry.declaredFrames ?? 0) > 1 &&
+    geometry.declaredFrames > 1 &&
     !positiveNumber(Number(geometry.sliceSpacing))
   )
     return 'OCT slice spacing is unavailable; spatial reconstruction is required.';
@@ -127,14 +124,19 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   if (origin && !finiteVector(origin, 3))
     return 'DICOM slice positions are invalid; spatial reconstruction is required.';
   if (
-    frameAttributeMismatch(geometry, MEASURES, PIXEL_SPACING, geometry.spacing)
+    frameAttributeMismatch(
+      geometry,
+      MEASURES,
+      Tags.PixelSpacing,
+      geometry.spacing
+    )
   )
     return 'OCT frames have different pixel spacing; spatial reconstruction is required.';
   if (
     frameAttributeMismatch(
       geometry,
       MEASURES,
-      SLICE_SPACING,
+      Tags.SpacingBetweenSlices,
       geometry.sliceSpacing
     )
   )
@@ -143,7 +145,7 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
     frameAttributeMismatch(
       geometry,
       ORIENTATION,
-      IMAGE_ORIENTATION,
+      Tags.ImageOrientationPatient,
       geometry.orientation
     )
   )

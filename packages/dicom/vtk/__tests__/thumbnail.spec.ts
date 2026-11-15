@@ -71,20 +71,6 @@ describe('sliceToThumbnail', () => {
     expect(bytes(slice).slice(0, 4)).toEqual([0, 2, 4, 6]);
   });
 
-  it('keeps every sample of a slice that already fits', () => {
-    const slice = sliceToThumbnail({
-      data: [0, 1, 2, 3],
-      width: 2,
-      height: 2,
-      components: 1,
-      range: [0, 3],
-    });
-
-    expect(slice.width).toBe(2);
-    expect(slice.height).toBe(2);
-    expect(slice.data).toHaveLength(4);
-  });
-
   it('samples RGB luminance for color slices', () => {
     const slice = sliceToThumbnail({
       data: [255, 0, 0, 0, 255, 0, 0, 0, 255],

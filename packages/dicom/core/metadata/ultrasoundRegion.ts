@@ -1,7 +1,7 @@
 import { getDatasetTag } from './datasetAccess';
 import { sequenceItems } from './functionalGroups';
 import type { DicomDataset } from './dicomDataset';
-import { trimDicomPadding } from '../utils';
+import { numberOr } from '../utils';
 import { Tags } from './dicomTags';
 
 // DICOM unit codes for PhysicalUnitsXDirection / YDirection.
@@ -28,10 +28,7 @@ type UltrasoundRegion = {
 };
 
 const readRegion = (item: DicomDataset): UltrasoundRegion => {
-  const value = (tag: string) => {
-    const text = trimDicomPadding(getDatasetTag(item, tag) ?? '');
-    return text ? Number(text) : NaN;
-  };
+  const value = (tag: string) => numberOr(getDatasetTag(item, tag), NaN);
   return {
     physicalDeltaX: value(Tags.PhysicalDeltaX),
     physicalDeltaY: value(Tags.PhysicalDeltaY),

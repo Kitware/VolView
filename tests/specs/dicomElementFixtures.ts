@@ -17,7 +17,7 @@ const ascii = (text: string) => new TextEncoder().encode(text);
 const jisX0208 = (...codes: number[]) =>
   bytes(0x1b, 0x24, 0x42, ...codes, 0x1b, 0x28, 0x42);
 
-const JAPANESE_CHARACTER_SET = 'ISO 2022 IR 6\\ISO 2022 IR 87';
+export const JAPANESE_CHARACTER_SET = 'ISO 2022 IR 6\\ISO 2022 IR 87';
 
 export const JAPANESE_NAME = 'Yamada^Tarou=山田^太郎=やまだ^たろう';
 export const JAPANESE_NAME_BYTES = combine(
