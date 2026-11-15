@@ -47,8 +47,10 @@ export function multiframeGeometry(metadata: DicomDataset, count: number) {
   const groups = perFrameGroups(metadata);
   const shared = sequenceItems(metadata, SHARED_GROUPS);
   if (count < 2 || (shared.length === 0 && groups.length === 0)) return null;
-  const frames = Array.from({ length: count }, (_, index) =>
-    readGeometryFacts(metadata, index)
+  // Frames past the per-frame groups read the shared or root tags alike.
+  const frames = Array.from(
+    { length: Math.min(count, groups.length + 1) },
+    (_, index) => readGeometryFacts(metadata, index)
   );
   const first = frames[0];
   const direction = storageDirection(frames);

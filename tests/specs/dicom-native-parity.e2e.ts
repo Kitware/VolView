@@ -36,6 +36,7 @@ const SOP_CLASSES = {
   EnhancedCT: '1.2.840.10008.5.1.4.1.1.2.1',
   EnhancedMR: '1.2.840.10008.5.1.4.1.1.4.1',
   OCT: '1.2.840.10008.5.1.4.1.1.77.1.5.4',
+  WordSC: '1.2.840.10008.5.1.4.1.1.7.3',
 };
 
 const us = (tag: number, value: number): DataElement => ({
@@ -96,6 +97,8 @@ const synthetic: Array<[string, boolean, NativePixelOptions]> = [
   ['enhanced-ct-uniform', true, { sopClassUid: SOP_CLASSES.EnhancedCT, frames: 3, frameRescales: [[2, -1], [2, -1], [2, -1]] }],
   ['enhanced-mr-fractional', true, { sopClassUid: SOP_CLASSES.EnhancedMR, modality: 'MR', frames: 2, frameRescales: [[0.3, 1], [0.3, 1]] }],
   ['enhanced-ct-differing', false, { sopClassUid: SOP_CLASSES.EnhancedCT, frames: 2, frameRescales: [[1, 0], [2, 0]] }],
+  ['word-sc-functional-group-rescale', true, { sopClassUid: SOP_CLASSES.WordSC, frames: 2, rescale: [2, -1000], frameRescales: [[3, -500], [3, -500]] }],
+  ['oct-differing-functional-group-rescale', true, { sopClassUid: SOP_CLASSES.OCT, frames: 2, frameRescales: [[1, 0], [2, 0]] }],
   ...Object.entries(SOP_CLASSES).flatMap(
     ([name, sopClassUid]): Array<[string, boolean, NativePixelOptions]> => [
       [`${name}-integer-rescale`, true, { sopClassUid, bitsStored: 12, rescale: [3, -7] }],

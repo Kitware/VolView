@@ -60,9 +60,12 @@ const joinFragments = (fragments: readonly Fragment[]) =>
     : concatBytes(fragments.map(({ bytes }) => bytes));
 
 function framesFromOffsets(fragments: readonly Fragment[], offsets: number[]) {
+  const indexAt = new Map(
+    fragments.map((fragment, index) => [fragment.offset, index])
+  );
   const starts = offsets.map((offset, frame) => {
-    const index = fragments.findIndex((fragment) => fragment.offset === offset);
-    if (index < 0)
+    const index = indexAt.get(offset);
+    if (index === undefined)
       throw malformed(
         `Basic Offset Table entry ${frame} (${offset}) starts no fragment`
       );

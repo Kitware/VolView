@@ -8,7 +8,11 @@ import { parseDicomElements } from '../dcmjsParser';
 import { PART_10_HEADER_LENGTH } from '../dicomLayout';
 import { concatBytes } from '../../utils';
 import { buildSlice } from '@/tests/specs/dicomElementFixtures';
-import { pixelDataStart, readHeader } from '@/tests/dicomSourceFixtures';
+import {
+  pixelDataStart,
+  readHeader,
+  syntheticSlice,
+} from '@/tests/dicomSourceFixtures';
 import {
   rawElement,
   sequenceItem,
@@ -172,6 +176,15 @@ describe('lenient headers with standards-defined values', () => {
     await expect(readHeader(bytes, 7)).rejects.toThrow(
       'available dataset bytes'
     );
+  });
+
+  it('rejects a header cut short inside an element value', async () => {
+    const bytes = syntheticSlice({ studyDate: '20260101' });
+    const date = new TextDecoder('latin1').decode(bytes).indexOf('20260101');
+    const cut = bytes.slice(0, date + 6);
+    const message = 'Element (0008,0020) needs 8 bytes; 6 remain';
+    expect(() => readDicomDataset(cut)).toThrow(message);
+    await expect(readHeader(cut)).rejects.toThrow(message);
   });
 
   it('does not recover a nested sequence past its enclosing item', async () => {

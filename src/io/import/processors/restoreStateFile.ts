@@ -194,6 +194,8 @@ export type RestoreReports = {
   failedLeaves?: Array<{ stateID: string; name: string }>;
   /** State dataset id to the store ids a replan split it into. */
   splitDatasets?: Record<string, string[]>;
+  /** State dataset id to the one store id it now shares with another. */
+  mergedDatasets?: Record<string, string>;
 };
 
 type RestoreServices = {
@@ -216,6 +218,7 @@ export const createStateFileRestorer = ({
       missingFiles = [],
       failedLeaves = [],
       splitDatasets = {},
+      mergedDatasets = {},
     }: RestoreReports = {}
   ) {
     const viewStore = views ?? useViewStore();
@@ -279,7 +282,7 @@ export const createStateFileRestorer = ({
         String(ds.id)
       );
     const missingBases = unresolvedDatasets
-      .filter((ds) => !(ds.id in splitDatasets))
+      .filter((ds) => !(ds.id in splitDatasets) && !(ds.id in mergedDatasets))
       .map(summarize);
     // Saved state has no single target when its dataset becomes several volumes.
     const splitBases = unresolvedDatasets
@@ -288,6 +291,14 @@ export const createStateFileRestorer = ({
         (ds) =>
           `- image: ${summarize(ds)} (loaded as ${splitDatasets[ds.id].length} ` +
           'volumes; the annotations, layers and view settings saved on it were ' +
+          'not restored)'
+      );
+    const mergedBases = unresolvedDatasets
+      .filter((ds) => ds.id in mergedDatasets && !(ds.id in splitDatasets))
+      .map(
+        (ds) =>
+          `- image: ${summarize(ds)} (loaded as one volume with another saved ` +
+          'image; the annotations, layers and view settings saved on it were ' +
           'not restored)'
       );
     // Partially restored datasets need member notices; unresolved datasets are named above.
@@ -314,6 +325,7 @@ export const createStateFileRestorer = ({
     const missing = [
       ...missingBases.map((name) => `- image: ${name}`),
       ...splitBases,
+      ...mergedBases,
       ...missingMembers,
       ...failedMembers,
       ...skippedLabelmaps.map(

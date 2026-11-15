@@ -28,6 +28,7 @@ export function enhanced(
   root: Record<string, string> = {}
 ): DicomDataset {
   const header = tags({
+    '00080016': '1.2.840.10008.5.1.4.1.1.2.1',
     '00280010': '2',
     '00280011': '2',
     '00280008': String(frames.length),

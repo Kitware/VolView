@@ -101,11 +101,26 @@ describe('DICOM runtime', () => {
 
     const running = decodeWith(gdcm);
     const queued = decodeWith(gdcm);
+    await lanes.started(1);
     const reason = new DOMException('disposed', 'AbortError');
     gdcm.dispose(reason);
 
     await expect(running).rejects.toBe(reason);
     await expect(queued).rejects.toBe(reason);
+    expect(lanes.peak()).toBe(1);
+    expect(lanes.resets).toContain(reason);
+  });
+
+  it('terminates idle GDCM workers when disposed', async () => {
+    const lanes = controlledLanes();
+    const gdcm = createGdcmDecoder(assets, 1, lanes.createLane);
+    lanes.gate.resolve();
+    await decodeWith(gdcm);
+
+    const reason = new DOMException('disposed', 'AbortError');
+    gdcm.dispose(reason);
+
+    expect(lanes.resets).toEqual([reason]);
   });
 
   it('terminates the GDCM worker of a decode whose signal aborts', async () => {
