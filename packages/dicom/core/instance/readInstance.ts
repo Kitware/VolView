@@ -1,9 +1,5 @@
 import type { ByteSource } from '../source/byteSource';
-import {
-  readDicomDataset,
-  withoutPrivateElements,
-  type DicomDataset,
-} from '../metadata/dicomDataset';
+import { readPublicDataset, type DicomDataset } from '../metadata/dicomDataset';
 import type { DicomLayout } from '../metadata/dicomLayout';
 import { getDatasetModality } from '../metadata/datasetAccess';
 import {
@@ -50,9 +46,8 @@ export async function readInstance(
   const { header, layout, transferSyntaxUid, pixelData } =
     await readDicomHeader(source.read(signal), options.imageImportPolicy);
   signal.throwIfAborted();
-  const parsed = await (options.readDataset ?? readDicomDataset)(header);
+  const dataset = await (options.readDataset ?? readPublicDataset)(header);
   signal.throwIfAborted();
-  const dataset = withoutPrivateElements(parsed);
   return Object.freeze({
     source,
     dataset,

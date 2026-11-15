@@ -1,24 +1,23 @@
 import * as Comlink from 'comlink';
-import { readDicomDataset, type DicomDataset } from '../metadata/dicomDataset';
+import { readPublicDataset, type DicomDataset } from '../metadata/dicomDataset';
 import type { DicomDatasetWorker } from '../metadata/readDicomDataset.worker';
+import { abortError } from '../utils';
 
 export type MetadataReaderOptions = {
   metadataWorkerFactory?: () => Worker;
-  metadataConcurrency?: number;
 };
+
+const WORKER_COUNT = 2;
 
 /** Owns parser workers. Input bytes are copied before transfer; the caller keeps its buffer. */
 export function createMetadataReader(options: MetadataReaderOptions = {}) {
-  const count = options.metadataConcurrency ?? 2;
-  if (!Number.isInteger(count) || count < 1)
-    throw new Error('Metadata concurrency must be a positive integer');
   const workers: Array<{
     worker: Worker;
     remote: Comlink.Remote<DicomDatasetWorker>;
   }> = [];
   const pending = new Set<(reason: unknown) => void>();
   let next = 0;
-  let disposed = false;
+  let disposal: unknown;
   const createWorker =
     options.metadataWorkerFactory ??
     (() =>
@@ -36,11 +35,10 @@ export function createMetadataReader(options: MetadataReaderOptions = {}) {
     workers.length = 0;
   };
   const read = async (bytes: Uint8Array): Promise<DicomDataset> => {
-    if (disposed)
-      throw new DOMException('Metadata reader disposed', 'AbortError');
+    if (disposal) throw disposal;
     if (typeof Worker === 'undefined' && !options.metadataWorkerFactory)
-      return readDicomDataset(bytes);
-    if (workers.length < count) {
+      return readPublicDataset(bytes);
+    if (workers.length < WORKER_COUNT) {
       const worker = createWorker();
       const fail = (message: string) => {
         if (workers.some((entry) => entry.worker === worker))
@@ -66,15 +64,17 @@ export function createMetadataReader(options: MetadataReaderOptions = {}) {
     return new Promise((resolve, reject) => {
       pending.add(reject);
       remote
-        .readDicomDataset(Comlink.transfer(owned, [owned.buffer]))
+        .readPublicDataset(Comlink.transfer(owned, [owned.buffer]))
         .then(resolve, reject)
         .finally(() => pending.delete(reject));
     });
   };
-  const dispose = () => {
-    if (disposed) return;
-    disposed = true;
-    resetWorkers(new DOMException('Metadata reader disposed', 'AbortError'));
+  const dispose = (
+    reason: unknown = abortError('Metadata reader disposed')
+  ) => {
+    if (disposal) return;
+    disposal = reason;
+    resetWorkers(reason);
   };
   return { read, dispose };
 }

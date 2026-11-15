@@ -30,40 +30,16 @@ const SUPPORTED_TRANSFER_SYNTAXES = new Set([
 export const isNativeTransferSyntax = (uid: string) =>
   NATIVE_TRANSFER_SYNTAXES.has(uid);
 
-export const isSupportedCineTransferSyntax = (uid: string) =>
-  SUPPORTED_TRANSFER_SYNTAXES.has(uid);
-
 export type CineHeader = {
   transferSyntaxUID: string;
   rows: number;
   cols: number;
   numberOfFrames: number;
   samplesPerPixel: number;
-  bitsAllocated: number;
   planarConfiguration: number;
   photometricInterpretation: string;
   pixelSpacing: [number, number] | null;
   frameTimeMs: number | null;
-  patient: {
-    PatientID: string;
-    PatientName: string;
-    PatientBirthDate: string;
-    PatientSex: string;
-  };
-  study: {
-    StudyID: string;
-    StudyInstanceUID: string;
-    StudyDate: string;
-    StudyTime: string;
-    AccessionNumber: string;
-    StudyDescription: string;
-  };
-  series: {
-    SeriesInstanceUID: string;
-    SeriesNumber: string;
-    SeriesDescription: string;
-    Modality: string;
-  };
   regions: ReturnType<typeof ultrasoundRegionsOf>;
 };
 
@@ -107,31 +83,10 @@ export function readCineHeader(instance: Instance): CineHeader {
     cols: countOr(dataset, Tags.Columns, 0),
     numberOfFrames: countOr(dataset, Tags.NumberOfFrames, 1),
     samplesPerPixel: countOr(dataset, Tags.SamplesPerPixel, 1),
-    bitsAllocated: countOr(dataset, Tags.BitsAllocated, 8),
     planarConfiguration: countOr(dataset, Tags.PlanarConfiguration, 0),
     photometricInterpretation: tag(Tags.PhotometricInterpretation),
     pixelSpacing: positivePair(dataset, Tags.PixelSpacing),
     frameTimeMs: finiteOrNull(dataset, Tags.FrameTime),
-    patient: {
-      PatientID: tag(Tags.PatientID),
-      PatientName: tag(Tags.PatientName),
-      PatientBirthDate: tag(Tags.PatientBirthDate),
-      PatientSex: tag(Tags.PatientSex),
-    },
-    study: {
-      StudyID: tag(Tags.StudyID),
-      StudyInstanceUID: tag(Tags.StudyInstanceUID),
-      StudyDate: tag(Tags.StudyDate),
-      StudyTime: tag(Tags.StudyTime),
-      AccessionNumber: tag(Tags.AccessionNumber),
-      StudyDescription: tag(Tags.StudyDescription),
-    },
-    series: {
-      SeriesInstanceUID: tag(Tags.SeriesInstanceUID),
-      SeriesNumber: tag(Tags.SeriesNumber),
-      SeriesDescription: tag(Tags.SeriesDescription),
-      Modality: tag(Tags.Modality),
-    },
     regions: ultrasoundRegionsOf(dataset),
   };
 }
@@ -157,7 +112,7 @@ export function isCineInstance(instance: Instance) {
     instance.pixelData !== null &&
     isUltrasoundMultiframeSopClass(text(dataset, Tags.SOPClassUID)) &&
     numberOf(getDatasetTag(dataset, Tags.NumberOfFrames)) > 1 &&
-    isSupportedCineTransferSyntax(transferSyntax) &&
+    SUPPORTED_TRANSFER_SYNTAXES.has(transferSyntax) &&
     (!isNativeTransferSyntax(transferSyntax) || supportedNativePixels(dataset))
   );
 }

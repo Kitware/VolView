@@ -18,12 +18,7 @@ export default class StreamingByteReader {
     return this.pos;
   }
 
-  /**
-   * Seeks along the byte stream.
-   *
-   * No negative values.
-   * @param offset
-   */
+  /** Seeks along the byte stream. No negative values. */
   *seek(offset: number) {
     if (offset < 0) {
       throw new Error('Offset must not be negative');
@@ -37,12 +32,7 @@ export default class StreamingByteReader {
     this.pos += offset;
   }
 
-  /**
-   * Reads a number of bytes.
-   * @param length
-   * @param param1
-   * @returns
-   */
+  /** Reads a number of bytes. */
   *read(
     length: number,
     { peek = false } = {}
@@ -67,56 +57,28 @@ export default class StreamingByteReader {
     return data;
   }
 
-  /**
-   * Reads an ASCII string.
-   * @param length
-   * @param param1
-   * @returns
-   */
+  /** Reads an ASCII string. */
   *readAscii(length: number, { ignoreNulls = false, peek = false } = {}) {
     const bytes = yield* this.read(length, { peek });
     return toAscii(bytes, { ignoreNulls });
   }
 
-  /**
-   *
-   * @param {'getUint8' | 'getInt8' | ...} method
-   * @param length must be the length associated with the method
-   */
-  private *readDataView<T extends keyof DataView>(
-    method: T extends `get${infer R}` ? `get${R}` : never,
+  /** `length` must be the length associated with the method. */
+  private *readDataView(
+    method: 'getUint16' | 'getUint32',
     length: number,
     { littleEndian = false, peek = false } = {}
   ) {
     const bytes = yield* this.read(length, { peek });
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    if (method === 'getUint8' || method === 'getInt8') {
-      return dv[method](0) as number;
-    }
-    return dv[method](0, littleEndian) as number;
-  }
-
-  *readUint8() {
-    return yield* this.readDataView('getUint8', 1);
-  }
-
-  *readInt8() {
-    return yield* this.readDataView('getInt8', 1);
+    return dv[method](0, littleEndian);
   }
 
   *readUint16(opts = {}) {
     return yield* this.readDataView('getUint16', 2, opts);
   }
 
-  *readInt16(opts = {}) {
-    return yield* this.readDataView('getInt16', 2, opts);
-  }
-
   *readUint32(opts = {}) {
     return yield* this.readDataView('getUint32', 4, opts);
-  }
-
-  *readInt32(opts = {}) {
-    return yield* this.readDataView('getInt32', 4, opts);
   }
 }

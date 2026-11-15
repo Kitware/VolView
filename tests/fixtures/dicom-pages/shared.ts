@@ -59,7 +59,7 @@ export function report(name: string, value: string) {
 export async function loadInstance() {
   const input =
     new URL(location.href).searchParams.get('source') === 'http'
-      ? new URL('./fixture.dcm', document.baseURI)
+      ? new URL('./corpus-data/fixture.dcm', document.baseURI)
       : new File([fixtureBytes() as Uint8Array<ArrayBuffer>], 'fixture.dcm');
   return runtime.readInstance(sourceOf(input), never);
 }

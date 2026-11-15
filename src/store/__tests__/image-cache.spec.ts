@@ -4,6 +4,7 @@ import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
+import { useMessageStore } from '@/src/store/messages';
 import {
   LoadedVtkImage,
   type ProgressiveImage,
@@ -50,7 +51,8 @@ describe('image cache lifecycle', () => {
     expect(store.getVtkImageData('img-1')).toBeNull();
   });
 
-  it('enables En face after a failed volume finishes a successful retry', () => {
+  // An image whose events the test fires, seated under 'retry'.
+  const seatLoading = () => {
     const store = seatImage();
     const data = store.getVtkImageData('img-1')!;
     const image: ProgressiveImage = new LoadedVtkImage(data, 'Retry');
@@ -58,6 +60,30 @@ describe('image cache lifecycle', () => {
     image.addEventListener = events.on;
     image.removeEventListener = events.off;
     store.addProgressiveImage(image, { id: 'retry' });
+    return events;
+  };
+
+  it('tells the user once per load which image lost slices', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const events = seatLoading();
+    const titles = () =>
+      useMessageStore().messages.map((message) => message.title);
+
+    events.emit('loading', true);
+    ['slice 1', 'slice 2', 'slice 3'].forEach((slice) =>
+      events.emit('error', new Error(slice))
+    );
+    events.emit('loading', false);
+    expect(titles()).toEqual(['Error loading Retry']);
+    expect(useImageCacheStore().imageErrors.retry).toHaveLength(3);
+
+    events.emit('loading', true);
+    events.emit('error', new Error('slice 2'));
+    expect(titles()).toEqual(['Error loading Retry', 'Error loading Retry']);
+  });
+
+  it('enables En face after a failed volume finishes a successful retry', () => {
+    const events = seatLoading();
     events.emit('error', new Error('decode failed'));
     expect(getEnFaceUnavailableReason('retry')).toBe(
       'The volume failed to load completely.'

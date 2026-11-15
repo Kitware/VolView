@@ -1,10 +1,10 @@
 import type { Image, runPipeline, TypedArray } from 'itk-wasm';
-import type { Instance } from '../instance/readInstance';
-import { assertUniformModalityRescale } from '../metadata/modalityRescale';
+import { hasUniformModalityRescale } from '../metadata/modalityRescale';
 import { linkedController, untilAborted } from '../utils';
 import {
   wholeInstanceDecoder,
   type DecodedPixels,
+  type PixelDecoder,
 } from '../pixels/pixelDecoder';
 
 export type DicomAssets = { pipelineWorkerUrl: string; imageIOUrl: string };
@@ -154,7 +154,6 @@ export function createGdcmDecoder(
 
   const decodeOn = async (
     index: number,
-    instance: Instance,
     bytes: Uint8Array,
     signal: AbortSignal
   ) => {
@@ -162,7 +161,6 @@ export function createGdcmDecoder(
     const lane = lanes[index];
     if (!lane)
       throw new Error('GDCM decoding needs createDicomRuntime({ assets })');
-    assertUniformModalityRescale(instance.dataset);
     // GDCM cannot be interrupted, so an abort terminates the worker.
     const stop = () => lane.reset(signal.reason);
     signal.addEventListener('abort', stop, { once: true });
@@ -173,26 +171,32 @@ export function createGdcmDecoder(
     }
   };
 
-  const decoder = wholeInstanceDecoder(
-    'GDCM',
-    async ({ instance, bytes }, signal) => {
-      const { controller, release } = linkedController(signal, lifetime.signal);
-      const linked = controller.signal;
-      const pooled = async () => {
-        const index = await slots.acquire(linked);
-        try {
-          return await decodeOn(index, instance, bytes, linked);
-        } finally {
-          slots.release(index);
-        }
-      };
+  const whole = wholeInstanceDecoder('GDCM', async ({ bytes }, signal) => {
+    const { controller, release } = linkedController(signal, lifetime.signal);
+    const linked = controller.signal;
+    const pooled = async () => {
+      const index = await slots.acquire(linked);
       try {
-        return await untilAborted(pooled(), linked);
+        return await decodeOn(index, bytes, linked);
       } finally {
-        release();
+        slots.release(index);
       }
+    };
+    try {
+      return await untilAborted(pooled(), linked);
+    } finally {
+      release();
     }
-  );
+  });
+
+  // GDCM applies one transform to an instance, so its frames must agree.
+  const decoder: PixelDecoder = {
+    ...whole,
+    plan: (instance, target) =>
+      hasUniformModalityRescale(instance.dataset)
+        ? whole.plan(instance, target)
+        : { declined: 'Frames with differing modality rescale' },
+  };
 
   const dispose = (reason: unknown) => {
     lifetime.abort(reason);

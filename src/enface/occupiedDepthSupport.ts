@@ -1,4 +1,4 @@
-import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
+import { enFaceTags } from '@/src/core/streaming/dicom/octMetadata';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
@@ -9,7 +9,7 @@ import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 
 function measurementMetadata(instance: Instance) {
-  const tags = new Map(dicomMetadataForDisplay(instance.dataset));
+  const tags = new Map(enFaceTags(instance.dataset));
   const regions = instance.ultrasoundRegions;
   if (
     tags.get(Tags.Modality)?.trim() !== 'US' ||

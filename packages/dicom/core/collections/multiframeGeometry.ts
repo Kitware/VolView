@@ -4,7 +4,15 @@ import { reconstructVolume, type Reconstruction } from './reconstructVolume';
 import { dot, orientationsAgree } from './orientation';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { trimDicomPadding } from '../utils';
-import { perFrameGroups, sequenceItems } from '../metadata/functionalGroups';
+import {
+  perFrameGroups,
+  sequenceItems,
+  SHARED_GROUPS,
+} from '../metadata/functionalGroups';
+
+const FRAME_CONTENT = '00209111';
+const STACK_ID = '00209056';
+const TEMPORAL_POSITION_INDEX = '00209128';
 
 function storageDirection(frames: ReturnType<typeof readGeometryFacts>[]) {
   const first = frames[0];
@@ -18,11 +26,11 @@ function storageDirection(frames: ReturnType<typeof readGeometryFacts>[]) {
 }
 
 const singleSpatialStack = (groups: DicomDataset[]) =>
-  ['00209056', '00209128'].every((tag) => {
+  [STACK_ID, TEMPORAL_POSITION_INDEX].every((tag) => {
     const values = groups
       .map((group) =>
         trimDicomPadding(
-          getDatasetTag(sequenceItems(group, '00209111')[0], tag) ?? ''
+          getDatasetTag(sequenceItems(group, FRAME_CONTENT)[0], tag) ?? ''
         )
       )
       .filter(Boolean);
@@ -37,7 +45,7 @@ const singleSpatialStack = (groups: DicomDataset[]) =>
  */
 export function multiframeGeometry(metadata: DicomDataset, count: number) {
   const groups = perFrameGroups(metadata);
-  const shared = sequenceItems(metadata, '52009229');
+  const shared = sequenceItems(metadata, SHARED_GROUPS);
   if (count < 2 || (shared.length === 0 && groups.length === 0)) return null;
   const frames = Array.from({ length: count }, (_, index) =>
     readGeometryFacts(metadata, index)
@@ -61,12 +69,6 @@ export function multiframeGeometry(metadata: DicomDataset, count: number) {
         kind: 'irregular',
         reason: 'unreadable-geometry',
         sliceSpacing: reconstruction.sliceSpacing,
-        slots: [0],
       };
-  return {
-    ...first,
-    direction,
-    sliceSpacingSource: 'ImagePositionPatient',
-    reconstruction: { ...validated, slots: [0] },
-  };
+  return { ...first, direction, reconstruction: validated };
 }

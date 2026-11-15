@@ -136,10 +136,6 @@ describe('readCineHeader', () => {
       rows: 4,
       cols: 3,
       pixelSpacing: [1.8, 0.45],
-      patientName: 'DOE^JANE',
-      patientId: 'P-77',
-      seriesNumber: 12,
-      studyDate: '20250304',
       extraElements: [
         rawElement(
           0x0018,
@@ -160,31 +156,10 @@ describe('readCineHeader', () => {
       cols: 3,
       numberOfFrames: 5,
       samplesPerPixel: 1,
-      bitsAllocated: 8,
       planarConfiguration: 0,
       photometricInterpretation: 'MONOCHROME2',
       pixelSpacing: [1.8, 0.45],
       frameTimeMs: null,
-      patient: {
-        PatientID: 'P-77',
-        PatientName: 'DOE^JANE',
-        PatientBirthDate: '19700101',
-        PatientSex: 'O',
-      },
-      study: {
-        StudyID: '1',
-        StudyInstanceUID: '1.2.3',
-        StudyDate: '20250304',
-        StudyTime: '',
-        AccessionNumber: '',
-        StudyDescription: '',
-      },
-      series: {
-        SeriesInstanceUID: '1.2.3.4',
-        SeriesNumber: '12',
-        SeriesDescription: 'Synthetic cine',
-        Modality: 'US',
-      },
       regions: [
         {
           physicalDeltaX: 0.5,

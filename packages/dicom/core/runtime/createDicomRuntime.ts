@@ -63,32 +63,27 @@ export function createDicomRuntime(
     createGdcmLane
   );
 
-  const withLifetime = async <T>(
-    signal: AbortSignal,
-    run: (linked: AbortSignal) => Promise<T>
-  ) => {
+  const read = async (source: ByteSource, signal: AbortSignal) => {
     const { controller, release } = linkedController(signal, lifetime.signal);
     try {
-      return await untilAborted(run(controller.signal), controller.signal);
+      return await untilAborted(
+        readInstance(source, controller.signal, {
+          readDataset: metadata.read,
+          imageImportPolicy: options.imageImportPolicy,
+        }),
+        controller.signal
+      );
     } finally {
       release();
     }
   };
 
-  const read = (source: ByteSource, signal: AbortSignal) =>
-    withLifetime(signal, (linked) =>
-      readInstance(source, linked, {
-        readDataset: metadata.read,
-        imageImportPolicy: options.imageImportPolicy,
-      })
-    );
-
   const dispose = () => {
     if (lifetime.signal.aborted) return;
     const reason = abortError('DICOM runtime disposed');
     lifetime.abort(reason);
-    requests.dispose();
-    metadata.dispose();
+    requests.dispose(reason);
+    metadata.dispose(reason);
     gdcm.dispose(reason);
   };
 

@@ -19,12 +19,8 @@ import type { Fetcher } from '@/src/core/streaming/types';
 export const dicomFile = (bytes: Uint8Array, name = 'slice.dcm') =>
   new File([bytes as BlobPart], name, { type: FILE_EXT_TO_MIME.dcm });
 
-/**
- * A byte source that hands out its bytes a chunk at a time as the reader pulls
- * them, so what a loader left undelivered says where it stopped.
- */
-export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
-  let delivered = 0;
+/** A fetcher over bytes held in memory. */
+export const bytesFetcher = (bytes: Uint8Array) => {
   let abortController: AbortController | null = null;
 
   const fetcher: Fetcher = {
@@ -32,17 +28,15 @@ export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
       abortController ??= new AbortController();
     },
     getStream: () => {
-      let offset = 0;
+      let done = false;
       return new ReadableStream<Uint8Array>({
         pull: (controller) => {
-          if (offset >= bytes.length) {
+          if (done) {
             controller.close();
             return;
           }
-          const chunk = bytes.slice(offset, offset + chunkSize);
-          offset += chunk.length;
-          delivered += chunk.length;
-          controller.enqueue(chunk);
+          done = true;
+          controller.enqueue(bytes);
         },
       });
     },
@@ -54,13 +48,7 @@ export const bytesFetcher = (bytes: Uint8Array, chunkSize = bytes.length) => {
     get connected() {
       return !!abortController;
     },
-    get size() {
-      return delivered;
-    },
     contentType: FILE_EXT_TO_MIME.dcm,
-    get abortSignal() {
-      return abortController?.signal;
-    },
   };
   return fetcher;
 };

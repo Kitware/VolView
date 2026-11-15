@@ -1,8 +1,11 @@
 import dcmjs, { DicomElement, DicomReadStream } from 'dcmjs';
 import {
+  DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN,
+  EXPLICIT_VR_BIG_ENDIAN,
   EXPLICIT_VR_LITTLE_ENDIAN,
   IMPLICIT_VR_LITTLE_ENDIAN,
   PART_10_HEADER_LENGTH,
+  UNDEFINED_LENGTH,
   sniffDicomLayout,
 } from './dicomLayout';
 
@@ -18,10 +21,7 @@ const FILE_META_GROUP = 0x0002;
 const FILE_META_GROUP_LENGTH = '00020000';
 const TRANSFER_SYNTAX_UID = '00020010';
 const PIXEL_DATA = '7FE00010';
-const EXPLICIT_VR_BIG_ENDIAN = '1.2.840.10008.1.2.2';
-const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1.99';
 const RESERVED_LENGTH = 2;
-const UNDEFINED_LENGTH = 0xffffffff;
 
 /** VRs whose explicit form carries two reserved bytes and a 32 bit length. */
 const LENGTH_32_VRS = new Set([

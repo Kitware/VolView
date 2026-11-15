@@ -1,4 +1,4 @@
-import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
+import { enFaceTags } from '@/src/core/streaming/dicom/octMetadata';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
@@ -53,7 +53,7 @@ function acquisitionReason(image: ProgressiveImage) {
   for (const { dataset: metadata } of image.getInstances()) {
     let reason = metadataReasons.get(metadata);
     if (reason === undefined) {
-      reason = acquisitionMetadataReason(dicomMetadataForDisplay(metadata));
+      reason = acquisitionMetadataReason(enFaceTags(metadata));
       metadataReasons.set(metadata, reason);
     }
     if (reason !== null) return reason;

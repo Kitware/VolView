@@ -30,19 +30,3 @@ export async function extractFilesFromZip(zipFile: File): Promise<FileEntry[]> {
     });
   });
 }
-
-export async function extractFileFromZip(
-  zipFile: File,
-  filePath: string
-): Promise<File> {
-  const zip = await JSZip.loadAsync(zipFile);
-  const zippedFile =
-    zip.file(filePath) ?? zip.file(filePath.replace(/^\/+/, ''));
-
-  if (!zippedFile)
-    throw new Error(`File ${filePath} does not exist in the zip file`);
-  if (zippedFile.dir) throw new Error(`Given file path is a directory`);
-
-  const blob = await zippedFile.async('blob');
-  return new File([blob], basename(zippedFile.name));
-}

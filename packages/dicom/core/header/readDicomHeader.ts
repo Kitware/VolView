@@ -1,6 +1,8 @@
-import { createDicomParser, ExplicitVRBigEndianUID } from './dicomParser';
+import { createDicomParser } from './dicomParser';
 import {
+  EXPLICIT_VR_BIG_ENDIAN,
   IMPLICIT_VR_LITTLE_ENDIAN,
+  UNDEFINED_LENGTH,
   type DicomLayout,
 } from '../metadata/dicomLayout';
 import { concatBytes, toAscii } from '../utils';
@@ -21,7 +23,6 @@ const MODALITY = [0x0008, 0x0060] as const;
 const PIXEL_DATA = [0x7fe0, 0x0010] as const;
 /** Tag, VR, reserved bytes and a 32 bit length: the longest element head. */
 const PIXEL_DATA_HEAD_LENGTH = 12;
-const UNDEFINED_LENGTH = 0xffffffff;
 const LONG_FORM_VRS = new Set(['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'UN']);
 
 const isTag = (
@@ -41,6 +42,7 @@ function headerParser(policy: ImageImportPolicy) {
   const found = {
     modality: undefined as string | undefined,
     layout: null as DicomLayout | null,
+    transferSyntaxUid: null as string | null,
     atPixelData: false,
   };
   const parse = createDicomParser({
@@ -53,6 +55,9 @@ function headerParser(policy: ImageImportPolicy) {
     },
     onLayout: (layout) => {
       found.layout = layout;
+    },
+    onTransferSyntax: (transferSyntaxUid) => {
+      found.transferSyntaxUid = transferSyntaxUid;
     },
     onDataElement: (el) => {
       if (
@@ -78,11 +83,11 @@ async function readUntilStop(
 ) {
   const received: Uint8Array[] = [];
   let total = 0;
-  let stop: { position: number; transferSyntaxUid: string } | null = null;
+  let stop: { position: number } | null = null;
   const result = () => ({
     received,
+    total,
     end: stop && stop.position >= 0 ? stop.position : undefined,
-    transferSyntaxUid: stop?.transferSyntaxUid ?? null,
   });
   const reader = stream.getReader();
   try {
@@ -110,7 +115,7 @@ function pixelDataElement(
 ): PixelDataElement | null {
   if (head.length < 8) return null;
   const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
-  const littleEndian = transferSyntaxUid !== ExplicitVRBigEndianUID;
+  const littleEndian = transferSyntaxUid !== EXPLICIT_VR_BIG_ENDIAN;
   const element = (length: number, headLength: number) => ({
     offset,
     valueOffset: offset + headLength,
@@ -137,18 +142,18 @@ export async function readDicomHeader(
   policy: ImageImportPolicy = 'complete-header'
 ) {
   const { parse, found } = headerParser(policy);
-  const { received, end, transferSyntaxUid } = await readUntilStop(
-    stream,
-    parse,
-    () => (found.atPixelData ? PIXEL_DATA_HEAD_LENGTH : 0)
+  const { received, total, end } = await readUntilStop(stream, parse, () =>
+    found.atPixelData ? PIXEL_DATA_HEAD_LENGTH : 0
   );
-  const header = concatBytes(received, end);
+  const { transferSyntaxUid } = found;
+  const bytes = concatBytes(
+    received,
+    Math.min(total, (end ?? total) + PIXEL_DATA_HEAD_LENGTH)
+  );
   const head =
-    found.atPixelData && end !== undefined
-      ? concatBytes(received).subarray(end, end + PIXEL_DATA_HEAD_LENGTH)
-      : null;
+    found.atPixelData && end !== undefined ? bytes.subarray(end) : null;
   return {
-    header,
+    header: bytes.subarray(0, end),
     layout: found.layout,
     transferSyntaxUid,
     pixelData:

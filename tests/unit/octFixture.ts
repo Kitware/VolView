@@ -6,7 +6,6 @@ import {
   readInstance,
   type Instance,
 } from '@/packages/dicom/core/instance/readInstance';
-import type { InstanceCollectionUpdate } from '@/packages/dicom/core/collections/instanceRegistry';
 import type { WholeInstanceDecode } from '@/packages/dicom/core/pixels/pixelDecoder';
 import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
@@ -22,17 +21,24 @@ export const readFixtureInstance = (file: Blob) =>
   readInstance(fromBlob(file), new AbortController().signal);
 
 /**
- * Allocates these instances in the given order as one volume. Fixtures keep
- * deliberate groups, so geometry is judged by allocation, not by the planner.
+ * Allocates these instances as one volume. A group the planner would split
+ * sits on no lattice, so it is allocated in the given order as an irregular
+ * stack.
  */
 export function volumeOf(instances: Instance[]) {
-  // The first member planned alone gives the validated orientation.
-  const { orientation } = plannedUpdate([instances[0]]).collection;
+  const update = plannedUpdate(instances);
+  if (update.members.length === instances.length) return allocateVolume(update);
   return allocateVolume({
     kind: 'image',
-    id: 'fixture',
     members: instances,
-    collection: { orientation } as InstanceCollectionUpdate['collection'],
+    collection: {
+      ...plannedUpdate([instances[0]]).collection,
+      reconstruction: {
+        kind: 'irregular',
+        reason: 'unreadable-geometry',
+        sliceSpacing: null,
+      },
+    },
   });
 }
 

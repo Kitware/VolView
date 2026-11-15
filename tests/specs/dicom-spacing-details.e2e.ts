@@ -8,22 +8,18 @@ import {
   type SyntheticSliceOptions,
 } from './syntheticDicom';
 import { enhancedFixtureBytes } from '../fixtures/dicom-pages/enhancedFixtures';
-import { dropFiles, SESSION_SAVE_TIMEOUT, waitForFileExists } from './utils';
+import {
+  dropFiles,
+  openSpacingDetails,
+  SESSION_SAVE_TIMEOUT,
+  waitForFileExists,
+} from './utils';
 
 const dialog = () => $('[data-testid="image-spacing-details"]');
 const axis = (name: string) =>
   dialog().$(`[data-testid="spacing-axis-${name}"]`);
+const step = (name: string) => axis(name).$('td:nth-child(2)');
 const closeDetails = () => $('[data-testid="spacing-details-close"]').click();
-
-async function openDetails() {
-  await $('.volume-card [data-testid="dataset-menu-button"]').click();
-  const item = $('[data-testid="dataset-menu-spacing-item"]');
-  await item.waitForDisplayed();
-  await item.waitForStable();
-  await item.waitForClickable();
-  await item.click();
-  await dialog().waitForDisplayed();
-}
 
 function slice(options: Partial<SyntheticSliceOptions> = {}) {
   return buildSyntheticDicom({
@@ -45,14 +41,14 @@ async function openFile(name: string, bytes: Uint8Array, slices = 1) {
   writeFileSync(join(TEMP_DIR, name), bytes);
   await volViewPage.open(`?urls=[tmp/${name}]`);
   await volViewPage.waitForVolumeCardSliceCounts([slices]);
-  await openDetails();
+  await openSpacingDetails();
 }
 
 describe('DICOM physical spacing details', () => {
   it('identifies unknown physical units in a public secondary capture', async () => {
     await volViewPage.open('?urls=[tmp/dicom-corpus-image_dfl.dcm]');
     await volViewPage.waitForVolumeCardSliceCounts([1]);
-    await openDetails();
+    await openSpacingDetails();
     await expect(axis('X')).toHaveText(
       expect.stringContaining('physical unit unknown')
     );
@@ -91,8 +87,8 @@ describe('DICOM physical spacing details', () => {
 
     await dropFiles([join(TEMP_DIR, secondName)]);
     await volViewPage.waitForVolumeCardSliceCounts([2]);
-    await openDetails();
-    await expect(axis('Z')).toHaveText(expect.stringContaining('2 mm'));
+    await openSpacingDetails();
+    await expect(step('Z')).toHaveText('2 mm');
     await expect(axis('Z')).toHaveText(
       expect.stringContaining('Derived: ImagePositionPatient')
     );
@@ -102,12 +98,11 @@ describe('DICOM physical spacing details', () => {
     await waitForFileExists(join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
     await volViewPage.open(`?urls=[tmp/${saved}]`);
     await volViewPage.waitForVolumeCardSliceCounts([2]);
-    await openDetails();
+    await openSpacingDetails();
     await expect(axis('X')).toHaveText(expect.stringContaining('0.25 mm'));
     await expect(axis('Z')).toHaveText(
       expect.stringContaining('Derived: ImagePositionPatient')
     );
-    await browser.saveScreenshot(join(TEMP_DIR, 'dicom-spacing-details.png'));
   });
 
   it('preserves the valid axis when the other PixelSpacing value is unusable', async () => {
@@ -130,7 +125,7 @@ describe('DICOM physical spacing details', () => {
       slice({ framePixelValues: [40, 80], spacingBetweenSlices: 1.5 }),
       2
     );
-    await expect(axis('Z')).toHaveText(expect.stringContaining('1.5 mm'));
+    await expect(step('Z')).toHaveText('1.5 mm');
     await expect(axis('Z')).toHaveText(
       expect.stringContaining('Declared: SpacingBetweenSlices')
     );
@@ -145,8 +140,8 @@ describe('DICOM physical spacing details', () => {
         ultrasoundRegion: { physicalDeltaX: 0.05, physicalDeltaY: 0.03 },
       })
     );
-    await expect(axis('X')).toHaveText(expect.stringContaining('0.5 mm'));
-    await expect(axis('Y')).toHaveText(expect.stringContaining('0.3 mm'));
+    await expect(step('X')).toHaveText('0.5 mm');
+    await expect(step('Y')).toHaveText('0.3 mm');
     await expect(dialog()).toHaveText(
       expect.stringContaining('cm converted to mm')
     );

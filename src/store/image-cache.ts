@@ -58,12 +58,14 @@ export const useImageCacheStore = defineStore('image-cache', () => {
       if (loading && !imageLoading[id]) delete imageErrors[id];
       imageLoading[id] = loading;
     };
+    // One notice per load: a failed series reports every slice it lost.
     const onError = (error: Error) => {
       imageErrors[id] ??= [];
       imageErrors[id].push(error);
-
-      const messageStore = useMessageStore();
-      messageStore.addError('Error loading DICOM data', { error });
+      if (imageErrors[id].length === 1)
+        useMessageStore().addError(`Error loading ${data.getName()}`, {
+          error,
+        });
     };
 
     imageListenerCleanup[id] = () => {

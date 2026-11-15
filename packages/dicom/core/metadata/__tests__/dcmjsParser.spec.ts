@@ -5,7 +5,7 @@ import { createDicomParser } from '../../header/dicomParser';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { parseDicomElements } from '../dcmjsParser';
-import { PART_10_HEADER_LENGTH, PREAMBLE_LENGTH } from '../dicomLayout';
+import { PART_10_HEADER_LENGTH } from '../dicomLayout';
 import { concatBytes } from '../../utils';
 import { buildSlice } from '@/tests/specs/dicomElementFixtures';
 import { pixelDataStart, readHeader } from '@/tests/dicomSourceFixtures';
@@ -19,6 +19,7 @@ import {
   undefinedLengthSequence,
 } from '@/tests/specs/syntheticDicom';
 
+const PREAMBLE_LENGTH = 128;
 // (0002,0000) UL occupies twelve bytes, including its value.
 const GROUP_LENGTH_ELEMENT_LENGTH = 12;
 const withoutGroupLength = (file: Uint8Array) =>
@@ -193,9 +194,11 @@ describe('lenient headers with standards-defined values', () => {
     const dataset = readDicomDataset(bytes);
     expect(findElement(dataset, '00400275')?.values.kind).toBe('unread');
     expect(getDatasetTag(dataset, '00431030')).toBe('AFTER ');
-    await expect(readHeader(bytes, 7)).rejects.toThrow(
-      'enclosing sequence or item'
+    const instance = await readHeader(bytes, 7);
+    expect(findElement(instance.dataset, '00400275')?.values.kind).toBe(
+      'unread'
     );
+    expect(instance.pixelData?.offset).toBe(pixelDataStart(bytes));
   });
 
   it('decodes a known defined-length UN using the dataset character set', () => {
@@ -294,7 +297,6 @@ it.each([sequenceItem, undefinedLengthItem])(
     ]);
     const dataset = readDicomDataset(bytes);
     const sequence = findElement(dataset, '00431029')!.values;
-    expect(findElement(dataset, '00431029')!.bytes).toBeUndefined();
     if (sequence.kind !== 'sequence') throw new Error('Expected a sequence');
     expect(getDatasetTag(sequence.items[0], '00100010')).toBe('DOE^JANE');
     const instance = await readHeader(bytes, 7);

@@ -1,28 +1,24 @@
-import type {
-  CollectionKey,
-  DicomCollection,
-  DicomCollectionPlan,
-} from './planDicomCollections';
+import type { CollectionKey, DicomCollection } from './planDicomCollections';
 
 export type CommittedCollection = {
   id: string;
   sopInstanceUids: string[];
 };
 
-// encodeURIComponent escapes every separator the key values can carry, so the
-// join characters below cannot appear inside an encoded component.
-const escape = (value: string) => encodeURIComponent(value);
-
 // A present value is prefixed, so it can never collide with the missing marker.
 const encodeValue = (value: string | null) =>
-  value === null ? '~' : `.${escape(value)}`;
+  value === null ? '~' : `.${encodeURIComponent(value)}`;
 
-/** Escaped encoding of a structured key, safe to use as a store ID. */
+/**
+ * Encoding of a structured key, safe to use as a store ID. encodeURIComponent
+ * escapes every separator a value can carry, so the join characters cannot
+ * appear inside a component.
+ */
 export function encodeCollectionKey(key: CollectionKey) {
   return [
-    escape(key.seriesKey),
+    encodeURIComponent(key.seriesKey),
     ...key.parts.map(
-      ([rule, value]) => `${escape(rule)}=${encodeValue(value)}`
+      ([rule, value]) => `${encodeURIComponent(rule)}=${encodeValue(value)}`
     ),
   ].join('|');
 }
@@ -52,10 +48,10 @@ const mint = (key: CollectionKey, taken: Set<string>) => {
  * members; mints a fresh ID from the key otherwise.
  */
 export function assignIds(
-  plan: DicomCollectionPlan,
+  planned: DicomCollection[],
   committedIds: CommittedCollection[]
 ) {
-  const plannedUids = plan.collections.map(uidsOf);
+  const plannedUids = planned.map(uidsOf);
   const committedUids = committedIds.map(
     (committed) => new Set(committed.sopInstanceUids)
   );
@@ -63,8 +59,8 @@ export function assignIds(
   // A committed ID moves only where its members are not split more evenly
   // elsewhere: the plurality holder must be strictly ahead of every rival.
   const claimable = committedIds.map((committed, committedIndex) => {
-    const overlaps = plannedUids.map((planned) =>
-      overlapSize(planned, committedUids[committedIndex])
+    const overlaps = plannedUids.map((uids) =>
+      overlapSize(uids, committedUids[committedIndex])
     );
     const best = Math.max(0, ...overlaps);
     const holders = overlaps.filter((size) => size === best).length;
@@ -87,12 +83,10 @@ export function assignIds(
 
   const taken = new Set(committedIds.map((committed) => committed.id));
 
-  const collections = plan.collections.map((collection, index) => {
+  return planned.map((collection, index) => {
     const claim = claimFor(index);
     const id = claim ? claim.committed.id : mint(collection.key, taken);
     taken.add(id);
     return { ...collection, id };
   });
-
-  return { collections };
 }

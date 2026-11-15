@@ -59,19 +59,6 @@ export function assertSamplesRepresentable(
   }
 }
 
-export function assertSingleFramePerFile(
-  frames: number,
-  count: number,
-  where: string
-) {
-  if (frames > 1 && count > 1) {
-    throw new Error(
-      `Loading a single volume from multiple DICOM files where individual files contain multiple frames is not supported. ` +
-        `${where} contains ${frames} frames.`
-    );
-  }
-}
-
 // One frame per file in a multi-file volume, or any run of a lone instance's
 // frames. A decoded unit has to fill its slices exactly.
 export function assertUnitFits(

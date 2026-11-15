@@ -10,19 +10,16 @@
 // Synthetic DICOMs are generated on the fly so the test carries no binary
 // fixtures.
 import * as path from 'path';
-import * as fs from 'fs';
 import { volViewPage } from '../pageobjects/volview.page';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import {
   SESSION_SAVE_TIMEOUT,
   dropFiles,
   waitForFileExists,
+  writeAcquisitions,
   writeManifestToFile,
 } from './utils';
-import { buildSyntheticDicom, newUid } from './syntheticDicom';
-
-const SLICE_SPACING = 2.5;
-const ORIENTATION = [1, 0, 0, 0, 1, 0] as const;
+import { newUid } from './syntheticDicom';
 
 // Offset by half a slice, so the two passes overlap and the planner separates
 // them. Slice counts differ so each volume card is identifiable by its label.
@@ -31,36 +28,6 @@ const SECOND_PASS = { number: 2, firstSliceZ: 1.25, sliceCount: 6 };
 
 const DIR_NAME = 'session-overlapping-imports';
 const MANIFEST_NAME = 'session-overlapping-imports.json';
-
-const seriesUid = newUid();
-const studyUid = newUid();
-
-const dir = () => path.join(TEMP_DIR, DIR_NAME);
-
-type Pass = typeof FIRST_PASS;
-
-function writePass({ number, firstSliceZ, sliceCount }: Pass) {
-  fs.mkdirSync(dir(), { recursive: true });
-
-  return Array.from({ length: sliceCount }, (_, i) => {
-    const filename = `acq${number}-slice${i}.dcm`;
-    fs.writeFileSync(
-      path.join(dir(), filename),
-      buildSyntheticDicom({
-        studyUid,
-        seriesUid,
-        sopUid: newUid(),
-        // Unique across both passes, so no instance looks like a re-send.
-        instanceNumber: number * 100 + i,
-        acquisitionNumber: number,
-        imageOrientationPatient: ORIENTATION,
-        imagePositionPatient: [0, 0, firstSliceZ + i * SLICE_SPACING],
-        sliceThickness: SLICE_SPACING,
-      })
-    );
-    return { url: `tmp/${DIR_NAME}/${filename}`, name: filename };
-  });
-}
 
 const saveSession = async () => {
   const fileName = await volViewPage.saveSession();
@@ -77,8 +44,11 @@ describe('Session saved after an incremental import of one series', () => {
   let secondPassFiles: string[];
 
   before(async () => {
-    const resources = writePass(FIRST_PASS);
-    secondPassFiles = writePass(SECOND_PASS).map(({ name }) => name);
+    const uids = { studyUid: newUid(), seriesUid: newUid() };
+    const resources = writeAcquisitions(DIR_NAME, uids, [FIRST_PASS]);
+    secondPassFiles = writeAcquisitions(DIR_NAME, uids, [SECOND_PASS]).map(
+      ({ name }) => path.join(TEMP_DIR, DIR_NAME, name)
+    );
     await writeManifestToFile({ resources }, MANIFEST_NAME);
   });
 
@@ -88,18 +58,16 @@ describe('Session saved after an incremental import of one series', () => {
     await volViewPage.waitForVolumeCardSliceCounts([FIRST_PASS.sliceCount]);
 
     // The regroup this triggers replaces the volume the first import earned.
-    await dropFiles(secondPassFiles.map((name) => path.join(dir(), name)));
-    const bothPasses = [FIRST_PASS.sliceCount, SECOND_PASS.sliceCount].sort(
-      (a, b) => a - b
-    );
+    await dropFiles(secondPassFiles);
+    const bothPasses = [FIRST_PASS.sliceCount, SECOND_PASS.sliceCount];
     await volViewPage.waitForVolumeCardSliceCounts(bothPasses);
 
     const withBoth = await saveSession();
     await openSavedSession(withBoth);
     await volViewPage.waitForVolumeCardSliceCounts(bothPasses);
 
-    await volViewPage.deleteVolumeCard(0);
-    const survivor = bothPasses.slice(1);
+    await volViewPage.deleteVolumeCard(FIRST_PASS.sliceCount);
+    const survivor = [SECOND_PASS.sliceCount];
     await volViewPage.waitForVolumeCardSliceCounts(survivor);
 
     const withSurvivor = await saveSession();

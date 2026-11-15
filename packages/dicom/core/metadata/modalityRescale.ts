@@ -22,11 +22,3 @@ export function hasUniformModalityRescale(metadata: DicomDataset) {
     );
   });
 }
-
-/** GDCM applies one transform to an instance, so its frames must agree. */
-export function assertUniformModalityRescale(metadata: DicomDataset) {
-  if (!hasUniformModalityRescale(metadata))
-    throw new Error(
-      'Cannot load DICOM frames with differing modality rescale: the decoder applies one transform to the entire instance'
-    );
-}
