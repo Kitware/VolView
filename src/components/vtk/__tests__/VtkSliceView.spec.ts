@@ -21,7 +21,6 @@ beforeEach(() => setActivePinia(createPinia()));
 enableAutoUnmount(afterEach);
 afterEach(async () => {
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
   views.splice(0).forEach((view) => {
     view.interactor.delete();
     view.renderer.delete();
@@ -38,12 +37,19 @@ function create() {
   useImageCacheStore().addVTKImageData(image, 'Volume', { id: 'image' });
   const metadata = { name: 'Volume', ...metadataFromVtkImageData(image) };
   const renderer = vtkRenderer.newInstance();
+  let resizeView = () => {};
   const view = {
     renderer,
     imageRenderer: renderer,
     interactor: vtkRenderWindowInteractor.newInstance(),
     requestRender: vi.fn(),
-    renderWindowView: { getSize: () => [400, 400] },
+    renderWindowView: {
+      getSize: () => [400, 400],
+      onWindowResizeEvent: (callback: () => void) => {
+        resizeView = callback;
+        return { unsubscribe: () => undefined };
+      },
+    },
   } as unknown as View;
   views.push(view);
   vi.spyOn(vtkViews, 'useVtkView').mockReturnValue(view);
@@ -58,7 +64,14 @@ function create() {
     },
   });
   const camera = renderer.getActiveCamera();
-  return { wrapper, camera, metadata, cameras: useViewCameraStore(), viewId };
+  return {
+    wrapper,
+    camera,
+    metadata,
+    cameras: useViewCameraStore(),
+    viewId,
+    resizeView: () => resizeView(),
+  };
 }
 
 it.each([false, true])(
@@ -117,20 +130,7 @@ it.each([
 ])(
   'preserves resize-to-fit after $name wheel input only when zoom is not handled',
   async ({ modifiers, zoomOnScroll, fits }) => {
-    let resize: (() => void) | undefined;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class implements ResizeObserver {
-        constructor(callback: ResizeObserverCallback) {
-          resize = () => callback([], this);
-        }
-
-        observe = () => undefined;
-        unobserve = () => undefined;
-        disconnect = () => undefined;
-      }
-    );
-    const { wrapper, camera } = create();
+    const { wrapper, camera, resizeView } = create();
     await wrapper.setProps({ zoomOnScroll });
     const before = camera.getParallelScale();
     await wrapper.get('.view').trigger('wheel', {
@@ -140,8 +140,7 @@ it.each([
     vi.spyOn(views.at(-1)!.renderWindowView, 'getSize').mockReturnValue([
       100, 400,
     ]);
-    expect(resize).toBeDefined();
-    resize!();
+    resizeView();
     if (fits) expect(camera.getParallelScale()).not.toBe(before);
     else expect(camera.getParallelScale()).toBe(before);
   }
