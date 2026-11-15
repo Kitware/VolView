@@ -81,7 +81,7 @@ function vtkPiecewiseWidget(publicAPI, model) {
     model.histogram = histogram;
     model.dataRange = [...dataRange];
     // The color bar is cached per transfer function mtime, not per range.
-    model.colorCanvas = null;
+    model.colorCanvasMTime = 0;
     publicAPI.modified();
   };
 
