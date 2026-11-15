@@ -59,6 +59,7 @@ async function buildPage(kind, outDir) {
     build: {
       outDir,
       emptyOutDir: true,
+      chunkSizeWarningLimit: Infinity,
       rollupOptions: { input: resolve(fixture, `${kind}.html`) },
     },
     worker: { format: 'es' },
@@ -66,14 +67,14 @@ async function buildPage(kind, outDir) {
   await copyItkAssets(resolve(outDir, 'assets'));
 }
 
-function serveDicom(bytes, request, response) {
-  const match = /^bytes=(\d+)-(\d*)/.exec(request.headers.range ?? '');
+/** Serves the byte range asked for, or the whole body when `range` is absent. */
+function serveDicom(bytes, range, response) {
+  const match = /^bytes=(\d+)-(\d*)/.exec(range ?? '');
   const start = match ? Number(match[1]) : 0;
   const end = match?.[2]
     ? Math.min(bytes.length, Number(match[2]) + 1)
     : bytes.length;
   response.setHeader('Content-Type', 'application/dicom');
-  response.setHeader('Accept-Ranges', 'bytes');
   response.setHeader('Content-Length', end - start);
   if (match) {
     response.statusCode = 206;
@@ -85,10 +86,24 @@ function serveDicom(bytes, request, response) {
   response.end(bytes.subarray(start, end));
 }
 
-export async function startDicomPages(
-  bytes,
-  { kinds = ['core', 'vtk'], fixtures = {} } = {}
-) {
+export async function startDicomPages({
+  kinds = ['core', 'vtk'],
+  fixtures = {},
+} = {}) {
+  const serveFixture = (ranged) => (request, response) => {
+    const name = decodeURIComponent(request.url?.slice(1) ?? '');
+    if (!Object.hasOwn(fixtures, name)) {
+      response.statusCode = 404;
+      response.end();
+      return;
+    }
+    if (ranged) response.setHeader('Accept-Ranges', 'bytes');
+    serveDicom(
+      fixtures[name],
+      ranged ? request.headers.range : undefined,
+      response
+    );
+  };
   await mkdir(resolve(root, '.tmp'), { recursive: true });
   const directory = await mkdtemp(resolve(root, '.tmp/dicom-browser-'));
   const servers = [];
@@ -124,18 +139,9 @@ export async function startDicomPages(
                   }
                 }
               );
-              instance.middlewares.use('/fixture.dcm', (request, response) => {
-                serveDicom(bytes, request, response);
-              });
-              instance.middlewares.use('/corpus-data', (request, response) => {
-                const name = decodeURIComponent(request.url?.slice(1) ?? '');
-                if (!Object.hasOwn(fixtures, name)) {
-                  response.statusCode = 404;
-                  response.end();
-                  return;
-                }
-                serveDicom(fixtures[name], request, response);
-              });
+              instance.middlewares.use('/corpus-data', serveFixture(true));
+              // A server that ignores Range answers every read with the file.
+              instance.middlewares.use('/unranged-data', serveFixture(false));
             },
           },
         ],

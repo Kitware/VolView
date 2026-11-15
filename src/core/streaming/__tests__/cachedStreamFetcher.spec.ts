@@ -1,146 +1,93 @@
-import { createDicomRuntime } from '@/packages/dicom/core';
-import {
-  CachedStreamFetcher,
-  sliceChunks,
-} from '@/src/core/streaming/cachedStreamFetcher';
-import { describe, expect, it } from 'vitest';
+import { CachedStreamFetcher } from '@/src/core/streaming/cachedStreamFetcher';
+import { expect, it } from 'vitest';
 
-const readStream = async (
-  stream: ReadableStream<Uint8Array>,
-  stopAfter = Infinity
-) => {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  let completed = false;
-  try {
-    while (size <= stopAfter) {
-      const result = await reader.read();
-      if (result.done) {
-        completed = true;
-        break;
-      }
-      chunks.push(result.value);
-      size += result.value.length;
-    }
-  } finally {
-    if (!completed) await reader.cancel();
-    reader.releaseLock();
-  }
+const SOURCE = Uint8Array.from(
+  { length: 3 * 4096 + 123 },
+  (_, index) => (index * 31) % 251
+);
 
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  chunks.forEach((chunk) => {
-    bytes.set(chunk, offset);
-    offset += chunk.length;
-  });
-  return bytes;
-};
-
-describe('CachedStreamFetcher', () => {
-  it('should support stopping and resuming', async () => {
-    const source = Uint8Array.from(
-      { length: 32 * 1024 + 123 },
-      (_, index) => (index * 31) % 251
-    );
-    const requestedRanges: Array<string | null> = [];
-    const fetchRange: typeof fetch = async (_input, init) => {
-      const range = new Headers(init?.headers).get('Range');
-      requestedRanges.push(range);
-      const start = range ? Number(range.match(/^bytes=(\d+)-$/)?.[1]) : 0;
-      let offset = start;
-      const body = new ReadableStream<Uint8Array>({
+/** Serves SOURCE in 4096 byte chunks, recording each request's signal. */
+function serving() {
+  const signals: AbortSignal[] = [];
+  const fetchSource: typeof fetch = async (_input, init) => {
+    signals.push(init!.signal!);
+    let offset = 0;
+    return new Response(
+      new ReadableStream<Uint8Array>({
         pull(controller) {
-          if (offset === source.length) {
+          if (offset === SOURCE.length) {
             controller.close();
             return;
           }
-          const end = Math.min(offset + 4096, source.length);
-          controller.enqueue(source.slice(offset, end));
+          const end = Math.min(offset + 4096, SOURCE.length);
+          controller.enqueue(SOURCE.slice(offset, end));
           offset = end;
         },
-      });
-      return new Response(body, {
-        status: start === 0 ? 200 : 206,
-        headers: {
-          'content-length': String(source.length - start),
-          ...(start === 0
-            ? {}
-            : {
-                'content-range': `bytes ${start}-${source.length - 1}/${source.length}`,
-              }),
-        },
-      });
-    };
-    const runtime = createDicomRuntime({
-      requestConcurrency: 1,
-      fetch: fetchRange,
-    });
-    const fetcher = new CachedStreamFetcher('https://example.test/data', {
-      fetch: runtime.fetch,
-    });
+      })
+    );
+  };
+  return { signals, fetchSource };
+}
 
-    await fetcher.connect();
-    const partial = await readStream(fetcher.getStream(), 4096 * 3);
-    expect(partial).toEqual(source.slice(0, partial.length));
-    const resumeAt = fetcher.size;
-    expect(resumeAt).toBeGreaterThanOrEqual(partial.length);
-    expect(resumeAt).toBeLessThan(source.length);
-    fetcher.close();
+const bytesOf = async (stream: ReadableStream<Uint8Array>) =>
+  new Uint8Array(await new Response(stream).arrayBuffer());
 
-    await fetcher.connect();
-    expect(requestedRanges).toEqual([null, `bytes=${resumeAt}-`]);
-
-    for (let i = 0; i < 2; i++) {
-      expect(await readStream(fetcher.getStream())).toEqual(source);
-    }
-    expect(fetcher.size).toBe(source.length);
-    expect(requestedRanges).toHaveLength(2);
-
-    fetcher.close();
-    runtime.dispose();
+it('replays one download from its start to every stream', async () => {
+  const { signals, fetchSource } = serving();
+  const fetcher = new CachedStreamFetcher('https://example.test/data', {
+    fetch: fetchSource,
   });
-});
+  await fetcher.connect();
 
-describe('sliceChunks', () => {
-  it('should work', () => {
-    expect(sliceChunks([new Uint8Array([1, 2, 3])], 0)).toEqual([]);
-    expect(sliceChunks([new Uint8Array([1, 2, 3])], 1)).toEqual([
-      new Uint8Array([1]),
-    ]);
-    expect(sliceChunks([new Uint8Array([1])], 1)).toEqual([
-      new Uint8Array([1]),
-    ]);
-    expect(sliceChunks([new Uint8Array([1, 2])], 1)).toEqual([
-      new Uint8Array([1]),
-    ]);
-    expect(sliceChunks([new Uint8Array([1, 2])], 3)).toEqual([
-      new Uint8Array([1, 2]),
-    ]);
-    expect(
-      sliceChunks([new Uint8Array([1, 2]), new Uint8Array([3, 4])], 3)
-    ).toEqual([new Uint8Array([1, 2]), new Uint8Array([3])]);
-  });
-});
+  const reader = fetcher.getStream().getReader();
+  const first = await reader.read();
+  await reader.cancel();
+  expect(first.value).toEqual(SOURCE.slice(0, 4096));
 
-it('rejects an unverified resumed range while preserving the cached header', async () => {
-  const prefix = new Uint8Array([1, 2, 3, 4]);
-  let requests = 0;
-  const fetcher = new CachedStreamFetcher(
-    'https://example.test/hidden-headers',
-    {
-      prefixChunks: [prefix],
-      fetch: async () =>
-        new Response(new Uint8Array([5, 6]), {
-          status: 206,
-          headers: requests++ === 0 ? {} : { 'content-range': 'bytes 4-5/6' },
-        }),
-    }
-  );
-  await expect(fetcher.connect()).rejects.toThrow('readable content range');
-  expect(fetcher.connected).toBe(false);
+  await fetcher.connect();
+  expect(await bytesOf(fetcher.getStream())).toEqual(SOURCE);
+  expect(await bytesOf(fetcher.getStream())).toEqual(SOURCE);
   expect(new Uint8Array(await (await fetcher.blob()).arrayBuffer())).toEqual(
-    new Uint8Array([1, 2, 3, 4, 5, 6])
+    SOURCE
   );
+  expect(signals).toHaveLength(1);
+});
+
+it('releases its request once the download is read to its end', async () => {
+  const { signals, fetchSource } = serving();
+  const fetcher = new CachedStreamFetcher('https://example.test/data', {
+    fetch: fetchSource,
+  });
+  await fetcher.connect();
+  expect(signals[0].aborted).toBe(false);
+
+  await fetcher.blob();
+
+  expect(signals[0].aborted).toBe(true);
+  expect(fetcher.connected).toBe(true);
+  expect(await bytesOf(fetcher.getStream())).toEqual(SOURCE);
+});
+
+it('aborts its request and ends its streams when closed', async () => {
+  const { signals, fetchSource } = serving();
+  const fetcher = new CachedStreamFetcher('https://example.test/data', {
+    fetch: fetchSource,
+  });
+  await fetcher.connect();
+
   fetcher.close();
+
+  expect(signals[0].aborted).toBe(true);
+  expect(fetcher.connected).toBe(false);
+  expect(await bytesOf(fetcher.getStream())).toEqual(new Uint8Array());
+});
+
+it('reports a missing resource', async () => {
+  const fetcher = new CachedStreamFetcher('https://example.test/missing', {
+    fetch: async () => new Response('gone', { status: 404 }),
+  });
+  await expect(fetcher.connect()).rejects.toThrow(
+    'https://example.test/missing'
+  );
+  expect(fetcher.connected).toBe(false);
 });

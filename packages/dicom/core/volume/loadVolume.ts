@@ -1,15 +1,10 @@
 import type { DicomRuntime } from '../runtime/createDicomRuntime';
-import type { Instance } from '../instance/readInstance';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
-import { abortError, linkedController, numberOr } from '../utils';
+import { abortError, linkedController } from '../utils';
 import { readBytes } from '../source/byteSource';
 import { planDecode, type DecoderTable } from '../pixels/decoderTable';
-import {
-  frameCount,
-  type DecodedPixels,
-  type DecodeUnit,
-} from '../pixels/pixelDecoder';
+import type { DecodedPixels, DecodeUnit } from '../pixels/pixelDecoder';
 import { getPixelFormat, type VolumeBufferConstructor } from './pixelFormat';
 import {
   componentRanges,
@@ -18,12 +13,7 @@ import {
   sliceLength,
   type Volume,
 } from './allocateVolume';
-import {
-  assertSamplesRepresentable,
-  assertSingleFramePerFile,
-  assertUnitFits,
-  type UnitShape,
-} from './pixelValidation';
+import { assertSamplesRepresentable, assertUnitFits } from './pixelValidation';
 import { pickNextSlot } from './slotOrder';
 
 /** [xMin, xMax, yMin, yMax, zMin, zMax], inclusive, as vtk.js extents are. */
@@ -56,6 +46,19 @@ export type LoadVolumeOptions = {
 /** A planned unit placed in the volume; `slot` is its first slice. */
 type Unit = DecodeUnit &
   Readonly<{ member: number; slices: readonly number[]; slot: number }>;
+
+/** How long decodes may run back to back before the thread is handed back. */
+const DECODE_RUN_MS = 8;
+
+const nextTask = () =>
+  new Promise<void>((resolve) => {
+    const { port1, port2 } = new MessageChannel();
+    port1.onmessage = () => {
+      port1.close();
+      resolve();
+    };
+    port2.postMessage(null);
+  });
 
 const ensureError = (error: unknown) =>
   error instanceof Error ? error : new Error(String(error));
@@ -94,26 +97,6 @@ const unitName = (volume: Volume, unit: Unit) => {
     : `${name}, frame ${unit.firstFrame}`;
 };
 
-function headerShape(instance: Instance): UnitShape {
-  const value = (tag: string, fallback: number) =>
-    numberOr(getDatasetTag(instance.dataset, tag), fallback);
-  const [columns, rows] = [value(Tags.Columns, 0), value(Tags.Rows, 0)];
-  const components = value(Tags.SamplesPerPixel, 1);
-  const frames = frameCount(instance);
-  return {
-    size: [columns, rows, frames],
-    components,
-    samples: columns * rows * frames * components,
-  };
-}
-
-const roomFor = (volume: Volume, frames: number) => ({
-  dims: volume.dimensions,
-  components: volume.components,
-  frames,
-  multiFile: volume.members.length > 1,
-});
-
 /** A Float32 volume holds rounded values, so the range it reports is rounded too. */
 const storedRange = (
   volume: Volume,
@@ -126,13 +109,31 @@ const storedRange = (
   ]);
 };
 
+/** A read or decode failure naming what it lost, with the thrown value as `cause`. */
+const unitFailure = (
+  where: string,
+  stage: 'read' | 'decoded',
+  cause: unknown
+) => {
+  const culprit = stage === 'read' ? 'source' : 'decoder';
+  const detail =
+    (cause instanceof Error && cause.message) ||
+    `the ${culprit} failed without a message`;
+  return new Error(`${where} could not be ${stage}: ${detail}`, { cause });
+};
+
 /** Validates decoded pixels and writes them into the buffer. */
 function write(volume: Volume, unit: Unit, pixels: DecodedPixels) {
   const where = unitName(volume, unit);
   const { data, size, components } = pixels;
   assertUnitFits(
     { size, components, samples: data.length },
-    roomFor(volume, unit.frames),
+    {
+      dims: volume.dimensions,
+      components: volume.components,
+      frames: unit.frames,
+      multiFile: volume.members.length > 1,
+    },
     where
   );
   const range = pixels.range ?? componentRanges(data, volume.components);
@@ -180,14 +181,14 @@ function planMember(volume: Volume, member: number, decoders: DecoderTable) {
   const slices = memberSlices(volume, member);
   const target = volume.data.constructor as VolumeBufferConstructor;
   const planned = planDecode(decoders, instance, target);
-  if ('error' in planned) throw planned.error;
-  const where = memberName(volume, member);
-  const header = headerShape(instance);
-  assertSingleFramePerFile(header.size[2], volume.members.length, where);
-  assertUnitFits(header, roomFor(volume, slices.length), where);
+  if ('error' in planned)
+    throw new Error(
+      `${memberName(volume, member)} cannot be decoded: ${planned.error.message}`,
+      { cause: planned.error }
+    );
   if (!tiles(planned.units, slices.length))
     throw new Error(
-      `${planned.decoder.name} planned units that do not cover frames 0 to ${slices.length - 1} of ${where} exactly once`
+      `${planned.decoder.name} planned units that do not cover frames 0 to ${slices.length - 1} of ${memberName(volume, member)} exactly once`
     );
   return planned.units.map((unit): Unit => {
     const covered = slices.slice(
@@ -217,6 +218,12 @@ function planUnits(volume: Volume, decoders: DecoderTable) {
   return { units, failures };
 }
 
+// A decoded unit's extent spans exactly the slices it wrote.
+const markLoaded = (volume: Volume, update: VolumeUpdate) => {
+  if ('range' in update)
+    volume.loaded.fill(1, update.extent[4], update.extent[5] + 1);
+};
+
 /** The first slice of the middle member, the default focus. */
 export const middleSlot = (volume: Volume) =>
   memberSlices(volume, Math.floor(volume.members.length / 2))[0];
@@ -228,9 +235,6 @@ type Loader = {
   focus: () => number;
   readAhead: number;
 };
-
-/** An update waiting to be yielded, with the slices it marks loaded then. */
-type Settled = Readonly<{ update: VolumeUpdate; slices: readonly number[] }>;
 
 /**
  * Starts reads and decodes whenever one settles: decodes first, up to the
@@ -244,10 +248,7 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
   const ready = new Map<number, { unit: Unit; bytes: Uint8Array }>();
   /** Members whose source has not yet shown it honours ranges. */
   const probing = new Set<number>();
-  const updates: Settled[] = failures.map((update) => ({
-    update,
-    slices: [],
-  }));
+  const updates = [...failures];
   let reading = 0;
   let decoding = 0;
   let wake: (() => void) | undefined;
@@ -262,18 +263,16 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
     });
   stopped.addEventListener('abort', notify, { once: true });
 
-  const settle = (settled: Settled) => {
-    if (!stopped.aborted) updates.push(settled);
+  const settle = (update: VolumeUpdate) => {
+    if (!stopped.aborted) updates.push(update);
     notify();
   };
-  const failed = (lost: Unit[], error: unknown): Settled => ({
-    update: failure(
+  const failed = (lost: Unit[], error: unknown) =>
+    failure(
       volume,
       lost.flatMap((unit) => unit.slices),
       error
-    ),
-    slices: [],
-  });
+    );
   const next = (slots: Iterable<number>) => pickNextSlot(slots, focus());
   const sourceOf = (unit: Unit) => volume.members[unit.member].source;
   const rangeSupport = (unit: Unit) =>
@@ -318,7 +317,13 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
           batch.forEach((each, index) =>
             ready.set(each.slot, { unit: each, bytes: bytes[index] })
           ),
-        (error) => settle(failed(batch, error))
+        (error) => {
+          const where =
+            batch.length > 1
+              ? memberName(volume, unit.member)
+              : unitName(volume, unit);
+          settle(failed(batch, unitFailure(where, 'read', error)));
+        }
       )
       .finally(() => {
         if (probe) probing.delete(unit.member);
@@ -327,27 +332,51 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
       });
   };
 
-  const written = (unit: Unit, pixels: DecodedPixels): Settled => {
+  const written = (unit: Unit, pixels: DecodedPixels): VolumeUpdate => {
     try {
-      return { update: write(volume, unit, pixels), slices: unit.slices };
+      return write(volume, unit, pixels);
     } catch (error) {
       return failed([unit], error);
     }
   };
 
+  // A decode that returns at once lets its successor start in the same task,
+  // so a batch of frames would hold the thread until all are decoded. While
+  // pump starts what follows a decode, `inherited` is when that run began.
+  let inherited: number | undefined;
+
   const startDecode = (slot: number) => {
     const { unit, bytes } = ready.get(slot)!;
     ready.delete(slot);
     decoding += 1;
-    (async () => unit.decode(bytes, stopped))()
+    let runStarted = inherited;
+    Promise.resolve()
+      .then(async () => {
+        if (
+          runStarted !== undefined &&
+          performance.now() - runStarted > DECODE_RUN_MS
+        ) {
+          await nextTask();
+          runStarted = undefined;
+        }
+        runStarted ??= performance.now();
+        stopped.throwIfAborted();
+        const pixels = unit.decode(bytes, stopped);
+        // An awaited decode resumes in a task of its own.
+        if (pixels instanceof Promise) runStarted = undefined;
+        return pixels;
+      })
       .then(
         (pixels) => (stopped.aborted ? undefined : written(unit, pixels)),
-        (error) => failed([unit], error)
+        (error) =>
+          failed([unit], unitFailure(unitName(volume, unit), 'decoded', error))
       )
-      .then((settled) => {
+      .then((update) => {
         decoding -= 1;
-        if (settled) settle(settled);
+        if (update) settle(update);
+        inherited = runStarted;
         pump();
+        inherited = undefined;
       });
   };
 
@@ -407,10 +436,8 @@ export async function* loadVolume(
     for (;;) {
       const next = stopped.aborted ? undefined : loader.updates.shift();
       if (next) {
-        next.slices.forEach((slice) => {
-          volume.loaded[slice] = 1;
-        });
-        yield next.update;
+        markLoaded(volume, next);
+        yield next;
       } else if (stopped.aborted || loader.done()) return;
       else await loader.changed();
     }

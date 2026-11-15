@@ -1,38 +1,13 @@
-import { readImageDicomFileSeriesWorkerFunction } from '@itk-wasm/dicom';
-import { WorkerPool, createWebWorker, setDefaultWebWorker } from 'itk-wasm';
+import { createWebWorker, setDefaultWebWorker } from 'itk-wasm';
 
-const DEFAULT_NUM_WORKERS = 4;
-
-let readDicomSeriesWorkerPool: WorkerPool | null = null;
 let webWorker: Worker | null = null;
 
-export async function ensureWorker() {
+export async function initItkWorker() {
   if (webWorker) return;
   webWorker = await createWebWorker(null);
   setDefaultWebWorker(webWorker);
 }
 
-export function ensureDicomSeriesWorkerPool() {
-  if (readDicomSeriesWorkerPool) return;
-  // copied from read-image-dicom-file-series.ts
-  const numberOfWorkers =
-    typeof globalThis.navigator?.hardwareConcurrency === 'number'
-      ? globalThis.navigator.hardwareConcurrency
-      : DEFAULT_NUM_WORKERS;
-  readDicomSeriesWorkerPool = new WorkerPool(
-    numberOfWorkers,
-    readImageDicomFileSeriesWorkerFunction
-  );
-}
-
 export function getWorker() {
   return webWorker;
-}
-
-export function getDicomSeriesWorkerPool() {
-  return readDicomSeriesWorkerPool;
-}
-
-export async function initItkWorker() {
-  await Promise.all([ensureWorker(), ensureDicomSeriesWorkerPool()]);
 }

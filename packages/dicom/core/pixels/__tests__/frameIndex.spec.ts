@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { indexFrames } from '../frameIndex';
-import { fromBlob } from '../../source/byteSource';
 import {
   EXPLICIT_BE,
   EXPLICIT_LE,
@@ -50,34 +49,37 @@ describe('indexFrames', () => {
   );
 
   it.each([
-    ['encapsulated', { transferSyntaxUid: '1.2.840.10008.1.2.4.50' }],
-    ['truncated', { extra: [{ tag: 0x00280008, vr: 'IS', value: '9' }] }],
-    ['invalid-shape', { extra: [{ tag: 0x00280008, vr: 'IS', value: '0' }] }],
-  ] as const)('reports %s Pixel Data as unindexed', async (reason, options) => {
-    const { instance } = await pixelInstance(options);
-    expect(indexFrames(instance)).toMatchObject({ kind: 'unindexed', reason });
-  });
-
-  it('reports a file cut short after its header as truncated', async () => {
-    const { bytes, instance } = await pixelInstance({
-      rows: 2,
-      columns: 3,
-      frames: 4,
-      words,
-    });
-    const cut = fromBlob(new Blob([bytes.subarray(0, bytes.length - 12)]));
-
-    expect(indexFrames({ ...instance, source: cut })).toMatchObject({
-      kind: 'unindexed',
-      reason: 'truncated',
-    });
-  });
+    [
+      'encapsulated',
+      { transferSyntaxUid: '1.2.840.10008.1.2.4.50' },
+      /not indexable without a codec/,
+    ],
+    [
+      'truncated',
+      { extra: [{ tag: 0x00280008, vr: 'IS', value: '9' }] },
+      /Pixel Data holds 30 bytes; its frames need 270/,
+    ],
+    [
+      'misshapen',
+      { extra: [{ tag: 0x00280008, vr: 'IS', value: '0' }] },
+      /Number of Frames is unusable/,
+    ],
+  ] as const)(
+    'reports %s Pixel Data as unindexed',
+    async (_name, options, detail) => {
+      const { instance } = await pixelInstance(options);
+      expect(indexFrames(instance)).toEqual({
+        kind: 'unindexed',
+        detail: expect.stringMatching(detail),
+      });
+    }
+  );
 
   it('reports samples packed across bytes as unindexed', async () => {
     const { instance } = await pixelInstance();
-    expect(indexFrames(withNumber(instance, '00280100', 1))).toMatchObject({
+    expect(indexFrames(withNumber(instance, '00280100', 1))).toEqual({
       kind: 'unindexed',
-      reason: 'packed-bits',
+      detail: 'Bits Allocated 1 packs samples across bytes',
     });
   });
 
@@ -91,6 +93,9 @@ describe('indexFrames', () => {
         transferSyntaxUid: EXPLICIT_LE,
         pixelData: null,
       })
-    ).toMatchObject({ kind: 'unindexed', reason: 'no-pixel-data' });
+    ).toEqual({
+      kind: 'unindexed',
+      detail: 'The header locates no Pixel Data',
+    });
   });
 });

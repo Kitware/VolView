@@ -1,6 +1,7 @@
 // Every file the suite fetches from the internet. The runner downloads them
 // into the dataset cache before any spec starts, and specs read them from the
-// local server at `/tmp/<name>`. CI keys its dataset cache on this file.
+// local server at `/tmp/<name>`. CI keys its dataset cache on this file and the
+// two corpus manifests it imports.
 //
 // Release fixtures and original public DICOM instances are pinned by SHA-256.
 import dicomVolumeCorpus from './dicomVolumeCorpus.json' with { type: 'json' };
@@ -136,7 +137,7 @@ export const PET_CT_DICOM_DATASETS = compositionCorpus.datasets.filter(
 export const TEST_DATASETS = [
   ...Object.values(DATASETS),
   ...compositionCorpus.datasets,
-  ...dicomVolumeCorpus,
+  ...dicomVolumeCorpus.datasets,
 ];
 
 export type TestDataset = (typeof TEST_DATASETS)[number];

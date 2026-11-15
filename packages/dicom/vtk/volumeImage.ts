@@ -54,15 +54,20 @@ export function applyVolumeUpdate(image: vtkImageData, update: VolumeUpdate) {
   image.modified();
 }
 
-/** An 8 bit thumbnail of one loaded slice, windowed to the loaded range. */
+/**
+ * An 8 bit thumbnail of one loaded slice, windowed to the loaded range, or
+ * to the slice's own luminance for color.
+ */
 export function sliceThumbnail(image: vtkImageData, slice: number) {
   const scalars = image.getPointData().getScalars();
   const components = scalars.getNumberOfComponents();
   const [width, height] = image.getDimensions();
   const samplesPerSlice = width * height * components;
-  const data = scalars.getData();
+  const data = scalars
+    .getData()
+    .subarray(slice * samplesPerSlice, (slice + 1) * samplesPerSlice);
   return sliceToThumbnail({
-    data: data.subarray(slice * samplesPerSlice, (slice + 1) * samplesPerSlice),
+    data,
     width,
     height,
     components,

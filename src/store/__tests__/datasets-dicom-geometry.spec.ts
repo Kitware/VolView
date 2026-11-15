@@ -6,6 +6,7 @@ import { useMessageStore } from '@/src/store/messages';
 import {
   ALLOCATION_FAILURE,
   imageFactory,
+  onlyFailure,
   sliceFor,
   unallocatableFor,
 } from './dicomImportFixtures';
@@ -76,11 +77,13 @@ describe('planned DICOM geometry in the image cache', () => {
 
     const rest = slices(121).slice(1);
     // A sibling collection of the series cannot be allocated.
-    expect(() =>
-      store.importInstances([...rest, unallocatableFor({ sop: 'scout' })], {
-        createImage,
-      })
-    ).toThrow(ALLOCATION_FAILURE);
+    expect(
+      onlyFailure(
+        store.importInstances([...rest, unallocatableFor({ sop: 'scout' })], {
+          createImage,
+        })
+      )
+    ).toMatch(ALLOCATION_FAILURE);
     expect(image.getInstances()).toEqual([first]);
     expect(direction()).toEqual(TILTED);
 

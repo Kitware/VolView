@@ -2,20 +2,12 @@ import {
   attributeTagValue,
   buildSyntheticCineDicom,
   buildSyntheticDicom,
+  combine,
   rawElement,
   SyntheticSliceOptions,
   undefinedLengthItem,
   undefinedLengthSequence,
 } from './syntheticDicom';
-
-const concat = (...parts: Uint8Array[]) => {
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  parts.reduce((offset, part) => {
-    out.set(part, offset);
-    return offset + part.length;
-  }, 0);
-  return out;
-};
 
 const bytes = (...values: number[]) => new Uint8Array(values);
 const ascii = (text: string) => new TextEncoder().encode(text);
@@ -28,7 +20,7 @@ const jisX0208 = (...codes: number[]) =>
 const JAPANESE_CHARACTER_SET = 'ISO 2022 IR 6\\ISO 2022 IR 87';
 
 export const JAPANESE_NAME = 'Yamada^Tarou=山田^太郎=やまだ^たろう';
-export const JAPANESE_NAME_BYTES = concat(
+export const JAPANESE_NAME_BYTES = combine(
   ascii('Yamada^Tarou='),
   jisX0208(0x3b, 0x33, 0x45, 0x44),
   ascii('^'),
@@ -41,7 +33,7 @@ export const JAPANESE_NAME_BYTES = concat(
 
 // ISO 2022 IR 149 carries KS X 1001 in the high half, no escape needed.
 export const KOREAN_NAME = 'Hong^Gildong=洪^吉洞=홍^길동';
-export const KOREAN_NAME_BYTES = concat(
+export const KOREAN_NAME_BYTES = combine(
   ascii('Hong^Gildong='),
   bytes(0xfb, 0xf3),
   ascii('^'),
@@ -54,7 +46,7 @@ export const KOREAN_NAME_BYTES = concat(
 
 // GB 2312 in the high half. Odd length, so DICOM pads it with a space.
 export const CHINESE_NAME_PADDED = '王^小明 ';
-export const CHINESE_NAME_BYTES = concat(
+export const CHINESE_NAME_BYTES = combine(
   bytes(0xcd, 0xf5),
   ascii('^'),
   bytes(0xd0, 0xa1, 0xc3, 0xf7)
@@ -62,7 +54,7 @@ export const CHINESE_NAME_BYTES = concat(
 
 // 0x81 0x39 0xee 0x39 is a four-byte GB18030 code no two-byte charset reaches.
 export const GB18030_NAME_PADDED = '王^㐀 ';
-export const GB18030_NAME_BYTES = concat(
+export const GB18030_NAME_BYTES = combine(
   bytes(0xcd, 0xf5),
   ascii('^'),
   bytes(0x81, 0x39, 0xee, 0x39)
@@ -100,19 +92,14 @@ const floats = (...values: number[]) => {
   return out;
 };
 
-/**
- * Elements the named writers cannot emit: a binary buffer VR, an attribute tag,
- * binary floats, and the private elements every clinical vendor writes. Tags
- * sort after (0028,1053) so the data set stays ascending.
- */
 export const KATAKANA_NAME = 'ｱｲｳ^ｴｵ';
 export const KATAKANA_NAME_BYTES = bytes(0xb1, 0xb2, 0xb3, 0x5e, 0xb4, 0xb5);
 
 // Half width katakana and JIS X 0208 runs in one value, which ISO 2022 allows
-// and no single decoder covers. GDCM stopped at the first escape here, so this
+// and no single decoder covers. GDCM stops at the first escape here, so this
 // fixture stays out of the differential corpus.
 export const MIXED_JIS_NAME = 'ﾔﾏﾀﾞ^ﾀﾛｳ=山田^太郎';
-export const MIXED_JIS_NAME_BYTES = concat(
+export const MIXED_JIS_NAME_BYTES = combine(
   bytes(0xd4, 0xcf, 0xc0, 0xde),
   ascii('^'),
   bytes(0xc0, 0xdb, 0xb3),
@@ -122,12 +109,17 @@ export const MIXED_JIS_NAME_BYTES = concat(
   jisX0208(0x42, 0x40, 0x4f, 0x3a)
 );
 
+/**
+ * Elements the named writers cannot emit: a binary buffer VR, an attribute tag,
+ * binary floats, and the private elements every clinical vendor writes. Tags
+ * sort after (0028,1053) so the data set stays ascending.
+ */
 export const MIXED_VR_ELEMENTS = [
   // (0028,2000) ICC Profile, OB.
   rawElement(0x0028, 0x2000, 'OB', new Uint8Array(8).fill(0x7f)),
   // (0028,9445) is FL in the dictionary; written UN, as a vendor would.
   rawElement(0x0028, 0x9445, 'UN', bytes(0x01, 0x02, 0x03, 0x04)),
-  // Odd groups, which every clinical vendor writes and GDCM never reported.
+  // Odd groups, which every clinical vendor writes and GDCM never reports.
   rawElement(0x0029, 0x0010, 'LO', ascii('SIEMENS CSA HEADER  ')),
   rawElement(0x0029, 0x1010, 'OB', new Uint8Array(6).fill(0x41)),
   rawElement(0x0029, 0x1020, 'UN', new Uint8Array(4).fill(0x02)),
@@ -143,7 +135,10 @@ export const MIXED_VR_ELEMENTS = [
     0x0028,
     0x000a,
     'AT',
-    concat(attributeTagValue(0x0018, 0x1063), attributeTagValue(0x0028, 0x00ff))
+    combine(
+      attributeTagValue(0x0018, 0x1063),
+      attributeTagValue(0x0028, 0x00ff)
+    )
   ),
 ];
 
@@ -257,7 +252,7 @@ export const tagReaderCorpus = (): Array<{
           0x0040,
           0x0275,
           undefinedLengthItem(
-            concat(
+            combine(
               rawElement(0x0008, 0x0005, 'CS', ascii(JAPANESE_CHARACTER_SET)),
               rawElement(0x0010, 0x0010, 'PN', JAPANESE_NAME_BYTES)
             )
@@ -315,7 +310,7 @@ export const tagReaderCorpus = (): Array<{
       specificCharacterSet: 'ISO 2022 IR 13\\ISO 2022 IR 87',
       patientNameBytes: KATAKANA_NAME_BYTES,
     }),
-    // GDCM converted every string VR under the declared character set, so its
+    // GDCM converts every string VR under the declared character set, so its
     // CS and DS values carry the JIS X 0201 yen sign where the file wrote the
     // 0x5c value delimiter. PS3.5 6.1.2 limits that conversion to SH, LO, ST,
     // PN, LT, UC and UT, and the delimiter is never part of a value.

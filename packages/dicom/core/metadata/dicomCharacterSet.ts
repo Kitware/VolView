@@ -14,9 +14,6 @@ const DELIMITER_BYTES = new Set([0x0a, 0x0c, 0x0d, 0x3d, 0x5c, 0x5e]);
  */
 export const CHARSET_VRS = new Set(['SH', 'LO', 'ST', 'PN', 'LT', 'UC', 'UT']);
 
-/** Bytes of a VR the Specific Character Set does not reach are code points. */
-export const defaultRepertoire = (raw: string) => raw;
-
 /** A repertoire in force over one run of bytes. */
 type Repertoire = {
   decode: (bytes: Uint8Array) => string;

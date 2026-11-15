@@ -1,13 +1,14 @@
-import { dicomDatasetToTags } from '@/src/io/readDicomTags';
 import { defineStore } from 'pinia';
 import {
   allocateVolume,
   emptyRegistry,
   forgetCollection,
-  getDatasetModality,
+  getDatasetTag,
   registerInstances,
   seriesKeyOf,
   Tags,
+  trimDicomPadding,
+  type DicomDataset,
   type Instance,
   type InstanceCollectionUpdate,
   type RegistryState,
@@ -17,11 +18,7 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
-import {
-  isCineInstance,
-  readCineHeader,
-  type CineHeader,
-} from '@/src/core/cine/cineInstance';
+import { isCineInstance, readCineHeader } from '@/src/core/cine/cineInstance';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { viewedSlice } from '@/src/store/dicom-viewed-slice';
 import { ensureError, groupBy, removeFromArray } from '../utils';
@@ -102,7 +99,7 @@ export const getDisplayName = (info: VolumeInfo) => {
   const name =
     cleanupName(info.SeriesDescription || info.SeriesNumber) ||
     info.SeriesInstanceUID ||
-    info.VolumeID;
+    'Unnamed series';
   return info.splitLabel ? `${name} (${info.splitLabel})` : name;
 };
 
@@ -148,33 +145,11 @@ export type ImportInstancesResult = {
   // Collection ID to every instance whose provenance the collection now
   // covers, not just the ones this batch brought.
   volumes: Record<string, Instance[]>;
-  // Collection IDs a replan dissolved. Their datasets must be removed.
-  dissolved: string[];
+  // Each series commits on its own; these are the ones that did not.
+  failures: { error: Error; instances: Instance[] }[];
 };
 
-/**
- * A batch whose series did not all commit. Each series commits on its own, so
- * `committed` holds what the series that did commit landed.
- */
-export class PartialImportError extends Error {
-  readonly failures: { error: Error; instances: Instance[] }[];
-
-  readonly committed: ImportInstancesResult;
-
-  constructor(
-    failures: { error: Error; instances: Instance[] }[],
-    committed: ImportInstancesResult
-  ) {
-    super(failures[0].error.message);
-    this.name = 'PartialImportError';
-    this.cause = failures[0].error;
-    this.failures = failures;
-    this.committed = committed;
-  }
-}
-
 type DatabaseRecord = {
-  name: string;
   patient: PatientInfo;
   study: StudyInfo;
   volume: VolumeInfo;
@@ -190,14 +165,38 @@ type DatabaseRecord = {
 type Candidate = { id: string; record: DatabaseRecord } & (
   | { kind: 'keep' }
   | { kind: 'cine'; image: DicomCineImage }
-  | { kind: 'dicom'; fill: (image: DicomVolumeImage) => void }
+  | {
+      kind: 'dicom';
+      shown: DicomVolumeImage | undefined;
+      fill: (image: DicomVolumeImage) => void;
+    }
 );
 
-const withDisplayName = (
-  record: Omit<DatabaseRecord, 'name'>
-): DatabaseRecord => ({
-  ...record,
-  name: getDisplayName(record.volume),
+const text = (dataset: DicomDataset, tag: string) =>
+  trimDicomPadding(getDatasetTag(dataset, tag) ?? '');
+
+// Trimmed, so a clip and a volume of one study share their patient key.
+const describeSeries = (dataset: DicomDataset) => ({
+  patient: {
+    PatientID: text(dataset, Tags.PatientID),
+    PatientName: text(dataset, Tags.PatientName),
+    PatientBirthDate: text(dataset, Tags.PatientBirthDate),
+    PatientSex: text(dataset, Tags.PatientSex),
+  },
+  study: {
+    StudyID: text(dataset, Tags.StudyID),
+    StudyInstanceUID: text(dataset, Tags.StudyInstanceUID),
+    StudyDate: text(dataset, Tags.StudyDate),
+    StudyTime: text(dataset, Tags.StudyTime),
+    AccessionNumber: text(dataset, Tags.AccessionNumber),
+    StudyDescription: text(dataset, Tags.StudyDescription),
+  },
+  series: {
+    Modality: text(dataset, Tags.Modality),
+    SeriesInstanceUID: text(dataset, Tags.SeriesInstanceUID),
+    SeriesNumber: text(dataset, Tags.SeriesNumber),
+    SeriesDescription: text(dataset, Tags.SeriesDescription),
+  },
 });
 
 const volumeRecord = ({
@@ -206,57 +205,45 @@ const volumeRecord = ({
   collection,
 }: InstanceCollectionUpdate): DatabaseRecord => {
   const { dataset } = members[0];
-  const metadata = Object.fromEntries(dicomDatasetToTags(dataset));
-  const frames = parseInt(metadata[Tags.NumberOfFrames] ?? '1', 10);
-  return withDisplayName({
-    patient: {
-      PatientID: metadata[Tags.PatientID],
-      PatientName: metadata[Tags.PatientName],
-      PatientBirthDate: metadata[Tags.PatientBirthDate],
-      PatientSex: metadata[Tags.PatientSex],
-    },
-    study: {
-      StudyID: metadata[Tags.StudyID],
-      StudyInstanceUID: metadata[Tags.StudyInstanceUID],
-      StudyDate: metadata[Tags.StudyDate],
-      StudyTime: metadata[Tags.StudyTime],
-      AccessionNumber: metadata[Tags.AccessionNumber],
-      StudyDescription: metadata[Tags.StudyDescription],
-    },
+  const { patient, study, series } = describeSeries(dataset);
+  const frames = parseInt(text(dataset, Tags.NumberOfFrames) || '1', 10);
+  return {
+    patient,
+    study,
     volume: {
       NumberOfSlices:
         members.length === 1 && frames > 1 ? frames : members.length,
       VolumeID: id,
-      Modality: getDatasetModality(dataset) ?? '',
-      SeriesInstanceUID: metadata[Tags.SeriesInstanceUID],
-      SeriesNumber: metadata[Tags.SeriesNumber],
-      SeriesDescription: metadata[Tags.SeriesDescription],
-      WindowLevel: metadata[Tags.WindowLevel],
-      WindowWidth: metadata[Tags.WindowWidth],
+      ...series,
+      WindowLevel: text(dataset, Tags.WindowLevel),
+      WindowWidth: text(dataset, Tags.WindowWidth),
       ...(collection.label === null ? {} : { splitLabel: collection.label }),
       kind: 'volume',
     },
     warnings: collection.warnings,
-  });
+  };
 };
 
-const cineRecord = (id: string, header: CineHeader): DatabaseRecord =>
-  withDisplayName({
-    patient: header.patient,
-    study: header.study,
+const cineRecord = (
+  id: string,
+  clip: Instance,
+  numberOfFrames: number
+): DatabaseRecord => {
+  const { patient, study, series } = describeSeries(clip.dataset);
+  return {
+    patient,
+    study,
     volume: {
-      NumberOfSlices: header.numberOfFrames,
+      NumberOfSlices: numberOfFrames,
       VolumeID: id,
-      Modality: header.series.Modality,
-      SeriesInstanceUID: header.series.SeriesInstanceUID,
-      SeriesNumber: header.series.SeriesNumber,
-      SeriesDescription: header.series.SeriesDescription,
+      ...series,
       WindowLevel: '',
       WindowWidth: '',
       kind: 'cine',
     },
     warnings: [],
-  });
+  };
+};
 
 const cineMember = ({ kind, members }: InstanceCollectionUpdate) =>
   kind === 'image' && members.length === 1 && isCineInstance(members[0])
@@ -269,7 +256,7 @@ function cineCandidate(
   cached: ProgressiveImage | undefined
 ): Candidate {
   const header = readCineHeader(clip);
-  const record = cineRecord(id, header);
+  const record = cineRecord(id, clip, header.numberOfFrames);
   return cached
     ? { kind: 'keep', id, record }
     : { kind: 'cine', id, record, image: new DicomCineImage(clip, header) };
@@ -278,7 +265,7 @@ function cineCandidate(
 function fillFor(update: InstanceCollectionUpdate, previous?: Volume) {
   if (update.kind === 'segmentation')
     return (image: DicomVolumeImage) => image.setSegmentation(update.members);
-  const volume = allocateVolume(update, {}, previous);
+  const volume = allocateVolume(update, previous);
   return (image: DicomVolumeImage) => {
     image.setVolume(volume);
     volume.warnings.forEach(([title, details]) =>
@@ -297,15 +284,13 @@ function planCandidate(update: InstanceCollectionUpdate): Candidate {
   // A re-import retries whatever failed to load.
   if (cached && update.change === 'unchanged')
     return { kind: 'keep', id, record };
-  if (cached && !(cached instanceof DicomVolumeImage))
-    throw new Error(
-      `Volume ${id} is already loaded as a non-DICOM progressive image; cannot re-import it as a DICOM volume.`
-    );
+  const shown = cached instanceof DicomVolumeImage ? cached : undefined;
   return {
     kind: 'dicom',
     id,
     record,
-    fill: fillFor(update, cached?.getVolume() ?? undefined),
+    shown,
+    fill: fillFor(update, shown?.getVolume() ?? undefined),
   };
 }
 
@@ -318,13 +303,28 @@ type CommitTarget = {
   volumeInfo: Record<string, VolumeInfo>;
 };
 
-const warnUnsound = (name: string, warnings: string[]) =>
-  warnings.forEach((warning) =>
-    useMessageStore().addWarning(
-      'A DICOM series did not load as one sound volume',
-      `${name} ${warning}`
-    )
-  );
+const UNSOUND_TITLE = 'A DICOM series did not load as one sound volume';
+
+// What each volume was last warned about, kept outside reactive state like
+// the registry below, so a re-import raises only what is new.
+const warned = new WeakMap<object, Map<string, ReadonlySet<string>>>();
+
+function warnUnsound(
+  store: object,
+  id: string,
+  name: string,
+  warnings: string[]
+) {
+  const byVolume = warned.get(store) ?? new Map<string, ReadonlySet<string>>();
+  warned.set(store, byVolume);
+  const before = byVolume.get(id);
+  warnings
+    .filter((warning) => !before?.has(warning))
+    .forEach((warning) =>
+      useMessageStore().addWarning(UNSOUND_TITLE, `${name} ${warning}`)
+    );
+  byVolume.set(id, new Set(warnings));
+}
 
 /** Puts a candidate's image in the cache, reusing the one it replaces. */
 function showCandidate(
@@ -337,10 +337,9 @@ function showCandidate(
     cache.addProgressiveImage(candidate.image, { id });
     return candidate.image;
   }
-  const cached = cache.imageById[id] as DicomVolumeImage | undefined;
-  const image = cached ?? createImage(id);
+  const image = candidate.shown ?? createImage(id);
   candidate.fill(image);
-  if (cached) image.startLoad();
+  if (candidate.shown) image.startLoad();
   else cache.addProgressiveImage(image, { id });
   return image;
 }
@@ -350,8 +349,10 @@ function commitCandidate(
   candidate: Candidate,
   createImage: (id: string) => DicomVolumeImage
 ) {
-  const { patient, study, volume, warnings, name } = candidate.record;
+  const { patient, study, volume, warnings } = candidate.record;
+  const name = getDisplayName(volume);
   store._updateDatabase(patient, study, volume);
+  warnUnsound(store, candidate.id, name, warnings);
   if (candidate.kind === 'keep') {
     const image = useImageCacheStore().imageById[candidate.id];
     image?.setName(name);
@@ -359,7 +360,6 @@ function commitCandidate(
     return;
   }
   showCandidate(candidate, createImage).setName(name);
-  warnUnsound(name, warnings);
 }
 
 function reportDissolved(
@@ -425,25 +425,20 @@ export const useDICOMStore = defineStore('dicom', {
           this.deleteVolume(id);
           useImageCacheStore().removeImage(id);
         });
-      const failures: PartialImportError['failures'] = [];
-      const results = [
+      const failures: ImportInstancesResult['failures'] = [];
+      const committed = [
         ...groupBy(instances, (instance) => seriesKeyOf(instance.dataset)),
       ].flatMap(([, batch]) => {
         try {
-          return [this._commitSeries(batch, { createImage, removeDissolved })];
+          return Object.entries(
+            this._commitSeries(batch, { createImage, removeDissolved })
+          );
         } catch (error) {
           failures.push({ error: ensureError(error), instances: batch });
           return [];
         }
       });
-      const committed = {
-        volumes: Object.fromEntries(
-          results.flatMap(({ volumes }) => Object.entries(volumes))
-        ),
-        dissolved: results.flatMap(({ dissolved }) => dissolved),
-      };
-      if (failures.length) throw new PartialImportError(failures, committed);
-      return committed;
+      return { volumes: Object.fromEntries(committed), failures };
     },
 
     _commitSeries(
@@ -452,7 +447,7 @@ export const useDICOMStore = defineStore('dicom', {
         createImage: (id: string) => DicomVolumeImage;
         removeDissolved: (id: string) => void;
       }
-    ): ImportInstancesResult {
+    ): ImportInstancesResult['volumes'] {
       const { state, updates, removed, conflictingInstanceUids } =
         registerInstances(registryOf(this), batch);
       const candidates = updates.map(planCandidate);
@@ -463,12 +458,9 @@ export const useDICOMStore = defineStore('dicom', {
       );
       reportDissolved(this, removed, context.removeDissolved);
       reportConflicts(conflictingInstanceUids);
-      return {
-        volumes: Object.fromEntries(
-          updates.map(({ id, provenance }) => [id, provenance])
-        ),
-        dissolved: removed,
-      };
+      return Object.fromEntries(
+        updates.map(({ id, provenance }) => [id, provenance])
+      );
     },
 
     _updateDatabase(
@@ -504,6 +496,7 @@ export const useDICOMStore = defineStore('dicom', {
     // remove files/images/layers associated with the volume
     deleteVolume(volumeKey: string) {
       registries.set(this, forgetCollection(registryOf(this), volumeKey));
+      warned.get(this)?.delete(volumeKey);
 
       if (volumeKey in this.volumeInfo) {
         const studyKey = this.volumeStudy[volumeKey];

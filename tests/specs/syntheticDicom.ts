@@ -276,12 +276,7 @@ const rgbFrame = (samples: readonly number[], count: number, bits: number) => {
 // A single-item sequence with an explicit item length, so a reader that skips
 // sequences and one that descends into them both stay in step.
 const sequenceOfOneItem = (g: number, e: number, item: Uint8Array) =>
-  elemLong(
-    g,
-    e,
-    'SQ',
-    combine(tagBytes(0xfffe, 0xe000), writeLong(item.length), item)
-  );
+  elemLong(g, e, 'SQ', sequenceItem(item));
 
 export type SyntheticSliceOptions = {
   studyUid: string;
@@ -507,10 +502,6 @@ export const stripFileMeta = (bytes: Uint8Array) => {
   return meta.slice(12 + bodyLength);
 };
 
-/** One item of an encapsulated Pixel Data value, written with the length given. */
-export const pixelItem = (bytes: Uint8Array) =>
-  combine(tagBytes(ITEM_GROUP, ITEM_TAG), writeLong(bytes.length), bytes);
-
 export type EncapsulatedFrames = {
   /** Each frame's fragments, in order. */
   frames: readonly (readonly Uint8Array[])[];
@@ -523,7 +514,9 @@ export function encapsulatedPixelData({
   frames,
   offsetTable = false,
 }: EncapsulatedFrames) {
-  const items = frames.map((fragments) => combine(...fragments.map(pixelItem)));
+  const items = frames.map((fragments) =>
+    combine(...fragments.map(sequenceItem))
+  );
   const starts = items.reduce<number[]>(
     (offsets, _, index) =>
       index === 0
@@ -535,7 +528,7 @@ export function encapsulatedPixelData({
     ? combine(...starts.map(writeLong))
     : new Uint8Array();
   return combine(
-    pixelItem(table),
+    sequenceItem(table),
     ...items,
     tagBytes(ITEM_GROUP, SEQUENCE_DELIMITER_TAG),
     writeLong(0)

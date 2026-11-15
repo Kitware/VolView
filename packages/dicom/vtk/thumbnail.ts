@@ -10,13 +10,12 @@ type SliceToThumbnailInput = {
   width: number;
   height: number;
   // Samples per pixel; RGB samples are converted to luminance.
-  components?: number;
+  components: number;
   // The window mapped onto 0..255.
   range: readonly [number, number];
-  maxSize?: number;
 };
 
-export const THUMBNAIL_MAX_SIZE = 256;
+const THUMBNAIL_MAX_SIZE = 256;
 
 const BYTE_MAX = 255;
 
@@ -46,15 +45,17 @@ export function sliceToThumbnail({
   data,
   width,
   height,
-  components = 1,
+  components,
   range,
-  maxSize = THUMBNAIL_MAX_SIZE,
 }: SliceToThumbnailInput): ThumbnailSlice {
   const [low, high] = range;
   const span = high - low;
 
   // One integer stride on both axes, so the aspect ratio survives.
-  const stride = Math.max(1, Math.ceil(Math.max(width, height) / maxSize));
+  const stride = Math.max(
+    1,
+    Math.ceil(Math.max(width, height) / THUMBNAIL_MAX_SIZE)
+  );
   const thumbWidth = Math.ceil(width / stride);
   const thumbHeight = Math.ceil(height / stride);
 

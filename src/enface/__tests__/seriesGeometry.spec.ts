@@ -12,7 +12,7 @@ import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { buildSyntheticDicom } from '@/tests/specs/syntheticDicom';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import { getOccupiedDepthSupport } from '@/src/enface/occupiedDepthSupport';
-import { dicomMetadataForDisplay } from '@/src/core/streaming/dicom/octMetadata';
+import { enFaceTags } from '@/src/core/streaming/dicom/octMetadata';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 import { measureOccupiedDepth } from '@/src/segmentation/measurements/occupiedDepth';
 import { datasetFromTags } from '@/tests/dicomDataset';
@@ -23,7 +23,7 @@ import {
 } from './dicomMetadataFixture';
 
 const displayMetadata = (instance: Instance) =>
-  new Map(dicomMetadataForDisplay(instance.dataset));
+  new Map(enFaceTags(instance.dataset));
 
 describe('assembled OCT series through real header and file collaborators', () => {
   beforeEach(() => setActivePinia(createPinia()));

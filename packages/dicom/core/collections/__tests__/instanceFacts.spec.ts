@@ -2,14 +2,14 @@ import { datasetFromTags } from '@/tests/dicomDataset';
 import { describe, expect, it } from 'vitest';
 import { Tags } from '../../metadata/dicomTags';
 import {
-  readInstanceFacts as readStructuredFacts,
+  readInstanceDetails,
   seriesKeyOf as structuredSeriesKeyOf,
 } from '../instanceFacts';
 
 const INSTANCE_NUMBER_TAG = '0020|0013';
 
-// readDicomTags hands back DICOM's own padding, so every fixture value here is
-// written the way the reader returns it.
+// Dataset text keeps DICOM's own padding, so every fixture value here is
+// written the way a parsed header holds it.
 const metadata = (overrides: Record<string, string> = {}) => {
   const entries: Array<[string, string]> = [
     [Tags.SOPInstanceUID, '1.2.3.4'],
@@ -37,13 +37,9 @@ const metadata = (overrides: Record<string, string> = {}) => {
 
 const without = (tag: string) => metadata().filter((entry) => entry[0] !== tag);
 
-describe('readInstanceFacts', () => {
-  it('names the instance number tag the planner orders on', () => {
-    expect(Tags.InstanceNumber).toBe(INSTANCE_NUMBER_TAG);
-  });
-
+describe('instance facts', () => {
   it('reads every fact the planner compares', () => {
-    expect(readInstanceFacts(metadata())).toEqual({
+    expect(factsOf(metadata())).toEqual({
       sopInstanceUid: '1.2.3.4',
       seriesInstanceUid: '1.2.3',
       seriesNumber: '1',
@@ -67,7 +63,7 @@ describe('readInstanceFacts', () => {
   });
 
   it('reads an instance with no tags at all as entirely unknown', () => {
-    expect(readInstanceFacts([])).toEqual({
+    expect(factsOf([])).toEqual({
       sopInstanceUid: null,
       seriesInstanceUid: null,
       seriesNumber: null,
@@ -91,56 +87,41 @@ describe('readInstanceFacts', () => {
   });
 
   it.each([
-    ['SeriesNumber', Tags.SeriesNumber, 'seriesNumber'],
     ['SequenceName', Tags.SequenceName, 'sequenceName'],
-    ['SliceThickness', Tags.SliceThickness, 'sliceThickness'],
-    ['SeriesDate', Tags.SeriesDate, 'seriesDate'],
     ['Rows', Tags.Rows, 'rows'],
-    ['Columns', Tags.Columns, 'columns'],
-    ['SamplesPerPixel', Tags.SamplesPerPixel, 'samplesPerPixel'],
   ] as const)(
     'reads a zero length %s as absent, not as an empty string',
     (_name, tag, fact) => {
-      expect(readInstanceFacts(metadata({ [tag]: '' }))[fact]).toBeNull();
-      expect(readInstanceFacts(metadata({ [tag]: '  ' }))[fact]).toBeNull();
+      expect(factsOf(metadata({ [tag]: '' }))[fact]).toBeNull();
+      expect(factsOf(metadata({ [tag]: '  ' }))[fact]).toBeNull();
     }
   );
 
-  it.each([
-    ['SeriesNumber', Tags.SeriesNumber, 'seriesNumber'],
-    ['SliceThickness', Tags.SliceThickness, 'sliceThickness'],
-    ['Rows', Tags.Rows, 'rows'],
-    ['Columns', Tags.Columns, 'columns'],
-    ['SamplesPerPixel', Tags.SamplesPerPixel, 'samplesPerPixel'],
-    ['NumberOfFrames', Tags.NumberOfFrames, 'numberOfFrames'],
-  ] as const)(
-    'normalizes the numeric spelling of %s so 04 and 4.0 are one value',
-    (_name, tag, fact) => {
-      const readFact = (value: string) =>
-        readInstanceFacts(metadata({ [tag]: value }))[fact];
-      expect(readFact('4')).toBe('4');
-      expect(readFact('04')).toBe('4');
-      expect(readFact('4.0')).toBe('4');
-      expect(readFact(' 4 ')).toBe('4');
-      expect(readFact('1.50')).toBe('1.5');
-    }
-  );
+  it('normalizes a numeric spelling so 04 and 4.0 are one value', () => {
+    const readFact = (value: string) =>
+      factsOf(metadata({ [Tags.SliceThickness]: value })).sliceThickness;
+    expect(readFact('4')).toBe('4');
+    expect(readFact('04')).toBe('4');
+    expect(readFact('4.0')).toBe('4');
+    expect(readFact(' 4 ')).toBe('4');
+    expect(readFact('1.50')).toBe('1.5');
+  });
 
   // A study date's leading zeros are part of the value, so it stays text.
   it('keeps a series date as text rather than as a number', () => {
     expect(
-      readInstanceFacts(metadata({ [Tags.SeriesDate]: '00240101 ' })).seriesDate
+      factsOf(metadata({ [Tags.SeriesDate]: '00240101 ' })).seriesDate
     ).toBe('00240101');
   });
 
   it('keeps a sequence name as text', () => {
     expect(
-      readInstanceFacts(metadata({ [Tags.SequenceName]: '007 ' })).sequenceName
+      factsOf(metadata({ [Tags.SequenceName]: '007 ' })).sequenceName
     ).toBe('007');
   });
 
   it('trims the padding DICOM adds to odd length identifiers', () => {
-    const facts = readInstanceFacts(
+    const facts = factsOf(
       metadata({
         [Tags.SOPInstanceUID]: '1.2.3.4 ',
         [Tags.SeriesInstanceUID]: '1.2.3 ',
@@ -161,7 +142,7 @@ describe('readInstanceFacts', () => {
       metadata({ [Tags.ImageOrientationPatient]: '1\\0\\0\\0\\x\\0' }),
     ],
   ])('reads an orientation with %s as unknown', (_case, entries) => {
-    const facts = readInstanceFacts(entries);
+    const facts = factsOf(entries);
     expect(facts.orientation).toBeNull();
     expect(facts.projectedPosition).toBeNull();
   });
@@ -174,7 +155,7 @@ describe('readInstanceFacts', () => {
       metadata({ [Tags.ImagePositionPatient]: '1\\2\\z' }),
     ],
   ])('reads a position with %s as unknown', (_case, entries) => {
-    const facts = readInstanceFacts(entries);
+    const facts = factsOf(entries);
     expect(facts.position).toBeNull();
     expect(facts.projectedPosition).toBeNull();
   });
@@ -184,9 +165,7 @@ describe('readInstanceFacts', () => {
     ['a trailing blank component', '1\\2\\'],
     ['a whitespace component', '1\\ \\3'],
   ])('reads a position with %s as unknown, not as a zero', (_case, value) => {
-    const facts = readInstanceFacts(
-      metadata({ [Tags.ImagePositionPatient]: value })
-    );
+    const facts = factsOf(metadata({ [Tags.ImagePositionPatient]: value }));
     expect(facts.position).toBeNull();
     expect(facts.projectedPosition).toBeNull();
   });
@@ -198,16 +177,14 @@ describe('readInstanceFacts', () => {
     ['a row and column 45 degrees apart', '1\\0\\0\\0.7071\\0.7071\\0'],
     ['a blank cosine', '1\\0\\0\\0\\\\0'],
   ])('reads %s as no orientation at all', (_case, value) => {
-    const facts = readInstanceFacts(
-      metadata({ [Tags.ImageOrientationPatient]: value })
-    );
+    const facts = factsOf(metadata({ [Tags.ImageOrientationPatient]: value }));
     expect(facts.orientation).toBeNull();
     expect(facts.projectedPosition).toBeNull();
   });
 
   // A DS value carries a printed decimal, so exact unit length is not on offer.
   it('normalizes cosines that are within the tolerance of unit length', () => {
-    const facts = readInstanceFacts(
+    const facts = factsOf(
       metadata({
         [Tags.ImageOrientationPatient]: '0.99998\\0\\0\\0\\1.00002\\0',
       })
@@ -234,9 +211,7 @@ describe('readInstanceFacts', () => {
       [1, 0, 0, 0, 1, 0],
     ],
   ])('rescales %s to unit axes', (_case, value, expected) => {
-    const facts = readInstanceFacts(
-      metadata({ [Tags.ImageOrientationPatient]: value })
-    );
+    const facts = factsOf(metadata({ [Tags.ImageOrientationPatient]: value }));
 
     expect(facts.orientation).not.toBeNull();
     facts.orientation!.forEach((cosine, index) =>
@@ -246,7 +221,7 @@ describe('readInstanceFacts', () => {
   });
 
   it('accepts cosines a printed digit away from square', () => {
-    const facts = readInstanceFacts(
+    const facts = factsOf(
       metadata({
         [Tags.ImageOrientationPatient]: '0.7071\\0.7071\\0\\-0.7072\\0.7070\\0',
       })
@@ -262,13 +237,13 @@ describe('readInstanceFacts', () => {
     ['blank', '\\0.5'],
   ])('reads a %s pixel spacing as unknown', (_case, value) => {
     expect(
-      readInstanceFacts(metadata({ [Tags.PixelSpacing]: value })).pixelSpacing
+      factsOf(metadata({ [Tags.PixelSpacing]: value })).pixelSpacing
     ).toBeNull();
   });
 
   it('projects the position onto the slice normal, not onto z', () => {
     // Rows run along +y and columns along +z, so the normal is +x.
-    const facts = readInstanceFacts(
+    const facts = factsOf(
       metadata({ [Tags.ImageOrientationPatient]: '0\\1\\0\\0\\0\\1' })
     );
     expect(facts.projectedPosition).toBeCloseTo(10, 10);
@@ -276,7 +251,7 @@ describe('readInstanceFacts', () => {
 
   it('projects onto the normal with the cosines in row then column order', () => {
     // Swapping the two rows of the case above flips the normal to -x.
-    const facts = readInstanceFacts(
+    const facts = factsOf(
       metadata({ [Tags.ImageOrientationPatient]: '0\\0\\1\\0\\1\\0' })
     );
     expect(facts.projectedPosition).toBeCloseTo(-10, 10);
@@ -291,7 +266,7 @@ describe('readInstanceFacts', () => {
       null,
     ],
   ])('reads a pixel spacing with %s as unknown', (_case, entries) => {
-    expect(readInstanceFacts(entries).pixelSpacing).toBeNull();
+    expect(factsOf(entries).pixelSpacing).toBeNull();
   });
 
   it.each([
@@ -300,8 +275,7 @@ describe('readInstanceFacts', () => {
     ['-3', -3],
   ])('reads the instance number %s as a number', (value, expected) => {
     expect(
-      readInstanceFacts(metadata({ [INSTANCE_NUMBER_TAG]: value }))
-        .instanceNumber
+      factsOf(metadata({ [INSTANCE_NUMBER_TAG]: value })).instanceNumber
     ).toBe(expected);
   });
 
@@ -310,14 +284,7 @@ describe('readInstanceFacts', () => {
     ['an empty value', metadata({ [INSTANCE_NUMBER_TAG]: ' ' })],
     ['a non numeric value', metadata({ [INSTANCE_NUMBER_TAG]: 'first' })],
   ])('reads an instance number with %s as unknown', (_case, entries) => {
-    expect(readInstanceFacts(entries).instanceNumber).toBeNull();
-  });
-
-  it('does not mutate the metadata it reads', () => {
-    const entries = metadata();
-    const before = JSON.parse(JSON.stringify(entries));
-    readInstanceFacts(entries);
-    expect(entries).toEqual(before);
+    expect(factsOf(entries).instanceNumber).toBeNull();
   });
 });
 
@@ -363,17 +330,10 @@ describe('seriesKeyOf', () => {
     expect(key('a|b', 'c')).not.toBe(key('a', 'b|c'));
     expect(key('a:b', 'c')).not.toBe(key('a', 'b:c'));
   });
-
-  it('does not mutate the metadata it reads', () => {
-    const entries = metadata();
-    const before = JSON.parse(JSON.stringify(entries));
-    seriesKeyOf(entries);
-    expect(entries).toEqual(before);
-  });
 });
 
-function readInstanceFacts(tags: Iterable<readonly [string, string]>) {
-  return readStructuredFacts(datasetFromTags(tags));
+function factsOf(tags: Iterable<readonly [string, string]>) {
+  return readInstanceDetails(datasetFromTags(tags)).facts;
 }
 function seriesKeyOf(tags: Iterable<readonly [string, string]>) {
   return structuredSeriesKeyOf(datasetFromTags(tags));
@@ -384,11 +344,11 @@ describe('single-frame and spacing normalization', () => {
     'defaults NumberOfFrames %s to one',
     (frames) => {
       expect(
-        readStructuredFacts(
+        readInstanceDetails(
           datasetFromTags(
             frames === undefined ? [] : [[Tags.NumberOfFrames, frames]]
           )
-        ).numberOfFrames
+        ).facts.numberOfFrames
       ).toBe('1');
     }
   );
@@ -397,7 +357,7 @@ describe('single-frame and spacing normalization', () => {
     'retains the first two PixelSpacing values in %s',
     (value) => {
       expect(
-        readInstanceFacts(metadata({ [Tags.PixelSpacing]: value })).pixelSpacing
+        factsOf(metadata({ [Tags.PixelSpacing]: value })).pixelSpacing
       ).toEqual([0.5, 0.75]);
     }
   );

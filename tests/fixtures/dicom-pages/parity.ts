@@ -65,14 +65,12 @@ async function decodeFrames(
   return samples;
 }
 
-async function compare(name: string, source: string) {
+async function compare(name: string) {
   const url = new URL(
     `./corpus-data/${encodeURIComponent(name)}`,
     document.baseURI
   );
-  const input =
-    source === 'file' ? new File([await (await fetch(url)).blob()], name) : url;
-  const instance = await runtime.readInstance(sourceOf(input), never);
+  const instance = await runtime.readInstance(sourceOf(url), never);
   const planned = planDecode(runtime.decoders, instance, Float64Array);
   if ('error' in planned)
     return { name, plan: 'unsupported', reason: planned.error.message };
@@ -101,7 +99,6 @@ async function compare(name: string, source: string) {
 
 async function run() {
   const params = new URL(location.href).searchParams;
-  const source = params.get('source') ?? 'http';
   const listed: string[] = await (
     await fetch(new URL('./corpus-data/parity-cases.json', document.baseURI))
   ).json();
@@ -112,7 +109,7 @@ async function run() {
   const results = [];
   for (const name of names)
     results.push(
-      await compare(name, source).catch((error: Error) => ({
+      await compare(name).catch((error: Error) => ({
         name,
         error: error.message,
       }))

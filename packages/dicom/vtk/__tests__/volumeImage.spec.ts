@@ -122,4 +122,20 @@ describe('vtk volume adapter', () => {
     expect(Array.from(sliceThumbnail(image, 0).data)).toEqual([0, 255, 50]);
     image.delete();
   });
+
+  it('windows a color slice to its own luminance, whatever the other slices hold', () => {
+    const image = vtkImageData.newInstance();
+    image.setDimensions(2, 1, 2);
+    image.getPointData().setScalars(
+      vtkDataArray.newInstance({
+        numberOfComponents: 3,
+        values: new Uint8Array([
+          0, 0, 0, 100, 100, 100, 255, 255, 255, 0, 0, 0,
+        ]),
+      })
+    );
+
+    expect(Array.from(sliceThumbnail(image, 0).data)).toEqual([0, 255]);
+    image.delete();
+  });
 });

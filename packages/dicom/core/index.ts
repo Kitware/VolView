@@ -21,7 +21,6 @@ export {
 // Datasets
 export {
   readDicomDataset,
-  isPrivateElement,
   type DicomDataset,
   type DicomElement,
 } from './metadata/dicomDataset';
@@ -46,11 +45,7 @@ export {
 export { seriesKeyOf } from './collections/instanceFacts';
 
 // Volumes
-export {
-  allocateVolume,
-  type Volume,
-  type AllocateVolumeOptions,
-} from './volume/allocateVolume';
+export { allocateVolume, type Volume } from './volume/allocateVolume';
 export {
   loadVolume,
   middleSlot,

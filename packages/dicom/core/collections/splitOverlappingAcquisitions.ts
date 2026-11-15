@@ -1,13 +1,6 @@
 import type { InstanceFacts } from './planDicomCollections';
 import { groupBy } from './groupBy';
 
-export const DESCRIPTOR_AXES = [
-  { rule: 'sequence', fact: 'sequenceName', counter: true },
-  { rule: 'thickness', fact: 'sliceThickness', counter: true },
-  { rule: 'series', fact: 'seriesNumber', counter: true },
-  { rule: 'date', fact: 'seriesDate', counter: true },
-] as const;
-
 /**
  * Facts tried, in order, as the identity of one scan within a series. An axis
  * that does not split hands the members to the next; an axis that does split
@@ -22,25 +15,25 @@ export const DESCRIPTOR_AXES = [
  * groups too, except when all images share one plane: separating those cannot
  * remove a slice from a spatial stack.
  */
-export const SEMANTIC_AXES = [
-  { rule: 'acquisition', fact: 'acquisitionNumber', counter: true },
-  { rule: 'phase', fact: 'temporalPositionIdentifier', counter: true },
-  { rule: 'echo', fact: 'echoNumbers', counter: false },
-  { rule: 'b-value', fact: 'diffusionBValue', counter: false },
-  ...DESCRIPTOR_AXES,
+const SEMANTIC_AXES = [
+  { rule: 'acquisition', fact: 'acquisitionNumber', kind: 'counter' },
+  { rule: 'phase', fact: 'temporalPositionIdentifier', kind: 'counter' },
+  { rule: 'echo', fact: 'echoNumbers', kind: 'contrast' },
+  { rule: 'b-value', fact: 'diffusionBValue', kind: 'contrast' },
+  { rule: 'sequence', fact: 'sequenceName', kind: 'descriptor' },
+  { rule: 'thickness', fact: 'sliceThickness', kind: 'descriptor' },
+  { rule: 'series', fact: 'seriesNumber', kind: 'descriptor' },
+  { rule: 'date', fact: 'seriesDate', kind: 'descriptor' },
 ] as const;
 
 type SemanticAxis = (typeof SEMANTIC_AXES)[number];
 
-const isDescriptor = (axis: SemanticAxis) =>
-  DESCRIPTOR_AXES.some((descriptor) => descriptor.fact === axis.fact);
-
-export type SemanticPart = {
+type SemanticPart = {
   // One entry per axis, in SEMANTIC_AXES order: the value the part was split
   // out on, or null where the axis did not partition its members.
   parts: Array<[string, string | null]>;
   members: InstanceFacts[];
-  // 'acquisition 2, echo 1'; null for members no axis separated.
+  // 'acquisition 2, echo 1'; null for members nothing separated.
   label: string | null;
   // Two members share a slice position and no axis separates them.
   repeatedPositions: boolean;
@@ -51,17 +44,14 @@ export type SemanticPart = {
 
 // The key part that keeps the members of unreadable geometry apart from the
 // judged parts of the same series.
-export const GEOMETRY_RULE = 'geometry';
-export const UNREADABLE_GEOMETRY = 'unreadable';
-export const UNREADABLE_GEOMETRY_LABEL = 'position unknown';
+const GEOMETRY_RULE = 'geometry';
+const UNREADABLE_GEOMETRY = 'unreadable';
 
 /**
- * Where a member sits along the slice axis. The planner passes the projection
- * on its bucket's common normal; the member's own is the default.
+ * Where a member sits along the slice axis: the planner passes the projection
+ * on its bucket's common normal.
  */
 export type PositionOf = (member: InstanceFacts) => number | null;
-
-const ownPosition: PositionOf = (member) => member.projectedPosition;
 
 const countDistinctPositions = (
   members: InstanceFacts[],
@@ -105,7 +95,7 @@ const groupByAxis = (
   axis: SemanticAxis,
   singlePlane: boolean
 ) => {
-  const independentImages = singlePlane && isDescriptor(axis);
+  const independentImages = singlePlane && axis.kind === 'descriptor';
   const tagged = new Map<string | null, InstanceFacts[]>();
   members.forEach((member) => {
     const value = member[axis.fact];
@@ -119,7 +109,8 @@ const groupByAxis = (
   // a slice from a spatial stack.
   const eligible = new Map(
     [...tagged].filter(
-      ([, group]) => !axis.counter || independentImages || group.length > 1
+      ([, group]) =>
+        axis.kind === 'contrast' || independentImages || group.length > 1
     )
   );
   const remainder = members.filter((member) => {
@@ -164,29 +155,19 @@ const unsplit = (
   },
 ];
 
-/** Members no axis can judge, held apart under a key part of their own. */
-const unreadableGeometry = (
-  members: InstanceFacts[],
-  axes: SemanticAxis[]
-): SemanticPart => ({
-  parts: [
-    ...axes.map((axis): [string, null] => [axis.rule, null]),
-    [GEOMETRY_RULE, UNREADABLE_GEOMETRY],
-  ],
-  members,
-  label: UNREADABLE_GEOMETRY_LABEL,
-  repeatedPositions: false,
-  unreadablePositions: true,
-});
-
 const labelFor = (axis: SemanticAxis, members: InstanceFacts[]) => {
   const values = new Set(members.map((member) => member[axis.fact]));
   const value = values.size === 1 ? [...values][0] : 'mixed';
   return `${axis.rule} ${value ?? 'unknown'}`;
 };
 
-const splitUnreadable = (members: InstanceFacts[], axes: SemanticAxis[]) => {
-  const descriptors = DESCRIPTOR_AXES.filter((axis) => axes.includes(axis));
+// Members no axis can judge, held apart by descriptor under a key part of
+// their own.
+const splitUnreadable = (
+  members: InstanceFacts[],
+  axes: SemanticAxis[]
+): SemanticPart[] => {
+  const descriptors = axes.filter((axis) => axis.kind === 'descriptor');
   const groups = [
     ...groupBy(members, (member) =>
       JSON.stringify(descriptors.map((axis) => member[axis.fact]))
@@ -195,20 +176,19 @@ const splitUnreadable = (members: InstanceFacts[], axes: SemanticAxis[]) => {
   const differing = descriptors.filter(
     (axis) => new Set(members.map((member) => member[axis.fact])).size > 1
   );
-  return groups.map((group) => {
-    const part = unreadableGeometry(group, axes);
-    return {
-      ...part,
-      parts: part.parts.map(([rule, value]): [string, string | null] => {
-        const descriptor = descriptors.find((axis) => axis.rule === rule);
-        return [rule, descriptor ? group[0][descriptor.fact] : value];
-      }),
-      label: [
-        ...differing.map((axis) => labelFor(axis, group)),
-        part.label,
-      ].join(', '),
-    };
-  });
+  return groups.map((group) => ({
+    parts: [
+      ...axes.map((axis): [string, string | null] => [
+        axis.rule,
+        axis.kind === 'descriptor' ? group[0][axis.fact] : null,
+      ]),
+      [GEOMETRY_RULE, UNREADABLE_GEOMETRY],
+    ],
+    members: group,
+    label: differing.map((axis) => labelFor(axis, group)).join(', ') || null,
+    repeatedPositions: false,
+    unreadablePositions: true,
+  }));
 };
 
 function splitByAxes(
@@ -221,9 +201,7 @@ function splitByAxes(
   const singlePlane = countDistinctPositions(members, positionOf) === 1;
   const found = firstSplittingAxis(
     members,
-    singlePlane
-      ? axes.filter((axis) => !axis.counter || isDescriptor(axis))
-      : axes,
+    singlePlane ? axes.filter((axis) => axis.kind !== 'counter') : axes,
     positionOf,
     singlePlane
   );
@@ -277,7 +255,7 @@ function splitByAxes(
  */
 export function splitOverlappingAcquisitions(
   members: InstanceFacts[],
-  positionOf: PositionOf = ownPosition
+  positionOf: PositionOf
 ): SemanticPart[] {
   const axes = [...SEMANTIC_AXES];
   const readable = (member: InstanceFacts) =>

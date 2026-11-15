@@ -1,52 +1,20 @@
-import { resolve } from 'node:path';
-import { PNG } from 'pngjs';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { captureViewPixels } from './utils';
 
 type RenderedSlice = { width: number; height: number; data: Buffer };
 
+// The inset excludes orientation labels, slice counters, sliders and viewport
+// controls, so UI text cannot satisfy image assertions.
+const VIEW_INSET = 80;
+
 async function captureSlice(fileName: string, viewIndex: number) {
-  const image = PNG.sync.read(
-    await browser.saveScreenshot(resolve(TEMP_DIR, fileName))
+  const views = await captureViewPixels(
+    '[data-testid~="vtk-two-view"]',
+    VIEW_INSET,
+    fileName
   );
-  const geometry = await browser.execute((index) => {
-    const view = document.querySelectorAll('[data-testid~="vtk-two-view"]')[
-      index
-    ];
-    if (!view) return null;
-    const rect = view.getBoundingClientRect();
-    return {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    };
-  }, viewIndex);
-  if (!geometry) throw new Error(`No slice viewport at index ${viewIndex}`);
-  const scaleX = image.width / geometry.viewportWidth;
-  const scaleY = image.height / geometry.viewportHeight;
-  const left = Math.ceil((geometry.x + geometry.width * 0.18) * scaleX);
-  const top = Math.ceil((geometry.y + geometry.height * 0.18) * scaleY);
-  const width = Math.floor(geometry.width * 0.64 * scaleX);
-  const height = Math.floor(geometry.height * 0.64 * scaleY);
-  if (
-    width <= 0 ||
-    height <= 0 ||
-    left < 0 ||
-    top < 0 ||
-    left + width > image.width ||
-    top + height > image.height
-  )
-    throw new Error('The slice viewport has no interior image region');
-  // The central image region excludes orientation labels, slice counters,
-  // sliders and viewport controls, so UI text cannot satisfy image assertions.
-  const data = Buffer.alloc(width * height * 4);
-  for (let row = 0; row < height; row++) {
-    const source = ((top + row) * image.width + left) * 4;
-    image.data.copy(data, row * width * 4, source, source + width * 4);
-  }
-  return { width, height, data };
+  const view = views[viewIndex];
+  if (!view) throw new Error(`No slice viewport at index ${viewIndex}`);
+  return { ...view, height: view.data.length / 4 / view.width };
 }
 
 function hasImageContent(
