@@ -20,21 +20,27 @@ type ServerOptions = {
   honorRange?: boolean;
   exposeContentRange?: boolean;
   status?: number;
+  /** Moves the start of the range the server answers away from the one asked. */
+  startShift?: number;
+  contentRange?: string;
 };
 
 /** A fetch that serves `bytes` in 64-byte chunks and records what it was asked. */
 const server = (options: ServerOptions = {}) => {
   const { honorRange = true, exposeContentRange = true, status } = options;
+  const { startShift = 0, contentRange } = options;
   const requests: Array<string | null> = [];
   const caches: Array<RequestCache | undefined> = [];
+  const signals: Array<AbortSignal | null | undefined> = [];
   const bodies: Array<{ cancelled: boolean }> = [];
   const fetchFn: typeof fetch = async (_input, init) => {
     const range = new Headers(init?.headers).get('Range');
     requests.push(range);
     caches.push(init?.cache);
+    signals.push(init?.signal);
     const match = range?.match(/^bytes=(\d+)-(\d*)$/);
     const partial = honorRange && match !== null && match !== undefined;
-    const start = partial ? Number(match[1]) : 0;
+    const start = partial ? Number(match[1]) + startShift : 0;
     const end = partial && match[2] ? Number(match[2]) + 1 : bytes.length;
     const body = { cancelled: false };
     bodies.push(body);
@@ -54,13 +60,16 @@ const server = (options: ServerOptions = {}) => {
     });
     const headers = new Headers({ 'content-length': String(end - start) });
     if (partial && exposeContentRange)
-      headers.set('content-range', `bytes ${start}-${end - 1}/${bytes.length}`);
+      headers.set(
+        'content-range',
+        contentRange ?? `bytes ${start}-${end - 1}/${bytes.length}`
+      );
     return new Response(stream, {
       status: status ?? (partial ? 206 : 200),
       headers,
     });
   };
-  return { fetch: fetchFn, requests, caches, bodies };
+  return { fetch: fetchFn, requests, caches, bodies, signals };
 };
 
 const signal = () => new AbortController().signal;
@@ -82,6 +91,28 @@ describe('blob byte source', () => {
         }
       )
     );
+  });
+
+  it('hands a range with an end over whole and an open read in growing slices', async () => {
+    const large = new Blob([new Uint8Array(500 * 1024)]);
+    const chunkSizes = async (range?: ByteRange) => {
+      const reader = fromBlob(large).read(signal(), range).getReader();
+      const sizes: number[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return sizes;
+        sizes.push(value.length);
+      }
+    };
+    expect(await chunkSizes({ start: 1024, end: 401 * 1024 })).toEqual([
+      400 * 1024,
+    ]);
+    expect(await chunkSizes()).toEqual([
+      64 * 1024,
+      128 * 1024,
+      256 * 1024,
+      52 * 1024,
+    ]);
   });
 
   it('errors its stream once the signal aborts', async () => {
@@ -154,8 +185,40 @@ describe('URL byte source', () => {
     expect(http.requests).toHaveLength(2);
   });
 
+  it('reads a range from a 206 that starts before it', async () => {
+    const http = server({ startShift: -50 });
+    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    expect(
+      await readStream(source.read(signal(), { start: 100, end: 300 }))
+    ).toEqual(expected({ start: 100, end: 300 }));
+  });
+
   it.each([
-    [404, /could not be found/],
+    ['starts after the range asked', { startShift: 50 }, /starts too late/],
+    [
+      'carries an unreadable Content-Range',
+      { contentRange: 'bytes 100-' },
+      /Invalid content-range/,
+    ],
+  ])('fails a 206 that %s', async (_name, options, message) => {
+    const http = server(options);
+    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    await expect(
+      readStream(source.read(signal(), { start: 100, end: 300 }))
+    ).rejects.toThrow(message);
+  });
+
+  it('aborts its request once the body is read to the end', async () => {
+    const http = server();
+    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    await readStream(source.read(signal(), { start: 0, end: 10 }));
+    expect(http.signals[0]?.aborted).toBe(true);
+  });
+
+  it.each([
+    [401, /HTTP 401/],
+    [404, /HTTP 404/],
+    [500, /HTTP 500/],
     [416, /Range could not be satisfied/],
   ])('fails a %i response', async (status, message) => {
     const http = server({ status });

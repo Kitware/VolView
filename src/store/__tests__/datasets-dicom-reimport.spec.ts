@@ -3,28 +3,21 @@ import { createPinia, setActivePinia } from 'pinia';
 
 import type DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import {
-  useDICOMStore,
-  type ImportInstancesResult,
-} from '@/src/store/datasets-dicom';
+import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { mergingInstances } from '@/tests/dicomOrientationFixtures';
 import {
   ALLOCATION_FAILURE,
   imageFactory,
   membersOf,
+  onlyFailure,
+  onlyId,
   OTHER_SERIES_UID,
   SERIES_UID,
   sliceFor,
   STUDY_UID,
   unallocatableFor,
 } from '@/src/store/__tests__/dicomImportFixtures';
-
-const onlyId = ({ volumes }: ImportInstancesResult) => {
-  const ids = Object.keys(volumes);
-  expect(ids).toHaveLength(1);
-  return ids[0];
-};
 
 const sliceValues = (image: DicomVolumeImage) => {
   const data = image.getVtkImageData();
@@ -206,18 +199,18 @@ describe('DICOM store incremental import', () => {
     expect(imageCacheStore.imageById[dissolved]).toBeUndefined();
     expect(store.studyVolumes[STUDY_UID]).toEqual([survivor]);
     expect(store.volumeInfo[survivor].NumberOfSlices).toBe(3);
-    // The caller has to drop the dataset the dissolved id owned, and the
-    // survivor has to carry the provenance of the member it inherited.
-    expect(merged.dissolved).toEqual([dissolved]);
+    // The survivor carries the provenance of the member it inherited.
     expect(merged.volumes[survivor]).toEqual([straight, tilted, between]);
   });
 
   it('lets a corrected re-import replace the instance a failed import brought', () => {
     const { created, createImage } = imageFactory();
     const store = useDICOMStore();
-    expect(() =>
-      store.importInstances([unallocatableFor({ sop: 'a' })], { createImage })
-    ).toThrow(ALLOCATION_FAILURE);
+    expect(
+      onlyFailure(
+        store.importInstances([unallocatableFor({ sop: 'a' })], { createImage })
+      )
+    ).toMatch(ALLOCATION_FAILURE);
 
     const corrected = sliceFor({ sop: 'a', rows: '8' });
     store.importInstances([corrected], { createImage });

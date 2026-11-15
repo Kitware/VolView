@@ -12,7 +12,6 @@ const BINARY_DIRS = [
   'docs/public/',
   'public/',
   'src/assets/',
-  'src/io/itk-dicom/emscripten-build/',
   'src/io/resample/emscripten-build/',
 ];
 const { base } = stagedContext();

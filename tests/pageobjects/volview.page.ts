@@ -68,6 +68,29 @@ class VolViewPage extends Page {
     );
   }
 
+  /** Every view has a sized canvas and none is still loading its image. */
+  async waitForViewsLoaded() {
+    await browser.waitUntil(
+      () =>
+        browser.execute(() => {
+          const canvases = Array.from(
+            document.querySelectorAll<HTMLCanvasElement>(
+              'div[data-testid~="vtk-view"] canvas'
+            )
+          );
+          return (
+            canvases.length > 0 &&
+            canvases.every(({ width, height }) => width > 10 && height > 10) &&
+            !document.querySelector('.loading-indicator')
+          );
+        }),
+      {
+        timeout: DOWNLOAD_TIMEOUT,
+        timeoutMsg: 'Expected every view to finish loading',
+      }
+    );
+  }
+
   get volumeCards() {
     return $$('.volume-card');
   }
@@ -92,6 +115,7 @@ class VolViewPage extends Page {
         );
       },
       {
+        timeout: DOWNLOAD_TIMEOUT,
         timeoutMsg: `expected volume cards holding ${expected.join(
           ', '
         )} slices`,
@@ -99,34 +123,14 @@ class VolViewPage extends Page {
     );
   }
 
-  /**
-   * Deletes the volume of the card at `index` of `getVolumeCardSliceCounts`,
-   * which orders by slice count rather than by the order the cards render in.
-   */
-  async deleteVolumeCard(index: number) {
-    const counts = await this.getVolumeCardSliceCounts();
-    const cards = [...(await this.volumeCards)];
-    const labelled = await Promise.all(
-      cards.map(async (card) => ({
-        card,
-        count: Number((await card.getText()).match(/\[(\d+)\]/)?.[1]),
-      }))
+  /** Deletes the volume whose card label carries `[sliceCount]`. */
+  async deleteVolumeCard(sliceCount: number) {
+    const menu = $(`.volume-card*=[${sliceCount}]`).$(
+      'button[data-testid="dataset-menu-button"]'
     );
-    const target = labelled.find(({ count }) => count === counts[index]);
-    if (!target) throw new Error(`no volume card holding ${counts[index]}`);
-
-    const menu = target.card.$('button[data-testid="dataset-menu-button"]');
     await menu.waitForClickable();
     await menu.click();
-
-    const remove = await browser.waitUntil(
-      async () => {
-        const items = [...(await $$('.v-overlay-container .v-list-item'))];
-        const texts = await Promise.all(items.map((item) => item.getText()));
-        return items[texts.findIndex((text) => text.trim() === 'Delete')];
-      },
-      { timeoutMsg: 'expected a Delete item in the dataset menu' }
-    );
+    const remove = $('.v-overlay-container').$('.v-list-item=Delete');
     await remove.waitForClickable();
     await remove.click();
   }
@@ -155,8 +159,17 @@ class VolViewPage extends Page {
     );
   }
 
-  async getNotificationTitles() {
+  /** Opens the message center once no toast covers its button. */
+  async openNotifications() {
+    await browser.waitUntil(
+      async () => (await $$('.Vue-Toastification__toast').length) === 0,
+      { timeoutMsg: 'expected the toasts to close' }
+    );
     await this.notifications.click();
+  }
+
+  async getNotificationTitles() {
+    await this.openNotifications();
     const titles = $$(
       '.message-center .v-expansion-panel-title .header > span'
     );

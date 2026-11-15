@@ -7,11 +7,7 @@ import { plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import type { Instance } from '../../instance/readInstance';
 import type { WholeInstanceDecode } from '../../pixels/pixelDecoder';
 import { fromBlob } from '../../source/byteSource';
-import {
-  allocateVolume,
-  type AllocateVolumeOptions,
-  type Volume,
-} from '../allocateVolume';
+import { allocateVolume, type Volume } from '../allocateVolume';
 
 export const PIXELS_PER_SLICE = 16;
 
@@ -33,11 +29,8 @@ export const pixelSlice = (value: number, options: SliceOptions = {}) =>
     fromBlob(new Blob([String(value)]))
   );
 
-export const allocated = (
-  members: Instance[],
-  previous?: Volume,
-  options: AllocateVolumeOptions = {}
-) => allocateVolume(plannedUpdate(members), options, previous);
+export const allocated = (members: Instance[], previous?: Volume) =>
+  allocateVolume(plannedUpdate(members), previous);
 
 /** The slice a source written by `pixelSlice` decodes to. */
 export const slicePixels = (bytes: Uint8Array) => {

@@ -59,10 +59,7 @@ async function register(instances: Instance[], status: string) {
   });
   for (const update of updates) {
     const previous = loaded.get(update.id);
-    loaded.set(
-      update.id,
-      await loadCollection(update, { previous: previous?.volume })
-    );
+    loaded.set(update.id, await loadCollection(update, previous?.volume));
     previous?.image.delete();
   }
   await render(status);

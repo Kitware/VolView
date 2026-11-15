@@ -24,9 +24,17 @@
       "@wdio/visual-service"
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     },
-    "lib": ["esnext", "dom", "dom.iterable", "scripthost", "WebWorker"]
+    "lib": [
+      "esnext",
+      "dom",
+      "dom.iterable",
+      "scripthost",
+      "WebWorker"
+    ]
   },
   "include": [
     "src/**/*.ts",
@@ -38,7 +46,9 @@
     "tests/**/*.tsx",
     "packages/dicom/**/*.ts"
   ],
-  "exclude": ["node_modules"],
+  "exclude": [
+    "node_modules"
+  ],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"

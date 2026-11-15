@@ -3,7 +3,7 @@ import { findElement } from './dicomDataset';
 import { canonicalTag, getDatasetTag } from './datasetAccess';
 import { getNmDetectorTag } from './nmReconstruction';
 
-const SHARED_GROUPS = '52009229';
+export const SHARED_GROUPS = '52009229';
 const PER_FRAME_GROUPS = '52009230';
 
 const IMAGE_MACROS = new Map([

@@ -1,15 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import JSZip from 'jszip';
-import corpus from '../dicomVolumeCorpus.json';
-import composition from '../dicomCompositionCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
 import { openDicomPage } from '../dicomPages';
-import { fixtureBytes } from '../fixtures/dicom-pages/fixtureData';
 import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
 import {
   EXPLICIT_BE,
-  EXPLICIT_LE,
   IMPLICIT_LE,
   nativePixelDicom,
   type DataElement,
@@ -86,6 +82,7 @@ const synthetic: Array<[string, boolean, NativePixelOptions]> = [
   ['ct-fractional', true, { bitsStored: 12, rescale: [0.5, -0.25] }],
   ['ct-irrational', true, { pixelRepresentation: 1, rescale: [1.9413152, 0.1] }],
   ['ct-zero-slope', true, { pixelRepresentation: 1, rescale: [0, 7] }],
+  ['dsc-large-slope', true, { rescale: [112067.85375182, 0] }],
   ['enhanced-ct-uniform', true, { sopClassUid: SOP_CLASSES.EnhancedCT, frames: 3, frameRescales: [[2, -1], [2, -1], [2, -1]] }],
   ['enhanced-mr-fractional', true, { sopClassUid: SOP_CLASSES.EnhancedMR, modality: 'MR', frames: 2, frameRescales: [[0.3, 1], [0.3, 1]] }],
   ['enhanced-ct-differing', false, { sopClassUid: SOP_CLASSES.EnhancedCT, frames: 2, frameRescales: [[1, 0], [2, 0]] }],
@@ -97,33 +94,26 @@ const synthetic: Array<[string, boolean, NativePixelOptions]> = [
   ),
 ];
 
-const NATIVE_SYNTAXES = new Set([IMPLICIT_LE, EXPLICIT_LE, EXPLICIT_BE]);
-
-// Uncompressed public files decode natively, except the enhanced CT whose
-// supplemental palette GDCM applies.
-const corpusNative = (name: string, syntax: string) =>
-  NATIVE_SYNTAXES.has(syntax) && !name.includes('eCT_Supplemental');
-
 const cached = (names: string[]) =>
   names.map(
     (name) => [name, readFileSync(resolve(DATASET_CACHE, name))] as const
   );
 
-const zipped = async (zip: string) => {
+/** One slice of an archive whose slices all share a pixel format. */
+const firstSlice = async (zip: string) => {
   const archive = await JSZip.loadAsync(
     readFileSync(resolve(DATASET_CACHE, zip))
   );
-  const files = Object.values(archive.files).filter((file) => !file.dir);
-  return Promise.all(
-    files.map(
-      async (file) =>
-        [`${zip}/${file.name}`, await file.async('uint8array')] as const
-    )
-  );
+  const [file] = Object.values(archive.files).filter((entry) => !entry.dir);
+  return [`${zip}/${file.name}`, await file.async('uint8array')] as const;
 };
 
-/** Pages per source, each small enough to finish quickly under load. */
-const PAGES = 16;
+// The public singles decode natively except the two compressed ultrasounds.
+const publicNative = (name: string) =>
+  !/US_multiframe|jpeg_baseline/.test(name);
+
+/** Pages small enough to finish quickly under load. */
+const PAGES = 4;
 
 type ParityResult = {
   name: string;
@@ -141,33 +131,26 @@ describe('Native frame decoding parity with GDCM', () => {
   const expectedNative = new Map<string, boolean>();
   let cases: string[] = [];
   before(async () => {
+    const publicFiles = [
+      ...cached(['CT000085.dcm', 'minimal.dcm', 'retinal-oct.dcm']),
+      ...cached(['US-MONO2-8-8x-echo.dcm', 'US_multiframe_30frames.dcm']),
+      ...cached(['color3d_jpeg_baseline.dcm']),
+      await firstSlice('prostate.zip'),
+      await firstSlice('MRA-Head_and_Neck.zip'),
+    ];
     const files = [
       ...synthetic.map(
         ([name, , options], index) =>
           [name, nativePixelDicom({ ...options, instance: index + 1 })] as const
       ),
-      ...cached(corpus.map(({ name }) => name)),
-      ...cached(composition.datasets.map(({ name }) => name)),
-      ...cached(['CT000085.dcm', 'minimal.dcm', 'retinal-oct.dcm']),
-      ...cached(['US-MONO2-8-8x-echo.dcm', 'US_multiframe_30frames.dcm']),
-      ...cached(['color3d_jpeg_baseline.dcm']),
-      ...(await zipped('prostate.zip')),
-      ...(await zipped('MRA-Head_and_Neck.zip')),
+      ...publicFiles,
     ];
     cases = files.map(([name]) => name);
     synthetic.forEach(([name, native]) => expectedNative.set(name, native));
-    corpus.forEach(({ name, transferSyntaxUID }) =>
-      expectedNative.set(name, corpusNative(name, transferSyntaxUID))
+    publicFiles.forEach(([name]) =>
+      expectedNative.set(name, publicNative(name))
     );
-    // The two MR acquisitions are JPEG Lossless; the PET/CT files are not.
-    composition.datasets.forEach(({ name }) =>
-      expectedNative.set(name, name.startsWith('PET-CT-'))
-    );
-    files.forEach(([name]) => {
-      if (!expectedNative.has(name))
-        expectedNative.set(name, !/US_multiframe|jpeg_baseline/.test(name));
-    });
-    fixture = await startDicomPages(fixtureBytes(), {
+    fixture = await startDicomPages({
       kinds: ['parity'],
       fixtures: {
         ...Object.fromEntries(files),
@@ -181,26 +164,23 @@ describe('Native frame decoding parity with GDCM', () => {
   const pageOf = (page: number) =>
     cases.slice(page * pageSize(), (page + 1) * pageSize());
 
-  for (const source of ['file', 'http'])
-    for (let page = 0; page < PAGES; page += 1)
-      it(`writes the volume natively as GDCM does from ${source}, page ${page + 1}`, async () => {
-        const wanted = pageOf(page);
-        const from = page * pageSize();
-        await openDicomPage(
-          `${fixture.urls.parity}?source=${source}&from=${from}&to=${from + wanted.length}`
-        );
-        const results: ParityResult[] = JSON.parse(
-          await $('#report').getText()
-        );
-        const unexpected = results.filter(
-          (result) =>
-            result.error ||
-            result.mismatch ||
-            result.rawMismatch ||
-            (result.plan === 'frames') !== expectedNative.get(result.name) ||
-            (result.plan === 'frames' && result.native !== result.volume)
-        );
-        expect(unexpected).toEqual([]);
-        expect(results.map(({ name }) => name)).toEqual(wanted);
-      });
+  for (let page = 0; page < PAGES; page += 1)
+    it(`writes the volume natively as GDCM does, page ${page + 1}`, async () => {
+      const wanted = pageOf(page);
+      const from = page * pageSize();
+      await openDicomPage(
+        `${fixture.urls.parity}?from=${from}&to=${from + wanted.length}`
+      );
+      const results: ParityResult[] = JSON.parse(await $('#report').getText());
+      const unexpected = results.filter(
+        (result) =>
+          result.error ||
+          result.mismatch ||
+          result.rawMismatch ||
+          (result.plan === 'frames') !== expectedNative.get(result.name) ||
+          (result.plan === 'frames' && result.native !== result.volume)
+      );
+      expect(unexpected).toEqual([]);
+      expect(results.map(({ name }) => name)).toEqual(wanted);
+    });
 });

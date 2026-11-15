@@ -1,8 +1,9 @@
+import { UNDEFINED_LENGTH } from '../metadata/dicomLayout';
+
 const ITEM = 0xe000;
 const SEQUENCE_DELIMITER = 0xe0dd;
 const ITEM_GROUP = 0xfffe;
 const ITEM_HEAD_LENGTH = 8;
-const UNDEFINED_LENGTH = 0xffffffff;
 
 type Fragment = Readonly<{
   /** Offset of the item tag from the first fragment item, as offset tables count. */

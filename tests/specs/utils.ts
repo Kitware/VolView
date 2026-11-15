@@ -6,6 +6,7 @@ import { PNG } from 'pngjs';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import type { TestDataset } from '../datasets';
+import { buildSyntheticDicom, newUid } from './syntheticDicom';
 
 export async function captureViewPixels(
   selector: string,
@@ -331,6 +332,60 @@ export async function dropFiles(filePaths: string[]) {
     encoded
   );
   expect(dropped).toBe(true);
+}
+
+/** Opens the Image spacing dialog of the first volume card. */
+export async function openSpacingDetails() {
+  await $('.volume-card [data-testid="dataset-menu-button"]').click();
+  const item = $('[data-testid="dataset-menu-spacing-item"]');
+  await item.waitForDisplayed();
+  await item.waitForStable();
+  await item.waitForClickable();
+  await item.click();
+  await $('[data-testid="image-spacing-details"]').waitForDisplayed();
+}
+
+const ACQUISITION_SLICE_SPACING = 2.5;
+
+export type AcquisitionPass = {
+  number: number;
+  firstSliceZ: number;
+  sliceCount: number;
+};
+
+/**
+ * Writes acquisitions of one series as axial 2.5 mm stacks and returns their
+ * manifest resources. Instance numbers are unique across passes, so no
+ * instance looks like a re-send.
+ */
+export function writeAcquisitions(
+  dirName: string,
+  uids: { studyUid: string; seriesUid: string },
+  passes: AcquisitionPass[]
+) {
+  const dir = makeTempDir(dirName);
+  return passes.flatMap(({ number, firstSliceZ, sliceCount }) =>
+    Array.from({ length: sliceCount }, (_, i) => {
+      const name = `acq${number}-slice${i}.dcm`;
+      fs.writeFileSync(
+        path.join(dir, name),
+        buildSyntheticDicom({
+          ...uids,
+          sopUid: newUid(),
+          instanceNumber: number * 100 + i,
+          acquisitionNumber: number,
+          imageOrientationPatient: [1, 0, 0, 0, 1, 0],
+          imagePositionPatient: [
+            0,
+            0,
+            firstSliceZ + i * ACQUISITION_SLICE_SPACING,
+          ],
+          sliceThickness: ACQUISITION_SLICE_SPACING,
+        })
+      );
+      return { url: `tmp/${dirName}/${name}`, name };
+    })
+  );
 }
 
 /** Loads a file into the page already open, through the Open files dialog. */

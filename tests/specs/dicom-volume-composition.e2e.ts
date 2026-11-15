@@ -4,7 +4,6 @@ import corpus from '../dicomCompositionCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
 import { waitForDicomPage } from '../dicomPages';
 import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
-import { fixtureBytes } from '../fixtures/dicom-pages/fixtureData';
 import { volViewPage } from '../pageobjects/volview.page';
 import { waitForRenderedSlice } from './dicomRenderedSlice';
 
@@ -61,29 +60,29 @@ describe('Downloaded DICOM volume composition', () => {
         readFileSync(resolve(DATASET_CACHE, name)),
       ])
     );
-    fixture = await startDicomPages(fixtureBytes(), {
-      kinds: ['composition'],
-      fixtures,
-    });
+    fixture = await startDicomPages({ kinds: ['composition'], fixtures });
   });
   after(async () => fixture?.close());
 
+  // Composition never sees where bytes come from, so each axis is covered once.
+  const imports = [
+    ['file', 'batch'],
+    ['http', 'incremental'],
+  ];
   for (const scenario of corpus.cases) {
-    for (const source of ['file', 'http']) {
-      for (const mode of ['batch', 'incremental']) {
-        it(`composes every ${scenario.id} collection from shuffled ${source} sources in ${mode} mode`, async () => {
-          await browser.url(
-            `${fixture.urls.composition}?${new URLSearchParams({ case: scenario.id, source, mode })}`
-          );
-          if (mode === 'incremental') {
-            await waitForDicomPage(undefined, 'partial');
-            await expectComposedVolumes(scenario.volumes, true);
-            await $('#complete-import').click();
-          }
-          await waitForDicomPage();
-          await expectComposedVolumes(scenario.volumes, false);
-        });
-      }
+    for (const [source, mode] of imports) {
+      it(`composes every ${scenario.id} collection from shuffled ${source} sources in ${mode} mode`, async () => {
+        await browser.url(
+          `${fixture.urls.composition}?${new URLSearchParams({ case: scenario.id, source, mode })}`
+        );
+        if (mode === 'incremental') {
+          await waitForDicomPage(undefined, 'partial');
+          await expectComposedVolumes(scenario.volumes, true);
+          await $('#complete-import').click();
+        }
+        await waitForDicomPage();
+        await expectComposedVolumes(scenario.volumes, false);
+      });
     }
   }
 });
@@ -100,11 +99,7 @@ describe('VolView downloaded collection import', () => {
           .map(({ expected }) => expected.dimensions[2])
           .sort((a, b) => a - b)
       );
-      await volViewPage.waitForViews();
-      const views = $$('[data-testid~="vtk-view"]');
-      for (let index = 0; index < (await views.length); index++)
-        await volViewPage.waitForLoadingIndicator(views[index]);
-      await expect($('.loading-indicator')).not.toBeExisting();
+      await volViewPage.waitForViewsLoaded();
       await waitForRenderedSlice(
         `composition-${scenario.id}.png`,
         0,

@@ -1,13 +1,14 @@
 import type { Instance } from '../instance/readInstance';
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
+import { Tags } from '../metadata/dicomTags';
 import {
   hasUniformModalityRescale,
   readModalityRescale,
 } from '../metadata/modalityRescale';
 import { numberOr, trimDicomPadding } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
-import { indexFrames } from './frameIndex';
+import { indexFrames, shapeOf } from './frameIndex';
 import type { PixelDecoder } from './pixelDecoder';
 
 /** What decides how one native frame's bytes become samples. */
@@ -43,20 +44,19 @@ function readNativePixelFormat(
   littleEndian: boolean
 ): NativePixelFormat {
   const { dataset } = instance;
-  const { rescaleSlope, rescaleIntercept } = readModalityRescale(dataset);
+  const { rows, columns, samplesPerPixel, bitsAllocated } = shapeOf(instance);
   return {
-    rows: number(dataset, '00280010'),
-    columns: number(dataset, '00280011'),
-    samplesPerPixel: numberOr(getDatasetTag(dataset, '00280002'), 1),
-    photometricInterpretation: text(dataset, '00280004'),
-    planar: number(dataset, '00280006') === 1,
-    bitsAllocated: number(dataset, '00280100'),
-    bitsStored: number(dataset, '00280101'),
+    rows,
+    columns,
+    samplesPerPixel,
+    photometricInterpretation: text(dataset, Tags.PhotometricInterpretation),
+    planar: number(dataset, Tags.PlanarConfiguration) === 1,
+    bitsAllocated,
+    bitsStored: number(dataset, Tags.BitsStored),
     highBit: number(dataset, '00280102'),
-    signed: number(dataset, '00280103') === 1,
+    signed: number(dataset, Tags.PixelRepresentation) === 1,
     littleEndian,
-    rescaleSlope,
-    rescaleIntercept,
+    ...readModalityRescale(dataset),
   };
 }
 
@@ -108,8 +108,6 @@ const declineByteOrder = ({
 
 const declineRescale = (format: NativePixelFormat) => {
   const { rescaleSlope: slope, rescaleIntercept: intercept } = format;
-  if (!Number.isFinite(slope) || !Number.isFinite(intercept))
-    return 'Non-numeric modality rescale';
   const rgb = format.samplesPerPixel === 3;
   const plain = format.bitsAllocated === 8 && !format.signed;
   return rgb && !(plain && slope === 1 && intercept === 0)
@@ -154,6 +152,9 @@ export function nativeCapability(
   return reason ? { kind: 'declined', reason } : { kind: 'native', format };
 }
 
+const PLATFORM_LITTLE_ENDIAN =
+  new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
 /** Stored words as unsigned integers, viewed in place where alignment allows. */
 function storedWords(
   bytes: Uint8Array,
@@ -164,9 +165,7 @@ function storedWords(
   if (bitsAllocated === 8) return bytes.subarray(0, count);
   const size = bitsAllocated / 8;
   const Words = bitsAllocated === 16 ? Uint16Array : Uint32Array;
-  const platformLittleEndian =
-    new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
-  if (littleEndian === platformLittleEndian && bytes.byteOffset % size === 0)
+  if (littleEndian === PLATFORM_LITTLE_ENDIAN && bytes.byteOffset % size === 0)
     return new Words(bytes.buffer as ArrayBuffer, bytes.byteOffset, count);
   const view = new DataView(bytes.buffer, bytes.byteOffset, count * size);
   const words = new Words(count);
@@ -176,23 +175,6 @@ function storedWords(
         ? view.getUint16(index * 2, littleEndian)
         : view.getUint32(index * 4, littleEndian);
   return words;
-}
-
-/** Maps a stored word to its rescaled value. */
-function storedValue(format: NativePixelFormat) {
-  const { bitsStored, bitsAllocated, signed } = format;
-  const { rescaleSlope: slope, rescaleIntercept: intercept } = format;
-  // Bits Stored is below 32 when masking, so the bitwise result is nonnegative.
-  const mask = bitsStored < bitsAllocated ? 2 ** bitsStored - 1 : -1;
-  const signBit = signed ? 2 ** (bitsStored - 1) : Infinity;
-  const wrap = 2 ** bitsStored;
-  const stored = (word: number) => {
-    const value = mask === -1 ? word : word & mask;
-    return value >= signBit ? value - wrap : value;
-  };
-  return slope === 1 && intercept === 0
-    ? stored
-    : (word: number) => stored(word) * slope + intercept;
 }
 
 /**
@@ -206,35 +188,36 @@ export function decodeNativeFrame(
   Target: VolumeBufferConstructor
 ) {
   const { rows, columns, samplesPerPixel: components, planar } = format;
+  const { bitsStored, bitsAllocated, signed } = format;
+  const { rescaleSlope: slope, rescaleIntercept: intercept } = format;
   const pixels = rows * columns;
   const count = pixels * components;
-  const frameLength = count * (format.bitsAllocated / 8);
+  const frameLength = count * (bitsAllocated / 8);
   if (bytes.length < frameLength)
     throw new Error(
       `A frame needs ${frameLength} bytes of Pixel Data; ${bytes.length} were read`
     );
   const words = storedWords(bytes, format, count);
-  const valueOf = storedValue(format);
   const samples = new Target(count);
-  const min = new Array<number>(components).fill(Infinity);
-  const max = new Array<number>(components).fill(-Infinity);
-  for (let component = 0; component < components; component += 1) {
+  const mask = bitsStored < bitsAllocated ? 2 ** bitsStored - 1 : 0xffffffff;
+  const signBit = signed ? 2 ** (bitsStored - 1) : Infinity;
+  const wrap = 2 ** bitsStored;
+  const range = Array.from({ length: components }, (_, component) => {
+    const first = planar ? component * pixels : component;
+    const stride = planar ? 1 : components;
+    let low = Infinity;
+    let high = -Infinity;
     for (let pixel = 0; pixel < pixels; pixel += 1) {
-      const source = planar
-        ? component * pixels + pixel
-        : pixel * components + component;
-      const value = valueOf(words[source]);
+      // The unsigned shift undoes the sign a full 32 bit mask leaves.
+      const word = (words[first + pixel * stride] & mask) >>> 0;
+      const value = (word >= signBit ? word - wrap : word) * slope + intercept;
       samples[pixel * components + component] = value;
-      if (value < min[component]) min[component] = value;
-      if (value > max[component]) max[component] = value;
+      if (value < low) low = value;
+      if (value > high) high = value;
     }
-  }
-  return {
-    samples,
-    range: min.map(
-      (low, component) => [low, max[component]] as [number, number]
-    ),
-  };
+    return [low, high] as [number, number];
+  });
+  return { samples, range };
 }
 
 /** Decodes each frame of an instance it reproduces exactly from its own ranged read. */

@@ -3,13 +3,11 @@ import {
   ParsedElement,
   ParsedValue,
   parseDicomElements,
-  toBytes,
 } from './dcmjsParser';
-import { concatBytes, trimDicomPadding } from '../utils';
+import { trimDicomPadding } from '../utils';
 import {
   CHARSET_VRS,
   characterSetDecoder,
-  defaultRepertoire,
   VALUE_DELIMITER,
 } from './dicomCharacterSet';
 
@@ -20,45 +18,11 @@ type DicomTagKey = string;
 
 type AttributeTag = { group: number; element: number };
 
-/** VRs whose values are text under the default repertoire or a declared set. */
-const TEXT_VRS = new Set([
-  'AE',
-  'AS',
-  'CS',
-  'DA',
-  'DT',
-  'LO',
-  'LT',
-  'PN',
-  'SH',
-  'ST',
-  'TM',
-  'UC',
-  'UI',
-  'UR',
-  'UT',
-]);
-
 /** Text VRs of value multiplicity 1, whose backslash is a character. */
 const SINGLE_VALUED_TEXT_VRS = new Set(['LT', 'ST', 'UT']);
 
 /** VRs holding a number written as characters. */
 const DECIMAL_VRS = new Set(['DS', 'IS']);
-
-/** VRs holding a number written as bytes. */
-const NUMBER_VRS = new Set(['FL', 'FD', 'SL', 'SS', 'SV', 'UL', 'US', 'UV']);
-
-/** VRs whose value is an opaque buffer. */
-const BYTES_VRS = new Set(['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'UN']);
-
-const KNOWN_VRS = new Set([
-  ...TEXT_VRS,
-  ...DECIMAL_VRS,
-  ...NUMBER_VRS,
-  ...BYTES_VRS,
-  'AT',
-  'SQ',
-]);
 
 type DicomValues =
   /** A text VR, one entry per value, with the Specific Character Set applied. */
@@ -83,8 +47,6 @@ export type DicomElement = {
   element: number;
   vr: string;
   values: DicomValues;
-  /** Value bytes, kept where the VR alone does not say how to read them. */
-  bytes?: Uint8Array;
 };
 
 export type DicomDataset = {
@@ -122,21 +84,6 @@ const attributeTagOf = (packed: number) => ({
   element: packed & 0xffff,
 });
 
-/** Undecoded value bytes, where every value carries them. */
-const rawBytesOf = ({ values }: ParsedElement) => {
-  if (values.every(isText)) return toBytes(values.join(VALUE_DELIMITER));
-  if (values.every(isBytes))
-    return values.length === 1 ? values[0] : concatBytes(values);
-  return undefined;
-};
-
-/**
- * A private element's meaning follows its private creator, and an unknown VR
- * says nothing at all, so both keep the bytes the file wrote.
- */
-const keepsBytes = ({ group, vr }: ParsedElement) =>
-  (group & 1) === 1 || vr === 'UN' || !KNOWN_VRS.has(vr);
-
 type CharacterSetDecoder = ReturnType<typeof characterSetDecoder>;
 
 /**
@@ -149,8 +96,7 @@ const textValues = (
   values: string[],
   decode: CharacterSetDecoder
 ) => {
-  if (!CHARSET_VRS.has(vr) || values.length === 0)
-    return values.map(defaultRepertoire);
+  if (!CHARSET_VRS.has(vr) || values.length === 0) return values;
   const raw = values.join(VALUE_DELIMITER);
   return SINGLE_VALUED_TEXT_VRS.has(vr)
     ? [decode.value(raw)]
@@ -200,18 +146,13 @@ const buildElement = (
   parsed: ParsedElement,
   decode: CharacterSetDecoder,
   charset: string[] | null
-): DicomElement => {
-  const bytes =
-    !parsed.items && keepsBytes(parsed) ? rawBytesOf(parsed) : undefined;
-  return {
-    tag: tagKey(parsed.group, parsed.element),
-    group: parsed.group,
-    element: parsed.element,
-    vr: parsed.vr,
-    values: elementValues(parsed, decode, charset),
-    ...(bytes ? { bytes } : {}),
-  };
-};
+): DicomElement => ({
+  tag: tagKey(parsed.group, parsed.element),
+  group: parsed.group,
+  element: parsed.element,
+  vr: parsed.vr,
+  values: elementValues(parsed, decode, charset),
+});
 
 // The declared set is the values the data set itself wrote, so a data set that
 // declares none stays distinguishable from one that declares the default.
@@ -241,9 +182,9 @@ function buildDataset(
 }
 
 /**
- * Reads a Part 10 file's header into a standards-shaped data set: every element
- * keeps its tag, VR, value multiplicity, nested items and, where the VR alone
- * cannot say how to read it, its bytes. Nothing missing is filled in.
+ * Reads a header into a standards-shaped data set: every element before Pixel
+ * Data keeps its tag, VR, value multiplicity and nested items. Nothing missing
+ * is filled in.
  */
 export const readDicomDataset = (bytes: Uint8Array) =>
   buildDataset(parseDicomElements(bytes), null);
@@ -267,3 +208,7 @@ export const withoutPrivateElements = (
         : element
     ),
 });
+
+/** The data set an instance carries, filtered where it is parsed. */
+export const readPublicDataset = (bytes: Uint8Array) =>
+  withoutPrivateElements(readDicomDataset(bytes));

@@ -1,4 +1,10 @@
 import type { Instance } from '../instance/readInstance';
+import {
+  DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN,
+  EXPLICIT_VR_BIG_ENDIAN,
+  EXPLICIT_VR_LITTLE_ENDIAN,
+  IMPLICIT_VR_LITTLE_ENDIAN,
+} from '../metadata/dicomLayout';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
 import { nativeFrameDecoder } from './nativeFrame';
 import type { DecodeUnit, PixelDecoder } from './pixelDecoder';
@@ -23,10 +29,10 @@ type Codec = 'native' | 'gdcm' | 'none';
 
 // prettier-ignore
 const SYNTAXES: Array<[string, string, Codec]> = [
-  ['1.2.840.10008.1.2', 'Implicit VR Little Endian', 'native'],
-  ['1.2.840.10008.1.2.1', 'Explicit VR Little Endian', 'native'],
-  ['1.2.840.10008.1.2.2', 'Explicit VR Big Endian', 'native'],
-  ['1.2.840.10008.1.2.1.99', 'Deflated Explicit VR Little Endian', 'gdcm'],
+  [IMPLICIT_VR_LITTLE_ENDIAN, 'Implicit VR Little Endian', 'native'],
+  [EXPLICIT_VR_LITTLE_ENDIAN, 'Explicit VR Little Endian', 'native'],
+  [EXPLICIT_VR_BIG_ENDIAN, 'Explicit VR Big Endian', 'native'],
+  [DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN, 'Deflated Explicit VR Little Endian', 'gdcm'],
   ['1.2.840.10008.1.2.4.50', 'JPEG Baseline', 'gdcm'],
   ['1.2.840.10008.1.2.4.51', 'JPEG Extended', 'gdcm'],
   ['1.2.840.10008.1.2.4.57', 'JPEG Lossless', 'gdcm'],

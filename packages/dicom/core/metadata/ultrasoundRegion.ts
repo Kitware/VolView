@@ -10,7 +10,7 @@ import { Tags } from './dicomTags';
 // 5=hertz, 6=dB/sec, 7=cm/sec, 8=cm², 9=cm²/sec, 10=cm³, 11=cm³/sec,
 // 12=degrees) are time, frequency, velocity, area, volume, or angle, so
 // they are not converted to a VTK image spacing.
-export const US_UNIT_CENTIMETERS = 3;
+const US_UNIT_CENTIMETERS = 3;
 
 // Returns the multiplier that converts a physical-delta value in the given
 // unit to millimetres, or null when the unit is not a spatial spacing.

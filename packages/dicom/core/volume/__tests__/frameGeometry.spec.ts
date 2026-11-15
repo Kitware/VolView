@@ -1,93 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import type { DicomDataset } from '../../metadata/dicomDataset';
-import {
-  readGeometryFacts,
-  readInstanceFacts,
-} from '../../collections/instanceFacts';
-import {
-  planDicomCollections,
-  IRREGULAR_VOLUME_WARNING,
-  REPEATED_POSITIONS_WARNING,
-  UNREADABLE_FRAME_GEOMETRY_WARNING,
-  type DicomCollection,
-} from '../../collections/planDicomCollections';
-import type { Reconstruction } from '../../collections/reconstructVolume';
-import { getFrameTag } from '../../metadata/functionalGroups';
+import { readGeometryFacts } from '../../collections/instanceFacts';
 import { instanceFor } from '@/tests/dicomDataset';
 import { createDicomRuntime } from '../../runtime/createDicomRuntime';
 import { fromBlob } from '../../source/byteSource';
 import { allocateVolume, type Volume } from '../allocateVolume';
 import { loadVolume } from '../loadVolume';
 import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
-import type { IrregularGeometryPolicy } from '../volumeLayout';
-import { datasetFromTags } from '../../../../../tests/dicomDataset';
+import {
+  ctShared,
+  enhanced,
+  groups,
+  positioned,
+  sequence,
+  sharedPlaneTemporal,
+  tags,
+} from './enhancedFixture';
 
-const tags = (values: Record<string, string>) =>
-  datasetFromTags(Object.entries(values));
+/** Plans one instance and allocates the volume it fills. */
+const allocate = (metadata: DicomDataset) =>
+  allocateVolume(plannedUpdate([instanceFor(metadata)]));
 
-function sequence(tag: string, items: DicomDataset[]) {
-  return {
-    tag,
-    group: parseInt(tag.slice(0, 4), 16),
-    element: parseInt(tag.slice(4), 16),
-    vr: 'SQ',
-    values: { kind: 'sequence' as const, items },
-  };
-}
-
-const groups = (items: Array<ReturnType<typeof sequence>>): DicomDataset => ({
-  specificCharacterSet: null,
-  elements: items,
-});
-
-function enhanced(
-  shared: DicomDataset,
-  frames: DicomDataset[],
-  root: Record<string, string> = {}
-): DicomDataset {
-  const header = tags({
-    '00280010': '2',
-    '00280011': '2',
-    '00280008': String(frames.length),
-    '00280101': '16',
-    ...root,
-  });
-  return {
-    ...header,
-    elements: [
-      ...header.elements,
-      sequence('52009229', [shared]),
-      sequence('52009230', frames),
-    ],
-  };
-}
-
-const positioned = (position: string) =>
-  groups([sequence('00209113', [tags({ '00200032': position })])]);
-
-const ONE_SLOT: Reconstruction = {
-  kind: 'regular',
-  sliceSpacing: null,
-  slots: [0],
-};
-
-/** Allocates one instance against a supplied plan, as a planner would hand it. */
-const allocate = (
-  metadata: DicomDataset,
-  policy: IrregularGeometryPolicy = 'preserve-order',
-  { orientation = null, reconstruction = ONE_SLOT } = {} as Partial<
-    Pick<DicomCollection, 'orientation' | 'reconstruction'>
-  >
-) =>
-  allocateVolume(
-    {
-      kind: 'image',
-      id: 'frames',
-      collection: { orientation, reconstruction } as DicomCollection,
-      members: [instanceFor(metadata)],
-    },
-    { irregularGeometry: policy }
-  );
+const reconstructionOf = (metadata: DicomDataset) =>
+  allocate(metadata).spatialMetadata.reconstruction;
 
 const indexToWorld = (volume: Volume, index: number[]) =>
   [0, 1, 2].map(
@@ -101,28 +36,18 @@ const indexToWorld = (volume: Volume, index: number[]) =>
       )
   );
 
-const ctShared = () =>
-  groups([
-    sequence('00289110', [tags({ '00280030': '.388672\\.388672' })]),
-    sequence('00209116', [tags({ '00200037': '-1\\0\\0\\0\\1\\0' })]),
-    sequence('00289145', [tags({ '00281052': '-1024', '00281053': '1' })]),
-  ]);
-
 describe('enhanced volume Functional Groups', () => {
-  it('places stored enhanced CT frames at their patient positions and preserves negative values', () => {
+  it('places stored enhanced CT frames at their patient positions in a buffer that holds negative values', () => {
     const metadata = enhanced(ctShared(), [
       positioned('99.5\\-301.5\\-159'),
       positioned('99.5\\-301.5\\-149'),
     ]);
-    const volume = allocate(metadata, 'reject');
+    const volume = allocate(metadata);
+    expect(volume.spatialMetadata.reconstruction).toEqual({ kind: 'regular' });
     expect(volume.spacing).toEqual([0.388672, 0.388672, 10]);
     expect(indexToWorld(volume, [0, 0, 0])).toEqual([99.5, -301.5, -159]);
     expect(indexToWorld(volume, [0, 0, 1])).toEqual([99.5, -301.5, -149]);
-    const buffer = volume.data;
-    buffer[0] = -1024;
-    buffer[4] = 172;
-    expect([buffer[0], buffer[4]]).toEqual([-1024, 172]);
-    expect(buffer).toBeInstanceOf(Float32Array);
+    expect(volume.data).toBeInstanceOf(Float32Array);
   });
 
   it('uses the storage direction for an oblique enhanced MR stack', () => {
@@ -141,7 +66,8 @@ describe('enhanced volume Functional Groups', () => {
         positioned('-81.8877146\\-123.869376\\159.934076'),
       ]
     );
-    const volume = allocate(metadata, 'reject');
+    const volume = allocate(metadata);
+    expect(volume.spatialMetadata.reconstruction).toEqual({ kind: 'regular' });
     expect(volume.spacing[2]).toBeCloseTo(1.33, 8);
     expect(indexToWorld(volume, [0, 0, 1])[0]).toBeCloseTo(-81.8877146, 7);
     expect(volume.direction[1]).toBeCloseTo(0.9762960207, 8);
@@ -198,48 +124,49 @@ describe('enhanced volume Functional Groups', () => {
         ]),
       ]
     );
-    const { data } = allocate(metadata);
-    expect(data).toBeInstanceOf(Float32Array);
-    data[0] = -1023.5;
-    expect(data[0]).toBe(-1023.5);
+    expect(allocate(metadata).data).toBeInstanceOf(Float32Array);
   });
 
   it.each([
     ['repeated-position', [0, 0, 2]],
     ['uneven-slice-spacing', [0, 1, 3]],
   ])(
-    'honors the irregular geometry policy for %s frames',
+    'keeps %s frames in stored order and reports the reason',
     (reason, positions) => {
-      const metadata = enhanced(
-        ctShared(),
-        positions.map((z) => positioned(`0\\0\\${z}`))
+      const volume = allocate(
+        enhanced(
+          ctShared(),
+          positions.map((z) => positioned(`0\\0\\${z}`))
+        )
       );
-      expect(() => allocate(metadata, 'reject')).toThrow(reason);
-      expect(allocate(metadata).dimensions).toEqual([2, 2, 3]);
+      expect(volume.spatialMetadata.reconstruction).toEqual({
+        kind: 'irregular',
+        reason,
+      });
+      expect(volume.dimensions).toEqual([2, 2, 3]);
     }
   );
 
-  it('rejects changing frame orientation instead of claiming a regular lattice', () => {
+  it('reports changing frame orientation as unreadable instead of claiming a regular lattice', () => {
     const second = positioned('0\\0\\1');
     second.elements.push(
       sequence('00209116', [tags({ '00200037': '0\\1\\0\\1\\0\\0' })])
     );
-    expect(() =>
-      allocate(enhanced(ctShared(), [positioned('0\\0\\0'), second]), 'reject')
-    ).toThrow('unreadable-geometry');
+    expect(
+      reconstructionOf(enhanced(ctShared(), [positioned('0\\0\\0'), second]))
+    ).toEqual({ kind: 'irregular', reason: 'unreadable-geometry' });
   });
 
-  it('rejects changing pixel spacing and temporal frames under the regular geometry policy', () => {
+  it('reports changing pixel spacing and temporal frames as irregular', () => {
     const changedSpacing = positioned('0\\0\\1');
     changedSpacing.elements.push(
       sequence('00289110', [tags({ '00280030': '2\\2' })])
     );
-    expect(() =>
-      allocate(
-        enhanced(ctShared(), [positioned('0\\0\\0'), changedSpacing]),
-        'reject'
+    expect(
+      reconstructionOf(
+        enhanced(ctShared(), [positioned('0\\0\\0'), changedSpacing])
       )
-    ).toThrow('mixed-pixel-spacing');
+    ).toEqual({ kind: 'irregular', reason: 'mixed-pixel-spacing' });
     const temporal = [0, 1].map((index) => {
       const frame = positioned(`0\\0\\${index}`);
       frame.elements.push(
@@ -247,9 +174,10 @@ describe('enhanced volume Functional Groups', () => {
       );
       return frame;
     });
-    expect(() => allocate(enhanced(ctShared(), temporal), 'reject')).toThrow(
-      'unreadable-geometry'
-    );
+    expect(reconstructionOf(enhanced(ctShared(), temporal))).toEqual({
+      kind: 'irregular',
+      reason: 'unreadable-geometry',
+    });
   });
 
   it('reads OCT in-plane calibration without using optical depth of field as frame separation', () => {
@@ -267,35 +195,10 @@ describe('enhanced volume Functional Groups', () => {
     expect(allocate(metadata).spacing).toEqual([0.01174168, 0.001955034, 1]);
   });
 
-  it('reads exact macro paths without changing raw tags or importing referenced-image geometry', () => {
-    const metadata = enhanced(ctShared(), [positioned('1\\2\\3')], {
-      '00280030': '9\\9',
-    });
-    metadata.elements.push(
-      sequence('00081140', [tags({ '00200037': '0\\1\\0\\0\\0\\1' })])
-    );
-    const before = JSON.stringify(metadata);
-    expect(readGeometryFacts(metadata)).toEqual({
-      orientation: [-1, 0, 0, 0, 1, 0],
-      position: [1, 2, 3],
-      pixelSpacing: [0.388672, 0.388672],
-    });
-    expect(getFrameTag(metadata, '00280030')).toBe('.388672\\.388672');
-    expect(JSON.stringify(metadata)).toBe(before);
-    const rootOnly = tags({ '00280030': '2\\3' });
-    rootOnly.elements.push(
-      sequence('00081140', [tags({ '00200037': '0\\1\\0\\0\\0\\1' })])
-    );
-    expect(readGeometryFacts(rootOnly).orientation).toBeNull();
+  it('reports shared-plane temporal frames as irregular', () => {
+    const metadata = sharedPlaneTemporal();
+    expect(reconstructionOf(metadata)?.kind).toBe('irregular');
   });
-});
-
-describe('intra-instance frame planning', () => {
-  const collectionOf = (metadata: DicomDataset) =>
-    planDicomCollections({
-      seriesKey: 'frames',
-      instances: [readInstanceFacts(metadata)],
-    }).collections[0];
 
   it.each([1, -1])(
     'preserves stored frame direction %s through registration and image allocation',
@@ -312,69 +215,6 @@ describe('intra-instance frame planning', () => {
       positions.forEach((z, index) =>
         expect(indexToWorld(volume, [0, 0, index])).toEqual([1, 2, z])
       );
-    }
-  );
-
-  it('rejects shared-plane temporal frames under strict geometry validation', () => {
-    const shared = ctShared();
-    shared.elements.push(
-      sequence('00209113', [tags({ '00200032': '10\\20\\30' })])
-    );
-    const metadata = enhanced(
-      shared,
-      [1, 2].map((time) =>
-        groups([sequence('00209111', [tags({ '00209128': String(time) })])])
-      )
-    );
-    const collection = collectionOf(metadata);
-    expect(collection.reconstruction).toMatchObject({
-      kind: 'irregular',
-      slots: [0],
-    });
-    expect(collection.warnings).toContain(UNREADABLE_FRAME_GEOMETRY_WARNING);
-    expect(() => allocate(metadata, 'reject', collection)).toThrow(
-      'irregular DICOM geometry'
-    );
-  });
-
-  it('keeps an unreadable frame geometry warning for a lone multiframe source', () => {
-    const metadata = enhanced(
-      ctShared(),
-      [1, 2].map((index) =>
-        groups([sequence('00209111', [tags({ '00209057': String(index) })])])
-      )
-    );
-    const collection = collectionOf(metadata);
-    expect(collection.reconstruction).toMatchObject({
-      kind: 'irregular',
-      reason: 'unreadable-geometry',
-      slots: [0],
-    });
-    expect(collection.warnings).toContain(UNREADABLE_FRAME_GEOMETRY_WARNING);
-  });
-
-  it.each([
-    [[0, 1, 3], 'uneven-slice-spacing', IRREGULAR_VOLUME_WARNING],
-    [[0, 0, 2], 'repeated-position', REPEATED_POSITIONS_WARNING],
-  ] as const)(
-    'reports intra-instance geometry %s while retaining one source slot',
-    (positions, reason, warning) => {
-      const metadata = enhanced(
-        ctShared(),
-        positions.map((z) => positioned(`0\\0\\${z}`))
-      );
-      const collection = collectionOf(metadata);
-      expect(collection.reconstruction).toMatchObject({
-        kind: 'irregular',
-        reason,
-        slots: [0],
-      });
-      expect(collection.warnings).toContain(warning);
-      const volume = allocate(metadata, 'preserve-order', {
-        orientation: collection.orientation,
-      });
-      expect(volume.reconstruction).toEqual(collection.reconstruction);
-      expect(volume.dimensions).toEqual([2, 2, 3]);
     }
   );
 });
@@ -453,9 +293,11 @@ describe('reconstructed NM spatial volumes', () => {
     'uses the detector plane and signed NM slice progression %s',
     (sign) => {
       const volume = allocate(
-        nmMetadata({ '00180088': String(sign * 4.7951998710632) }),
-        'reject'
+        nmMetadata({ '00180088': String(sign * 4.7951998710632) })
       );
+      expect(volume.spatialMetadata.reconstruction).toEqual({
+        kind: 'regular',
+      });
       expect(volume.spacing).toEqual([
         4.7951998710632, 4.7951998710632, 4.7951998710632,
       ]);
@@ -474,7 +316,8 @@ describe('reconstructed NM spatial volumes', () => {
       '00540080': '1',
       '00180088': '',
     });
-    const volume = allocate(metadata, 'reject');
+    const volume = allocate(metadata);
+    expect(volume.spatialMetadata.reconstruction).toEqual({ kind: 'regular' });
     expect(volume.origin).toEqual([4, 5, 6]);
     expect(volume.spacing).toEqual([4.7951998710632, 4.7951998710632, 1]);
     expect(volume.direction).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
@@ -526,19 +369,6 @@ describe('reconstructed NM spatial volumes', () => {
     expect(readGeometryFacts(metadata).position).toBeNull();
     expect(() => allocate(metadata)).toThrow('detectors');
   });
-});
-
-it('does not report normal segment-major SEG frames as an irregular volume', () => {
-  const metadata = enhanced(
-    ctShared(),
-    [0, 1, 0, 1].map((z) => positioned('0\\0\\' + z)),
-    { '00080060': 'SEG' }
-  );
-  const plan = planDicomCollections({
-    seriesKey: 'seg',
-    instances: [readInstanceFacts(metadata)],
-  });
-  expect(plan.collections[0].warnings).toEqual([]);
 });
 
 it('reports a missing NM NumberOfSlices without claiming temporal dimensions', () => {

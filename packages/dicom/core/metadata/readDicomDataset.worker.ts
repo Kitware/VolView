@@ -1,5 +1,7 @@
 import * as Comlink from 'comlink';
-import { readDicomDataset } from './dicomDataset';
+import { readPublicDataset } from './dicomDataset';
 
-export type DicomDatasetWorker = { readDicomDataset: typeof readDicomDataset };
-Comlink.expose({ readDicomDataset });
+export type DicomDatasetWorker = {
+  readPublicDataset: typeof readPublicDataset;
+};
+Comlink.expose({ readPublicDataset });

@@ -1,6 +1,10 @@
-import { Tags, type DicomDataset } from '@/packages/dicom/core';
-import { dicomDatasetToTags } from '@/src/io/readDicomTags';
-import { type OCTDataset, structuredOCTDataset } from './octDataset';
+import {
+  getDatasetTag,
+  sequenceItems,
+  Tags,
+  trimDicomPadding,
+  type DicomDataset,
+} from '@/packages/dicom/core';
 import { areEquals } from '@kitware/vtk.js/Common/Core/Math';
 import {
   frameGridGeometry,
@@ -31,22 +35,31 @@ const PIXEL_SPACING = Tags.PixelSpacing;
 const SLICE_SPACING = Tags.SpacingBetweenSlices;
 const IMAGE_ORIENTATION = Tags.ImageOrientationPatient;
 const IMAGE_POSITION = Tags.ImagePositionPatient;
-const firstItem = (data: OCTDataset | undefined, tag: string) =>
-  data?.items(tag)[0];
-const sequenceItems = (data: OCTDataset, tag: string) => data.items(tag);
-const stringValue = (data: OCTDataset | undefined, tag: string) =>
-  data?.value(tag)?.trim() || undefined;
+// The attributes en face reads off an instance, beside the ones derived below.
+const EN_FACE_TAGS = [
+  Tags.Modality,
+  Tags.SOPClassUID,
+  Tags.PixelSpacing,
+  Tags.ImageOrientationPatient,
+  Tags.ImagePositionPatient,
+  Tags.SpacingBetweenSlices,
+  Tags.OphthalmicVolumetricPropertiesFlag,
+];
+const firstItem = (data: DicomDataset | undefined, tag: string) =>
+  data && sequenceItems(data, tag)[0];
+const stringValue = (data: DicomDataset | undefined, tag: string) =>
+  trimDicomPadding(getDatasetTag(data, tag) ?? '') || undefined;
 const vector = (value: string | undefined) => value?.split('\\').map(Number);
 
 function frameAttribute(
-  data: OCTDataset | undefined,
+  data: DicomDataset | undefined,
   sequence: string,
   attribute: string
 ) {
   return stringValue(firstItem(data, sequence), attribute);
 }
 
-function frameGeometry(data: OCTDataset) {
+function frameGeometry(data: DicomDataset) {
   const shared = firstItem(data, SHARED);
   const frames = sequenceItems(data, PER_FRAME);
   // Shared groups take precedence over the first frame, then the top level.
@@ -140,7 +153,7 @@ function geometryError(geometry: ReturnType<typeof frameGeometry>) {
   return positionError(geometry);
 }
 
-function scanPattern(data: OCTDataset) {
+function scanPattern(data: DicomDataset) {
   const acquisitions = sequenceItems(data, ACQUISITION_PARAMETERS);
   const patterns = [data, ...acquisitions].flatMap((dataset) =>
     sequenceItems(dataset, SCAN_PATTERN).flatMap(
@@ -152,7 +165,7 @@ function scanPattern(data: OCTDataset) {
     : patterns[0];
 }
 
-function promoteOCTGeometry(data: OCTDataset, tags: Map<string, string>) {
+function promoteOCTGeometry(data: DicomDataset, tags: Map<string, string>) {
   const geometry = frameGeometry(data);
   const set = (tag: string, value: Maybe<string>) => {
     if (value) tags.set(tag, value);
@@ -179,11 +192,14 @@ function promoteOCTGeometry(data: OCTDataset, tags: Map<string, string>) {
   set(Tags.SpacingBetweenSlices, sliceSpacing);
 }
 
-/** Application-only OCT eligibility and measurement metadata; raw core data stays unchanged. */
-export function dicomMetadataForDisplay(dataset: DicomDataset) {
-  const metadata = dicomDatasetToTags(dataset);
+/** The tags en face decides on, with OCT geometry promoted out of its functional groups. */
+export function enFaceTags(dataset: DicomDataset) {
+  const metadata = EN_FACE_TAGS.flatMap((tag): [string, string][] => {
+    const value = getDatasetTag(dataset, tag);
+    return value === undefined ? [] : [[tag, value]];
+  });
   if (!isOCTMetadata(metadata)) return metadata;
   const tags = new Map(metadata);
-  promoteOCTGeometry(structuredOCTDataset(dataset), tags);
+  promoteOCTGeometry(dataset, tags);
   return [...tags];
 }

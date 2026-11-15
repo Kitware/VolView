@@ -1,5 +1,6 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
 import { Tags } from '../../metadata/dicomTags';
+import { readInstanceDetails } from '../instanceFacts';
 
 export const SERIES_UID = '1.2.826.0.1.3680043.9.7';
 export const OTHER_SERIES_UID = '1.2.826.0.1.3680043.9.8';
@@ -9,7 +10,7 @@ export type SliceOptions = {
   series?: string | null;
   z?: number | null;
   rows?: string;
-  orientation?: string;
+  orientation?: string | null;
   instanceNumber?: number | null;
   modality?: string;
   // Extra tags, keyed 'gggg|eeee'.
@@ -39,8 +40,9 @@ export function sliceDataset(options: SliceOptions = {}) {
     [Tags.Rows, rows],
     [Tags.Columns, '4'],
     [Tags.SamplesPerPixel, '1'],
-    [Tags.ImageOrientationPatient, orientation],
   ];
+  if (orientation !== null)
+    entries.push([Tags.ImageOrientationPatient, orientation]);
   if (series !== null) entries.push([Tags.SeriesInstanceUID, series]);
   if (sop !== null) entries.push([Tags.SOPInstanceUID, sop]);
   if (z !== null) entries.push([Tags.ImagePositionPatient, `0\\0\\${z}`]);
@@ -50,3 +52,7 @@ export function sliceDataset(options: SliceOptions = {}) {
 
   return datasetFromTags(entries);
 }
+
+/** The planner's facts for one slice, read the way a real header is. */
+export const sliceFacts = (options: SliceOptions = {}) =>
+  readInstanceDetails(sliceDataset(options)).facts;

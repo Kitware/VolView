@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { encapsulatedPixelData, pixelItem } from '@/tests/specs/syntheticDicom';
+import {
+  encapsulatedPixelData,
+  sequenceItem,
+} from '@/tests/specs/syntheticDicom';
 import { splitEncapsulatedFrames } from '../encapsulatedFrames';
 
 const SOI = [0xff, 0xd8];
@@ -77,9 +80,9 @@ describe('splitEncapsulatedFrames', () => {
 
   it('reads a value that ends after its last item without a delimiter', () => {
     const value = concat(
-      pixelItem(new Uint8Array()),
-      pixelItem(jpeg(1)),
-      pixelItem(jpeg(2))
+      sequenceItem(new Uint8Array()),
+      sequenceItem(jpeg(1)),
+      sequenceItem(jpeg(2))
     );
 
     expect(bytesOf(splitEncapsulatedFrames(value, 2))).toEqual([
@@ -100,9 +103,9 @@ describe('splitEncapsulatedFrames', () => {
   it('keeps an odd item length as written', () => {
     const odd = jpeg(1, 2, 3).subarray(0, 6);
     const value = concat(
-      pixelItem(new Uint8Array()),
-      pixelItem(odd),
-      pixelItem(jpeg(2)),
+      sequenceItem(new Uint8Array()),
+      sequenceItem(odd),
+      sequenceItem(jpeg(2)),
       DELIMITER
     );
 
@@ -126,7 +129,7 @@ describe('splitEncapsulatedFrames', () => {
     [
       'a tag that is not an item',
       concat(
-        pixelItem(new Uint8Array()),
+        sequenceItem(new Uint8Array()),
         Uint8Array.from([0xe0, 0x7f, 0x10, 0, 2, 0, 0, 0, 1, 2])
       ),
       /expected an item at byte 8/,
@@ -134,22 +137,26 @@ describe('splitEncapsulatedFrames', () => {
     [
       'an item of undefined length',
       concat(
-        pixelItem(new Uint8Array()),
+        sequenceItem(new Uint8Array()),
         Uint8Array.from([0xfe, 0xff, 0x00, 0xe0, 0xff, 0xff, 0xff, 0xff])
       ),
       /undefined length/,
     ],
     [
       'an offset table whose length is not a multiple of four',
-      concat(pixelItem(Uint8Array.from([0, 0])), pixelItem(jpeg(1)), DELIMITER),
+      concat(
+        sequenceItem(Uint8Array.from([0, 0])),
+        sequenceItem(jpeg(1)),
+        DELIMITER
+      ),
       /Basic Offset Table holds 2 bytes/,
     ],
     [
       'an offset that starts no fragment',
       concat(
-        pixelItem(Uint8Array.from([0, 0, 0, 0, 3, 0, 0, 0])),
-        pixelItem(jpeg(1)),
-        pixelItem(jpeg(2)),
+        sequenceItem(Uint8Array.from([0, 0, 0, 0, 3, 0, 0, 0])),
+        sequenceItem(jpeg(1)),
+        sequenceItem(jpeg(2)),
         DELIMITER
       ),
       /entry 1 \(3\) starts no fragment/,
@@ -157,10 +164,10 @@ describe('splitEncapsulatedFrames', () => {
     [
       'an offset table that skips the first fragment',
       concat(
-        pixelItem(Uint8Array.from([13, 0, 0, 0, 26, 0, 0, 0])),
-        pixelItem(jpeg(1)),
-        pixelItem(jpeg(2)),
-        pixelItem(jpeg(3)),
+        sequenceItem(Uint8Array.from([13, 0, 0, 0, 26, 0, 0, 0])),
+        sequenceItem(jpeg(1)),
+        sequenceItem(jpeg(2)),
+        sequenceItem(jpeg(3)),
         DELIMITER
       ),
       /^Malformed encapsulated Pixel Data: Basic Offset Table entry 0 \(13\) skips the first fragment$/,
@@ -168,7 +175,7 @@ describe('splitEncapsulatedFrames', () => {
     ['no offset table item', DELIMITER, /no Basic Offset Table/],
     [
       'no fragments',
-      concat(pixelItem(new Uint8Array()), DELIMITER),
+      concat(sequenceItem(new Uint8Array()), DELIMITER),
       /no fragments/,
     ],
   ])('rejects %s', (_name, value, error) => {
