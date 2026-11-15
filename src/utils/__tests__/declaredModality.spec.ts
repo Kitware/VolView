@@ -30,6 +30,18 @@ describe('getDeclaredModality', () => {
     ).toBe('CT');
   });
 
+  it('reads Hounsfield units from a MetaImage without a modality', () => {
+    expect(
+      getDeclaredModality(undefined, [
+        ['IntensityUnits', 'HU'],
+        ['Modality', 'MET_MOD_UNKNOWN'],
+      ])
+    ).toBe('CT');
+    expect(
+      getDeclaredModality(undefined, [['Modality', 'MET_MOD_UNKNOWN']])
+    ).toBe('');
+  });
+
   it('keeps an explicit modality even when units are Hounsfield', () => {
     expect(
       getDeclaredModality(undefined, [

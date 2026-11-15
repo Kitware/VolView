@@ -13,11 +13,13 @@ export function getDeclaredModality(
       value.trim().toUpperCase(),
     ])
   );
-  const modality =
-    dicomModality?.trim().toUpperCase() ||
-    firstField(fields, ['0008|0060', 'modality']);
   // MetaImage headers spell modalities as MET_MOD_CT, MET_MOD_MR, ...
-  if (modality) return modality.replace(/^MET_MOD_/, '');
+  const modality = (
+    dicomModality?.trim().toUpperCase() ||
+    firstField(fields, ['0008|0060', 'modality'])
+  )?.replace(/^MET_MOD_/, '');
+  // ITK reports MET_MOD_UNKNOWN for every MetaImage without a modality.
+  if (modality && modality !== 'UNKNOWN') return modality;
 
   // Only scalar units identify CT; spatial units and value ranges do not.
   const units = firstField(fields, [
