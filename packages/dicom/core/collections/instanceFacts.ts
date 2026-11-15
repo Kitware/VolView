@@ -6,7 +6,7 @@ import type { DicomDataset } from '../metadata/dicomDataset';
 import { getFrameTag } from '../metadata/functionalGroups';
 import { trimDicomPadding } from '../utils';
 
-// readDicomTags hands back DICOM's own byte padding, so a value that is only
+// Dataset text keeps DICOM's own byte padding, so a value that is only
 // padding is absent rather than an empty string.
 const textOf = (metadata: DicomDataset, tag: string) => {
   const value = trimDicomPadding(getFrameTag(metadata, tag) ?? '');
@@ -177,11 +177,6 @@ export function readInstanceDetails(metadata: DicomDataset) {
     diffusionBValue: numericTextOf(metadata, Tags.DiffusionBValue),
   };
   return { facts, frameGeometry: frames };
-}
-
-/** Reads the planner's plain facts out of one instance's tag values. */
-export function readInstanceFacts(metadata: DicomDataset) {
-  return readInstanceDetails(metadata).facts;
 }
 
 // Carries a separator no UID can hold, so a fallback key never equals a real

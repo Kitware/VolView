@@ -14,7 +14,6 @@ export function nmGeometry(metadata: DicomDataset) {
   const reconstruction: Reconstruction = {
     kind: 'regular',
     sliceSpacing: nm.sliceSpacing ? Math.abs(nm.sliceSpacing) : null,
-    slots: [0],
   };
   return {
     ...geometry,

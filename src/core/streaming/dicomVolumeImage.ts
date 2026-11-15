@@ -34,7 +34,7 @@ import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { abortError, ensureError } from '@/src/utils';
 
-export type DicomVolumeImageEvents = ProgressiveImageEvents & {
+type DicomVolumeImageEvents = ProgressiveImageEvents & {
   /** A decoded region of the current image, as an inclusive extent. */
   extentLoaded: Extent;
 };
@@ -256,10 +256,14 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   private replaceContent(content: Content) {
     this.stopLoad();
     this.content = content;
-    // A pending thumbnail settles from the new content instead.
-    if (!this.settleThumbnail) this.thumbnail = null;
+    this.forgetSettledThumbnail();
     this.segBuildInfo = null;
     this.updateStatus();
+  }
+
+  // A pending thumbnail settles from what loads next instead.
+  private forgetSettledThumbnail() {
+    if (!this.settleThumbnail) this.thumbnail = null;
   }
 
   private replaceImage(image: vtkImageData) {
@@ -329,6 +333,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     const { volume } = content;
     const image = this.vtkImageData.value;
     content.failed.clear();
+    this.forgetSettledThumbnail();
     const updates = loadVolume(volume, {
       runtime: this.init.runtime,
       signal,
@@ -346,6 +351,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     signal: AbortSignal
   ) {
     content.failed = false;
+    this.forgetSettledThumbnail();
     try {
       await this.readSegmentationContent(content, signal);
     } catch (error) {

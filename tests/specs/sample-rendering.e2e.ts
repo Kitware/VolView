@@ -1,7 +1,6 @@
 import AppPage from '../pageobjects/volview.page';
 import { PROSTATEX_DATASET } from '../datasets';
 import { useCachedSample } from './utils';
-import { DOWNLOAD_TIMEOUT } from '../../wdio.shared.conf';
 
 const THRESHOLD = 12; // percent - handle pixel jitter in 3D view
 const RENDER_STABLE_TIMEOUT = 5000;
@@ -13,26 +12,8 @@ describe('VolView', () => {
     await AppPage.open();
     await AppPage.downloadProstateSample();
 
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const canvases = document.querySelectorAll(
-            '.layout-container [data-testid~="vtk-view"] canvas'
-          );
-          return (
-            canvases.length === 4 &&
-            Array.from(canvases).every((element) => {
-              const canvas = element as HTMLCanvasElement;
-              return canvas.width > 10 && canvas.height > 10;
-            }) &&
-            !document.querySelector('.layout-container .loading-indicator')
-          );
-        }),
-      {
-        timeout: DOWNLOAD_TIMEOUT,
-        timeoutMsg: 'Expected all sample views to finish loading',
-      }
-    );
+    await AppPage.waitForViewCounts(3, true);
+    await AppPage.waitForViewsLoaded();
 
     const layoutContainer = await $('.layout-container');
 

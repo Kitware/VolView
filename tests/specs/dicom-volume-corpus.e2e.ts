@@ -2,19 +2,18 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Key } from 'webdriverio';
-import corpus from '../dicomVolumeCorpus.json';
+import volumeCorpus from '../dicomVolumeCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
 import { openDicomPage } from '../dicomPages';
-import {
-  fixtureBytes,
-  nullPaddedFixtureBytes,
-} from '../fixtures/dicom-pages/fixtureData';
+import { nullPaddedFixtureBytes } from '../fixtures/dicom-pages/fixtureData';
 import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   waitForRenderedSlice,
   waitForRenderedSliceChange,
 } from './dicomRenderedSlice';
+
+const corpus = volumeCorpus.datasets;
 
 type VolumeExpectation = {
   dimensions: number[];
@@ -77,7 +76,7 @@ describe('Public DICOM volume corpus', () => {
         readFileSync(resolve(DATASET_CACHE, name)),
       ])
     );
-    fixture = await startDicomPages(fixtureBytes(), {
+    fixture = await startDicomPages({
       kinds: ['corpus'],
       fixtures: {
         ...files,
@@ -90,25 +89,48 @@ describe('Public DICOM volume corpus', () => {
   });
   after(async () => fixture?.close());
 
-  for (const { name, expected, expectedError } of cases) {
-    for (const source of ['file', 'http']) {
-      const behavior = expectedError ? 'rejects' : 'preserves';
-      it(`${behavior} ${name} pixels and geometry from ${source}`, async () => {
-        const params = new URLSearchParams({ name, source });
-        await openDicomPage(`${fixture.urls.corpus}?${params}`, expectedError);
-        if (expectedError) return;
-        if (!expected) throw new Error(`Missing expectations for ${name}`);
-        await expect($('#dimensions')).toHaveText(
-          expected.dimensions.join(', ')
-        );
-        await expect($('#pixel-hash')).toHaveText(expected.pixelHash);
-        await expectNumbers('range', expected.range);
-        for (const id of ['spacing', 'origin', 'direction'] as const) {
-          if (expected[id]) await expectNumbers(id, expected[id]);
-        }
-      });
+  async function expectVolume(
+    name: string,
+    source: string,
+    expected: VolumeExpectation
+  ) {
+    const params = new URLSearchParams({ name, source });
+    await openDicomPage(`${fixture.urls.corpus}?${params}`);
+    await expect($('#dimensions')).toHaveText(expected.dimensions.join(', '));
+    await expect($('#pixel-hash')).toHaveText(expected.pixelHash);
+    await expectNumbers('range', expected.range);
+    for (const id of ['spacing', 'origin', 'direction'] as const) {
+      if (expected[id]) await expectNumbers(id, expected[id]);
     }
   }
+
+  for (const { name, expected, expectedError } of cases) {
+    for (const source of ['file', 'http']) {
+      if (expectedError) {
+        it(`rejects ${name} from ${source}`, async () => {
+          const params = new URLSearchParams({ name, source });
+          await openDicomPage(
+            `${fixture.urls.corpus}?${params}`,
+            expectedError
+          );
+        });
+      } else {
+        it(`preserves ${name} pixels and geometry from ${source}`, async () => {
+          if (!expected) throw new Error(`Missing expectations for ${name}`);
+          await expectVolume(name, source, expected);
+        });
+      }
+    }
+  }
+
+  // Each frame is its own ranged read, which this server answers with the file.
+  it('preserves a multiframe volume from a server that ignores Range', async () => {
+    const multiframe = corpus.find(
+      ({ expected }) => expected && expected.dimensions[2] > 30
+    );
+    if (!multiframe?.expected) throw new Error('No multiframe corpus file');
+    await expectVolume(multiframe.name, 'unranged', multiframe.expected);
+  });
 });
 
 describe('VolView multiframe volume import', () => {
@@ -122,8 +144,7 @@ describe('VolView multiframe volume import', () => {
     it(`displays ${name} as a complete volume`, async () => {
       await volViewPage.open(`?urls=[tmp/${name}]`);
       await volViewPage.waitForVolumeCardSliceCounts([expected!.dimensions[2]]);
-      await volViewPage.waitForViews();
-      await expect($('.loading-indicator')).not.toBeExisting();
+      await volViewPage.waitForViewsLoaded();
       const before = await waitForRenderedSlice(`${name}-initial.png`);
       await volViewPage.focusFirst2DView();
       const label = await $(

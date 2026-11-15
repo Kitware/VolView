@@ -1,6 +1,8 @@
 import type { Instance } from '../instance/readInstance';
 import type { ByteRange } from '../source/byteSource';
+import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
+import { Tags } from '../metadata/dicomTags';
 import { numberOr, type Awaitable } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
 
@@ -23,7 +25,10 @@ export type DecodeUnit = Readonly<{
   frames: number;
   /** Bytes of the instance's source to read; null for all of them. */
   range: ByteRange | null;
-  /** The returned pixels belong to the caller; `bytes` may be transferred away. */
+  /**
+   * The returned pixels belong to the caller. `bytes` may view a buffer other
+   * units share, so transfer it only when it spans its whole buffer.
+   */
   decode: (bytes: Uint8Array, signal: AbortSignal) => Awaitable<DecodedPixels>;
 }>;
 
@@ -44,8 +49,8 @@ export type WholeInstanceDecode = (
   signal: AbortSignal
 ) => Awaitable<DecodedPixels>;
 
-export const frameCount = (instance: Instance) =>
-  numberOr(getDatasetTag(instance.dataset, '00280008'), 1);
+export const frameCount = (dataset: DicomDataset) =>
+  numberOr(getDatasetTag(dataset, Tags.NumberOfFrames), 1);
 
 /** A decoder that reads and decodes every instance whole. */
 export const wholeInstanceDecoder = (
@@ -56,7 +61,7 @@ export const wholeInstanceDecoder = (
   plan: (instance) => [
     {
       firstFrame: 0,
-      frames: frameCount(instance),
+      frames: frameCount(instance.dataset),
       range: null,
       decode: (bytes, signal) => decode({ instance, bytes }, signal),
     },

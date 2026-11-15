@@ -7,13 +7,7 @@ export type ContentRange =
   | { type: 'unsatisfied-range'; length: number }
   | { type: 'range'; start: number; end: number; length: number | null };
 
-/**
- * Parses a Content-Range header.
- *
- * Only supports bytes ranges.
- * @param headerValue
- * @returns
- */
+/** Parses a Content-Range header. Only supports bytes ranges. */
 export function parseContentRangeHeader(
   headerValue: string | null
 ): ContentRange {

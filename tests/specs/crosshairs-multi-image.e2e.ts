@@ -145,8 +145,11 @@ describe('Crosshairs with two base images', () => {
     await crosshairsButton.waitForClickable();
     await crosshairsButton.click();
 
+    for (const slot of [0, 1, 2])
+      await expect($$('.grid-item')[slot].$('.slice-label')).toHaveText(
+        'Slice: 9/16'
+      );
     const before = await getSlices();
-    expect(before.slice(0, 3)).toEqual([9, 9, 9]);
 
     // Drag the crosshair well off centre in a view of the other image.
     await dragInSlot(0, 60, 40);

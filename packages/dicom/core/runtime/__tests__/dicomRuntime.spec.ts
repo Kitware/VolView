@@ -4,10 +4,11 @@ import {
   defaultDecodeConcurrency,
 } from '../createDicomRuntime';
 import { createGdcmDecoder, type GdcmLane } from '../gdcmDecoder';
-import { defer } from '../../utils';
 import { getDatasetTag } from '../../metadata/datasetAccess';
+import { readDicomDataset } from '../../metadata/dicomDataset';
 import { fromBlob } from '../../source/byteSource';
 import { instanceFor } from '@/tests/dicomDataset';
+import { enhancedFixtureBytes } from '@/tests/fixtures/dicom-pages/enhancedFixtures';
 import { sliceDataset } from '../../collections/__tests__/sliceFixture';
 import type { DecodedPixels, DecodeUnit } from '../../pixels/pixelDecoder';
 import { syntheticSlice } from '@/tests/dicomSourceFixtures';
@@ -27,7 +28,7 @@ const signal = () => new AbortController().signal;
 function controlledLanes() {
   let active = 0;
   let peak = 0;
-  const gate = defer<void>();
+  const gate = Promise.withResolvers<void>();
   const runs: Array<() => void> = [];
   const resets: unknown[] = [];
   const createLane = (): GdcmLane => {
@@ -144,5 +145,21 @@ describe('DICOM runtime', () => {
     await expect(decodeWith(gdcm)).rejects.toThrow(
       'GDCM decoding needs createDicomRuntime({ assets })'
     );
+  });
+
+  it('declines for GDCM, from the header, an instance whose frames differ in modality rescale', () => {
+    const bytes = enhancedFixtureBytes({
+      pixelValues: [2, 2],
+      transforms: [
+        [1, 0],
+        [2, 0],
+      ],
+    });
+    const gdcm = createGdcmDecoder(assets, 1, controlledLanes().createLane);
+
+    expect(
+      gdcm.decoder.plan(instanceFor(readDicomDataset(bytes)), Float32Array)
+    ).toEqual({ declined: 'Frames with differing modality rescale' });
+    gdcm.dispose(new Error('done'));
   });
 });

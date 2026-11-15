@@ -1,20 +1,9 @@
 import type { DicomDataset } from '../metadata/dicomDataset';
-import { getDatasetTag } from '../metadata/datasetAccess';
+import { Tags } from '../metadata/dicomTags';
 import { getFrameTag } from '../metadata/functionalGroups';
 import { readModalityRescale } from '../metadata/modalityRescale';
+import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr } from '../utils';
-
-const BitsStoredTag = '00280101';
-const PixelRepresentationTag = '00280103';
-const NumberOfFramesTag = '00280008';
-
-function getBitStorageSize(num: number, signed: boolean) {
-  const addSignedBit = signed ? 1 : 0;
-  const val = num < 0 ? -num : num + 1; // range shift for log2
-  const nbits = Math.ceil(Math.log2(val) + addSignedBit);
-  // round up to a word size
-  return 2 ** Math.ceil(Math.log2(nbits));
-}
 
 type IntegerArrayConstructor =
   | typeof Int8Array
@@ -30,32 +19,27 @@ export type VolumeBufferConstructor =
   | typeof Float64Array;
 export type VolumeBuffer = InstanceType<VolumeBufferConstructor>;
 
-const TYPED_ARRAY_VALUE_RANGES = new Map<
+// In the order a range is matched: unsigned before signed, narrow before wide.
+const INTEGER_VALUE_RANGES = new Map<
   IntegerArrayConstructor,
   { min: number; max: number }
 >([
-  [Int8Array, { min: -(2 ** 7), max: 2 ** 7 - 1 }],
   [Uint8Array, { min: 0, max: 2 ** 8 - 1 }],
-  [Int16Array, { min: -(2 ** 15), max: 2 ** 15 - 1 }],
   [Uint16Array, { min: 0, max: 2 ** 16 - 1 }],
-  [Int32Array, { min: -(2 ** 31), max: 2 ** 31 - 1 }],
   [Uint32Array, { min: 0, max: 2 ** 32 - 1 }],
+  [Int8Array, { min: -(2 ** 7), max: 2 ** 7 - 1 }],
+  [Int16Array, { min: -(2 ** 15), max: 2 ** 15 - 1 }],
+  [Int32Array, { min: -(2 ** 31), max: 2 ** 31 - 1 }],
 ]);
-
-/**
- * The values a buffer of the given element type can hold without wrapping.
- * Undefined for element types the allocator never produces, floats included.
- */
-export function getTypedArrayValueRange(ctor: unknown) {
-  return TYPED_ARRAY_VALUE_RANGES.get(ctor as IntegerArrayConstructor);
-}
 
 /**
  * The values `buffer` can hold without wrapping, or undefined if its element
  * type has no fixed integer range to enforce.
  */
 export function getBufferValueRange(buffer: ArrayBufferView) {
-  return getTypedArrayValueRange(buffer.constructor);
+  return INTEGER_VALUE_RANGES.get(
+    buffer.constructor as IntegerArrayConstructor
+  );
 }
 
 /**
@@ -93,23 +77,6 @@ export function samplesAreIntegral(
   );
 }
 
-export function getTypedArrayForDataRange(min: number, max: number) {
-  if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max))
-    throw new Error('Input must be integers');
-
-  const isSigned = min < 0;
-  const nbits = getBitStorageSize(
-    Math.abs(min) > Math.abs(max) ? min : max,
-    isSigned
-  );
-
-  if (nbits <= 8) return isSigned ? Int8Array : Uint8Array;
-  if (nbits <= 16) return isSigned ? Int16Array : Uint16Array;
-  if (nbits <= 32) return isSigned ? Int32Array : Uint32Array;
-
-  throw new Error(`Cannot handle ${nbits}-bit sized ranges`);
-}
-
 /**
  * The tags that decide what values an instance decodes to.
  *
@@ -122,8 +89,8 @@ export function getPixelFormat(
 ) {
   const valueOf = (tag: string) => getFrameTag(metadata, tag, frameIndex);
   return {
-    bitsStored: numberOr(valueOf(BitsStoredTag), 0),
-    pixelRepresentation: numberOr(valueOf(PixelRepresentationTag), 0),
+    bitsStored: numberOr(valueOf(Tags.BitsStored), 0),
+    pixelRepresentation: numberOr(valueOf(Tags.PixelRepresentation), 0),
     ...readModalityRescale(metadata, frameIndex),
   };
 }
@@ -202,19 +169,12 @@ function fractionalBufferType(usable: UsableFormat[]) {
 }
 
 function integralBufferType(usable: UsableFormat[]): VolumeBufferConstructor {
-  if (
-    usable.some(
-      ({ range }) =>
-        !Number.isSafeInteger(range.min) || !Number.isSafeInteger(range.max)
-    )
-  )
-    return Float64Array;
   const min = Math.min(...usable.map(({ range }) => range.min));
   const max = Math.max(...usable.map(({ range }) => range.max));
-  const exceedsSigned32 = min < 0 && (min < -(2 ** 31) || max > 2 ** 31 - 1);
-  const exceedsUnsigned32 = min >= 0 && max > 2 ** 32 - 1;
-  if (exceedsSigned32 || exceedsUnsigned32) return Float64Array;
-  const type = getTypedArrayForDataRange(min, max);
+  const fit = [...INTEGER_VALUE_RANGES].find(
+    ([, held]) => min >= held.min && max <= held.max
+  );
+  const type = fit?.[0] ?? Float64Array;
   const wide = type === Int32Array || type === Uint32Array;
   return wide && float32KeepsIntegers({ min, max }) ? Float32Array : type;
 }
@@ -235,7 +195,9 @@ export function getVolumeBufferType(
       : [];
   });
   if (usable.length === 0)
-    throw new Error('No instance declares a finite modality rescale range');
+    throw new Error(
+      'No instance declares Bits Stored and a finite modality rescale range'
+    );
 
   // vtk.js uploads only 8/16-bit integer and float32 buffers without converting the whole volume.
   return usable.some(({ format }) => !isIntegralRescale(format))
@@ -245,7 +207,6 @@ export function getVolumeBufferType(
 
 /** One format per frame, since enhanced instances calibrate frames separately. */
 export const instancePixelFormats = (dataset: DicomDataset) =>
-  Array.from(
-    { length: numberOr(getDatasetTag(dataset, NumberOfFramesTag), 1) },
-    (_, index) => getPixelFormat(dataset, index)
+  Array.from({ length: frameCount(dataset) }, (_, index) =>
+    getPixelFormat(dataset, index)
   );

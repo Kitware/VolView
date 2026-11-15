@@ -1,9 +1,10 @@
-import { Deferred, defer } from '../utils';
+import { abortError } from '../utils';
 
 type FetchRequest = {
   request: RequestInfo | URL;
   init?: RequestInit;
-  deferred: Deferred<Response>;
+  resolve: (response: Response) => void;
+  reject: (reason?: unknown) => void;
   controller: AbortController;
   cleanup: () => void;
 };
@@ -12,7 +13,6 @@ type FetchRequest = {
 export class RequestPool {
   private queue: FetchRequest[] = [];
   private inflight = new Set<FetchRequest>();
-  private disposed = false;
   private lifetime = new AbortController();
 
   constructor(
@@ -24,62 +24,59 @@ export class RequestPool {
       throw new Error('Request concurrency must be a positive integer');
   }
 
-  get activeConnections() {
-    return this.inflight.size;
-  }
-
   fetch = (request: RequestInfo | URL, init?: RequestInit) => {
-    if (this.disposed)
-      return Promise.reject(
-        new DOMException('Request pool disposed', 'AbortError')
-      );
-    const deferred = defer<Response>();
+    const disposal = this.lifetime.signal;
+    if (disposal.aborted) return Promise.reject(disposal.reason);
+    // Promise.withResolvers is newer than the browsers the app supports.
+    let resolve!: FetchRequest['resolve'];
+    let reject!: FetchRequest['reject'];
+    const response = new Promise<Response>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
     const controller = new AbortController();
     const sourceSignal =
       init?.signal ?? (request instanceof Request ? request.signal : undefined);
     const abort = () => {
       controller.abort(sourceSignal?.reason);
-      deferred.reject(sourceSignal?.reason);
+      reject(sourceSignal?.reason);
       this.queue = this.queue.filter((entry) => entry !== queued);
     };
-    const onDispose = () => controller.abort(this.lifetime.signal.reason);
+    const onDispose = () => {
+      controller.abort(disposal.reason);
+      reject(disposal.reason);
+    };
     const queued: FetchRequest = {
       request,
       init,
-      deferred,
+      resolve,
+      reject,
       controller,
       cleanup: () => {
         sourceSignal?.removeEventListener('abort', abort);
-        this.lifetime.signal.removeEventListener('abort', onDispose);
+        disposal.removeEventListener('abort', onDispose);
       },
     };
     if (sourceSignal?.aborted) {
-      deferred.reject(sourceSignal.reason);
-      return deferred.promise;
+      reject(sourceSignal.reason);
+      return response;
     }
     sourceSignal?.addEventListener('abort', abort, { once: true });
-    this.lifetime.signal.addEventListener('abort', onDispose, { once: true });
+    disposal.addEventListener('abort', onDispose, { once: true });
     controller.signal.addEventListener('abort', queued.cleanup, { once: true });
     this.queue.push(queued);
     this.processQueue();
-    return deferred.promise;
+    return response;
   };
 
-  dispose() {
-    this.disposed = true;
-    const error = new DOMException('Request pool disposed', 'AbortError');
-    this.lifetime.abort(error);
-    [...this.queue, ...this.inflight].forEach((request) => {
-      request.controller.abort(error);
-      request.deferred.reject(error);
-      request.cleanup();
-    });
+  dispose(reason: unknown = abortError('Request pool disposed')) {
+    this.lifetime.abort(reason);
     this.queue = [];
   }
 
   private processQueue() {
     while (
-      !this.disposed &&
+      !this.lifetime.signal.aborted &&
       this.inflight.size < this.poolSize &&
       this.queue.length
     ) {
@@ -97,11 +94,11 @@ export class RequestPool {
       });
       if (request.controller.signal.aborted) {
         response.body?.cancel().catch(() => {});
-        request.deferred.reject(request.controller.signal.reason);
-      } else request.deferred.resolve(response);
+        request.reject(request.controller.signal.reason);
+      } else request.resolve(response);
     } catch (error) {
       request.cleanup();
-      request.deferred.reject(error);
+      request.reject(error);
     } finally {
       this.inflight.delete(request);
       this.processQueue();

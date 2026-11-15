@@ -12,9 +12,6 @@ export const tiltedOrientation = (theta: number) => [
   Math.sin(theta),
 ];
 
-export const orientationKeyValue = (orientation: number[]) =>
-  orientation.map(String).join(',');
-
 // The position and its projection are one fact, so a fixture naming only the
 // projection gets the axial position that produces it.
 const positionFor = (overrides: Partial<InstanceFacts>) => {

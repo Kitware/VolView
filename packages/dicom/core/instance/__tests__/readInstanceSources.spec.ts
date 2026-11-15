@@ -29,6 +29,18 @@ import {
 
 const REGION = { physicalDeltaX: 0.0625, physicalDeltaY: 0.125 };
 const never = () => new AbortController().signal;
+const CHUNK = 256;
+
+const largeSlice = () =>
+  syntheticSlice({
+    rows: 64,
+    cols: 64,
+    modality: 'MR',
+    patientName: 'DOE^JANE',
+    extraElements: [
+      rawElement(0x0029, 0x0010, 'LO', new TextEncoder().encode('VENDOR')),
+    ],
+  });
 
 describe('readInstance over byte sources', () => {
   it.each([
@@ -68,6 +80,48 @@ describe('readInstance over byte sources', () => {
       expect(dataset).toEqual(readDicomDataset(syntheticSlice()));
     }
   );
+
+  it('reads the header and where Pixel Data starts', async () => {
+    const bytes = largeSlice();
+    const { source } = trackedSource(bytes, CHUNK);
+
+    const instance = await readInstance(source, never());
+
+    expect(instance.source).toBe(source);
+    expect(getDatasetTag(instance.dataset, '00100010')).toBe('DOE^JANE');
+    const start = pixelDataStart(bytes);
+    expect(instance.pixelData).toEqual({
+      offset: start,
+      valueOffset: start + 12,
+      length: bytes.length - start - 12,
+    });
+    expect(instance.transferSyntaxUid).toBe(EXPLICIT_VR_LITTLE_ENDIAN);
+    expect(Object.isFrozen(instance)).toBe(true);
+  });
+
+  it('stops pulling bytes at the header and cancels the stream', async () => {
+    const bytes = largeSlice();
+    const { source, stats } = trackedSource(bytes, CHUNK);
+
+    await readInstance(source, never());
+
+    expect(stats.cancelled).toBe(1);
+    expect(stats.delivered).toBeLessThanOrEqual(
+      pixelDataStart(bytes) + 2 * CHUNK
+    );
+    expect(stats.delivered).toBeLessThan(bytes.length / 2);
+  });
+
+  it('reads nothing once its signal has aborted', async () => {
+    const { source, stats } = trackedSource(largeSlice(), CHUNK);
+    const controller = new AbortController();
+    controller.abort(new DOMException('stop', 'AbortError'));
+
+    await expect(readInstance(source, controller.signal)).rejects.toMatchObject(
+      { name: 'AbortError' }
+    );
+    expect(stats.reads).toBe(0);
+  });
 
   it('reads a Part 10 file with its layout', async () => {
     const bytes = syntheticSlice({ patientName: 'DOE^JOHN', modality: 'CT' });
@@ -170,22 +224,30 @@ describe('readInstance over byte sources', () => {
   it('reads every tag of an object that has no Pixel Data', async () => {
     const bytes = withoutPixelData(syntheticSlice({ modality: 'SR' }));
 
-    const { dataset } = await readHeader(bytes);
+    const { dataset, transferSyntaxUid, pixelData } = await readHeader(bytes);
 
     expect(dataset).toEqual(readDicomDataset(bytes));
     expect(dataset.elements.length).toBeGreaterThan(1);
+    expect(pixelData).toBeNull();
+    expect(transferSyntaxUid).toBe(EXPLICIT_VR_LITTLE_ENDIAN);
   });
 
-  it('reads a radiotherapy object without Pixel Data no further than its modality', async () => {
-    const bytes = withoutPixelData(syntheticSlice({ modality: 'RTSTRUCT' }));
-    const { source, stats } = trackedSource(bytes, 32);
+  it('reads a radiotherapy object no further than its modality, only when asked to', async () => {
+    const bytes = syntheticSlice({ modality: 'RTDOSE', patientName: 'DOE' });
+    const skipped = trackedSource(bytes, 32);
 
-    const { dataset } = await readInstance(source, never(), {
+    const shortcut = await readInstance(skipped.source, never(), {
       imageImportPolicy: 'skip-radiotherapy',
     });
+    const full = await readHeader(bytes, 32);
 
-    expect(getDatasetTag(dataset, Tags.Modality)?.trim()).toBe('RTSTRUCT');
-    expect(stats.delivered).toBeLessThan(bytes.length);
+    expect(getDatasetTag(shortcut.dataset, Tags.Modality)?.trim()).toBe(
+      'RTDOSE'
+    );
+    expect(getDatasetTag(shortcut.dataset, '00100010')).toBeUndefined();
+    expect(shortcut.pixelData).toBeNull();
+    expect(skipped.stats.delivered).toBeLessThan(pixelDataStart(bytes));
+    expect(full.pixelData?.offset).toBe(pixelDataStart(bytes));
   });
 
   it('rejects a byte source that is not DICOM', async () => {

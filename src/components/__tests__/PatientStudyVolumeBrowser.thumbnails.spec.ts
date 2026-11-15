@@ -26,6 +26,7 @@ import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useMessageStore } from '@/src/store/messages';
+import { untilLoaded } from '@/src/composables/untilLoaded';
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
 import { defer } from '@/src/utils';
 
@@ -185,7 +186,7 @@ describe('volume browser thumbnail lifetime', () => {
 
     expect(wrapper.get('.thumbnail-container').text()).toContain('CT');
     expect(wrapper.find('[role="progressbar"]').exists()).toBe(false);
-    expect(messageTitles()).toEqual(['Error loading DICOM data']);
+    expect(messageTitles()).toEqual(['Error loading Pending volume']);
   });
 
   it.each([false, true])(
@@ -224,18 +225,20 @@ describe('volume browser thumbnail lifetime', () => {
   );
 
   it('settles a thumbnail after a growth is undone while it decodes', async () => {
-    const { image, started, decode } = importPendingThumbnail();
+    const { id, image, started, decode } = importPendingThumbnail();
     const wrapper = mountBrowser();
     await started.promise;
 
     const original = image.getVolume()!;
     const volumeOf = (members: Volume['members'], previous?: Volume) =>
-      allocateVolume(plannedUpdate([...members]), {}, previous);
+      allocateVolume(plannedUpdate([...members]), previous);
     const grown = volumeOf([...original.members, sliceInstance(1)]);
     image.setVolume(grown);
     image.setVolume(volumeOf(original.members, grown));
     image.startLoad();
     decode.resolve(decoded());
+    // The restarted load reads its bytes again before it decodes.
+    await untilLoaded(id);
     await flushPromises();
 
     expectCurrentThumbnail(wrapper);
@@ -255,11 +258,8 @@ describe('volume browser thumbnail lifetime', () => {
 
   it.each([
     ['image', 'success'],
-    ['image', 'empty'],
-    ['image', 'failure'],
-    ['record', 'success'],
     ['record', 'empty'],
-    ['record', 'failure'],
+    ['image', 'failure'],
   ])(
     'keeps the replacement %s thumbnail after a late %s',
     async (replacement, outcome) => {

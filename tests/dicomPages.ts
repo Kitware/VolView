@@ -1,3 +1,5 @@
+import { DOWNLOAD_TIMEOUT } from '../wdio.shared.conf';
+
 export async function openDicomPage(url: string, expectedError?: string) {
   await browser.url(url);
   await waitForDicomPage(expectedError);
@@ -11,7 +13,8 @@ export async function waitForDicomPage(
     async () =>
       (await $('#error').isExisting()) ||
       ((await $('#status').isExisting()) &&
-        (await $('#status').getText()) === status)
+        (await $('#status').getText()) === status),
+    { timeout: DOWNLOAD_TIMEOUT }
   );
   if (expectedError) {
     await expect($('#error')).toHaveText(expectedError);

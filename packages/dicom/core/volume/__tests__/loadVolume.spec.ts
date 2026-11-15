@@ -6,7 +6,6 @@ import {
 import type { WholeInstanceDecode } from '../../pixels/pixelDecoder';
 import { singleDecoderTable } from '../../pixels/decoderTable';
 import type { GdcmLane } from '../../runtime/gdcmDecoder';
-import { defer } from '../../utils';
 import { hangingSource } from '@/tests/byteSourceFixtures';
 import { loadedRange, type Volume } from '../allocateVolume';
 import type { ByteSource } from '../../source/byteSource';
@@ -101,32 +100,53 @@ describe('loadVolume', () => {
     expect(loadedRange(volume)).toEqual([[0, 4]]);
   });
 
-  it('reports a failed slice and keeps loading the rest', async () => {
+  it('names the file of each failed slice and keeps loading the rest', async () => {
     const decode = valueDecoder();
+    const corrupt = new Error('corrupt pixel data');
     const decoder: WholeInstanceDecode = async (request, signal) => {
       const image = await decode(request, signal);
-      if (image.data[0] === 1) throw new Error('corrupt pixel data');
+      if (image.data[0] === 0) throw 4949048;
+      if (image.data[0] === 1) throw corrupt;
       if (image.data[0] === 3) return { ...image, size: [2, 8, 1] as const };
       return image;
     };
     const volume = stack(5);
 
-    const updates = await loadAll(volume, runtimeWith(decoder));
+    const updates = await loadAll(volume, runtimeWith(decoder), {
+      readAhead: 1,
+    });
 
     const errors = updates.flatMap((update) =>
-      'error' in update ? [[update.slot, update.error.message]] : []
+      'error' in update
+        ? [[update.slot, update.error.message, update.error.cause]]
+        : []
     );
     expect(errors).toEqual([
-      [1, 'corrupt pixel data'],
-      [3, expect.stringMatching(/does not fit the volume/)],
+      [
+        0,
+        'File pixel-0 (member 0) could not be decoded: the decoder failed without a message',
+        4949048,
+      ],
+      [
+        1,
+        'File pixel-1 (member 1) could not be decoded: corrupt pixel data',
+        corrupt,
+      ],
+      [
+        3,
+        expect.stringMatching(
+          /^File pixel-3 \(member 3\) does not fit the volume/
+        ),
+        undefined,
+      ],
     ]);
-    expect(sliceValues(volume)).toEqual([0, null, 2, null, 4]);
+    expect(sliceValues(volume)).toEqual([null, null, 2, null, 4]);
   });
 
   it('reorders reads around a focus that moves while a slice decodes', async () => {
     const decoded: number[] = [];
     const decode = valueDecoder(decoded);
-    const resume = defer<void>();
+    const resume = Promise.withResolvers<void>();
     const decoder: WholeInstanceDecode = async (request, signal) => {
       const image = await decode(request, signal);
       if (decoded.length === 1) await resume.promise;
@@ -177,8 +197,8 @@ describe('loadVolume', () => {
   it('runs at most decodeConcurrency decodes at once', async () => {
     let active = 0;
     let peak = 0;
-    const gate = defer<void>();
-    const twoStarted = defer<void>();
+    const gate = Promise.withResolvers<void>();
+    const twoStarted = Promise.withResolvers<void>();
     const decode = valueDecoder();
     const decoder: WholeInstanceDecode = async (request, signal) => {
       active += 1;
@@ -197,11 +217,12 @@ describe('loadVolume', () => {
     expect(peak).toBe(2);
   });
 
-  it('reports a failed read and keeps loading the rest', async () => {
+  it('names the file of a failed read and keeps loading the rest', async () => {
+    const reset = new Error('connection reset');
     const failing: ByteSource = {
       read: () =>
         new ReadableStream({
-          pull: (controller) => controller.error(new Error('connection reset')),
+          pull: (controller) => controller.error(reset),
         }),
     };
     const volume = allocated([
@@ -214,9 +235,13 @@ describe('loadVolume', () => {
 
     expect(
       updates.flatMap((update) =>
-        'error' in update ? [[update.slot, update.error.message]] : []
+        'error' in update
+          ? [[update.slot, update.error.message, update.error.cause]]
+          : []
       )
-    ).toEqual([[1, 'connection reset']]);
+    ).toEqual([
+      [1, 'File pixel-1 (member 1) could not be read: connection reset', reset],
+    ]);
     expect(sliceValues(volume)).toEqual([0, null, 2]);
   });
 
@@ -247,25 +272,10 @@ describe('loadVolume', () => {
     expect(sliceValues(volume)).toEqual([null, 1, null]);
   });
 
-  it('ends when the runtime is disposed during a decode', async () => {
-    const started = defer<void>();
-    const decoder: WholeInstanceDecode = () => {
-      started.resolve();
-      return new Promise(() => {});
-    };
-    const runtime = runtimeWith(decoder);
-
-    const loading = loadAll(stack(2), runtime);
-    await started.promise;
-    runtime.dispose();
-
-    expect(await loading).toEqual([]);
-  });
-
   it('keeps decoding while the consumer waits, marking slices loaded only as they are yielded', async () => {
     const decoded: number[] = [];
     const decode = valueDecoder(decoded);
-    const lastStarted = defer<void>();
+    const lastStarted = Promise.withResolvers<void>();
     const decoder: WholeInstanceDecode = (request, signal) => {
       if (decoded.length === 4) lastStarted.resolve();
       return decode(request, signal);
@@ -318,7 +328,7 @@ describe('loadVolume', () => {
   });
 
   it('ends and stops the GDCM worker when the runtime is disposed mid-decode', async () => {
-    const started = defer<void>();
+    const started = Promise.withResolvers<void>();
     const resets: unknown[] = [];
     const hangingLane = (): GdcmLane => ({
       run: () => {

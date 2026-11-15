@@ -1,24 +1,16 @@
-import { datasetFromTags } from '@/tests/dicomDataset';
 import { describe, expect, it } from 'vitest';
 import { Tags } from '../../metadata/dicomTags';
-import { readInstanceFacts as readStructuredFacts } from '../instanceFacts';
 import { reconstructVolume } from '../reconstructVolume';
-import {
-  bilateralSagittalSlabs,
-  type IdcSeriesFixture,
-} from './idcSeriesFixtures';
+import { bilateralSagittalSlabs } from './idcSeriesFixtures';
+import { sliceFacts, type SliceOptions } from './sliceFixture';
 
-// An axial slice at z, read through the fact reader so the fixtures stay in
-// the tag vocabulary the real data uses.
-const slice = (z: number, tags: Record<string, string> = {}) =>
-  readInstanceFacts([
-    ...Object.entries({
-      [Tags.ImageOrientationPatient]: '1\\0\\0\\0\\1\\0',
-      [Tags.ImagePositionPatient]: `0\\0\\${z}`,
-      [Tags.PixelSpacing]: '0.5\\0.5',
-      ...tags,
-    }),
-  ]);
+// An axial slice at z on a half millimetre grid.
+const slice = (z: number | null, options: SliceOptions = {}) =>
+  sliceFacts({
+    z,
+    ...options,
+    tags: { [Tags.PixelSpacing]: '0.5\\0.5', ...options.tags },
+  });
 
 const stack = (zs: number[]) => zs.map((z) => slice(z));
 
@@ -26,23 +18,8 @@ const stack = (zs: number[]) => zs.map((z) => slice(z));
 // sideways of the last as the table advances along z.
 const tiltedSlice = (z: number, theta: number) =>
   slice(z, {
-    [Tags.ImageOrientationPatient]: [
-      1,
-      0,
-      0,
-      0,
-      Math.cos(theta),
-      Math.sin(theta),
-    ].join('\\'),
+    orientation: [1, 0, 0, 0, Math.cos(theta), Math.sin(theta)].join('\\'),
   });
-
-const fixtureSlices = (fixture: IdcSeriesFixture) =>
-  fixture
-    .groups!.flatMap((group) => group.zs.map((z) => slice(z)))
-    .sort(
-      (left, right) =>
-        (left.projectedPosition as number) - (right.projectedPosition as number)
-    );
 
 describe('reconstructVolume', () => {
   it('measures an evenly spaced stack and maps every member to its slot', () => {
@@ -50,7 +27,6 @@ describe('reconstructVolume', () => {
 
     expect(result.kind).toBe('regular');
     expect(result.sliceSpacing).toBeCloseTo(4, 12);
-    expect(result.slots).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('derives the spacing from the endpoints once every gap matches', () => {
@@ -65,7 +41,6 @@ describe('reconstructVolume', () => {
 
     expect(result.kind).toBe('regular');
     expect(result.sliceSpacing).toBeNull();
-    expect(result.slots).toEqual([0]);
   });
 
   it('accepts a single plane without patient position or orientation', () => {
@@ -77,7 +52,7 @@ describe('reconstructVolume', () => {
           pixelSpacing: null,
         },
       ])
-    ).toEqual({ kind: 'regular', sliceSpacing: null, slots: [0] });
+    ).toEqual({ kind: 'regular', sliceSpacing: null });
   });
 
   it('does not treat a positionless multi-frame instance as a single plane', () => {
@@ -106,7 +81,11 @@ describe('reconstructVolume', () => {
   // The two slabs are 4mm stacks 42.439mm apart. Endpoint distance over slice
   // count would call that a 4.59mm lattice, which describes neither slab.
   it('calls the bilateral sagittal slabs an irregular stack', () => {
-    const members = fixtureSlices(bilateralSagittalSlabs);
+    const members = stack(
+      bilateralSagittalSlabs
+        .flatMap((group) => group.zs)
+        .sort((left, right) => left - right)
+    );
 
     const result = reconstructVolume(members);
 
@@ -137,12 +116,7 @@ describe('reconstructVolume', () => {
   });
 
   it('reports a member whose position cannot be read as irregular', () => {
-    const blind = readInstanceFacts([
-      [Tags.ImageOrientationPatient, '1\\0\\0\\0\\1\\0'],
-      [Tags.PixelSpacing, '0.5\\0.5'],
-    ]);
-
-    const result = reconstructVolume([...stack([0, 4]), blind]);
+    const result = reconstructVolume([...stack([0, 4]), slice(null)]);
 
     expect(result).toMatchObject({
       kind: 'irregular',
@@ -152,11 +126,9 @@ describe('reconstructVolume', () => {
   });
 
   it('reports a slice shifted within its own plane as irregular', () => {
-    const shifted = readInstanceFacts([
-      [Tags.ImageOrientationPatient, '1\\0\\0\\0\\1\\0'],
-      [Tags.ImagePositionPatient, '0\\30\\8'],
-      [Tags.PixelSpacing, '0.5\\0.5'],
-    ]);
+    const shifted = slice(null, {
+      tags: { [Tags.ImagePositionPatient]: '0\\30\\8' },
+    });
 
     const result = reconstructVolume([...stack([0, 4]), shifted]);
 
@@ -182,11 +154,10 @@ describe('reconstructVolume', () => {
     // The table stepped 3mm a slice, which is the extent ITK's series reader
     // keeps too; the shear is warned about, not folded into the spacing.
     expect(result.sliceSpacing).toBeCloseTo(3, 12);
-    expect(result.slots).toEqual([0, 1, 2, 3]);
   });
 
   it('reports two in-plane sample spacings as irregular', () => {
-    const coarse = slice(8, { [Tags.PixelSpacing]: '0.6\\0.6' });
+    const coarse = slice(8, { tags: { [Tags.PixelSpacing]: '0.6\\0.6' } });
 
     const result = reconstructVolume([...stack([0, 4]), coarse]);
 
@@ -198,19 +169,35 @@ describe('reconstructVolume', () => {
   });
 
   it('steps a stack whose orientation cannot be read by its positions', () => {
-    const blind = (z: number) =>
-      readInstanceFacts([
-        [Tags.ImagePositionPatient, `0\\0\\${z}`],
-        [Tags.PixelSpacing, '0.5\\0.5'],
-      ]);
-
-    const result = reconstructVolume([0, 4, 8].map(blind));
+    const result = reconstructVolume(
+      [0, 4, 8].map((z) => slice(z, { orientation: null }))
+    );
 
     expect(result).toMatchObject({
       kind: 'irregular',
       reason: 'unreadable-geometry',
     });
     expect(result.sliceSpacing).toBeCloseTo(4, 12);
+  });
+
+  it('reports positions that repeat out of order as repeated', () => {
+    const result = reconstructVolume(stack([0, 4, 8, 0, 4, 8]));
+
+    expect(result).toMatchObject({
+      kind: 'irregular',
+      reason: 'repeated-position',
+    });
+  });
+
+  // Frames of one instance are judged in stored order.
+  it('reports distinct positions stored out of order as uneven, not repeated', () => {
+    const result = reconstructVolume(stack([0, 2, 4, 1, 3, 5]));
+
+    expect(result).toMatchObject({
+      kind: 'irregular',
+      reason: 'uneven-slice-spacing',
+    });
+    expect(result.sliceSpacing).toBeCloseTo(2, 12);
   });
 
   it('has no step for members that never move', () => {
@@ -233,20 +220,16 @@ describe('reconstructVolume', () => {
       reason: 'in-plane-shift',
     });
   });
+
+  it.each([0.01, 0.05, 0.1])(
+    'detects a missing slice in a %s mm stack',
+    (step) => {
+      expect(
+        reconstructVolume(stack([0, 1, 2, 4, 5, 6].map((i) => i * step)))
+      ).toMatchObject({
+        kind: 'irregular',
+        reason: 'uneven-slice-spacing',
+      });
+    }
+  );
 });
-
-function readInstanceFacts(tags: Iterable<readonly [string, string]>) {
-  return readStructuredFacts(datasetFromTags(tags));
-}
-
-it.each([0.01, 0.05, 0.1])(
-  'detects a missing slice in a %s mm stack',
-  (step) => {
-    expect(
-      reconstructVolume(stack([0, 1, 2, 4, 5, 6].map((i) => i * step)))
-    ).toMatchObject({
-      kind: 'irregular',
-      reason: 'uneven-slice-spacing',
-    });
-  }
-);

@@ -22,7 +22,6 @@ import { abortError } from '@/src/utils';
 import {
   type CineHeader,
   isNativeTransferSyntax,
-  isSupportedCineTransferSyntax,
   readCineFrames,
   readCineHeader,
 } from './cineInstance';
@@ -201,14 +200,6 @@ export default class DicomCineImage extends BaseProgressiveImage {
     // Decode frame 0 so the canonical vtkImageData has valid scalars for
     // consumers that read it synchronously (thumbnail, getVtkImageData).
     if (this.disposed) return;
-    if (!isSupportedCineTransferSyntax(this.header.transferSyntaxUID)) {
-      this.reportError(
-        new Error(
-          `Unsupported cine transfer syntax: ${this.header.transferSyntaxUID}`
-        )
-      );
-      return;
-    }
     this.events.emit('loading', true);
     this.getFrame(0)
       .then((frame) => {

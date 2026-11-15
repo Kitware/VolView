@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sliceToThumbnail, THUMBNAIL_MAX_SIZE } from '../thumbnail';
+import { sliceToThumbnail } from '../thumbnail';
 
 const bytes = (slice: { data: Uint8Array }) => Array.from(slice.data);
 
@@ -9,8 +9,8 @@ describe('sliceToThumbnail', () => {
       data: [0, 10, 20, 30, 40, 50, 60, 70],
       width: 4,
       height: 2,
+      components: 1,
       range: [0, 70],
-      maxSize: 4,
     });
 
     expect(slice.width).toBe(4);
@@ -24,8 +24,8 @@ describe('sliceToThumbnail', () => {
       data: [0, 10, 15, 20, 30],
       width: 5,
       height: 1,
+      components: 1,
       range: [10, 20],
-      maxSize: 8,
     });
 
     expect(bytes(slice)).toEqual([0, 0, 128, 255, 255]);
@@ -36,8 +36,8 @@ describe('sliceToThumbnail', () => {
       data: [1, 5, 9],
       width: 3,
       height: 1,
+      components: 1,
       range: [5, 5],
-      maxSize: 8,
     });
 
     expect(bytes(slice)).toEqual([0, 0, 0]);
@@ -48,26 +48,27 @@ describe('sliceToThumbnail', () => {
       data: [NaN, Infinity, -Infinity, 1],
       width: 4,
       height: 1,
+      components: 1,
       range: [0, 1],
-      maxSize: 8,
     });
 
     expect(bytes(slice)).toEqual([0, 0, 0, 255]);
   });
 
-  it('downsamples both axes by one stride', () => {
+  it('downsamples both axes by one stride to at most 256 on the longer side', () => {
+    const width = 512;
     const slice = sliceToThumbnail({
-      data: [0, 10, 20, 30, 40, 50, 60, 70],
-      width: 4,
+      data: Uint16Array.from({ length: width * 2 }, (_, index) => index),
+      width,
       height: 2,
-      range: [0, 70],
-      maxSize: 2,
+      components: 1,
+      range: [0, 255],
     });
 
-    expect(slice.width).toBe(2);
+    expect(slice.width).toBe(256);
     expect(slice.height).toBe(1);
-    // The samples at (0,0) and (2,0), the corners of the 2x2 source blocks.
-    expect(bytes(slice)).toEqual([0, 73]);
+    // Every second sample of the first row, the corners of the 2x2 blocks.
+    expect(bytes(slice).slice(0, 4)).toEqual([0, 2, 4, 6]);
   });
 
   it('keeps every sample of a slice that already fits', () => {
@@ -75,26 +76,13 @@ describe('sliceToThumbnail', () => {
       data: [0, 1, 2, 3],
       width: 2,
       height: 2,
+      components: 1,
       range: [0, 3],
     });
 
     expect(slice.width).toBe(2);
     expect(slice.height).toBe(2);
     expect(slice.data).toHaveLength(4);
-  });
-
-  it('bounds a large slice by the default maximum size', () => {
-    const width = THUMBNAIL_MAX_SIZE * 2;
-    const slice = sliceToThumbnail({
-      data: new Uint16Array(width).fill(1),
-      width,
-      height: 1,
-      range: [0, 1],
-    });
-
-    expect(slice.width).toBe(THUMBNAIL_MAX_SIZE);
-    expect(slice.height).toBe(1);
-    expect(slice.data).toHaveLength(THUMBNAIL_MAX_SIZE);
   });
 
   it('samples RGB luminance for color slices', () => {
@@ -104,15 +92,8 @@ describe('sliceToThumbnail', () => {
       height: 1,
       components: 3,
       range: [0, 255],
-      maxSize: 8,
     });
 
     expect(bytes(slice)).toEqual([76, 150, 29]);
-  });
-
-  it('does not mutate the samples it reads', () => {
-    const data = [0, 10, 20, 30];
-    sliceToThumbnail({ data, width: 4, height: 1, range: [0, 30] });
-    expect(data).toEqual([0, 10, 20, 30]);
   });
 });

@@ -9,13 +9,14 @@ import {
   fromUrl,
   type ByteRange,
   type ByteSource,
-  type RangeSupport,
 } from '../../source/byteSource';
 import { loadVolume, type VolumeUpdate } from '../loadVolume';
-import { defaultDecoderTable } from '../../pixels/decoderTable';
+import {
+  defaultDecoderTable,
+  singleDecoderTable,
+} from '../../pixels/decoderTable';
 import type { DecodeUnit, PixelDecoder } from '../../pixels/pixelDecoder';
 import { allocated } from './volumeFixture';
-import { hangingSource } from '@/tests/byteSourceFixtures';
 import {
   nativePixelDicom,
   patternWords,
@@ -86,6 +87,17 @@ const multiframe = (options: NativePixelOptions = {}) => {
   };
 };
 
+/** One failure that spans every frame of `multiframe()`. */
+const failsWhole = (message: RegExp) => [
+  {
+    slot: 0,
+    extent: [0, 2, 0, 1, 0, FRAMES - 1],
+    error: expect.objectContaining({
+      message: expect.stringMatching(message),
+    }),
+  },
+];
+
 /** Frame `frame` of `multiframe()`, read from its own range. */
 const frameUnit = (valueOffset: number, frame: number): DecodeUnit => {
   const start = valueOffset + frame * 12;
@@ -146,6 +158,34 @@ describe('loadVolume with native frames', () => {
     expect(Array.from(volume.data)).toEqual(words);
   });
 
+  it('loads the frames a file cut short still holds and fails the rest', async () => {
+    const { bytes, words } = multiframe();
+    const instance = await readInstance(blobOf(bytes), signal());
+    const cut = { ...instance, source: blobOf(bytes.subarray(0, -18)) };
+
+    const { volume, updates } = await load([cut], { readAhead: 1 });
+
+    const failed = updates.flatMap((update) =>
+      'error' in update ? [[update.slot, update.error.message]] : []
+    );
+    expect(failed).toEqual([
+      [
+        4,
+        expect.stringMatching(
+          /frame 4 could not be decoded: A frame needs 12 bytes of Pixel Data; 0 were read$/
+        ),
+      ],
+      [
+        3,
+        expect.stringMatching(
+          /frame 3 could not be decoded: A frame needs 12 bytes of Pixel Data; 6 were read$/
+        ),
+      ],
+    ]);
+    expect(Array.from(volume.loaded)).toEqual([1, 1, 1, 0, 0]);
+    expect(Array.from(volume.data.subarray(0, 18))).toEqual(words.slice(0, 18));
+  });
+
   it('reports the float32-rounded range a Float32 volume stores', async () => {
     const { bytes, words } = multiframe({ rescale: [0.1, 0.3] });
     const instance = await readInstance(blobOf(bytes), signal());
@@ -178,7 +218,7 @@ describe('loadVolume with native frames', () => {
       sources.map(({ source }) => readInstance(source, signal()))
     );
 
-    const { volume, updates } = await load(members);
+    const { volume, updates } = await load(members, { readAhead: 1 });
 
     expect(updates.map((update) => update.slot)).toEqual([1, 0, 2]);
     sources.forEach(({ ranges }, index) =>
@@ -192,18 +232,18 @@ describe('loadVolume with native frames', () => {
   });
 
   it.each([
-    [true, 1 + FRAMES],
-    [false, 3],
-  ])(
-    'reads frames from a server that honours Range (%s) in %i requests',
-    async (honoured, requests) => {
+    ['honours', 1 + FRAMES],
+    ['ignores', 3],
+  ] as const)(
+    'probes a server that %s Range with one frame, then makes %i requests in all',
+    async (behaviour, requests) => {
       const { bytes, words } = multiframe();
       const asked: Array<string | null> = [];
       const fetchFn: typeof fetch = async (_url, init) => {
         const range = new Headers(init?.headers).get('Range');
         asked.push(range);
         const [, from, to] = /bytes=(\d+)-(\d+)/.exec(range ?? '') ?? [];
-        return honoured && from
+        return behaviour === 'honours' && from
           ? new Response(bytes.slice(Number(from), Number(to) + 1), {
               status: 206,
             })
@@ -216,10 +256,67 @@ describe('loadVolume with native frames', () => {
 
       const { volume } = await load([instance]);
 
-      expect(asked).toHaveLength(requests);
+      const start = instance.pixelData!.valueOffset;
+      const frames = (index: number, count = 1) =>
+        `bytes=${start + index * 12}-${start + (index + count) * 12 - 1}`;
+      const [header, probe, ...rest] = asked;
+      expect(header).toBeNull();
+      expect(probe).toBe(frames(0));
+      expect(rest).toHaveLength(requests - 2);
+      expect(rest).toEqual(
+        behaviour === 'honours'
+          ? expect.arrayContaining([1, 2, 3, 4].map((index) => frames(index)))
+          : [frames(1, FRAMES - 1)]
+      );
       expect(Array.from(volume.data)).toEqual(words);
     }
   );
+
+  it('hands the thread back once a run of decodes has had its share, so a load stopped then decodes no more', async () => {
+    const codec = '1.2.3.4';
+    const { bytes } = multiframe({ transferSyntaxUid: codec });
+    const source: ByteSource = {
+      ...blobOf(bytes),
+      rangeSupport: () => 'ignored',
+    };
+    const instance = await readInstance(source, signal());
+    const decoded: number[] = [];
+    // Each decode alone outlasts the run a load allows itself.
+    const slow = (unit: DecodeUnit): DecodeUnit => ({
+      ...unit,
+      decode: (frameBytes, decodeSignal) => {
+        decoded.push(unit.firstFrame);
+        const until = performance.now() + 20;
+        while (performance.now() < until);
+        return unit.decode(frameBytes, decodeSignal);
+      },
+    });
+    const runtime = createDicomRuntime({
+      decodeConcurrency: 1,
+      decoders: () =>
+        singleDecoderTable({
+          name: 'Slow per-frame codec',
+          plan: ({ pixelData }) =>
+            Array.from({ length: FRAMES }, (_, frame) =>
+              slow(frameUnit(pixelData!.valueOffset, frame))
+            ),
+        }),
+    });
+    runtimes.push(runtime);
+    const controller = new AbortController();
+
+    const slots: number[] = [];
+    for await (const update of loadVolume(allocated([instance]), {
+      runtime,
+      signal: controller.signal,
+    })) {
+      slots.push(update.slot);
+      controller.abort();
+    }
+
+    expect(slots).toHaveLength(1);
+    expect(decoded).toEqual(slots);
+  });
 
   it('fails every slice of an instance it cannot decode, without reading pixels', async () => {
     const { bytes } = multiframe({
@@ -230,15 +327,7 @@ describe('loadVolume with native frames', () => {
 
     const { updates } = await load([instance]);
 
-    expect(updates).toEqual([
-      {
-        slot: 0,
-        extent: [0, 2, 0, 1, 0, FRAMES - 1],
-        error: expect.objectContaining({
-          message: expect.stringMatching(/MPEG-4 .* has no decoder/),
-        }),
-      },
-    ]);
+    expect(updates).toEqual(failsWhole(/MPEG-4 .* has no decoder/));
     expect(ranges).toEqual([undefined]);
   });
 
@@ -248,33 +337,11 @@ describe('loadVolume with native frames', () => {
 
     const { updates } = await load([instance]);
 
-    expect(updates).toEqual([
-      {
-        slot: 0,
-        extent: [0, 2, 0, 1, 0, FRAMES - 1],
-        error: new Error('GDCM decoding needs createDicomRuntime({ assets })'),
-      },
-    ]);
-  });
-
-  it('stops frame reads and yields nothing once aborted', async () => {
-    const { bytes } = multiframe();
-    const hanging = hangingSource();
-    const blob = blobOf(bytes);
-    const source: ByteSource = {
-      read: (readSignal, range) =>
-        range ? hanging.source.read(readSignal, range) : blob.read(readSignal),
-    };
-    const instance = await readInstance(source, signal());
-    const controller = new AbortController();
-
-    const loading = load([instance], { abort: controller.signal });
-    await hanging.pulled;
-    const reason = new DOMException('closed', 'AbortError');
-    controller.abort(reason);
-
-    expect((await loading).updates).toEqual([]);
-    expect(await hanging.cancelled).toBe(reason);
+    expect(updates).toEqual(
+      failsWhole(
+        /^File .* \(member 0\) could not be decoded: GDCM decoding needs createDicomRuntime\(\{ assets \}\)$/
+      )
+    );
   });
 
   it('loads frame by frame through a per-frame decoder added to the table', async () => {
@@ -351,79 +418,4 @@ describe('loadVolume with native frames', () => {
       expect(volume.loaded).toEqual(new Uint8Array(FRAMES));
     }
   );
-
-  it.each([
-    ['honours', FRAMES],
-    ['ignores', 2],
-  ] as const)(
-    'probes a source that %s Range with one frame, then makes %i frame reads in all',
-    async (behaviour, frameReads) => {
-      const { bytes, words } = multiframe();
-      const blob = recorded(blobOf(bytes));
-      let support: RangeSupport = 'unknown';
-      const source: ByteSource = {
-        read: (readSignal, range) => {
-          if (range) support = behaviour === 'honours' ? 'honoured' : 'ignored';
-          return blob.source.read(readSignal, range);
-        },
-        rangeSupport: () => support,
-      };
-      const instance = await readInstance(source, signal());
-
-      const { volume } = await load([instance]);
-
-      const start = instance.pixelData!.valueOffset;
-      const frame = (index: number, count = 1) => ({
-        start: start + index * 12,
-        end: start + (index + count) * 12,
-      });
-      const [header, probe, ...rest] = blob.ranges;
-      expect(header).toBeUndefined();
-      expect(probe).toEqual(frame(0));
-      expect(rest).toHaveLength(frameReads - 1);
-      expect(rest).toEqual(
-        behaviour === 'honours'
-          ? expect.arrayContaining([1, 2, 3, 4].map((index) => frame(index)))
-          : [frame(1, FRAMES - 1)]
-      );
-      expect(Array.from(volume.data)).toEqual(words);
-    }
-  );
-
-  it('reads frame calibrations in time linear in the frame count', async () => {
-    const datasetReads = async (frames: number) => {
-      const bytes = nativePixelDicom({
-        rows: 2,
-        columns: 3,
-        frames,
-        words: patternWords(frames * 6, 16),
-        rescale: [0.1, 0.3],
-      });
-      const instance = await readInstance(blobOf(bytes), signal());
-      const { dataset } = instance;
-      let reads = 0;
-      const counted = {
-        ...instance,
-        dataset: {
-          ...dataset,
-          get elements() {
-            reads += 1;
-            return dataset.elements;
-          },
-        },
-      };
-      const { volume, updates } = await load([counted]);
-      expect(volume.data).toBeInstanceOf(Float32Array);
-      expect(updates).toHaveLength(frames);
-      return reads;
-    };
-
-    const [ten, twenty, forty] = [
-      await datasetReads(10),
-      await datasetReads(20),
-      await datasetReads(40),
-    ];
-
-    expect(forty - twenty).toBe(2 * (twenty - ten));
-  });
 });

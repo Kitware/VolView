@@ -1,13 +1,8 @@
 import type { Instance } from '../instance/readInstance';
 import type { ImageCollectionUpdate } from '../collections/instanceRegistry';
-import type { DicomCollection } from '../collections/planDicomCollections';
-import type { Reconstruction } from '../collections/reconstructVolume';
 import type { SpatialMetadata } from '../metadata/spatialMetadata';
 import type { VolumeBuffer } from './pixelFormat';
-import {
-  planVolumeAllocation,
-  type IrregularGeometryPolicy,
-} from './volumeLayout';
+import { planVolumeAllocation } from './volumeLayout';
 
 type Vector3 = readonly [number, number, number];
 
@@ -16,11 +11,8 @@ type Vector3 = readonly [number, number, number];
  * `data` and `loaded`, which only `loadVolume` writes.
  */
 export type Volume = Readonly<{
-  id: string;
-  collection: DicomCollection;
-  /** Planned order; `reconstruction.slots[i]` is member i's first slice. */
+  /** Planned order; in a multi-file volume member i fills slice i. */
   members: readonly Instance[];
-  reconstruction: Reconstruction;
   /** Columns, rows, slices. */
   dimensions: Vector3;
   components: number;
@@ -36,16 +28,12 @@ export type Volume = Readonly<{
   loaded: Uint8Array;
 }>;
 
-export type AllocateVolumeOptions = {
-  irregularGeometry?: IrregularGeometryPolicy;
-};
-
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
 /** The slices one member fills: one per file, or every frame of a lone instance. */
 export const memberSlices = (volume: Volume, member: number) =>
   volume.members.length > 1
-    ? [volume.reconstruction.slots[member]]
+    ? [member]
     : Array.from({ length: volume.dimensions[2] }, (_, slice) => slice);
 
 export const memberLoaded = (volume: Volume, member: number) =>
@@ -98,23 +86,18 @@ function copyDecoded(volume: Volume, previous: Volume) {
  * again.
  */
 export function allocateVolume(
-  update: Pick<ImageCollectionUpdate, 'kind' | 'id' | 'collection' | 'members'>,
-  options: AllocateVolumeOptions = {},
+  update: Pick<ImageCollectionUpdate, 'kind' | 'collection' | 'members'>,
   previous?: Volume
 ) {
-  const { id, collection, members } = update;
-  const { reconstruction, layout, warnings } = planVolumeAllocation(
+  const { collection, members } = update;
+  const { layout, warnings } = planVolumeAllocation(
     members,
     collection.orientation,
-    collection.reconstruction,
-    options.irregularGeometry ?? 'preserve-order'
+    collection.reconstruction
   );
   const { columns, rows, slices, samplesPerPixel } = layout;
   const volume: Volume = Object.freeze({
-    id,
-    collection,
     members: Object.freeze([...members]),
-    reconstruction,
     dimensions: [columns, rows, slices] as const,
     components: samplesPerPixel,
     origin: (layout.origin ?? [0, 0, 0]) as unknown as Vector3,
