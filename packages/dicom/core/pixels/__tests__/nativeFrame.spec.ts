@@ -155,6 +155,7 @@ describe('nativeCapability', () => {
     [
       'a uniform per-frame rescale',
       {
+        sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
         frames: 2,
         frameRescales: [
           [2, 1],
@@ -213,6 +214,7 @@ describe('nativeCapability', () => {
     [
       'differing per-frame rescale',
       {
+        sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
         frames: 2,
         frameRescales: [
           [1, 0],

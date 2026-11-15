@@ -63,13 +63,19 @@ const nextTask = () =>
 const ensureError = (error: unknown) =>
   error instanceof Error ? error : new Error(String(error));
 
+// Reduced rather than spread: a lone instance can have more slices than a call takes arguments.
+const lowest = (values: readonly number[]) =>
+  values.reduce((low, value) => Math.min(low, value), Infinity);
+const highest = (values: readonly number[]) =>
+  values.reduce((high, value) => Math.max(high, value), -Infinity);
+
 const sliceExtent = (volume: Volume, slices: readonly number[]): Extent => [
   0,
   volume.dimensions[0] - 1,
   0,
   volume.dimensions[1] - 1,
-  Math.min(...slices),
-  Math.max(...slices),
+  lowest(slices),
+  highest(slices),
 ];
 
 const failure = (
@@ -77,7 +83,7 @@ const failure = (
   slices: readonly number[],
   error: unknown
 ): VolumeUpdate => ({
-  slot: Math.min(...slices),
+  slot: lowest(slices),
   extent: sliceExtent(volume, slices),
   error: ensureError(error),
 });
@@ -294,8 +300,8 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
       return [
         await readBytes(sourceOf(first), stopped, first.range ?? undefined),
       ];
-    const start = Math.min(...batch.map((unit) => unit.range!.start));
-    const end = Math.max(...batch.map((unit) => unit.range!.end!));
+    const start = lowest(batch.map((unit) => unit.range!.start));
+    const end = highest(batch.map((unit) => unit.range!.end!));
     const bytes = await readBytes(sourceOf(first), stopped, { start, end });
     return batch.map(({ range }) =>
       bytes.subarray(range!.start - start, range!.end! - start)

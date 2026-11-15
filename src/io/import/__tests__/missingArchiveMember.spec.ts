@@ -91,6 +91,23 @@ describe('restore with a partially missing dataset archive', () => {
     expect(warning?.options.details).not.toMatch(/image: a\.dcm, b\.dcm\n/);
   });
 
+  it('names a dataset whose files now share a volume with another as merged, not missing', async () => {
+    await completeStateFileRestore(
+      ManifestSchema.parse(manifest),
+      [],
+      {},
+      { mergedDatasets: { 'ds-ct': 'store-merged' } }
+    );
+
+    const warning = useMessageStore().messages.find(
+      (message) => message.title === 'Some scene content could not be restored'
+    );
+    expect(warning?.options.details).toContain(
+      'image: a.dcm, b.dcm (loaded as one volume with another saved image'
+    );
+    expect(warning?.options.details).not.toMatch(/image: a\.dcm, b\.dcm\n/);
+  });
+
   it('names the files in a collection that failed to resolve entirely', async () => {
     await completeStateFileRestore(ManifestSchema.parse(manifest), [], {});
 

@@ -40,7 +40,7 @@ import openUriStream from '@/src/io/import/processors/openUriStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
-import { ensureError } from '@/src/utils';
+import { ensureError, groupBy } from '@/src/utils';
 import type { Instance } from '@/packages/dicom/core';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
@@ -90,18 +90,22 @@ const compareSourceOrder = (a: number[], b: number[]) => {
 };
 
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
-// covers maps to its ONE store id. Many-to-one is the normal shape — a merged
-// multi-file DICOM volume covers every member file's per-file dataset id.
-// A dataset whose leaves now load as SEVERAL volumes (a series since split
-// into acquisitions) has no single owner for its saved state; it is left
-// unmapped so restore reports it instead of binding annotations, layers, and
-// views to an arbitrary one of the volumes.
+// covers maps to its ONE store id. Many-to-one is the normal shape when each
+// dataset is one file: a merged multi-file DICOM volume covers every member
+// file's per-file dataset id. A dataset whose leaves now load as SEVERAL
+// volumes (a series since split into acquisitions), or a multi-file dataset
+// whose volume now also holds another dataset's files, has a different grid
+// than its saved state; it is left unmapped so restore reports it instead of
+// binding annotations, layers, and views to the wrong slices.
 export function buildStateIDToStoreID(
   loadables: readonly LoadableResult[]
 ): Record<string, string> {
+  const merged = findMergedStateDatasets(loadables);
   return Object.fromEntries(
     [...storeIDsByStateID(loadables)]
-      .filter(([, storeIDs]) => storeIDs.size === 1)
+      .filter(
+        ([stateID, storeIDs]) => storeIDs.size === 1 && !(stateID in merged)
+      )
       .map(([stateID, storeIDs]) => [stateID, [...storeIDs][0]])
   );
 }
@@ -121,17 +125,46 @@ export function findSplitStateDatasets(
   );
 }
 
-function storeIDsByStateID(loadables: readonly LoadableResult[]) {
-  const storeIDsByState = new Map<string, Set<string>>();
-  loadables.forEach((loadable) => {
-    findStateFileLeaves(loadable.dataSource).forEach((leaf) => {
-      const storeIDs = storeIDsByState.get(leaf.stateID) ?? new Set();
-      storeIDs.add(loadable.dataID);
-      storeIDsByState.set(leaf.stateID, storeIDs);
-    });
-  });
-  return storeIDsByState;
+/**
+ * The state-file datasets the map above leaves out because they share one
+ * volume with another dataset and at least one of them is several files, with
+ * that volume.
+ */
+export function findMergedStateDatasets(
+  loadables: readonly LoadableResult[]
+): Record<string, string> {
+  const leaves = stateLeavesOf(loadables);
+  const leavesByState = groupBy(leaves, ([stateID]) => stateID);
+  return Object.fromEntries(
+    [...groupBy(leaves, ([, storeID]) => storeID).values()]
+      .map((pairs) => new Map(pairs))
+      .filter(
+        (stateToStore) =>
+          stateToStore.size > 1 &&
+          [...stateToStore.keys()].some(
+            (stateID) => leavesByState.get(stateID)!.length > 1
+          )
+      )
+      .flatMap((stateToStore) => [...stateToStore])
+  );
 }
+
+const stateLeavesOf = (loadables: readonly LoadableResult[]) =>
+  loadables.flatMap((loadable) =>
+    findStateFileLeaves(loadable.dataSource).map(
+      (leaf) => [leaf.stateID, loadable.dataID] as const
+    )
+  );
+
+const storeIDsByStateID = (loadables: readonly LoadableResult[]) =>
+  new Map(
+    [...groupBy(stateLeavesOf(loadables), ([stateID]) => stateID)].map(
+      ([stateID, pairs]) => [
+        stateID,
+        new Set(pairs.map(([, storeID]) => storeID)),
+      ]
+    )
+  );
 
 // An instance outlives the batch that brought it: a replan can move a member
 // into another collection, whose provenance must still name where its bytes
@@ -389,6 +422,7 @@ async function importDataSourcesWithPolicy(
 
   const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
   const splitDatasets = findSplitStateDatasets(loadableResults);
+  const mergedDatasets = findMergedStateDatasets(loadableResults);
   // Leaf stateIDs covered by a consolidated notice that actually ran — only
   // their errors may be suppressed below.
   const reportedStateIDs = new Set<string>();
@@ -398,7 +432,12 @@ async function importDataSourcesWithPolicy(
         setup.manifest,
         setup.stateFiles,
         stateIDToStoreID,
-        { missingFiles: setup.missingFiles, failedLeaves, splitDatasets }
+        {
+          missingFiles: setup.missingFiles,
+          failedLeaves,
+          splitDatasets,
+          mergedDatasets,
+        }
       );
       setup.dataSources.forEach((src) => {
         findStateFileLeaves(src).forEach((leaf) =>

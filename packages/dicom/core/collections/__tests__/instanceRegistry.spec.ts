@@ -62,6 +62,32 @@ describe('pure instance registry', () => {
     expect(update.id.startsWith(SERIES_UID)).toBe(true);
   });
 
+  // Anonymizers and phantom protocols can reuse one series' UIDs in another study.
+  it.each([
+    ['its own', 'b'],
+    ['the same', 'a'],
+  ])(
+    'plans a series uid reused in another study, with %s SOP uids, apart',
+    (_name, prefix) => {
+      const study = (uid: string, sop: string) =>
+        [0, 1, 2].map((z) =>
+          slice({
+            sop: `${sop}${z}`,
+            z,
+            tags: { [Tags.StudyInstanceUID]: uid },
+          })
+        );
+      const first = study('1.2.3.1', 'a');
+      const second = study('1.2.3.2', prefix);
+
+      const [initial, reused] = registerAll([first, second]);
+
+      expect(reused.updates.map((update) => update.members)).toEqual([second]);
+      expect(reused.updates[0].id).not.toBe(initial.updates[0].id);
+      expect(reused.updates[0].id.startsWith(SERIES_UID)).toBe(true);
+    }
+  );
+
   it.each([
     ['one batch', [[0, 1, 2]]],
     ['a late earlier slice', [[1, 2], [0]]],

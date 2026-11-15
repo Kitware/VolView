@@ -186,6 +186,44 @@ describe('loadVolume with native frames', () => {
     expect(Array.from(volume.data.subarray(0, 18))).toEqual(words.slice(0, 18));
   });
 
+  it('reads only the frame that failed when the volume loads again', async () => {
+    const { bytes, words } = multiframe();
+    const blob = blobOf(bytes);
+    const instance = await readInstance(blob, signal());
+    const lost = instance.pixelData!.valueOffset + 2 * 12;
+    let dropped = false;
+    const { source, ranges } = recorded({
+      ...blob,
+      read: (readSignal, range) => {
+        if (range?.start !== lost || dropped)
+          return blob.read(readSignal, range);
+        dropped = true;
+        return new ReadableStream({
+          start: (controller) => controller.error(new Error('dropped')),
+        });
+      },
+    });
+    const volume = allocated([{ ...instance, source }]);
+    const loadAgain = async () => {
+      const updates: VolumeUpdate[] = [];
+      for await (const update of loadVolume(volume, {
+        runtime: nativeOnly(),
+        signal: signal(),
+      }))
+        updates.push(update);
+      return updates;
+    };
+
+    const first = await loadAgain();
+    ranges.length = 0;
+    const second = await loadAgain();
+
+    expect(first.filter((update) => 'error' in update)).toHaveLength(1);
+    expect(second.map((update) => update.slot)).toEqual([2]);
+    expect(ranges).toEqual([{ start: lost, end: lost + 12 }]);
+    expect(Array.from(volume.data)).toEqual(words);
+  });
+
   it('reports the float32-rounded range a Float32 volume stores', async () => {
     const { bytes, words } = multiframe({ rescale: [0.1, 0.3] });
     const instance = await readInstance(blobOf(bytes), signal());
@@ -313,6 +351,15 @@ describe('loadVolume with native frames', () => {
       slots.push(update.slot);
       controller.abort();
     }
+    // The next decode waits on a task posted before this one, on an earlier port.
+    await new Promise<void>((resolve) => {
+      const { port1, port2 } = new MessageChannel();
+      port1.onmessage = () => {
+        port1.close();
+        resolve();
+      };
+      port2.postMessage(null);
+    });
 
     expect(slots).toHaveLength(1);
     expect(decoded).toEqual(slots);
@@ -379,6 +426,11 @@ describe('loadVolume with native frames', () => {
       'overlapping units',
       (offset: number) =>
         [0, 1, 2, 2, 3, 4].map((frame) => frameUnit(offset, frame)),
+    ],
+    [
+      'a frame twice and another not at all',
+      (offset: number) =>
+        [0, 0, 1, 2, 3].map((frame) => frameUnit(offset, frame)),
     ],
     [
       'units that skip a frame',

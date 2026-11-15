@@ -143,6 +143,58 @@ describe('loadVolume', () => {
     expect(sliceValues(volume)).toEqual([null, null, 2, null, 4]);
   });
 
+  it('fails a whole instance of 250000 frames as one failure', async () => {
+    const frames = 250_000;
+    const volume = allocated([
+      pixelSlice(0, {
+        rows: '1',
+        tags: { '0028|0011': '1', '0028|0008': String(frames) },
+      }),
+    ]);
+
+    const updates = await loadAll(
+      volume,
+      runtimeWith(() => {
+        throw new Error('corrupt pixel data');
+      })
+    );
+
+    expect(updates).toEqual([
+      {
+        slot: 0,
+        extent: [0, 0, 0, 0, 0, frames - 1],
+        error: expect.objectContaining({
+          message: expect.stringMatching(/corrupt pixel data$/),
+        }),
+      },
+    ]);
+  });
+
+  it('fails a slice whose decoded values the volume buffer cannot hold', async () => {
+    const decode = valueDecoder();
+    const decoder: WholeInstanceDecode = async (request, signal) => {
+      const image = await decode(request, signal);
+      return image.data[0] === 1
+        ? { ...image, data: new Int16Array(16).fill(-1) }
+        : image;
+    };
+    const volume = stack(3);
+
+    const updates = await loadAll(volume, runtimeWith(decoder));
+
+    expect(volume.data).toBeInstanceOf(Uint16Array);
+    expect(updates.find((update) => update.slot === 1)).toEqual({
+      slot: 1,
+      extent: [0, 3, 0, 3, 1, 1],
+      error: expect.objectContaining({
+        message: expect.stringMatching(
+          /^File pixel-1 \(member 1\) has pixel values the volume it belongs to cannot represent\. Its pixel values run from -1 to -1, but the volume's buffer is Uint16Array/
+        ),
+      }),
+    });
+    expect(sliceValues(volume)).toEqual([0, null, 2]);
+  });
+
   it('reorders reads around a focus that moves while a slice decodes', async () => {
     const decoded: number[] = [];
     const decode = valueDecoder(decoded);
@@ -321,6 +373,8 @@ describe('loadVolume', () => {
         signal: controller.signal,
       })
     );
+    // The decode settles in microtasks, so a write it made would land by now.
+    await new Promise((resolve) => setTimeout(resolve));
 
     expect(updates).toEqual([]);
     expect(volume.data.every((sample) => sample === 0)).toBe(true);
