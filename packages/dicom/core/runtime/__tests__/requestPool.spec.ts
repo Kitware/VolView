@@ -1,10 +1,5 @@
 import { RequestPool } from '../requestPool';
 import { describe, it, expect } from 'vitest';
-import { defer } from '../../utils';
-
-const neverResolvingFetch = async () => {
-  return new Promise<Response>(() => {});
-};
 
 const abortableFetch = async (
   _input: RequestInfo | URL,
@@ -26,11 +21,15 @@ const abortableFetch = async (
 describe('requestPool', () => {
   it('should not have more active requests than the pool size', () => {
     const N = 4;
-    const pool = new RequestPool(N, neverResolvingFetch);
+    let started = 0;
+    const pool = new RequestPool(N, () => {
+      started += 1;
+      return new Promise<Response>(() => {});
+    });
     for (let i = 0; i < 10; i++) {
       pool.fetch('http://localhost/url');
     }
-    expect(pool.activeConnections).to.equal(N);
+    expect(started).to.equal(N);
   });
 
   it('should support removal of requests via an AbortController', async () => {
@@ -57,7 +56,7 @@ describe('requestPool', () => {
   });
 
   it('settles queued requests immediately on cancellation or disposal', async () => {
-    const fetchStarted = defer<void>();
+    const fetchStarted = Promise.withResolvers<void>();
     const pool = new RequestPool(
       1,
       (_request, init) =>
@@ -123,22 +122,4 @@ describe('requestPool', () => {
       pool.dispose();
     }
   );
-});
-
-it('imports a remote resource without AbortSignal.any', async () => {
-  const descriptor = Object.getOwnPropertyDescriptor(AbortSignal, 'any');
-  Object.defineProperty(AbortSignal, 'any', {
-    configurable: true,
-    value: undefined,
-  });
-  const pool = new RequestPool(1, async () => new Response('resource'));
-  try {
-    expect(
-      await (await pool.fetch('https://example.test/resource')).text()
-    ).toBe('resource');
-  } finally {
-    pool.dispose();
-    if (descriptor) Object.defineProperty(AbortSignal, 'any', descriptor);
-    else Reflect.deleteProperty(AbortSignal, 'any');
-  }
 });

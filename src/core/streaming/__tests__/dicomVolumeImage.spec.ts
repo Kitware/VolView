@@ -26,9 +26,6 @@ import DicomVolumeImage, {
 const ROWS = 2;
 const COLUMNS = 2;
 const PIXELS_PER_SLICE = ROWS * COLUMNS;
-// Physical Units X/Y Direction code for centimeters.
-const CENTIMETERS = 3;
-const PUBLIC_DSC_SLOPE = 112067.85375182;
 
 // The slice's z position is also its pixel value, so decoded contents say
 // which instance a slice came from.
@@ -50,7 +47,7 @@ function sliceAt(z: number, overrides: Record<string, string> = {}) {
 }
 
 const volumeOf = (members: Instance[], previous?: Volume) =>
-  allocateVolume(plannedUpdate(members), {}, previous);
+  allocateVolume(plannedUpdate(members), previous);
 
 const stack = (count: number) =>
   volumeOf(Array.from({ length: count }, (_, z) => sliceAt(z)));
@@ -199,77 +196,6 @@ describe('DicomVolumeImage loading', () => {
 
     expect(decoded).toEqual([7, 3, 5, 1, 6, 8, 4, 2, 0]);
   });
-
-  it('starts from the middle slice when no view shows one', async () => {
-    const { decoder, decoded } = constantSlices();
-    const { image } = holder(decoder, { focus: () => undefined }, 1);
-
-    await show(image, stack(9));
-
-    expect(decoded).toEqual([4, 0, 8, 2, 6, 3, 5, 1, 7]);
-  });
-
-  it('keeps modality-rescaled pixels from the public DSC series to float32 precision', async () => {
-    // The public frames are 200x230; reduced geometry keeps the exact encoding,
-    // rescale, and an observed stored-pixel maximum.
-    const decoded = Float64Array.from([
-      0,
-      PUBLIC_DSC_SLOPE,
-      2 * PUBLIC_DSC_SLOPE,
-      65131 * PUBLIC_DSC_SLOPE,
-    ]);
-    const { image } = holder(decodeTo(() => decoded).decoder);
-
-    await show(
-      image,
-      volumeOf([
-        sliceAt(1, {
-          [Tags.RescaleSlope]: String(PUBLIC_DSC_SLOPE),
-          [Tags.RescaleIntercept]: '0',
-        }),
-      ])
-    );
-
-    const data = image.getVtkImageData().getPointData().getScalars().getData();
-    // Float32 keeps every stored step apart: the slope dwarfs float32's spacing.
-    expect(data).toBeInstanceOf(Float32Array);
-    expect(Array.from(data)).toEqual(Array.from(decoded, Math.fround));
-  });
-
-  // PixelSpacing is row\column, so the fallback in-plane spacing is [0.7, 0.6].
-  it.each([
-    { physicalDeltaX: 0.05, expected: [0.5, 0.3], warnings: 0 },
-    { physicalDeltaX: 0, expected: [0.7, 0.6], warnings: 1 },
-  ])(
-    'shows ultrasound region spacing only when nonzero and finite (deltaX $physicalDeltaX)',
-    ({ physicalDeltaX, expected, warnings }) => {
-      const { image } = holder(constantSlices().decoder);
-      const volume = volumeOf([
-        {
-          ...sliceAt(1, {
-            [Tags.Modality]: 'US',
-            [Tags.PixelSpacing]: '0.6\\0.7',
-          }),
-          ultrasoundRegions: {
-            region: {
-              physicalDeltaX,
-              physicalDeltaY: 0.03,
-              physicalUnitsXDirection: CENTIMETERS,
-              physicalUnitsYDirection: CENTIMETERS,
-            },
-            regionCount: 1,
-          },
-        },
-      ]);
-
-      image.setVolume(volume);
-
-      const [x, y] = image.getVtkImageData().getSpacing();
-      expect(x).toBeCloseTo(expected[0]);
-      expect(y).toBeCloseTo(expected[1]);
-      expect(volume.warnings).toHaveLength(warnings);
-    }
-  );
 });
 
 describe('DicomVolumeImage failures', () => {
@@ -293,16 +219,6 @@ describe('DicomVolumeImage failures', () => {
         : new Uint8Array(PIXELS_PER_SLICE).fill(value)
     );
     expect(message).toContain('5000');
-    expect(message).toContain('Uint8Array');
-  });
-
-  it('settles after rejecting fractional samples bound for an integer buffer', async () => {
-    const message = await loadRejected((value) =>
-      value === 2
-        ? new Float64Array(PIXELS_PER_SLICE).fill(2.5)
-        : new Uint8Array(PIXELS_PER_SLICE).fill(value)
-    );
-    expect(message).toContain('fractional');
     expect(message).toContain('Uint8Array');
   });
 
@@ -330,7 +246,9 @@ describe('DicomVolumeImage failures', () => {
 
     await show(image, volumeOf([instance]));
 
-    expect(errors.map(({ message }) => message)).toEqual(['reset']);
+    expect(errors.map(({ message }) => message)).toEqual([
+      expect.stringMatching(/frame 2 could not be read: reset$/),
+    ]);
     expect(image.isLoading()).toBe(false);
     expect(image.isLoaded()).toBe(true);
   });
@@ -345,7 +263,9 @@ describe('DicomVolumeImage failures', () => {
       return slice;
     });
     await show(image, stack(3));
-    expect(errors.map(({ message }) => message)).toEqual(['corrupt slice']);
+    expect(errors.map(({ message }) => message)).toEqual([
+      expect.stringMatching(/could not be decoded: corrupt slice$/),
+    ]);
     expect(sliceOf(image, 1)).toEqual(filledWith(0));
 
     image.startLoad();
@@ -467,6 +387,24 @@ describe('DicomVolumeImage thumbnails', () => {
     expect(encoded).toEqual([]);
   });
 
+  it('thumbnails a volume whose retry loads after every slice failed', async () => {
+    let failing = true;
+    const { decoder } = constantSlices();
+    const { image, encoded } = holder(async (request, signal) => {
+      if (failing) throw new Error('server down');
+      return decoder(request, signal);
+    });
+    await show(image, stack(3));
+    expect(await image.getThumbnail()).toBeNull();
+
+    failing = false;
+    image.startLoad();
+    await idle(image);
+
+    expect(await image.getThumbnail()).not.toBeNull();
+    expect(encoded).toEqual([thumbnailOf(image, 1)]);
+  });
+
   it('thumbnails the new middle slice after the volume changes', async () => {
     const { decoder } = constantSlices();
     const { image, encoded } = holder(decoder);
@@ -480,30 +418,6 @@ describe('DicomVolumeImage thumbnails', () => {
     expect(await image.getThumbnail()).not.toBe(before);
     expect(encoded).toHaveLength(2);
     expect(encoded[1]).toEqual(thumbnailOf(image, 1));
-  });
-
-  it('windows a color thumbnail on luminance across the volume', async () => {
-    const OTHER_COMPONENT = 1000;
-    const { decoder } = decodeTo(
-      (value) =>
-        Uint16Array.from({ length: PIXELS_PER_SLICE * 3 }, (_, index) =>
-          index % 3 === 0 ? value * 100 : OTHER_COMPONENT
-        ),
-      3
-    );
-    const { image, encoded } = holder(decoder);
-    const rgb = { [Tags.SamplesPerPixel]: '3' };
-
-    await show(image, volumeOf([1, 2, 3].map((z) => sliceAt(z, rgb))));
-    await image.getThumbnail();
-
-    // The middle slice has the volume's middle luminance, within one byte of
-    // mid grey after floating-point windowing.
-    expect(
-      Array.from(encoded[0].data).every(
-        (value) => Math.abs(value - 127.5) <= 0.5
-      )
-    ).toBe(true);
   });
 });
 

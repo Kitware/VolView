@@ -1,7 +1,6 @@
 import * as path from 'path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import dcmjs from 'dcmjs';
-import { getDatasetTag, readDicomDataset } from '@/packages/dicom/core';
 import { TEMP_DIR } from '@/wdio.shared.conf';
 import { PET_CT_DICOM_DATASETS } from '../datasets';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -309,11 +308,10 @@ describe('PET/CT sample', () => {
     const ctFile = PET_CT_DICOM_DATASETS.find(({ name }) =>
       name.startsWith('PET-CT-CT-')
     )!;
-    const dataset = readDicomDataset(
-      new Uint8Array(readFileSync(path.join(TEMP_DIR, ctFile.name)))
+    const { dict } = dcmjs.data.DicomMessage.readFile(
+      Uint8Array.from(readFileSync(path.join(TEMP_DIR, ctFile.name))).buffer
     );
-    const firstValue = (tag: string) =>
-      Number(getDatasetTag(dataset, tag)!.split('\\')[0]);
+    const firstValue = (tag: string) => Number(dict[tag]!.Value[0]);
     const width = firstValue('00281051');
     const level = firstValue('00281050');
     expect(width).toBeGreaterThan(0);

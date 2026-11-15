@@ -2,7 +2,7 @@
 // for comparing frame decoders. Stored words are written as given, so high
 // bits above Bits Stored can carry anything a test wants.
 
-import { combine } from '@/tests/specs/syntheticDicom';
+import { combine, LONG_FORM_VRS } from '@/tests/specs/syntheticDicom';
 
 export const IMPLICIT_LE = '1.2.840.10008.1.2';
 export const EXPLICIT_LE = '1.2.840.10008.1.2.1';
@@ -15,17 +15,6 @@ type Value =
   | ReadonlyArray<readonly DataElement[]>;
 export type DataElement = { tag: number; vr: string; value: Value };
 
-const LONG_FORM = new Set([
-  'OB',
-  'OD',
-  'OF',
-  'OL',
-  'OV',
-  'OW',
-  'SQ',
-  'UN',
-  'UT',
-]);
 const NUMBER_WIDTH: Record<string, number> = {
   US: 2,
   SS: 2,
@@ -93,7 +82,7 @@ function encodeElement(element: DataElement, encoding: Encoding) {
   const { littleEndian } = encoding;
   const value = valueBytes(element, encoding);
   const head = encoding.explicit
-    ? LONG_FORM.has(element.vr)
+    ? LONG_FORM_VRS.has(element.vr)
       ? [
           new TextEncoder().encode(element.vr),
           new Uint8Array(2),

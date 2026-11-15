@@ -2,7 +2,6 @@ import { orientationsAgree } from './orientation';
 import { groupBy } from './groupBy';
 import { instanceKey } from './instanceKey';
 import {
-  SEMANTIC_AXES,
   splitOverlappingAcquisitions,
   type PositionOf,
 } from './splitOverlappingAcquisitions';
@@ -39,7 +38,7 @@ export type InstanceFacts = {
   position: number[] | null;
   projectedPosition: number | null;
   pixelSpacing: number[] | null;
-  /** Intra-instance frame geometry; slots still index source instances. */
+  /** Geometry of the frames within one instance. */
   frameReconstruction?: Reconstruction;
 
   // Ordering fallback.
@@ -58,12 +57,11 @@ export type CollectionKey = {
   parts: Array<[string, string | null]>;
 };
 
-type MemberOrder = 'spatial' | 'instance-number' | 'input';
-
 export type DicomCollection = {
   key: CollectionKey;
+  // Ordered by position when every one reads, else by instance number when
+  // every one reads, else as given.
   members: InstanceFacts[];
-  order: MemberOrder;
   // The axes the members were ordered and judged on. Allocation must build
   // on these too, or the warnings describe a volume other than the one shown.
   orientation: number[] | null;
@@ -71,15 +69,9 @@ export type DicomCollection = {
   // Names the scan the collection was separated out as ('acquisition 2',
   // 'phase 3, echo 1'); null when nothing separated it from its series.
   label: string | null;
-  // Per-member notes about how the plan was reached.
-  diagnostics: string[];
   // Conditions the user should hear about: the collection loads, but not as
   // the sound volume its series promised.
   warnings: string[];
-};
-
-export type DicomCollectionPlan = {
-  collections: DicomCollection[];
 };
 
 type PlanInput = {
@@ -87,17 +79,17 @@ type PlanInput = {
   instances: InstanceFacts[];
 };
 
-export { ORIENTATION_TOLERANCE } from './orientation';
-
 // The hard facts, in the order they appear in a collection key.
-export const HARD_FACT_RULES = [
+const HARD_FACT_RULES = [
   'rows',
   'columns',
   'samplesPerPixel',
   'numberOfFrames',
 ] as const;
 
-export const ORIENTATION_RULE = 'orientation';
+const ORIENTATION_RULE = 'orientation';
+
+const UNREADABLE_POSITION_LABEL = 'position unknown';
 
 export const REPEATED_POSITIONS_WARNING =
   'holds repeated slice positions that no tag separates. Its slice spacing ' +
@@ -148,13 +140,6 @@ const reconstructionWarnings = (
   return RECONSTRUCTION_WARNINGS[reconstruction.reason];
 };
 
-const ANONYMOUS = 'an instance with no SOP Instance UID';
-
-const label = (instance: InstanceFacts) =>
-  instance.sopInstanceUid === null
-    ? ANONYMOUS
-    : `instance ${instance.sopInstanceUid}`;
-
 // Nulls sort last so a missing identity never becomes a bucket representative.
 const compareUid = (left: string | null, right: string | null) => {
   if (left === right) return 0;
@@ -169,11 +154,6 @@ const compareBySopUid = (left: InstanceFacts, right: InstanceFacts) =>
 const readableNumber = (value: number | null): value is number =>
   value !== null && Number.isFinite(value);
 
-const compareText = (left: string, right: string) => {
-  if (left === right) return 0;
-  return left < right ? -1 : 1;
-};
-
 // Unreadable numbers sort last so they never win a tie-break.
 const compareNumber = (left: number | null, right: number | null) => {
   if (!readableNumber(left)) return readableNumber(right) ? 1 : 0;
@@ -181,45 +161,12 @@ const compareNumber = (left: number | null, right: number | null) => {
   return left === right ? 0 : left - right;
 };
 
-// JSON collapses NaN and Infinity onto null; keep them apart so the signature
-// below separates every pair of unequal instances.
-const encodeFact = (_key: string, value: unknown) =>
-  typeof value === 'number' && !Number.isFinite(value) ? String(value) : value;
-
-const contentSignature = (instance: InstanceFacts) =>
-  JSON.stringify(
-    [
-      instance.sopInstanceUid,
-      instance.seriesInstanceUid,
-      ...HARD_FACT_RULES.map((rule) => instance[rule]),
-      ...SEMANTIC_AXES.map((axis) => instance[axis.fact]),
-      instance.orientation,
-      instance.position,
-      instance.projectedPosition,
-      instance.pixelSpacing,
-      instance.frameReconstruction,
-      instance.instanceNumber,
-    ],
-    encodeFact
-  );
-
-/**
- * Total order over instances that share a SOP Instance UID comparison, which
- * happens whenever two instances both lack one.
- */
-const compareByContent = (left: InstanceFacts, right: InstanceFacts) =>
-  compareText(
-    JSON.stringify(left.orientation),
-    JSON.stringify(right.orientation)
-  ) ||
-  compareNumber(left.projectedPosition, right.projectedPosition) ||
-  compareNumber(left.instanceNumber, right.instanceNumber) ||
-  compareText(contentSignature(left), contentSignature(right));
-
-// Sorting on the UID alone ties every anonymous instance, leaving the greedy
-// orientation walk at the mercy of input order.
+// Instances without a SOP Instance UID all tie on it, so their position and
+// instance number keep the greedy orientation walk off input order.
 const compareWalkOrder = (left: InstanceFacts, right: InstanceFacts) =>
-  compareBySopUid(left, right) || compareByContent(left, right);
+  compareBySopUid(left, right) ||
+  compareNumber(left.projectedPosition, right.projectedPosition) ||
+  compareNumber(left.instanceNumber, right.instanceNumber);
 
 const readableOrientation = (value: number[] | null): value is number[] =>
   value !== null &&
@@ -272,41 +219,6 @@ const nonparallel = (axes: number[] | null, members: InstanceFacts[]) =>
 const canonicalKey = (key: CollectionKey) =>
   JSON.stringify([key.seriesKey, key.parts]);
 
-/** Last occurrence of a SOP Instance UID wins, so the newest batch survives. */
-const dedupe = (instances: InstanceFacts[]) => {
-  const lastIndex = new Map<string, number>();
-  instances.forEach((instance, index) => {
-    if (instance.sopInstanceUid !== null)
-      lastIndex.set(instance.sopInstanceUid, index);
-  });
-
-  const kept = instances.filter(
-    (instance, index) =>
-      instance.sopInstanceUid === null ||
-      lastIndex.get(instance.sopInstanceUid) === index
-  );
-
-  const droppedCounts = new Map<string, number>();
-  instances.forEach((instance, index) => {
-    const uid = instance.sopInstanceUid;
-    if (uid === null || lastIndex.get(uid) === index) return;
-    droppedCounts.set(uid, (droppedCounts.get(uid) ?? 0) + 1);
-  });
-
-  const diagnostics = new Map<InstanceFacts, string>();
-  kept.forEach((instance) => {
-    const uid = instance.sopInstanceUid;
-    const dropped = uid === null ? 0 : (droppedCounts.get(uid) ?? 0);
-    if (dropped > 0)
-      diagnostics.set(
-        instance,
-        `dropped ${dropped} earlier copy of instance ${uid}`
-      );
-  });
-
-  return { kept, diagnostics };
-};
-
 const hardFactSignature = (instance: InstanceFacts) =>
   JSON.stringify(HARD_FACT_RULES.map((rule) => instance[rule]));
 
@@ -332,9 +244,9 @@ const hardFactLabeler = (all: InstanceFacts[]) => {
 };
 
 /**
- * Greedy bucketing walked in SOP Instance UID then content order, so the
- * representative whose cosines become the key, and the membership the greedy
- * walk produces, do not depend on input order.
+ * Greedy bucketing walked in SOP Instance UID order, so the representative
+ * whose cosines become the key, and the membership the greedy walk produces,
+ * do not depend on input order.
  */
 const bucketByOrientation = (instances: InstanceFacts[]) => {
   const references: number[][] = [];
@@ -393,8 +305,7 @@ const bucketByOrientation = (instances: InstanceFacts[]) => {
 // A repeated position breaks on the instance number, keeping the scanner's
 // own sequence for the tied members. Position stays primary: the allocator
 // places slot i at origin + i * spacing along the normal, so any order that
-// is not monotone in position mirrors or scrambles the volume. Anonymous
-// members that still tie order by content rather than by input position.
+// is not monotone in position mirrors or scrambles the volume.
 const comparePosition =
   (positionOf: PositionOf) => (left: InstanceFacts, right: InstanceFacts) =>
     (positionOf(left) as number) - (positionOf(right) as number) ||
@@ -405,104 +316,40 @@ const compareInstanceNumber = (left: InstanceFacts, right: InstanceFacts) =>
   (left.instanceNumber as number) - (right.instanceNumber as number) ||
   compareWalkOrder(left, right);
 
-/** Never inherits input order silently: the order actually used is recorded. */
 const orderMembers = (members: InstanceFacts[], positionOf: PositionOf) => {
-  const numbered = members.every((m) => readableNumber(m.instanceNumber));
-
   if (members.every((m) => readableNumber(positionOf(m))))
-    return {
-      members: [...members].sort(comparePosition(positionOf)),
-      order: 'spatial' as MemberOrder,
-      diagnostics: [] as string[],
-    };
-
-  const positionless = (ordered: InstanceFacts[]) =>
-    ordered
-      .filter((m) => !readableNumber(positionOf(m)))
-      .map((m) => `${label(m)} has no readable position`);
-
-  if (numbered) {
-    const ordered = [...members].sort(compareInstanceNumber);
-    return {
-      members: ordered,
-      order: 'instance-number' as MemberOrder,
-      diagnostics: positionless(ordered),
-    };
-  }
-
-  return {
-    members: [...members],
-    order: 'input' as MemberOrder,
-    diagnostics: [
-      ...positionless(members),
-      ...members
-        .filter((m) => !readableNumber(m.instanceNumber))
-        .map((m) => `${label(m)} has no readable instance number`),
-    ],
-  };
+    return [...members].sort(comparePosition(positionOf));
+  if (members.every((m) => readableNumber(m.instanceNumber)))
+    return [...members].sort(compareInstanceNumber);
+  return [...members];
 };
 
-/** Occurrences per instance, so an input holding one object twice needs two. */
-const tally = (instances: InstanceFacts[]) => {
-  const counts = new Map<InstanceFacts, number>();
-  instances.forEach((instance) =>
-    counts.set(instance, (counts.get(instance) ?? 0) + 1)
-  );
-  return counts;
-};
-
-/**
- * Throws when the collections do not hold every instance as many times as the
- * input does, when they hold one the input never gave, or when two collections
- * share a key.
- */
-export function validateCollections(
-  instances: InstanceFacts[],
-  collections: DicomCollection[]
-) {
-  const expected = tally(instances);
-  const placed = tally(collections.flatMap((collection) => collection.members));
-
-  expected.forEach((count, instance) => {
-    const found = placed.get(instance) ?? 0;
-    if (found === count) return;
-    if (found === 0)
-      throw new Error(`${label(instance)} landed in no collection`);
-    throw new Error(
-      `${label(instance)} landed in ${found} collections, expected ${count}`
-    );
-  });
-
-  placed.forEach((_count, instance) => {
-    if (!expected.has(instance))
-      throw new Error(
-        `${label(instance)} landed in a collection without being an input`
-      );
-  });
-
-  const seen = new Set<string>();
-  collections.forEach((collection) => {
-    const encoded = canonicalKey(collection.key);
-    if (seen.has(encoded))
-      throw new Error(`two collections share the key ${encoded}`);
-    seen.add(encoded);
-  });
-}
+// An unreadable position is named only beside a volume it was kept out of,
+// and warned about there or where it leaves an order and spacing to guess.
+const unreadablePositionNotes = (
+  unreadable: boolean,
+  placed: boolean,
+  stacked: boolean
+) => ({
+  label: unreadable && placed ? UNREADABLE_POSITION_LABEL : null,
+  warnings:
+    unreadable && (placed || stacked) ? [UNREADABLE_POSITION_WARNING] : [],
+});
 
 export function planDicomCollections(input: PlanInput) {
-  const { kept, diagnostics: dedupeDiagnostics } = dedupe(input.instances);
-  const labelHardFacts = hardFactLabeler(kept);
+  const { instances } = input;
+  const labelHardFacts = hardFactLabeler(instances);
 
   const multiframe = (instance: InstanceFacts) =>
     Number(instance.numberOfFrames) > 1;
   const groups = [
     ...groupBy(
-      kept.filter((instance) => !multiframe(instance)),
+      instances.filter((instance) => !multiframe(instance)),
       hardFactSignature
     ).values(),
-    ...kept.filter(multiframe).map((instance) => [instance]),
+    ...instances.filter(multiframe).map((instance) => [instance]),
   ];
-  const planned = groups
+  const parts = groups
     .flatMap((group) =>
       bucketByOrientation(group).map((bucket) => ({
         group,
@@ -518,13 +365,14 @@ export function planDicomCollections(input: PlanInput) {
         positionOf,
         part,
       }))
-    )
+    );
+
+  const placed = parts.some(({ part }) => !part.unreadablePositions);
+
+  const collections = parts
     .map(({ group, bucket, positionOf, part }) => {
-      const ordered = orderMembers(part.members, positionOf);
-      const reconstruction = reconstructInstances(
-        ordered.members,
-        bucket.normal
-      );
+      const members = orderMembers(part.members, positionOf);
+      const reconstruction = reconstructInstances(members, bucket.normal);
       const key: CollectionKey = {
         seriesKey: input.seriesKey,
         parts: [
@@ -536,38 +384,28 @@ export function planDicomCollections(input: PlanInput) {
             : []),
         ],
       };
+      const unreadable = unreadablePositionNotes(
+        part.unreadablePositions,
+        placed,
+        members.length > 1
+      );
       return {
         key,
-        members: ordered.members,
-        order: ordered.order,
+        members,
         orientation: bucket.orientation,
         reconstruction,
         label:
-          [labelHardFacts(group[0]), part.label].filter(Boolean).join(', ') ||
-          null,
-        diagnostics: [
-          ...ordered.members.flatMap((member) => {
-            const dropped = dedupeDiagnostics.get(member);
-            return dropped ? [dropped] : [];
-          }),
-          ...(bucket.value === null
-            ? ordered.members.map(
-                (member) => `${label(member)} has no readable orientation`
-              )
-            : []),
-          ...ordered.diagnostics,
-        ],
+          [labelHardFacts(group[0]), part.label, unreadable.label]
+            .filter(Boolean)
+            .join(', ') || null,
         warnings: [
           ...(part.repeatedPositions ? [REPEATED_POSITIONS_WARNING] : []),
-          ...(part.unreadablePositions && !multiframe(group[0])
-            ? [UNREADABLE_POSITION_WARNING]
-            : []),
+          ...(multiframe(group[0]) ? [] : unreadable.warnings),
           ...reconstructionWarnings(
             reconstruction,
-            ordered.members.length === 1 &&
-              !!ordered.members[0].frameReconstruction
+            members.length === 1 && !!members[0].frameReconstruction
           ),
-          ...(nonparallel(bucket.orientation, ordered.members)
+          ...(nonparallel(bucket.orientation, members)
             ? [NONPARALLEL_SLICES_WARNING]
             : []),
         ],
@@ -577,19 +415,5 @@ export function planDicomCollections(input: PlanInput) {
       canonicalKey(left.key) < canonicalKey(right.key) ? -1 : 1
     );
 
-  // A series that plans to one instance is a whole volume: nothing was held
-  // out of a sibling, and one slice has no order or spacing to get wrong.
-  const lone = planned.length === 1 && planned[0].members.length === 1;
-  const collections = lone
-    ? planned.map((collection) => ({
-        ...collection,
-        warnings: collection.warnings.filter(
-          (warning) => warning !== UNREADABLE_POSITION_WARNING
-        ),
-      }))
-    : planned;
-
-  validateCollections(kept, collections);
-
-  return { collections };
+  return collections;
 }

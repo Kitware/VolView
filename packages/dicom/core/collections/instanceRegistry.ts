@@ -7,11 +7,7 @@ import {
   type DicomCollection,
   type InstanceFacts,
 } from './planDicomCollections';
-import {
-  assignIds,
-  encodeCollectionKey,
-  type CommittedCollection,
-} from './assignCollectionIds';
+import { assignIds, type CommittedCollection } from './assignCollectionIds';
 import { seriesKeyOf } from './instanceFacts';
 import { readDatasetDetails } from './datasetDetails';
 import { groupBy } from './groupBy';
@@ -19,13 +15,12 @@ import type { Reconstruction } from './reconstructVolume';
 
 /**
  * How a collection differs from what was last committed under its ID:
- * `unchanged` has the same members, key and geometry, re-supplied by the batch.
+ * `unchanged` has the same members and geometry, so its volume stands.
  */
 type CollectionChange = 'new' | 'unchanged' | 'changed';
 
 type CollectionUpdateFields = {
   id: string;
-  seriesKey: string;
   collection: DicomCollection;
   /** Registered instances in the collection's order, aligned with collection.members. */
   members: Instance[];
@@ -57,10 +52,11 @@ type Registered = {
 
 type Committed = {
   members: readonly InstanceKey[];
-  // Reported when relabelled even if its members did not move.
-  key: string;
   orientation: readonly number[] | null;
   reconstruction: Reconstruction;
+  // Siblings can change either without moving a member, and that is reported.
+  label: string | null;
+  warnings: readonly string[];
 };
 
 type SeriesState = {
@@ -75,26 +71,16 @@ export const emptyRegistry: RegistryState = new Map();
 
 const emptySeries: SeriesState = { instances: new Map(), committed: new Map() };
 
-// One facts object per instance: the planner's members are matched back by identity.
-const factsByInstance = new WeakMap<Instance, InstanceFacts>();
-
-const factsOf = (instance: Instance) => {
-  const cached = factsByInstance.get(instance);
-  if (cached) return cached;
-  const facts = { ...readDatasetDetails(instance.dataset).facts };
-  factsByInstance.set(instance, facts);
-  return facts;
-};
-
 const keyOf = (instance: Instance): InstanceKey =>
   trimDicomPadding(
     getDatasetTag(instance.dataset, Tags.SOPInstanceUID) ?? ''
   ) || instance;
 
+// A facts object of its own: the planner's members are matched back by identity.
 const registeredOf = (instance: Instance): Registered => ({
   key: keyOf(instance),
   instance,
-  facts: factsOf(instance),
+  facts: { ...readDatasetDetails(instance.dataset).facts },
 });
 
 // A collection holding no SOP Instance UID cannot be claimed back by overlap,
@@ -124,11 +110,9 @@ const reasonOf = (reconstruction: Reconstruction) =>
 const sameReconstruction = (a: Reconstruction, b: Reconstruction) =>
   a.kind === b.kind &&
   reasonOf(a) === reasonOf(b) &&
-  a.sliceSpacing === b.sliceSpacing &&
-  sameList(a.slots, b.slots);
+  a.sliceSpacing === b.sliceSpacing;
 
 const unchanged = (before: Committed, after: Committed) =>
-  before.key === after.key &&
   sameList(before.members, after.members) &&
   sameList(before.orientation, after.orientation) &&
   sameReconstruction(before.reconstruction, after.reconstruction);
@@ -140,6 +124,10 @@ const changeOf = (
   if (!before) return 'new';
   return unchanged(before, after) ? 'unchanged' : 'changed';
 };
+
+const sameDescription = (before: Committed | undefined, after: Committed) =>
+  !before ||
+  (before.label === after.label && sameList(before.warnings, after.warnings));
 
 const kindOf = (first: Instance) =>
   getDatasetModality(first.dataset) === 'SEG'
@@ -188,19 +176,20 @@ function planSeries(
       ? instance
       : (supplied.get(key) ?? instance);
 
-  const planned = assigned.collections.map(({ id, ...collection }) => {
+  const planned = assigned.map(({ id, ...collection }) => {
     const entries = collection.members.map((facts) => entryOf.get(facts)!);
     const committed: Committed = {
       members: entries.map((entry) => entry.key),
-      key: encodeCollectionKey(collection.key),
       orientation: collection.orientation,
       reconstruction: collection.reconstruction,
+      label: collection.label,
+      warnings: collection.warnings,
     };
     const members = entries.map((entry) => entry.instance);
-    const change = changeOf(series.committed.get(id), committed);
+    const previous = series.committed.get(id);
+    const change = changeOf(previous, committed);
     const update: InstanceCollectionUpdate = {
       id,
-      seriesKey,
       collection,
       members,
       provenance: entries.map(provenanceOf),
@@ -210,6 +199,7 @@ function planSeries(
     // A replan can move members or relabel a collection the batch brought nothing.
     const changed =
       change !== 'unchanged' ||
+      !sameDescription(previous, committed) ||
       committed.members.some((key) => supplied.has(key));
     return { committed, update, changed };
   });
@@ -257,7 +247,7 @@ export function registerInstances(
     updates: results.flatMap((result) => result.updates),
     /** Committed IDs the replan dissolved, whose members moved elsewhere. */
     removed: results.flatMap((result) => result.removed),
-    /** Different geometry under a registered SOP Instance UID; the first copy is kept. */
+    /** Different header facts under a registered SOP Instance UID; the first copy is kept. */
     conflictingInstanceUids: results.flatMap(
       (result) => result.conflictingInstanceUids
     ),
@@ -290,8 +280,3 @@ export function forgetCollection(
   else next.set(seriesKey, remaining);
   return next;
 }
-
-/** Whether this object, not merely an equal copy, is the registered instance. */
-export const isRegistered = (state: RegistryState, instance: Instance) =>
-  state.get(seriesKeyOf(instance.dataset))?.instances.get(keyOf(instance))
-    ?.instance === instance;

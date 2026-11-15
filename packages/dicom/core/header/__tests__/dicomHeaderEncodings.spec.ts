@@ -3,10 +3,15 @@ import { findElement, readDicomDataset } from '../../metadata/dicomDataset';
 import { getDatasetTag } from '../../metadata/datasetAccess';
 import { sequenceItems } from '../../metadata/functionalGroups';
 import { concatBytes } from '../../utils';
-import { readHeader, syntheticSlice } from '@/tests/dicomSourceFixtures';
+import {
+  pixelDataStart,
+  readHeader,
+  syntheticSlice,
+} from '@/tests/dicomSourceFixtures';
 import {
   rawElement,
   sequenceItem,
+  toImplicitVr,
   undefinedLengthItem,
   undefinedLengthSequence,
 } from '@/tests/specs/syntheticDicom';
@@ -74,6 +79,50 @@ describe('streamed header encodings', () => {
       expect(dataset).toEqual(readDicomDataset(bytes));
     }
   );
+
+  it.each([
+    ['Explicit', false, 12],
+    ['Implicit', true, 8],
+  ])(
+    'does not take the Pixel Data of a defined-length icon sequence for the image (%s VR)',
+    async (_name, implicitVr, headLength) => {
+      const icon = rawElement(0x7fe0, 0x0010, 'OW', new Uint8Array(64));
+      const bytes = syntheticSlice({
+        implicitVr,
+        rows: 16,
+        cols: 16,
+        extraElements: [rawElement(0x0088, 0x0200, 'SQ', sequenceItem(icon))],
+      });
+      const pixelBytes = 16 * 16 * 2;
+      const instance = await readHeader(bytes, 7);
+      expect(instance.pixelData).toEqual({
+        offset: bytes.length - pixelBytes - headLength,
+        valueOffset: bytes.length - pixelBytes,
+        length: pixelBytes,
+      });
+      expect(
+        findElement(sequenceItems(instance.dataset, '00880200')[0], '7FE00010')
+      ).toBeDefined();
+    }
+  );
+
+  it('reads past a defined-length sequence whose item is Implicit VR in an Explicit VR file', async () => {
+    const item = toImplicitVr(
+      concatBytes([
+        rawElement(0x0008, 0x1150, 'UI', encode('1.2.840.10008.5.1.4.1.1.2\0')),
+        rawElement(0x0008, 0x1155, 'UI', encode('1.2.3\0')),
+      ])
+    );
+    const bytes = syntheticSlice({
+      extraElements: [
+        rawElement(0x0008, 0x1140, 'SQ', sequenceItem(item)),
+        rawElement(0x4008, 0x0103, 'LO', encode('AFTER ')),
+      ],
+    });
+    const instance = await readHeader(bytes, 7);
+    expect(instance.pixelData?.offset).toBe(pixelDataStart(bytes));
+    expect(getDatasetTag(instance.dataset, '40080103')).toBe('AFTER ');
+  });
 
   it('reads undefined-length Big Endian items and their following attributes', async () => {
     const sequence = bigEndianElement(

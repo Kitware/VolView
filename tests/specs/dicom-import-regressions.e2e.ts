@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { PNG } from 'pngjs';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
@@ -8,32 +10,22 @@ import {
   toImplicitVr,
   undefinedLengthUnknown,
 } from './syntheticDicom';
+import { dropFiles, makeTempDir, openSpacingDetails } from './utils';
 
 const AXIAL = [1, 0, 0, 0, 1, 0] as const;
 
 // Exercise the local File import path, including metadata scanning and pixel
 // decoding, through the same drop event a user produces.
-async function dropFiles(files: Uint8Array[]) {
+async function dropSlices(files: Uint8Array[]) {
+  const directory = makeTempDir('import-regressions');
+  const paths = files.map((bytes, i) => {
+    const file = join(directory, `slice-${i}.dcm`);
+    writeFileSync(file, bytes);
+    return file;
+  });
   await volViewPage.open();
   await $('#app-container').waitForExist();
-  await browser.execute(
-    (encodedFiles) => {
-      const transfer = new DataTransfer();
-      encodedFiles.forEach((encoded, i) => {
-        const bytes = Uint8Array.from(atob(encoded), (char) =>
-          char.charCodeAt(0)
-        );
-        transfer.items.add(new File([bytes], `slice-${i}.dcm`));
-      });
-      const event = new Event('drop', { bubbles: true, cancelable: true });
-      // Synthetic items have no filesystem entries, so supply the files list.
-      Object.defineProperty(event, 'dataTransfer', {
-        value: { items: null, files: transfer.files },
-      });
-      document.querySelector('#app-container')!.dispatchEvent(event);
-    },
-    files.map((bytes) => Buffer.from(bytes).toString('base64'))
-  );
+  await dropFiles(paths);
 }
 
 async function probeCenter(view: WebdriverIO.Element, expected: number) {
@@ -43,15 +35,6 @@ async function probeCenter(view: WebdriverIO.Element, expected: number) {
   await expect(
     $('.probe-value-display .d-flex:first-child .text-right')
   ).toHaveText(String(expected));
-}
-
-async function openSpacingDetails() {
-  await $('.volume-card [data-testid="dataset-menu-button"]').click();
-  const item = $('[data-testid="dataset-menu-spacing-item"]');
-  await item.waitForStable();
-  await item.waitForClickable();
-  await item.click();
-  await $('[data-testid="image-spacing-details"]').waitForDisplayed();
 }
 
 async function axialView(sliceCount: number) {
@@ -112,16 +95,16 @@ describe('Local DICOM import regressions', () => {
       })
     );
 
-    await dropFiles(files);
+    await dropSlices(files);
     await volViewPage.waitForVolumeCardSliceCounts([121]);
     await volViewPage.waitForViews();
     await volViewPage.waitForLoadingIndicator(
       $('[data-testid~="vtk-two-view"]')
     );
     await openSpacingDetails();
-    await expect($('[data-testid="spacing-axis-Z"]')).toHaveText(
-      expect.stringContaining('5 mm')
-    );
+    await expect(
+      $('[data-testid="spacing-axis-Z"] td:nth-child(2)')
+    ).toHaveText('5 mm');
     await $('[data-testid="spacing-details-close"]').click();
     const view = await axialView(121);
     for (const index of [0, 60, 120]) {
@@ -135,7 +118,7 @@ describe('Local DICOM import regressions', () => {
     const content = toImplicitVr(
       rawElement(0x0043, 0x1030, 'LO', new TextEncoder().encode('VALUE '))
     );
-    await dropFiles([
+    await dropSlices([
       buildSyntheticDicom({
         studyUid: newUid(),
         seriesUid: newUid(),
@@ -162,8 +145,46 @@ describe('Local DICOM import regressions', () => {
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
-  it('renders green and blue content in a color DICOM thumbnail without red samples', async () => {
-    await dropFiles([
+  it('loads the rest of a series and reports once when one slice cannot be decoded', async () => {
+    const studyUid = newUid();
+    const seriesUid = newUid();
+    const files = Array.from({ length: 5 }, (_, i) =>
+      buildSyntheticDicom({
+        studyUid,
+        seriesUid,
+        sopUid: newUid(),
+        instanceNumber: i + 1,
+        imageOrientationPatient: AXIAL,
+        imagePositionPatient: [0, 0, i],
+        rows: 4,
+        cols: 4,
+        pixelValue: 10 * (i + 1),
+      })
+    );
+    // 1.2.840.10008.1.2.9 is a transfer syntax no decoder reads.
+    const syntax = Buffer.from(files[1]).indexOf('1.2.840.10008.1.2.1\0');
+    files[1][syntax + 18] = '9'.charCodeAt(0);
+
+    await dropSlices(files);
+    await volViewPage.waitForVolumeCardSliceCounts([5]);
+    await volViewPage.waitForNotification();
+    await volViewPage.waitForViews();
+    await volViewPage.waitForLoadingIndicator(
+      $('[data-testid~="vtk-two-view"]')
+    );
+    const view = await axialView(5);
+    for (const index of [0, 2, 4]) {
+      await selectSlice(view, index, 5);
+      await probeCenter(view, 10 * (index + 1));
+    }
+    const name = await $('.volume-card .series-desc').getText();
+    expect(await volViewPage.getNotificationTitles()).toEqual([
+      `Error loading ${name}`,
+    ]);
+  });
+
+  it('shows a color slice with no red as luminance in its thumbnail', async () => {
+    await dropSlices([
       buildSyntheticDicom({
         studyUid: newUid(),
         seriesUid: newUid(),

@@ -18,21 +18,20 @@ export type IrregularReason =
  * What the members can be reconstructed as.
  *
  * `regular` means every consecutive pair of slice planes is the same distance
- * apart and the members share one in-plane grid, so member i belongs at slot
- * `slots[i]` of a volume sampled at `sliceSpacing`. `irregular` means they do
- * not: the members still load, placed one slot apart at the step the stack
- * does take, but no lattice describes where they actually are.
+ * apart and the members share one in-plane grid, so member i is slice i of a
+ * volume sampled at `sliceSpacing`. `irregular` means they do not: the members
+ * still load, placed one slice apart at the step the stack does take, but no
+ * lattice describes where they actually are.
  *
  * A slice spacing of null means there is nothing to derive one from, which one
  * member alone always is.
  */
 export type Reconstruction =
-  | { kind: 'regular'; sliceSpacing: number | null; slots: number[] }
+  | { kind: 'regular'; sliceSpacing: number | null }
   | {
       kind: 'irregular';
       reason: IrregularReason;
       sliceSpacing: number | null;
-      slots: number[];
     };
 
 /**
@@ -44,6 +43,7 @@ export type Reconstruction =
  * missed slice is orders of magnitude larger.
  */
 const SLICE_SPACING_TOLERANCE_MM = 0.1;
+const SLICE_SPACING_TOLERANCE_CAP = 0.1;
 const SLICE_SPACING_RELATIVE_TOLERANCE = 0.01;
 
 /** How far a slice may sit from the in-plane origin of the first, in mm. */
@@ -54,7 +54,10 @@ const PIXEL_SPACING_TOLERANCE_MM = 1e-4;
 
 const spacingTolerance = (gap: number) =>
   Math.max(
-    Math.min(SLICE_SPACING_TOLERANCE_MM, Math.abs(gap) * 0.1),
+    Math.min(
+      SLICE_SPACING_TOLERANCE_MM,
+      Math.abs(gap) * SLICE_SPACING_TOLERANCE_CAP
+    ),
     Math.abs(gap) * SLICE_SPACING_RELATIVE_TOLERANCE
   );
 
@@ -113,14 +116,8 @@ const mixedPixelSpacing = (members: ReconstructionMember[]) => {
 
 const irregular = (
   reason: IrregularReason,
-  sliceSpacing: number | null,
-  count: number
-): Reconstruction => ({
-  kind: 'irregular',
-  reason,
-  sliceSpacing,
-  slots: Array.from({ length: count }, (_, index) => index),
-});
+  sliceSpacing: number | null
+): Reconstruction => ({ kind: 'irregular', reason, sliceSpacing });
 
 const inPlaneShifted = (
   members: ReconstructionMember[],
@@ -152,27 +149,29 @@ const geometryFault = (
 
 /** The lattice the slice planes sit on, once they are known to be readable. */
 const lattice = (along: number[]): Reconstruction => {
-  if (along.length < 2)
-    return { kind: 'regular', sliceSpacing: null, slots: [0] };
+  if (along.length < 2) return { kind: 'regular', sliceSpacing: null };
 
   const gaps = along.slice(1).map((position, index) => position - along[index]);
   const step = median(gaps);
   const count = along.length;
+  const fallback = step > 0 ? step : null;
 
-  if (gaps.some((gap) => gap <= 0))
-    return irregular('repeated-position', step > 0 ? step : null, count);
+  // Frames are judged in stored order, so a step backwards is not a repeat.
+  if (new Set(along).size < count)
+    return irregular('repeated-position', fallback);
   if (gaps.some((gap) => Math.abs(gap - step) > spacingTolerance(step)))
-    return irregular('uneven-slice-spacing', step, count);
+    return irregular('uneven-slice-spacing', fallback);
 
   // Every gap matches, so the endpoints fit the members better than any single
   // printed gap does.
   const sliceSpacing = (along[count - 1] - along[0]) / gaps.length;
-  const slots = along.map((position) =>
-    Math.round((position - along[0]) / sliceSpacing)
+  const drifts = along.some(
+    (position, index) =>
+      Math.round((position - along[0]) / sliceSpacing) !== index
   );
-  return slots.some((slot, index) => slot !== index)
-    ? irregular('uneven-slice-spacing', step, count)
-    : { kind: 'regular', sliceSpacing, slots };
+  return drifts
+    ? irregular('uneven-slice-spacing', step)
+    : { kind: 'regular', sliceSpacing };
 };
 
 /**
@@ -191,11 +190,7 @@ export function reconstructVolume(
     members.length < 2 &&
     !members.some((member) => Number(member.numberOfFrames) > 1)
   )
-    return {
-      kind: 'regular',
-      sliceSpacing: null,
-      slots: members.map(() => 0),
-    };
+    return { kind: 'regular', sliceSpacing: null };
 
   const axis = normal ?? sliceNormalOf(members[0].orientation);
   const along = members.map((member) => projectOnNormal(axis, member.position));
@@ -203,18 +198,15 @@ export function reconstructVolume(
   const fault = geometryFault(members, axis, along);
   return fault === null
     ? lattice(along as number[])
-    : irregular(fault, positionStep(members), members.length);
+    : irregular(fault, positionStep(members));
 }
 
-/** Slots index source instances even when one instance holds many frames. */
+/** One instance holding many frames is judged by its own frame geometry. */
 export function reconstructInstances(
   members: ReconstructionMember[],
-  normal?: number[] | null,
-  supplied?: Reconstruction
-): Reconstruction {
+  normal?: number[] | null
+) {
   const framePlan =
     members.length === 1 ? members[0].frameReconstruction : undefined;
-  return framePlan
-    ? { ...framePlan, slots: [0] }
-    : (supplied ?? reconstructVolume(members, normal));
+  return framePlan ?? reconstructVolume(members, normal);
 }

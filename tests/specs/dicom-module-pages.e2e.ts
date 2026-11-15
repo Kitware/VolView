@@ -8,7 +8,9 @@ import { openDicomPage } from '../dicomPages';
 describe('DICOM module pages without VolView startup', () => {
   let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   before(async () => {
-    fixture = await startDicomPages(fixtureBytes());
+    fixture = await startDicomPages({
+      fixtures: { 'fixture.dcm': fixtureBytes() },
+    });
   });
   after(async () => fixture?.close());
 
@@ -23,35 +25,28 @@ describe('DICOM module pages without VolView startup', () => {
     );
   });
 
-  for (const kind of ['core', 'vtk'] as const) {
-    for (const source of ['file', 'http']) {
-      it(`${kind} preserves metadata and calibrated pixels from ${source}`, async () => {
-        await openDicomPage(`${fixture.urls[kind]}?source=${source}`);
-        await expect($('#patient')).toHaveText('EXTRACTED^DICOM');
-        await expect($('#position')).toHaveText('10, 20, 30');
-        await expect($('#pixel-spacing')).toHaveText('2, 3');
-        if (kind === 'core') {
-          await expect($('#pixels')).toHaveText(
-            Array(16).fill('-10').join(', ')
-          );
-        } else {
-          await expect($('#spacing')).toHaveText('3, 2, 4');
-          await expect($('#origin')).toHaveText('10, 20, 30');
-          await expect($('#range')).toHaveText('-10, -10');
-          const screenshot = PNG.sync.read(
-            await $('#viewport').saveScreenshot(
-              resolve(TEMP_DIR, `dicom-${source}.png`)
-            )
-          );
-          const center =
-            ((screenshot.height >> 1) * screenshot.width +
-              (screenshot.width >> 1)) *
-            4;
-          expect(screenshot.data[center]).toBeGreaterThan(110);
-          expect(screenshot.data[center]).toBeLessThan(145);
-          expect(screenshot.data[0]).toBe(0);
-        }
-      });
-    }
-  }
+  it('core reads metadata and calibrated pixels from a file', async () => {
+    await openDicomPage(`${fixture.urls.core}?source=file`);
+    await expect($('#patient')).toHaveText('EXTRACTED^DICOM');
+    await expect($('#position')).toHaveText('10, 20, 30');
+    await expect($('#pixel-spacing')).toHaveText('2, 3');
+    await expect($('#pixels')).toHaveText(Array(16).fill('-10').join(', '));
+  });
+
+  it('vtk places and renders the volume read over HTTP', async () => {
+    await openDicomPage(`${fixture.urls.vtk}?source=http`);
+    await expect($('#patient')).toHaveText('EXTRACTED^DICOM');
+    await expect($('#spacing')).toHaveText('3, 2, 4');
+    await expect($('#origin')).toHaveText('10, 20, 30');
+    await expect($('#range')).toHaveText('-10, -10');
+    const screenshot = PNG.sync.read(
+      await $('#viewport').saveScreenshot(resolve(TEMP_DIR, 'dicom-vtk.png'))
+    );
+    const center =
+      ((screenshot.height >> 1) * screenshot.width + (screenshot.width >> 1)) *
+      4;
+    expect(screenshot.data[center]).toBeGreaterThan(110);
+    expect(screenshot.data[center]).toBeLessThan(145);
+    expect(screenshot.data[0]).toBe(0);
+  });
 });

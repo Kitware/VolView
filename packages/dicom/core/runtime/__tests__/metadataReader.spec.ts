@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { readDicomDataset } from '../dicomDataset';
-import { createMetadataReader } from '../../runtime/metadataReader';
-const readDicomDatasetOffThread = createMetadataReader().read;
+import { readDicomDataset } from '../../metadata/dicomDataset';
+import { createMetadataReader } from '../metadataReader';
 import { buildSlice } from '@/tests/specs/dicomElementFixtures';
+import { rawElement } from '@/tests/specs/syntheticDicom';
+
+const readDicomDatasetOffThread = createMetadataReader().read;
 
 // The test DOM has no Worker, so this covers the in-place path only; the
 // worker path is the same reader behind a message.
@@ -12,6 +14,19 @@ describe('readDicomDatasetOffThread', () => {
 
     expect(await readDicomDatasetOffThread(bytes)).toEqual(
       readDicomDataset(bytes)
+    );
+  });
+
+  it('returns no private element, so none crosses to the caller', async () => {
+    const bytes = buildSlice({
+      extraElements: [
+        rawElement(0x0029, 0x0010, 'LO', new TextEncoder().encode('VENDOR')),
+        rawElement(0x0029, 0x1010, 'OB', new Uint8Array(64)),
+      ],
+    });
+
+    expect(await readDicomDatasetOffThread(bytes)).toEqual(
+      readDicomDataset(buildSlice())
     );
   });
 

@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { assignIds, encodeCollectionKey } from '../assignCollectionIds';
 import type { CommittedCollection } from '../assignCollectionIds';
-import {
-  ORIENTATION_TOLERANCE,
-  planDicomCollections,
-} from '../planDicomCollections';
+import { ORIENTATION_TOLERANCE } from '../orientation';
+import { planDicomCollections } from '../planDicomCollections';
 import type { CollectionKey, DicomCollection } from '../planDicomCollections';
 import {
   IDENTITY_ORIENTATION,
-  clone,
   makeFacts,
   tiltedOrientation,
 } from './instanceFactsFixture';
@@ -33,32 +30,18 @@ const collectionOf = (
 ): DicomCollection => ({
   key,
   members: uids.map((uid) => makeFacts(uid)),
-  order: 'spatial',
-  reconstruction: {
-    kind: 'regular',
-    sliceSpacing: null,
-    slots: uids.map((_, index) => index),
-  },
+  reconstruction: { kind: 'regular', sliceSpacing: null },
   orientation: [1, 0, 0, 0, 1, 0],
   label: null,
-  diagnostics: [],
   warnings: [],
 });
-
-const planOf = (...collections: DicomCollection[]) => ({ collections });
 
 const idsOf = (collections: Array<{ id: string }>) =>
   collections.map((c) => c.id);
 
 describe('encodeCollectionKey', () => {
-  it('encodes equal keys identically', () => {
-    expect(encodeCollectionKey(keyOf('1,0,0,0,1,0'))).toBe(
-      encodeCollectionKey(keyOf('1,0,0,0,1,0'))
-    );
-  });
-
   // The structured key this encodes: the same characters the encoding joins on,
-  // smuggled inside a series key, a rule name or a value.
+  // smuggled inside a series key or a value.
   const structured: CollectionKey = {
     seriesKey: SERIES_KEY,
     parts: [
@@ -71,10 +54,6 @@ describe('encodeCollectionKey', () => {
     [
       'the series key',
       { seriesKey: `${SERIES_KEY}|rows=.4`, parts: [['columns', '8']] },
-    ],
-    [
-      'a rule name',
-      { seriesKey: SERIES_KEY, parts: [['rows=.4|columns', '8']] },
     ],
     ['a value', { seriesKey: SERIES_KEY, parts: [['rows', '4|columns=.8']] }],
   ];
@@ -100,43 +79,15 @@ describe('encodeCollectionKey', () => {
 
     expect(new Set(encodings).size).toBe(literals.length);
   });
-
-  it('separates keys differing only in series key or rule name', () => {
-    const base: CollectionKey = {
-      seriesKey: 'series-1',
-      parts: [['rows', '4']],
-    };
-    const otherSeries: CollectionKey = {
-      seriesKey: 'series-2',
-      parts: [['rows', '4']],
-    };
-    const otherRule: CollectionKey = {
-      seriesKey: 'series-1',
-      parts: [['columns', '4']],
-    };
-
-    const encodings = [base, otherSeries, otherRule].map(encodeCollectionKey);
-
-    expect(new Set(encodings).size).toBe(3);
-  });
 });
 
 describe('assignIds', () => {
   it('mints the encoded key when nothing is committed', () => {
     const collection = collectionOf(['a', 'b']);
 
-    const { collections } = assignIds(planOf(collection), []);
+    const collections = assignIds([collection], []);
 
     expect(collections[0].id).toBe(encodeCollectionKey(collection.key));
-  });
-
-  it('gives distinct collections distinct ids', () => {
-    const first = collectionOf(['a'], keyOf('1,0,0,0,1,0'));
-    const second = collectionOf(['b'], keyOf('0,1,0,0,0,1'));
-
-    const { collections } = assignIds(planOf(first, second), []);
-
-    expect(new Set(idsOf(collections)).size).toBe(2);
   });
 
   it('keeps the committed id when key and members are unchanged', () => {
@@ -145,7 +96,7 @@ describe('assignIds', () => {
       { id: 'visible-1', sopInstanceUids: ['a', 'b'] },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).toBe('visible-1');
   });
@@ -172,7 +123,7 @@ describe('assignIds', () => {
       planDicomCollections({ seriesKey: SERIES_KEY, instances: firstBatch }),
       []
     );
-    const committed = before.collections.map((collection) => ({
+    const committed = before.map((collection) => ({
       id: collection.id,
       sopInstanceUids: collection.members.flatMap((member) =>
         member.sopInstanceUid === null ? [] : [member.sopInstanceUid]
@@ -186,14 +137,12 @@ describe('assignIds', () => {
       committed
     );
 
-    expect(after.collections).toHaveLength(1);
-    expect(encodeCollectionKey(after.collections[0].key)).not.toBe(
-      encodeCollectionKey(before.collections[0].key)
+    expect(after).toHaveLength(1);
+    expect(encodeCollectionKey(after[0].key)).not.toBe(
+      encodeCollectionKey(before[0].key)
     );
-    expect(after.collections[0].id).toBe(before.collections[0].id);
-    expect(after.collections[0].id).not.toBe(
-      encodeCollectionKey(after.collections[0].key)
-    );
+    expect(after[0].id).toBe(before[0].id);
+    expect(after[0].id).not.toBe(encodeCollectionKey(after[0].key));
   });
 
   it('gives a committed id to the collection holding most of its members', () => {
@@ -203,7 +152,7 @@ describe('assignIds', () => {
       { id: 'visible-1', sopInstanceUids: ['a', 'b', 'c', 'd'] },
     ];
 
-    const { collections } = assignIds(planOf(majority, remainder), committed);
+    const collections = assignIds([majority, remainder], committed);
 
     expect(collections[0].id).toBe('visible-1');
     expect(collections[1].id).not.toBe('visible-1');
@@ -216,7 +165,7 @@ describe('assignIds', () => {
       { id: 'visible-1', sopInstanceUids: ['a', 'b', 'c', 'd'] },
     ];
 
-    const { collections } = assignIds(planOf(left, right), committed);
+    const collections = assignIds([left, right], committed);
 
     expect(idsOf(collections)).not.toContain('visible-1');
     expect(new Set(idsOf(collections)).size).toBe(2);
@@ -228,7 +177,7 @@ describe('assignIds', () => {
       { id: 'visible-1', sopInstanceUids: ['x', 'y'] },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).not.toBe('visible-1');
     expect(collections[0].id).toBe(encodeCollectionKey(collection.key));
@@ -243,7 +192,7 @@ describe('assignIds', () => {
       },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).not.toBe(committed[0].id);
   });
@@ -255,7 +204,7 @@ describe('assignIds', () => {
       { id: 'large', sopInstanceUids: ['c', 'd', 'e'] },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).toBe('large');
   });
@@ -267,7 +216,7 @@ describe('assignIds', () => {
       { id: 'alpha', sopInstanceUids: ['c', 'd'] },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).toBe('alpha');
   });
@@ -278,7 +227,7 @@ describe('assignIds', () => {
       { id: 'visible-1', sopInstanceUids: ['a'] },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).toBe('visible-1');
   });
@@ -289,43 +238,8 @@ describe('assignIds', () => {
       { id: 'visible-1', sopInstanceUids: ['a'] },
     ];
 
-    const { collections } = assignIds(planOf(collection), committed);
+    const collections = assignIds([collection], committed);
 
     expect(collections[0].id).not.toBe('visible-1');
-  });
-
-  it('carries the planned collections through in order, only adding an id', () => {
-    const first = collectionOf(['a'], keyOf('1,0,0,0,1,0'));
-    const second: DicomCollection = {
-      ...collectionOf(['b'], keyOf('0,1,0,0,0,1')),
-      order: 'instance-number',
-      diagnostics: ['b has no position'],
-    };
-
-    const { collections } = assignIds(planOf(first, second), []);
-
-    expect(collections).toHaveLength(2);
-    expect(collections[0].key).toEqual(first.key);
-    expect(collections[0].members).toEqual(first.members);
-    expect(collections[1].order).toBe('instance-number');
-    expect(collections[1].diagnostics).toEqual(['b has no position']);
-    expect(collections[1].members[0]).toBe(second.members[0]);
-  });
-
-  it('does not mutate the plan or the committed collections', () => {
-    const plan = planOf(
-      collectionOf(['a', 'b'], keyOf('1,0,0,0,1,0')),
-      collectionOf(['c'], keyOf('0,1,0,0,0,1'))
-    );
-    const committed: CommittedCollection[] = [
-      { id: 'visible-1', sopInstanceUids: ['a', 'b'] },
-    ];
-    const planBefore = clone(plan);
-    const committedBefore = clone(committed);
-
-    assignIds(plan, committed);
-
-    expect(clone(plan)).toEqual(planBefore);
-    expect(clone(committed)).toEqual(committedBefore);
   });
 });

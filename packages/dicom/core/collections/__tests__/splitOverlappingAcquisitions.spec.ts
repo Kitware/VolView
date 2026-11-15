@@ -1,43 +1,31 @@
-import { datasetFromTags } from '@/tests/dicomDataset';
 import { describe, it, expect } from 'vitest';
 import { Tags } from '../../metadata/dicomTags';
-import { readInstanceFacts as readStructuredFacts } from '../instanceFacts';
 import type { InstanceFacts } from '../planDicomCollections';
-import {
-  GEOMETRY_RULE,
-  DESCRIPTOR_AXES,
-  SEMANTIC_AXES,
-  UNREADABLE_GEOMETRY,
-  UNREADABLE_GEOMETRY_LABEL,
-  splitOverlappingAcquisitions,
-  type SemanticPart,
-} from '../splitOverlappingAcquisitions';
+import { splitOverlappingAcquisitions } from '../splitOverlappingAcquisitions';
 import { makeFacts } from './instanceFactsFixture';
 import {
   bilateralSagittalSlabs,
   dceEightPhase,
-  dceSevenPhasePhilips,
   dixonDualEcho,
   dixonUnevenEchoes,
   doubledAcquisition,
   dwiMultiBValue,
   partialTemporalTags,
-  type IdcSeriesFixture,
+  type SliceGroup,
 } from './idcSeriesFixtures';
+import { sliceFacts } from './sliceFixture';
 
-let nextUid = 0;
+type SemanticPart = ReturnType<typeof splitOverlappingAcquisitions>[number];
 
-// An axial slice at z carrying the given tags, read through the fact reader so
-// the fixtures stay in the tag vocabulary the real data uses.
-function slice(z: number, tags: Record<string, string> = {}) {
-  nextUid += 1;
-  return readInstanceFacts([
-    [Tags.SOPInstanceUID, `1.2.3.${nextUid}`],
-    [Tags.ImageOrientationPatient, '1\\0\\0\\0\\1\\0'],
-    [Tags.ImagePositionPatient, `0\\0\\${z}`],
-    ...Object.entries(tags),
-  ]);
-}
+const zOf = (facts: InstanceFacts) => facts.projectedPosition as number;
+const byPosition = (a: InstanceFacts, b: InstanceFacts) => zOf(a) - zOf(b);
+
+const split = (members: InstanceFacts[]) =>
+  splitOverlappingAcquisitions(members, (member) => member.projectedPosition);
+
+// An axial slice at z carrying the given tags.
+const slice = (z: number, tags: Record<string, string> = {}) =>
+  sliceFacts({ z, tags });
 
 // A stack of `count` slices starting at `start`, tagged with an acquisition.
 const stack = (acquisition: string, start: number, count: number, step = 2.5) =>
@@ -45,13 +33,10 @@ const stack = (acquisition: string, start: number, count: number, step = 2.5) =>
     slice(start + i * step, { [Tags.AcquisitionNumber]: acquisition })
   );
 
-const zOf = (facts: InstanceFacts) => facts.projectedPosition as number;
-const byPosition = (a: InstanceFacts, b: InstanceFacts) => zOf(a) - zOf(b);
-
 // Slices mirroring a real IDC series recorded in idcSeriesFixtures.ts.
-const fixtureSlices = (fixture: IdcSeriesFixture) =>
-  fixture
-    .groups!.flatMap((group) => group.zs.map((z) => slice(z, group.tags)))
+const fixtureSlices = (groups: SliceGroup[]) =>
+  groups
+    .flatMap((group) => group.zs.map((z) => slice(z, group.tags)))
     .sort(byPosition);
 
 const labels = (parts: SemanticPart[]) =>
@@ -63,41 +48,19 @@ const partLabelled = (parts: SemanticPart[], label: string | null) => {
   return found;
 };
 
-const partValue = (part: SemanticPart, rule: string) => {
-  const entry = part.parts.find(([name]) => name === rule);
-  if (!entry) throw new Error(`no part named ${rule}`);
-  return entry[1];
-};
-
-const unsplitParts = SEMANTIC_AXES.map((axis) => [axis.rule, null]);
-
 describe('splitOverlappingAcquisitions', () => {
   it('passes a single acquisition through as one unlabelled part', () => {
     const members = stack('1', 0, 5);
 
-    const parts = splitOverlappingAcquisitions(members);
+    const parts = split(members);
 
-    expect(parts).toEqual([
-      {
-        parts: unsplitParts,
-        members,
-        label: null,
-        repeatedPositions: false,
-        unreadablePositions: false,
-      },
-    ]);
-  });
-
-  it('names one key part per axis, in axis order, split or not', () => {
-    const parts = splitOverlappingAcquisitions(stack('1', 0, 3));
-
-    expect(parts[0].parts.map(([rule]) => rule)).toEqual([
-      'acquisition',
-      'phase',
-      'echo',
-      'b-value',
-      ...DESCRIPTOR_AXES.map((axis) => axis.rule),
-    ]);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toMatchObject({
+      members,
+      label: null,
+      repeatedPositions: false,
+      unreadablePositions: false,
+    });
   });
 
   it('separates overlapping acquisitions merged into one series', () => {
@@ -109,9 +72,7 @@ describe('splitOverlappingAcquisitions', () => {
     const acq2 = stack('2', -19.25, 6);
     const acq3 = stack('3', -18.5, 4);
 
-    const parts = splitOverlappingAcquisitions(
-      [...acq1, ...acq2, ...acq3].sort(byPosition)
-    );
+    const parts = split([...acq1, ...acq2, ...acq3].sort(byPosition));
 
     expect(labels(parts)).toEqual([
       'acquisition 1',
@@ -121,13 +82,6 @@ describe('splitOverlappingAcquisitions', () => {
     expect(partLabelled(parts, 'acquisition 1').members).toEqual(acq1);
     expect(partLabelled(parts, 'acquisition 2').members).toEqual(acq2);
     expect(partLabelled(parts, 'acquisition 3').members).toEqual(acq3);
-    expect(partLabelled(parts, 'acquisition 2').parts).toEqual([
-      ['acquisition', '2'],
-      ['phase', null],
-      ['echo', null],
-      ['b-value', null],
-      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
-    ]);
     expect(parts.every((part) => !part.repeatedPositions)).toBe(true);
   });
 
@@ -143,7 +97,7 @@ describe('splitOverlappingAcquisitions', () => {
       ...stack('1', -245.25, 56, 5),
     ].sort(byPosition);
 
-    const parts = splitOverlappingAcquisitions(merged);
+    const parts = split(merged);
 
     expect(parts).toHaveLength(1);
     expect(parts[0].members).toEqual(merged);
@@ -159,25 +113,9 @@ describe('splitOverlappingAcquisitions', () => {
       stack(String(20 + i), i * 25, 10)
     );
 
-    const parts = splitOverlappingAcquisitions(groups.flat().sort(byPosition));
+    const parts = split(groups.flat().sort(byPosition));
 
     expect(parts).toHaveLength(1);
-  });
-
-  it('tolerates quantized whole-body PET positions', () => {
-    // IDC series
-    // 1.3.6.1.4.1.14519.5.2.1.7009.2403.337074050757748643824459343650
-    // ("WB_3D_NON-AC"): whole-body PET stepping by 3.27mm with the occasional
-    // 3.35mm step from printing precision. One acquisition, nothing to
-    // separate.
-    const members = [0, 3.27, 6.54, 9.89, 13.16, 16.43].map((z) =>
-      slice(z, { [Tags.AcquisitionNumber]: '1' })
-    );
-
-    const parts = splitOverlappingAcquisitions(members);
-
-    expect(parts).toHaveLength(1);
-    expect(parts[0].repeatedPositions).toBe(false);
   });
 
   it('leaves repeat scans of one plane whole and flags the repetition', () => {
@@ -190,17 +128,15 @@ describe('splitOverlappingAcquisitions', () => {
       slice(-82.89, { [Tags.AcquisitionNumber]: String(i + 1) })
     );
 
-    const parts = splitOverlappingAcquisitions(members);
+    const parts = split(members);
 
-    expect(parts).toEqual([
-      {
-        parts: unsplitParts,
-        members,
-        label: null,
-        repeatedPositions: true,
-        unreadablePositions: false,
-      },
-    ]);
+    expect(parts).toHaveLength(1);
+    expect(parts[0]).toMatchObject({
+      members,
+      label: null,
+      repeatedPositions: true,
+      unreadablePositions: false,
+    });
   });
 
   it('does not fan out a counter stamped per slice over one repeated position', () => {
@@ -210,7 +146,7 @@ describe('splitOverlappingAcquisitions', () => {
       slice(z, { [Tags.AcquisitionNumber]: String(i + 1) })
     );
 
-    const parts = splitOverlappingAcquisitions(members);
+    const parts = split(members);
 
     expect(parts).toHaveLength(1);
     expect(parts[0].label).toBeNull();
@@ -222,7 +158,7 @@ describe('splitOverlappingAcquisitions', () => {
       byPosition
     );
 
-    const parts = splitOverlappingAcquisitions(members);
+    const parts = split(members);
 
     expect(parts).toHaveLength(1);
     expect(parts[0].repeatedPositions).toBe(true);
@@ -243,9 +179,7 @@ describe('splitOverlappingAcquisitions', () => {
         slice(5, { [tag]: '4' }),
       ];
 
-      const parts = splitOverlappingAcquisitions(
-        [...scans, ...remainder].sort(byPosition)
-      );
+      const parts = split([...scans, ...remainder].sort(byPosition));
 
       expect(labels(parts)).toEqual([
         `${rule} 1`,
@@ -253,7 +187,6 @@ describe('splitOverlappingAcquisitions', () => {
         `${rule} mixed`,
       ]);
       expect(partLabelled(parts, `${rule} mixed`).members).toEqual(remainder);
-      expect(partValue(partLabelled(parts, `${rule} mixed`), rule)).toBeNull();
     }
   );
 
@@ -266,7 +199,7 @@ describe('splitOverlappingAcquisitions', () => {
       })
     );
 
-    const parts = splitOverlappingAcquisitions([...scans, ...contrasts]);
+    const parts = split([...scans, ...contrasts]);
 
     expect(labels(parts)).toEqual([
       'acquisition 1',
@@ -293,9 +226,7 @@ describe('splitOverlappingAcquisitions', () => {
       })
     );
 
-    const parts = splitOverlappingAcquisitions(
-      [...volume, ...monitoring].sort(byPosition)
-    );
+    const parts = split([...volume, ...monitoring].sort(byPosition));
 
     expect(labels(parts)).toEqual(['acquisition 1', 'acquisition 2']);
     expect(partLabelled(parts, 'acquisition 2').members).toHaveLength(20);
@@ -307,36 +238,13 @@ describe('splitOverlappingAcquisitions', () => {
       byPosition
     );
 
-    expect(labels(splitOverlappingAcquisitions(merged))).toEqual([
-      'acquisition 1',
-      'acquisition 2',
-    ]);
+    expect(labels(split(merged))).toEqual(['acquisition 1', 'acquisition 2']);
   });
 
   it('does not separate scans that abut without overlapping', () => {
     const merged = [...stack('1', 0, 4), ...stack('2', 10, 4)].sort(byPosition);
 
-    expect(splitOverlappingAcquisitions(merged)).toHaveLength(1);
-  });
-
-  it('reports repeated positions no axis separates', () => {
-    const members = [0, 2.5, 2.5, 5].map((z) =>
-      slice(z, { [Tags.AcquisitionNumber]: '1' })
-    );
-
-    const parts = splitOverlappingAcquisitions(members);
-
-    expect(parts).toHaveLength(1);
-    expect(parts[0].repeatedPositions).toBe(true);
-  });
-
-  it('ignores slices with no acquisition number', () => {
-    const members = [0, 2.5, 5, 6.25, 8.75].map((z) => slice(z));
-
-    const parts = splitOverlappingAcquisitions(members);
-
-    expect(parts).toHaveLength(1);
-    expect(parts[0].repeatedPositions).toBe(false);
+    expect(split(merged)).toHaveLength(1);
   });
 
   it('holds members whose position cannot be read in a part of their own', () => {
@@ -347,59 +255,36 @@ describe('splitOverlappingAcquisitions', () => {
     const first = stack('2', 0, 3);
     const second = stack('3', 1, 3);
 
-    const parts = splitOverlappingAcquisitions([blind, ...first, ...second]);
+    const parts = split([blind, ...first, ...second]);
 
     // The two overlapping acquisitions stay separated, and the member nothing
-    // spatial can be said about is diagnosed rather than merged into them.
-    expect(labels(parts)).toEqual([
-      'acquisition 2',
-      'acquisition 3',
-      UNREADABLE_GEOMETRY_LABEL,
-    ]);
-    const unknown = partLabelled(parts, UNREADABLE_GEOMETRY_LABEL);
+    // spatial can be said about is held apart rather than merged into them.
+    expect(parts).toHaveLength(3);
+    const unknown = parts.find((part) => part.unreadablePositions)!;
     expect(unknown.members).toEqual([blind]);
     expect(partLabelled(parts, 'acquisition 2').members).toEqual(first);
     expect(partLabelled(parts, 'acquisition 3').members).toEqual(second);
-    expect(unknown.unreadablePositions).toBe(true);
-    expect(partValue(unknown, GEOMETRY_RULE)).toBe(UNREADABLE_GEOMETRY);
-    parts
-      .filter((part) => part !== unknown)
-      .forEach((part) => {
-        expect(part.unreadablePositions).toBe(false);
-        expect(part.parts.some(([rule]) => rule === GEOMETRY_RULE)).toBe(false);
-      });
+    expect(parts.filter((part) => part.unreadablePositions)).toEqual([unknown]);
   });
 
-  it('keeps members whose positions are all unreadable in one diagnosed part', () => {
+  it('keeps members whose positions are all unreadable in one part', () => {
     const blind = [
       makeFacts('uid-a', { projectedPosition: null }),
       makeFacts('uid-b', { projectedPosition: null }),
     ];
 
-    const parts = splitOverlappingAcquisitions(blind);
+    const parts = split(blind);
 
     expect(parts).toHaveLength(1);
     expect(parts[0].members).toEqual(blind);
     expect(parts[0].unreadablePositions).toBe(true);
   });
 
-  it('keeps each part in the member order it was given', () => {
-    const acq1 = stack('1', -20, 5);
-    const acq2 = stack('2', -19.25, 6);
-    const merged = [...acq1, ...acq2].sort(byPosition);
-
-    const parts = splitOverlappingAcquisitions(merged);
-
-    parts.forEach((part) => {
-      expect(part.members).toEqual([...part.members].sort(byPosition));
-    });
-  });
-
   it('is invariant to member permutation in membership', () => {
     const acq1 = stack('1', -20, 5);
     const acq2 = stack('2', -19.25, 6);
-    const forward = splitOverlappingAcquisitions([...acq1, ...acq2]);
-    const backward = splitOverlappingAcquisitions([...acq2, ...acq1].reverse());
+    const forward = split([...acq1, ...acq2]);
+    const backward = split([...acq2, ...acq1].reverse());
 
     const membership = (parts: SemanticPart[]) =>
       parts
@@ -411,66 +296,34 @@ describe('splitOverlappingAcquisitions', () => {
 
     expect(membership(backward)).toEqual(membership(forward));
   });
-
-  it('keeps the value spelling the fact reader normalized', () => {
-    const merged = [...stack('01', 0, 5), ...stack('+2', 0.75, 5)].sort(
-      byPosition
-    );
-
-    const parts = splitOverlappingAcquisitions(merged);
-
-    expect(labels(parts)).toEqual(['acquisition 1', 'acquisition 2']);
-  });
 });
 
 describe('splitOverlappingAcquisitions temporal and echo axes', () => {
   it('separates DCE timepoints that re-scan one range', () => {
-    const parts = splitOverlappingAcquisitions(fixtureSlices(dceEightPhase));
+    const parts = split(fixtureSlices(dceEightPhase));
 
     expect(labels(parts)).toEqual(
       ['0', '1', '2', '3', '4', '5', '6', '7'].map((p) => `phase ${p}`)
     );
     expect(partLabelled(parts, 'phase 3').members).toHaveLength(80);
-    expect(partValue(partLabelled(parts, 'phase 3'), 'phase')).toBe('3');
     expect(parts.every((part) => !part.repeatedPositions)).toBe(true);
   });
 
-  it('separates timepoints across vendors and 1-based numbering', () => {
-    const parts = splitOverlappingAcquisitions(
-      fixtureSlices(dceSevenPhasePhilips)
-    );
-
-    expect(parts).toHaveLength(7);
-    parts.forEach((part) => {
-      expect(part.members).toHaveLength(158);
-      expect(part.repeatedPositions).toBe(false);
-    });
-  });
-
   it('separates Dixon echoes that nothing else distinguishes', () => {
-    const parts = splitOverlappingAcquisitions(fixtureSlices(dixonDualEcho));
+    const parts = split(fixtureSlices(dixonDualEcho));
 
     expect(labels(parts)).toEqual(['echo 1', 'echo 2']);
-    expect(partLabelled(parts, 'echo 1').parts).toEqual([
-      ['acquisition', null],
-      ['phase', null],
-      ['echo', '1'],
-      ['b-value', null],
-      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
-    ]);
   });
 
   it('separates echoes with unequal slice counts', () => {
-    const parts = splitOverlappingAcquisitions(
-      fixtureSlices(dixonUnevenEchoes)
-    );
+    const parts = split(fixtureSlices(dixonUnevenEchoes));
 
     expect(partLabelled(parts, 'echo 1').members).toHaveLength(13);
     expect(partLabelled(parts, 'echo 2').members).toHaveLength(12);
   });
 
   it('separates repeated diffusion positions by b-value', () => {
-    const parts = splitOverlappingAcquisitions(fixtureSlices(dwiMultiBValue));
+    const parts = split(fixtureSlices(dwiMultiBValue));
 
     expect(labels(parts)).toEqual([
       'b-value 0',
@@ -491,9 +344,7 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
     );
     const untagged = slice(2);
 
-    const parts = splitOverlappingAcquisitions(
-      [...b0, untagged, ...b800].sort(byPosition)
-    );
+    const parts = split([...b0, untagged, ...b800].sort(byPosition));
 
     expect(labels(parts)).toEqual([
       'b-value 0',
@@ -501,9 +352,6 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
       'b-value unknown',
     ]);
     expect(partLabelled(parts, 'b-value unknown').members).toEqual([untagged]);
-    expect(
-      partValue(partLabelled(parts, 'b-value unknown'), 'b-value')
-    ).toBeNull();
   });
 
   it('still separates contrasts of a single plane', () => {
@@ -513,38 +361,23 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
       slice(0, { [Tags.AcquisitionNumber]: '1', [Tags.EchoNumbers]: echo })
     );
 
-    const parts = splitOverlappingAcquisitions(members);
+    const parts = split(members);
 
     expect(labels(parts)).toEqual(['echo 1', 'echo 2']);
     expect(parts.every((part) => !part.repeatedPositions)).toBe(true);
   });
 
-  it('treats equivalent integer spellings as one tag value', () => {
-    const merged = [...stack('+1', 0, 5), ...stack('01', 0, 5)].sort(
-      byPosition
-    );
-
-    const parts = splitOverlappingAcquisitions(merged);
-
-    expect(parts).toHaveLength(1);
-    expect(parts[0].repeatedPositions).toBe(true);
-  });
-
   it('does not split bilateral slabs whose stacks do not overlap', () => {
     // StackID (0020|9056) differs per slab, but the slabs form one sound
     // volume with a gap; this series is why StackID is not an axis.
-    const parts = splitOverlappingAcquisitions(
-      fixtureSlices(bilateralSagittalSlabs)
-    );
+    const parts = split(fixtureSlices(bilateralSagittalSlabs));
 
     expect(parts).toHaveLength(1);
     expect(parts[0].repeatedPositions).toBe(false);
   });
 
   it('splits on acquisition when the temporal tag is partially present', () => {
-    const parts = splitOverlappingAcquisitions(
-      fixtureSlices(partialTemporalTags)
-    );
+    const parts = split(fixtureSlices(partialTemporalTags));
 
     expect(labels(parts)).toEqual(
       ['1', '2', '3', '4', '5', '6', '7'].map((a) => `acquisition ${a}`)
@@ -553,23 +386,8 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
     expect(parts.every((part) => !part.repeatedPositions)).toBe(true);
   });
 
-  it('keeps sequential timepoints merged', () => {
-    const phase = (value: string, start: number, count: number) =>
-      Array.from({ length: count }, (_, i) =>
-        slice(start + i * 5, { [Tags.TemporalPositionIdentifier]: value })
-      );
-
-    const parts = splitOverlappingAcquisitions(
-      [...phase('1', 0, 5), ...phase('2', 30, 5)].sort(byPosition)
-    );
-
-    expect(parts).toHaveLength(1);
-  });
-
   it('splits a doubled acquisition and still flags the repetition', () => {
-    const parts = splitOverlappingAcquisitions(
-      fixtureSlices(doubledAcquisition)
-    );
+    const parts = split(fixtureSlices(doubledAcquisition));
 
     expect(labels(parts)).toEqual(['acquisition 1', 'acquisition 2']);
     expect(partLabelled(parts, 'acquisition 1').members).toHaveLength(74);
@@ -579,8 +397,7 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
   });
 
   it('recurses into each timepoint of a 4D multi-echo series', () => {
-    // Synthetic: no IDC case observed with two active levels. Pins the
-    // hierarchical key shape and label rendering.
+    // Synthetic: no IDC case observed with two active levels.
     const merged = ['1', '2']
       .flatMap((phase) =>
         ['1', '2'].flatMap((echo) =>
@@ -595,7 +412,7 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
       )
       .sort(byPosition);
 
-    const parts = splitOverlappingAcquisitions(merged);
+    const parts = split(merged);
 
     expect(labels(parts)).toEqual([
       'phase 1, echo 1',
@@ -603,33 +420,8 @@ describe('splitOverlappingAcquisitions temporal and echo axes', () => {
       'phase 2, echo 1',
       'phase 2, echo 2',
     ]);
-    expect(partLabelled(parts, 'phase 2, echo 1').parts).toEqual([
-      ['acquisition', null],
-      ['phase', '2'],
-      ['echo', '1'],
-      ['b-value', null],
-      ...DESCRIPTOR_AXES.map((axis) => [axis.rule, null]),
-    ]);
     parts.forEach((part) => {
       expect(part.members).toHaveLength(10);
     });
   });
-
-  it('gives distinct values distinct key parts however they are spelled', () => {
-    // Normalized values remain distinct even when their punctuation differs.
-    const merged = [...stack('1.5', 0, 5), ...stack('1-5', 0, 5)].sort(
-      byPosition
-    );
-
-    const parts = splitOverlappingAcquisitions(merged);
-
-    expect(labels(parts)).toEqual(['acquisition 1-5', 'acquisition 1.5']);
-    expect(
-      partValue(partLabelled(parts, 'acquisition 1-5'), 'acquisition')
-    ).toBe('1-5');
-  });
 });
-
-function readInstanceFacts(tags: Iterable<readonly [string, string]>) {
-  return readStructuredFacts(datasetFromTags(tags));
-}

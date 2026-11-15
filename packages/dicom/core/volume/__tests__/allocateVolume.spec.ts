@@ -16,7 +16,6 @@ describe('allocateVolume', () => {
     expect(volume.origin).toEqual([0, 0, 5]);
     expect(volume.spacing).toEqual([0.5, 0.5, 1]);
     expect(volume.direction).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    expect(volume.reconstruction.slots).toEqual([0, 1, 2]);
     expect(volume.data).toBeInstanceOf(Uint16Array);
     expect(volume.data).toHaveLength(48);
     expect([...volume.loaded]).toEqual([0, 0, 0]);
@@ -40,21 +39,21 @@ describe('allocateVolume', () => {
     expect(volume.data).toBeInstanceOf(type);
   });
 
-  it('keeps an irregular stack in order unless the policy rejects it', () => {
-    const members = [0, 1, 3].map((z) => pixelSlice(z));
+  it('keeps an irregular stack in order and reports why it is irregular', () => {
+    const volume = allocated([0, 1, 3].map((z) => pixelSlice(z)));
 
-    expect(allocated(members).dimensions[2]).toBe(3);
-    expect(() =>
-      allocated(members, undefined, { irregularGeometry: 'reject' })
-    ).toThrow(/irregular/);
+    expect(volume.dimensions[2]).toBe(3);
+    expect(volume.spatialMetadata.reconstruction).toEqual({
+      kind: 'irregular',
+      reason: 'uneven-slice-spacing',
+    });
   });
 
-  it('uses the planned spacing and slice mapping without reconstructing it', () => {
+  it('takes the planned slice spacing as given', () => {
     const update = plannedUpdate([pixelSlice(1), pixelSlice(19)]);
     const reconstruction = {
-      kind: 'regular' as const,
+      ...update.collection.reconstruction,
       sliceSpacing: 9,
-      slots: [0, 2],
     };
 
     const volume = allocateVolume({
@@ -63,25 +62,9 @@ describe('allocateVolume', () => {
     });
 
     expect(volume).toMatchObject({
-      dimensions: [4, 4, 3],
+      dimensions: [4, 4, 2],
       spacing: [0.5, 0.5, 9],
     });
-  });
-
-  it('rejects a plan whose first slice slot is not zero', () => {
-    const update = plannedUpdate([pixelSlice(10), pixelSlice(20)]);
-    const reconstruction = {
-      kind: 'regular' as const,
-      sliceSpacing: 10,
-      slots: [1, 2],
-    };
-
-    expect(() =>
-      allocateVolume({
-        ...update,
-        collection: { ...update.collection, reconstruction },
-      })
-    ).toThrow('slice slot');
   });
 
   it('applies the first ultrasound region as display spacing', () => {

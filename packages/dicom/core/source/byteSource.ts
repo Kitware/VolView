@@ -2,10 +2,8 @@ import {
   HTTP_STATUS_OK,
   HTTP_STATUS_PARTIAL_CONTENT,
   HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE,
-  HttpNotFound,
 } from './httpCodes';
-import { linkedController } from '../utils';
-import { concatBytes } from '../utils';
+import { concatBytes, linkedController } from '../utils';
 import { parseContentRangeHeader } from './parseContentRangeHeader';
 
 /** Half-open byte interval; an absent end reads to the last byte. */
@@ -27,8 +25,8 @@ export type ByteSource = {
 
 export type RangeSupport = 'unknown' | 'honoured' | 'ignored';
 
-/** Read enough per pull that a header rarely needs a second slice. */
-const BLOB_CHUNK_SIZE = 64 * 1024;
+/** Enough that a header rarely needs a second slice. */
+const OPEN_READ_FIRST_SLICE = 64 * 1024;
 
 const rangeLength = (range?: ByteRange) =>
   range?.end === undefined ? Infinity : Math.max(0, range.end - range.start);
@@ -38,6 +36,9 @@ export const fromBlob = (blob: Blob): ByteSource => ({
   read: (signal, range) => {
     let offset = range?.start ?? 0;
     const end = Math.min(blob.size, offset + rangeLength(range));
+    // Every slice costs a turn of the calling thread. A range with an end is
+    // wanted whole; an open read may stop early, so it starts small and doubles.
+    let step = range?.end === undefined ? OPEN_READ_FIRST_SLICE : end - offset;
     return new ReadableStream<Uint8Array>({
       pull: async (controller) => {
         signal.throwIfAborted();
@@ -45,7 +46,8 @@ export const fromBlob = (blob: Blob): ByteSource => ({
           controller.close();
           return;
         }
-        const next = Math.min(end, offset + BLOB_CHUNK_SIZE);
+        const next = Math.min(end, offset + step);
+        step *= 2;
         const bytes = new Uint8Array(
           await blob.slice(offset, next).arrayBuffer()
         );
@@ -132,7 +134,7 @@ function assertReadableStatus(response: Response, url: string | URL) {
   response.body?.cancel().catch(() => {});
   if (response.status === HTTP_STATUS_REQUESTED_RANGE_NOT_SATISFIABLE)
     throw new Error('Range could not be satisfied');
-  throw new HttpNotFound(url.toString());
+  throw new Error(`HTTP ${response.status} for ${url}`);
 }
 
 /**
@@ -182,7 +184,8 @@ export const fromUrl = (
             stream.enqueue(value);
             return;
           }
-          release();
+          // Abort is how a pooled fetch learns its body is done.
+          controller.abort();
           stream.close();
         },
         cancel: async (reason) => {

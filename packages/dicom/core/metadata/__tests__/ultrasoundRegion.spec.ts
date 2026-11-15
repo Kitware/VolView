@@ -3,11 +3,9 @@ import { readDicomDataset } from '../dicomDataset';
 import { concatBytes } from '../../utils';
 import { syntheticSlice } from '@/tests/dicomSourceFixtures';
 import { rawElement, sequenceItem } from '@/tests/specs/syntheticDicom';
-import {
-  readUltrasoundRegions,
-  unitToMm,
-  US_UNIT_CENTIMETERS,
-} from '../ultrasoundRegion';
+import { readUltrasoundRegions, unitToMm } from '../ultrasoundRegion';
+
+const US_UNIT_CENTIMETERS = 3;
 
 const u16LE = (value: number) => {
   const bytes = new Uint8Array(2);

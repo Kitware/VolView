@@ -1,10 +1,8 @@
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
+import { Tags } from '../metadata/dicomTags';
 import { readGeometryFacts, sliceNormalOf } from '../collections/instanceFacts';
-import {
-  reconstructInstances,
-  type Reconstruction,
-} from '../collections/reconstructVolume';
+import type { Reconstruction } from '../collections/reconstructVolume';
 import { readDatasetDetails } from '../collections/datasetDetails';
 import {
   declaredSpacing,
@@ -14,16 +12,11 @@ import {
 } from '../metadata/spatialMetadata';
 import { getFrameTag } from '../metadata/functionalGroups';
 import type { UltrasoundRegions } from '../metadata/ultrasoundRegion';
+import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr } from '../utils';
 import { nmGeometry } from './nmGeometry';
 import { getVolumeBufferType, instancePixelFormats } from './pixelFormat';
 import { applyUltrasoundSpacing } from './ultrasoundSpacing';
-
-const SpacingBetweenSlicesTag = '00180088';
-const RowsTag = '00280010';
-const ColumnsTag = '00280011';
-const SamplesPerPixelTag = '00280002';
-const NumberOfFrames = '00280008';
 
 /** What allocation reads from one member: its header and ultrasound regions. */
 export type VolumeSource = {
@@ -31,30 +24,22 @@ export type VolumeSource = {
   ultrasoundRegions?: UltrasoundRegions | null;
 };
 
-/** Preserve acquisition order and its fallback spacing, or require a regular lattice. */
-export type IrregularGeometryPolicy = 'preserve-order' | 'reject';
-
 const isPositiveFiniteNumber = (value: number) =>
   Number.isFinite(value) && value > 0;
 
-const frameCountOf = (dataset: DicomDataset) =>
-  numberOr(getDatasetTag(dataset, NumberOfFrames), 1);
-
-function assertRegularGeometry(
-  reconstruction: Reconstruction,
-  policy: IrregularGeometryPolicy
-) {
-  if (reconstruction.kind === 'irregular' && policy === 'reject')
-    throw new Error(
-      `Cannot allocate irregular DICOM geometry: ${reconstruction.reason}`
-    );
-}
-
-const instanceGeometry = (dataset: DicomDataset, count: number) => {
+// One instance alone places its own frames: NM by its detector, an enhanced
+// object by its functional groups.
+const frameGeometry = (sources: readonly VolumeSource[]) => {
+  if (sources.length !== 1) return { frames: null };
+  const { dataset } = sources[0];
   const nm = nmGeometry(dataset);
-  if (nm) return nm;
-  if (count < 2) return null;
-  return readDatasetDetails(dataset).frameGeometry;
+  if (nm) return { frames: nm, sliceSpacingSource: nm.sliceSpacingSource };
+  return {
+    frames:
+      frameCount(dataset) < 2
+        ? null
+        : readDatasetDetails(dataset).frameGeometry,
+  };
 };
 
 function allocationDirection(
@@ -68,56 +53,29 @@ function allocationDirection(
 function allocationGeometry(
   sources: readonly VolumeSource[],
   orientation: number[] | null,
-  reconstruction: Reconstruction,
-  policy: IrregularGeometryPolicy
+  reconstruction: Reconstruction
 ) {
   const { dataset } = sources[0];
-  const frames =
-    sources.length === 1
-      ? instanceGeometry(dataset, frameCountOf(dataset))
-      : null;
+  const { frames, sliceSpacingSource = 'ImagePositionPatient' } =
+    frameGeometry(sources);
   const geometry = frames ?? readGeometryFacts(dataset);
-  const plan = frames?.reconstruction ?? reconstruction;
-  assertRegularGeometry(plan, policy);
   const effectiveOrientation = orientation ?? geometry.orientation;
   return {
     ...geometry,
-    reconstruction: plan,
-    sliceSpacingSource: frames?.sliceSpacingSource ?? 'ImagePositionPatient',
+    reconstruction: frames?.reconstruction ?? reconstruction,
+    sliceSpacingSource,
     direction: allocationDirection(effectiveOrientation, frames?.direction),
   };
 }
 
-function assertSliceSlots(slots: number[], count: number) {
-  if (
-    slots.length !== count ||
-    new Set(slots).size !== count ||
-    slots.some((slot) => !Number.isSafeInteger(slot) || slot < 0) ||
-    (count > 0 && slots[0] !== 0)
-  )
-    throw new Error(
-      'Reconstruction must map each instance to one distinct nonnegative slice slot, starting at zero'
-    );
-}
-
-function allocationShape(
-  sources: readonly VolumeSource[],
-  reconstruction: Reconstruction
-) {
-  const valueOf = (tag: string) => getDatasetTag(sources[0].dataset, tag);
-  const numberOfFrames = numberOr(valueOf(NumberOfFrames), 1);
-  if (numberOfFrames > 1 && sources.length > 1)
-    throw new Error(
-      'A multi-frame instance cannot share a volume with other instances'
-    );
+function allocationShape(sources: readonly VolumeSource[]) {
+  const { dataset } = sources[0];
+  const valueOf = (tag: string) => getDatasetTag(dataset, tag);
   return {
-    rows: numberOr(valueOf(RowsTag), 0),
-    columns: numberOr(valueOf(ColumnsTag), 0),
-    samplesPerPixel: numberOr(valueOf(SamplesPerPixelTag), 1),
-    slices:
-      sources.length > 1
-        ? Math.max(...reconstruction.slots) + 1
-        : numberOfFrames,
+    rows: numberOr(valueOf(Tags.Rows), 0),
+    columns: numberOr(valueOf(Tags.Columns), 0),
+    samplesPerPixel: numberOr(valueOf(Tags.SamplesPerPixel), 1),
+    slices: sources.length > 1 ? sources.length : frameCount(dataset),
   };
 }
 
@@ -168,7 +126,7 @@ function allocationSpatialMetadata(
         sliceSpacingSource === 'ImagePositionPatient' ? 'derived' : 'declared'
       )
     : declaredSpacing(
-        getFrameTag(metadata, SpacingBetweenSlicesTag),
+        getFrameTag(metadata, Tags.SpacingBetweenSlices),
         'SpacingBetweenSlices'
       );
   return {
@@ -191,20 +149,12 @@ function allocationSpatialMetadata(
 export function volumeLayout(
   sources: readonly VolumeSource[],
   orientation: number[] | null,
-  reconstruction: Reconstruction,
-  irregularGeometry: IrregularGeometryPolicy = 'preserve-order'
+  reconstruction: Reconstruction
 ) {
   if (sources.length === 0)
     throw new Error('Cannot allocate an image from zero instances');
-  assertRegularGeometry(reconstruction, irregularGeometry);
-  assertSliceSlots(reconstruction.slots, sources.length);
-  const shape = allocationShape(sources, reconstruction);
-  const geometry = allocationGeometry(
-    sources,
-    orientation,
-    reconstruction,
-    irregularGeometry
-  );
+  const shape = allocationShape(sources);
+  const geometry = allocationGeometry(sources, orientation, reconstruction);
   return {
     ...shape,
     origin: geometry.position,
@@ -216,42 +166,16 @@ export function volumeLayout(
   };
 }
 
-const reconstructionFor = (
-  sources: readonly VolumeSource[],
-  orientation: number[] | null,
-  supplied: Reconstruction | undefined
-) => {
-  const needsFrameGeometry =
-    sources.length === 1 && frameCountOf(sources[0].dataset) > 1;
-  return supplied && !needsFrameGeometry
-    ? supplied
-    : reconstructInstances(
-        sources.map((source) => readDatasetDetails(source.dataset).facts),
-        sliceNormalOf(orientation),
-        supplied
-      );
-};
-
-/** Plans an allocation for the planned members of an image collection. */
+/** Lays out the planned members of an image collection, with allocation warnings. */
 export function planVolumeAllocation(
   sources: readonly VolumeSource[],
   orientation: number[] | null,
-  supplied: Reconstruction | undefined,
-  policy: IrregularGeometryPolicy
+  reconstruction: Reconstruction
 ) {
-  if (sources.length === 0)
-    throw new Error('Cannot allocate an image from zero instances');
-  const reconstruction = reconstructionFor(sources, orientation, supplied);
-  const warnings: Array<[string, string]> = [];
-  const layout = volumeLayout(sources, orientation, reconstruction, policy);
-  const spatialMetadata = applyUltrasoundSpacing(
+  const layout = volumeLayout(sources, orientation, reconstruction);
+  const { spatialMetadata, warnings } = applyUltrasoundSpacing(
     layout.spatialMetadata,
-    sources,
-    (...warning) => warnings.push(warning)
+    sources
   );
-  return {
-    reconstruction,
-    layout: { ...layout, spatialMetadata },
-    warnings,
-  };
+  return { layout: { ...layout, spatialMetadata }, warnings };
 }

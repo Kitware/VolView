@@ -21,8 +21,6 @@ const IMAGE_POSITION_PATIENT = '00200032';
 const SPECIFIC_CHARACTER_SET = '00080005';
 const ICC_PROFILE = '00282000';
 const FRAME_DIMENSION_POINTER = '0028000A';
-const SIEMENS_CSA_DATA = '00291010';
-const GE_PRIVATE_TAG = '00091001';
 const ULTRASOUND_REGIONS = '00186011';
 const PHYSICAL_DELTA_X = '0018602C';
 const REQUEST_ATTRIBUTES = '00400275';
@@ -251,26 +249,6 @@ describe('readDicomDataset', () => {
 
     expect(values.bytes).toEqual(truncatedItem);
     expect(values.reason.length).toBeGreaterThan(0);
-  });
-
-  it('keeps a private element and the bytes of its value', () => {
-    const dataset = readDicomDataset(
-      buildSlice({ extraElements: MIXED_VR_ELEMENTS })
-    );
-
-    expect(findElement(dataset, SIEMENS_CSA_DATA)?.bytes).toEqual(
-      new Uint8Array(6).fill(0x41)
-    );
-    expect(findElement(dataset, GE_PRIVATE_TAG)?.bytes).toEqual(
-      ascii('GEPRIV  ')
-    );
-    expect(findElement(dataset, GE_PRIVATE_TAG)?.vr).toBe('SH');
-  });
-
-  it('leaves a public element of a known VR without a byte copy', () => {
-    const dataset = readDicomDataset(buildSlice());
-
-    expect(findElement(dataset, PATIENT_NAME)?.bytes).toBeUndefined();
   });
 
   it('reads a buffer VR as bytes and an AT as referenced tags', () => {

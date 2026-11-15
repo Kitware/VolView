@@ -9,13 +9,18 @@ import { toAscii } from '../utils';
  * information may start at the first byte, or the data set itself may, with
  * nothing to name its transfer syntax but the shape of its first element.
  */
-export const PREAMBLE_LENGTH = 128;
+const PREAMBLE_LENGTH = 128;
 const DICOM_PREFIX = 'DICM';
 /** The bytes a Part 10 file spends before its first element. */
 export const PART_10_HEADER_LENGTH = PREAMBLE_LENGTH + DICOM_PREFIX.length;
 
 export const IMPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2';
 export const EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1';
+export const EXPLICIT_VR_BIG_ENDIAN = '1.2.840.10008.1.2.2';
+export const DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN = '1.2.840.10008.1.2.1.99';
+
+/** The length field of a value whose end a delimiter marks. */
+export const UNDEFINED_LENGTH = 0xffffffff;
 
 export type DicomLayout =
   /** Part 10: preamble, prefix and file meta information. */

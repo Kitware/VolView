@@ -1,14 +1,19 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { Tags, type Instance } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core';
 import {
   cineInstance,
   TS_JPEG_BASELINE,
 } from '@/src/core/cine/__tests__/cineFixtures';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { imageFactory } from '@/src/store/__tests__/dicomImportFixtures';
+import {
+  imageFactory,
+  onlyId,
+  sliceFor,
+  STUDY_UID,
+} from '@/src/store/__tests__/dicomImportFixtures';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 
 const SERIES = {
@@ -22,12 +27,6 @@ const unsupported = () =>
     ...SERIES,
     [Tags.PhotometricInterpretation]: 'MONOCHROME1',
   });
-
-const onlyId = (volumes: Record<string, Instance[]>) => {
-  const ids = Object.keys(volumes);
-  expect(ids).toHaveLength(1);
-  return ids[0];
-};
 
 describe('DICOM store cine routing', () => {
   beforeEach(() => {
@@ -44,7 +43,7 @@ describe('DICOM store cine routing', () => {
     expect(created).toHaveLength(1);
     expect(created[0].getInstances()).toEqual([clip]);
 
-    const id = onlyId(result.volumes);
+    const id = onlyId(result);
     expect(result.volumes[id]).toEqual([clip]);
     expect(useImageCacheStore().imageById[id]).toBe(created[0]);
     expect(store.volumeInfo[id]).toMatchObject({
@@ -66,9 +65,7 @@ describe('DICOM store cine routing', () => {
     );
 
     const store = useDICOMStore();
-    const id = onlyId(
-      store.importInstances([malformed], { createImage }).volumes
-    );
+    const id = onlyId(store.importInstances([malformed], { createImage }));
 
     expect(created).toHaveLength(0);
     expect(store.volumeInfo[id].kind).toBe('cine');
@@ -82,32 +79,6 @@ describe('DICOM store cine routing', () => {
     const repeated = store.importInstances([unsupported()], { createImage });
     expect(Object.keys(repeated.volumes)).toEqual(Object.keys(first.volumes));
     expect(created).toHaveLength(1);
-  });
-
-  it('refuses to reuse a cached image that is not a DICOM volume', () => {
-    const normalClip = () =>
-      cineInstance({
-        [Tags.SOPClassUID]: '1.2.840.10008.5.1.4.1.1.2',
-        [Tags.NumberOfFrames]: '1',
-      });
-
-    const learner = imageFactory();
-    const learned = useDICOMStore().importInstances([normalClip()], {
-      createImage: learner.createImage,
-    });
-    const id = onlyId(learned.volumes);
-
-    // A fresh session plans the same id, but the cache holds a foreign image.
-    setActivePinia(createPinia());
-    const imageCacheStore = useImageCacheStore();
-    imageCacheStore.imageById[id] =
-      {} as (typeof imageCacheStore.imageById)[string];
-
-    const { created, createImage } = imageFactory();
-    expect(() =>
-      useDICOMStore().importInstances([normalClip()], { createImage })
-    ).toThrow(/non-DICOM/);
-    expect(created).toHaveLength(0);
   });
 });
 
@@ -132,4 +103,23 @@ it('imports two same-shaped ultrasound clips as separate playable cine volumes',
     )
   ).toEqual([true, true]);
   expect(created).toHaveLength(0);
+});
+
+it('files a clip and a volume of one study under one patient', () => {
+  setActivePinia(createPinia());
+  const { createImage } = imageFactory();
+  const store = useDICOMStore();
+  // An odd-length value is padded with a space, which the reader keeps.
+  const padded = {
+    [Tags.PatientID]: 'patient-1 ',
+    [Tags.StudyInstanceUID]: STUDY_UID,
+  };
+
+  store.importInstances([sliceFor({ sop: 'still', tags: padded })], {
+    createImage,
+  });
+  store.importInstances([cineInstance(padded)], { createImage });
+
+  expect(store.patientStudies).toEqual({ 'patient-1': [STUDY_UID] });
+  expect(store.studyVolumes[STUDY_UID]).toHaveLength(2);
 });

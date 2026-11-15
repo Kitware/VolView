@@ -21,7 +21,6 @@ import {
 } from '@/src/io/import/dataSource';
 import handleDicom from '@/src/io/import/processors/handleDicom';
 import extractArchive from '@/src/io/import/processors/extractArchive';
-import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
 import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
 import handleGoogleCloudStorage from '@/src/io/import/processors/handleGoogleCloudStorage';
 import importSingleFile from '@/src/io/import/processors/importSingleFile';
@@ -45,10 +44,8 @@ import { ensureError } from '@/src/utils';
 import type { Instance } from '@/packages/dicom/core';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
-  PartialImportError,
   useDICOMStore,
   type ImportInstancesDeps,
-  type ImportInstancesResult,
 } from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
 import { shouldSkipImportSource } from '@/src/io/import/shouldSkipImportSource';
@@ -146,28 +143,6 @@ const sourcesOf = (instances: Instance[]) =>
     .map((instance) => instanceToDataSource.get(instance))
     .filter((src): src is DicomInstanceSource => src !== undefined);
 
-/**
- * A DICOM import where at least one series failed. The loadables the series
- * that did commit produced ride along, because their datasets exist whether or
- * not a sibling series threw.
- */
-export class PartialDicomImportError extends Error {
-  readonly loadables: LoadableResult[];
-
-  readonly failures: { error: Error; sources: DicomInstanceSource[] }[];
-
-  constructor(
-    loadables: LoadableResult[],
-    failures: { error: Error; sources: DicomInstanceSource[] }[]
-  ) {
-    super(failures[0].error.message);
-    this.name = 'PartialDicomImportError';
-    this.cause = failures[0].error;
-    this.loadables = loadables;
-    this.failures = failures;
-  }
-}
-
 /** What the import needs of its caller: how to remove a dissolved dataset. */
 export type ImportInstancesHooks = Required<
   Pick<ImportInstancesDeps, 'removeDissolved'>
@@ -176,85 +151,69 @@ export type ImportInstancesHooks = Required<
 const loadableOf = (id: string, sources: DicomInstanceSource[]) =>
   asLoadableResult(id, { type: 'collection', sources }, 'image');
 
+/**
+ * Commits the instances series by series. The series that committed are
+ * loaded, so their datasets are reported beside the failures of the others.
+ */
 export function importDicomInstanceSources(
   sources: DicomInstanceSource[],
   importInstances = (instances: Instance[], hooks: ImportInstancesHooks) =>
     useDICOMStore().importInstances(instances, hooks)
 ) {
-  if (sources.length === 0) return [];
+  if (sources.length === 0) return { loadables: [], failures: [] };
 
   sources.forEach((src) => instanceToDataSource.set(src.instance, src));
 
   const supplied = new Set<DataSource>(sources);
   const datasetStore = useDatasetStore();
-  // Every member reports back, so a collection that gained a member from a
-  // dissolved one saves its provenance too; the result names only this
-  // import's own sources.
-  const publish = ({ volumes }: ImportInstancesResult) => {
-    const entries = Object.entries(volumes);
-    datasetStore.addDataSources(
-      entries.map(([id, instances]) => loadableOf(id, sourcesOf(instances)))
-    );
-    return entries
-      .sort(([a], [b]) => (a < b ? -1 : Number(a > b)))
-      .map(([id, instances]) =>
-        loadableOf(
-          id,
-          sourcesOf(instances).filter((source) => supplied.has(source))
-        )
-      );
-  };
   // The dataset store's removal clears every store that names a dissolved
   // dataset, in the order eviction needs.
-  const hooks = { removeDissolved: (id: string) => datasetStore.remove(id) };
-
-  try {
-    return publish(
-      importInstances(
-        sources.map((src) => src.instance),
-        hooks
+  const { volumes, failures } = importInstances(
+    sources.map((src) => src.instance),
+    { removeDissolved: (id: string) => datasetStore.remove(id) }
+  );
+  const entries = Object.entries(volumes);
+  // Every member reports back, so a collection that gained a member from a
+  // dissolved one saves its provenance too. The result names only this
+  // import's own sources, and no volume it brought none for.
+  datasetStore.addDataSources(
+    entries.map(([id, instances]) => loadableOf(id, sourcesOf(instances)))
+  );
+  return {
+    loadables: entries
+      .map(
+        ([id, instances]) =>
+          [
+            id,
+            sourcesOf(instances).filter((source) => supplied.has(source)),
+          ] as const
       )
-    );
-  } catch (err) {
-    if (!(err instanceof PartialImportError)) throw err;
-    // The series that committed are reported beside the failure.
-    throw new PartialDicomImportError(
-      publish(err.committed),
-      err.failures.map(({ error, instances }) => ({
-        error,
-        sources: sourcesOf(instances),
-      }))
-    );
-  }
+      .filter(([, own]) => own.length > 0)
+      .sort(([a], [b]) => (a < b ? -1 : Number(a > b)))
+      .map(([id, own]) => loadableOf(id, own)),
+    failures: failures.map(({ error, instances }) => ({
+      error,
+      sources: sourcesOf(instances),
+    })),
+  };
 }
 
-/**
- * Imports a drained queue's DICOM instances. The series that committed are
- * loaded, so their datasets are reported beside a failure rather than lost
- * with it, and only the sources of the series that failed are blamed for it.
- */
+/** Only the sources of a series that failed are blamed for its failure. */
 function importDicomResults(
   sources: DicomInstanceSource[]
 ): ImportDataSourcesResult[] {
-  try {
-    return importDicomInstanceSources(sources);
-  } catch (err) {
-    const partial = err instanceof PartialDicomImportError ? err : null;
-    const failures = partial?.failures ?? [
-      { error: ensureError(err), sources },
-    ];
-    return [
-      ...(partial?.loadables ?? []),
-      ...failures.map(({ error, sources: failed }) =>
-        asErrorResult(
-          error,
-          failed.length === 1
-            ? failed[0]
-            : { type: 'collection', sources: failed.length ? failed : sources }
-        )
-      ),
-    ];
-  }
+  const { loadables, failures } = importDicomInstanceSources(sources);
+  return [
+    ...loadables,
+    ...failures.map(({ error, sources: failed }) =>
+      asErrorResult(
+        error,
+        failed.length === 1
+          ? failed[0]
+          : { type: 'collection', sources: failed }
+      )
+    ),
+  ];
 }
 
 type ImportPolicy = 'application' | 'volume-data';
@@ -384,7 +343,6 @@ async function importDataSourcesWithPolicy(
     downloadStream,
 
     extractArchive,
-    extractArchiveTarget,
     importSingleFile,
     // catch any unhandled resource
     unhandledResource,
