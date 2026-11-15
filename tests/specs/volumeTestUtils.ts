@@ -44,6 +44,16 @@ export function writeNrrd(name: string, header: string, voxels: Buffer) {
   return `tmp/${name}/${name}.nrrd`;
 }
 
+export async function showColorPresets(show = true) {
+  const title = $('.v-expansion-panel-title*=Color Presets');
+  await title.scrollIntoView({ block: 'center', behavior: 'instant' });
+  if (((await title.getAttribute('aria-expanded')) === 'true') !== show) {
+    await title.click();
+  }
+}
+
+export const selectedPreset = () => $('.thumbnail-container.bg-blue');
+
 export async function openWith3DLayout(dataUrl: string, name: string) {
   const config = `${name}-layout.json`;
   await writeManifestToFile(LAYOUT, config);

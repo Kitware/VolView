@@ -12,7 +12,9 @@ import {
   differingFraction,
   floatVoxels,
   nrrd,
+  showColorPresets,
   openWith3DLayout,
+  selectedPreset,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -61,12 +63,8 @@ async function expectSelectedPreset(label: string) {
   await volViewPage.renderingModuleTab.waitForClickable();
   await volViewPage.renderingModuleTab.click();
   await waitForModuleTransitions();
-  const title = $('.v-expansion-panel-title*=Color Presets');
-  await title.scrollIntoView({ block: 'center', behavior: 'instant' });
-  if ((await title.getAttribute('aria-expanded')) !== 'true') {
-    await title.click();
-  }
-  await expect($('.thumbnail-container.bg-blue')).toHaveText(label);
+  await showColorPresets();
+  await expect(selectedPreset()).toHaveText(label);
 }
 
 describe('volume preset from declared modality', () => {

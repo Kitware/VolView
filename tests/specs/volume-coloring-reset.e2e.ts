@@ -4,7 +4,9 @@ import {
   differingFraction,
   floatVoxels,
   nrrd,
+  showColorPresets,
   openWith3DLayout,
+  selectedPreset,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -84,7 +86,7 @@ describe('3D rendering color and opacity reset', () => {
       return Math.max(0, 1000 * (1 - Math.hypot(...offsets) / (SIZE / 2)));
     });
     await openWith3DLayout(
-      writeNrrd(name, nrrd([], 'float', SIZE), voxels),
+      writeNrrd(name, nrrd(['modality:=MR'], 'float', SIZE), voxels),
       name
     );
     await volViewPage.renderingModuleTab.waitForClickable();
@@ -96,6 +98,13 @@ describe('3D rendering color and opacity reset', () => {
       'aria-label',
       'Reset color and opacity'
     );
+
+    // Reset must keep a preset chosen over the MR default.
+    await showColorPresets();
+    await $('.thumbnail-container*=Grayscale').click();
+    await expect(selectedPreset()).toHaveText('Grayscale');
+    // The open preset grid pushes the opacity editor out of the capture area.
+    await showColorPresets(false);
 
     // A gaussian stays highlighted once clicked, so select it before the baseline.
     await dragOpacityCurve(0);
@@ -134,5 +143,7 @@ describe('3D rendering color and opacity reset', () => {
       'Expected reset to restore the opacity curve and color bar'
     );
     await expect(ambientThumb()).toHaveAttribute('aria-valuenow', '0.3');
+    await showColorPresets();
+    await expect(selectedPreset()).toHaveText('Grayscale');
   }).timeout(180_000);
 });
