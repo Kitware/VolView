@@ -334,17 +334,6 @@ export async function dropFiles(filePaths: string[]) {
   expect(dropped).toBe(true);
 }
 
-/** Opens the Image spacing dialog of the first volume card. */
-export async function openSpacingDetails() {
-  await $('.volume-card [data-testid="dataset-menu-button"]').click();
-  const item = $('[data-testid="dataset-menu-spacing-item"]');
-  await item.waitForDisplayed();
-  await item.waitForStable();
-  await item.waitForClickable();
-  await item.click();
-  await $('[data-testid="image-spacing-details"]').waitForDisplayed();
-}
-
 const ACQUISITION_SLICE_SPACING = 2.5;
 
 type AcquisitionPass = {
