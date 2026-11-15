@@ -185,7 +185,7 @@ const isKnownUnknown = (
   return known !== undefined && known !== 'UN';
 };
 
-const peekSequence = (dataSet: DicomReadStream, syntax: string) => {
+const peekElementHead = (dataSet: DicomReadStream, syntax: string) => {
   const start = dataSet.offset;
   const implicit = syntax === IMPLICIT_VR_LITTLE_ENDIAN;
   dataSet.setEndian(syntax !== EXPLICIT_VR_BIG_ENDIAN);
@@ -197,6 +197,18 @@ const peekSequence = (dataSet: DicomReadStream, syntax: string) => {
   const length = length32 ? dataSet.readUint32() : dataSet.readUint16();
   const valueStart = dataSet.offset;
   dataSet.offset = start;
+  return { group, element, vr, length, valueStart };
+};
+
+type ElementHead = ReturnType<typeof peekElementHead>;
+
+const sequenceOf = ({
+  group,
+  element,
+  vr,
+  length,
+  valueStart,
+}: ElementHead) => {
   const knownUnknown = isKnownUnknown(vr, group, element);
   return needsSequenceReader(vr, length) || knownUnknown
     ? {
@@ -276,7 +288,7 @@ const implicitElement = (group: number, element: number, value: Uint8Array) => {
 const readSequence = (
   dataSet: DicomReadStream,
   syntax: string,
-  sequence: NonNullable<ReturnType<typeof peekSequence>>
+  sequence: NonNullable<ReturnType<typeof sequenceOf>>
 ): ParsedElement => {
   const { group, element, valueStart, end } = sequence;
   if (end !== null && end > dataSet.endOffset)
@@ -384,21 +396,37 @@ const readItemDelimiter = (dataSet: DicomReadStream, syntax: string) => {
   return true;
 };
 
+const isPixelData = ({ group, element }: { group: number; element: number }) =>
+  group === 0x7fe0 && element === 0x0010;
+
+// dcmjs reads a text value cut short by the end of the bytes as a shorter value.
+const assertValueFits = (
+  dataSet: DicomReadStream,
+  head: ElementHead,
+  stopAtPixelData: boolean
+) => {
+  const { group, element, length, valueStart } = head;
+  if (length === UNDEFINED_LENGTH || (stopAtPixelData && isPixelData(head)))
+    return;
+  const remain = dataSet.endOffset - valueStart;
+  if (length > remain)
+    throw new Error(
+      `Element (${hex4(group)},${hex4(element)}) needs ${length} bytes; ${remain} remain`
+    );
+};
+
 const readNextElement = (
   dataSet: DicomReadStream,
   syntax: string,
   stopAtPixelData: boolean
 ) => {
-  const sequence = peekSequence(dataSet, syntax);
-  if (
-    sequence &&
-    stopAtPixelData &&
-    sequence.group === 0x7fe0 &&
-    sequence.element === 0x0010
-  )
+  const head = peekElementHead(dataSet, syntax);
+  const sequence = sequenceOf(head);
+  if (sequence && stopAtPixelData && isPixelData(sequence))
     return { element: null, done: true };
   if (sequence)
     return { element: readSequence(dataSet, syntax, sequence), done: false };
+  assertValueFits(dataSet, head, stopAtPixelData);
 
   const element = DicomMessage._readTag(
     dataSet,

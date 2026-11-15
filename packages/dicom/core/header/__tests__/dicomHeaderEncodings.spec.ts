@@ -106,6 +106,22 @@ describe('streamed header encodings', () => {
     }
   );
 
+  it('reads a transfer syntax UID padded with a space instead of a null', async () => {
+    const bytes = syntheticSlice({ implicitVr: true, rows: 4, cols: 4 });
+    const uid = new TextDecoder('latin1')
+      .decode(bytes)
+      .indexOf('1.2.840.10008.1.2\0');
+    bytes[uid + 17] = 0x20;
+    const instance = await readHeader(bytes, 7);
+    expect(instance.transferSyntaxUid).toBe('1.2.840.10008.1.2');
+    expect(instance.pixelData).toEqual({
+      offset: bytes.length - 32 - 8,
+      valueOffset: bytes.length - 32,
+      length: 32,
+    });
+    expect(getDatasetTag(instance.dataset, '00280010')).toBe('4');
+  });
+
   it('reads past a defined-length sequence whose item is Implicit VR in an Explicit VR file', async () => {
     const item = toImplicitVr(
       concatBytes([

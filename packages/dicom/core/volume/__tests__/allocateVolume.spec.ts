@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { allocateVolume } from '../allocateVolume';
 import { allocated, pixelSlice } from './volumeFixture';
 import { plannedUpdate } from '@/tests/dicomVolumeFixtures';
+import { readHeader } from '@/tests/dicomSourceFixtures';
+import { nativePixelDicom } from '@/tests/nativePixelDicom';
 
 describe('allocateVolume', () => {
   it('allocates an empty buffer placed by the planned stack', () => {
@@ -36,6 +38,30 @@ describe('allocateVolume', () => {
       pixelSlice(1, { tags }),
     ]);
     expect(volume.data).toBeInstanceOf(type);
+  });
+
+  it.each(['0', '-3', '2.5'])(
+    'allocates one slice for an instance declaring %s frames',
+    (frames) => {
+      const volume = allocated([
+        pixelSlice(0, { tags: { '0028|0008': frames } }),
+      ]);
+      expect(volume.dimensions).toEqual([4, 4, 1]);
+      expect(volume.data).toHaveLength(16);
+    }
+  );
+
+  it('rejects a lone native instance declaring more frames than its Pixel Data holds', async () => {
+    const instance = await readHeader(
+      nativePixelDicom({
+        rows: 1,
+        columns: 1,
+        extra: [{ tag: 0x00280008, vr: 'IS', value: '40000000' }],
+      })
+    );
+    expect(() => allocateVolume(plannedUpdate([instance]))).toThrow(
+      'declares more frames than its Pixel Data holds: Pixel Data holds 2 bytes; its frames need 80000000'
+    );
   });
 
   it('keeps an irregular stack in order and reports why it is irregular', () => {

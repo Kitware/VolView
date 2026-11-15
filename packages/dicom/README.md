@@ -93,8 +93,8 @@ whether the latest ranged response honoured Range. Ranged URL reads bypass the
 HTTP cache, since Chrome can answer a Range from an entry an earlier cancelled
 read left behind with status 200 and only the range's bytes. A status other
 than 200, 206 or 416 fails with `HTTP <status> for <url>`. The `fetch` it was
-given sees its signal abort once a body has been read to the end, which is how
-a pooled request is released.
+given sees its signal abort once a body has been read to the end, so a pooled
+request lets go of the pool.
 `readBytes(source, signal, range?)` reads a source or a range into memory.
 Instances keep no bytes; read the source again when the original bytes are
 needed.
@@ -138,7 +138,7 @@ the batch touches.
 Each `InstanceCollectionUpdate` carries a stable `id` that starts with the
 Series Instance UID, the planned `collection`, `members` in planned order and,
 aligned with them, `provenance`: the batch's own instance wherever it
-re-supplied one. `kind` is `image`, or `segmentation` when the first member's
+re-supplied one with the same header facts. `kind` is `image`, or `segmentation` when the first member's
 Modality is SEG; a segmentation reader turns those labels into its own image.
 `change` says how the collection differs from what was last committed under
 its id: `new`, `unchanged` (same members and geometry, so an allocated volume
@@ -147,7 +147,8 @@ A collection's `label` names what separated it from the rest of its series and
 is null when nothing did.
 
 `forgetCollection(state, id)` drops a collection and its instances, so a later
-import plans them afresh. `seriesKeyOf` gives the series an instance plans in.
+import plans them afresh. `seriesKeyOf` gives the series an instance plans in:
+its Series Instance UID within its Study Instance UID.
 
 ## Volumes and loading
 
@@ -219,7 +220,11 @@ ending at High Bit (fewer stored bits only in 16 bit words), big endian only
 for 16 bit words, one modality rescale for all frames, and no overlay, curve,
 Modality LUT, palette or ICC data. GDCM plans the whole instance as one unit.
 Both apply one modality transform to the entire instance and decline, from the
-header, an instance whose frames differ in slope or intercept. Once a URL
+header, an instance whose frames differ in slope or intercept. The transform
+comes from the Pixel Value Transformation functional group only for the IODs
+that define it there (Enhanced and Legacy Converted CT, MR and PET, X-Ray 3D,
+breast tomosynthesis and projection, Segmentation), as GDCM reads it; other
+SOP classes use the top-level Rescale Slope and Intercept. Once a URL
 source shows that its server
 ignores Range, the remaining ranged units of that instance come from one read
 instead of one download each.
@@ -256,7 +261,8 @@ pad byte.
 ## Runtime
 
 `createDicomRuntime(options)` owns the request pool (`requestConcurrency`,
-default 24, exposed as `readConcurrency`), two metadata parser workers
+default 24, exposed as `readConcurrency`; it bounds requests waiting for their
+response headers, not bodies being read), two metadata parser workers
 (`metadataWorkerFactory` for another asset layout; its worker exposes
 `readPublicDataset`) and the GDCM decoder, which runs at most `decodeConcurrency`
 workers at once (default half the cores, at most four; each worker carries its

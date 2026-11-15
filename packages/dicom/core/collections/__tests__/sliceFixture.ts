@@ -13,7 +13,7 @@ export type SliceOptions = {
   orientation?: string | null;
   instanceNumber?: number | null;
   modality?: string;
-  // Extra tags, keyed 'gggg|eeee'.
+  // Extra tags, keyed 'gggg|eeee'; a fixed tag given here is replaced.
   tags?: Record<string, string>;
 };
 
@@ -39,21 +39,23 @@ export function sliceDataset(options: SliceOptions = {}) {
     tags = {},
   } = options;
 
-  return datasetFromTags([
-    [Tags.StudyInstanceUID, '1.2.826.0.1.3680043.9.1'],
-    [Tags.PatientID, 'patient-1'],
-    [Tags.SeriesNumber, '1'],
-    [Tags.Modality, modality],
-    [Tags.Rows, rows],
-    [Tags.Columns, '4'],
-    [Tags.SamplesPerPixel, '1'],
-    ...present(Tags.ImageOrientationPatient, orientation),
-    ...present(Tags.SeriesInstanceUID, series),
-    ...present(Tags.SOPInstanceUID, sop),
-    ...present(Tags.ImagePositionPatient, z, (value) => `0\\0\\${value}`),
-    ...present('0020|0013', instanceNumber),
-    ...Object.entries(tags),
-  ]);
+  return datasetFromTags(
+    new Map([
+      [Tags.StudyInstanceUID, '1.2.826.0.1.3680043.9.1'],
+      [Tags.PatientID, 'patient-1'],
+      [Tags.SeriesNumber, '1'],
+      [Tags.Modality, modality],
+      [Tags.Rows, rows],
+      [Tags.Columns, '4'],
+      [Tags.SamplesPerPixel, '1'],
+      ...present(Tags.ImageOrientationPatient, orientation),
+      ...present(Tags.SeriesInstanceUID, series),
+      ...present(Tags.SOPInstanceUID, sop),
+      ...present(Tags.ImagePositionPatient, z, (value) => `0\\0\\${value}`),
+      ...present('0020|0013', instanceNumber),
+      ...Object.entries(tags),
+    ])
+  );
 }
 
 /** The planner's facts for one slice, read the way a real header is. */

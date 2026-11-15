@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { readDicomDataset } from '../../metadata/dicomDataset';
+import * as Comlink from 'comlink';
+import {
+  readDicomDataset,
+  readPublicDataset,
+} from '../../metadata/dicomDataset';
 import { createMetadataReader } from '../metadataReader';
 import { buildSlice } from '@/tests/specs/dicomElementFixtures';
 import { rawElement } from '@/tests/specs/syntheticDicom';
@@ -78,5 +82,25 @@ describe('metadata worker ownership', () => {
     await expect(reader.read(buildSlice())).rejects.toMatchObject({
       name: 'AbortError',
     });
+  });
+
+  it('transfers a copy, so the caller keeps its bytes', async () => {
+    const reader = createMetadataReader({
+      metadataWorkerFactory: () => {
+        const { port1, port2 } = new MessageChannel();
+        Comlink.expose({ readPublicDataset }, port2);
+        return Object.assign(port1, {
+          terminate: () => port2.close(),
+        }) as unknown as Worker;
+      },
+    });
+    const bytes = buildSlice();
+    const original = bytes.slice();
+
+    const dataset = await reader.read(bytes);
+    reader.dispose();
+
+    expect(bytes).toEqual(original);
+    expect(dataset).toEqual(readPublicDataset(original));
   });
 });
