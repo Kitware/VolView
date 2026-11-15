@@ -95,24 +95,18 @@ class VolViewPage extends Page {
     return $$('.volume-card');
   }
 
-  /** Slice counts of the volume cards, ascending. Each label carries "[N]". */
-  async getVolumeCardSliceCounts() {
-    const cards = [...(await this.volumeCards)];
-    const labels = await Promise.all(cards.map((card) => card.getText()));
-    return labels
-      .map((label) => Number(label.match(/\[(\d+)\]/)?.[1]))
-      .filter(Number.isFinite)
-      .sort((a, b) => a - b);
-  }
-
+  /** Waits for the volume cards' "[N]" slice counts, ascending, to be `expected`. */
   async waitForVolumeCardSliceCounts(expected: number[]) {
     await browser.waitUntil(
       async () => {
-        const counts = await this.getVolumeCardSliceCounts();
-        return (
-          counts.length === expected.length &&
-          counts.every((count, index) => count === expected[index])
+        const labels = await Promise.all(
+          [...(await this.volumeCards)].map((card) => card.getText())
         );
+        const counts = labels
+          .map((label) => Number(label.match(/\[(\d+)\]/)?.[1]))
+          .filter(Number.isFinite)
+          .sort((a, b) => a - b);
+        return counts.join() === expected.join();
       },
       {
         timeout: DOWNLOAD_TIMEOUT,

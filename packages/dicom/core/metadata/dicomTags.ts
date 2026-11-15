@@ -1,59 +1,54 @@
-type Tag = {
-  name: string;
-  tag: string;
+export const Tags = {
+  SOPInstanceUID: '0008|0018',
+  PatientName: '0010|0010',
+  PatientID: '0010|0020',
+  PatientBirthDate: '0010|0030',
+  PatientSex: '0010|0040',
+  StudyInstanceUID: '0020|000d',
+  StudyDate: '0008|0020',
+  StudyTime: '0008|0030',
+  StudyID: '0020|0010',
+  AccessionNumber: '0008|0050',
+  StudyDescription: '0008|1030',
+  Modality: '0008|0060',
+  SeriesInstanceUID: '0020|000e',
+  SeriesNumber: '0020|0011',
+  SeriesDate: '0008|0021',
+  SeriesDescription: '0008|103e',
+  InstanceNumber: '0020|0013',
+  WindowLevel: '0028|1050',
+  WindowWidth: '0028|1051',
+  VOILUTFunction: '0028|1056',
+  Rows: '0028|0010',
+  Columns: '0028|0011',
+  BitsAllocated: '0028|0100',
+  BitsStored: '0028|0101',
+  PixelRepresentation: '0028|0103',
+  AcquisitionNumber: '0020|0012',
+  TemporalPositionIdentifier: '0020|0100',
+  EchoNumbers: '0018|0086',
+  DiffusionBValue: '0018|9087',
+  ImagePositionPatient: '0020|0032',
+  ImageOrientationPatient: '0020|0037',
+  PixelSpacing: '0028|0030',
+  SpacingBetweenSlices: '0018|0088',
+  SliceThickness: '0018|0050',
+  SequenceName: '0018|0024',
+  SamplesPerPixel: '0028|0002',
+  RescaleIntercept: '0028|1052',
+  RescaleSlope: '0028|1053',
+  NumberOfFrames: '0028|0008',
+  SOPClassUID: '0008|0016',
+  OphthalmicVolumetricPropertiesFlag: '0022|1622',
+  PhotometricInterpretation: '0028|0004',
+  PlanarConfiguration: '0028|0006',
+  FrameTime: '0018|1063',
+  SequenceOfUltrasoundRegions: '0018|6011',
+  PhysicalUnitsXDirection: '0018|6024',
+  PhysicalUnitsYDirection: '0018|6026',
+  PhysicalDeltaX: '0018|602c',
+  PhysicalDeltaY: '0018|602e',
 };
-
-const tags: Tag[] = [
-  { name: 'SOPInstanceUID', tag: '0008|0018' },
-  { name: 'PatientName', tag: '0010|0010' },
-  { name: 'PatientID', tag: '0010|0020' },
-  { name: 'PatientBirthDate', tag: '0010|0030' },
-  { name: 'PatientSex', tag: '0010|0040' },
-  { name: 'StudyInstanceUID', tag: '0020|000d' },
-  { name: 'StudyDate', tag: '0008|0020' },
-  { name: 'StudyTime', tag: '0008|0030' },
-  { name: 'StudyID', tag: '0020|0010' },
-  { name: 'AccessionNumber', tag: '0008|0050' },
-  { name: 'StudyDescription', tag: '0008|1030' },
-  { name: 'Modality', tag: '0008|0060' },
-  { name: 'SeriesInstanceUID', tag: '0020|000e' },
-  { name: 'SeriesNumber', tag: '0020|0011' },
-  { name: 'SeriesDate', tag: '0008|0021' },
-  { name: 'SeriesDescription', tag: '0008|103e' },
-  { name: 'InstanceNumber', tag: '0020|0013' },
-  { name: 'WindowLevel', tag: '0028|1050' },
-  { name: 'WindowWidth', tag: '0028|1051' },
-  { name: 'VOILUTFunction', tag: '0028|1056' },
-  { name: 'Rows', tag: '0028|0010' },
-  { name: 'Columns', tag: '0028|0011' },
-  { name: 'BitsAllocated', tag: '0028|0100' },
-  { name: 'BitsStored', tag: '0028|0101' },
-  { name: 'PixelRepresentation', tag: '0028|0103' },
-  { name: 'AcquisitionNumber', tag: '0020|0012' },
-  { name: 'TemporalPositionIdentifier', tag: '0020|0100' },
-  { name: 'EchoNumbers', tag: '0018|0086' },
-  { name: 'DiffusionBValue', tag: '0018|9087' },
-  { name: 'ImagePositionPatient', tag: '0020|0032' },
-  { name: 'ImageOrientationPatient', tag: '0020|0037' },
-  { name: 'PixelSpacing', tag: '0028|0030' },
-  { name: 'SpacingBetweenSlices', tag: '0018|0088' },
-  { name: 'SliceThickness', tag: '0018|0050' },
-  { name: 'SequenceName', tag: '0018|0024' },
-  { name: 'SamplesPerPixel', tag: '0028|0002' },
-  { name: 'RescaleIntercept', tag: '0028|1052' },
-  { name: 'RescaleSlope', tag: '0028|1053' },
-  { name: 'NumberOfFrames', tag: '0028|0008' },
-  { name: 'SOPClassUID', tag: '0008|0016' },
-  { name: 'OphthalmicVolumetricPropertiesFlag', tag: '0022|1622' },
-  { name: 'PhotometricInterpretation', tag: '0028|0004' },
-  { name: 'PlanarConfiguration', tag: '0028|0006' },
-  { name: 'FrameTime', tag: '0018|1063' },
-  { name: 'SequenceOfUltrasoundRegions', tag: '0018|6011' },
-  { name: 'PhysicalUnitsXDirection', tag: '0018|6024' },
-  { name: 'PhysicalUnitsYDirection', tag: '0018|6026' },
-  { name: 'PhysicalDeltaX', tag: '0018|602c' },
-  { name: 'PhysicalDeltaY', tag: '0018|602e' },
-];
 
 // DICOM SOP Class UIDs for Ultrasound Multi-frame Image Storage. The current
 // identifier is .4.1.1.3.1; the retired pre-1993 identifier is .4.1.1.3.
@@ -63,12 +58,10 @@ export const SOP_CLASS_ULTRASOUND_MULTIFRAME = '1.2.840.10008.5.1.4.1.1.3.1';
 export const SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED =
   '1.2.840.10008.5.1.4.1.1.3';
 
-export function isUltrasoundMultiframeSopClass(uid: string): boolean {
+export function isUltrasoundMultiframeSopClass(uid: string) {
   const trimmed = uid.trim();
   return (
     trimmed === SOP_CLASS_ULTRASOUND_MULTIFRAME ||
     trimmed === SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED
   );
 }
-
-export const Tags = Object.fromEntries(tags.map((t) => [t.name, t.tag]));

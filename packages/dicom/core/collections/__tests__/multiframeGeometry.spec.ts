@@ -18,9 +18,9 @@ import {
   tags,
 } from '../../volume/__tests__/enhancedFixture';
 
-const collectionOf = (metadata: DicomDataset, seriesKey = 'frames') =>
+const collectionOf = (metadata: DicomDataset) =>
   planDicomCollections({
-    seriesKey,
+    seriesKey: 'frames',
     instances: [readInstanceDetails(metadata).facts],
   })[0];
 
@@ -94,6 +94,6 @@ describe('multiframe geometry', () => {
       [0, 1, 0, 1].map((z) => positioned(`0\\0\\${z}`)),
       { '00080060': 'SEG' }
     );
-    expect(collectionOf(metadata, 'seg').warnings).toEqual([]);
+    expect(collectionOf(metadata).warnings).toEqual([]);
   });
 });

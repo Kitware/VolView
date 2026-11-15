@@ -7,7 +7,6 @@ import {
   emptyRegistry,
   forgetCollection,
   registerInstances,
-  type RegistryState,
 } from '../instanceRegistry';
 import { UNREADABLE_POSITION_WARNING } from '../planDicomCollections';
 import { mergingInstances, tilt } from '@/tests/dicomOrientationFixtures';
@@ -428,7 +427,7 @@ describe('pure instance registry', () => {
   it('drops an emptied series from the state', () => {
     const only = slice();
     const { state, updates } = registerInstances(emptyRegistry, [only]);
-    const forgotten: RegistryState = forgetCollection(state, updates[0].id);
+    const forgotten = forgetCollection(state, updates[0].id);
     expect(forgotten.size).toBe(0);
   });
 });

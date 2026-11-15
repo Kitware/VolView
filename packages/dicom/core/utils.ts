@@ -1,4 +1,5 @@
 export type Awaitable<T> = T | Promise<T>;
+
 /** Boundary padding accepted by numeric readers, without changing the stored text. */
 export const trimDicomPadding = (value: string) =>
   value.replace(/^[\s\0]+|[\s\0]+$/g, '');
@@ -17,27 +18,13 @@ export function concatBytes(
   return out;
 }
 
-export function toAscii(
-  bytes: Uint8Array | Uint8ClampedArray,
-  { ignoreNulls = false } = {}
-) {
-  const chars = [];
-  for (let i = 0; i < bytes.length; i++) {
-    if (!(ignoreNulls && bytes[i] === 0)) {
-      chars.push(String.fromCharCode(bytes[i]));
-    }
-  }
-  return chars.join('');
-}
+export const toAscii = (bytes: Uint8Array, { ignoreNulls = false } = {}) =>
+  Array.from(ignoreNulls ? bytes.filter((byte) => byte !== 0) : bytes, (byte) =>
+    String.fromCharCode(byte)
+  ).join('');
 
-/**
- * Wraps a generator as a coroutine.
- * @param generator
- * @param args
- * @returns
- */
+/** Starts a generator and returns a function that feeds it one value per step. */
 export function asCoroutine<T, R, N>(gen: Generator<T, R, N>) {
-  // run initial code
   const result = gen.next();
   if (result.done) return () => result;
   return (value: N): IteratorResult<T, R> => gen.next(value);

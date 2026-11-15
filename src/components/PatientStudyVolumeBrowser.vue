@@ -130,31 +130,23 @@ export default defineComponent({
               volumeKeys.value.includes(key) &&
               imageCacheStore.imageById[key] === image &&
               dicomStore.volumeInfo[key] === info;
+            const modality: Thumbnail = { kind: 'text', value: info.Modality };
 
             try {
               const thumb = await image.getThumbnail();
               if (!isCurrent()) return;
-              if (thumb) {
-                thumbnailCache[cacheKey] = { kind: 'image', value: thumb };
-              } else {
-                thumbnailCache[cacheKey] = {
-                  kind: 'text',
-                  value: info.Modality,
-                };
-              }
+              thumbnailCache[cacheKey] = thumb
+                ? { kind: 'image', value: thumb }
+                : modality;
             } catch (err) {
               if (!isCurrent()) return;
               if (err instanceof Error && err.name !== 'AbortError') {
-                const messageStore = useMessageStore();
-                messageStore.addError('Failed to generate thumbnails', {
+                useMessageStore().addError('Failed to generate thumbnails', {
                   error: err,
                   details: `${err}. More details can be found in the developer's console.`,
                 });
               }
-              thumbnailCache[cacheKey] = {
-                kind: 'text',
-                value: info.Modality,
-              };
+              thumbnailCache[cacheKey] = modality;
             }
           });
 

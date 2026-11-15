@@ -3,10 +3,15 @@ import {
   getBufferValueRange,
   valuesFitBuffer,
   samplesAreIntegral,
+  type Rescale,
+  type ValueRange,
 } from './pixelFormat';
 
+const UNCONVERTED =
+  'Every file in a volume must decode to values its buffer can hold without conversion.';
+
 /** What a unit decodes to, or what its header says it will. */
-export type UnitShape = Readonly<{
+type UnitShape = Readonly<{
   size: readonly number[];
   components: number;
   samples: number;
@@ -14,7 +19,7 @@ export type UnitShape = Readonly<{
 
 export function assertSamplesRepresentable(
   decoded: ArrayLike<number>,
-  range: { min: number; max: number },
+  range: ValueRange,
   buffer: ArrayBufferView,
   {
     where,
@@ -22,10 +27,7 @@ export function assertSamplesRepresentable(
   }: {
     where: string;
     /** Every frame calibration the samples went through; read only for Float32. */
-    rescales: () => ReadonlyArray<{
-      rescaleSlope: number;
-      rescaleIntercept: number;
-    }>;
+    rescales: () => readonly Rescale[];
   }
 ) {
   const unheld =
@@ -37,7 +39,7 @@ export function assertSamplesRepresentable(
       `${where} has pixel values the volume it belongs to cannot represent. ` +
         `Its pixel values run from ${range.min} to ${range.max} with a rescale slope of ${unheld.rescaleSlope}, ` +
         `but the volume's buffer is Float32Array, which would merge or round values of that size. ` +
-        `Every file in a volume must decode to values its buffer can hold without conversion.`
+        UNCONVERTED
     );
   }
   if (!valuesFitBuffer(range, buffer)) {
@@ -46,7 +48,7 @@ export function assertSamplesRepresentable(
       `${where} has pixel values the volume it belongs to cannot represent. ` +
         `Its pixel values run from ${range.min} to ${range.max}, but the volume's buffer is ` +
         `${buffer.constructor.name}, holding values from ${bufferRange.min} to ${bufferRange.max}. ` +
-        `Every file in a volume must decode to values its buffer can hold without conversion.`
+        UNCONVERTED
     );
   }
   if (!samplesAreIntegral(decoded, buffer)) {
@@ -54,7 +56,7 @@ export function assertSamplesRepresentable(
       `${where} has fractional pixel values the volume it belongs to cannot represent. ` +
         `Its pixel values run from ${range.min} to ${range.max}, but the volume's buffer is ` +
         `${buffer.constructor.name}, which holds only whole numbers. ` +
-        `Every file in a volume must decode to values its buffer can hold without conversion.`
+        UNCONVERTED
     );
   }
 }

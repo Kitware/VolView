@@ -1,6 +1,6 @@
 import { readDicomDataset, findElement } from '../dicomDataset';
 import { getDatasetTag } from '../datasetAccess';
-import { getFrameTag } from '../functionalGroups';
+import { getFrameTag, sequenceItems } from '../functionalGroups';
 import { createDicomParser } from '../../header/dicomParser';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +20,7 @@ import {
 } from '@/tests/specs/syntheticDicom';
 
 const PREAMBLE_LENGTH = 128;
+const encode = (text: string) => new TextEncoder().encode(text);
 // (0002,0000) UL occupies twelve bytes, including its value.
 const GROUP_LENGTH_ELEMENT_LENGTH = 12;
 const withoutGroupLength = (file: Uint8Array) =>
@@ -70,7 +71,6 @@ describe('file meta information', () => {
     ({ groupLength, deflate }) => {
       const file = buildSlice();
       file.fill(0x41, 0, PREAMBLE_LENGTH);
-      const encode = (text: string) => new TextEncoder().encode(text);
       const meta = concatBytes([
         rawElement(0x0002, 0x0010, 'UI', encode('1.2.840.10008.1.2.1.99')),
         // The transfer syntax need not be the last file-meta element.
@@ -104,7 +104,6 @@ describe('file meta information', () => {
 });
 
 describe('lenient headers with standards-defined values', () => {
-  const encode = (text: string) => new TextEncoder().encode(text);
   it.each([false, true])(
     'ignores an undersized meta group length (implicit: %s)',
     (implicitVr) => {
@@ -251,9 +250,8 @@ describe('lenient headers with standards-defined values', () => {
         ],
       })
     );
-    const sequence = findElement(dataset, '00081140')!.values;
-    if (sequence.kind !== 'sequence') throw new Error('Expected a sequence');
-    expect(findElement(sequence.items[0], '00291010')!.values).toEqual({
+    const [reference] = sequenceItems(dataset, '00081140');
+    expect(findElement(reference, '00291010')!.values).toEqual({
       kind: 'bytes',
       values: [bytes],
     });
@@ -279,7 +277,6 @@ describe('lenient headers with standards-defined values', () => {
 it.each([sequenceItem, undefinedLengthItem])(
   'reads an implicit private undefined-length sequence with %s',
   async (item) => {
-    const encode = (text: string) => new TextEncoder().encode(text);
     const content = toImplicitVr(
       rawElement(0x0010, 0x0010, 'PN', encode('DOE^JANE'))
     );
@@ -296,16 +293,14 @@ it.each([sequenceItem, undefinedLengthItem])(
       base.subarray(pixelStart),
     ]);
     const dataset = readDicomDataset(bytes);
-    const sequence = findElement(dataset, '00431029')!.values;
-    if (sequence.kind !== 'sequence') throw new Error('Expected a sequence');
-    expect(getDatasetTag(sequence.items[0], '00100010')).toBe('DOE^JANE');
+    const [privateItem] = sequenceItems(dataset, '00431029');
+    expect(getDatasetTag(privateItem, '00100010')).toBe('DOE^JANE');
     const instance = await readHeader(bytes, 7);
     expect(instance.dataset).toEqual(readDicomDataset(base));
   }
 );
 
 it('decodes a known UN nested inside an explicit sequence with inherited UTF-8', () => {
-  const encode = (text: string) => new TextEncoder().encode(text);
   const dataset = readDicomDataset(
     concatBytes([
       rawElement(0x0008, 0x0005, 'CS', encode('ISO_IR 192')),
@@ -317,16 +312,13 @@ it('decodes a known UN nested inside an explicit sequence with inherited UTF-8',
       ),
     ])
   );
-  const sequence = findElement(dataset, '00081140')!.values;
-  if (sequence.kind !== 'sequence') throw new Error('Expected a sequence');
-  expect(getDatasetTag(sequence.items[0], '00100010')?.trim()).toBe(
-    'M\u00dcLLER'
-  );
+  const [reference] = sequenceItems(dataset, '00081140');
+  expect(getDatasetTag(reference, '00100010')?.trim()).toBe('M\u00dcLLER');
 });
 
 it('stops before a known UN Pixel Data value, even when only its header is present', () => {
   const input = concatBytes([
-    rawElement(0x0008, 0x0060, 'CS', new TextEncoder().encode('CT')),
+    rawElement(0x0008, 0x0060, 'CS', encode('CT')),
     rawElement(0x7fe0, 0x0010, 'UN', new Uint8Array(16)).subarray(0, 12),
   ]);
   expect(parseDicomElements(input)).toHaveLength(1);

@@ -1,18 +1,10 @@
 import ByteDeque from './byteDeque';
 import { toAscii } from '../utils';
 
-/**
- * StreamingByteReader
- *
- * Expects Uint8Array inputs
- */
+/** Reads values off a byte stream that a generator's caller feeds chunk by chunk. */
 export default class StreamingByteReader {
-  protected leftover: ByteDeque;
-  protected pos = 0;
-
-  constructor() {
-    this.leftover = new ByteDeque();
-  }
+  private leftover = new ByteDeque();
+  private pos = 0;
 
   get position() {
     return this.pos;
@@ -57,28 +49,26 @@ export default class StreamingByteReader {
     return data;
   }
 
-  /** Reads an ASCII string. */
-  *readAscii(length: number, { ignoreNulls = false, peek = false } = {}) {
-    const bytes = yield* this.read(length, { peek });
-    return toAscii(bytes, { ignoreNulls });
+  *readAscii(length: number) {
+    return toAscii(yield* this.read(length));
   }
 
   /** `length` must be the length associated with the method. */
   private *readDataView(
     method: 'getUint16' | 'getUint32',
     length: number,
-    { littleEndian = false, peek = false } = {}
+    littleEndian: boolean
   ) {
-    const bytes = yield* this.read(length, { peek });
+    const bytes = yield* this.read(length);
     const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     return dv[method](0, littleEndian);
   }
 
-  *readUint16(opts = {}) {
-    return yield* this.readDataView('getUint16', 2, opts);
+  *readUint16({ littleEndian = false } = {}) {
+    return yield* this.readDataView('getUint16', 2, littleEndian);
   }
 
-  *readUint32(opts = {}) {
-    return yield* this.readDataView('getUint32', 4, opts);
+  *readUint32({ littleEndian = false } = {}) {
+    return yield* this.readDataView('getUint32', 4, littleEndian);
   }
 }

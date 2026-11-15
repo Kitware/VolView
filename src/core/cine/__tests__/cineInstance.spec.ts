@@ -183,7 +183,7 @@ describe('readCineHeader', () => {
         cineInstance({
           [Tags.SamplesPerPixel]: '3',
           [Tags.PhotometricInterpretation]: 'RGB',
-          '0028|0006': '1',
+          [Tags.PlanarConfiguration]: '1',
           [Tags.FrameTime]: '33.3',
         })
       )

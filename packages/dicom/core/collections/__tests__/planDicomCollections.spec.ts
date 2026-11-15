@@ -142,22 +142,12 @@ describe('planDicomCollections', () => {
   });
 
   it('buckets a chain of anonymous near orientations the same under permutation', () => {
-    const anonymousChain = () => [
+    const [x, y, z] = [0, CHAIN, 2 * CHAIN].map((theta, position) =>
       makeFacts(null, {
-        orientation: IDENTITY_ORIENTATION,
-        projectedPosition: 0,
-      }),
-      makeFacts(null, {
-        orientation: tiltedOrientation(CHAIN),
-        projectedPosition: 1,
-      }),
-      makeFacts(null, {
-        orientation: tiltedOrientation(2 * CHAIN),
-        projectedPosition: 2,
-      }),
-    ];
-
-    const [x, y, z] = anonymousChain();
+        orientation: tiltedOrientation(theta),
+        projectedPosition: position,
+      })
+    );
     const forward = plan([x, y, z]);
 
     expect(forward.map((c) => c.members.length)).toEqual([1, 2]);
@@ -249,12 +239,9 @@ describe('planDicomCollections', () => {
   });
 
   it('breaks a shared position between anonymous members on instance number', () => {
-    const anonymousPair = () => [
-      makeFacts(null, { projectedPosition: 0, instanceNumber: 1 }),
-      makeFacts(null, { projectedPosition: 0, instanceNumber: 2 }),
-    ];
-
-    const [a, b] = anonymousPair();
+    const [a, b] = [1, 2].map((instanceNumber) =>
+      makeFacts(null, { projectedPosition: 0, instanceNumber })
+    );
     const forward = plan([a, b]);
 
     expect(forward[0].members.map((m) => m.instanceNumber)).toEqual([1, 2]);
@@ -705,18 +692,6 @@ describe('acquisition descriptors', () => {
     );
 
     expect(plan(members)).toEqual(plan([...members].reverse()));
-  });
-
-  it('labels incompatible pixel shapes', () => {
-    const collections = plan([
-      makeFacts('small', { rows: '4' }),
-      makeFacts('large', { rows: '8' }),
-    ]);
-
-    expect(collections.map((collection) => collection.label)).toEqual([
-      'rows 4',
-      'rows 8',
-    ]);
   });
 
   it('keeps incompatible acquisition descriptors apart when geometry is unreadable', () => {

@@ -53,30 +53,16 @@ const UNREADABLE_GEOMETRY = 'unreadable';
  */
 export type PositionOf = (member: InstanceFacts) => number | null;
 
-const countDistinctPositions = (
-  members: InstanceFacts[],
-  positionOf: PositionOf
-) => new Set(members.map(positionOf)).size;
-
-const hasRepeatedPositions = (
-  members: InstanceFacts[],
-  positionOf: PositionOf
-) => countDistinctPositions(members, positionOf) !== members.length;
+const spanOf = (group: InstanceFacts[], positionOf: PositionOf) => {
+  const positions = group.map(positionOf) as number[];
+  return { min: Math.min(...positions), max: Math.max(...positions) };
+};
 
 /**
  * Whether any two groups cover overlapping stretches of the slice axis.
  * Bounds are closed, so scans sharing a boundary slice count as overlapping:
  * that shared position is a duplicate either way.
  */
-const spanOf = (group: InstanceFacts[], positionOf: PositionOf) =>
-  group.reduce(
-    (span, member) => ({
-      min: Math.min(span.min, positionOf(member) as number),
-      max: Math.max(span.max, positionOf(member) as number),
-    }),
-    { min: Infinity, max: -Infinity }
-  );
-
 const anySpansOverlap = (groups: InstanceFacts[][], positionOf: PositionOf) => {
   const spans = groups
     .map((group) => spanOf(group, positionOf))
@@ -96,14 +82,10 @@ const groupByAxis = (
   singlePlane: boolean
 ) => {
   const independentImages = singlePlane && axis.kind === 'descriptor';
-  const tagged = new Map<string | null, InstanceFacts[]>();
-  members.forEach((member) => {
-    const value = member[axis.fact];
-    if (value === null && !independentImages) return;
-    const group = tagged.get(value);
-    if (group) group.push(member);
-    else tagged.set(value, [member]);
-  });
+  const tagged = groupBy(
+    members.filter((member) => member[axis.fact] !== null || independentImages),
+    (member) => member[axis.fact]
+  );
   // A counter stamped per slice cannot establish a separate acquisition.
   // Descriptor differences on one plane distinguish images without removing
   // a slice from a spatial stack.
@@ -113,14 +95,11 @@ const groupByAxis = (
         axis.kind === 'contrast' || independentImages || group.length > 1
     )
   );
-  const remainder = members.filter((member) => {
-    const value = member[axis.fact];
-    return !eligible.has(value);
-  });
+  const remainder = members.filter(
+    (member) => !eligible.has(member[axis.fact])
+  );
   return { tagged: eligible, remainder };
 };
-
-type Split = { value: string | null; members: InstanceFacts[] };
 
 /**
  * The first axis whose tagged groups cover overlapping stretches of the slice
@@ -198,7 +177,8 @@ function splitByAxes(
 ): SemanticPart[] {
   // Counters alone leave a repeatedly scanned plane as a time series. Contrast
   // tags and descriptors can still distinguish independent images on it.
-  const singlePlane = countDistinctPositions(members, positionOf) === 1;
+  const distinctPositions = new Set(members.map(positionOf)).size;
+  const singlePlane = distinctPositions === 1;
   const found = firstSplittingAxis(
     members,
     singlePlane ? axes.filter((axis) => axis.kind !== 'counter') : axes,
@@ -206,13 +186,13 @@ function splitByAxes(
     singlePlane
   );
   if (!found)
-    return unsplit(members, axes, hasRepeatedPositions(members, positionOf));
+    return unsplit(members, axes, distinctPositions !== members.length);
 
   const { axis, tagged, remainder } = found;
   const index = axes.indexOf(axis);
   const skipped = axes.slice(0, index);
   const rest = axes.slice(index + 1);
-  const splits: Split[] = [
+  const splits = [
     ...[...tagged].map(([value, group]) => ({ value, members: group })),
     ...(remainder.length > 0 ? [{ value: null, members: remainder }] : []),
   ];

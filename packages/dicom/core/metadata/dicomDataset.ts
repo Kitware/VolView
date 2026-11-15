@@ -59,7 +59,7 @@ export type DicomDataset = {
 const tagKey = (group: number, element: number) =>
   `${hex4(group)}${hex4(element)}`;
 
-export const isPrivateElement = ({ group }: DicomElement) => (group & 1) === 1;
+const isPrivateElement = ({ group }: DicomElement) => (group & 1) === 1;
 
 export const findElement = (dataset: DicomDataset, tag: DicomTagKey) =>
   dataset.elements.find((element) => element.tag === tag);
@@ -190,9 +190,7 @@ export const readDicomDataset = (bytes: Uint8Array) =>
   buildDataset(parseDicomElements(bytes), null);
 
 /** Image loading uses public attributes; private payloads stay in the source. */
-export const withoutPrivateElements = (
-  dataset: DicomDataset
-): DicomDataset => ({
+const withoutPrivateElements = (dataset: DicomDataset): DicomDataset => ({
   ...dataset,
   elements: dataset.elements
     .filter((element) => !isPrivateElement(element))

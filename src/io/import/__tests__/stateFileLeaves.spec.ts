@@ -8,7 +8,7 @@ import {
   buildStateIDToStoreID,
   findSplitStateDatasets,
 } from '@/src/io/import/importDataSources';
-import type { LoadableResult } from '@/src/io/import/common';
+import { asLoadableResult, type LoadableResult } from '@/src/io/import/common';
 
 // ---------------------------------------------------------------------------
 // Multi-file DICOM ephemeral open: the backend's
@@ -37,6 +37,9 @@ const mergedDicomSource = (stateIDs: string[]): DataSource => ({
     parent: uriLeaf(`https://girder.example/file/${i}`, stateID),
   })),
 });
+
+const loadedDicom = (dataID: string, stateIDs: string[]) =>
+  asLoadableResult(dataID, mergedDicomSource(stateIDs), 'image');
 
 describe('findStateFileLeaves', () => {
   it('walks the parent chain of a plain source', () => {
@@ -80,12 +83,7 @@ describe('findStateFileLeaves', () => {
 describe('buildStateIDToStoreID', () => {
   it('maps every per-file dataset id of a merged DICOM volume to the ONE store id', () => {
     const loadables: LoadableResult[] = [
-      {
-        type: 'data',
-        dataID: 'store-dicom',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-f1', 'ds-f2', 'ds-f3']),
-      },
+      loadedDicom('store-dicom', ['ds-f1', 'ds-f2', 'ds-f3']),
       {
         type: 'data',
         dataID: 'store-seg',
@@ -112,25 +110,10 @@ describe('buildStateIDToStoreID', () => {
     // volumes (overlapping acquisitions) has no single owner for its saved
     // state. Binding to either volume would attach annotations to an
     // arbitrary sub-volume, so the dataset must go unresolved instead.
-    const loadables: LoadableResult[] = [
-      {
-        type: 'data',
-        dataID: 'store-acq1',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-split', 'ds-split']),
-      },
-      {
-        type: 'data',
-        dataID: 'store-acq2',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-split']),
-      },
-      {
-        type: 'data',
-        dataID: 'store-whole',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-whole']),
-      },
+    const loadables = [
+      loadedDicom('store-acq1', ['ds-split', 'ds-split']),
+      loadedDicom('store-acq2', ['ds-split']),
+      loadedDicom('store-whole', ['ds-whole']),
     ];
 
     expect(buildStateIDToStoreID(loadables)).toEqual({
@@ -139,25 +122,10 @@ describe('buildStateIDToStoreID', () => {
   });
 
   it('names the volumes a split dataset now loads as', () => {
-    const loadables: LoadableResult[] = [
-      {
-        type: 'data',
-        dataID: 'store-acq1',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-split']),
-      },
-      {
-        type: 'data',
-        dataID: 'store-acq2',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-split']),
-      },
-      {
-        type: 'data',
-        dataID: 'store-whole',
-        dataType: 'image',
-        dataSource: mergedDicomSource(['ds-whole']),
-      },
+    const loadables = [
+      loadedDicom('store-acq1', ['ds-split']),
+      loadedDicom('store-acq2', ['ds-split']),
+      loadedDicom('store-whole', ['ds-whole']),
     ];
 
     expect(findSplitStateDatasets(loadables)).toEqual({

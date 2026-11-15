@@ -33,6 +33,10 @@ import {
   decodeNativeFrame,
 } from './frameCache';
 
+const REGION_SOURCE = 'Ultrasound region (cm converted to mm)';
+const NO_SPACING =
+  'No usable spatial ultrasound region or PixelSpacing is supplied.';
+
 function spatialRegionSpacing(r: CineHeader['regions'][number]) {
   const sx = unitToMm(r.physicalUnitsXDirection);
   const sy = unitToMm(r.physicalUnitsYDirection);
@@ -40,14 +44,8 @@ function spatialRegionSpacing(r: CineHeader['regions'][number]) {
   const { physicalDeltaX: dx, physicalDeltaY: dy } = r;
   if (!dx || !dy || !Number.isFinite(dx) || !Number.isFinite(dy)) return null;
   return [
-    physicalSpacing(
-      Math.abs(dx) * sx,
-      'Ultrasound region (cm converted to mm)'
-    ),
-    physicalSpacing(
-      Math.abs(dy) * sy,
-      'Ultrasound region (cm converted to mm)'
-    ),
+    physicalSpacing(Math.abs(dx) * sx, REGION_SOURCE),
+    physicalSpacing(Math.abs(dy) * sy, REGION_SOURCE),
   ] as const;
 }
 
@@ -55,16 +53,16 @@ function pickSpacing(header: CineHeader): SpatialMetadata {
   const z = fallbackSpacing(
     'Cine frames share one image plane; this is not a spatial frame step.'
   );
-  for (const r of header.regions) {
-    const spacing = spatialRegionSpacing(r);
-    if (!spacing) continue;
+  const regionSpacing = header.regions
+    .map(spatialRegionSpacing)
+    .find((spacing) => spacing !== null);
+  if (regionSpacing)
     return {
-      axes: [...spacing, z],
+      axes: [...regionSpacing, z],
       notes: [
         'Physical spacing applies within the first spatial ultrasound region, not necessarily the entire image.',
       ],
     };
-  }
 
   if (header.pixelSpacing) {
     const [rowSpacing, columnSpacing] = header.pixelSpacing;
@@ -79,15 +77,7 @@ function pickSpacing(header: CineHeader): SpatialMetadata {
   }
 
   return {
-    axes: [
-      fallbackSpacing(
-        'No usable spatial ultrasound region or PixelSpacing is supplied.'
-      ),
-      fallbackSpacing(
-        'No usable spatial ultrasound region or PixelSpacing is supplied.'
-      ),
-      z,
-    ],
+    axes: [fallbackSpacing(NO_SPACING), fallbackSpacing(NO_SPACING), z],
     notes: [],
   };
 }

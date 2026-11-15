@@ -199,27 +199,23 @@ describe('DicomVolumeImage loading', () => {
 });
 
 describe('DicomVolumeImage failures', () => {
-  async function loadRejected(dataFor: (value: number) => ArrayLike<number>) {
-    const { image, errors } = holder(decodeTo(dataFor).decoder);
+  it('settles after rejecting decoded values its integer buffer cannot hold', async () => {
+    const { decoder } = decodeTo((value) =>
+      value === 2
+        ? new Uint16Array(PIXELS_PER_SLICE).fill(5000)
+        : new Uint8Array(PIXELS_PER_SLICE).fill(value)
+    );
+    const { image, errors } = holder(decoder);
     const eightBit = { [Tags.BitsStored]: '8' };
 
     await show(image, volumeOf([sliceAt(1, eightBit), sliceAt(2, eightBit)]));
 
     expect(image.status.value).toBe('complete');
-    expect(errors).toHaveLength(1);
     expect(sliceOf(image, 0)).toEqual(filledWith(1));
     expect(sliceOf(image, 1)).toEqual(filledWith(0));
-    return errors[0].message;
-  }
-
-  it('settles after rejecting decoded values its integer buffer cannot hold', async () => {
-    const message = await loadRejected((value) =>
-      value === 2
-        ? new Uint16Array(PIXELS_PER_SLICE).fill(5000)
-        : new Uint8Array(PIXELS_PER_SLICE).fill(value)
-    );
-    expect(message).toContain('5000');
-    expect(message).toContain('Uint8Array');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('5000');
+    expect(errors[0].message).toContain('Uint8Array');
   });
 
   it('settles once every frame of a multiframe instance loaded or failed', async () => {
