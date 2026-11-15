@@ -10,7 +10,7 @@ describe('mappingRangeSliders', () => {
     (fullWidth) => {
       const { step, shift, width } = mappingRangeSliders(fullWidth);
       expect(step).toBeGreaterThan(0);
-      expect(step).toBeLessThanOrEqual(Math.min(1, fullWidth / 2));
+      expect(step).toBeLessThanOrEqual(Math.min(1, fullWidth / 256));
       expect(width[0]).toBeLessThan(fullWidth);
       expect(width[1]).toBe(2 * fullWidth);
       expect(shift[0]).toBe(-shift[1]);
