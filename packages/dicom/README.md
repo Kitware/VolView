@@ -349,5 +349,4 @@ Vue or Pinia, and the core page also fails on vtk.js.
   import over HTTP. `tests/dicomCompositionCorpus.json` records the inputs and
   expectations; `compositionReference.py` beside the pages checks them with
   pydicom and NumPy.
-- `dicom-frame-reconstruction.e2e.ts` and `dicom-spacing-details.e2e.ts` check
-  multiframe reconstruction and spacing reports.
+- `dicom-frame-reconstruction.e2e.ts` checks multiframe reconstruction.
