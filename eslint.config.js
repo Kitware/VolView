@@ -4,6 +4,17 @@ import eslintPluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
+import { limits } from './scripts/checks/config.mjs';
+
+const limitRules = (level) => ({
+  complexity: [level, limits.complexity],
+  'max-depth': [level, limits['max-depth']],
+  'max-params': [level, limits['max-params']],
+  'max-lines': [
+    level,
+    { max: limits['max-lines'], skipBlankLines: true, skipComments: true },
+  ],
+});
 
 // ---------------------------------------------------------------------------
 // Feature layering boundaries.
@@ -369,27 +380,24 @@ export default tseslint.config(
       ],
     },
   },
-  // Mirrors the limits scripts/checks/complexity.mjs enforces per commit. Warn
-  // level because the ratchet only fails a file whose debt grows, so existing
+  // The limits scripts/checks/complexity.mjs enforces per commit. Warn level
+  // in src because the ratchet only fails a file whose debt grows, so existing
   // files stay over these numbers without failing `npm run lint`.
   {
-    files: ['src/**/*.{js,ts,vue}', 'packages/dicom/**/*.{js,ts}'],
+    files: ['src/**/*.{js,ts,vue}'],
     ignores: [
-      'packages/dicom/**/__tests__/**',
       'src/**/__tests__/**',
       'src/**/*.{spec,test}.{js,ts}',
       'src/**/*.d.ts',
       '**/emscripten-build/**',
     ],
-    rules: {
-      complexity: ['warn', 10],
-      'max-depth': ['warn', 3],
-      'max-params': ['warn', 4],
-      'max-lines': [
-        'warn',
-        { max: 600, skipBlankLines: true, skipComments: true },
-      ],
-    },
+    rules: limitRules('warn'),
+  },
+  // The DICOM module carries no debt, so it is held to the limits outright.
+  {
+    files: ['packages/dicom/**/*.{js,ts}'],
+    ignores: ['packages/dicom/**/__tests__/**'],
+    rules: limitRules('error'),
   },
   {
     files: ['packages/dicom/core/**/*.{js,ts}'],
