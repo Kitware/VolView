@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Test duplication ratchet: the staged tests may not introduce a clone that
-// did not already exist at the base ref.
+// Duplication ratchet: the staged tests and DICOM module may not introduce a
+// clone that did not already exist at the base ref.
 //
 //   duplication.mjs --base main compares the index with merge-base(main, HEAD).
 import { execFileSync } from 'node:child_process';
@@ -11,16 +11,18 @@ import { createRequire } from 'node:module';
 import { git, materialize, paths, stagedContext } from './git.mjs';
 import { minCloneTokens as MIN_TOKENS } from './config.mjs';
 
-const TEST = /(__tests__\/.*|\.(spec|test)|^tests\/.*)\.[cm]?[jt]sx?$/;
+// The DICOM module's source is in scope as well as tests, since it has no clones.
+const SCOPE =
+  /(__tests__\/.*|\.(spec|test)|^tests\/.*|^packages\/dicom\/.*)\.[cm]?[jt]sx?$/;
 
 const { base, baseRef, changed: entries, worktree } = stagedContext();
-const changed = entries.filter(({ file }) => TEST.test(file));
+const changed = entries.filter(({ file }) => SCOPE.test(file));
 if (changed.length === 0) process.exit(0);
 
 const ts = createRequire(path.join(worktree, 'package.json'))('typescript');
-const indexTests = paths(git('ls-files', '-z')).filter((f) => TEST.test(f));
-const baseTests = paths(git('ls-tree', '-rz', '--name-only', base)).filter(
-  (f) => TEST.test(f)
+const indexFiles = paths(git('ls-files', '-z')).filter((f) => SCOPE.test(f));
+const baseFiles = paths(git('ls-tree', '-rz', '--name-only', base)).filter(
+  (f) => SCOPE.test(f)
 );
 
 const withoutImports = (file, text) => {
@@ -73,18 +75,18 @@ try {
 
   materialize(
     candRoot,
-    indexTests.map((f) => [flatten(f), withoutImports(f, git('show', `:${f}`))])
+    indexFiles.map((f) => [flatten(f), withoutImports(f, git('show', `:${f}`))])
   );
   materialize(
     baseRoot,
-    baseTests.map((f) => [
+    baseFiles.map((f) => [
       flatten(f),
       withoutImports(f, git('show', `${base}:${f}`)),
     ])
   );
 
   // Fingerprints are content-derived, so a baseline taken from the base tree
-  // identifies exactly the clones the staged tests add.
+  // identifies exactly the clones the staged files add.
   run(baseRoot, ['--baseline', baseline, '--update-baseline', '-r', 'silent']);
   run(candRoot, ['--baseline', baseline, '-r', 'json', '-o', report]);
 
@@ -95,7 +97,7 @@ try {
 
   if (added.length > 0) {
     console.error(
-      '\nTest duplication ratchet: these clones are new since %s.\n',
+      '\nDuplication ratchet: these clones are new since %s.\n',
       baseRef
     );
     added.forEach(({ firstFile, secondFile, tokens }) => {
@@ -106,7 +108,7 @@ try {
       );
     });
     console.error(
-      `\nA clone is ${MIN_TOKENS}+ identical tokens. Pull the shared setup into a helper the existing specs already use.` +
+      `\nA clone is ${MIN_TOKENS}+ identical tokens. Pull the shared code into one helper both places use.` +
         `\nBypass additional checks for one commit with CHECKS_SKIP=1.\n`
     );
     process.exitCode = 1;
