@@ -275,9 +275,7 @@ export default defineComponent({
       );
     };
 
-    const canResetColoring = computed(
-      () => !!viewId.value && !!currentImageID.value && !!selectedPreset.value
-    );
+    const canResetColoring = computed(() => !!selectedPreset.value);
     const resetColoring = () => {
       if (selectedPreset.value) selectPreset(selectedPreset.value);
     };
