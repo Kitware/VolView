@@ -150,15 +150,13 @@ export async function readDicomHeader(
     received,
     Math.min(total, (end ?? total) + PIXEL_DATA_HEAD_LENGTH)
   );
-  const head =
-    found.atPixelData && end !== undefined ? bytes.subarray(end) : null;
   return {
     header: bytes.subarray(0, end),
     layout: found.layout,
     transferSyntaxUid,
     pixelData:
-      head && transferSyntaxUid
-        ? pixelDataElement(head, end!, transferSyntaxUid)
+      found.atPixelData && end !== undefined && transferSyntaxUid
+        ? pixelDataElement(bytes.subarray(end), end, transferSyntaxUid)
         : null,
   };
 }

@@ -1,18 +1,21 @@
-import openUriStream from '@/src/io/import/processors/openUriStream';
-import type { ImportContext } from '@/src/io/import/common';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
+import openUriStream from '@/src/io/import/processors/openUriStream';
 import extractArchive from '@/src/io/import/processors/extractArchive';
+import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
 import { buildStateIDToStoreID } from '@/src/io/import/importDataSources';
 import {
   asLoadableResult,
+  type ImportContext,
   type IntermediateResult,
+  type StateFileSetupResult,
 } from '@/src/io/import/common';
-import { findStateFileLeaves } from '@/src/io/import/dataSource';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { setActivePinia, createPinia } from 'pinia';
-import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
-import { leafStateId } from '@/src/io/import/dataSource';
-import type { StateFileSetupResult } from '@/src/io/import/common';
+import {
+  findStateFileLeaves,
+  leafStateId,
+  type DataSource,
+} from '@/src/io/import/dataSource';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
 // ---------------------------------------------------------------------------
@@ -104,6 +107,18 @@ describe('prepareLeafDataSources: composed-manifest artifacts', () => {
   });
 });
 
+/** The one archive member extracted for a saved leaf. */
+const extractedMember = async (source: DataSource, context?: ImportContext) => {
+  const { dataSources } = (await extractArchive(
+    source,
+    context
+  )) as IntermediateResult;
+  expect(dataSources).toHaveLength(1);
+  const [member] = dataSources;
+  if (member.type !== 'file') throw new Error('Expected a file');
+  return member;
+};
+
 describe('saved archive member leaves', () => {
   beforeEach(() => setActivePinia(createPinia()));
   it.each([
@@ -146,10 +161,7 @@ describe('saved archive member leaves', () => {
       })) as StateFileSetupResult;
       const loadables = await Promise.all(
         setup.dataSources.map(async (source, index) => {
-          const result = (await extractArchive(source)) as IntermediateResult;
-          expect(result.dataSources).toHaveLength(1);
-          const [member] = result.dataSources;
-          if (member.type !== 'file') throw new Error('Expected a file');
+          const member = await extractedMember(source);
           expect(await member.file.text()).toBe(
             index === 0 ? 'series A' : 'series B'
           );
@@ -204,29 +216,12 @@ it('downloads a saved source archive once and reuses extracted members', async (
     if (sources[0].type !== 'file' || sources[1].type !== 'file')
       throw new Error('Expected archive files');
     expect(sources[0].file).toBe(sources[1].file);
-    const first = (await extractArchive(
-      sources[0],
-      context
-    )) as IntermediateResult;
-    const second = (await extractArchive(
-      sources[1],
-      context
-    )) as IntermediateResult;
-    const again = (await extractArchive(
-      sources[0],
-      context
-    )) as IntermediateResult;
-    const a = first.dataSources[0];
-    const b = second.dataSources[0];
-    if (
-      a.type !== 'file' ||
-      b.type !== 'file' ||
-      again.dataSources[0].type !== 'file'
-    )
-      throw new Error('Expected extracted files');
+    const a = await extractedMember(sources[0], context);
+    const b = await extractedMember(sources[1], context);
+    const again = await extractedMember(sources[0], context);
     expect(await a.file.text()).toBe('A');
     expect(await b.file.text()).toBe('B');
-    expect(again.dataSources[0].file).toBe(a.file);
+    expect(again.file).toBe(a.file);
     expect(findStateFileLeaves(a)).toEqual([{ stateID: 'a' }]);
     expect(findStateFileLeaves(b)).toEqual([{ stateID: 'b' }]);
   } finally {

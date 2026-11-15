@@ -8,9 +8,6 @@
 // ImagePositionPatient is empty, so nothing can be said about where it sits.
 // Every volume must survive, the unplaceable slice must arrive as a volume of
 // its own, and the user must be told about it.
-//
-// Synthetic DICOMs are generated on the fly so the test carries no binary
-// fixtures.
 import * as path from 'path';
 import * as fs from 'fs';
 import { volViewPage } from '../pageobjects/volview.page';

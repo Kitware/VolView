@@ -89,8 +89,6 @@ describe('Local DICOM import regressions', () => {
         imageOrientationPatient:
           i === 0 ? [Math.cos(0.0002), 0, Math.sin(0.0002), 0, 1, 0] : AXIAL,
         imagePositionPatient: [0, 0, i * 5],
-        rows: 4,
-        cols: 4,
         pixelValue: i,
       })
     );
@@ -126,8 +124,6 @@ describe('Local DICOM import regressions', () => {
         instanceNumber: 1,
         imageOrientationPatient: AXIAL,
         imagePositionPatient: [0, 0, 0],
-        rows: 4,
-        cols: 4,
         pixelValue: 123,
         extraElements: [
           rawElement(0x0043, 0x0010, 'LO', new TextEncoder().encode('TEST')),
@@ -156,8 +152,6 @@ describe('Local DICOM import regressions', () => {
         instanceNumber: i + 1,
         imageOrientationPatient: AXIAL,
         imagePositionPatient: [0, 0, i],
-        rows: 4,
-        cols: 4,
         pixelValue: 10 * (i + 1),
       })
     );

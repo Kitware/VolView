@@ -4,7 +4,8 @@ import type { SpatialMetadata } from '../metadata/spatialMetadata';
 import type { VolumeBuffer } from './pixelFormat';
 import { planVolumeAllocation } from './volumeLayout';
 
-type Vector3 = readonly [number, number, number];
+type Triple = [number, number, number];
+type Vector3 = Readonly<Triple>;
 
 /**
  * One buffer plus the geometry that places it. Everything is immutable except
@@ -100,11 +101,9 @@ export function allocateVolume(
     members: Object.freeze([...members]),
     dimensions: [columns, rows, slices] as const,
     components: samplesPerPixel,
-    origin: (layout.origin ?? [0, 0, 0]) as unknown as Vector3,
+    origin: (layout.origin ?? [0, 0, 0]) as Triple,
     direction: layout.direction ?? IDENTITY,
-    spacing: layout.spatialMetadata.axes.map(
-      (axis) => axis.value
-    ) as unknown as Vector3,
+    spacing: layout.spatialMetadata.axes.map((axis) => axis.value) as Triple,
     spatialMetadata: layout.spatialMetadata,
     warnings,
     data: new layout.bufferType(columns * rows * slices * samplesPerPixel),

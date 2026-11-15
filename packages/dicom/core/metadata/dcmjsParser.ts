@@ -117,14 +117,14 @@ const bufferOf = (bytes: Uint8Array) =>
     ? (bytes.buffer as ArrayBuffer)
     : (bytes.slice().buffer as ArrayBuffer);
 
+const pastDeflatedMeta = (syntax: unknown, offset: number, end: number) =>
+  syntax === DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN && offset >= end;
+
 /**
  * Opens the data set. A file without the Part 10 preamble is read from its
  * first element; one without file meta information is read in the transfer
  * syntax its first element suggests.
  */
-const pastDeflatedMeta = (syntax: unknown, offset: number, end: number) =>
-  syntax === DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN && offset >= end;
-
 const openFile = (bytes: Uint8Array) => {
   const layout = sniffDicomLayout(bytes.subarray(0, PART_10_HEADER_LENGTH));
 
@@ -262,31 +262,33 @@ const READ_OPTIONS = {
   forceStoreRaw: true,
 };
 
+/** An Implicit VR Little Endian element: tag, 32 bit length and value. */
+const implicitElement = (group: number, element: number, value: Uint8Array) => {
+  const bytes = new Uint8Array(8 + value.length);
+  const header = new DataView(bytes.buffer);
+  header.setUint16(0, group, true);
+  header.setUint16(2, element, true);
+  header.setUint32(4, value.length, true);
+  bytes.set(value, 8);
+  return bytes;
+};
+
 const readSequence = (
   dataSet: DicomReadStream,
   syntax: string,
-  sequence: {
-    group: number;
-    element: number;
-    valueStart: number;
-    end: number | null;
-    unknown?: boolean;
-  }
+  sequence: NonNullable<ReturnType<typeof peekSequence>>
 ): ParsedElement => {
-  if (sequence.end !== null && sequence.end > dataSet.endOffset)
+  const { group, element, valueStart, end } = sequence;
+  if (end !== null && end > dataSet.endOffset)
     throw new Error('Sequence exceeds the available dataset bytes');
-  if (sequence.unknown && sequence.end !== null) {
+  const takeValue = (valueEnd: number) => {
+    const value = new Uint8Array(dataSet.slice(valueStart, valueEnd));
+    dataSet.offset = valueEnd;
+    return value;
+  };
+  if (sequence.unknown && end !== null) {
     // PS3.5 6.2.2: a known UN value retains Implicit VR Little Endian encoding.
-    const value = new Uint8Array(
-      dataSet.slice(sequence.valueStart, sequence.end)
-    );
-    const bytes = new Uint8Array(8 + value.length);
-    const header = new DataView(bytes.buffer);
-    header.setUint16(0, sequence.group, true);
-    header.setUint16(2, sequence.element, true);
-    header.setUint32(4, value.length, true);
-    bytes.set(value, 8);
-    dataSet.offset = sequence.end;
+    const bytes = implicitElement(group, element, takeValue(end));
     return readElements(
       readsBytes(new ReadBufferStream(bytes.buffer)),
       IMPLICIT_VR_LITTLE_ENDIAN,
@@ -294,29 +296,21 @@ const readSequence = (
     )[0];
   }
 
-  const itemSyntax = sequence.unknown ? IMPLICIT_VR_LITTLE_ENDIAN : syntax;
-  dataSet.offset = sequence.valueStart;
+  const head = {
+    group,
+    element,
+    vr: sequence.unknown ? 'UN' : 'SQ',
+    values: [],
+  };
+  dataSet.offset = valueStart;
   try {
-    const items = readSequenceItems(dataSet, itemSyntax, sequence.end);
-    return {
-      group: sequence.group,
-      element: sequence.element,
-      vr: sequence.unknown ? 'UN' : 'SQ',
-      values: [],
-      items,
-    };
+    const itemSyntax = sequence.unknown ? IMPLICIT_VR_LITTLE_ENDIAN : syntax;
+    return { ...head, items: readSequenceItems(dataSet, itemSyntax, end) };
   } catch (error) {
-    if (sequence.end === null) throw error;
-    const bytes = new Uint8Array(
-      dataSet.slice(sequence.valueStart, sequence.end)
-    );
-    dataSet.offset = sequence.end;
+    if (end === null) throw error;
     return {
-      group: sequence.group,
-      element: sequence.element,
-      vr: sequence.unknown ? 'UN' : 'SQ',
-      values: [],
-      unread: { bytes, reason: String(error) },
+      ...head,
+      unread: { bytes: takeValue(end), reason: String(error) },
     };
   }
 };

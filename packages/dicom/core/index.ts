@@ -19,11 +19,7 @@ export {
 } from './metadata/dicomLayout';
 
 // Datasets
-export {
-  readDicomDataset,
-  type DicomDataset,
-  type DicomElement,
-} from './metadata/dicomDataset';
+export { readDicomDataset, type DicomDataset } from './metadata/dicomDataset';
 export { getDatasetTag, getDatasetModality } from './metadata/datasetAccess';
 export { sequenceItems } from './metadata/functionalGroups';
 export { trimDicomPadding } from './utils';

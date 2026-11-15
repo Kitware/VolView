@@ -55,6 +55,25 @@ const load = (image: DicomCineImage) => {
 const scalarsOf = (image: DicomCineImage) =>
   Array.from(image.getVtkImageData().getPointData().getScalars().getData());
 
+/** A clip whose first pixel read fails and whose later reads succeed. */
+const offlineOnce = () => {
+  const pixels = fromBlob(
+    new Blob([Uint8Array.from([9, 9, 9, 9, 8, 8, 8, 8])])
+  );
+  let reads = 0;
+  const source: ByteSource = {
+    read: (signal, range) => {
+      reads += 1;
+      if (reads === 1)
+        return new ReadableStream({
+          start: (controller) => controller.error(new Error('offline')),
+        });
+      return pixels.read(signal, range);
+    },
+  };
+  return { ...cineInstance(), source };
+};
+
 describe('DicomCineImage spacing', () => {
   it('uses the first spatial 2D ultrasound region instead of the first region overall', () => {
     const image = new DicomCineImage(
@@ -145,21 +164,7 @@ describe('DicomCineImage loading', () => {
   });
 
   it('reads the pixels again when a load is retried after a failed read', async () => {
-    const pixels = fromBlob(
-      new Blob([Uint8Array.from([9, 9, 9, 9, 8, 8, 8, 8])])
-    );
-    const reads: AbortSignal[] = [];
-    const source: ByteSource = {
-      read: (signal, range) => {
-        reads.push(signal);
-        if (reads.length === 1)
-          return new ReadableStream({
-            start: (controller) => controller.error(new Error('offline')),
-          });
-        return pixels.read(signal, range);
-      },
-    };
-    const image = new DicomCineImage({ ...cineInstance(), source });
+    const image = new DicomCineImage(offlineOnce());
 
     expect((await load(image)).map(({ message }) => message)).toEqual([
       'offline',
@@ -170,22 +175,8 @@ describe('DicomCineImage loading', () => {
   });
 
   it('makes a thumbnail once a read that failed succeeds on retry', async () => {
-    const pixels = fromBlob(
-      new Blob([Uint8Array.from([9, 9, 9, 9, 8, 8, 8, 8])])
-    );
-    let reads = 0;
-    const source: ByteSource = {
-      read: (signal, range) => {
-        reads += 1;
-        if (reads === 1)
-          return new ReadableStream({
-            start: (controller) => controller.error(new Error('offline')),
-          });
-        return pixels.read(signal, range);
-      },
-    };
     const image = new DicomCineImage(
-      { ...cineInstance(), source },
+      offlineOnce(),
       undefined,
       ({ width, height, rgb }) => `${width}x${height}:${rgb.join(',')}`
     );

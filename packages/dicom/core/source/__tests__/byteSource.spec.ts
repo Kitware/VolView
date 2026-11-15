@@ -25,51 +25,77 @@ type ServerOptions = {
   contentRange?: string;
 };
 
-/** A fetch that serves `bytes` in 64-byte chunks and records what it was asked. */
+/** The span a server answers a Range header with, or null for the whole body. */
+const answeredSpan = (
+  range: string | null,
+  { honorRange = true, startShift = 0 }: ServerOptions
+) => {
+  const match = range?.match(/^bytes=(\d+)-(\d*)$/);
+  if (!honorRange || !match) return null;
+  return {
+    start: Number(match[1]) + startShift,
+    end: match[2] ? Number(match[2]) + 1 : bytes.length,
+  };
+};
+
+/** `bytes[start, end)` in 64-byte chunks, flagging `body` when cancelled. */
+const chunkedBody = (
+  start: number,
+  end: number,
+  body: { cancelled: boolean }
+) => {
+  let offset = start;
+  return new ReadableStream<Uint8Array>({
+    pull: (controller) => {
+      if (offset >= end) {
+        controller.close();
+        return;
+      }
+      controller.enqueue(bytes.slice(offset, Math.min(end, offset + 64)));
+      offset += 64;
+    },
+    cancel: () => {
+      body.cancelled = true;
+    },
+  });
+};
+
+/** A fetch that serves `bytes` and records what it was asked. */
 const server = (options: ServerOptions = {}) => {
-  const { honorRange = true, exposeContentRange = true, status } = options;
-  const { startShift = 0, contentRange } = options;
+  const { exposeContentRange = true, status, contentRange } = options;
   const requests: Array<string | null> = [];
   const caches: Array<RequestCache | undefined> = [];
   const signals: Array<AbortSignal | null | undefined> = [];
   const bodies: Array<{ cancelled: boolean }> = [];
-  const fetchFn: typeof fetch = async (_input, init) => {
-    const range = new Headers(init?.headers).get('Range');
+  const fetchFn: typeof fetch = async (_input, init = {}) => {
+    const range = new Headers(init.headers).get('Range');
     requests.push(range);
-    caches.push(init?.cache);
-    signals.push(init?.signal);
-    const match = range?.match(/^bytes=(\d+)-(\d*)$/);
-    const partial = honorRange && match !== null && match !== undefined;
-    const start = partial ? Number(match[1]) + startShift : 0;
-    const end = partial && match[2] ? Number(match[2]) + 1 : bytes.length;
+    caches.push(init.cache);
+    signals.push(init.signal);
+    const span = answeredSpan(range, options);
+    const { start, end } = span ?? { start: 0, end: bytes.length };
     const body = { cancelled: false };
     bodies.push(body);
-    let offset = start;
-    const stream = new ReadableStream<Uint8Array>({
-      pull: (controller) => {
-        if (offset >= end) {
-          controller.close();
-          return;
-        }
-        controller.enqueue(bytes.slice(offset, Math.min(end, offset + 64)));
-        offset += 64;
-      },
-      cancel: () => {
-        body.cancelled = true;
-      },
-    });
     const headers = new Headers({ 'content-length': String(end - start) });
-    if (partial && exposeContentRange)
+    if (span && exposeContentRange)
       headers.set(
         'content-range',
         contentRange ?? `bytes ${start}-${end - 1}/${bytes.length}`
       );
-    return new Response(stream, {
-      status: status ?? (partial ? 206 : 200),
+    return new Response(chunkedBody(start, end, body), {
+      status: status ?? (span ? 206 : 200),
       headers,
     });
   };
   return { fetch: fetchFn, requests, caches, bodies, signals };
+};
+
+const urlSource = (options?: ServerOptions) => {
+  const http = server(options);
+  return {
+    http,
+    source: fromUrl('https://example.test/a.dcm', { fetch: http.fetch }),
+  };
 };
 
 const signal = () => new AbortController().signal;
@@ -127,8 +153,7 @@ describe('blob byte source', () => {
 
 describe('URL byte source', () => {
   it('reads the whole resource without a Range header', async () => {
-    const http = server();
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { http, source } = urlSource();
     expect(await readStream(source.read(signal()))).toEqual(bytes);
     expect(http.requests).toEqual([null]);
   });
@@ -138,8 +163,7 @@ describe('URL byte source', () => {
     ['hides Content-Range from CORS', { exposeContentRange: false }],
     ['ignores Range and answers 200', { honorRange: false }],
   ])('reads a range when the server %s', async (_name, options) => {
-    const http = server(options);
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { http, source } = urlSource(options);
 
     const bounded = await readStream(
       source.read(signal(), { start: 100, end: 300 })
@@ -157,10 +181,7 @@ describe('URL byte source', () => {
   ])(
     'reports a server that honours Range (%s) as %s, bypassing the HTTP cache for ranges',
     async (honorRange, support) => {
-      const http = server({ honorRange });
-      const source = fromUrl('https://example.test/a.dcm', {
-        fetch: http.fetch,
-      });
+      const { http, source } = urlSource({ honorRange });
       expect(source.rangeSupport?.()).toBe('unknown');
       await readStream(source.read(signal()));
       expect(source.rangeSupport?.()).toBe('unknown');
@@ -171,23 +192,20 @@ describe('URL byte source', () => {
   );
 
   it('stops the ignored-Range body once the range is read', async () => {
-    const http = server({ honorRange: false });
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { http, source } = urlSource({ honorRange: false });
     await readStream(source.read(signal(), { start: 0, end: 10 }));
     expect(http.bodies[0].cancelled).toBe(true);
   });
 
   it('opens a fresh request for every read', async () => {
-    const http = server();
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { http, source } = urlSource();
     await readStream(source.read(signal(), { start: 0, end: 4 }));
     await readStream(source.read(signal(), { start: 0, end: 4 }));
     expect(http.requests).toHaveLength(2);
   });
 
   it('reads a range from a 206 that starts before it', async () => {
-    const http = server({ startShift: -50 });
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { source } = urlSource({ startShift: -50 });
     expect(
       await readStream(source.read(signal(), { start: 100, end: 300 }))
     ).toEqual(expected({ start: 100, end: 300 }));
@@ -201,16 +219,14 @@ describe('URL byte source', () => {
       /Invalid content-range/,
     ],
   ])('fails a 206 that %s', async (_name, options, message) => {
-    const http = server(options);
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { source } = urlSource(options);
     await expect(
       readStream(source.read(signal(), { start: 100, end: 300 }))
     ).rejects.toThrow(message);
   });
 
   it('aborts its request once the body is read to the end', async () => {
-    const http = server();
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { http, source } = urlSource();
     await readStream(source.read(signal(), { start: 0, end: 10 }));
     expect(http.signals[0]?.aborted).toBe(true);
   });
@@ -221,16 +237,14 @@ describe('URL byte source', () => {
     [500, /HTTP 500/],
     [416, /Range could not be satisfied/],
   ])('fails a %i response', async (status, message) => {
-    const http = server({ status });
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { source } = urlSource({ status });
     await expect(
       readStream(source.read(signal(), { start: 0, end: 4 }))
     ).rejects.toThrow(message);
   });
 
   it('cancels the response body when the reader cancels', async () => {
-    const http = server();
-    const source = fromUrl('https://example.test/a.dcm', { fetch: http.fetch });
+    const { http, source } = urlSource();
     const reader = source.read(signal()).getReader();
     await reader.read();
     await reader.cancel();

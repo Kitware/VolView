@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { Tags, type Instance } from '@/packages/dicom/core';
+import type { Instance } from '@/packages/dicom/core';
 import {
   buildStateIDToStoreID,
   importDicomInstanceSources,
@@ -10,6 +10,7 @@ import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import {
+  acquisition,
   ALLOCATION_FAILURE,
   imageFactory,
   OTHER_SERIES_UID,
@@ -204,16 +205,8 @@ describe('importDicomInstanceSources through the DICOM store', () => {
 
   it('repartitions saved provenance when a later import splits the series', () => {
     const datasetStore = useDatasetStore();
-    const pass = (number: string, zs: number[]) =>
-      zs.map((z, i) =>
-        sliceFor({
-          sop: `acq${number}-${i}`,
-          z,
-          tags: { [Tags.AcquisitionNumber]: number },
-        })
-      );
-    const first = pass('1', [0, 2.5, 5]);
-    const second = pass('2', [0.75, 3.25, 5.75]);
+    const first = acquisition('1', [0, 2.5, 5]);
+    const second = acquisition('2', [0.75, 3.25, 5.75]);
 
     const [firstId] = idsOf(load(first).loadables);
     // The first pass is relabelled, which is not a volume this import loaded.

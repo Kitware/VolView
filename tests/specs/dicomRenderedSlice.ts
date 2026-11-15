@@ -6,14 +6,13 @@ type RenderedSlice = { width: number; height: number; data: Buffer };
 // controls, so UI text cannot satisfy image assertions.
 const VIEW_INSET = 80;
 
-async function captureSlice(fileName: string, viewIndex: number) {
-  const views = await captureViewPixels(
+async function captureSlice(fileName: string) {
+  const [view] = await captureViewPixels(
     '[data-testid~="vtk-two-view"]',
     VIEW_INSET,
     fileName
   );
-  const view = views[viewIndex];
-  if (!view) throw new Error(`No slice viewport at index ${viewIndex}`);
+  if (!view) throw new Error('No slice viewport');
   return { ...view, height: view.data.length / 4 / view.width };
 }
 
@@ -58,16 +57,12 @@ function imageChanged(before: RenderedSlice, after: RenderedSlice) {
   return changed > before.width * before.height * 0.002;
 }
 
-export async function waitForRenderedSlice(
-  fileName: string,
-  viewIndex = 0,
-  color = false
-) {
+export async function waitForRenderedSlice(fileName: string, color = false) {
   await $('header').moveTo();
   let image: RenderedSlice | undefined;
   await browser.waitUntil(
     async () => {
-      image = await captureSlice(fileName, viewIndex);
+      image = await captureSlice(fileName);
       return hasImageContent(image, color);
     },
     {
@@ -79,13 +74,12 @@ export async function waitForRenderedSlice(
 
 export async function waitForRenderedSliceChange(
   before: RenderedSlice,
-  fileName: string,
-  viewIndex = 0
+  fileName: string
 ) {
   await $('header').moveTo();
   await browser.waitUntil(
     async () => {
-      const after = await captureSlice(fileName, viewIndex);
+      const after = await captureSlice(fileName);
       return hasImageContent(after) && imageChanged(before, after);
     },
     {

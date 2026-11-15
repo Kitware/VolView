@@ -5,6 +5,9 @@ import { fixtureBytes } from '../fixtures/dicom-pages/fixtureData';
 import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
 import { openDicomPage } from '../dicomPages';
 
+// Every stored 5 under slope 2 and intercept -20.
+const CALIBRATED_PIXELS = Array(16).fill('-10').join(', ');
+
 describe('DICOM module pages without VolView startup', () => {
   let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   before(async () => {
@@ -17,12 +20,8 @@ describe('DICOM module pages without VolView startup', () => {
   it('rejects a failed worker startup and finishes queued and later reads', async () => {
     await openDicomPage(`${fixture.urls.core}?scenario=worker-recovery`);
     await expect($('#first-error')).toHaveText('DICOM decoder worker failed');
-    await expect($('#queued-pixels')).toHaveText(
-      Array(16).fill('-10').join(', ')
-    );
-    await expect($('#retry-pixels')).toHaveText(
-      Array(16).fill('-10').join(', ')
-    );
+    await expect($('#queued-pixels')).toHaveText(CALIBRATED_PIXELS);
+    await expect($('#retry-pixels')).toHaveText(CALIBRATED_PIXELS);
   });
 
   it('core reads metadata and calibrated pixels from a file', async () => {
@@ -30,7 +29,7 @@ describe('DICOM module pages without VolView startup', () => {
     await expect($('#patient')).toHaveText('EXTRACTED^DICOM');
     await expect($('#position')).toHaveText('10, 20, 30');
     await expect($('#pixel-spacing')).toHaveText('2, 3');
-    await expect($('#pixels')).toHaveText(Array(16).fill('-10').join(', '));
+    await expect($('#pixels')).toHaveText(CALIBRATED_PIXELS);
   });
 
   it('vtk places and renders the volume read over HTTP', async () => {

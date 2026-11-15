@@ -1,6 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import JSZip from 'jszip';
+import {
+  CINE_US_DATASET,
+  COLOR3D_JPEG_BASELINE_DICOM,
+  MINIMAL_DICOM,
+  MRA_HEAD_NECK_DATASET,
+  ONE_CT_SLICE_DICOM,
+  PROSTATEX_DATASET,
+  RETINAL_OCT_DICOM,
+  US_MULTIFRAME_DICOM,
+} from '../datasets';
 import { DATASET_CACHE } from '../downloadDatasets';
 import { openDicomPage } from '../dicomPages';
 import { startDicomPages } from '../fixtures/dicom-pages/server.mjs';
@@ -94,11 +104,6 @@ const synthetic: Array<[string, boolean, NativePixelOptions]> = [
   ),
 ];
 
-const cached = (names: string[]) =>
-  names.map(
-    (name) => [name, readFileSync(resolve(DATASET_CACHE, name))] as const
-  );
-
 /** One slice of an archive whose slices all share a pixel format. */
 const firstSlice = async (zip: string) => {
   const archive = await JSZip.loadAsync(
@@ -132,11 +137,19 @@ describe('Native frame decoding parity with GDCM', () => {
   let cases: string[] = [];
   before(async () => {
     const publicFiles = [
-      ...cached(['CT000085.dcm', 'minimal.dcm', 'retinal-oct.dcm']),
-      ...cached(['US-MONO2-8-8x-echo.dcm', 'US_multiframe_30frames.dcm']),
-      ...cached(['color3d_jpeg_baseline.dcm']),
-      await firstSlice('prostate.zip'),
-      await firstSlice('MRA-Head_and_Neck.zip'),
+      ...[
+        ONE_CT_SLICE_DICOM,
+        MINIMAL_DICOM,
+        RETINAL_OCT_DICOM,
+        CINE_US_DATASET,
+        US_MULTIFRAME_DICOM,
+        COLOR3D_JPEG_BASELINE_DICOM,
+      ].map(
+        ({ name }) =>
+          [name, readFileSync(resolve(DATASET_CACHE, name))] as const
+      ),
+      await firstSlice(PROSTATEX_DATASET.name),
+      await firstSlice(MRA_HEAD_NECK_DATASET.name),
     ];
     const files = [
       ...synthetic.map(

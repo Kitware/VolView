@@ -66,7 +66,7 @@ type Content =
 const readSegmentationFile = async (file: File) => {
   const result = await readDicomSegmentation(file);
   return {
-    image: convertItkToVtkImage(result.outputImage),
+    image: convertItkToVtkImage(result.segImage),
     metadata: result.metaInfo,
   };
 };
@@ -124,9 +124,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   private readonly init: Required<Omit<DicomVolumeImageInit, 'focus'>> &
     Pick<DicomVolumeImageInit, 'focus'>;
 
-  public segBuildInfo:
-    | (JsonCompatible & ReadOverlappingSegmentationMeta)
-    | null = null;
+  public segBuildInfo: SegmentationResult['metadata'] | null = null;
 
   constructor(init: DicomVolumeImageInit = {}) {
     super();
@@ -193,16 +191,13 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
           this.events.emit('error', ensureError(error));
       })
       .finally(() => {
-        if (this.load !== controller) return;
-        this.load = null;
-        this.setLoading(false);
+        if (this.load === controller) this.finishLoad();
       });
   }
 
   stopLoad() {
     this.load?.abort(abortError('DICOM loading stopped'));
-    this.load = null;
-    this.setLoading(false);
+    this.finishLoad();
   }
 
   getThumbnail(): Promise<string | null> {
@@ -270,7 +265,6 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
     if (previous !== image) previous.delete();
   }
 
-  // Nothing is left to read, so a later startLoad may begin a retry at once.
   private finishLoad() {
     this.load = null;
     this.setLoading(false);
@@ -318,7 +312,8 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
       applyVolumeUpdate(image, update);
       this.events.emit('extentLoaded', update.extent);
     }
-    // Consumers read complete together with not loading, as one transition.
+    // Consumers read complete together with not loading, as one transition,
+    // and a later startLoad may retry at once without waiting for the reads.
     if (volumeSettled(content)) this.finishLoad();
     this.updateStatus();
     this.settleThumbnail?.();

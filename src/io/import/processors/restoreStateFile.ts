@@ -188,6 +188,14 @@ const defaultRestoredDataset = (
   return primary ?? (first ? stateIDToStoreID[first.id] : undefined);
 };
 
+/** What the import learned that the restore reports to the user. */
+export type RestoreReports = {
+  missingFiles?: Array<{ stateID: string; path: string }>;
+  failedLeaves?: Array<{ stateID: string; name: string }>;
+  /** State dataset id to the store ids a replan split it into. */
+  splitDatasets?: Record<string, string[]>;
+};
+
 type RestoreServices = {
   addWarning?: ReturnType<typeof useMessageStore>['addWarning'];
   views?: Pick<
@@ -204,9 +212,11 @@ export const createStateFileRestorer = ({
     manifest: Manifest,
     stateFiles: FileEntry[],
     stateIDToStoreID: Record<string, string>,
-    missingFiles: Array<{ stateID: string; path: string }> = [],
-    failedLeaves: Array<{ stateID: string; name: string }> = [],
-    splitDatasets: Record<string, string[]> = {}
+    {
+      missingFiles = [],
+      failedLeaves = [],
+      splitDatasets = {},
+    }: RestoreReports = {}
   ) {
     const viewStore = views ?? useViewStore();
     const byId = dataSourcesById(manifest);

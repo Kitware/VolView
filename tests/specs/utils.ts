@@ -347,7 +347,7 @@ export async function openSpacingDetails() {
 
 const ACQUISITION_SLICE_SPACING = 2.5;
 
-export type AcquisitionPass = {
+type AcquisitionPass = {
   number: number;
   firstSliceZ: number;
   sliceCount: number;

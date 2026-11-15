@@ -177,13 +177,11 @@ describe('DICOM store incremental import', () => {
     expect(created[1].getInstances()[0]).toBe(resupplied);
   });
 
-  const merging = () => mergingInstances(sliceFor);
-
   it('drops the volume a replan dissolved', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
     const imageCacheStore = useImageCacheStore();
-    const { between, straight, tilted } = merging();
+    const { between, straight, tilted } = mergingInstances(sliceFor);
 
     const first = store.importInstances([straight, tilted], {
       createImage,

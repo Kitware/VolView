@@ -19,11 +19,11 @@ export type VolumeBufferConstructor =
   | typeof Float64Array;
 export type VolumeBuffer = InstanceType<VolumeBufferConstructor>;
 
+export type ValueRange = { min: number; max: number };
+export type Rescale = { rescaleSlope: number; rescaleIntercept: number };
+
 // In the order a range is matched: unsigned before signed, narrow before wide.
-const INTEGER_VALUE_RANGES = new Map<
-  IntegerArrayConstructor,
-  { min: number; max: number }
->([
+const INTEGER_VALUE_RANGES = new Map<IntegerArrayConstructor, ValueRange>([
   [Uint8Array, { min: 0, max: 2 ** 8 - 1 }],
   [Uint16Array, { min: 0, max: 2 ** 16 - 1 }],
   [Uint32Array, { min: 0, max: 2 ** 32 - 1 }],
@@ -46,13 +46,12 @@ export function getBufferValueRange(buffer: ArrayBufferView) {
  * Whether a decoded value range is representable in `buffer`'s element type.
  * A buffer with no enforceable range accepts everything.
  */
-export function valuesFitBuffer(
-  range: { min: number; max: number },
-  buffer: ArrayBufferView
-) {
+export function valuesFitBuffer(range: ValueRange, buffer: ArrayBufferView) {
   const bufferRange = getBufferValueRange(buffer);
-  if (!bufferRange) return true;
-  return range.min >= bufferRange.min && range.max <= bufferRange.max;
+  return (
+    !bufferRange ||
+    (range.min >= bufferRange.min && range.max <= bufferRange.max)
+  );
 }
 
 /**
@@ -121,42 +120,31 @@ const FLOAT32_EXACT_INTEGER = 2 ** 24;
 const FLOAT32_RELATIVE_STEP = 2 ** -23;
 const FLOAT32_MAX_BITS_STORED = 24;
 
-const magnitude = ({ min, max }: { min: number; max: number }) =>
+const magnitude = ({ min, max }: ValueRange) =>
   Math.max(Math.abs(min), Math.abs(max));
 
-const isIntegralRescale = (format: {
-  rescaleSlope: number;
-  rescaleIntercept: number;
-}) =>
+const isIntegralRescale = (format: Rescale) =>
   Number.isInteger(format.rescaleSlope) &&
   Number.isInteger(format.rescaleIntercept);
 
 /** Float32 holds every integer up to 2^24 exactly. */
-const float32KeepsIntegers = (range: { min: number; max: number }) =>
+const float32KeepsIntegers = (range: ValueRange) =>
   magnitude(range) <= FLOAT32_EXACT_INTEGER;
 
 /** Float32's spacing near `range` stays below one stored step of `slope`. */
-const float32KeepsSteps = (
-  range: { min: number; max: number },
-  slope: number
-) => slope !== 0 && magnitude(range) * FLOAT32_RELATIVE_STEP < Math.abs(slope);
+const float32KeepsSteps = (range: ValueRange, slope: number) =>
+  slope !== 0 && magnitude(range) * FLOAT32_RELATIVE_STEP < Math.abs(slope);
 
 /**
  * Whether a float32 buffer holds `range` as the rescale requires: integral
  * values exactly, fractional ones with adjacent stored steps kept apart.
  */
-export const float32Holds = (
-  range: { min: number; max: number },
-  format: { rescaleSlope: number; rescaleIntercept: number }
-) =>
+export const float32Holds = (range: ValueRange, format: Rescale) =>
   isIntegralRescale(format)
     ? float32KeepsIntegers(range)
     : float32KeepsSteps(range, format.rescaleSlope);
 
-type UsableFormat = {
-  format: PixelFormat;
-  range: { min: number; max: number };
-};
+type UsableFormat = { format: PixelFormat; range: ValueRange };
 
 function fractionalBufferType(usable: UsableFormat[]) {
   return usable.every(

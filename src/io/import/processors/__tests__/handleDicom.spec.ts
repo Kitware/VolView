@@ -18,11 +18,11 @@ import { syntheticSlice, withoutPixelData } from '@/tests/dicomSourceFixtures';
 import { StopSignal } from '@/src/core/streaming/cachedStreamFetcher';
 import type { Fetcher } from '@/src/core/streaming/types';
 
-export const dicomFile = (bytes: Uint8Array, name = 'slice.dcm') =>
+const dicomFile = (bytes: Uint8Array, name = 'slice.dcm') =>
   new File([bytes as BlobPart], name, { type: FILE_EXT_TO_MIME.dcm });
 
 /** A fetcher over bytes held in memory. */
-export const bytesFetcher = (bytes: Uint8Array) => {
+const bytesFetcher = (bytes: Uint8Array) => {
   let abortController: AbortController | null = null;
 
   const fetcher: Fetcher = {
