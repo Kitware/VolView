@@ -16,7 +16,6 @@ import {
 } from '@/src/utils/doubleKeyRecord';
 import { DeepPartial, Maybe } from '@/src/types';
 import { identity } from '@/src/utils';
-import { isDicomImage } from '@/src/utils/dataSelection';
 import { getDeclaredModality } from '@/src/utils/declaredModality';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { createViewConfigSerializer } from './common';
@@ -31,11 +30,8 @@ export const DEFAULT_EDGE_GRADIENT = 0.2;
 export const DEFAULT_SAMPLING_DISTANCE = 0.2;
 
 function getPresetFromImageModality(imageID: string) {
-  const dicomModality = isDicomImage(imageID)
-    ? useDICOMStore().volumeInfo[imageID]?.Modality
-    : undefined;
   const modality = getDeclaredModality(
-    dicomModality,
+    useDICOMStore().volumeInfo[imageID]?.Modality,
     useImageCacheStore().imageById[imageID]?.headerMetadata
   );
   return DEFAULT_PRESET_BY_MODALITY[modality] ?? DEFAULT_PRESET;
