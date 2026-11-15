@@ -39,6 +39,7 @@ const Tags = {
   TransferSyntaxUID: [0x0002, 0x0010] as Tag,
   ItemDelimiter: [0xfffe, 0xe00d] as Tag,
   Item: [0xfffe, 0xe000] as Tag,
+  SequenceDelimiter: [0xfffe, 0xe0dd] as Tag,
 };
 
 // VR reference: https://dicom.nema.org/medical/dicom/current/output/chtml/part05/sect_6.2.html
@@ -72,18 +73,11 @@ function* peekElementTag(
   { littleEndian = false } = {}
 ) {
   const bytes = yield* reader.read(4, { peek: true });
-  let group = 0;
-  let element = 0;
-
-  if (littleEndian) {
-    group = bytes[0] | (bytes[1] << 8);
-    element = bytes[2] | (bytes[3] << 8);
-  } else {
-    group = bytes[1] | (bytes[0] << 8);
-    element = bytes[3] | (bytes[2] << 8);
-  }
-
-  return [group, element] as Tag;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return [
+    view.getUint16(0, littleEndian),
+    view.getUint16(2, littleEndian),
+  ] as Tag;
 }
 
 /**
@@ -130,7 +124,8 @@ function* readFragments(reader: StreamingByteReader, opts: ParseOptions) {
   for (;;) {
     const [group, element] = yield* readElementTag(reader, opts);
     const length = yield* reader.readUint32(opts);
-    if (group === 0xfffe && element === 0xe0dd && length === 0) return;
+    if (equalsToTag(Tags.SequenceDelimiter)(group, element) && length === 0)
+      return;
     if (!equalsToTag(Tags.Item)(group, element) || length === UNDEFINED_LENGTH)
       throw new Error('Expected a defined-length encapsulated fragment');
     yield* reader.seek(length);
@@ -145,53 +140,36 @@ function* readFragments(reader: StreamingByteReader, opts: ParseOptions) {
  * Assumes the reader is pointing to the start of a Data Element.
  * https://dicom.nema.org/medical/dicom/current/output/chtml/part05/chapter_7.html#sect_7.1.1
  */
-function* readDataElement(
-  reader: StreamingByteReader,
-  opts: ParseOptions = {}
-) {
+function* readDataElement(reader: StreamingByteReader, opts: ParseOptions) {
   const { littleEndian = false, explicitVr = false } = opts;
-  // read tag
   const [group, element] = yield* readElementTag(reader, { littleEndian });
-  let length = 0;
-  let vr: string = '';
-  let data: DataElement['data'];
+  let vr = '';
+  let length: number;
 
   if (explicitVr) {
-    // read VR
     vr = yield* reader.readAscii(2);
     if (ExplicitVrLegacyDataElementFormat.has(vr)) {
       length = yield* reader.readUint16({ littleEndian });
     } else {
-      // skip reserved bytes
+      // Two reserved bytes precede the 32 bit length.
       yield* reader.seek(2);
       length = yield* reader.readUint32({ littleEndian });
     }
-
     if (
       length === UNDEFINED_LENGTH &&
       ExplicitVrCannotHaveUndefinedLength.has(vr)
-    ) {
+    )
       console.warn(`Invalid DICOM. VR ${vr} may not have undefined length`);
-    }
-
-    data = yield* readElementValue(reader, vr, length, {
-      littleEndian,
-      explicitVr,
-    });
   } else {
     length = yield* reader.readUint32({ littleEndian });
-
-    // For implicit VR with undefined length, assume it's a sequence
-    if (length === UNDEFINED_LENGTH) {
-      vr = 'SQ';
-    }
-
-    data = yield* readElementValue(reader, vr, length, {
-      littleEndian,
-      explicitVr,
-    });
+    // An implicit VR element of undefined length is read as a sequence.
+    if (length === UNDEFINED_LENGTH) vr = 'SQ';
   }
 
+  const data = yield* readElementValue(reader, vr, length, {
+    littleEndian,
+    explicitVr,
+  });
   return { group, element, vr, length, data };
 }
 
@@ -252,7 +230,7 @@ function* skipSequenceValue(
     const [group, element] = yield* readElementTag(reader, opts);
     if (equalsToTag(Tags.Item)(group, element)) {
       yield* skipSequenceItem(reader, opts);
-    } else if (group === 0xfffe && element === 0xe0dd) {
+    } else if (equalsToTag(Tags.SequenceDelimiter)(group, element)) {
       yield* reader.seek(4);
       return;
     } else {
@@ -266,56 +244,50 @@ function* skipSequenceValue(
 }
 
 // Per Part 10: "File Meta Information shall be encoded using the Explicit VR Little Endian Transfer Syntax"
+const FILE_META_ENCODING = { explicitVr: true, littleEndian: true };
+
+/** Reads the file meta information and returns its transfer syntax. */
 function* readFileMetaInfo(
   reader: StreamingByteReader,
-  opts?: { onDataElement?: DataElementCallback }
+  onDataElement: DataElementCallback | undefined
 ) {
-  // read up until the Transfer Syntax UID
   yield* readDataElementsUntil(reader, equalsToTag(Tags.TransferSyntaxUID), {
-    explicitVr: true,
-    littleEndian: true,
-    onDataElement: opts?.onDataElement,
+    ...FILE_META_ENCODING,
+    onDataElement,
   });
 
-  const transferSyntaxUidElement = yield* readDataElement(reader, {
-    explicitVr: true,
-    littleEndian: true,
-  });
-  opts?.onDataElement?.(transferSyntaxUidElement);
+  const transferSyntaxUidElement = yield* readDataElement(
+    reader,
+    FILE_META_ENCODING
+  );
+  onDataElement?.(transferSyntaxUidElement);
 
   if (transferSyntaxUidElement.vr !== 'UI')
     throw new Error('Transfer syntax UID element does not have a VR of UI');
   if (!transferSyntaxUidElement.data)
     throw new Error('Did not get data for the transfer syntax UID element');
 
-  const transferSyntaxUid = toAscii(
-    transferSyntaxUidElement.data as Uint8Array,
-    {
-      ignoreNulls: true,
-    }
-  );
+  const transferSyntaxUid = toAscii(transferSyntaxUidElement.data, {
+    ignoreNulls: true,
+  });
 
   // Compressed bytes can resemble meta elements. The complete reader will
   // locate the end of group 2 and inflate the dataset before walking it.
   if (transferSyntaxUid === DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN)
-    return { transferSyntaxUid };
+    return transferSyntaxUid;
 
-  // read until end of file meta info group block, which is the first non 0x0002 grouped element.
-  // "Values of all Tags (0002,xxxx) are reserved for use by this Standard and later versions of DICOM."
+  // The meta group ends at the first element outside group 0002.
   // https://dicom.nema.org/medical/dicom/current/output/html/part10.html#table_7.1-1
   yield* readDataElementsUntil(reader, (group) => group !== 0x0002, {
-    explicitVr: true,
-    littleEndian: true,
-    onDataElement: opts?.onDataElement,
+    ...FILE_META_ENCODING,
+    onDataElement,
   });
 
-  return {
-    transferSyntaxUid,
-  };
+  return transferSyntaxUid;
 }
 
 type ReadDicomOptions = {
-  stopAtElement?(group: number, element: number): boolean;
+  stopAtElement: (group: number, element: number) => boolean;
   onDataElement?: DataElementCallback;
   /** Called once the opening bytes say how the file is laid out. */
   onLayout?(layout: DicomLayout): void;
@@ -323,37 +295,34 @@ type ReadDicomOptions = {
   onTransferSyntax?(transferSyntaxUid: string): void;
 };
 
-function* readDicomUntilPixelData(opts?: ReadDicomOptions) {
+function* readDicomUntilPixelData(opts: ReadDicomOptions) {
   const reader = new StreamingByteReader();
 
   // Peeked rather than read: a file without the Part 10 preamble has its
   // first element at byte 0.
   const head = yield* reader.read(PART_10_HEADER_LENGTH, { peek: true });
   const layout = sniffDicomLayout(head);
-  opts?.onLayout?.(layout);
+  opts.onLayout?.(layout);
   if (layout.preamble) yield* reader.seek(PART_10_HEADER_LENGTH);
 
   const transferSyntaxUid = layout.fileMeta
-    ? (yield* readFileMetaInfo(reader, {
-        onDataElement: opts?.onDataElement,
-      })).transferSyntaxUid
+    ? yield* readFileMetaInfo(reader, opts.onDataElement)
     : layout.transferSyntaxUid;
-  opts?.onTransferSyntax?.(transferSyntaxUid);
+  opts.onTransferSyntax?.(transferSyntaxUid);
   // A negative boundary asks the metadata loader to retain the complete file.
   if (transferSyntaxUid === DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN)
     return { position: -1 };
   const explicitVr = transferSyntaxUid !== IMPLICIT_VR_LITTLE_ENDIAN;
   const littleEndian = transferSyntaxUid !== EXPLICIT_VR_BIG_ENDIAN;
 
-  yield* readDataElementsUntil(
-    reader,
-    (group, element) => opts?.stopAtElement?.(group, element) ?? false,
-    { explicitVr, littleEndian, onDataElement: opts?.onDataElement }
-  );
+  yield* readDataElementsUntil(reader, opts.stopAtElement, {
+    explicitVr,
+    littleEndian,
+    onDataElement: opts.onDataElement,
+  });
 
   return { position: reader.position };
 }
 
-export const createDicomParser = (callbacks?: ReadDicomOptions) => {
-  return asCoroutine(readDicomUntilPixelData(callbacks));
-};
+export const createDicomParser = (callbacks: ReadDicomOptions) =>
+  asCoroutine(readDicomUntilPixelData(callbacks));

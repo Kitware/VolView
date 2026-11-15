@@ -1,5 +1,4 @@
-import type { DicomDataset } from './dicomDataset';
-import { findElement } from './dicomDataset';
+import { findElement, type DicomDataset } from './dicomDataset';
 import { canonicalTag, getDatasetTag } from './datasetAccess';
 import { getNmDetectorTag } from './nmReconstruction';
 

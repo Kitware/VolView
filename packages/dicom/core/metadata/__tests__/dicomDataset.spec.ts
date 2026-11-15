@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DicomDataset, findElement, readDicomDataset } from '../dicomDataset';
+import { sequenceItems } from '../functionalGroups';
+import { concatBytes } from '../../utils';
 import {
   rawElement,
   sequenceItem,
@@ -33,15 +35,6 @@ const STUDY_COMMENTS = '00324000';
 
 const ascii = (text: string) => new TextEncoder().encode(text);
 
-const concat = (...parts: Uint8Array[]) => {
-  const out = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
-  parts.reduce((offset, part) => {
-    out.set(part, offset);
-    return offset + part.length;
-  }, 0);
-  return out;
-};
-
 const item = sequenceItem;
 
 const sequence = (group: number, element: number, items: Uint8Array) =>
@@ -53,14 +46,14 @@ const NESTED_SEQUENCE = sequence(
   0x0040,
   0x0275,
   item(
-    concat(
+    concatBytes([
       sequence(
         0x0040,
         0x0008,
         item(rawElement(0x0008, 0x0104, 'LO', ascii('MEANING ')))
       ),
-      rawElement(0x0040, 0x0009, 'SH', ascii('SPS1    '))
-    )
+      rawElement(0x0040, 0x0009, 'SH', ascii('SPS1    ')),
+    ])
   )
 );
 
@@ -116,18 +109,16 @@ describe('readDicomDataset', () => {
     const dataset = readDicomDataset(
       buildSlice({ extraElements: [NESTED_SEQUENCE] })
     );
-    const outer = valuesOf(dataset, REQUEST_ATTRIBUTES);
-    if (outer?.kind !== 'sequence') throw new Error('not a sequence');
-    const inner = valuesOf(outer.items[0], REFERENCED_STUDY);
-    if (inner?.kind !== 'sequence') throw new Error('not a sequence');
+    const outer = sequenceItems(dataset, REQUEST_ATTRIBUTES);
+    const inner = sequenceItems(outer[0], REFERENCED_STUDY);
 
-    expect(outer.items).toHaveLength(1);
-    expect(valuesOf(outer.items[0], SCHEDULED_PROCEDURE_STEP_ID)).toEqual({
+    expect(outer).toHaveLength(1);
+    expect(valuesOf(outer[0], SCHEDULED_PROCEDURE_STEP_ID)).toEqual({
       kind: 'text',
       values: ['SPS1    '],
     });
-    expect(inner.items).toHaveLength(1);
-    expect(valuesOf(inner.items[0], CODE_MEANING)).toEqual({
+    expect(inner).toHaveLength(1);
+    expect(valuesOf(inner[0], CODE_MEANING)).toEqual({
       kind: 'text',
       values: ['MEANING '],
     });
@@ -148,19 +139,18 @@ describe('readDicomDataset', () => {
             0x0040,
             0x0275,
             item(
-              concat(
+              concatBytes([
                 ...localCharacterSet,
-                rawElement(0x0008, 0x0104, 'LO', ascii(UTF8_ITEM_TEXT))
-              )
+                rawElement(0x0008, 0x0104, 'LO', ascii(UTF8_ITEM_TEXT)),
+              ])
             )
           ),
         ],
       })
     );
-    const values = valuesOf(dataset, REQUEST_ATTRIBUTES);
-    if (values?.kind !== 'sequence') throw new Error('not a sequence');
+    const [requested] = sequenceItems(dataset, REQUEST_ATTRIBUTES);
 
-    expect(valuesOf(values.items[0], CODE_MEANING)).toEqual({
+    expect(valuesOf(requested, CODE_MEANING)).toEqual({
       kind: 'text',
       values: [UTF8_ITEM_TEXT],
     });
@@ -184,22 +174,21 @@ describe('readDicomDataset', () => {
           specificCharacterSet: JAPANESE_CHARACTER_SET,
           extraElements: [
             build(
-              concat(
+              concatBytes([
                 rawElement(0x0008, 0x0005, 'CS', ascii(JAPANESE_CHARACTER_SET)),
-                rawElement(0x0010, 0x0010, 'PN', JAPANESE_NAME_BYTES)
-              )
+                rawElement(0x0010, 0x0010, 'PN', JAPANESE_NAME_BYTES),
+              ])
             ),
           ],
         })
       );
-      const values = valuesOf(dataset, REQUEST_ATTRIBUTES);
-      if (values?.kind !== 'sequence') throw new Error('not a sequence');
+      const [requested] = sequenceItems(dataset, REQUEST_ATTRIBUTES);
 
-      expect(values.items[0].specificCharacterSet).toEqual([
+      expect(requested.specificCharacterSet).toEqual([
         'ISO 2022 IR 6',
         'ISO 2022 IR 87',
       ]);
-      expect(valuesOf(values.items[0], PATIENT_NAME)).toEqual({
+      expect(valuesOf(requested, PATIENT_NAME)).toEqual({
         kind: 'text',
         values: [JAPANESE_NAME],
       });
@@ -218,16 +207,15 @@ describe('readDicomDataset', () => {
           ultrasoundRegion: { physicalDeltaX: 0.1, physicalDeltaY: 0.2 },
         })
       );
-      const values = valuesOf(dataset, ULTRASOUND_REGIONS);
-      if (values?.kind !== 'sequence') throw new Error('not a sequence');
+      const [region] = sequenceItems(dataset, ULTRASOUND_REGIONS);
 
-      expect(values.items[0].elements.map(({ tag }) => tag)).toEqual([
+      expect(region.elements.map(({ tag }) => tag)).toEqual([
         '00186024',
         '00186026',
         '0018602C',
         '0018602E',
       ]);
-      expect(valuesOf(values.items[0], PHYSICAL_DELTA_X)).toEqual({
+      expect(valuesOf(region, PHYSICAL_DELTA_X)).toEqual({
         kind: 'number',
         values: [0.1],
       });

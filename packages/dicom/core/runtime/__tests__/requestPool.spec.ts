@@ -1,22 +1,11 @@
 import { RequestPool } from '../requestPool';
 import { describe, it, expect } from 'vitest';
 
-const abortableFetch = async (
-  _input: RequestInfo | URL,
-  init?: RequestInit
-) => {
-  return new Promise<Response>((_resolve, reject) => {
-    if (init?.signal) {
-      if (init.signal.aborted) {
-        reject(init.signal.reason);
-        return;
-      }
-      init.signal.addEventListener('abort', () => {
-        reject(init.signal!.reason);
-      });
-    }
+/** A fetch that never answers and rejects once its request is aborted. */
+const abortableFetch = (_input: RequestInfo | URL, init?: RequestInit) =>
+  new Promise<Response>((_resolve, reject) => {
+    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
   });
-};
 
 describe('requestPool', () => {
   it('should not have more active requests than the pool size', () => {
@@ -36,7 +25,7 @@ describe('requestPool', () => {
     const N = 4;
     const pool = new RequestPool(N, abortableFetch);
     const controllers: AbortController[] = [];
-    const promises: Promise<any>[] = [];
+    const promises: Promise<Response>[] = [];
 
     for (let i = 0; i < 10; i++) {
       const controller = new AbortController();

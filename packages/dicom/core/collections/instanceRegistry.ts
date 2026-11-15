@@ -71,13 +71,13 @@ export const emptyRegistry: RegistryState = new Map();
 
 const emptySeries: SeriesState = { instances: new Map(), committed: new Map() };
 
-const keyOf = (instance: Instance): InstanceKey =>
+const keyOf = (instance: Instance) =>
   trimDicomPadding(
     getDatasetTag(instance.dataset, Tags.SOPInstanceUID) ?? ''
   ) || instance;
 
 // A facts object of its own: the planner's members are matched back by identity.
-const registeredOf = (instance: Instance): Registered => ({
+const registeredOf = (instance: Instance) => ({
   key: keyOf(instance),
   instance,
   facts: { ...readDatasetDetails(instance.dataset).facts },
@@ -117,10 +117,7 @@ const unchanged = (before: Committed, after: Committed) =>
   sameList(before.orientation, after.orientation) &&
   sameReconstruction(before.reconstruction, after.reconstruction);
 
-const changeOf = (
-  before: Committed | undefined,
-  after: Committed
-): CollectionChange => {
+const changeOf = (before: Committed | undefined, after: Committed) => {
   if (!before) return 'new';
   return unchanged(before, after) ? 'unchanged' : 'changed';
 };
@@ -130,9 +127,7 @@ const sameDescription = (before: Committed | undefined, after: Committed) =>
   (before.label === after.label && sameList(before.warnings, after.warnings));
 
 const kindOf = (first: Instance) =>
-  getDatasetModality(first.dataset) === 'SEG'
-    ? ('segmentation' as const)
-    : ('image' as const);
+  getDatasetModality(first.dataset) === 'SEG' ? 'segmentation' : 'image';
 
 // The first registration of an instance wins; a re-supply only reports back.
 function mergeBatch(series: SeriesState, batch: Registered[]) {

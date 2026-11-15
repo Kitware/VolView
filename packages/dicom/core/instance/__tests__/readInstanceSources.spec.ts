@@ -31,6 +31,16 @@ const REGION = { physicalDeltaX: 0.0625, physicalDeltaY: 0.125 };
 const never = () => new AbortController().signal;
 const CHUNK = 256;
 
+/** A dataset reader that records the header bytes it is handed. */
+const recordingReader = () => {
+  const seen: Uint8Array[] = [];
+  const readDataset = (header: Uint8Array) => {
+    seen.push(header);
+    return { elements: [], specificCharacterSet: null };
+  };
+  return { seen, readDataset };
+};
+
 const largeSlice = () =>
   syntheticSlice({
     rows: 64,
@@ -162,7 +172,7 @@ describe('readInstance over byte sources', () => {
 
   it('parses nothing when the stream fails before the header ends', async () => {
     const bytes = syntheticSlice();
-    const seen: Uint8Array[] = [];
+    const { seen, readDataset } = recordingReader();
     const failing = {
       read: () =>
         new ReadableStream<Uint8Array>({
@@ -174,26 +184,16 @@ describe('readInstance over byte sources', () => {
     };
 
     await expect(
-      readInstance(failing, never(), {
-        readDataset: (header) => {
-          seen.push(header);
-          return { elements: [], specificCharacterSet: null };
-        },
-      })
+      readInstance(failing, never(), { readDataset })
     ).rejects.toThrow('connection reset');
     expect(seen).toEqual([]);
   });
 
   it('hands the dataset reader the header bytes, once', async () => {
     const bytes = syntheticSlice();
-    const seen: Uint8Array[] = [];
+    const { seen, readDataset } = recordingReader();
 
-    await readInstance(trackedSource(bytes).source, never(), {
-      readDataset: (header) => {
-        seen.push(header);
-        return { elements: [], specificCharacterSet: null };
-      },
-    });
+    await readInstance(trackedSource(bytes).source, never(), { readDataset });
 
     expect(seen).toEqual([bytes.slice(0, pixelDataStart(bytes))]);
   });

@@ -3,18 +3,39 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
 import { useDatasetStore } from '@/src/store/datasets';
-import { uriToDataSource } from '@/src/io/import/dataSource';
+import {
+  isRemoteDataSource,
+  uriToDataSource,
+  type DataSource,
+} from '@/src/io/import/dataSource';
 import {
   normalizeManifest,
   MANIFEST_VERSION,
 } from '@/src/io/state-file/serialize';
 import type { Manifest } from '@/src/io/state-file/schema';
-import {
-  isRemoteDataSource,
-  type DataSource,
-} from '@/src/io/import/dataSource';
 import { Tags } from '@/packages/dicom/core';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
+
+/** Saves the dataset store into a fresh manifest and zip. */
+const save = async () => {
+  const zip = new JSZip();
+  const manifest = {
+    version: MANIFEST_VERSION,
+    datasets: [],
+    dataSources: [],
+    datasetFilePath: {},
+  } as Manifest;
+  await useDatasetStore().serialize({ zip, manifest });
+  return { zip, manifest };
+};
+
+/** The saved collection of the manifest's only dataset. */
+const savedCollection = (manifest: Manifest) => {
+  const id = manifest.datasets![0].dataSourceId;
+  const collection = manifest.dataSources.find((source) => source.id === id);
+  if (collection?.type !== 'collection') throw new Error('Expected collection');
+  return collection;
+};
 
 // ---------------------------------------------------------------------------
 // Regression: importing the same data twice (e.g. dragging the same DICOM
@@ -34,14 +55,7 @@ describe('dataset provenance dedup on re-import', () => {
     store.addDataSources([{ dataID: 'vol-1', dataSource }]);
     store.addDataSources([{ dataID: 'vol-1', dataSource }]);
 
-    const zip = new JSZip();
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [],
-      dataSources: [],
-      datasetFilePath: {},
-    } as Manifest;
-    await store.serialize({ zip, manifest });
+    const { zip, manifest } = await save();
 
     expect(manifest.datasets).toHaveLength(1);
     expect(() => normalizeManifest(manifest, zip)).not.toThrow();
@@ -88,13 +102,7 @@ describe('dataset provenance dedup on re-import', () => {
     }));
     store.addDataSources([{ dataID: 'series-1', dataSource: original }]);
     store.addDataSources([{ dataID: 'series-1', dataSource: duplicate }]);
-    const zip = new JSZip();
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [],
-      dataSources: [],
-    } as Manifest;
-    await store.serialize({ zip, manifest });
+    const { zip, manifest } = await save();
     const [filePath] = Object.values(manifest.datasetFilePath!);
     expect(await zip.file(filePath)!.async('string')).toBe('sop-1');
   });
@@ -113,28 +121,10 @@ describe('dataset provenance dedup on re-import', () => {
       },
     ]);
 
-    const zip = new JSZip();
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [],
-      dataSources: [],
-      datasetFilePath: {},
-    } as Manifest;
-    await store.serialize({ zip, manifest });
+    const { zip, manifest } = await save();
 
     expect(manifest.datasets).toHaveLength(1);
-    const datasetSourceId = manifest.datasets![0].dataSourceId;
-    const collection = manifest.dataSources.find(
-      (source) => source.id === datasetSourceId
-    );
-    expect(collection).toMatchObject({
-      type: 'collection',
-      sources: expect.any(Array),
-    });
-    if (collection?.type !== 'collection') {
-      throw new Error('Expected collection');
-    }
-    expect(collection.sources).toHaveLength(4);
+    expect(savedCollection(manifest).sources).toHaveLength(4);
     expect(() => normalizeManifest(manifest, zip)).not.toThrow();
   });
 
@@ -147,23 +137,9 @@ describe('dataset provenance dedup on re-import', () => {
       { dataID: 'series-1', dataSource: dicomBatch(['sop-1', 'sop-2']) },
     ]);
 
-    const zip = new JSZip();
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [],
-      dataSources: [],
-      datasetFilePath: {},
-    } as Manifest;
-    await store.serialize({ zip, manifest });
+    const { manifest } = await save();
 
-    const datasetSourceId = manifest.datasets![0].dataSourceId;
-    const collection = manifest.dataSources.find(
-      (source) => source.id === datasetSourceId
-    );
-    if (collection?.type !== 'collection') {
-      throw new Error('Expected collection');
-    }
-    expect(collection.sources).toHaveLength(2);
+    expect(savedCollection(manifest).sources).toHaveLength(2);
   });
 
   it('drops a member a replan moved to another dataset', () => {
@@ -221,13 +197,7 @@ it('saves one shared archive File used by distinct restored dataset leaves', asy
       },
     }))
   );
-  const zip = new JSZip();
-  const manifest = {
-    version: MANIFEST_VERSION,
-    dataSources: [],
-    datasets: [],
-  } as Manifest;
-  await store.serialize({ zip, manifest });
+  const { zip, manifest } = await save();
   expect(manifest.datasets).toHaveLength(2);
   expect(
     manifest.dataSources.filter((source) => source.type === 'file')

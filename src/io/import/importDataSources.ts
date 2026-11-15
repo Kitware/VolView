@@ -80,7 +80,7 @@ const applyConfigsPostState = (
     }
   });
 
-const compareSourceOrder = (a: number[], b: number[]): number => {
+const compareSourceOrder = (a: number[], b: number[]) => {
   for (let i = 0; i < Math.min(a.length, b.length); i++) {
     if (a[i] !== b[i]) return a[i] - b[i];
   }
@@ -142,7 +142,7 @@ const sourcesOf = (instances: Instance[]) =>
     .filter((src): src is DicomInstanceSource => src !== undefined);
 
 /** What the import needs of its caller: how to remove a dissolved dataset. */
-export type ImportInstancesHooks = Required<
+type ImportInstancesHooks = Required<
   Pick<ImportInstancesDeps, 'removeDissolved'>
 >;
 
@@ -236,7 +236,10 @@ async function processImportQueue(
   handlers: ImportHandler[],
   importContext: ImportContext
 ) {
-  const instanceSources: Array<{ source: DataSource; order: number[] }> = [];
+  const instanceSources: Array<{
+    source: DicomInstanceSource;
+    order: number[];
+  }> = [];
   const configResults: ConfigResult[] = [];
   const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
@@ -401,8 +404,7 @@ async function importDataSourcesWithPolicy(
 
   const dicomInstanceSources = instanceSources
     .sort((a, b) => compareSourceOrder(a.order, b.order))
-    .map(({ source }) => source)
-    .filter((src): src is DicomInstanceSource => src.type === 'dicom');
+    .map(({ source }) => source);
 
   const dicomResults = importDicomResults(dicomInstanceSources);
   results.push(...dicomResults);

@@ -37,10 +37,10 @@ export type Reconstruction =
 /**
  * How far apart two slice gaps may be and still be one lattice: a tenth of a
  * millimetre (capped at a tenth of the gap), or one part in a hundred of the
- * gap, whichever is larger. DICOM
- * prints a position as a decimal string, so the projection of an oblique stack
- * onto its normal jitters in the last digits; a genuine slab boundary or a
- * missed slice is orders of magnitude larger.
+ * gap, whichever is larger. DICOM prints a position as a decimal string, so
+ * the projection of an oblique stack onto its normal jitters in the last
+ * digits; a genuine slab boundary or a missed slice is orders of magnitude
+ * larger.
  */
 const SLICE_SPACING_TOLERANCE_MM = 0.1;
 const SLICE_SPACING_TOLERANCE_CAP = 0.1;

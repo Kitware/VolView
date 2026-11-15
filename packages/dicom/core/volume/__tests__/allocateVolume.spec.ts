@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { instanceFor } from '@/tests/dicomDataset';
 import { allocateVolume } from '../allocateVolume';
 import { allocated, pixelSlice } from './volumeFixture';
 import { plannedUpdate } from '@/tests/dicomVolumeFixtures';
@@ -68,9 +67,8 @@ describe('allocateVolume', () => {
   });
 
   it('applies the first ultrasound region as display spacing', () => {
-    const { dataset, source } = pixelSlice(0, { modality: 'US' });
     const ultrasound = {
-      ...instanceFor(dataset, source),
+      ...pixelSlice(0, { modality: 'US' }),
       ultrasoundRegions: {
         regionCount: 1,
         region: {

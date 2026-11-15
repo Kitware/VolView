@@ -1,4 +1,4 @@
-export function getFirstCachedImageSpacing() {
+function getFirstCachedImageSpacing() {
   return browser.execute(() => {
     const app = (document.querySelector('#app') as any)?.__vue_app__;
     const pinia =

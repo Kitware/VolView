@@ -40,15 +40,20 @@ async function useLocalSampleFiles(files: { url: string; name: string }[]) {
   }, files);
 }
 
-async function openAxialSample() {
-  await volViewPage.open();
-  await selectLayout('Axial Only', 1, false);
+async function clickSample() {
   const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
+  await sample.waitForExist();
   await sample.execute((element) =>
     element.scrollIntoView({ block: 'center', behavior: 'instant' })
   );
   await sample.waitForClickable();
   await sample.click();
+}
+
+async function openAxialSample() {
+  await volViewPage.open();
+  await selectLayout('Axial Only', 1, false);
+  await clickSample();
   await volViewPage.waitForViews();
 }
 
@@ -60,6 +65,17 @@ async function displayedPetRange() {
           'title'
         ))!
     )
+  );
+}
+
+async function expectPetRange([minimum, maximum]: string[]) {
+  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
+    'title',
+    minimum
+  );
+  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
+    'title',
+    maximum
   );
 }
 
@@ -127,14 +143,7 @@ async function editPetColors(
     narrowedMaximum
   );
   await $('header').moveTo();
-  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-    'title',
-    minimum
-  );
-  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-    'title',
-    narrowedMaximum
-  );
+  await expectPetRange([minimum, narrowedMaximum]);
   await browser.waitUntil(
     async () => {
       const pixels = await captureAxialPixels();
@@ -168,14 +177,8 @@ async function reopenSample(
   preset = 'DICOM Hot Iron'
 ) {
   await showSampleData();
-  const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-  await sample.waitForExist();
-  await sample.execute((element) =>
-    element.scrollIntoView({ block: 'center', behavior: 'instant' })
-  );
   await browser.saveScreenshot(path.join(TEMP_DIR, 'pet-ct-sample-reload.png'));
-  await sample.waitForClickable();
-  await sample.click();
+  await clickSample();
   await expect(
     $('.volume-card[html-title="PET WB Corrected"]')
   ).toBeDisplayed();
@@ -191,14 +194,7 @@ async function reopenSample(
     'layer-opacity-slider',
   ])
     await expect($$(`[data-testid="${control}"]`)).toBeElementsArrayOfSize(1);
-  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-    'title',
-    range[0]
-  );
-  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-    'title',
-    range[1]
-  );
+  await expectPetRange(range);
   await expect($('[data-testid="layer-colormap"]')).toHaveText(
     expect.stringContaining(preset)
   );
@@ -320,12 +316,7 @@ describe('PET/CT sample', () => {
     await selectLayout('Four Up', 3, true);
     for (let loading = 0; loading < 2; loading++) {
       await showSampleData();
-      const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-      await sample.execute((element) =>
-        element.scrollIntoView({ block: 'center', behavior: 'instant' })
-      );
-      await sample.waitForClickable();
-      await sample.click();
+      await clickSample();
       await expect($('[data-testid~="vtk-two-view"]')).toHaveText(
         expect.stringContaining('CT WB')
       );
@@ -383,14 +374,7 @@ describe('PET/CT sample', () => {
     await expect(
       $('[data-testid="layer-opacity-slider"] [role="slider"]')
     ).toHaveAttribute('aria-valuenow', opacity);
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      '0'
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      maximum
-    );
+    await expectPetRange(['0', maximum]);
     await expect(
       $('[data-testid="layer-transparent-background"] input')
     ).toBeChecked();
@@ -424,18 +408,10 @@ describe('PET/CT sample', () => {
       initial.pixels,
       initial.range
     );
-    const [minimum, narrowedMaximum] = range;
     await selectLayout('3D Only', 0, true);
     await expect($('[data-testid="layer-range-max"] input')).toBeEnabled();
     await selectLayout('Axial Only', 1, false);
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      minimum
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      narrowedMaximum
-    );
+    await expectPetRange(range);
     await expect($('[data-testid="layer-colormap"]')).toHaveText(
       expect.stringContaining('Cool to Warm')
     );
@@ -500,14 +476,7 @@ describe('PET/CT sample', () => {
 
   it('uses consistent PET DICOM windows and preserves an edited range when saving and reopening', async () => {
     await openPetMetadataVariant('valid');
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      '0'
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      '5999'
-    );
+    await expectPetRange(['0', '5999']);
     await setValueVueInput($('[data-testid="layer-range-min"] input'), '100');
     await setValueVueInput($('[data-testid="layer-range-max"] input'), '3000');
     await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(

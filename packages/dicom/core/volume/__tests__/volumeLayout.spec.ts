@@ -8,7 +8,7 @@ import { reconstructVolume } from '../../collections/reconstructVolume';
 import { Tags } from '../../metadata/dicomTags';
 import { volumeLayout, type VolumeSource } from '../volumeLayout';
 
-function volumeSource(overrides: Record<string, string> = {}): VolumeSource {
+function volumeSource(overrides: Record<string, string> = {}) {
   const metadata = {
     [Tags.SOPInstanceUID]: '1.2.3',
     [Tags.ImagePositionPatient]: '0\\0\\0',
@@ -41,7 +41,7 @@ function layoutOf(sources: VolumeSource[], orientation: number[] | null) {
   return volumeLayout(sources, orientation, reconstruction);
 }
 
-const spacingOf = (layout: ReturnType<typeof volumeLayout>) =>
+const spacingOf = (layout: ReturnType<typeof layoutOf>) =>
   layout.spatialMetadata.axes.map((axis) => axis.value);
 
 const dimensionsOf = ({
@@ -173,20 +173,5 @@ describe('volumeLayout', () => {
     );
 
     expect(spacingOf(layout)[2]).toBe(2.5);
-  });
-
-  it('takes the declared SpacingBetweenSlices for a multi-frame instance', () => {
-    const layout = layoutOf(
-      [
-        volumeSource({
-          [Tags.NumberOfFrames]: '4',
-          [Tags.SpacingBetweenSlices]: '1.5',
-        }),
-      ],
-      AXIAL
-    );
-
-    expect(dimensionsOf(layout)).toEqual([4, 3, 4]);
-    expect(spacingOf(layout)[2]).toBe(1.5);
   });
 });

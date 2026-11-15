@@ -5,7 +5,6 @@ import {
   IMPLICIT_VR_LITTLE_ENDIAN,
   type DicomLayout,
   type DicomRuntime,
-  type Instance,
 } from '@/packages/dicom/core';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { Skip } from '@/src/utils/evaluateChain';
@@ -87,11 +86,7 @@ const handleDicom: ImportHandler = async (dataSource) => {
   const name = getDataSourceName(dataSource);
   const { runtime } = useDicomRuntimeStore();
 
-  let instance: Instance;
-  try {
-    instance = await readHeader(dataSource, runtime);
-    reportLayout(name, instance.layout);
-  } catch (error) {
+  const instance = await readHeader(dataSource, runtime).catch((error) => {
     const detail = getErrorDetail(
       error,
       'the file could not be parsed as valid DICOM (check browser console for details)'
@@ -99,7 +94,8 @@ const handleDicom: ImportHandler = async (dataSource) => {
     throw new Error(`Failed to read DICOM tags from ${name}: ${detail}`, {
       cause: error,
     });
-  }
+  });
+  reportLayout(name, instance.layout);
 
   const modality = getDatasetModality(instance.dataset);
   if (modality?.startsWith('RT')) {

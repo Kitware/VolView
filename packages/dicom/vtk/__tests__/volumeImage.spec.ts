@@ -26,6 +26,18 @@ const rangeOf = (image: vtkImageData) => [
   ...image.getPointData().getScalars().getRange(0),
 ];
 
+const rgbImage = (dimensions: [number, number, number], values: number[]) => {
+  const image = vtkImageData.newInstance();
+  image.setDimensions(dimensions);
+  image.getPointData().setScalars(
+    vtkDataArray.newInstance({
+      numberOfComponents: 3,
+      values: new Uint8Array(values),
+    })
+  );
+  return image;
+};
+
 /** Loads one slice at a time, recording the scalar range after each update. */
 async function loadRanges(volume: Volume) {
   const image = toVtkImageData(volume);
@@ -110,29 +122,16 @@ describe('vtk volume adapter', () => {
   });
 
   it('shows green and blue pixels of an RGB slice as luminance', () => {
-    const image = vtkImageData.newInstance();
-    image.setDimensions(3, 1, 1);
-    image.getPointData().setScalars(
-      vtkDataArray.newInstance({
-        numberOfComponents: 3,
-        values: new Uint8Array([0, 0, 0, 0, 255, 0, 0, 0, 255]),
-      })
-    );
+    const image = rgbImage([3, 1, 1], [0, 0, 0, 0, 255, 0, 0, 0, 255]);
 
     expect(Array.from(sliceThumbnail(image, 0).data)).toEqual([0, 255, 50]);
     image.delete();
   });
 
   it('windows a color slice to its own luminance, whatever the other slices hold', () => {
-    const image = vtkImageData.newInstance();
-    image.setDimensions(2, 1, 2);
-    image.getPointData().setScalars(
-      vtkDataArray.newInstance({
-        numberOfComponents: 3,
-        values: new Uint8Array([
-          0, 0, 0, 100, 100, 100, 255, 255, 255, 0, 0, 0,
-        ]),
-      })
+    const image = rgbImage(
+      [2, 1, 2],
+      [0, 0, 0, 100, 100, 100, 255, 255, 255, 0, 0, 0]
     );
 
     expect(Array.from(sliceThumbnail(image, 0).data)).toEqual([0, 255]);

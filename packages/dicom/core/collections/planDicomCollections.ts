@@ -336,8 +336,7 @@ const unreadablePositionNotes = (
     unreadable && (placed || stacked) ? [UNREADABLE_POSITION_WARNING] : [],
 });
 
-export function planDicomCollections(input: PlanInput) {
-  const { instances } = input;
+export function planDicomCollections({ seriesKey, instances }: PlanInput) {
   const labelHardFacts = hardFactLabeler(instances);
 
   const multiframe = (instance: InstanceFacts) =>
@@ -369,12 +368,12 @@ export function planDicomCollections(input: PlanInput) {
 
   const placed = parts.some(({ part }) => !part.unreadablePositions);
 
-  const collections = parts
+  return parts
     .map(({ group, bucket, positionOf, part }) => {
       const members = orderMembers(part.members, positionOf);
       const reconstruction = reconstructInstances(members, bucket.normal);
       const key: CollectionKey = {
-        seriesKey: input.seriesKey,
+        seriesKey,
         parts: [
           ...hardFactParts(group[0]),
           [ORIENTATION_RULE, bucket.value],
@@ -414,6 +413,4 @@ export function planDicomCollections(input: PlanInput) {
     .sort((left, right) =>
       canonicalKey(left.key) < canonicalKey(right.key) ? -1 : 1
     );
-
-  return collections;
 }

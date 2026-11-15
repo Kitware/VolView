@@ -2,7 +2,11 @@
 // for comparing frame decoders. Stored words are written as given, so high
 // bits above Bits Stored can carry anything a test wants.
 
-import { combine, LONG_FORM_VRS } from '@/tests/specs/syntheticDicom';
+import {
+  combine,
+  LONG_FORM_VRS,
+  part10File,
+} from '@/tests/specs/syntheticDicom';
 
 export const IMPLICIT_LE = '1.2.840.10008.1.2';
 export const EXPLICIT_LE = '1.2.840.10008.1.2.1';
@@ -25,6 +29,8 @@ const NUMBER_WIDTH: Record<string, number> = {
 };
 
 type Encoding = { explicit: boolean; littleEndian: boolean };
+
+const enc = new TextEncoder();
 
 const uint = (value: number, width: number, littleEndian: boolean) => {
   const bytes = new Uint8Array(width);
@@ -60,7 +66,7 @@ function valueBytes(element: DataElement, encoding: Encoding): Uint8Array {
   const { vr, value } = element;
   if (typeof value === 'string') {
     const pad = vr === 'UI' ? '\0' : ' ';
-    return new TextEncoder().encode(value.length % 2 ? value + pad : value);
+    return enc.encode(value.length % 2 ? value + pad : value);
   }
   if (value instanceof Uint8Array)
     return value.length % 2 ? combine(value, new Uint8Array(1)) : value;
@@ -84,14 +90,11 @@ function encodeElement(element: DataElement, encoding: Encoding) {
   const head = encoding.explicit
     ? LONG_FORM_VRS.has(element.vr)
       ? [
-          new TextEncoder().encode(element.vr),
+          enc.encode(element.vr),
           new Uint8Array(2),
           uint(value.length, 4, littleEndian),
         ]
-      : [
-          new TextEncoder().encode(element.vr),
-          uint(value.length, 2, littleEndian),
-        ]
+      : [enc.encode(element.vr), uint(value.length, 2, littleEndian)]
     : [uint(value.length, 4, littleEndian)];
   return combine(tagBytes(element.tag, littleEndian), ...head, value);
 }
@@ -102,39 +105,6 @@ const encodeElements = (elements: DataElement[], encoding: Encoding) =>
       .sort((a, b) => a.tag - b.tag)
       .map((element) => encodeElement(element, encoding))
   );
-
-/** Wraps a data set in a preamble and Explicit VR Little Endian file meta. */
-function part10(
-  dataset: DataElement[],
-  transferSyntaxUid: string,
-  sopClassUid: string,
-  sopInstanceUid: string
-) {
-  const meta = encodeElements(
-    [
-      { tag: 0x00020001, vr: 'OB', value: new Uint8Array([0, 1]) },
-      { tag: 0x00020002, vr: 'UI', value: sopClassUid },
-      { tag: 0x00020003, vr: 'UI', value: sopInstanceUid },
-      { tag: 0x00020010, vr: 'UI', value: transferSyntaxUid },
-    ],
-    { explicit: true, littleEndian: true }
-  );
-  const groupLength = encodeElement(
-    { tag: 0x00020000, vr: 'UL', value: [meta.length] },
-    { explicit: true, littleEndian: true }
-  );
-  const encoding = {
-    explicit: transferSyntaxUid !== IMPLICIT_LE,
-    littleEndian: transferSyntaxUid !== EXPLICIT_BE,
-  };
-  return combine(
-    new Uint8Array(128),
-    new TextEncoder().encode('DICM'),
-    groupLength,
-    meta,
-    encodeElements(dataset, encoding)
-  );
-}
 
 export type NativePixelOptions = {
   transferSyntaxUid?: string;
@@ -174,8 +144,6 @@ export function patternWords(count: number, bitsAllocated: number, seed = 1) {
   });
 }
 
-const decimal = (value: number) => String(value);
-
 const frameRescaleGroups = (
   rescales: ReadonlyArray<readonly [number, number]>
 ): DataElement => ({
@@ -187,8 +155,8 @@ const frameRescaleGroups = (
       vr: 'SQ',
       value: [
         [
-          { tag: 0x00281052, vr: 'DS', value: decimal(intercept) },
-          { tag: 0x00281053, vr: 'DS', value: decimal(slope) },
+          { tag: 0x00281052, vr: 'DS', value: String(intercept) },
+          { tag: 0x00281053, vr: 'DS', value: String(slope) },
           { tag: 0x00281054, vr: 'LO', value: 'US' },
         ],
       ],
@@ -259,9 +227,17 @@ export function nativePixelDicom(options: NativePixelOptions = {}) {
     dataset.push({ tag: 0x00280006, vr: 'US', value: [planarConfiguration] });
   if (rescale)
     dataset.push(
-      { tag: 0x00281052, vr: 'DS', value: decimal(rescale[1]) },
-      { tag: 0x00281053, vr: 'DS', value: decimal(rescale[0]) }
+      { tag: 0x00281052, vr: 'DS', value: String(rescale[1]) },
+      { tag: 0x00281053, vr: 'DS', value: String(rescale[0]) }
     );
   if (frameRescales) dataset.push(frameRescaleGroups(frameRescales));
-  return part10(dataset, transferSyntaxUid, sopClassUid, sopInstanceUid);
+  return part10File(
+    sopClassUid,
+    sopInstanceUid,
+    transferSyntaxUid,
+    encodeElements(dataset, {
+      explicit: transferSyntaxUid !== IMPLICIT_LE,
+      littleEndian,
+    })
+  );
 }

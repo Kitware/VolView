@@ -6,6 +6,7 @@ import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
   buildSlice,
+  JAPANESE_CHARACTER_SET,
   JAPANESE_NAME,
   JAPANESE_NAME_BYTES,
 } from './dicomElementFixtures';
@@ -23,7 +24,7 @@ describe('DICOM patient name in a non-default character set', () => {
         studyUid: newUid(),
         seriesUid: newUid(),
         sopUid: newUid(),
-        specificCharacterSet: 'ISO 2022 IR 6\\ISO 2022 IR 87',
+        specificCharacterSet: JAPANESE_CHARACTER_SET,
         patientNameBytes: JAPANESE_NAME_BYTES,
       })
     );
