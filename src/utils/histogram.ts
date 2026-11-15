@@ -69,10 +69,15 @@ export function histogramWindowRanges(
 export function piecewiseHistogram(
   values: ArrayLike<number>,
   [min, max]: readonly number[],
-  numberOfBins: number
+  maxBins: number,
+  integer = false
 ) {
-  const counts = new Float32Array(numberOfBins);
   const span = max - min;
+  // One bin per integer level, as more bins than levels leaves empty bins between them.
+  const numberOfBins = integer
+    ? Math.max(2, Math.min(maxBins, Math.floor(span) + 1))
+    : maxBins;
+  const counts = new Float32Array(numberOfBins);
   if (!(span > 0)) return counts;
   for (let index = 0; index < values.length; index += 1) {
     const bin = Math.floor(((numberOfBins - 1) * (values[index] - min)) / span);

@@ -46,6 +46,14 @@ describe('scalar image histograms', () => {
 });
 
 describe('piecewiseHistogram', () => {
+  it('uses one bin per level for integers narrower than the bin count', () => {
+    const levels = Array.from({ length: 161 }, (_, index) => 20 + index);
+    const counts = piecewiseHistogram(levels, [20, 180], 256, true);
+    expect(counts).toHaveLength(161);
+    expect(counts.every((count) => count > 0)).toBe(true);
+    expect(piecewiseHistogram(levels, [20, 180], 256)).toHaveLength(256);
+  });
+
   it('bins only the given range and scales by the second-largest bin', () => {
     const values = [-5, 0, 0, 0, 0, 1, 1, 2, 3, 3, 4, 1e6, NaN];
     expect(Array.from(piecewiseHistogram(values, [0, 4], 5))).toEqual([

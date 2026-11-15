@@ -197,7 +197,8 @@ export default defineComponent({
         piecewiseHistogram(
           getScalarSample(image),
           range,
-          pwfWidget.getNumberOfBins()
+          pwfWidget.getNumberOfBins(),
+          !image.getPointData().getScalars().getDataType().includes('Float')
         ),
         range
       );
