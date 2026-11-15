@@ -20,8 +20,8 @@ function extendMarker(publicAPI: any, model: any, initialValues = {}) {
     const viewport = model.enabled && publicAPI.computeViewport();
     return !!viewport && publicAPI.getRenderer().setViewport(...viewport);
   };
-  // The stock widget renders the whole view on every canvas resize, though the
-  // view renders after resizing anyway.
+  // The stock widget requests a render on every canvas resize, though the view
+  // renders after resizing anyway.
   publicAPI.updateViewport = () => {
     if (publicAPI.fitViewport()) model._interactor.render();
   };

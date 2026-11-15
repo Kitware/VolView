@@ -5,6 +5,7 @@ import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import { VtkRenderWindowParentContext } from '@/src/components/vtk/context';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
+import { View } from '@/src/core/vtk/types';
 import { useVtkView, useWebGLRenderWindow } from '@/src/core/vtk/useVtkView';
 
 function createParent() {
@@ -54,7 +55,17 @@ function mountViewUnder(parent: VtkRenderWindowParentApi) {
   });
 }
 
-describe('useVtkView teardown', () => {
+// Each render draws the view's widgets first, which modifies the widget manager.
+function countRenders(view: View, duringRender = () => {}) {
+  let count = 0;
+  const sub = view.widgetManager.onModified(() => {
+    count++;
+    duringRender();
+  });
+  return { count: () => count, stop: () => sub?.unsubscribe() };
+}
+
+describe('useVtkView', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -68,14 +79,7 @@ describe('useVtkView teardown', () => {
     (state) => {
       const scope = effectScope(true);
       const view = scope.run(() => useVtkView(ref(null)))!;
-      // With no container, the interactor emits render events without drawing.
-      const events: string[] = [];
-      const rendered = view.interactor.onRenderEvent(() =>
-        events.push('render')
-      );
-      const widgetsModified = view.widgetManager.onModified(() =>
-        events.push('widgets')
-      );
+      const renders = countRenders(view);
 
       try {
         view.requestRender();
@@ -104,10 +108,9 @@ describe('useVtkView teardown', () => {
 
         vi.runAllTimers();
 
-        expect(events).toEqual(state === 'live' ? ['widgets', 'render'] : []);
+        expect(renders.count()).toBe(state === 'live' ? 1 : 0);
       } finally {
-        rendered.unsubscribe();
-        widgetsModified?.unsubscribe();
+        renders.stop();
         scope.stop();
         // A throwing scope cleanup does not resume on a second stop().
         [
@@ -121,6 +124,40 @@ describe('useVtkView teardown', () => {
       }
     }
   );
+
+  it('renders once per frame, however many renders vtk and the app ask for', () => {
+    const scope = effectScope(true);
+    const view = scope.run(() => useVtkView(ref(null)))!;
+    const renders = countRenders(view);
+
+    try {
+      view.requestRender();
+      view.renderWindow.render();
+      view.interactor.render();
+      expect(renders.count()).toBe(0);
+
+      vi.runAllTimers();
+
+      expect(renders.count()).toBe(1);
+    } finally {
+      scope.stop();
+    }
+  });
+
+  it('does not render again for a request made while rendering', () => {
+    const scope = effectScope(true);
+    const view = scope.run(() => useVtkView(ref(null)))!;
+    const renders = countRenders(view, () => view.requestRender());
+
+    try {
+      view.requestRender();
+      vi.runAllTimers();
+
+      expect(renders.count()).toBe(1);
+    } finally {
+      scope.stop();
+    }
+  });
 
   it('queues no render work once the view scope is disposed', () => {
     const container = document.createElement('div');

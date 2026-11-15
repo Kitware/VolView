@@ -10,11 +10,12 @@ import {
 } from 'vue';
 import { storeToRefs } from 'pinia';
 import vtkInteractorStyleManipulator from '@kitware/vtk.js/Interaction/Style/InteractorStyleManipulator';
+import { onVTKEvent } from '@/src/composables/onVTKEvent';
 import { useVtkView } from '@/src/core/vtk/useVtkView';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { useVtkInteractorStyle } from '@/src/core/vtk/useVtkInteractorStyle';
 import { LPSAxisDir } from '@/src/types/lps';
-import { useResizeObserver, watchImmediate } from '@vueuse/core';
+import { watchImmediate } from '@vueuse/core';
 import { resetCameraToImage, resizeToFitImage } from '@/src/utils/camera';
 import { usePersistCameraConfig } from '@/src/composables/usePersistCameraConfig';
 import { useAutoFitState } from '@/src/composables/useAutoFitState';
@@ -104,7 +105,8 @@ function autoFitImage() {
   });
 }
 
-useResizeObserver(vtkContainerRef, () => {
+// Fit on the view's own resize, so the render that follows shows the fit.
+onVTKEvent(view.renderWindowView, 'onWindowResizeEvent', () => {
   if (disableCameraAutoReset.value) return;
   autoFitImage();
 });

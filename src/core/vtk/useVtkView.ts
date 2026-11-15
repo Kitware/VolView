@@ -5,22 +5,15 @@ import { Maybe } from '@/src/types';
 import { VtkRenderWindowParentApi } from '@/src/types/vtk-types';
 import { releaseOpenGLRenderWindow } from '@/src/core/vtk/releaseRenderWindow';
 import { deleteInteractor } from '@/src/core/vtk/deleteInteractor';
-import { batchForNextTask } from '@/src/utils/batchForNextTask';
+import { batchAfterNextFrame } from '@/src/utils/batchAfterNextFrame';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
-import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
+import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import type { Bounds } from '@kitware/vtk.js/types';
-import { useElementSize } from '@vueuse/core';
-import {
-  inject,
-  MaybeRef,
-  onScopeDispose,
-  unref,
-  watch,
-  watchPostEffect,
-} from 'vue';
+import { useResizeObserver } from '@vueuse/core';
+import { inject, MaybeRef, onScopeDispose, unref, watchPostEffect } from 'vue';
 
 export function useWebGLRenderWindow(
   renderWindow: vtkRenderWindow,
@@ -133,7 +126,10 @@ export function useVtkView(
   );
 
   // interactor
-  const interactor = vtkRenderWindowInteractor.newInstance();
+  const interactor = vtkRenderWindowInteractor.newInstance({
+    // The view decides when to draw, so vtk's renders only emit RenderEvent.
+    enableRender: false,
+  });
   renderWindow.setInteractor(interactor);
   interactor.setView(renderWindowView);
 
@@ -152,14 +148,35 @@ export function useVtkView(
   const widgetManager = useWidgetManager(renderer);
 
   // render API
-  const render = () => {
-    // don't need to re-render during animation
-    if (interactor.isAnimating()) return;
-    widgetManager.renderWidgets();
-    renderWindow.render();
+  // vtk modifies what it draws while drawing it, which needs no second render.
+  let rendering = false;
+  const whileRendering = (draw: () => void) => {
+    rendering = true;
+    try {
+      draw();
+    } finally {
+      rendering = false;
+    }
+  };
+  const drawPasses = () => {
+    // the interactor is enabled once it has a container to draw into
+    if (interactor.getEnabled()) renderWindowView.traverseAllPasses();
   };
 
-  const deferredRender = batchForNextTask(() => {
+  let hasArea = false;
+  const render = () => {
+    // animation frames draw as vtk asks for them
+    if (interactor.isAnimating()) return;
+    // A container without area shows nothing, and gaining area renders.
+    if (unref(container) && !hasArea) return;
+    whileRendering(() => {
+      widgetManager.renderWidgets();
+      renderWindow.preRender();
+      drawPasses();
+    });
+  };
+
+  const deferredRender = batchAfterNextFrame(() => {
     // Cleanup can throw before the queued render is cancelled.
     if (disposed) return;
     render();
@@ -168,7 +185,7 @@ export function useVtkView(
   // requests outlive the view: vtk event handlers and promises that settle
   // after dispose has deleted the scene graph nodes a render would traverse
   const requestRender = ({ immediate } = { immediate: false }) => {
-    if (disposed) return;
+    if (disposed || rendering) return;
     if (!immediate) {
       deferredRender();
       return;
@@ -178,6 +195,10 @@ export function useVtkView(
     render();
   };
 
+  onVTKEvent(interactor, 'onRenderEvent', () => {
+    if (interactor.isAnimating()) whileRendering(drawPasses);
+    else requestRender();
+  });
   onVTKEvent(renderer, 'onModified', () => {
     requestRender();
   });
@@ -202,8 +223,10 @@ export function useVtkView(
     requestRender({ immediate: true });
   };
 
-  const { width, height } = useElementSize(container);
-  watch([width, height], ([w, h]) => setSize(w, h), { immediate: true });
+  useResizeObserver(container, ([{ contentRect }]) => {
+    hasArea = contentRect.width > 0 && contentRect.height > 0;
+    setSize(contentRect.width, contentRect.height);
+  });
 
   // cleanup
   onScopeDispose(() => {
