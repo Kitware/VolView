@@ -54,6 +54,13 @@ describe('piecewiseHistogram', () => {
     expect(piecewiseHistogram(levels, [20, 180], 256)).toHaveLength(256);
   });
 
+  it('draws the two levels of a binary mask as separate peaks', () => {
+    const mask = [...Array(9).fill(0), 1];
+    expect(Array.from(piecewiseHistogram(mask, [0, 1], 256, true))).toEqual([
+      9, 0, 1,
+    ]);
+  });
+
   it('bins only the given range and scales by the second-largest bin', () => {
     const values = [-5, 0, 0, 0, 0, 1, 1, 2, 3, 3, 4, 1e6, NaN];
     expect(Array.from(piecewiseHistogram(values, [0, 4], 5))).toEqual([

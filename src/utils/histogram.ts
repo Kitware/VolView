@@ -73,9 +73,9 @@ export function piecewiseHistogram(
   integer = false
 ) {
   const span = max - min;
-  // One bin per integer level, as more bins than levels leaves empty bins between them.
+  // One bin per integer level, as extra bins leave gaps; three at least so two levels draw as two peaks.
   const numberOfBins = integer
-    ? Math.max(2, Math.min(maxBins, Math.floor(span) + 1))
+    ? Math.max(3, Math.min(maxBins, Math.floor(span) + 1))
     : maxBins;
   const counts = new Float32Array(numberOfBins);
   if (!(span > 0)) return counts;
