@@ -93,7 +93,6 @@ describe('3D rendering color and opacity reset', () => {
     await volViewPage.renderingModuleTab.click();
     await waitForModuleTransitions();
     const reset = $(RESET);
-    await expect(reset).toBeEnabled();
     await expect(reset).toHaveAttribute(
       'aria-label',
       'Reset color and opacity'

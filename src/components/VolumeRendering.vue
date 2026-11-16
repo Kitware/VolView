@@ -275,7 +275,6 @@ export default defineComponent({
       );
     };
 
-    const canResetColoring = computed(() => !!selectedPreset.value);
     const resetColoring = () => {
       if (selectedPreset.value) selectPreset(selectedPreset.value);
     };
@@ -357,7 +356,6 @@ export default defineComponent({
       request3DAnimation,
       cancel3DAnimation,
       selectPreset,
-      canResetColoring,
       resetColoring,
     };
   },
@@ -401,29 +399,19 @@ export default defineComponent({
         />
       </div>
       <v-tooltip
-        :text="
-          canResetColoring
-            ? 'Restore the opacity curve, Shift, and Width for the selected preset while keeping its palette and lighting'
-            : 'Wait for volume rendering to initialize'
-        "
+        text="Restore the opacity curve, Shift, and Width for the selected preset while keeping its palette and lighting"
       >
         <template #activator="{ props: tooltipProps }">
-          <span
+          <v-btn
             v-bind="tooltipProps"
-            class="d-inline-flex"
-            :tabindex="canResetColoring ? undefined : 0"
-          >
-            <v-btn
-              data-testid="volume-reset-color-opacity"
-              aria-label="Reset color and opacity"
-              icon="mdi-restore"
-              size="small"
-              density="compact"
-              variant="text"
-              :disabled="!canResetColoring"
-              @click="resetColoring"
-            />
-          </span>
+            data-testid="volume-reset-color-opacity"
+            aria-label="Reset color and opacity"
+            icon="mdi-restore"
+            size="small"
+            density="compact"
+            variant="text"
+            @click="resetColoring"
+          />
         </template>
       </v-tooltip>
     </div>
