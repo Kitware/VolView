@@ -3,6 +3,8 @@ import path from 'node:path';
 import { volViewPage } from '../pageobjects/volview.page';
 import { captureViewPixels, makeTempDir, writeManifestToFile } from './utils';
 
+export const VIEW = '[data-testid~="vtk-volume-view"]';
+
 const LAYOUT = {
   layouts: {
     default: {

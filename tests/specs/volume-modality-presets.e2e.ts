@@ -16,6 +16,7 @@ import {
   openWith3DLayout,
   selectedPreset,
   stablePixels,
+  VIEW,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -117,17 +118,11 @@ describe('volume preset from declared modality', () => {
   });
 });
 
-const VIEW = '[data-testid~="vtk-volume-view"]';
-
 // The inset keeps only the view center, where every test volume has signal.
 const CENTER_INSET = 280;
 
 async function brightCenterPixels(name: string, inset: number, level = 40) {
-  const [{ data }] = await captureViewPixels(
-    '[data-testid~="vtk-volume-view"]',
-    inset,
-    `${name}.png`
-  );
+  const [{ data }] = await captureViewPixels(VIEW, inset, `${name}.png`);
   let bright = 0;
   for (let index = 0; index < data.length; index += 4)
     if (Math.max(data[index], data[index + 1], data[index + 2]) > level)

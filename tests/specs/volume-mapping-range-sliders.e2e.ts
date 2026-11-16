@@ -9,11 +9,11 @@ import {
   radialRamp,
   sliderThumb,
   stablePixels,
+  VIEW,
   writeNrrd,
 } from './volumeTestUtils';
 
 const SIZE = 16;
-const VIEW = '[data-testid~="vtk-volume-view"]';
 
 const ramp = radialRamp(SIZE);
 const VOLUMES: [string, (index: number) => number][] = [
