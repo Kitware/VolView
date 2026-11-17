@@ -17,6 +17,7 @@ import {
   selectedPreset,
   stablePixels,
   VIEW,
+  waitForFittedColorRange,
   writeNrrd,
 } from './volumeTestUtils';
 
@@ -51,10 +52,14 @@ function writeDicomSeries(
   });
 }
 
-async function expectSelectedPreset(label: string) {
+async function openRenderingModule() {
   await volViewPage.renderingModuleTab.waitForClickable();
   await volViewPage.renderingModuleTab.click();
   await waitForModuleTransitions();
+}
+
+async function expectSelectedPreset(label: string) {
+  await openRenderingModule();
   await showColorPresets();
   await expect(selectedPreset()).toHaveText(label);
 }
@@ -149,6 +154,9 @@ describe('grayscale default fitted to the data', () => {
       writeNrrd(name, nrrd([], 'float', SIZE), voxels),
       name
     );
+    // Before the fit the block is black against the outlier's range.
+    await openRenderingModule();
+    await waitForFittedColorRange(1e6);
     await expectVisibleVolume(name);
     await expectSelectedPreset('Grayscale');
   });

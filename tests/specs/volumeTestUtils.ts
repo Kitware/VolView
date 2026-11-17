@@ -97,6 +97,16 @@ export function differingFraction(a: Buffer, b: Buffer) {
 export const sliderThumb = (testId: string) =>
   $(`[data-testid="${testId}"]`).$('[role="slider"]');
 
+/** The fit arrives after loading and narrows the Width bound below twice the data range. */
+export async function waitForFittedColorRange(dataRangeWidth: number) {
+  const width = sliderThumb('volume-color-width');
+  await browser.waitUntil(
+    async () =>
+      Number(await width.getAttribute('aria-valuemax')) < 2 * dataRangeWidth,
+    { timeoutMsg: 'Expected the color range to fit the image statistics' }
+  );
+}
+
 /** Captures a view until two consecutive frames match. */
 export async function stablePixels(selector: string, inset: number) {
   const capture = async () =>
