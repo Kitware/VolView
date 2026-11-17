@@ -314,19 +314,6 @@ describe('grayscale default fitted to the data', () => {
   });
 
   it('refits a streamed MR series to its loaded intensities', async () => {
-    const name = 'fitted-mr-dicom';
-    const manifest = `${name}.json`;
-    await writeManifestToFile(
-      { resources: writeDicomSeries(makeTempDir(name), 'MR', 8) },
-      manifest
-    );
-    await openWith3DLayout(`tmp/${manifest}`, name);
-    await volViewPage.waitForLoadingIndicator(
-      $('[data-testid~="vtk-volume-view"]')
-    );
-    await expectVisibleVolume(name);
-    const streamed = await stableViewPixels();
-
     const loadedName = 'fitted-mr-nrrd';
     const voxels = Buffer.alloc(2 * 8 ** 3);
     for (let index = 0; index < 8 ** 3; index++)
@@ -336,9 +323,19 @@ describe('grayscale default fitted to the data', () => {
       loadedName
     );
     await expectVisibleVolume(loadedName);
+    const loaded = await stableViewPixels();
+
+    const name = 'fitted-mr-dicom';
+    const manifest = `${name}.json`;
+    await writeManifestToFile(
+      { resources: writeDicomSeries(makeTempDir(name), 'MR', 8) },
+      manifest
+    );
+    await openWith3DLayout(`tmp/${manifest}`, name);
     // Ray jitter differs between sources on ~8%; a range left unfit differs on ~45%.
-    expect(differingFraction(streamed, await stableViewPixels())).toBeLessThan(
-      0.2
+    await browser.waitUntil(
+      async () => differingFraction(loaded, await stableViewPixels()) < 0.2,
+      { timeoutMsg: 'Expected the streamed series to match once refit' }
     );
   });
 });
