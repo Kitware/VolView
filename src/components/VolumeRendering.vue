@@ -20,10 +20,8 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import {
-  getColorFunctionRangeFromPreset,
-  getShiftedOpacityFromPreset,
-} from '@/src/utils/vtk-helpers';
+import { mappingRangeSliders } from '@/src/utils/mappingRangeSliders';
+import { getShiftedOpacityFromPreset } from '@/src/utils/vtk-helpers';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -226,12 +224,11 @@ export default defineComponent({
         } else if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Points) {
           pwfWidget.setPointsMode();
           // get non-shifted points for the widget
-          const points = getShiftedOpacityFromPreset(
-            opFunc.preset,
-            opFunc.mappingRange,
-            0,
-            0
-          );
+          const points = getShiftedOpacityFromPreset({
+            ...opFunc,
+            shift: 0,
+            shiftAlpha: 0,
+          });
           pwfWidget.setOpacityPoints(points, opFunc.shift, opFunc.shiftAlpha);
         }
       },
@@ -245,19 +242,13 @@ export default defineComponent({
     );
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
-    // the data range, if any
-    const imageDataRange = computed((): [number, number] => {
-      const image = currentImageData.value;
-      if (image) {
-        return image.getPointData().getScalars().getRange();
-      }
-      return [0, 1];
-    });
-
-    const fullMappingRange = computed(
-      () =>
-        getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
-        imageDataRange.value
+    const fullMappingRange = computed(() =>
+      currentImageID.value && selectedPreset.value
+        ? volumeColoringStore.getPresetColorRange(
+            currentImageID.value,
+            selectedPreset.value
+          )
+        : [0, 1]
     );
     const fullMappingRangeWidth = computed(() => {
       const range = fullMappingRange.value;
@@ -271,6 +262,10 @@ export default defineComponent({
         currentImageID.value,
         name
       );
+    };
+
+    const resetColoring = () => {
+      if (selectedPreset.value) selectPreset(selectedPreset.value);
     };
 
     // --- mapping range editing --- //
@@ -336,20 +331,13 @@ export default defineComponent({
       mappingRange: computed(
         () => colorTransferFunctionRef.value!.mappingRange
       ),
-      colorSliderStep: computed(() => {
-        const [low, high] = imageDataRange.value;
-        const width = high - low;
-        const step = Math.min(1, width / 256);
-        return step > 1 ? Math.round(step) : step;
-      }),
-      rangeShiftMin: computed(() => -fullMappingRangeWidth.value / 2),
-      rangeShiftMax: computed(() => fullMappingRangeWidth.value / 2),
+      sliders: computed(() => mappingRangeSliders(fullMappingRangeWidth.value)),
       rangeShift,
       rangeWidth,
-      rangeWidthMax: computed(() => fullMappingRangeWidth.value * 2),
       request3DAnimation,
       cancel3DAnimation,
       selectPreset,
+      resetColoring,
     };
   },
 });
@@ -357,32 +345,54 @@ export default defineComponent({
 
 <template>
   <div class="overflow-hidden">
-    <div class="mt-4 pwf-editor" ref="editorContainerRef">
+    <div
+      class="mt-4 pwf-editor"
+      ref="editorContainerRef"
+      data-testid="volume-opacity-editor"
+    >
       <div ref="pwfEditorRef" />
     </div>
-    <div class="mapping-range-editor">
-      <v-slider
-        v-model="rangeShift"
-        density="compact"
-        hide-details
-        label="Shift"
-        :min="rangeShiftMin"
-        :max="rangeShiftMax"
-        :step="colorSliderStep"
-        @pointerdown="request3DAnimation"
-        @pointerup="cancel3DAnimation"
-      />
-      <v-slider
-        v-model="rangeWidth"
-        density="compact"
-        hide-details
-        label="Width"
-        min="1"
-        :max="rangeWidthMax"
-        :step="colorSliderStep"
-        @pointerdown="request3DAnimation"
-        @pointerup="cancel3DAnimation"
-      />
+    <div class="mapping-range-editor d-flex align-center ga-2">
+      <div class="flex-grow-1">
+        <v-slider
+          v-model="rangeShift"
+          data-testid="volume-color-shift"
+          density="compact"
+          hide-details
+          label="Shift"
+          :min="sliders.shift[0]"
+          :max="sliders.shift[1]"
+          :step="sliders.step"
+          @pointerdown="request3DAnimation"
+          @pointerup="cancel3DAnimation"
+        />
+        <v-slider
+          v-model="rangeWidth"
+          data-testid="volume-color-width"
+          density="compact"
+          hide-details
+          label="Width"
+          :min="sliders.width[0]"
+          :max="sliders.width[1]"
+          :step="sliders.step"
+          @pointerdown="request3DAnimation"
+          @pointerup="cancel3DAnimation"
+        />
+      </div>
+      <v-tooltip text="Reset color and opacity to the preset">
+        <template #activator="{ props: tooltipProps }">
+          <v-btn
+            v-bind="tooltipProps"
+            data-testid="volume-reset-color-opacity"
+            aria-label="Reset color and opacity"
+            icon="mdi-restore"
+            size="small"
+            density="compact"
+            variant="text"
+            @click="resetColoring"
+          />
+        </template>
+      </v-tooltip>
     </div>
   </div>
 </template>

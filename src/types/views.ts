@@ -75,6 +75,8 @@ export interface OpacityPoints {
   shift: number;
   shiftAlpha: number;
   mappingRange: [number, number];
+  // Scalar range a relative preset's unit opacity points span.
+  fitRange?: [number, number];
 }
 
 export interface OpacityNodes {
