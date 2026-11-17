@@ -193,8 +193,9 @@ export const useLabelmapImportStore = defineStore('labelmapImport', () => {
         if (!last) return decoded;
         return withDeclaredEmpties(decoded, bySourceValue, coveredValues);
       },
-      split: (labelmap, descriptors) => {
-        const created = splitLabelmapIntoMasks(
+      // Splits run after every fallible step, so only a finished import gets a receipt.
+      split: (labelmap, descriptors) =>
+        splitLabelmapIntoMasks(
           parentID,
           labelmap,
           // Identity is chosen by name, so explicit descriptions must precede
@@ -202,22 +203,14 @@ export const useLabelmapImportStore = defineStore('labelmapImport', () => {
           descriptors.map((descriptor) => ({
             ...descriptor,
             ...bySourceValue.get(descriptor.value),
-          }))
-        );
-        return created;
-      },
+          })),
+          { source }
+        ),
       excluded: (voxels) =>
         useMessageStore().addWarning(
           'Some labels could not be imported',
           `${unsupportedLabelsReason(voxels)}; they were left empty.`
         ),
-    }).then((created) => {
-      // A receipt only on a finished import, so a failed one is retried whole.
-      created.flat().forEach(({ segmentId }) => {
-        const binding = segmentationStore.maskOf(segmentId);
-        if (binding && source) binding.source = source;
-      });
-      return created;
     });
     const ontoParents =
       conversions.get(imageID) ?? new Map<DataSelection, typeof conversion>();
