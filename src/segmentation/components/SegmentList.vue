@@ -9,6 +9,7 @@ import CloseableDialog from '@/src/components/CloseableDialog.vue';
 import SaveSegmentationDialog from '@/src/segmentation/components/SaveSegmentationDialog.vue';
 import SegmentEditor from '@/src/segmentation/components/SegmentEditor.vue';
 import SegmentListActions from '@/src/segmentation/components/SegmentListActions.vue';
+import CopySegmentsMenu from '@/src/segmentation/components/CopySegmentsMenu.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { deleteUnlockedSegment } from '@/src/segmentation/deleteSegment';
 import { useSegmentEditing } from '@/src/segmentation/composables/useSegmentEditing';
@@ -423,6 +424,9 @@ const {
                 @delete="deleteUnlockedSegment(registry, item.id)"
               />
             </template>
+            <template #append>
+              <copy-segments-menu :image-id="currentImageID" />
+            </template>
           </editable-item-list>
         </v-expansion-panel-text>
       </v-expansion-panel>
@@ -502,7 +506,7 @@ const {
   scrollbar-gutter: stable;
 }
 
-.segment-items :deep(.create-row-wrapper) {
+.segment-items :deep(.list-action-row) {
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-gutter: stable;
@@ -517,7 +521,7 @@ const {
 }
 
 .segment-items :deep(.item-row),
-.segment-items :deep(.create-row-content) {
+.segment-items :deep(.action-row-content) {
   padding-inline: 16px;
 }
 

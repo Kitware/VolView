@@ -29,7 +29,7 @@ describe('Segment tooltips', () => {
     const create = createSegmentRow();
     const row = await segmentRow('Segment 1');
     const handle = row.$('.reorder-handle');
-    const icon = create.$('.create-icon');
+    const icon = create.$('.action-row-icon');
     const positions = await browser.execute(
       (reorder, plus) => [
         reorder.getBoundingClientRect().left,
