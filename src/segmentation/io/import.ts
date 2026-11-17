@@ -19,10 +19,8 @@ import {
   type LabelmapSegment,
 } from '@/src/segmentation/model';
 import {
-  emptyExtent,
   extentSize,
   extentUnion,
-  isEmptyExtent,
   maskOffset,
   type Extent3D,
   type MaskBounds,
@@ -42,7 +40,7 @@ import {
 } from '@/src/segmentation/io/labelmap';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
-type ImportedSegment = { sourceValue: number; maskId: string };
+type ImportedSegment = { sourceValue: number; segmentId: string };
 
 export const componentCount = (image: vtkImageData) =>
   image.getPointData().getScalars().getNumberOfComponents();
@@ -132,11 +130,15 @@ function labelValueBounds(labelmap: vtkLabelMap) {
 
 type CropTarget = MaskBounds & { mask: Uint8Array };
 
-type MaskMinter = (descriptor: LabelmapSegment, extent: Extent3D) => Uint8Array;
+type MaskMinter = (
+  descriptor: LabelmapSegment,
+  extent: Extent3D | undefined
+) => Uint8Array | undefined;
 
 /**
- * Each descriptor gets a mask cropped to the box its value's voxels span,
- * holding SEGMENT_VALUE whatever the source called that value.
+ * Each descriptor whose value has voxels gets a mask cropped to the box they
+ * span, holding SEGMENT_VALUE whatever the source called that value. The minter
+ * sees every descriptor, without an extent when its value has no voxels.
  */
 export function splitLabelmap(
   labelmap: vtkLabelMap,
@@ -151,9 +153,9 @@ export function splitLabelmap(
   // many labels there are. Two descriptors may state one value.
   const targets: CropTarget[][] = [];
   descriptors.forEach((descriptor) => {
-    const extent = bounds.get(descriptor.value) ?? emptyExtent();
+    const extent = bounds.get(descriptor.value);
     const mask = mint(descriptor, extent);
-    if (isEmptyExtent(extent)) return;
+    if (!extent || !mask) return;
     const [mi, mj] = extentSize(extent);
     const target = { extent, mi, mj, mask };
     (targets[descriptor.value] ??= []).push(target);
@@ -374,9 +376,9 @@ export async function importLabelmapImage(
   // Finish fallible asynchronous work before creating any masks. The splits
   // commit in order without yielding, so each sees the preceding bindings.
   return prepared.map(({ labelmap, descriptors }): ImportedSegment[] =>
-    hooks.split(labelmap, descriptors).map((maskId, index) => ({
+    hooks.split(labelmap, descriptors).map((segmentId, index) => ({
       sourceValue: descriptors[index].value,
-      maskId,
+      segmentId,
     }))
   );
 }

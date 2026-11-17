@@ -19,20 +19,22 @@ function appearanceScene() {
   const parentId = useImageCacheStore().addVTKImageData(parent, 'OCT');
   const store = useSegmentationStore();
   const registry = useSegmentStore().segments;
-  const group = store.ensureSegmentationForImage(parentId);
-  const segmentId = registry.addSegment({ color: [35, 215, 190, 255] });
-  const mask = store.createMask(group.id, segmentId);
-  const binding = store.ensureLabelmapBinding(mask.id);
-  const maskId = ref<string | null>(mask.id);
-  const appearance = useThinRegionAppearance(maskId);
+  const segmentId = registry.addSegment(parentId, {
+    color: [35, 215, 190, 255],
+  });
+  const binding = store.materializeMask(segmentId);
+  const shownSegmentId = ref<string | null>(segmentId);
+  const appearance = useThinRegionAppearance(shownSegmentId);
+  const updateDisplay = (patch: Parameters<typeof registry.updateDisplay>[1]) =>
+    registry.updateDisplay(parentId, patch);
   return {
     store,
     registry,
-    group,
+    parentId,
     segmentId,
-    mask,
     binding,
-    maskId,
+    shownSegmentId,
+    updateDisplay,
     appearance,
   };
 }
@@ -53,7 +55,8 @@ describe('thin-region appearance from the source segmentation', () => {
   });
 
   it('updates the resolved style when segment color or either fill opacity changes', () => {
-    const { appearance, registry, store, group, segmentId } = appearanceScene();
+    const { appearance, registry, updateDisplay, segmentId } =
+      appearanceScene();
     registry.updateSegment(segmentId, { color: [255, 0, 0, 255] });
     expect(appearance.value).toMatchObject({
       color: [255, 0, 0, 255],
@@ -61,7 +64,7 @@ describe('thin-region appearance from the source segmentation', () => {
     });
     registry.updateSegment(segmentId, { fillOpacity: 0.5 });
     expect(appearance.value!.fillOpacity).toBe(0.15);
-    store.updateSegmentationDisplay(group.id, { fillOpacity: 0.8 });
+    updateDisplay({ fillOpacity: 0.8 });
     expect(appearance.value!.fillOpacity).toBe(0.4);
     registry.updateSegment(segmentId, { color: [255, 0, 0, 128] });
     expect(appearance.value!.color).toEqual([255, 0, 0, 128]);
@@ -69,20 +72,23 @@ describe('thin-region appearance from the source segmentation', () => {
   });
 
   it('changes appearance with the selected mask and drops missing selections', () => {
-    const { appearance, registry, store, group, maskId } = appearanceScene();
-    const second = registry.addSegment({ color: [0, 255, 0, 255] });
-    const mask = store.createMask(group.id, second);
-    store.ensureLabelmapBinding(mask.id);
-    maskId.value = mask.id;
+    const { appearance, registry, store, parentId, shownSegmentId } =
+      appearanceScene();
+    const second = registry.addSegment(parentId, {
+      color: [0, 255, 0, 255],
+    });
+    store.materializeMask(second);
+    shownSegmentId.value = second;
     expect(appearance.value!.color).toEqual([0, 255, 0, 255]);
     registry.deleteSegment(second);
     expect(appearance.value).toBeNull();
-    maskId.value = null;
+    shownSegmentId.value = null;
     expect(appearance.value).toBeNull();
   });
 
   it('keeps outline-only highlighting available and explains fully hidden appearances', () => {
-    const { appearance, registry, store, group, segmentId } = appearanceScene();
+    const { appearance, registry, updateDisplay, segmentId } =
+      appearanceScene();
     registry.updateSegment(segmentId, { visible: false });
     expect(appearance.value).toMatchObject({
       fillOpacity: 0,
@@ -96,13 +102,13 @@ describe('thin-region appearance from the source segmentation', () => {
       reason: null,
     });
     registry.updateSegment(segmentId, { fillOpacity: 1 });
-    store.updateSegmentationDisplay(group.id, { fillOpacity: 0 });
+    updateDisplay({ fillOpacity: 0 });
     expect(appearance.value).toMatchObject({
       fillOpacity: 0,
       reason: null,
     });
     registry.updateSegment(segmentId, { outlineOpacity: 0.5 });
-    store.updateSegmentationDisplay(group.id, {
+    updateDisplay({
       outlineOpacity: 0.4,
       outlineThickness: 4,
     });
@@ -111,18 +117,18 @@ describe('thin-region appearance from the source segmentation', () => {
       outlineOpacity: 0.2,
       reason: null,
     });
-    store.updateSegmentationDisplay(group.id, { outlineOpacity: 0 });
+    updateDisplay({ outlineOpacity: 0 });
     expect(appearance.value!.reason).toContain(
       'fill opacity or enable an outline'
     );
-    store.updateSegmentationDisplay(group.id, { outlineOpacity: 1 });
+    updateDisplay({ outlineOpacity: 1 });
     expect(appearance.value!.reason).toBeNull();
-    store.updateSegmentationDisplay(group.id, { outlineThickness: 0 });
+    updateDisplay({ outlineThickness: 0 });
     expect(appearance.value!.reason).toContain(
       'fill opacity or enable an outline'
     );
-    store.updateSegmentationDisplay(group.id, { outlineThickness: 2 });
-    store.updateSegmentationDisplay(group.id, { fillOpacity: 0.3 });
+    updateDisplay({ outlineThickness: 2 });
+    updateDisplay({ fillOpacity: 0.3 });
     registry.updateSegment(segmentId, { color: [35, 215, 190, 0] });
     expect(appearance.value).toMatchObject({ fillOpacity: 0 });
     expect(appearance.value!.reason).toBeNull();
@@ -130,7 +136,7 @@ describe('thin-region appearance from the source segmentation', () => {
       color: [35, 215, 190, 255],
       outlineOpacity: 0,
     });
-    store.updateSegmentationDisplay(group.id, {
+    updateDisplay({
       outlineOpacity: 0,
       outlineThickness: 0,
     });

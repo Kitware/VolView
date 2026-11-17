@@ -1,4 +1,5 @@
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { SegmentResolver } from '@/src/segmentation/segments';
 import { Store } from 'pinia';
 
 export enum AnnotationToolType {
@@ -30,9 +31,8 @@ export interface ISerializableTool {
   deserialize: (
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    // Save-time segment id -> restored segment id, for the tools that share
-    // the segment registry.
-    segmentIdMap: Record<string, string>
+    // For the tools that share the segment registry.
+    resolveSegment: SegmentResolver
   ) => void;
 }
 

@@ -14,8 +14,8 @@ import { defer } from '@/src/utils';
 import { fullExtent, type Extent3D } from '@/src/segmentation/geometry';
 import {
   activateAppPinia,
-  addMask,
-  deleteSegmentOf,
+  addSegment,
+  deleteSegment,
   markedVoxels,
   maskValueAt,
   seatImage,
@@ -84,7 +84,7 @@ describe.each(cases)('$name with bounded storage', (fixture) => {
       spacing: [1, 1, 1],
     });
     useViewStore().setDataForAllViews('img');
-    const id = addMask('img', 'Target');
+    const id = addSegment('img', 'Target');
     selectSegment(id);
     const voxels = store().maskVoxels(id);
     voxels.materialize();
@@ -125,7 +125,7 @@ describe.each(cases)('$name with bounded storage', (fixture) => {
     process.confirmProcess();
     expect(markedVoxels(id)).toEqual(preview);
 
-    deleteSegmentOf(id);
+    deleteSegment(id);
     const padded = await mask(true);
     await process.startProcess(fixture.algorithm());
     expect(markedVoxels(padded)).toEqual(preview);
@@ -135,7 +135,7 @@ describe.each(cases)('$name with bounded storage', (fixture) => {
     'does not claim newly reached voxels from a neighbor (locked: %s)',
     async (locked) => {
       const id = await mask();
-      const neighbor = addMask('img', 'Neighbor');
+      const neighbor = addSegment('img', 'Neighbor');
       seedVoxel(neighbor, fixture.growth);
       lockSegment(neighbor, locked);
       await usePaintProcessStore().startProcess(fixture.algorithm());
@@ -149,7 +149,7 @@ describe.each(cases)('$name with bounded storage', (fixture) => {
 async function oneVoxel() {
   await seatImage('img', { dimensions: [5, 1, 1] });
   useViewStore().setDataForAllViews('img');
-  const id = addMask('img', 'Target');
+  const id = addSegment('img', 'Target');
   selectSegment(id);
   seedVoxel(id, [2, 0, 0]);
   await nextTick();
@@ -200,12 +200,12 @@ describe('process result placement', () => {
 
   it('rolls back a grown earlier mask if applying a later result fails', async () => {
     const id = await oneVoxel();
-    const other = addMask('img', 'Other');
+    const other = addSegment('img', 'Other');
     seedVoxel(other, [4, 0, 0]);
     const access = store().maskVoxels;
-    vi.spyOn(store(), 'maskVoxels').mockImplementation((maskId) => {
-      const voxels = access(maskId);
-      if (maskId === other)
+    vi.spyOn(store(), 'maskVoxels').mockImplementation((segmentId) => {
+      const voxels = access(segmentId);
+      if (segmentId === other)
         vi.spyOn(voxels, 'apply').mockImplementationOnce(() => {
           throw new Error('Failed write');
         });
@@ -213,7 +213,7 @@ describe('process result placement', () => {
     });
     await usePaintProcessStore().startProcess(
       async (target) => {
-        if (target.maskId === id) return grownResult();
+        if (target.segmentId === id) return grownResult();
         return { scalars: new Uint8Array([1]), extent: target.maskExtent };
       },
       { requiresActiveSegment: false }
@@ -226,12 +226,12 @@ describe('process result placement', () => {
 
   it('leaves every allocation alone when another algorithm rejects', async () => {
     const id = await oneVoxel();
-    const other = addMask('img', 'Other');
+    const other = addSegment('img', 'Other');
     seedVoxel(other, [4, 0, 0]);
     const original = store().maskVoxels(id).scalars();
     await usePaintProcessStore().startProcess(
       async (target) => {
-        if (target.maskId === id) return grownResult();
+        if (target.segmentId === id) return grownResult();
         throw new Error('Interpolation failed');
       },
       { requiresActiveSegment: false }
@@ -258,7 +258,7 @@ describe('process result placement', () => {
 
   it('leaves a mask the failed run never wrote untouched', async () => {
     const id = await oneVoxel();
-    const other = addMask('img', 'Other');
+    const other = addSegment('img', 'Other');
     seedVoxel(other, [4, 0, 0]);
     const untouched = store().maskVoxels(other);
     const buffer = untouched.scalars();

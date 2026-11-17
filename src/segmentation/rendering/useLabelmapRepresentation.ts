@@ -11,21 +11,15 @@ import type { Maybe } from '@/src/types';
 import {
   SEGMENT_ACTOR_OPACITY,
   SEGMENT_COINCIDENT_OFFSET,
+  labelLookupTables,
+  type LabelmapAppearance,
 } from '@/src/segmentation/rendering/display';
 
-export type LabelmapAppearance = {
-  value: number;
-  color: readonly number[];
-  fillOpacity: number;
-  outlineThickness: number;
-  outlineOpacity: number;
-};
-
-/** Renders a borrowed single-plane labelmap with resolved segment appearance. */
+/** Renders a borrowed single-plane labelmap with one appearance per label. */
 export function useLabelmapRepresentation(
   view: View,
   imageData: MaybeRef<Maybe<vtkImageData>>,
-  appearance: MaybeRef<Maybe<LabelmapAppearance>>,
+  labels: MaybeRef<readonly LabelmapAppearance[]>,
   axis: MaybeRef<number | undefined>
 ) {
   const sliceRep = useSliceRepresentation(view, imageData);
@@ -61,23 +55,12 @@ export function useLabelmapRepresentation(
   sliceRep.mapper.setSlice(0);
 
   watchEffect(() => {
-    colorTransferFunction.removeAllPoints();
-    opacityFunction.removeAllPoints();
-
-    const segment = unref(appearance);
-    if (!segment) return;
-
-    const [r, g, b] = segment.color;
-    colorTransferFunction.addRGBPoint(0, 0, 0, 0);
-    opacityFunction.addPoint(0, 0);
-    colorTransferFunction.addRGBPoint(segment.value, r / 255, g / 255, b / 255);
-    opacityFunction.addPoint(segment.value, segment.fillOpacity);
-    colorTransferFunction.addRGBPoint(segment.value + 1, 0, 0, 0);
-    opacityFunction.addPoint(segment.value + 1, 0);
+    const tables = labelLookupTables(unref(labels));
+    colorTransferFunction.setNodes(tables.colorNodes);
+    opacityFunction.setNodes(tables.opacityNodes);
     sliceRep.property.modified();
-
-    sliceRep.property.setLabelOutlineThickness([segment.outlineThickness]);
-    sliceRep.property.setLabelOutlineOpacity([segment.outlineOpacity]);
+    sliceRep.property.setLabelOutlineThickness(tables.thicknesses);
+    sliceRep.property.setLabelOutlineOpacity(tables.opacities);
   });
 
   onVTKEvent(imageData, 'onModified', () => view.requestRender());

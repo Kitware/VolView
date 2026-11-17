@@ -10,12 +10,10 @@ import {
   masksHolding,
 } from '@/src/segmentation/masks/overlap';
 import {
-  listMasks,
   maskScalars,
   type LabelmapBinding,
   type MaskVoxelAccessor,
-  type SegmentMask,
-  type Segmentation,
+  type SegmentMaskEntry,
   type VoxelStorage,
 } from '@/src/segmentation/model';
 import {
@@ -29,28 +27,29 @@ import {
 } from '@/src/segmentation/geometry';
 
 type VoxelAccessDeps = {
-  parentImageOfMask: (maskId: string) => vtkImageData;
-  findMaskBinding: (maskId: string) => LabelmapBinding | undefined;
-  getMask: (maskId: string) => SegmentMask;
-  segmentationOfMask: (maskId: string) => Segmentation | undefined;
-  ensureLabelmapBinding: (maskId: string) => LabelmapBinding;
-  maskLocked: (mask: SegmentMask) => boolean;
+  parentImageOf: (segmentId: string) => vtkImageData;
+  segmentExists: (segmentId: string) => boolean;
+  maskOf: (segmentId: string) => LabelmapBinding | undefined;
+  materializeMask: (segmentId: string) => LabelmapBinding;
+  // The masks of the same image's other segments.
+  siblingMasks: (segmentId: string) => SegmentMaskEntry[];
+  isLocked: (segmentId: string) => boolean;
   overlapAllowed: () => boolean;
 };
 
 /**
- * Reading and growing the voxels behind a mask. Split out so the store holds
- * the records; every accessor re-resolves its binding rather than capturing a
- * buffer, so none of them outlive a mask they were made for.
+ * Reading and growing the voxels behind a segment's mask. Every accessor
+ * re-resolves its binding rather than capturing a buffer, so none of them
+ * outlive a mask they were made for.
  */
 export function createVoxelAccess(deps: VoxelAccessDeps) {
   const {
-    parentImageOfMask,
-    findMaskBinding,
-    getMask,
-    segmentationOfMask,
-    ensureLabelmapBinding,
-    maskLocked,
+    parentImageOf,
+    segmentExists,
+    maskOf,
+    materializeMask,
+    siblingMasks: siblingsOf,
+    isLocked,
     overlapAllowed,
   } = deps;
 
@@ -58,12 +57,16 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    * Grows one mask, in place, to cover `extent` in parent index space, with
    * `padding` voxels of room beyond it when it has to grow at all.
    */
-  function ensureMaskContains(maskId: string, extent: Extent3D, padding = 0) {
+  function ensureMaskContains(
+    segmentId: string,
+    extent: Extent3D,
+    padding = 0
+  ) {
     if (isEmptyExtent(extent)) return false;
 
-    const binding = getMask(maskId).representations.labelmap;
+    const binding = maskOf(segmentId);
     if (!binding) throw new Error('No storage: call materialize() first');
-    const parent = parentImageOfMask(maskId);
+    const parent = parentImageOf(segmentId);
     // Refused before anything is touched, so a rejected growth leaves the mask
     // exactly as it was.
     const parentExtent = fullExtent(parent.getDimensions());
@@ -90,8 +93,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    * error. `missing` names why storage is unreachable, so `exists()` can answer
    * without throwing.
    */
-  function voxelStorage(maskId: string, missing: string): VoxelStorage {
-    const findImage = () => findMaskBinding(maskId)?.image;
+  function voxelStorage(segmentId: string, missing: string): VoxelStorage {
+    const findImage = () => maskOf(segmentId)?.image;
     const requireImage = () => {
       const image = findImage();
       if (!image) throw new Error(missing);
@@ -115,20 +118,20 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
       },
       ensureContains: (extent: Extent3D, padding = 0) => {
         requireImage();
-        return ensureMaskContains(maskId, extent, padding);
+        return ensureMaskContains(segmentId, extent, padding);
       },
     };
   }
 
-  function maskVoxels(maskId: string): MaskVoxelAccessor {
+  function maskVoxels(segmentId: string): MaskVoxelAccessor {
     // Validates eagerly: an accessor for a nonexistent segment is refused up
     // front, not just on first use.
-    getMask(maskId);
+    if (!segmentExists(segmentId)) throw new Error('No such segment');
 
     return {
-      binding: () => getMask(maskId).representations.labelmap,
-      materialize: () => ensureLabelmapBinding(maskId),
-      ...voxelStorage(maskId, 'No storage: call materialize() first'),
+      binding: () => maskOf(segmentId),
+      materialize: () => materializeMask(segmentId),
+      ...voxelStorage(segmentId, 'No storage: call materialize() first'),
     };
   }
 
@@ -137,8 +140,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    * the renderer and the paint widget are computeds keyed on one that can
    * vanish a tick before they do, so this stays constructible either way.
    */
-  const findMaskVoxels = (maskId: string) =>
-    voxelStorage(maskId, 'No such mask');
+  const findMaskVoxels = (segmentId: string) =>
+    voxelStorage(segmentId, 'No such mask');
 
   /**
    * The masks of an image's other segments, split by what `gesture` does where
@@ -147,20 +150,17 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    * per voxel. A locked segment is not editable, so an aimed gesture yields to
    * it rather than taking from it.
    */
-  function siblingMasks(maskId: string, gesture: VoxelGesture) {
-    const segmentation = segmentationOfMask(maskId);
+  function siblingMasks(segmentId: string, gesture: VoxelGesture) {
     const others =
-      segmentation && !(gesture === 'aimed' && overlapAllowed())
-        ? listMasks(segmentation).filter((mask) => mask.id !== maskId)
-        : [];
+      gesture === 'aimed' && overlapAllowed() ? [] : siblingsOf(segmentId);
     const [takeFrom, yieldTo] = partition(
-      (mask) => gesture === 'aimed' && !maskLocked(mask),
+      (mask) => gesture === 'aimed' && !isLocked(mask.segmentId),
       others
     );
-    const bounded = (masks: SegmentMask[]) =>
+    const bounded = (masks: SegmentMaskEntry[]) =>
       masks.flatMap((mask) => {
-        const scalars = boundScalars(mask.representations.labelmap);
-        return scalars ? [{ ...scalars, maskId: mask.id }] : [];
+        const scalars = boundScalars(mask.binding);
+        return scalars ? [{ ...scalars, segmentId: mask.segmentId }] : [];
       });
     return { takeFrom: bounded(takeFrom), yieldTo: bounded(yieldTo) };
   }
@@ -176,11 +176,15 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
    *
    * `gesture` is the whole of the policy, so see {@link VoxelGesture}. An aimed
    * operation must call finish in a finally block after its last voxel write.
-   * Finish returns the ids of the masks it took a voxel from, which the
-   * operation hands to `deleteEmptyMasks` once it is over.
+   * Finish returns the segments it took a voxel from, which the operation
+   * hands to `deleteEmptyMasks` once it is over.
    */
-  function voxelClaim(maskId: string, gesture: VoxelGesture, within: Extent3D) {
-    const { takeFrom, yieldTo } = siblingMasks(maskId, gesture);
+  function voxelClaim(
+    segmentId: string,
+    gesture: VoxelGesture,
+    within: Extent3D
+  ) {
+    const { takeFrom, yieldTo } = siblingMasks(segmentId, gesture);
     const held = masksHolding(yieldTo, within);
     const clearing = masksClearing(takeFrom, within);
     if (!held && !clearing) return undefined;
@@ -190,7 +194,8 @@ export function createVoxelAccess(deps: VoxelAccessDeps) {
         clearing?.clear(i, j, k);
         return true;
       },
-      finish: () => clearing?.finish().map((bounded) => bounded.maskId) ?? [],
+      finish: () =>
+        clearing?.finish().map((bounded) => bounded.segmentId) ?? [],
     };
   }
 

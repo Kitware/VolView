@@ -13,7 +13,7 @@ import {
 import { useViewStore } from '@/src/store/views';
 import {
   activateAppPinia,
-  addMask,
+  addSegment,
   markedVoxels,
   maskValueAt,
   seatImage,
@@ -89,7 +89,7 @@ const squaresAroundHole = ([i, j, k]: Index3) =>
   Math.abs(j - HOLE[1]) <= 1;
 
 function tumorHolding(imageId: string, holds: (index: Index3) => boolean) {
-  const maskId = addMask(imageId, 'Tumor');
+  const maskId = addSegment(imageId, 'Tumor');
   selectSegment(maskId);
   const voxels = store().maskVoxels(maskId);
   voxels.materialize();
@@ -103,7 +103,7 @@ function tumorHolding(imageId: string, holds: (index: Index3) => boolean) {
 }
 
 function neighborOwningTheHole(imageId: string, locked: boolean) {
-  const maskId = addMask(imageId, locked ? 'Locked' : 'Unlocked');
+  const maskId = addSegment(imageId, locked ? 'Locked' : 'Unlocked');
   seedVoxel(maskId, HOLE);
   lockSegment(maskId, locked);
   return maskId;
@@ -165,7 +165,7 @@ describe.each([
   it('leaves the voxels it did not turn on with their owners', async () => {
     // An overlap the user already has, inside the cube so no algorithm here
     // rounds it away: a process that turned it on for neither keeps both.
-    const neighbor = addMask('img-1', 'Elsewhere');
+    const neighbor = addSegment('img-1', 'Elsewhere');
     seedVoxel(neighbor, INSIDE);
     seedVoxel(neighbor, [0, 0, 0]);
 
@@ -191,14 +191,14 @@ describe('a process over a mask with no two dimensions alike', () => {
   });
 
   it('stops at the one voxel a neighbor holds', async () => {
-    const tumor = addMask('img-1', 'Tumor');
+    const tumor = addSegment('img-1', 'Tumor');
     selectSegment(tumor);
     const voxels = store().maskVoxels(tumor);
     voxels.materialize();
     voxels.ensureContains([0, 2, 0, 3, 0, 4]);
     seedVoxel(tumor, [0, 0, 0]);
 
-    const neighbor = addMask('img-1', 'Neighbor');
+    const neighbor = addSegment('img-1', 'Neighbor');
     seedVoxel(neighbor, OWNED);
 
     const processStore = usePaintProcessStore();

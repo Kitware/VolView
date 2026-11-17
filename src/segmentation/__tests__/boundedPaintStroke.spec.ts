@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { PaintMode } from '@/src/core/tools/paint';
 import { extentContains, fullExtent } from '@/src/segmentation/geometry';
+import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
   activateAppPinia,
-  addMask,
+  addSegment,
   bindingOf,
   extentOf,
   markedVoxels,
@@ -18,7 +19,6 @@ import {
   selectSegment,
   lockSegment,
   boundMasks,
-  segmentOfMask,
   strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
@@ -46,15 +46,15 @@ const parentOffset = (i: number, j: number, k: number) =>
   i + j * DIMENSIONS[0] + k * DIMENSIONS[0] * DIMENSIONS[1];
 
 const activeSegment = (imageId: string, name: string) => {
-  const maskId = addMask(imageId, name);
+  const maskId = addSegment(imageId, name);
   selectSegment(maskId);
   return maskId;
 };
 
 /** A locked and an unlocked neighbor of the segment about to be painted. */
 function neighborsOfActive(lockedAt: Index3, unlockedAt: Index3) {
-  const locked = addMask('img-1', 'Locked');
-  const unlocked = addMask('img-1', 'Unlocked');
+  const locked = addSegment('img-1', 'Locked');
+  const unlocked = addSegment('img-1', 'Unlocked');
   seedVoxel(locked, lockedAt);
   seedVoxel(unlocked, unlockedAt);
   lockSegment(locked, true);
@@ -153,7 +153,7 @@ describe('painting into bounded masks', () => {
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(store().getSegmentationForImage('img-1')).toBeUndefined();
+      expect(useSegmentStore().segments.segmentList('img-1')).toEqual([]);
       expect(store().findEditTarget('img-1')).toBeUndefined();
       expect(boundMasks()).toHaveLength(0);
     });
@@ -210,7 +210,7 @@ describe('painting into bounded masks', () => {
     ];
 
     const paintedOn = (imageId: string, wholeParent = false) => {
-      const maskId = addMask(imageId, 'Target');
+      const maskId = addSegment(imageId, 'Target');
       if (wholeParent) {
         const voxels = store().maskVoxels(maskId);
         voxels.materialize();
@@ -248,7 +248,7 @@ describe('painting into bounded masks', () => {
   describe('overwriting the other segments', () => {
     it("clears the painted voxel in a neighbor's mask and marks it modified", async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbor');
+      const neighbor = addSegment('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       seedVoxel(neighbor, ELSEWHERE);
       const active = activeSegment('img-1', 'Tumor');
@@ -265,7 +265,7 @@ describe('painting into bounded masks', () => {
 
     it("leaves the neighbor's other voxels alone", async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbor');
+      const neighbor = addSegment('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       seedVoxel(neighbor, [2, 1, 0]);
       activeSegment('img-1', 'Tumor');
@@ -278,7 +278,7 @@ describe('painting into bounded masks', () => {
     it('leaves the segments of another image alone', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
       await seatImage('img-2', { dimensions: DIMENSIONS });
-      const elsewhere = addMask('img-2', 'Elsewhere');
+      const elsewhere = addSegment('img-2', 'Elsewhere');
       seedVoxel(elsewhere, [1, 1, 0]);
       activeSegment('img-1', 'Tumor');
 
@@ -289,7 +289,7 @@ describe('painting into bounded masks', () => {
 
     it("erases its own voxels without clearing the neighbor's", async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbor');
+      const neighbor = addSegment('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       const active = activeSegment('img-1', 'Tumor');
       strokeAt('img-1', [2, 1, 0]);
@@ -306,7 +306,7 @@ describe('painting into bounded masks', () => {
 
     it('goes around a locked neighbor instead of taking the voxel', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbor');
+      const neighbor = addSegment('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       lockSegment(neighbor, true);
       const active = activeSegment('img-1', 'Tumor');
@@ -374,14 +374,12 @@ describe('painting into bounded masks', () => {
     it('deletes the mask a stroke erases to nothing', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
       const active = activeSegment('img-1', 'Tumor');
-      const segmentId = segmentOfMask(active);
       strokeAt('img-1', [1, 1, 0], [2, 1, 0]);
 
       erase();
       strokeAt('img-1', [1, 1, 0], [2, 1, 0]);
 
-      expect(store().maskExists(active)).toBe(false);
-      expect(store().maskFor('img-1', segmentId)).toBeUndefined();
+      expect(store().maskOf(active)).toBeUndefined();
       expect(boundMasks()).toHaveLength(0);
     });
 
@@ -408,52 +406,53 @@ describe('painting into bounded masks', () => {
       erase();
       paintStore.startStroke([1, 1, 0], 2, 'img-1');
       paintStore.placeStrokePoint([1, 1, 0], 2, 'img-1');
-      const midStroke = store().maskExists(active);
+      const midStroke = !!store().maskOf(active);
       paintStore.endStroke([1, 1, 0], 2, 'img-1');
 
       expect(midStroke).toBe(true);
-      expect(store().maskExists(active)).toBe(false);
+      expect(store().maskOf(active)).toBeUndefined();
     });
 
     it('deletes a neighbor whose every voxel the stroke takes', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const neighbor = addMask('img-1', 'Neighbor');
+      const neighbor = addSegment('img-1', 'Neighbor');
       seedVoxel(neighbor, [1, 1, 0]);
       const active = activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(store().maskExists(neighbor)).toBe(false);
+      expect(store().maskOf(neighbor)).toBeUndefined();
       expect(holding([1, 1, 0], active)).toEqual([true]);
     });
 
     it('deletes the mask of a stroke that paints nothing', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
-      const locked = addMask('img-1', 'Locked');
+      const locked = addSegment('img-1', 'Locked');
       seedVoxel(locked, [1, 1, 0]);
       lockSegment(locked, true);
       const active = activeSegment('img-1', 'Tumor');
 
       strokeAt('img-1', [1, 1, 0]);
 
-      expect(store().maskExists(active)).toBe(false);
+      expect(store().maskOf(active)).toBeUndefined();
       expect(holding([1, 1, 0], locked)).toEqual([true]);
     });
 
     it('paints into a fresh mask once the emptied one is gone', async () => {
       await seatImage('img-1', { dimensions: DIMENSIONS });
       const active = activeSegment('img-1', 'Tumor');
-      const segmentId = segmentOfMask(active);
       strokeAt('img-1', [1, 1, 0]);
+      const emptied = store().maskOf(active);
       erase();
       strokeAt('img-1', [1, 1, 0]);
 
       paint();
       strokeAt('img-1', [2, 2, 0]);
 
-      const fresh = store().maskFor('img-1', segmentId)!.id;
-      expect(fresh).not.toBe(active);
-      expect(holding([2, 2, 0], fresh)).toEqual([true]);
+      const fresh = store().maskOf(active);
+      expect(fresh).toBeDefined();
+      expect(fresh).not.toBe(emptied);
+      expect(holding([2, 2, 0], active)).toEqual([true]);
     });
 
     it('checks the masks of a stroke that never ended when the next one ends', async () => {
@@ -468,7 +467,7 @@ describe('painting into bounded masks', () => {
       activeSegment('img-1', 'Second');
       strokeAt('img-1', [2, 2, 0]);
 
-      expect(store().maskExists(first)).toBe(false);
+      expect(store().maskOf(first)).toBeUndefined();
     });
   });
 });

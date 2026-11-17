@@ -7,6 +7,7 @@ import {
 } from '@/src/store/tools/toolSelection';
 import { AnnotationToolType } from '@/src/store/tools/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { SegmentResolver } from '@/src/segmentation/segments';
 import { getPlaneTransforms } from '@/src/utils/frameOfReference';
 import { ToolID } from '@/src/types/annotation-tool';
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
@@ -196,9 +197,13 @@ export const usePolygonStore = defineAnnotationToolStore('polygon', () => {
   function deserialize(
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string>
+    resolveSegment: SegmentResolver
   ) {
-    toolAPI.deserializeTools(manifest.tools?.polygons, dataIDMap, segmentIdMap);
+    toolAPI.deserializeTools(
+      manifest.tools?.polygons,
+      dataIDMap,
+      resolveSegment
+    );
   }
 
   return {

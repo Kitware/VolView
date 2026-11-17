@@ -16,7 +16,6 @@ import {
   mintSegment,
   seatSpecImage,
   seedVoxel,
-  store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { defer, type Deferred } from '@/src/utils';
 import type { saveLabelmapExport } from '@/src/segmentation/components/saveLabelmapExport';
@@ -54,15 +53,8 @@ const globalOptions = {
   },
 };
 
-const paintedSegmentation = (imageId: string) => {
-  const segmentation = store().ensureSegmentationForImage(imageId);
-  const mask = store().createMask(
-    segmentation.id,
-    mintSegment({ name: 'Tumor' })
-  );
-  seedVoxel(mask.id, [1, 1, 0]);
-  return segmentation;
-};
+const paintImage = (imageId: string) =>
+  seedVoxel(mintSegment(imageId, { name: 'Tumor' }), [1, 1, 0]);
 
 const pressEnter = (target: EventTarget) =>
   target.dispatchEvent(
@@ -87,9 +79,9 @@ describe('saving segments with the Enter key', () => {
   });
 
   const mountDialog = async () => {
-    const segmentation = paintedSegmentation('img-1');
+    paintImage('img-1');
     const wrapper = mount(SaveSegmentationDialog, {
-      props: { id: segmentation.id, save },
+      props: { imageId: 'img-1', save },
       // Attached, so a keystroke really does reach the window the way it does
       // in the app: a detached tree would scope the listener by accident.
       attachTo: document.body,

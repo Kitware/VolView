@@ -5,7 +5,6 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
   boundMasks,
   seatImage,
-  store,
   voxelCount,
   type Index3,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -13,6 +12,7 @@ import { toLabelMap } from '@/src/segmentation/io/import';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { messageTitles } from '@/src/components/__tests__/messageDisplay';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 // ---------------------------------------------------------------------------
 // A parent removed mid-conversion must mint nothing, and the failure must
@@ -60,10 +60,12 @@ async function seatConvertible() {
 }
 
 const segmentNames = () =>
-  useSegmentStore().segments.segmentList.value.map((segment) => segment.name);
+  useSegmentStore()
+    .segments.segmentList('parent')
+    .map((segment) => segment.name);
 
 const expectNothingMinted = () => {
-  expect(Object.keys(store().segmentations)).toEqual([]);
+  expect(Object.keys(useSegmentStore().segments.imageSets.value)).toEqual([]);
   expect(segmentNames()).toEqual([]);
   expect(boundMasks()).toEqual([]);
 };
@@ -81,19 +83,27 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
     const child = await seatConvertible();
     const resample = gatedResample();
 
-    const conversion = store().convertImageToLabelmap('child', 'parent', {
-      resample: resample.resample,
-    });
+    const conversion = useLabelmapImportStore().convertImageToLabelmap(
+      'child',
+      'parent',
+      {
+        resample: resample.resample,
+      }
+    );
     const outcome = conversion.catch((error: Error) => error);
     await resample.entered;
-    expect(store().convertingLabelmaps.has('child')).toBe(true);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('child')).toBe(
+      true
+    );
 
     useImageCacheStore().removeImage('parent');
     resample.release(child);
 
     expect(await outcome).toBeInstanceOf(Error);
     expectNothingMinted();
-    expect(store().convertingLabelmaps.has('child')).toBe(false);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('child')).toBe(
+      false
+    );
   });
 
   it('refuses a split for a parent that is not in the image cache', async () => {
@@ -105,7 +115,7 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
     useImageCacheStore().removeImage('gone');
 
     expect(() =>
-      store().splitLabelmapIntoMasks('gone', labelmap, [
+      useLabelmapImportStore().splitLabelmapIntoMasks('gone', labelmap, [
         { value: 1, name: 'Liver', color: [1, 2, 3, 255], visible: true },
       ])
     ).toThrow('No such parent image');
@@ -118,9 +128,13 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
     const resample = gatedResample();
 
     // What both live call sites start: nobody awaits the conversion itself.
-    const conversion = store().startLabelmapConversion('child', 'parent', {
-      resample: resample.resample,
-    });
+    const conversion = useLabelmapImportStore().startLabelmapConversion(
+      'child',
+      'parent',
+      {
+        resample: resample.resample,
+      }
+    );
     await resample.entered;
     useImageCacheStore().removeImage('parent');
     resample.release(child);
@@ -128,7 +142,9 @@ describe('a labelmap conversion whose parent was removed mid-import', () => {
 
     expect(messageTitles()).toEqual(['Failed to convert image to a labelmap']);
     expectNothingMinted();
-    expect(store().convertingLabelmaps.has('child')).toBe(false);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('child')).toBe(
+      false
+    );
   });
 });
 
@@ -146,21 +162,33 @@ describe('a labelmap converting onto two parents', () => {
     await seatImage('other-parent', { dimensions: DIMENSIONS });
     const resample = gatedResample(2);
 
-    const first = store().convertImageToLabelmap('child', 'parent', {
-      resample: resample.resample,
-    });
-    const second = store().convertImageToLabelmap('child', 'other-parent', {
-      resample: resample.resample,
-    });
+    const first = useLabelmapImportStore().convertImageToLabelmap(
+      'child',
+      'parent',
+      {
+        resample: resample.resample,
+      }
+    );
+    const second = useLabelmapImportStore().convertImageToLabelmap(
+      'child',
+      'other-parent',
+      {
+        resample: resample.resample,
+      }
+    );
     await resample.entered;
     resample.release(child, 0);
     await first;
 
-    expect(store().convertingLabelmaps.has('child')).toBe(true);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('child')).toBe(
+      true
+    );
 
     resample.release(child, 1);
     await second;
 
-    expect(store().convertingLabelmaps.has('child')).toBe(false);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('child')).toBe(
+      false
+    );
   });
 });

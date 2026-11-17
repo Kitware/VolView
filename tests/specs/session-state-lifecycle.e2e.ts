@@ -74,11 +74,14 @@ const loadSession = async () => {
   await volViewPage.waitForViews();
 };
 
-const openProstateLabelmap = async (fileName: string) => {
+const openProstateLabelmap = async (
+  fileName: string,
+  segmentName = 'Right hip'
+) => {
   await openVolViewPage(fileName);
   await openAnnotationSegments();
   await waitForNamedSegments();
-  await waitForSegmentContent('Right hip');
+  await waitForSegmentContent(segmentName);
 };
 
 describe('Session state lifecycle', () => {
@@ -112,8 +115,7 @@ describe('Session state lifecycle', () => {
     await openAnnotationSegments();
     await waitForNamedSegments();
 
-    // The list shows every segment in the registry, so pick the one the
-    // session's rectangle actually carries rather than the first row.
+    // Pick the rectangle's segment from the current image's list.
     const row = await segmentRow(RECTANGLE_SEGMENT_NAME);
     await row.waitForDisplayed();
     const editButton = await row.$('button[data-testid="edit-segment-button"]');
@@ -142,53 +144,53 @@ describe('Session state lifecycle', () => {
     const tools = reloadedManifest.tools as {
       rectangles: { tools: Array<{ segmentId: string }> };
     };
-    const segments = reloadedManifest.segments as Array<{
-      id: string;
-      strokeWidth?: number;
+    const imageSegments = reloadedManifest.imageSegments as Array<{
+      segments: Array<{ id: string; strokeWidth?: number }>;
     }>;
-    const carried = segments.find(
-      (segment) => segment.id === tools.rectangles.tools[0].segmentId
-    );
+    const carried = imageSegments
+      .flatMap(({ segments }) => segments)
+      .find((segment) => segment.id === tools.rectangles.tools[0].segmentId);
     expect(carried?.strokeWidth).toEqual(editedStrokeWidth);
   });
 
-  it('sanitizes stored labelmap names when saving them into the session zip', async () => {
-    // The panel is one flat list per image with no group left to name, so a
-    // filesystem-hostile name now reaches the app through the manifest.
+  it('names each saved mask entry after its image and segment, sanitized', async () => {
     const storedName = 'Liver: left/right*?';
-    const sanitizedFilePath = 'segmentations/Liver left right.vti';
+    const sanitizedFilePath = 'segmentations/t2_tse_tra - Liver left right.vti';
     const source = PROSTATE_610_LABELMAP_MANIFEST.labelMaps[0];
-    const fileName = `hostile-labelmap-name-${Date.now()}.volview.json`;
+    const segment = source.metadata.segments.byValue['78'];
+    const fileName = `hostile-segment-name-${Date.now()}.volview.json`;
     await writeManifestToFile(
       {
         ...PROSTATE_610_LABELMAP_MANIFEST,
         labelMaps: [
-          { ...source, metadata: { ...source.metadata, name: storedName } },
+          {
+            ...source,
+            metadata: {
+              ...source.metadata,
+              segments: {
+                ...source.metadata.segments,
+                byValue: { '78': { ...segment, name: storedName } },
+              },
+            },
+          },
         ],
       },
       fileName
     );
-    await openProstateLabelmap(fileName);
+    await openProstateLabelmap(fileName, storedName);
 
     const { manifest, zip } = await saveAndParseManifest();
     if (!zip) {
       throw new Error('Expected saved session zip to be available');
     }
-    // A save writes one archive entry per mask, named on the mask's own
-    // labelmap binding.
-    const segmentations = manifest.segmentations as Array<{
-      masks: Array<{
-        representations: { labelmap?: { path: string; name: string } };
-      }>;
+    const imageSegments = manifest.imageSegments as Array<{
+      segments: Array<{ name: string; labelmap?: { path: string } }>;
     }>;
-    const bindings = segmentations.flatMap((segmentation) =>
-      segmentation.masks.flatMap((mask) => mask.representations.labelmap ?? [])
-    );
+    const savedPath = imageSegments
+      .flatMap(({ segments }) => segments)
+      .find(({ name }) => name === storedName)?.labelmap?.path;
 
-    expect(bindings.length).toBeGreaterThan(0);
-    // The stored name survives; only the path it becomes is sanitized.
-    expect(bindings.every((binding) => binding.name === storedName)).toBe(true);
-    expect(bindings[0].path).toEqual(sanitizedFilePath);
+    expect(savedPath).toEqual(sanitizedFilePath);
     expect(Object.keys(zip.files)).toContain(sanitizedFilePath);
   });
 
@@ -205,7 +207,7 @@ describe('Session state lifecycle', () => {
     const segmentColorBefore = await segmentColor('Right hip');
 
     const { session, manifest } = await saveAndParseManifest();
-    expect(manifest.version).toEqual('7.0.0');
+    expect(manifest.version).toEqual('8.0.0');
 
     await volViewPage.open(`?urls=[tmp/${session}]`);
     await volViewPage.waitForViews();

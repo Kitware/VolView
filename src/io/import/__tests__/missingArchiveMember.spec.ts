@@ -64,7 +64,7 @@ describe('restore with a partially missing dataset archive', () => {
       ManifestSchema.parse(manifest),
       [],
       { 'ds-ct': 'store-ct' }, // the dataset resolved from its surviving files
-      [{ stateID: 'ds-ct', path: 'data/20/b.dcm' }]
+      { missingFiles: [{ stateID: 'ds-ct', path: 'data/20/b.dcm' }] }
     );
 
     const warning = useMessageStore().messages.find(

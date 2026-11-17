@@ -3,14 +3,51 @@ import { ONE_CT_SLICE_DICOM } from '../datasets';
 import { moveTo } from './annotationTestUtils';
 import {
   openAnnotationSegments,
+  addSegment,
   renameSegment,
   segmentRow,
   tooltipOf,
   waitForSegmentContent,
+  createSegmentRow,
 } from './segmentationTestUtils';
 import { openUrls } from './utils';
 
 describe('Segment tooltips', () => {
+  it('explains why creation is disabled and aligns the enabled create row', async () => {
+    await volViewPage.open();
+    await openAnnotationSegments();
+    const disabledCreate = createSegmentRow();
+    await expect(disabledCreate).toBeDisabled();
+    await disabledCreate.moveTo();
+    const reason = await tooltipOf(disabledCreate.$('..'));
+    await expect(reason).toBeDisplayed();
+    await expect(reason).toHaveText('Select an image to edit segments');
+
+    await openUrls([ONE_CT_SLICE_DICOM]);
+    await openAnnotationSegments();
+    await addSegment();
+    const create = createSegmentRow();
+    const row = await segmentRow('Segment 1');
+    const handle = row.$('.reorder-handle');
+    const icon = create.$('.create-icon');
+    const positions = await browser.execute(
+      (reorder, plus) => [
+        reorder.getBoundingClientRect().left,
+        plus.getBoundingClientRect().left,
+      ],
+      await handle,
+      await icon
+    );
+    expect(Math.abs(positions[0] - positions[1])).toBeLessThan(1);
+    await moveTo(10, 10);
+    const background = await create.getCSSProperty('background-color');
+    await create.moveTo();
+    await browser.waitUntil(async () => {
+      const hovered = await create.getCSSProperty('background-color');
+      return hovered.value !== background.value;
+    });
+  });
+
   it('shows row descriptions on hover and explains locked controls on keyboard focus', async () => {
     await openUrls([ONE_CT_SLICE_DICOM]);
     await volViewPage.activatePaint();

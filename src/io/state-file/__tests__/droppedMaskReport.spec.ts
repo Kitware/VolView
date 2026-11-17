@@ -2,30 +2,36 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 import {
-  seatImage,
   seatSpecImage,
   inMemoryArtifactIO,
-  bindEmptyMasks,
+  addSegment,
+  bindMasks,
   seedVoxel,
   makeImage,
   manifestForImages,
   serializeToStateFiles,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { useSegmentStore } from '@/src/segmentation/segments';
+import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
+import {
+  useSegmentStore,
+  type SegmentResolver,
+} from '@/src/segmentation/segments';
 import { ManifestSchema } from '@/src/io/state-file/schema';
+import { migrateManifest } from '@/src/io/state-file/migrations';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
 
 // Every dropped mask must be named in the report surfaced by the caller.
 
 const buildScene = async () => {
   await seatSpecImage('img-1', 'CT A');
-  return bindEmptyMasks('img-1', ['Liver', 'Tumor']);
+  return bindMasks('img-1', ['Liver', 'Tumor']);
 };
 
 const restoreTampered = async (
   tamper: (parsed: any) => void,
-  segmentIdMapFor: (parsed: any) => Record<string, string> = (parsed) =>
-    useSegmentStore().deserialize(parsed).segmentIdMap,
+  resolverFor: (parsed: any) => SegmentResolver = (parsed) =>
+    useSegmentStore().deserialize(parsed, { 'img-1': 'new-1' }),
   dataIDMap: Record<string, string> = { 'img-1': 'new-1' }
 ) => {
   await buildScene();
@@ -38,76 +44,18 @@ const restoreTampered = async (
 
   setActivePinia(createPinia());
   await seatSpecImage('new-1', 'CT A');
-  const result = await store().deserialize({
+  const result = await deserializeSegmentation({
     manifest: parsed,
     stateFiles,
     dataIDMap,
-    segmentIdMap: segmentIdMapFor(parsed),
+    resolveSegment: resolverFor(parsed),
     io,
   });
   return {
     skipped: result.skipped,
-    masks: store().getSegmentationForImage('new-1')?.order ?? [],
-  };
-};
-
-// Three masks bound to one artifact's values 1 to 3; the second names a
-// segment the file never lists.
-const restoreArtifactMasks = async (order: string[]) => {
-  const labels = await seatImage('labels', {
-    dimensions: [4, 1, 1],
-    values: new Uint8Array([1, 2, 3, 0]),
-  });
-  await seatImage('parent', { dimensions: [4, 1, 1] });
-  const maskIds = ['m1', 'm2', 'm3'];
-  const manifest = ManifestSchema.parse(
-    manifestForImages(['parent'], {
-      segments: ['s1', 's3'].map((id) => ({
-        id,
-        name: id,
-        color: [255, 0, 0, 255],
-      })),
-      segmentations: [
-        {
-          id: 'wire',
-          name: 'CT',
-          parentImage: 'parent',
-          order,
-          masks: maskIds.map((id, index) => ({
-            id,
-            segmentId: `s${index + 1}`,
-            representations: {
-              labelmap: {
-                artifactId: 'labels',
-                sourceValue: index + 1,
-                extent: [0, -1, 0, -1, 0, -1],
-              },
-            },
-          })),
-        },
-      ],
-      segmentationArtifacts: [
-        {
-          id: 'labels',
-          name: 'labels.nii.gz',
-          parentImage: 'parent',
-          path: 'labels.vti',
-        },
-      ],
-    })
-  );
-  const result = await store().deserialize({
-    manifest,
-    stateFiles: [
-      { archivePath: 'labels.vti', file: new File([], 'labels.vti') },
-    ],
-    dataIDMap: { parent: 'parent' },
-    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
-    io: { read: async () => ({ image: labels }), write: async () => '' },
-  });
-  return {
-    skipped: result.skipped,
-    masks: store().getSegmentationForImage('parent')?.order ?? [],
+    masks: store()
+      .imageMasks('new-1')
+      .map(({ segmentId }) => segmentId),
   };
 };
 
@@ -116,32 +64,10 @@ describe('masks dropped during restore', () => {
     setActivePinia(createPinia());
   });
 
-  it('reports a mask whose segment the file never names', async () => {
-    const { skipped, masks } = await restoreTampered(
-      (parsed) => {
-        delete parsed.segments;
-      },
-      () => ({})
-    );
-
-    expect(masks).toHaveLength(0);
-    expect(skipped.map(({ reason }) => reason)).toEqual([
-      'its segment is not in the file',
-      'its segment is not in the file',
-    ]);
-    expect(skipped.map(({ name }) => name)).toEqual([
-      'Segment Group 1 for CT A',
-      'Segment Group 2 for CT A',
-    ]);
-  });
-
   it('reports a mask whose segment did not restore', async () => {
     const { skipped, masks } = await restoreTampered(
       () => {},
-      (parsed) =>
-        Object.fromEntries(
-          parsed.segments.map((segment: any) => [segment.id, 'no-such-segment'])
-        )
+      () => () => 'no-such-segment'
     );
 
     expect(masks).toHaveLength(0);
@@ -162,39 +88,68 @@ describe('masks dropped during restore', () => {
       'parent image data is unavailable',
       'parent image data is unavailable',
     ]);
-    expect(skipped.map(({ name }) => name)).toEqual([
-      'Segment Group 1 for CT A',
-      'Segment Group 2 for CT A',
-    ]);
+    expect(skipped.map(({ name }) => name)).toEqual(['Liver', 'Tumor']);
   });
 
   it('reports a second mask for a segment the image already has', async () => {
     const { skipped, masks } = await restoreTampered((parsed) => {
-      const [first, second] = parsed.segmentations[0].masks;
-      second.segmentId = first.segmentId;
+      const [first, second] = parsed.imageSegments[0].segments;
+      second.id = first.id;
     });
 
     expect(masks).toHaveLength(1);
     expect(skipped).toEqual([
       {
-        name: 'Segment Group 2 for CT A',
+        name: 'Tumor',
         reason: 'the image already has a mask for its segment',
       },
     ]);
   });
 
-  it('reports a mask its segmentation leaves out of the order', async () => {
-    const { skipped, masks } = await restoreTampered((parsed) => {
-      const [first] = parsed.segmentations[0].order;
-      parsed.segmentations[0].order = [first];
-    });
-
-    expect(masks).toHaveLength(1);
-    expect(skipped).toEqual([
-      {
-        name: 'Segment Group 2 for CT A',
-        reason: 'its segmentation does not list it',
+  // 8.0.0 has no order, so a 7.0.0 file's unlisted masks are dropped by the
+  // migration and reported with the restore.
+  it('reports a mask a 7.0.0 segmentation leaves out of its order', async () => {
+    await seatSpecImage('new-1', 'CT A');
+    const { manifest, migration } = migrateManifest(
+      JSON.stringify({
+        ...manifestForImages(['img-1']),
+        version: '7.0.0',
+        segments: [{ id: 'tumor', name: 'Tumor', color: [255, 0, 0, 255] }],
+        segmentations: [
+          {
+            id: 'wire',
+            name: 'CT A',
+            parentImage: 'img-1',
+            order: [],
+            masks: [
+              {
+                id: 'unlisted',
+                segmentId: 'tumor',
+                representations: {
+                  labelmap: {
+                    path: 'unlisted.vti',
+                    extent: [0, 0, 0, 0, 0, 0],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      })
+    );
+    const warnings: string[] = [];
+    await createStateFileRestorer({
+      addWarning: (title, options) => {
+        warnings.push(
+          typeof options === 'string' ? options : (options?.details ?? '')
+        );
+        return title;
       },
+    })(ManifestSchema.parse(manifest), [], { 'img-1': 'new-1' }, { migration });
+
+    expect(store().imageMasks('new-1')).toEqual([]);
+    expect(warnings).toEqual([
+      '- labelmap: Tumor (its segmentation does not list it)',
     ]);
   });
 
@@ -205,7 +160,9 @@ describe('masks dropped during restore', () => {
   ])(
     'reports a saved mask whose entry is %s and preserves its neighbor',
     async (failure, reason) => {
-      const [liver, tumor] = await buildScene();
+      await seatSpecImage('img-1', 'CT A');
+      const liver = addSegment('img-1', 'Liver');
+      const tumor = addSegment('img-1', 'Tumor');
       seedVoxel(liver, [1, 0, 0]);
       seedVoxel(tumor, [2, 0, 0]);
       const io = inMemoryArtifactIO();
@@ -213,7 +170,7 @@ describe('masks dropped during restore', () => {
         manifestForImages(['img-1']),
         io
       );
-      const broken = parsed.segmentations[0].masks[0].representations.labelmap;
+      const broken = parsed.imageSegments[0].segments[0].labelmap;
       const brokenFile = stateFiles.find(
         ({ archivePath }) => archivePath === broken.path
       )!.file;
@@ -227,46 +184,33 @@ describe('masks dropped during restore', () => {
       };
       setActivePinia(createPinia());
       await seatSpecImage('new-1', 'CT A');
-      const { skipped } = await store().deserialize({
+      const { skipped } = await deserializeSegmentation({
         manifest: parsed,
         stateFiles:
           failure === 'missing'
             ? stateFiles.filter(({ file }) => file !== brokenFile)
             : stateFiles,
         dataIDMap: { 'img-1': 'new-1' },
-        segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+        resolveSegment: useSegmentStore().deserialize(parsed, {
+          'img-1': 'new-1',
+        }),
         io: damagedIO,
       });
-      expect(skipped).toEqual([{ name: broken.name, reason }]);
+      expect(skipped).toEqual([{ name: 'Liver', reason }]);
       const savedIO = inMemoryArtifactIO();
       const { parsed: saved } = await serializeToStateFiles(
         manifestForImages(['new-1']),
         savedIO
       );
-      const [unbound, survivor] = saved.segmentations[0].masks;
-      expect(unbound.representations.labelmap).toBeUndefined();
-      expect(survivor.representations.labelmap.extent).toEqual([
-        2, 2, 0, 0, 0, 0,
-      ]);
+      const [survivor, ...rest] = saved.imageSegments[0].segments.filter(
+        ({ labelmap }: any) => labelmap
+      );
+      expect(rest).toEqual([]);
+      expect(survivor.id).toBe(store().imageMasks('new-1')[0].segmentId);
+      expect(survivor.labelmap.extent).toEqual([2, 2, 0, 0, 0, 0]);
       expect(savedIO.snapshots).toEqual([
         { dimensions: [1, 1, 1], values: [1] },
       ]);
     }
   );
-
-  it('names a dropped artifact mask by its artifact and label', async () => {
-    const { skipped, masks } = await restoreArtifactMasks(['m1', 'm2']);
-
-    expect(masks).toHaveLength(1);
-    expect(skipped).toEqual([
-      {
-        name: 'labels.nii.gz label 3',
-        reason: 'its segmentation does not list it',
-      },
-      {
-        name: 'labels.nii.gz label 2',
-        reason: 'its segment is not in the file',
-      },
-    ]);
-  });
 });

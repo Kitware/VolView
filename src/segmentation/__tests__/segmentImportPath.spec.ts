@@ -5,6 +5,7 @@ import {
   inMemoryArtifactIO,
   makeImage,
   mintSegment,
+  savedLabelmaps,
   seatImage,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -15,9 +16,10 @@ import { applyPreStateConfig, config } from '@/src/io/import/configJson';
 import type { Manifest } from '@/src/io/state-file/schema';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { listMasks } from '@/src/segmentation/model';
 import { importLabelmapImage, toLabelMap } from '@/src/segmentation/io/import';
 import { defer } from '@/src/utils';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
+import { serializeSegmentation } from '@/src/segmentation/io/stateFile';
 
 const appearanceOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId);
@@ -39,10 +41,7 @@ const categorical = (index: number) => [
   255,
 ];
 
-const segmentsOf = (imageId: string) => {
-  const segmentation = store().getSegmentationForImage(imageId);
-  return segmentation ? listMasks(segmentation) : [];
-};
+const segmentsOf = (imageId: string) => store().imageMasks(imageId);
 
 const describedBy = (imageId: string) =>
   segmentsOf(imageId).map((segment) => ({
@@ -60,7 +59,10 @@ async function seatConvertible() {
 
 async function convertedColors() {
   await seatConvertible();
-  await store().convertImageToLabelmap('child-img', 'parent-img');
+  await useLabelmapImportStore().convertImageToLabelmap(
+    'child-img',
+    'parent-img'
+  );
   return segmentsOf('parent-img').map((segment) => [
     ...appearanceOf(segment).color,
   ]);
@@ -74,10 +76,13 @@ describe('importing a labelmap onto a parent image', () => {
   it('splits an imported labelmap into one bounded mask per label value', async () => {
     await seatConvertible();
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
     const segments = segmentsOf('parent-img');
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(
+    expect(useSegmentStore().segments.selectedSegmentId('parent-img')).toBe(
       segments[0].segmentId
     );
     expect(segments.map(appearanceOf)).toEqual([
@@ -93,21 +98,19 @@ describe('importing a labelmap onto a parent image', () => {
       }),
     ]);
 
-    const bindings = segments.map(
-      (segment) => segment.representations.labelmap!
-    );
+    const bindings = segments.map(({ binding }) => binding);
     // Each mask is cropped to the box its own value spans, not the parent's grid.
     expect([...bindings[0].extent]).toEqual([1, 2, 1, 1, 1, 1]);
     expect([...bindings[1].extent]).toEqual([3, 3, 3, 3, 3, 3]);
-    expect(store().maskVoxels(segments[0].id).image().getDimensions()).toEqual([
-      2, 1, 1,
-    ]);
+    expect(
+      store().maskVoxels(segments[0].segmentId).image().getDimensions()
+    ).toEqual([2, 1, 1]);
   });
 
   it('hands back the source label value every created segment came from', async () => {
     await seatConvertible();
 
-    const created = await store().convertImageToLabelmap(
+    const created = await useLabelmapImportStore().convertImageToLabelmap(
       'child-img',
       'parent-img'
     );
@@ -115,8 +118,8 @@ describe('importing a labelmap onto a parent image', () => {
     // One entry per component of the source image; the common case is one.
     expect(created).toHaveLength(1);
     expect(created[0].map((entry) => entry.sourceValue)).toEqual([1, 2]);
-    expect(created[0].map((entry) => entry.maskId)).toEqual(
-      segmentsOf('parent-img').map((segment) => segment.id)
+    expect(created[0].map((entry) => entry.segmentId)).toEqual(
+      segmentsOf('parent-img').map((segment) => segment.segmentId)
     );
   });
 
@@ -132,16 +135,16 @@ describe('importing a labelmap onto a parent image', () => {
     });
 
     const [ontoA, ontoB] = await Promise.all([
-      store().convertImageToLabelmap('child-img', 'parent-a'),
-      store().convertImageToLabelmap('child-img', 'parent-b'),
+      useLabelmapImportStore().convertImageToLabelmap('child-img', 'parent-a'),
+      useLabelmapImportStore().convertImageToLabelmap('child-img', 'parent-b'),
     ]);
 
     expect(ontoB).not.toBe(ontoA);
-    expect(segmentsOf('parent-a').map((segment) => segment.id)).toEqual(
-      ontoA[0].map((entry) => entry.maskId)
+    expect(segmentsOf('parent-a').map((segment) => segment.segmentId)).toEqual(
+      ontoA[0].map((entry) => entry.segmentId)
     );
-    expect(segmentsOf('parent-b').map((segment) => segment.id)).toEqual(
-      ontoB[0].map((entry) => entry.maskId)
+    expect(segmentsOf('parent-b').map((segment) => segment.segmentId)).toEqual(
+      ontoB[0].map((entry) => entry.segmentId)
     );
     expect(
       segmentsOf('parent-b').map((segment) => appearanceOf(segment).name)
@@ -152,7 +155,10 @@ describe('importing a labelmap onto a parent image', () => {
     await seatConvertible();
 
     await expect(
-      store().convertImageToLabelmap('parent-img', 'parent-img')
+      useLabelmapImportStore().convertImageToLabelmap(
+        'parent-img',
+        'parent-img'
+      )
     ).rejects.toThrow(/itself/i);
   });
 
@@ -165,7 +171,7 @@ describe('importing a labelmap onto a parent image', () => {
     });
 
     await expect(
-      store().convertImageToLabelmap('far-img', 'parent-img')
+      useLabelmapImportStore().convertImageToLabelmap('far-img', 'parent-img')
     ).rejects.toThrow(/intersect/i);
   });
 
@@ -173,7 +179,10 @@ describe('importing a labelmap onto a parent image', () => {
     await seatImage('parent-img', { name: 'CT' });
     await seatImage('child-img', { name: 'Empty.seg.nrrd' });
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
     expect(segmentsOf('parent-img')).toEqual([]);
     expect(boundMasks()).toEqual([]);
@@ -187,6 +196,10 @@ describe('importing a labelmap onto a parent image', () => {
     async (_kind, values) => {
       await seatImage('parent-img', { name: 'CT' });
       await seatImage('healthy-img', { name: 'MR' });
+      const healthySegment = useSegmentStore().segments.addSegment(
+        'healthy-img',
+        { name: 'Surviving label' }
+      );
       await seatImage('child-img', { name: 'Tumor.seg.nrrd', values });
       const decoding = defer<void>();
       const started = defer<void>();
@@ -205,9 +218,11 @@ describe('importing a labelmap onto a parent image', () => {
             : [];
         },
         split: (labelmap, descriptors) =>
-          store()
-            .splitLabelmapIntoMasks('parent-img', labelmap, descriptors)
-            .map(({ id }) => id),
+          useLabelmapImportStore().splitLabelmapIntoMasks(
+            'parent-img',
+            labelmap,
+            descriptors
+          ),
       });
       await started.promise;
 
@@ -215,9 +230,14 @@ describe('importing a labelmap onto a parent image', () => {
       decoding.resolve();
 
       await expect(conversion).rejects.toThrow(/no longer loaded/i);
-      expect(store().getSegmentationForImage('parent-img')).toBeUndefined();
+      expect(store().imageMasks('parent-img')).toEqual([]);
       expect(useImageCacheStore().imageById['healthy-img']).toBeDefined();
-      expect(useSegmentStore().segments.segmentList.value).toEqual([]);
+      expect(
+        useSegmentStore()
+          .segments.segmentList('healthy-img')
+          .map(({ id }) => id)
+      ).toEqual([healthySegment]);
+      expect(useSegmentStore().segments.segmentList('parent-img')).toEqual([]);
       expect(boundMasks()).toEqual([]);
     }
   );
@@ -247,7 +267,10 @@ describe('importing a labelmap onto a parent image', () => {
     await seatImage('parent-img', { name: 'CT' });
     await seatImage('child-img', { name: 'liver.nrrd', values: labelValues() });
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
     expect(
       segmentsOf('parent-img').map((segment) => appearanceOf(segment).name)
@@ -260,7 +283,10 @@ describe('importing a labelmap onto a parent image', () => {
     await seatImage('parent-img', { name: 'CT' });
     await seatImage('child-img', { name: 'liver.nrrd', values: single });
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
     expect(
       segmentsOf('parent-img').map((segment) => appearanceOf(segment).name)
@@ -270,7 +296,7 @@ describe('importing a labelmap onto a parent image', () => {
   it('decodes a labelmap the restore path already holds', async () => {
     // `deserialize` decodes a migrated artifact's buffer directly, so the decode
     // stays reachable as store API and not only through the conversion.
-    const decoded = await store().decodeSegments(
+    const decoded = await useLabelmapImportStore().decodeSegments(
       undefined,
       toLabelMap(makeImage({ values: labelValues() })).labelmap
     );
@@ -295,7 +321,10 @@ describe('importing a labelmap onto a parent image', () => {
       ]),
     });
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
     // Merge, not replace: the described value takes the embedded name and
     // color, the undescribed one keeps its default.
@@ -320,10 +349,19 @@ describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
     ['Segment1_Color', '0 0 1'],
   ]);
 
-  const LIVER = { name: 'Liver', color: [255, 0, 0, 255] };
-  const SPLEEN = { name: 'Spleen', color: [0, 0, 255, 255] };
+  const LIVER = { name: 'Liver', color: [255, 0, 0, 255], masked: true };
+  const SPLEEN = { name: 'Spleen', color: [0, 0, 255, 255], masked: false };
 
-  it('shows the declaration as an empty row', async () => {
+  const listed = (imageId: string) =>
+    useSegmentStore()
+      .segments.segmentList(imageId)
+      .map(({ id, name, color }) => ({
+        name,
+        color: [...color],
+        masked: !!store().maskOf(id),
+      }));
+
+  it('shows the declaration as a segment without a mask', async () => {
     const values = new Uint8Array(VOXEL_COUNT);
     values[offset(1, 1, 1)] = 1;
     await seatImage('parent-img', { name: 'CT' });
@@ -333,15 +371,18 @@ describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
       headerMetadata: HEADER,
     });
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
-    expect(describedBy('parent-img')).toEqual([LIVER, SPLEEN]);
+    expect(listed('parent-img')).toEqual([LIVER, SPLEEN]);
   });
 
   // A declaration is one bin however many components the file has: a value
   // some component carried is that component's segment, so it must not come
   // back a second time as an empty twin of itself, and a value no component
-  // carried is one empty row, not one per component.
+  // carried is one segment, not one per component.
   it('declares it once across the components of one file', async () => {
     const values = new Uint8Array(VOXEL_COUNT * 2);
     values[offset(1, 1, 1) * 2] = 1;
@@ -353,13 +394,12 @@ describe('a .seg.nrrd header declaring a segment it leaves empty', () => {
       components: 2,
     });
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
-    expect(describedBy('parent-img')).toEqual([LIVER, SPLEEN]);
-    // The declared value no component carried is a real mask record covering
-    // nothing, exactly as it is on the result path.
-    const spleen = segmentsOf('parent-img')[1];
-    expect(store().maskVoxels(spleen.id).scalars()).toHaveLength(0);
+    expect(listed('parent-img')).toEqual([LIVER, SPLEEN]);
   });
 });
 
@@ -371,7 +411,10 @@ describe('the decode color cursor', () => {
   it('starts a session at the first categorical colors', async () => {
     await seatConvertible();
 
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
 
     expect(
       segmentsOf('parent-img').map((segment) => [
@@ -385,9 +428,8 @@ describe('the decode color cursor', () => {
     // decoded catalog has to be reproducible regardless of what else the
     // session has made.
     await seatImage('other-img', { name: 'MR' });
-    const other = store().ensureSegmentationForImage('other-img');
     ['A', 'B', 'C'].forEach((name) =>
-      store().createMask(other.id, mintSegment({ name }))
+      store().materializeMask(mintSegment('other-img', { name }))
     );
     expect(await convertedColors()).toEqual([categorical(0), categorical(1)]);
   });
@@ -398,8 +440,14 @@ describe('the decode color cursor', () => {
     await seatImage('child-a', { name: 'A.seg.nrrd', values: labelValues() });
     await seatImage('child-b', { name: 'B.seg.nrrd', values: labelValues() });
 
-    await store().convertImageToLabelmap('child-a', 'parent-a');
-    await store().convertImageToLabelmap('child-b', 'parent-b');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-a',
+      'parent-a'
+    );
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-b',
+      'parent-b'
+    );
 
     expect(
       segmentsOf('parent-b').map((segment) => [...appearanceOf(segment).color])
@@ -430,18 +478,21 @@ describe('the labelmap save format', () => {
 
   it('writes the session archive through the format it holds', async () => {
     await seatConvertible();
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
     store().saveFormat = 'nrrd';
 
     const io = inMemoryArtifactIO();
     const manifest = {} as Manifest;
-    await store().serialize({ zip: new JSZip(), manifest }, io);
+    await serializeSegmentation({ zip: new JSZip(), manifest }, io);
 
     expect(io.formats).toEqual(['nrrd', 'nrrd']);
     expect(
-      manifest
-        .segmentations!.flatMap((segmentation) => segmentation.masks)
-        .every((mask) => mask.representations.labelmap!.path!.endsWith('.nrrd'))
+      savedLabelmaps(manifest).every(({ labelmap }) =>
+        labelmap.path!.endsWith('.nrrd')
+      )
     ).toBe(true);
   });
 });

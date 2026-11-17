@@ -29,7 +29,6 @@ import {
 } from '@/src/io/import/importDataSources';
 import { isVolumeResult } from '@/src/io/import/common';
 import type { ImageMetadata } from '@/src/types/image';
-import { listMasks } from '@/src/segmentation/model';
 import {
   parseStatedColor,
   rejectedColorsMessage,
@@ -37,7 +36,7 @@ import {
 import { useDatasetStore } from '@/src/store/datasets';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
@@ -256,6 +255,7 @@ const reportUnparseableColors = (rejected: Set<string>) => {
 // Wire namespaces are per kind but bind into one registry, so the first kind to
 // bind a name sets its style. Unreferenced labels stay out of the picker.
 const bindReferencedSegments = (
+  imageId: string,
   tools: readonly PreparedCore[],
   namespace: Record<string, AnnotationLabel>,
   rejected: Set<string>
@@ -267,10 +267,10 @@ const bindReferencedSegments = (
   return Object.fromEntries(
     [...names].map((name) => [
       name,
-      segments.segmentNamed(
+      segments.seatSegment(imageId, {
+        ...segmentInit(name, namespace[name] ?? {}, rejected),
         name,
-        segmentInit(name, namespace[name] ?? {}, rejected)
-      ),
+      }),
     ])
   );
 };
@@ -327,6 +327,7 @@ async function applyAnnotations(
     ANNOTATION_TOOL_KINDS.map((kind) => [
       kind,
       bindReferencedSegments(
+        parentSelection,
         prepared[kind],
         decoded.labels[kind],
         rejectedColors
@@ -356,7 +357,7 @@ type FetchProcessingResult = typeof fetchProcessingResult;
 type SegmentWriter = {
   resultSourcesInScene: () => Array<ResultSource | undefined>;
   convertImageToLabelmap: ReturnType<
-    typeof useSegmentationStore
+    typeof useLabelmapImportStore
   >['convertImageToLabelmap'];
 };
 
@@ -385,11 +386,11 @@ export const appApplyDependencies = (): ApplyDependencies => ({
     useLayersStore().addLayer(parentSelection, childSelection),
   segmentWriter: {
     resultSourcesInScene: () =>
-      Object.values(useSegmentationStore().segmentations)
-        .flatMap((segmentation) => listMasks(segmentation))
-        .map((mask) => mask.representations.labelmap?.source),
+      Object.values(useSegmentStore().segments.imageSets.value).flatMap(
+        ({ masks }) => [...masks.values()].map((binding) => binding.source)
+      ),
     convertImageToLabelmap: (...args) =>
-      useSegmentationStore().convertImageToLabelmap(...args),
+      useLabelmapImportStore().convertImageToLabelmap(...args),
   },
 });
 

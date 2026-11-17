@@ -2,29 +2,23 @@ import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { planLabelmapExport } from '@/src/segmentation/io/composition';
 
-export function planSegmentationInput(
-  segmentationId: string,
-  multiple: boolean
-) {
+export function planSegmentationInput(imageId: string, multiple: boolean) {
   const segmentationStore = useSegmentationStore();
-  const segmentation = segmentationStore.segmentations[segmentationId];
-  if (!segmentation) throw new Error('No such segmentation');
-  const { parentImageId } = segmentation;
-  const base = { parentId: parentImageId, name: segmentation.name };
+  const base = {
+    parentId: imageId,
+    name: segmentationStore.segmentationName(imageId),
+  };
   if (multiple) {
-    const { parts } = planLabelmapExport(parentImageId);
+    const { parts } = planLabelmapExport(imageId);
     return { ...base, parts, warning: undefined };
   }
   const registry = useSegmentStore().segments;
-  // The selection is shared across images, so it can name a segment this image
-  // holds no mask for. Packing then starts from the first mask in registry
-  // order instead, and the advice to select a segment has to say where.
-  const selected = registry.selectedSegmentId.value;
+  // An unpainted definition has no mask to prioritize, so packing falls back
+  // to the first mask in this image's segment order.
+  const selected = registry.selectedSegmentId(imageId);
   const preferred =
-    selected && segmentationStore.maskFor(parentImageId, selected)
-      ? selected
-      : undefined;
-  const [first, ...rest] = planLabelmapExport(parentImageId, preferred).parts;
+    selected && segmentationStore.maskOf(selected) ? selected : undefined;
+  const [first, ...rest] = planLabelmapExport(imageId, preferred).parts;
   const omitted = rest
     .flat()
     .map((mask) => registry.appearanceOf(mask.segmentId).displayName);

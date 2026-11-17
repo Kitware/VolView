@@ -6,7 +6,7 @@ import ImageListCard from '@/src/components/ImageListCard.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import SegmentationConversionProgress from '@/src/components/SegmentationConversionProgress.vue';
 import { createVTKImageThumbnailer } from '@/src/core/thumbnailers/vtk-image';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 import {
   isRegularImage,
   type DataSelection,
@@ -41,7 +41,7 @@ export default defineComponent({
     const imageStore = useImageStore();
     const dataStore = useDatasetStore();
     const layersStore = useLayersStore();
-    const segmentationStore = useSegmentationStore();
+    const conversionStore = useLabelmapImportStore();
     const viewSliceStore = useViewSliceStore();
     const viewCameraStore = useViewCameraStore();
     const imageCacheStore = useImageCacheStore();
@@ -73,7 +73,7 @@ export default defineComponent({
         const metadata =
           imageCacheStore.getImageMetadata(id) ?? defaultImageMetadata();
         const convertingToSegmentation =
-          segmentationStore.convertingLabelmaps.has(id);
+          conversionStore.convertingLabelmaps.has(id);
         return {
           id,
           cacheKey: imageCacheKey(id),
@@ -167,7 +167,7 @@ export default defineComponent({
 
     function convertToLabelMap(key: string) {
       if (currentImageID.value) {
-        segmentationStore.startLabelmapConversion(key, currentImageID.value);
+        conversionStore.startLabelmapConversion(key, currentImageID.value);
       }
     }
 

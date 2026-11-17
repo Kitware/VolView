@@ -3,7 +3,11 @@ import path from 'node:path';
 import JSZip from 'jszip';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
-import { openThroughDialog, writeManifestToFile } from './utils';
+import {
+  openThroughDialog,
+  waitForModuleTransitions,
+  writeManifestToFile,
+} from './utils';
 import {
   openAnnotationSegments,
   segmentColor,
@@ -63,8 +67,8 @@ const writeSession = async () => {
   return sessionPath;
 };
 
-describe('Restoring a session into a configured scene', () => {
-  it('binds a saved segment to the empty configured segment of its name', async () => {
+describe('Restoring a session beside a configured image', () => {
+  it('keeps the saved image appearance independent from the configured image', async () => {
     const parent = new Uint8Array(SIZE ** 3).map((_, offset) => offset % 251);
     fs.writeFileSync(path.join(TEMP_DIR, `${STEM}.nrrd`), nrrd(parent));
     await writeManifestToFile(
@@ -80,10 +84,20 @@ describe('Restoring a session into a configured scene', () => {
 
     await openThroughDialog(await writeSession());
 
-    // Only a session segment bound to the first Tumor row gives it content.
     await waitForSegmentContent('Tumor');
     expect(await segmentNames()).toEqual(['Tumor']);
+    expect(await segmentColor('Tumor')).toEqual('rgba(0,0,255,1)');
+    await $('button[data-testid="module-tab-Data"]').click();
+    await waitForModuleTransitions();
+    const cards = await $$('.image-list-card');
+    expect(cards.length).toEqual(2);
+    await cards[0].click();
+    await openAnnotationSegments();
+    expect(await segmentNames()).toEqual(['Tumor']);
     expect(await segmentColor('Tumor')).toEqual(configuredColor);
+    await expect(
+      $('[data-testid="segment-list"] [data-testid="reveal-segment-button"]')
+    ).toBeDisabled();
     expect(await volViewPage.getNotificationsCount()).toEqual(0);
   });
 });

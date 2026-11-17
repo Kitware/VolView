@@ -27,14 +27,13 @@ import { useProcessingJobsStore } from '@/src/processing/store';
 import { useMessageStore } from '@/src/store/messages';
 import { seatDataSource } from '@/src/store/__tests__/datasetFixtures';
 import { makeFakeProvider, registerFake } from './fakeProvider';
-import {
-  savedMasks,
-  serializeAnnotations,
-  serializeScene,
-} from './serializedScene';
+import { savedMasks, serializeScene } from './serializedScene';
 import { TOOL_COLORS } from '@/src/config';
 import {
   mintSegment,
+  savedSegmentNames,
+  savedSegments,
+  serializeAnnotations,
   lockSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -64,6 +63,9 @@ const resultServer = () => {
 let results = resultServer();
 
 const IMAGE_ID = 'img-1';
+const savedSelection = (imageId = IMAGE_ID) =>
+  serializeAnnotations().imageSegments?.find((set) => set.imageId === imageId)
+    ?.selectedSegmentId;
 
 // A 20mm cube at the origin with unit spacing: world LPS mm and image indices
 // coincide, so a plane origin's z IS its slice.
@@ -234,6 +236,19 @@ beforeEach(() => {
 });
 
 describe('applyIntent — add-annotations', () => {
+  it("keeps another image's segments off the job image when applying annotation results", async () => {
+    seatImage('previous');
+    useViewStore().setDataForAllViews('previous');
+    await nextTick();
+    useSegmentStore().segments.addSegment('previous', { name: 'Liver' });
+    useViewStore().setDataForAllViews(IMAGE_ID);
+    await nextTick();
+
+    expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
+    expect(savedSegmentNames(IMAGE_ID)).toEqual(['roi', 'lesion']);
+    expect(toolCounts()).toEqual({ rulers: 1, rectangles: 1, polygons: 1 });
+  });
+
   it('adds every tool kind to the job image, deriving the slice from the frame', async () => {
     const outcome = await apply(intent(), context(IMAGE_ID));
     expect(outcome.status).toBe('applied');
@@ -361,7 +376,7 @@ describe('applyIntent — add-annotations', () => {
     expect(ruler.segmentId).toBe(rectangle.segmentId);
     expect(saved.tools!.polygons!.tools[0].segmentId).not.toBe(ruler.segmentId);
     expect(
-      saved.segments?.find(({ id }) => id === ruler.segmentId)
+      savedSegments(saved).find(({ id }) => id === ruler.segmentId)
     ).toMatchObject({
       name: 'roi',
       color: [255, 0, 0, 255],
@@ -371,11 +386,11 @@ describe('applyIntent — add-annotations', () => {
 
   it('binds an existing segment of the same name instead of minting one', async () => {
     const registry = useSegmentStore().segments;
-    const existingId = registry.addSegment({
+    const existingId = registry.addSegment(IMAGE_ID, {
       name: 'Measured',
       color: cssColorToRGBA('#ff0000'),
     });
-    const before = serializeAnnotations().segments!.length;
+    const before = savedSegments(serializeAnnotations()).length;
 
     const file = annotationsFile();
     file.labels.rulers = { Measured: { color: '#123456', strokeWidth: 3 } };
@@ -384,16 +399,16 @@ describe('applyIntent — add-annotations', () => {
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     const saved = serializeAnnotations();
-    expect(saved.segments).toHaveLength(before);
-    expect(saved.segments?.find(({ id }) => id === existingId)?.color).toEqual([
-      255, 0, 0, 255,
-    ]);
+    expect(savedSegments(saved)).toHaveLength(before);
+    expect(
+      savedSegments(saved).find(({ id }) => id === existingId)?.color
+    ).toEqual([255, 0, 0, 255]);
     expect(firstRuler().segmentId).toBe(existingId);
   });
 
   it('keeps a segment’s colour when a label states one the parser rejects', async () => {
     const registry = useSegmentStore().segments;
-    const existingId = registry.addSegment({
+    const existingId = registry.addSegment(IMAGE_ID, {
       name: 'Measured',
       color: cssColorToRGBA('#ff0000'),
     });
@@ -413,10 +428,12 @@ describe('applyIntent — add-annotations', () => {
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
 
     const saved = serializeAnnotations();
-    expect(saved.segments?.find(({ id }) => id === existingId)?.color).toEqual([
-      255, 0, 0, 255,
-    ]);
-    const minted = saved.segments!.find((segment) => segment.name === 'Fresh')!;
+    expect(
+      savedSegments(saved).find(({ id }) => id === existingId)?.color
+    ).toEqual([255, 0, 0, 255]);
+    const minted = savedSegments(saved).find(
+      (segment) => segment.name === 'Fresh'
+    )!;
     expect(TOOL_COLORS).toContain(rgbaToCssColor(minted.color));
 
     const titles = messageTitles();
@@ -436,7 +453,7 @@ describe('applyIntent — add-annotations', () => {
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
 
-    expect(serializeAnnotations().segments).toMatchObject([
+    expect(savedSegments(serializeAnnotations())).toMatchObject([
       { name: 'Hexed', color: [0, 255, 0, 255] },
       { name: 'Named', color: [0, 255, 0, 255] },
     ]);
@@ -444,20 +461,17 @@ describe('applyIntent — add-annotations', () => {
   });
 
   it('binds a locked segment without touching its mask', async () => {
-    const segmentationStore = useSegmentationStore();
-    const segmentation = segmentationStore.ensureSegmentationForImage(IMAGE_ID);
-    const lockedSegment = mintSegment({
+    const lockedSegment = mintSegment(IMAGE_ID, {
       name: 'roi',
       color: [17, 34, 51, 255],
     });
-    const locked = segmentationStore.createMask(segmentation.id, lockedSegment);
-    const voxels = segmentationStore.maskVoxels(locked.id);
+    const voxels = useSegmentationStore().maskVoxels(lockedSegment);
     voxels.materialize();
     const labelValue = SEGMENT_VALUE;
     voxels.ensureContains([2, 2, 3, 3, 4, 4]);
     voxels.scalars()[0] = labelValue;
     voxels.image().modified();
-    lockSegment(locked.id, true);
+    lockSegment(lockedSegment, true);
     const before = await serializeScene([IMAGE_ID]);
 
     const file = annotationsFile();
@@ -470,7 +484,6 @@ describe('applyIntent — add-annotations', () => {
     expect(savedMasks(after, IMAGE_ID)).toEqual(savedMasks(before, IMAGE_ID));
     expect(savedMasks(after, IMAGE_ID)).toMatchObject([
       {
-        id: locked.id,
         segmentId: lockedSegment,
         segment: { locked: true },
         extent: [2, 2, 3, 3, 4, 4],
@@ -484,8 +497,8 @@ describe('applyIntent — add-annotations', () => {
 
   it('leaves the picker where the user left it', async () => {
     const registry = useSegmentStore().segments;
-    const selectedBefore = registry.addSegment({ name: 'Chosen' });
-    expect(serializeAnnotations().selectedSegment).toBe(selectedBefore);
+    const selectedBefore = registry.addSegment(IMAGE_ID, { name: 'Chosen' });
+    expect(savedSelection()).toBe(selectedBefore);
 
     const file = annotationsFile();
     // A name no segment carries, so binding must MINT one, the case that could
@@ -495,37 +508,37 @@ describe('applyIntent — add-annotations', () => {
     serveFile(file);
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(serializeAnnotations().selectedSegment).toBe(selectedBefore);
+    expect(savedSelection()).toBe(selectedBefore);
     // The segment still landed; only the picker was left alone.
     const ruler = firstRuler();
     expect(
-      serializeAnnotations().segments?.find(({ id }) => id === ruler.segmentId)
-        ?.name
+      savedSegments(serializeAnnotations()).find(
+        ({ id }) => id === ruler.segmentId
+      )?.name
     ).toBe('fresh');
   });
 
-  it('preserves the user’s selected segment while result segments land', async () => {
+  it('preserves each image’s selected segment while results land on their input image', async () => {
     seatImage('origin-image');
     seatImage('next-image');
-    const segmentationStore = useSegmentationStore();
-    const originSegmentation =
-      segmentationStore.ensureSegmentationForImage('origin-image');
-    const selectedSegment = mintSegment({ name: 'User selection' });
-    segmentationStore.createMask(originSegmentation.id, selectedSegment);
+    const selectedSegment = mintSegment('origin-image', {
+      name: 'User selection',
+    });
     useSegmentStore().segments.selectSegment(selectedSegment);
-    useViewStore().setDataForAllViews(IMAGE_ID);
+    const registry = useSegmentStore().segments;
+    const onTarget = registry.addSegment(IMAGE_ID, { name: 'Input selection' });
+    const onNext = registry.addSegment('next-image', {
+      name: 'Next selection',
+    });
+    useViewStore().setDataForAllViews('next-image');
     await nextTick();
 
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
-    expect(serializeAnnotations().selectedSegment).toBe(selectedSegment);
+    expect(savedSelection('origin-image')).toBe(selectedSegment);
+    expect(savedSelection()).toBe(onTarget);
+    expect(savedSelection('next-image')).toBe(onNext);
 
-    const next = segmentationStore.resolveEditTarget('next-image');
-    expect(
-      savedMasks(
-        await serializeScene(['origin-image', IMAGE_ID, 'next-image']),
-        'next-image'
-      )
-    ).toMatchObject([{ id: next, segmentId: selectedSegment }]);
+    expect(useSegmentationStore().resolveEditTarget('next-image')).toBe(onNext);
   });
 
   it('leaves an unlabeled tool unlabeled', async () => {
@@ -543,7 +556,7 @@ describe('applyIntent — add-annotations', () => {
     expect((await apply(intent(), context(IMAGE_ID))).status).toBe('applied');
     const ruler = firstRuler();
     expect(ruler.segmentId).toBe('');
-    expect(serializeAnnotations().segments).toEqual([]);
+    expect(savedSegments(serializeAnnotations())).toEqual([]);
   });
 
   it('is a no-op when a tool already carries the same source', async () => {
@@ -593,7 +606,9 @@ describe('applyIntent — add-annotations', () => {
       const otherImage = 'healthy-image';
       seatImage(otherImage);
       const registry = useSegmentStore().segments;
-      const existingSegment = registry.addSegment({ name: 'Existing' });
+      const existingSegment = registry.addSegment(otherImage, {
+        name: 'Existing',
+      });
       const existingTool = useRulerStore().addTool({
         imageID: otherImage,
         segmentId: existingSegment,
@@ -617,7 +632,9 @@ describe('applyIntent — add-annotations', () => {
           segmentId: existingSegment,
         },
       ]);
-      expect(saved.segments?.map(({ name }) => name)).toEqual(['Existing']);
+      expect(savedSegments(saved).map(({ name }) => name)).toEqual([
+        'Existing',
+      ]);
       expect((await apply(intent(), context(otherImage))).status).toBe(
         'applied'
       );
@@ -653,7 +670,7 @@ describe('applyIntent — add-annotations', () => {
   });
 
   it('rejects the whole result when any frame is not axis-aligned, before mutating', async () => {
-    const typesBefore = serializeAnnotations().segments;
+    const typesBefore = savedSegments(serializeAnnotations());
 
     const file = annotationsFile();
     // Oblique: unrenderable, and no `slice` echo can rescue it.
@@ -671,7 +688,7 @@ describe('applyIntent — add-annotations', () => {
     // All-or-nothing: not even the rulers that WOULD have placed, and not the
     // registry, since binding a name mints or restyles a segment.
     expect(toolCounts()).toEqual({ rulers: 0, rectangles: 0, polygons: 0 });
-    expect(serializeAnnotations().segments).toEqual(typesBefore);
+    expect(savedSegments(serializeAnnotations())).toEqual(typesBefore);
   });
 
   it('places a plane past the image bounds, as the renderer already does', async () => {
@@ -922,7 +939,7 @@ describe('retrying annotations after loading the input image', () => {
         source,
       });
       expect(
-        saved.segments?.find(({ id }) => id === ruler.segmentId)
+        savedSegments(saved).find(({ id }) => id === ruler.segmentId)
       ).toMatchObject({ name: 'roi', color: [255, 0, 0, 255] });
     }
   );

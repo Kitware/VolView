@@ -8,8 +8,12 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { listMasks } from '@/src/segmentation/model';
-import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  savedSegmentNames,
+  seatImage,
+  serializeAnnotations,
+  viewImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // A pre-7 group with no descriptors has no segments to activate when
@@ -58,7 +62,7 @@ const twoGroupManifest = (activeValue: number): Manifest =>
           paint: { activeSegmentGroupID: 'sg-b', activeSegment: activeValue },
         },
       })
-    )
+    ).manifest
   );
 
 async function restoreTwoGroups(activeValue: number, populate = () => {}) {
@@ -74,17 +78,14 @@ async function restoreTwoGroups(activeValue: number, populate = () => {}) {
   });
 }
 
-const catalog = () => {
-  const store = useSegmentationStore();
-  const segmentation = store.getSegmentationForImage('parent-store')!;
-  return listMasks(segmentation);
-};
+const catalog = () => useSegmentationStore().imageMasks('parent-store');
 
-// The selection is a segment, so what it reactivates is read through the record
+// The selection is a segment, so what it reactivates is read through the mask
 // that segment has on this image. Both groups decode two segments each, in
 // ascending source value, so a segment's place says which value it came from.
 const selectedIndex = () => {
-  const segmentId = useSegmentStore().segments.selectedSegmentId.value;
+  const segmentId =
+    useSegmentStore().segments.selectedSegmentId('parent-store');
   const index = catalog().findIndex(
     (segment) => segment.segmentId === segmentId
   );
@@ -99,9 +100,7 @@ describe('restoring a descriptorless active group', () => {
   it('gives every segment of both groups its own mask', async () => {
     await restoreTwoGroups(1);
 
-    const buffers = catalog().map(
-      (segment) => segment.representations.labelmap!.image
-    );
+    const buffers = catalog().map(({ binding }) => binding.image);
     expect(buffers).toHaveLength(4);
     expect(new Set(buffers).size).toBe(4);
   });
@@ -119,15 +118,40 @@ describe('restoring a descriptorless active group', () => {
     expect(selectedIndex()).toBe(3);
   });
 
+  it('restores the active group as a saved set over an unrelated image selection', async () => {
+    const store = useSegmentStore();
+    store.segments.applyConfig({ Site: {} });
+    await viewImage('existing');
+    store.segments.addSegment('existing', { name: 'Unrelated' });
+
+    await restoreTwoGroups(2);
+
+    const saved = serializeAnnotations();
+    const set = saved.imageSegments?.find(
+      ({ imageId }) => imageId === 'parent-store'
+    );
+    expect(savedSegmentNames('parent-store', saved)).toEqual([
+      'A 1',
+      'A 2',
+      'B 1',
+      'B 2',
+    ]);
+    expect(
+      set?.segments.find(({ id }) => id === set?.selectedSegmentId)?.name
+    ).toMatch(/^B/);
+  });
+
   it('leaves a selection the scene already has alone', async () => {
     let liver = '';
     await restoreTwoGroups(1, () => {
       const registry = useSegmentStore().segments;
-      liver = registry.segmentNamed('Liver');
+      liver = registry.seatSegment('parent-store', { name: 'Liver' });
       registry.selectSegment(liver);
     });
 
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(liver);
+    expect(useSegmentStore().segments.selectedSegmentId('parent-store')).toBe(
+      liver
+    );
   });
 
   it('selects the first segment when no source value matches', async () => {
@@ -169,27 +193,51 @@ const twoImageManifest = (): Manifest =>
     ],
   });
 
+const seatTwoImages = async () => {
+  setActivePinia(createPinia());
+  await seat('ct-store', 'CT Chest', new Uint8Array(4 * 4 * 4));
+  await seat('mr-store', 'MR Chest', new Uint8Array(4 * 4 * 4));
+  await seat('a-store', 'Mask.nrrd', makeLabelmapValues());
+  await seat('b-store', 'Mask.nrrd', makeLabelmapValues());
+};
+
+const restoreTwoImages = () =>
+  completeStateFileRestore(twoImageManifest(), [], {
+    'ds-ct': 'ct-store',
+    'ds-mr': 'mr-store',
+    [leafStateId(3)]: 'a-store',
+    [leafStateId(4)]: 'b-store',
+  });
+
 describe('restoring same-named descriptorless groups on two images', () => {
   it('keeps the display the second group migrated with', async () => {
-    setActivePinia(createPinia());
-    await seat('ct-store', 'CT Chest', new Uint8Array(4 * 4 * 4));
-    await seat('mr-store', 'MR Chest', new Uint8Array(4 * 4 * 4));
-    await seat('a-store', 'Mask.nrrd', makeLabelmapValues());
-    await seat('b-store', 'Mask.nrrd', makeLabelmapValues());
-
-    await completeStateFileRestore(twoImageManifest(), [], {
-      'ds-ct': 'ct-store',
-      'ds-mr': 'mr-store',
-      [leafStateId(3)]: 'a-store',
-      [leafStateId(4)]: 'b-store',
-    });
+    await seatTwoImages();
+    await restoreTwoImages();
 
     const registry = useSegmentStore().segments;
     const visibleOn = (imageId: string) =>
-      listMasks(useSegmentationStore().getSegmentationForImage(imageId)!).map(
-        (mask) => registry.appearanceOf(mask.segmentId).visible
-      );
+      useSegmentationStore()
+        .imageMasks(imageId)
+        .map(({ segmentId }) => registry.appearanceOf(segmentId).visible);
     expect(visibleOn('ct-store')).toEqual([true, true]);
     expect(visibleOn('mr-store')).toEqual([false, false]);
+  });
+
+  it('carries a hidden group onto the same-named segments an image already has', async () => {
+    await seatTwoImages();
+    const registry = useSegmentStore().segments;
+    registry.applyConfig({ 'Mask 1': {}, 'Mask 2': {} });
+
+    await restoreTwoImages();
+
+    expect(registry.segmentList('mr-store').map(({ name }) => name)).toEqual([
+      'Mask 1',
+      'Mask 2',
+    ]);
+    expect(
+      useSegmentationStore()
+        .imageMasks('mr-store')
+        .map(({ segmentId }) => registry.appearanceOf(segmentId).visible)
+    ).toEqual([false, false]);
   });
 });

@@ -5,12 +5,14 @@ import {
   SPEC_DIMENSIONS as DIMENSIONS,
   labelmapValues,
   makeLabelmap,
-  mintSegment,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { DEFAULT_SEGMENTATION_FILL_OPACITY } from '@/src/segmentation/model';
+import { toLabelmapSegment } from '@/src/segmentation/segment';
+import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 // Segments hold opacity; the per-image segmentation holds its multipliers.
 
@@ -33,23 +35,24 @@ describe('segmentation display state', () => {
     // A fresh segmentation tints the anatomy under it; the outline defaults
     // match what a legacy per-view config carried.
     it('gives a new segmentation a translucent fill and a 2px outline', () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
+      store().materializeMask(segments().mintSegment('img-1'));
 
-      expect(segmentation.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
-      expect(segmentation.outlineOpacity).toBe(1);
-      expect(segmentation.outlineThickness).toBe(2);
+      const display = segments().displayOf('img-1');
+      expect(display.fillOpacity).toBe(DEFAULT_SEGMENTATION_FILL_OPACITY);
+      expect(display.outlineOpacity).toBe(1);
+      expect(display.outlineThickness).toBe(2);
     });
 
     it('gives a segment minted by the edit path the same defaults', () => {
-      const segment = store().getMask(store().resolveEditTarget('img-1'));
+      const segmentId = store().resolveEditTarget('img-1');
 
-      const appearance = segments().appearanceOf(segment.segmentId);
+      const appearance = segments().appearanceOf(segmentId);
       expect(appearance.fillOpacity).toBe(1);
       expect(appearance.outlineOpacity).toBe(1);
     });
 
     it('takes display state from a decoded segment descriptor', () => {
-      const [segment] = store().splitLabelmapIntoMasks(
+      const [segmentId] = useLabelmapImportStore().splitLabelmapIntoMasks(
         'img-1',
         makeImportedLabelmap(),
         [
@@ -66,7 +69,7 @@ describe('segmentation display state', () => {
       );
 
       // Opacity describes the thing shown, so it lands on the segment it minted.
-      const appearance = segments().appearanceOf(segment.segmentId);
+      const appearance = segments().appearanceOf(segmentId);
       expect(appearance.fillOpacity).toBe(0.4);
       expect(appearance.outlineOpacity).toBe(0.25);
       // Visibility and lock describe the thing, so they land on the segment.
@@ -77,42 +80,36 @@ describe('segmentation display state', () => {
 
   describe('editing', () => {
     it('patches display state through the segment without disturbing identity', () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createMask(
-        segmentation.id,
-        mintSegment({ name: 'Tumor' })
-      );
-      expect(segments().appearanceOf(segment.segmentId).fillOpacity).toBe(1);
+      const segmentId = segments().mintSegment('img-1', { name: 'Tumor' });
+      const binding = store().materializeMask(segmentId);
+      expect(segments().appearanceOf(segmentId).fillOpacity).toBe(1);
 
-      segments().updateSegment(segment.segmentId, { fillOpacity: 0.4 });
-      segments().updateSegment(segment.segmentId, { outlineOpacity: 0.25 });
+      segments().updateSegment(segmentId, { fillOpacity: 0.4 });
+      segments().updateSegment(segmentId, { outlineOpacity: 0.25 });
 
-      const updated = store().getMask(segment.id);
-      const appearance = segments().appearanceOf(updated.segmentId);
+      const appearance = segments().appearanceOf(segmentId);
       expect(appearance.fillOpacity).toBe(0.4);
       expect(appearance.outlineOpacity).toBe(0.25);
-      expect(updated.id).toBe(segment.id);
-      expect(updated.segmentId).toBe(segment.segmentId);
+      expect(store().maskOf(segmentId)).toBe(binding);
       expect(appearance.name).toBe('Tumor');
       expect(appearance.visible).toBe(true);
     });
 
     it('keeps display state per segment', () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      const first = store().createMask(segmentation.id, mintSegment());
-      const second = store().createMask(segmentation.id, mintSegment());
+      const first = segments().mintSegment('img-1');
+      const second = segments().mintSegment('img-1');
+      store().materializeMask(first);
+      store().materializeMask(second);
 
-      segments().updateSegment(first.segmentId, {
+      segments().updateSegment(first, {
         fillOpacity: 0,
         outlineOpacity: 0.5,
       });
 
-      const sibling = segments().appearanceOf(
-        store().getMask(second.id).segmentId
-      );
+      const sibling = segments().appearanceOf(second);
       expect(sibling.fillOpacity).toBe(1);
       expect(sibling.outlineOpacity).toBe(1);
-      expect(store().segmentations[segmentation.id].fillOpacity).toBe(
+      expect(segments().displayOf('img-1').fillOpacity).toBe(
         DEFAULT_SEGMENTATION_FILL_OPACITY
       );
     });
@@ -120,54 +117,20 @@ describe('segmentation display state', () => {
 
   // Without this the editor's sliders write state nothing renders from.
   describe('reaching the renderer', () => {
-    it("projects each segment's opacities onto its mask", () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createMask(
-        segmentation.id,
-        mintSegment({ name: 'Tumor' })
-      );
-      store().maskVoxels(segment.id).materialize();
+    it("hands each segment's opacities to its mask's label descriptor", () => {
+      const segmentId = segments().mintSegment('img-1', { name: 'Tumor' });
+      store().maskVoxels(segmentId).materialize();
 
-      segments().updateSegment(segment.segmentId, {
+      segments().updateSegment(segmentId, {
         fillOpacity: 0.4,
         outlineOpacity: 0.25,
       });
 
-      expect(store().labelmapDescriptorByMask[segment.id]).toEqual(
+      expect(
+        toLabelmapSegment(segments().getSegment(segmentId), SEGMENT_VALUE)
+      ).toEqual(
         expect.objectContaining({ fillOpacity: 0.4, outlineOpacity: 0.25 })
       );
-    });
-
-    // A representation redraws when its mask's list changes identity, so
-    // editing one segment must not hand every other mask a new array.
-    it('leaves an untouched mask its previous list', () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      const edited = store().createMask(segmentation.id, mintSegment());
-      const untouched = store().createMask(segmentation.id, mintSegment());
-      store().maskVoxels(edited.id).materialize();
-      store().maskVoxels(untouched.id).materialize();
-
-      const before = store().labelmapDescriptorByMask[untouched.id];
-      segments().updateSegment(edited.segmentId, { fillOpacity: 0.4 });
-      const after = store().labelmapDescriptorByMask;
-
-      expect(after[untouched.id]).toBe(before);
-      expect(after[edited.id]).toEqual(
-        expect.objectContaining({ fillOpacity: 0.4 })
-      );
-    });
-
-    // The whole projection is one watch source for the probe, so a change that
-    // touched no mask must not invalidate it either.
-    it('keeps the whole projection when nothing it covers changed', () => {
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      const segment = store().createMask(segmentation.id, mintSegment());
-      store().maskVoxels(segment.id).materialize();
-
-      const before = store().labelmapDescriptorByMask;
-      segments().updateSegment(segment.segmentId, { strokeWidth: 5 });
-
-      expect(store().labelmapDescriptorByMask).toBe(before);
     });
   });
 });

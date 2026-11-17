@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { computed, inject, toRefs } from 'vue';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import {
-  useLabelmapRepresentation,
-  type LabelmapAppearance,
-} from '@/src/segmentation/rendering/useLabelmapRepresentation';
+import { useLabelmapRepresentation } from '@/src/segmentation/rendering/useLabelmapRepresentation';
+import type { LabelmapAppearance } from '@/src/segmentation/rendering/display';
 import {
   useEnFaceLabelmaps,
   type MeasurementPlaneGeometry,
@@ -31,7 +29,7 @@ const thinRegions = useEnFaceLabelmaps(
 useLabelmapRepresentation(
   view,
   computed(() => (appearance.value ? thinRegions.value : null)),
-  appearance,
+  computed(() => (appearance.value ? [appearance.value] : [])),
   2
 );
 </script>

@@ -4,7 +4,10 @@ import type { Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
 import { setActivePinia, createPinia } from 'pinia';
-import { mintSegment } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  mintSegment,
+  seatImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 import { STROKE_WIDTH_ANNOTATION_TOOL_DEFAULT } from '@/src/config';
 import { cssColorToRGBA, rgbaToCssColor } from '@/src/segmentation/color';
@@ -94,7 +97,7 @@ describe('Ruler segment references', () => {
   const segments = () => useSegmentStore().segments;
 
   // Adding selects, so this is the segment a new ruler picks up.
-  const seedSegment = () => segments().addSegment({ name: 'Tumor' });
+  const seedSegment = () => segments().addSegment('4', { name: 'Tumor' });
 
   it('draws out of the shared registry', () => {
     const store = useRulerStore();
@@ -174,19 +177,13 @@ describe('Ruler segment references', () => {
     });
   });
 
-  it('shares the registry with the masks painted on an image', () => {
+  it('shares the registry with the masks painted on an image', async () => {
+    await seatImage('4');
     const store = useRulerStore();
-    const segmentation = useSegmentationStore().ensureSegmentationForImage('4');
+    const painted = mintSegment('4', { name: 'Tumor' });
+    useSegmentationStore().materializeMask(painted);
 
-    const painted = useSegmentationStore().createMask(
-      segmentation.id,
-      mintSegment({ name: 'Tumor' })
-    );
-
-    const id = store.addRuler({
-      ...createRuler(),
-      segmentId: painted.segmentId,
-    });
+    const id = store.addRuler({ ...createRuler(), segmentId: painted });
 
     expect(store.appearanceOfTool(id).name).toBe('Tumor');
   });

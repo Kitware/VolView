@@ -45,7 +45,6 @@ import {
   type LayoutDirection,
   type LayoutItem,
 } from '@/src/types/layout';
-import { DEFAULT_SEGMENTATION_DISPLAY } from '@/src/segmentation/model';
 
 const FileSource = z.object({
   id: z.number(),
@@ -345,7 +344,6 @@ const Extent3D = z.tuple([
 const LabelmapBinding = z.object({
   extent: Extent3D,
   path: z.string(),
-  name: z.string().optional(),
   source: ProcessingResultSource.optional(),
 });
 
@@ -361,17 +359,9 @@ const ImportedLabelmapBinding = LabelmapBinding.extend({
   { message: 'A labelmap binding names either a path or an artifact' }
 );
 
-// Everything the user sees or sets lives on the segment; a record is one
-// image's mask for it.
-const SegmentMask = z.object({
-  id: z.string(),
-  segmentId: z.string(),
-  representations: z.object({ labelmap: LabelmapBinding.optional() }),
-});
-
 // Serialized in order, unused segments included: the picker lists them and
-// export precedence follows that order, and restore re-mints ids in it.
-export const Segment = z.object({
+// export precedence follows that order. A segment holds at most one mask.
+const Segment = z.object({
   id: z.string(),
   name: z.string(),
   color: RGBAColor,
@@ -382,30 +372,25 @@ export const Segment = z.object({
   strokeWidth: z.number().optional(),
 }) satisfies z.ZodType<SegmentModel>;
 
-export const Segmentation = z.object({
-  id: z.string(),
-  name: z.string(),
-  parentImage: z.string(),
-  masks: SegmentMask.array(),
-  order: z.string().array(),
-  fillOpacity: z.number().default(DEFAULT_SEGMENTATION_DISPLAY.fillOpacity),
-  outlineOpacity: z
-    .number()
-    .default(DEFAULT_SEGMENTATION_DISPLAY.outlineOpacity),
-  outlineThickness: z
-    .number()
-    .default(DEFAULT_SEGMENTATION_DISPLAY.outlineThickness),
+const SegmentationDisplay = z.object({
+  fillOpacity: z.number(),
+  outlineOpacity: z.number(),
+  outlineThickness: z.number(),
 });
 
-const ImportedSegmentation = Segmentation.extend({
-  masks: SegmentMask.extend({
-    representations: z.object({
-      labelmap: ImportedLabelmapBinding.optional(),
-    }),
+// Segment ids are scoped to their image.
+export const ImageSegments = z.object({
+  imageId: z.string(),
+  selectedSegmentId: z.string().optional(),
+  display: SegmentationDisplay.optional(),
+  segments: Segment.extend({ labelmap: LabelmapBinding.optional() }).array(),
+});
+
+const ImportedImageSegments = ImageSegments.extend({
+  segments: Segment.extend({
+    labelmap: ImportedLabelmapBinding.optional(),
   }).array(),
 });
-
-export type Segmentation = z.infer<typeof Segmentation>;
 
 /**
  * A whole-volume labelmap that no mask holds yet: restore divides it into one
@@ -532,10 +517,8 @@ export const ManifestSchema = z.object({
   datasets: Dataset.array().optional(),
   dataSources: DataSource.array(),
   datasetFilePath: z.record(z.string(), z.string()).optional(),
-  segmentations: ImportedSegmentation.array().optional(),
+  imageSegments: ImportedImageSegments.array().optional(),
   segmentationArtifacts: SegmentationArtifact.array().optional(),
-  segments: Segment.array().optional(),
-  selectedSegment: z.string().optional(),
   tools: Tools.optional(),
   activeView: z.string().optional().nullable(),
   isActiveViewMaximized: z.boolean().optional(),
@@ -551,9 +534,11 @@ export type Manifest = z.infer<typeof ManifestSchema>;
 
 // The manifest's base datasets; older manifests carry no `datasets`, so every
 // uri source stands in for one, keyed by its stringified source id.
-export const manifestDatasets = (manifest: Manifest) =>
+export const manifestDatasets = (
+  manifest: Partial<Pick<Manifest, 'datasets' | 'dataSources'>>
+) =>
   manifest.datasets ??
-  manifest.dataSources
+  (manifest.dataSources ?? [])
     .filter((ds) => ds.type === 'uri')
     .map((ds) => ({ id: String(ds.id), dataSourceId: ds.id }));
 

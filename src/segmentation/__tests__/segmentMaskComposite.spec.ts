@@ -3,15 +3,15 @@ import { setActivePinia, createPinia } from 'pinia';
 
 import { planLabelmapExport } from '@/src/segmentation/io/composition';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
+import {
+  composeSlice,
+  slicePlaneExtent,
+} from '@/src/segmentation/rendering/sliceComposition';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import { buildSegNrrdMetadata } from '@/src/io/segNrrdMetadata';
+import { maskScalars, type SegmentMaskEntry } from '@/src/segmentation/model';
 import {
-  listMasks,
-  maskScalars,
-  type SegmentMask,
-} from '@/src/segmentation/model';
-import {
-  addMask,
+  addSegment,
   compositeLabelmap,
   extentOf,
   flatIndex,
@@ -23,9 +23,9 @@ import {
   store,
   voxelCount,
   type Index3,
-  segmentOfMask,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 const appearanceOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId);
@@ -36,11 +36,13 @@ const DIMENSIONS: Index3 = [4, 4, 4];
 
 const parentOffset = flatIndex(DIMENSIONS);
 
-const compositeScalars = (imageId: string, members?: SegmentMask[]) =>
+const compositeScalars = (imageId: string, members?: SegmentMaskEntry[]) =>
   maskScalars(compositeLabelmap(imageId, members).labelmap);
 
 const segmentIdsOf = (imageId: string) =>
-  listMasks(store().getSegmentationForImage(imageId)!).map((mask) => mask.id);
+  store()
+    .imageMasks(imageId)
+    .map(({ segmentId }) => segmentId);
 
 const GRID = {
   dimensions: DIMENSIONS,
@@ -55,7 +57,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('is shaped and placed like the parent image', () => {
-    const tumor = addMask('img-1', 'Tumor');
+    const tumor = addSegment('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const { labelmap } = compositeLabelmap('img-1');
@@ -76,8 +78,8 @@ describe('composing the segments of an image into one labelmap', () => {
   // The masks all hold SEGMENT_VALUE; the values that tell segments apart in
   // one file are assigned here, and the descriptors are what name them.
   it('writes every segment at its own label value, at its own parent voxels', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
@@ -90,7 +92,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('leaves everything no segment covers at the background value', () => {
-    const tumor = addMask('img-1', 'Tumor');
+    const tumor = addSegment('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const scalars = compositeScalars('img-1');
@@ -100,8 +102,8 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('gives the earlier segment the voxel where two overlap', () => {
-    const under = addMask('img-1', 'Under');
-    const over = addMask('img-1', 'Over');
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
 
@@ -111,31 +113,28 @@ describe('composing the segments of an image into one labelmap', () => {
     );
   });
 
-  it('describes segments with no voxels without allocating storage', () => {
-    const unbound = addMask('img-1', 'Unbound');
-    const empty = addMask('img-1', 'Empty');
+  it('describes an empty mask and leaves a segment with no mask out', () => {
+    const unbound = addSegment('img-1', 'Unbound');
+    const empty = addSegment('img-1', 'Empty');
     store().maskVoxels(empty).materialize();
-    const tumor = addMask('img-1', 'Tumor');
+    const tumor = addSegment('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const { labelmap, segments } = compositeLabelmap('img-1');
     const scalars = maskScalars(labelmap);
 
     // These are labelmap descriptors, which carry the resolved name already.
-    expect(segments.map((segment) => segment.name)).toEqual([
-      'Unbound',
-      'Empty',
-      'Tumor',
-    ]);
-    expect(new Set(segments.map((segment) => segment.value)).size).toBe(3);
-    expect(store().findMaskBinding(unbound)).toBeUndefined();
-    expect(scalars[parentOffset(1, 1, 1)]).toBe(segments[2].value);
+    // A segment with no mask has nothing to compose.
+    expect(segments.map((segment) => segment.name)).toEqual(['Empty', 'Tumor']);
+    expect(new Set(segments.map((segment) => segment.value)).size).toBe(2);
+    expect(store().maskOf(unbound)).toBeUndefined();
+    expect(scalars[parentOffset(1, 1, 1)]).toBe(segments[1].value);
     expect(Array.from(scalars).filter((value) => value !== 0)).toHaveLength(1);
   });
 
   it('uses 16-bit storage beyond the byte label limit', () => {
     Array.from({ length: 256 }, (_, index) =>
-      addMask('img-1', `Segment ${index + 1}`)
+      store().materializeMask(addSegment('img-1', `Segment ${index + 1}`))
     );
 
     expect(
@@ -147,7 +146,7 @@ describe('composing the segments of an image into one labelmap', () => {
     const wide: Index3 = [300, 1, 1];
     await seatImage('img-wide', { ...GRID, dimensions: wide });
     const masks = Array.from({ length: 300 }, (_, index) =>
-      addMask('img-wide', `Segment ${index + 1}`)
+      addSegment('img-wide', `Segment ${index + 1}`)
     );
     // One voxel each, none shared, so overlap alone would leave one group.
     masks.forEach((maskId, index) => seedVoxel(maskId, [index, 0, 0]));
@@ -167,11 +166,11 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it("describes the image's segments in order, keyed by label value", () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
-    useSegmentStore().segments.updateSegment(segmentOfMask(node), {
+    useSegmentStore().segments.updateSegment(node, {
       visible: false,
     });
 
@@ -194,7 +193,7 @@ describe('composing the segments of an image into one labelmap', () => {
   });
 
   it('copies the voxels out rather than aliasing the masks', () => {
-    const tumor = addMask('img-1', 'Tumor');
+    const tumor = addSegment('img-1', 'Tumor');
     seedVoxel(tumor, [1, 1, 1]);
 
     const scalars = compositeScalars('img-1');
@@ -224,8 +223,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
     );
 
   it('leaves segments that do not overlap composed as one', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
@@ -241,8 +240,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('composes an overlapping segment into one of its own', () => {
-    const under = addMask('img-1', 'Under');
-    const over = addMask('img-1', 'Over');
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(over, [2, 2, 2]);
@@ -262,9 +261,9 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('keeps a third segment with the first one it does not overlap', () => {
-    const under = addMask('img-1', 'Under');
-    const over = addMask('img-1', 'Over');
-    const apart = addMask('img-1', 'Apart');
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
+    const apart = addSegment('img-1', 'Apart');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
     seedVoxel(apart, [3, 3, 3]);
@@ -290,8 +289,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
   // 'it split' would tell the user the wrong reason. (Reaching the capacity
   // half takes 65535 masks, so only its answer of 'no' is pinned here.)
   it('names overlap, and not the label limit, as what split the files', () => {
-    const under = addMask('img-1', 'Under');
-    const over = addMask('img-1', 'Over');
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
 
@@ -303,8 +302,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('names no reason at all for segments that do not overlap', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
 
@@ -316,8 +315,8 @@ describe('grouping the segments that cannot share one labelmap', () => {
   });
 
   it('describes each of them as a self-contained layer', () => {
-    const under = addMask('img-1', 'Under');
-    const over = addMask('img-1', 'Over');
+    const under = addSegment('img-1', 'Under');
+    const over = addSegment('img-1', 'Over');
     seedVoxel(under, [1, 1, 1]);
     seedVoxel(over, [1, 1, 1]);
 
@@ -357,7 +356,10 @@ describe('splitting an imported labelmap into bounded masks', () => {
       name: 'Tumor.seg.nrrd',
       values: labelmapValues(DIMENSIONS, marks),
     });
-    await store().convertImageToLabelmap('child-img', 'parent-img');
+    await useLabelmapImportStore().convertImageToLabelmap(
+      'child-img',
+      'parent-img'
+    );
   };
 
   it("makes one segment per label value, bounded to that value's voxels", async () => {
@@ -397,9 +399,10 @@ describe('splitting an imported labelmap into bounded masks', () => {
       { value: 3, at: [3, 3, 3] },
     ]);
 
-    const segmentation = store().getSegmentationForImage('parent-img')!;
     expect(
-      listMasks(segmentation).map((mask) => appearanceOf(mask).name)
+      store()
+        .imageMasks('parent-img')
+        .map((mask) => appearanceOf(mask).name)
     ).toEqual(['Tumor 1', 'Tumor 3']);
     const [first, second] = segmentIdsOf('parent-img');
     expect(maskValueAt(first, [1, 1, 1])).toBe(SEGMENT_VALUE);
@@ -427,9 +430,10 @@ describe('splitting an imported labelmap into bounded masks', () => {
       { value: 300, at: [3, 3, 3] },
     ]);
 
-    const segmentation = store().getSegmentationForImage('parent-img')!;
     expect(
-      listMasks(segmentation).map((mask) => appearanceOf(mask).name)
+      store()
+        .imageMasks('parent-img')
+        .map((mask) => appearanceOf(mask).name)
     ).toEqual(['Tumor 1', 'Tumor 300']);
     const [first, second] = segmentIdsOf('parent-img');
     expect(store().maskVoxels(first).scalars()).toBeInstanceOf(Uint8Array);
@@ -440,7 +444,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
   // Export assigns its own values, so a round trip keeps the segmentation and
   // renumbers it: the same voxels are claimed, by the same segments, under
   // values the descriptors name.
-  it('composes the same export voxels and geometry after rendering padded masks', async () => {
+  it('composes the same export voxels and geometry after composing render planes', async () => {
     const marks = [
       { value: 1, at: [1, 1, 1] as Index3 },
       { value: 1, at: [2, 1, 1] as Index3 },
@@ -450,17 +454,25 @@ describe('splitting an imported labelmap into bounded masks', () => {
 
     const before = compositeLabelmap('parent-img').labelmap;
     const beforeValues = Array.from(maskScalars(before));
-    for (const id of segmentIdsOf('parent-img')) {
+    const masks = segmentIdsOf('parent-img').map((id) => {
       const binding = store().maskVoxels(id).binding()!;
-      const rendered = segmentRenderMask(
-        binding.image,
-        parentImage('parent-img'),
-        binding.extent,
-        { axis: 2, index: binding.extent[4] }
+      return {
+        id,
+        extent: [...binding.extent] as Extent3D,
+        scalars: maskScalars(binding.image),
+      };
+    });
+    const parentExtent = parentImage('parent-img').getExtent() as Extent3D;
+    masks.forEach((mask) => {
+      const plane = slicePlaneExtent(
+        [mask.extent],
+        parentExtent,
+        2,
+        mask.extent[4]
       )!;
       // A render-buffer write must never reach a saved segmentation.
-      maskScalars(rendered).fill(9);
-    }
+      composeSlice(masks, plane).forEach(({ values }) => values.fill(9));
+    });
     const { labelmap, segments } = compositeLabelmap('parent-img');
     expect(labelmap.getDimensions()).toEqual(before.getDimensions());
     expect(labelmap.getOrigin()).toEqual(before.getOrigin());

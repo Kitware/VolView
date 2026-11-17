@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, disposePinia } from 'pinia';
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
+import { restoreWithIO } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -35,35 +36,24 @@ async function pendingRestore(kind: 'own' | 'legacy') {
   const ids = ['deleted', 'healthy'];
   const manifest = ManifestSchema.parse(
     manifestForImages(['parent'], {
-      segments: ids.map((id) => ({
-        id,
-        name: id,
-        color: [255, 0, 0, 255],
-        visible: true,
-        locked: false,
-      })),
-      segmentations: [
+      imageSegments: [
         {
-          id: 'segmentation',
-          name: 'CT',
-          parentImage: 'parent',
-          fillOpacity: 1,
-          outlineOpacity: 1,
-          outlineThickness: 2,
-          order: ids,
-          masks: ids.map((id) => ({
+          imageId: 'parent',
+          display: { fillOpacity: 1, outlineOpacity: 1, outlineThickness: 2 },
+          segments: ids.map((id) => ({
             id,
-            segmentId: id,
-            representations: {
-              labelmap:
-                kind === 'own'
-                  ? { path: `${id}.vti`, extent: [0, 1, 0, 0, 0, 0], name: id }
-                  : {
-                      artifactId: id,
-                      sourceValue: 1,
-                      extent: [0, -1, 0, -1, 0, -1],
-                    },
-            },
+            name: id,
+            color: [255, 0, 0, 255],
+            visible: true,
+            locked: false,
+            labelmap:
+              kind === 'own'
+                ? { path: `${id}.vti`, extent: [0, 1, 0, 0, 0, 0] }
+                : {
+                    artifactId: id,
+                    sourceValue: 1,
+                    extent: [0, -1, 0, -1, 0, -1],
+                  },
           })),
         },
       ],
@@ -95,21 +85,17 @@ async function pendingRestore(kind: 'own' | 'legacy') {
   );
   const reading = defer<void>();
   const release = defer<void>();
-  const deserialize = store().deserialize;
-  vi.spyOn(store(), 'deserialize').mockImplementation((options) =>
-    deserialize({
-      ...options,
-      io: {
-        write: async () => '',
-        read: async () => {
-          reading.resolve();
-          await release.promise;
-          return { image };
-        },
+  const completed = createStateFileRestorer({
+    addWarning: vi.fn(),
+    restoreSegmentation: restoreWithIO({
+      write: async () => '',
+      read: async () => {
+        reading.resolve();
+        await release.promise;
+        return { image };
       },
-    })
-  );
-  const completed = completeStateFileRestore(
+    }),
+  })(
     manifest,
     ids.map((id) => ({
       archivePath: `${id}.vti`,
@@ -118,7 +104,11 @@ async function pendingRestore(kind: 'own' | 'legacy') {
     { parent: 'parent' }
   );
   await reading.promise;
-  return { completed, release, registry: useSegmentStore().segments };
+  return {
+    completed,
+    release,
+    registry: useSegmentStore().segments,
+  };
 }
 
 describe.each(['own', 'legacy'] as const)(
@@ -128,28 +118,28 @@ describe.each(['own', 'legacy'] as const)(
       'honors deletion during IO, same-name recreation: %s',
       async (recreate) => {
         const { completed, release, registry } = await pendingRestore(kind);
-        const deleted = registry.segmentList.value.find(
-          (segment) => segment.name === 'deleted'
-        )!;
-        const healthy = registry.segmentList.value.find(
-          (segment) => segment.name === 'healthy'
-        )!;
+        const deleted = registry
+          .segmentList('parent')
+          .find((segment) => segment.name === 'deleted')!;
+        const healthy = registry
+          .segmentList('parent')
+          .find((segment) => segment.name === 'healthy')!;
         registry.deleteSegment(deleted.id);
         const replacement = recreate
-          ? registry.addSegment({ name: deleted.name })
+          ? registry.addSegment('parent', { name: deleted.name })
           : undefined;
         release.resolve();
         await completed;
 
         expect(registry.getSegment(deleted.id)).toBeUndefined();
-        expect(registry.segmentList.value.map((segment) => segment.id)).toEqual(
-          replacement ? [healthy.id, replacement] : [healthy.id]
-        );
+        expect(
+          registry.segmentList('parent').map((segment) => segment.id)
+        ).toEqual(replacement ? [healthy.id, replacement] : [healthy.id]);
         const masks = store().imageMasks('parent');
         expect(masks.map((mask) => mask.segmentId)).toEqual([healthy.id]);
-        expect(Array.from(store().maskVoxels(masks[0].id).scalars())).toContain(
-          1
-        );
+        expect(
+          Array.from(store().maskVoxels(masks[0].segmentId).scalars())
+        ).toContain(1);
         // A genuinely absent wire identity remains an unnamed shape. An adopted
         // identity deleted during IO must instead take its pending shape with it.
         expect(useRulerStore().rulers.map((ruler) => ruler.segmentId)).toEqual([

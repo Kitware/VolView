@@ -84,4 +84,14 @@ describe('Bounded label outlines', () => {
     const repainted = await browser.execute(() => window.editMask(1));
     expect(repainted).toEqual(original);
   });
+
+  it('colors every byte label in one plane without blending a neighbor', async () => {
+    await browser.url(`${fixture.url}?axis=2`);
+    await browser.waitUntil(() =>
+      browser.execute(() => !!window.outlineResult)
+    );
+    const result = await browser.execute(() => window.renderAllLabels());
+    expect(result.planes).toBe(1);
+    expect(result.mismatches).toEqual([]);
+  });
 });

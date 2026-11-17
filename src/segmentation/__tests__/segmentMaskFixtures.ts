@@ -12,13 +12,16 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { usePaintToolStore } from '@/src/store/tools/paint';
+import { useRulerStore } from '@/src/store/tools/rulers';
+import { useRectangleStore } from '@/src/store/tools/rectangles';
+import { usePolygonStore } from '@/src/store/tools/polygons';
 import { useViewStore } from '@/src/store/views';
+import { useSegmentationStore } from '@/src/segmentation/store';
 import {
-  useSegmentationStore,
+  serializeSegmentation,
   type LabelmapIO,
-} from '@/src/segmentation/store';
+} from '@/src/segmentation/io/stateFile';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { listMasks } from '@/src/segmentation/model';
 import { type Extent3D } from '@/src/segmentation/geometry';
 import type { SegmentInit } from '@/src/segmentation/segment';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
@@ -27,7 +30,8 @@ import {
   captureLabelmapParts,
   composeLabelmapPart,
 } from '@/src/segmentation/io/composition';
-import type { SegmentMask } from '@/src/segmentation/model';
+import type { SegmentMaskEntry } from '@/src/segmentation/model';
+import { omit } from '@/src/utils';
 
 /** A point in the PARENT image's index space, which is where extents live. */
 export type Index3 = [number, number, number];
@@ -88,6 +92,15 @@ const shapeImage = <T extends vtkImageData>(
 /** An uncached image, 4x4x4 zeros unless told otherwise. */
 export const makeImage = (options: ImageOptions = {}) =>
   shapeImage(vtkImageData.newInstance(), options);
+
+/** A cached 4x4x4 image holding label 1 in its first voxel. */
+export const cacheLabelledImage = (id: string, name: string) => {
+  const values = new Uint8Array(voxelCount([4, 4, 4]));
+  values[0] = 1;
+  return useImageCacheStore().addVTKImageData(makeImage({ values }), name, {
+    id,
+  });
+};
 
 /** The same image as a labelmap, the type a split takes. */
 export const makeLabelmap = (options: ImageOptions = {}) =>
@@ -199,14 +212,12 @@ export const inMemoryArtifactIO = () => {
 
 export const segmentationSnapshot = (imageId: string) => {
   const segments = useSegmentStore().segments;
-  const segmentation = store().getSegmentationForImage(imageId)!;
-  const selectedSegmentId = segments.selectedSegmentId.value;
+  const selectedSegmentId = segments.selectedSegmentId(imageId);
+  const display = segments.displayOf(imageId);
   return {
-    name: segmentation.name,
-    segments: segmentation.order.map((maskId) => {
-      const mask = segmentation.masks[maskId];
-      const binding = mask.representations.labelmap;
-      const appearance = segments.appearanceOf(mask.segmentId);
+    name: store().segmentationName(imageId),
+    segments: segments.imageMasks(imageId).map(({ segmentId, binding }) => {
+      const appearance = segments.appearanceOf(segmentId);
       return {
         name: appearance.name,
         color: [...appearance.color],
@@ -216,7 +227,6 @@ export const segmentationSnapshot = (imageId: string) => {
         outlineOpacity: appearance.outlineOpacity,
         binding: binding && {
           extent: [...binding.extent],
-          name: binding.name,
           source: binding.source,
         },
       };
@@ -225,9 +235,9 @@ export const segmentationSnapshot = (imageId: string) => {
       ? segments.appearanceOf(selectedSegmentId).name
       : undefined,
     display: {
-      fillOpacity: segmentation.fillOpacity,
-      outlineOpacity: segmentation.outlineOpacity,
-      outlineThickness: segmentation.outlineThickness,
+      fillOpacity: display.fillOpacity,
+      outlineOpacity: display.outlineOpacity,
+      outlineThickness: display.outlineThickness,
     },
   };
 };
@@ -267,13 +277,48 @@ export const manifestForImages = (
     ...extra,
   }) as unknown as Manifest;
 
+export const serializeAnnotations = (
+  manifest = manifestForImages(useImageCacheStore().imageIds, { tools: {} })
+) => {
+  const state = { zip: new JSZip(), manifest };
+  useSegmentStore().serialize(state);
+  useRulerStore().serialize(state);
+  useRectangleStore().serialize(state);
+  usePolygonStore().serialize(state);
+  return JSON.parse(JSON.stringify(manifest)) as Manifest;
+};
+
+export const savedSegmentNames = (
+  imageId: string,
+  manifest = serializeAnnotations()
+) => {
+  const entry = manifest.imageSegments?.find(
+    (candidate) => candidate.imageId === imageId
+  );
+  return (entry?.segments ?? []).map(({ name }) => name);
+};
+
+/** Every saved segment across images, without its mask. */
+export const savedSegments = (manifest: Manifest) =>
+  (manifest.imageSegments ?? []).flatMap(({ segments }) =>
+    segments.map((segment) => omit(segment, 'labelmap'))
+  );
+
+/** Every saved mask with its image and segment. */
+export const savedLabelmaps = (manifest: Manifest) =>
+  (manifest.imageSegments ?? []).flatMap(({ imageId, segments }) =>
+    segments.flatMap(({ id, labelmap }) =>
+      labelmap ? [{ imageId, segmentId: id, labelmap }] : []
+    )
+  );
+
 const archivePathsIn = (parsed: any): string[] => [
   ...(parsed.segmentationArtifacts ?? []).flatMap((artifact: any) =>
     artifact.path ? [artifact.path] : []
   ),
-  ...parsed.segmentations.flatMap((segmentation: any) =>
-    segmentation.masks.flatMap((mask: any) => {
-      const path = mask.representations.labelmap?.path;
+  ...(parsed.imageSegments ?? []).flatMap((entry: any) =>
+    entry.segments.flatMap((segment: any) => {
+      const path = segment.labelmap?.path;
       return path ? [path] : [];
     })
   ),
@@ -293,8 +338,7 @@ export const serializeToStateFiles = async (
   tamper?: (parsed: any) => void
 ) => {
   const zip = new JSZip();
-  useSegmentStore().serialize({ zip, manifest });
-  await store().serialize({ zip, manifest }, io);
+  await serializeSegmentation({ zip, manifest }, io);
   const parsed = ManifestSchema.parse(manifest) as any;
   tamper?.(parsed);
   const stateFiles = await stateFilesOf(zip, parsed);
@@ -307,40 +351,39 @@ export const makeSpecImage = () => makeImage();
 export const parentImage = (imageId: string) =>
   useImageCacheStore().getVtkImageData(imageId)!;
 
-export const mintSegment = (init: SegmentInit | string = {}) =>
+/** An image's segment names, in its own order. */
+export const segmentNames = (imageId: string) =>
+  useSegmentStore()
+    .segments.segmentList(imageId)
+    .map(({ name }) => name);
+
+export const mintSegment = (imageId: string, init: SegmentInit | string = {}) =>
   useSegmentStore().segments.mintSegment(
+    imageId,
     typeof init === 'string' ? { name: init } : init
   );
 
-/** A record with no storage: adding one never allocates voxels. */
-export function addMask(imageId: string, name?: string) {
-  const segmentation = store().ensureSegmentationForImage(imageId);
-  return store().createMask(segmentation.id, mintSegment(name)).id;
-}
+/** A segment with no mask: adding one never allocates voxels. */
+export const addSegment = (imageId: string, name?: string) =>
+  mintSegment(imageId, name);
 
-export const bindEmptyMasks = (imageId: string, names: string[]) =>
+/** Segments whose masks each hold the first voxel. */
+export const bindMasks = (imageId: string, names: string[]) =>
   names.map((name) => {
-    const maskId = addMask(imageId, name);
-    store().ensureLabelmapBinding(maskId);
-    return maskId;
+    const segmentId = addSegment(imageId, name);
+    seedVoxel(segmentId, [0, 0, 0]);
+    return segmentId;
   });
 
-/** This image's mask for a segment, created without changing the selection. */
-export const maskOn = (imageId: string, segmentId: string) =>
-  store().getMask(store().resolveEditTarget(imageId, segmentId));
+/** Deletes a segment the way the user does, its mask with it. */
+export const deleteSegment = (segmentId: string) =>
+  useSegmentStore().segments.deleteSegment(segmentId);
 
-export const segmentOfMask = (maskId: string) =>
-  store().getMask(maskId).segmentId;
+export const lockSegment = (segmentId: string, locked = true) =>
+  useSegmentStore().segments.updateSegment(segmentId, { locked });
 
-/** Deletes a mask the way the user does: with the segment that owns it. */
-export const deleteSegmentOf = (maskId: string) =>
-  useSegmentStore().segments.deleteSegment(segmentOfMask(maskId));
-
-export const lockSegment = (maskId: string, locked = true) =>
-  useSegmentStore().segments.updateSegment(segmentOfMask(maskId), { locked });
-
-export const selectSegment = (maskId: string) =>
-  useSegmentStore().segments.selectSegment(store().getMask(maskId).segmentId);
+export const selectSegment = (segmentId: string) =>
+  useSegmentStore().segments.selectSegment(segmentId);
 
 /** A stroke on the K axis; unit spacing makes world points index points. */
 export function strokeAt(
@@ -360,35 +403,27 @@ export function addActiveSegment(
   imageId = 'image-1'
 ) {
   const segmentationStore = useSegmentationStore();
-  const segmentation = segmentationStore.ensureSegmentationForImage(imageId);
-  const segment = segmentationStore.createMask(
-    segmentation.id,
-    mintSegment({
-      name: 'Segment 1',
-    })
-  );
-  const voxels = segmentationStore.maskVoxels(segment.id);
+  const segmentId = mintSegment(imageId, { name: 'Segment 1' });
+  const voxels = segmentationStore.maskVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains([0, values.length - 1, 0, 0, 0, 0]);
   voxels.apply(values);
-  selectSegment(segment.id);
+  selectSegment(segmentId);
 
-  return {
-    segmentationId: segmentation.id,
-    maskId: segment.id,
-    labelMap: voxels.image(),
-  };
+  return { segmentId, labelMap: voxels.image() };
 }
 
-export const boundMasks = () =>
-  Object.values(store().segmentations).flatMap((segmentation) =>
-    listMasks(segmentation).filter((mask) => mask.representations.labelmap)
+/** Every image's masks. */
+export const boundMasks = () => {
+  const segments = useSegmentStore().segments;
+  return Object.keys(segments.imageSets.value).flatMap((imageId) =>
+    segments.imageMasks(imageId)
   );
+};
 
-export const bindingOf = (maskId: string) =>
-  store().maskVoxels(maskId).binding();
+export const bindingOf = (segmentId: string) => store().maskOf(segmentId);
 
-export const extentOf = (maskId: string) => bindingOf(maskId)?.extent;
+export const extentOf = (segmentId: string) => bindingOf(segmentId)?.extent;
 
 const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   i >= extent[0] &&
@@ -398,10 +433,10 @@ const containsIndex = (extent: Extent3D, [i, j, k]: Index3) =>
   k >= extent[4] &&
   k <= extent[5];
 
-export function offsetOf(maskId: string, index: Index3) {
-  const binding = bindingOf(maskId);
+export function offsetOf(segmentId: string, index: Index3) {
+  const binding = bindingOf(segmentId);
   if (!binding || !containsIndex(binding.extent, index)) return undefined;
-  const dimensions = store().maskVoxels(maskId).image().getDimensions();
+  const dimensions = store().maskVoxels(segmentId).image().getDimensions();
   const { extent } = binding;
   return (
     index[0] -
@@ -416,15 +451,15 @@ export function offsetOf(maskId: string, index: Index3) {
  * outside the mask. Reads through the binding's extent, so it says the same
  * thing whatever the mask's own bounds are.
  */
-export function maskValueAt(maskId: string, index: Index3) {
-  const offset = offsetOf(maskId, index);
+export function maskValueAt(segmentId: string, index: Index3) {
+  const offset = offsetOf(segmentId, index);
   if (offset === undefined) return undefined;
-  return store().maskVoxels(maskId).scalars()[offset];
+  return store().maskVoxels(segmentId).scalars()[offset];
 }
 
 /** Marks one parent-index voxel for a segment, through the growth path. */
-export function seedVoxel(maskId: string, index: Index3) {
-  const voxels = store().maskVoxels(maskId);
+export function seedVoxel(segmentId: string, index: Index3) {
+  const voxels = store().maskVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains([
     index[0],
@@ -434,7 +469,7 @@ export function seedVoxel(maskId: string, index: Index3) {
     index[2],
     index[2],
   ]);
-  const offset = offsetOf(maskId, index)!;
+  const offset = offsetOf(segmentId, index)!;
   voxels.scalars()[offset] = SEGMENT_VALUE;
   voxels.image().modified();
 }
@@ -443,10 +478,10 @@ export function seedVoxel(maskId: string, index: Index3) {
  * Every marked voxel of a segment as `[i, j, k, value]` in PARENT index space,
  * so two masks with different bounds are still comparable.
  */
-export function markedVoxels(maskId: string) {
-  const binding = bindingOf(maskId);
+export function markedVoxels(segmentId: string) {
+  const binding = bindingOf(segmentId);
   if (!binding) return undefined;
-  const voxels = store().maskVoxels(maskId);
+  const voxels = store().maskVoxels(segmentId);
   const [di, dj, dk] = voxels.image().getDimensions();
   const scalars = voxels.scalars();
   const marks: Array<[number, number, number, number]> = [];
@@ -474,7 +509,7 @@ export function markedVoxels(maskId: string) {
  */
 export function compositeLabelmap(
   parentImageId: string,
-  members?: SegmentMask[]
+  members?: SegmentMaskEntry[]
 ) {
   useSegmentationEditsStore().beforeRead();
   const snapshot = captureLabelmapParts(parentImageId, [

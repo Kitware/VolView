@@ -1,80 +1,97 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import { nextTick } from 'vue';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import { ACTION_TO_FUNC } from '@/src/composables/actions';
 import { applyPostStateConfig, config } from '@/src/io/import/configJson';
-import { maskOn } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  makeImage,
+  savedSegments,
+  segmentNames,
+  serializeAnnotations,
+  store,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useRulerStore } from '@/src/store/tools/rulers';
+import { useViewStore } from '@/src/store/views';
 
 const segments = () => useSegmentStore().segments;
-const names = () => segments().segmentList.value.map(({ name }) => name);
 
-const seatBareImage = (id: string) =>
-  useImageStore().addVTKImageData('CT', vtkImageData.newInstance(), { id });
+// Scalars, so a segment's mask has a grid to allocate on.
+const seatBareImage = (id: string) => {
+  useImageStore().addVTKImageData('CT', makeImage(), { id });
+  useViewStore().setDataForAllViews(id);
+};
 
 const configure = (configured: Record<string, { color?: string }>) =>
   applyPostStateConfig(config.parse({ segments: configured }));
 
-describe('segments once the last image is removed', () => {
+describe('removing image segment sets', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     useSegmentStore();
   });
 
-  it('keeps only the configured segments after Clear Scene', () => {
-    seatBareImage('img-1');
-    seatBareImage('img-2');
-    const matched = segments().addSegment({ name: 'Node' });
+  it('clears image identities and keeps configured defaults after Clear Scene', () => {
     configure({ Tumor: { color: '#ff0000' }, Node: {} });
-    const tumor = segments().findSegmentByName('Tumor')!.id;
-    maskOn('img-1', tumor);
-    maskOn('img-2', segments().addSegment({ name: 'Painted' }));
-    useRulerStore().addTool({
-      imageID: 'img-1',
-      segmentId: segments().addSegment({ name: 'Measured' }),
-    });
-    segments().addSegment({ name: 'Empty' });
+    seatBareImage('img-1');
+    const tumor = segments().findSegmentByName('img-1', 'Tumor')!.id;
+    store().materializeMask(tumor);
+    useRulerStore().addTool({ imageID: 'img-1', segmentId: tumor });
+    seatBareImage('img-2');
+    store().materializeMask(
+      segments().addSegment('img-2', { name: 'Painted' })
+    );
+    segments().addSegment('img-2', { name: 'Empty' });
 
     ACTION_TO_FUNC.clearScene();
 
-    expect(names()).toEqual(['Node', 'Tumor']);
-    expect(segments().getSegment(matched)?.name).toBe('Node');
-    expect(segments().selectedSegmentId.value).toBe(matched);
+    const saved = serializeAnnotations();
+    expect(saved.imageSegments).toEqual([]);
+    expect(saved.tools?.rulers?.tools).toEqual([]);
+    seatBareImage('img-3');
+    expect(segmentNames('img-3')).toEqual(['Tumor', 'Node']);
   });
 
-  it('prunes nothing while an image remains', () => {
+  it('removes one image set while preserving the remaining image', () => {
     seatBareImage('img-1');
+    const first = segments().addSegment('img-1', { name: 'Tumor' });
     seatBareImage('img-2');
-    maskOn('img-2', segments().addSegment({ name: 'Painted' }));
-    segments().addSegment({ name: 'Empty' });
+    const second = segments().addSegment('img-2', { name: 'Tumor' });
+    store().materializeMask(second);
+    segments().addSegment('img-2', { name: 'Empty' });
 
     useDatasetStore().remove('img-2');
 
-    expect(names()).toEqual(['Painted', 'Empty']);
+    const saved = serializeAnnotations();
+    expect(saved.imageSegments?.map(({ imageId }) => imageId)).toEqual([
+      'img-1',
+    ]);
+    const savedIds = savedSegments(saved).map(({ id }) => id);
+    expect(savedIds).not.toContain(second);
+    expect(segmentNames('img-1')).toEqual(['Tumor']);
+    expect(savedIds).toContain(first);
   });
 
-  it('prunes when images removed one by one leave none', () => {
+  it('leaves no image sets when images are removed one by one', () => {
     seatBareImage('img-1');
+    segments().addSegment('img-1', { name: 'Empty' });
     seatBareImage('img-2');
-    segments().addSegment({ name: 'Empty' });
 
     useDatasetStore().remove('img-1');
     useDatasetStore().remove('img-2');
 
-    expect(names()).toEqual([]);
+    expect(serializeAnnotations().imageSegments).toEqual([]);
   });
 
-  it('keeps what a load brings after the last image left', async () => {
+  it('keeps definitions restored after the last image left', async () => {
     seatBareImage('img-1');
-    segments().addSegment({ name: 'Old' });
+    segments().addSegment('img-1', { name: 'Old' });
     ACTION_TO_FUNC.clearScene();
-
-    segments().adopt([
+    seatBareImage('img-2');
+    segments().adopt('img-2', [
       {
         id: 'saved',
         name: 'Restored',
@@ -83,10 +100,9 @@ describe('segments once the last image is removed', () => {
         locked: false,
       },
     ]);
-    seatBareImage('img-2');
-    segments().addSegment({ name: 'Minted' });
+    segments().addSegment('img-2', { name: 'Minted' });
     await nextTick();
 
-    expect(names()).toEqual(['Restored', 'Minted']);
+    expect(segmentNames('img-2')).toEqual(['Restored', 'Minted']);
   });
 });
