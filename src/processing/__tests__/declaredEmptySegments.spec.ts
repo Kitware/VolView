@@ -12,6 +12,8 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import {
+  bindMasks,
+  deleteSegment,
   seatImage,
   type Index3,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -92,11 +94,19 @@ const liverOffset = () =>
   LIVER_INDEX[0] + LIVER_INDEX[1] * 4 + LIVER_INDEX[2] * 16;
 
 /** Only value 1 is written, so value 2 is declared and never filled. */
-async function seatScene() {
-  await seatImage('parent', { ...GRID, name: 'CT' });
+const outputValues = () => {
   const values = new Uint8Array(64);
   values[liverOffset()] = 1;
-  await seatImage('output', { ...GRID, name: 'output.nrrd', values });
+  return values;
+};
+
+async function seatScene() {
+  await seatImage('parent', { ...GRID, name: 'CT' });
+  await seatImage('output', {
+    ...GRID,
+    name: 'output.nrrd',
+    values: outputValues(),
+  });
 }
 
 describe('a segment a result declares but leaves empty', () => {
@@ -137,6 +147,33 @@ describe('a segment a result declares but leaves empty', () => {
       ]);
     }
   );
+
+  it('leaves a painted segment of the same name out of the result', async () => {
+    bindMasks('parent', ['Spleen']);
+    await importResult(DECLARED);
+    deleteSegment(
+      useSegmentStore().segments.findSegmentByName('parent', 'Liver')!.id
+    );
+    // Applying a result removes the image it arrived in.
+    await seatImage('output', {
+      ...GRID,
+      name: 'output.nrrd',
+      values: outputValues(),
+    });
+
+    expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
+
+    const saved = await save();
+    expect(rowsOf(saved, 'parent').map(({ name }) => name)).toEqual([
+      'Spleen',
+      'Liver',
+    ]);
+    expect(
+      savedMasks(saved, 'parent').find(
+        ({ segment }) => segment.name === 'Spleen'
+      )?.source
+    ).toBeUndefined();
+  });
 
   it('keeps both segments across a save and restore', async () => {
     await importResult(DECLARED);
