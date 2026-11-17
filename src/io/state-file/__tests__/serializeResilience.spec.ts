@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 import { reactive } from 'vue';
 import type { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import type { MessageOptions } from '@/src/store/messages';
 import { debug } from '@/src/utils/loggers';
 
@@ -12,9 +13,9 @@ const writeDatasets = (stateFile: StateFile) => {
 
 const writeOneInvalidMask = async (stateFile: StateFile) => {
   stateFile.zip.file('valid.vti', 'bytes');
-  (stateFile.manifest as any).segmentations = reactive([
-    segmentationWithPath('valid.vti'),
-    { id: 'invalid', name: 'Invalid segmentation' },
+  (stateFile.manifest as any).imageSegments = reactive([
+    imageSegmentsWithPath('valid.vti'),
+    { imageId: 'dataset-1', segments: 'invalid' },
   ]);
 };
 
@@ -42,19 +43,18 @@ const manifestWithSelection = (primarySelection: string): Manifest => ({
   primarySelection,
 });
 
-const segmentationWithPath = (path: string) => ({
-  id: 'seg-1',
-  name: 'Seg',
-  parentImage: 'dataset-1',
-  order: ['mask-1'],
-  masks: [
-    {
-      id: 'mask-1',
-      segmentId: 'segment-1',
-      representations: {
-        labelmap: { path, extent: [0, 1, 0, 1, 0, 1] },
-      },
-    },
+const segment = {
+  id: 'segment-1',
+  name: 'Tumor',
+  color: [255, 0, 0, 255] as [number, number, number, number],
+  visible: true,
+  locked: false,
+};
+
+const imageSegmentsWithPath = (path: string) => ({
+  imageId: 'dataset-1',
+  segments: [
+    { ...segment, labelmap: { path, extent: [0, 1, 0, 1, 0, 1] as Extent3D } },
   ],
 });
 
@@ -96,10 +96,10 @@ describe('state-file serialization resilience', () => {
     const zip = await JSZip.loadAsync(blob);
     const manifest = JSON.parse(await zip.file(MANIFEST)!.async('string'));
 
-    expect(manifest.segmentations).toHaveLength(1);
-    expect(
-      manifest.segmentations[0].masks[0].representations.labelmap.path
-    ).toBe('valid.vti');
+    expect(manifest.imageSegments).toHaveLength(1);
+    expect(manifest.imageSegments[0].segments[0].labelmap.path).toBe(
+      'valid.vti'
+    );
     expect(sink.warnings).toEqual([
       {
         title: 'Some session content could not be saved',
@@ -120,47 +120,50 @@ describe('state-file serialization resilience', () => {
     );
   });
 
-  it('omits a segmentation and layer relationship with missing parents', () => {
+  it('omits a segment set and layer relationship with missing images', () => {
     const { normalized, zip } = normalizeWithMaskFile({
-      segmentations: [
-        { ...segmentationWithPath('mask.vti'), parentImage: 'missing' },
+      imageSegments: [
+        { ...imageSegmentsWithPath('mask.vti'), imageId: 'missing' },
       ],
       parentToLayers: [
         { selectionKey: 'dataset-1', sourceSelectionKeys: ['missing'] },
       ],
     });
-    expect(normalized.manifest.segmentations).toEqual([]);
+    expect(normalized.manifest.imageSegments).toEqual([]);
     expect(zip.file('mask.vti')).toBeNull();
     expect(normalized.manifest.parentToLayers).toEqual([]);
     expect(normalized.omitted).toEqual([
-      'Seg: parent dataset missing is missing',
+      'imageSegments[0]: image dataset missing is missing',
       'layer relationship 0: missing or invalid dataset',
     ]);
   });
 
-  it('drops the mask files of a segmentation that fails validation', () => {
+  it('drops the mask files of a segment set that fails validation', () => {
+    const valid = imageSegmentsWithPath('mask.vti');
     const { normalized, zip } = normalizeWithMaskFile({
-      segmentations: [{ ...segmentationWithPath('mask.vti'), order: 'bad' }],
+      imageSegments: [
+        { ...valid, segments: [{ ...valid.segments[0], id: 7 }] },
+      ],
     });
-    expect(normalized.manifest.segmentations).toEqual([]);
+    expect(normalized.manifest.imageSegments).toEqual([]);
     expect(zip.file('mask.vti')).toBeNull();
-    expect(normalized.omitted).toEqual(['Seg: invalid segmentation record']);
+    expect(normalized.omitted).toEqual([
+      'imageSegments[0]: invalid segment set',
+    ]);
   });
 
-  it('reports a missing mask file without losing its segment identity', () => {
+  it('drops and reports a mask whose file is missing', () => {
     const manifest = {
       ...manifestWithSelection('dataset-1'),
-      segmentations: [segmentationWithPath('missing.vti')],
+      imageSegments: [imageSegmentsWithPath('missing.vti')],
     } as unknown as Manifest;
     const normalized = normalizeManifest(manifest, new JSZip());
-    expect(normalized.manifest.segmentations![0].masks[0]).toMatchObject({
-      id: 'mask-1',
-      segmentId: 'segment-1',
-      representations: {},
-    });
-    expect(normalized.omitted.join('\n')).toContain(
-      'archive member missing.vti is missing'
-    );
+    expect(normalized.manifest.imageSegments).toEqual([
+      { imageId: 'dataset-1', segments: [segment] },
+    ]);
+    expect(normalized.omitted).toEqual([
+      'imageSegments[0].segments[segment-1]: archive member missing.vti is missing',
+    ]);
   });
 
   it('omits the complete view layout when viewByID is invalid', () => {
@@ -244,24 +247,12 @@ describe('state-file serialization resilience', () => {
     const warnSpy = vi.spyOn(debug, 'warn').mockImplementation(() => {});
     const manifest = manifestWithSelection('dataset-1');
 
-    manifest.segments = [
-      {
-        id: 'segment-1',
-        name: 'Tumor',
-        color: [255, 0, 0, 255],
-        visible: true,
-        locked: false,
-      },
-    ];
-    manifest.segmentations = [
-      {
-        ...segmentationWithPath('mask.vti'),
-        masks: [{ id: 'mask-1', segmentId: 'segment-1', representations: {} }],
-      },
-    ] as Manifest['segmentations'];
+    manifest.imageSegments = [imageSegmentsWithPath('mask.vti')];
     manifest.tools = toolsForSegment('segment-1');
+    const zip = new JSZip();
+    zip.file('mask.vti', 'voxels');
 
-    const normalized = normalizeManifest(manifest, new JSZip());
+    const normalized = normalizeManifest(manifest, zip);
 
     expect(warnSpy).not.toHaveBeenCalled();
     expect(normalized.omitted).toEqual([]);
@@ -269,67 +260,28 @@ describe('state-file serialization resilience', () => {
     warnSpy.mockRestore();
   });
 
-  it('keeps the registry, selection and mask bindings through normalization', () => {
-    const manifest = {
-      version: MANIFEST_VERSION,
-      datasets: [{ id: 'dataset-1', dataSourceId: 1 }],
-      dataSources: [{ id: 1, type: 'uri', uri: '/dataset-1' }],
-      segmentations: [
-        {
-          id: 'segmentation-1',
-          name: 'CT',
-          parentImage: 'dataset-1',
-          masks: [
-            {
-              id: 'mask-1',
-              segmentId: 'segment-1',
-              representations: {
-                labelmap: {
-                  path: 'mask.vti',
-                  extent: [0, 3, 0, 3, 0, 3],
-                },
-              },
-            },
-          ],
-          order: ['mask-1'],
-        },
-      ],
-      segments: [
-        {
-          id: 'segment-1',
-          name: 'Segment 1',
-          color: [255, 0, 0, 255],
-          visible: true,
-          locked: true,
-        },
-      ],
-      selectedSegment: 'segment-1',
-    } as unknown as Manifest;
-
+  it('keeps segments, selection and mask bindings through normalization', () => {
+    const entry = {
+      ...imageSegmentsWithPath('mask.vti'),
+      selectedSegmentId: 'segment-1',
+    };
     const zip = new JSZip();
     zip.file('mask.vti', 'bytes');
-    const normalized = normalizeManifest(manifest, zip) as any;
-    const segmentation = normalized.manifest.segmentations[0];
-    expect(segmentation.masks[0]).toMatchObject({
-      id: 'mask-1',
-      segmentId: 'segment-1',
-    });
-    expect(segmentation.masks[0].representations.labelmap).toEqual({
-      path: 'mask.vti',
-      extent: [0, 3, 0, 3, 0, 3],
-    });
-    // The registry and the selection survive normalization beside the records.
-    // Lock rides on the segment, so the record is storage and nothing else.
-    expect(normalized.manifest.segments).toEqual([
-      {
-        id: 'segment-1',
-        name: 'Segment 1',
-        color: [255, 0, 0, 255],
-        visible: true,
-        locked: true,
-      },
-    ]);
-    expect(normalized.manifest.selectedSegment).toBe('segment-1');
+    const normalized = normalizeManifest(
+      { ...manifestWithSelection('dataset-1'), imageSegments: [entry] },
+      zip
+    );
+    expect(normalized.manifest.imageSegments).toEqual([entry]);
+  });
+
+  it('keeps an initialized empty image set through normalization', () => {
+    const manifest = {
+      ...manifestWithSelection('dataset-1'),
+      imageSegments: [{ imageId: 'dataset-1', segments: [] }],
+    };
+    expect(
+      normalizeManifest(manifest, new JSZip()).manifest.imageSegments
+    ).toEqual([{ imageId: 'dataset-1', segments: [] }]);
   });
 
   it('saves no import instructions', () => {

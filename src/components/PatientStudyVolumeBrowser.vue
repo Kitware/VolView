@@ -14,7 +14,7 @@ import SegmentationConversionProgress from '@/src/components/SegmentationConvers
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -44,7 +44,7 @@ export default defineComponent({
     const layersStore = useLayersStore();
     const imageCacheStore = useImageCacheStore();
     const viewStore = useViewStore();
-    const segmentationStore = useSegmentationStore();
+    const conversionStore = useLabelmapImportStore();
 
     const { currentImageID } = useCurrentImage();
     const volumes = computed(() => {
@@ -78,7 +78,7 @@ export default defineComponent({
           layerable,
           layerLoading,
           convertingToSegmentation:
-            segmentationStore.convertingLabelmaps.has(volumeKey),
+            conversionStore.convertingLabelmaps.has(volumeKey),
           layerHandler: () => {
             if (!layerLoading && layerable) {
               if (isLayer)

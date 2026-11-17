@@ -11,6 +11,7 @@ import {
   activateAppPinia,
   inMemoryArtifactIO,
   manifestForImages,
+  savedLabelmaps,
   seatImage,
   serializeToStateFiles,
   showImage,
@@ -55,7 +56,7 @@ const rasterizeButton = (wrapper: ReturnType<typeof mountMenu>) =>
     .find((button) => button.text().includes('Rasterize'))!;
 
 const makePolygon = (imageID: string, slice = 2) => {
-  const segmentId = useSegmentStore().segments.addSegment({
+  const segmentId = useSegmentStore().segments.addSegment(imageID, {
     name: 'Tumor',
   });
   return usePolygonStore().addTool({
@@ -86,7 +87,7 @@ describe('PolygonTool rasterize context', () => {
       else await seatImage('b', { dimensions: [6, 6, 4] });
       await showImage('a');
       const polygonId = makePolygon('a');
-      useSegmentStore().segments.addSegment({ name: 'Kidney' });
+      useSegmentStore().segments.addSegment('b', { name: 'Kidney' });
       const wrapper = mountMenu(polygonId, 'a');
 
       await showImage('b');
@@ -100,11 +101,9 @@ describe('PolygonTool rasterize context', () => {
         manifestForImages(['a', 'b']),
         io
       );
-      expect(parsed.segmentations).toHaveLength(1);
-      expect(parsed.segmentations).toMatchObject([{ parentImage: 'a' }]);
-      expect(
-        parsed.segmentations[0].masks[0].representations.labelmap.extent
-      ).toEqual([1, 4, 1, 4, 2, 2]);
+      expect(savedLabelmaps(parsed)).toMatchObject([
+        { imageId: 'a', labelmap: { extent: [1, 4, 1, 4, 2, 2] } },
+      ]);
       expect(io.snapshots[0].values.some((value) => value !== 0)).toBe(true);
     }
   );
@@ -126,6 +125,6 @@ describe('PolygonTool rasterize context', () => {
       manifestForImages(['cine', 'spatial']),
       io
     );
-    expect(parsed.segmentations).toEqual([]);
+    expect(savedLabelmaps(parsed)).toEqual([]);
   });
 });

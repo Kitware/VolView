@@ -6,7 +6,7 @@ import { useSegmentationEditsStore } from '@/src/segmentation/editing/coordinato
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import type { ProcessingProvider } from '@/src/processing/types';
 import {
-  addMask,
+  addSegment,
   seedVoxel,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -43,7 +43,7 @@ describe('labelmap staging and an unconfirmed preview', () => {
 
   beforeEach(async () => {
     await seatStagingScene();
-    const mask = addMask('image-1', 'Tumor');
+    const mask = addSegment('image-1', 'Tumor');
     seedVoxel(mask, [0, 0, 0]);
     seedVoxel(mask, [1, 0, 0]);
     const live = store().maskVoxels(mask).scalars();

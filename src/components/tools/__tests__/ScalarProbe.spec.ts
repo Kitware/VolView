@@ -9,7 +9,7 @@ import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import {
   activateAppPinia,
-  addMask,
+  addSegment,
   seatImage,
   seedVoxel,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -87,7 +87,7 @@ describe('ScalarProbe segment samples', () => {
   });
 
   it('displays the covering segment beside the CT, the position, and a zero image layer', async () => {
-    seedVoxel(addMask('ct', 'Liver'), [1, 0, 0]);
+    seedVoxel(addSegment('ct', 'Liver'), [1, 0, 0]);
     const probe = mountProbe();
     await probe.move();
     expect(probe.displayedSamples()).toEqual([
@@ -102,7 +102,7 @@ describe('ScalarProbe segment samples', () => {
 
   it('names every overlapping segment under one heading', async () => {
     ['First', 'Second'].forEach((name) =>
-      seedVoxel(addMask('ct', name), [1, 0, 0])
+      seedVoxel(addSegment('ct', name), [1, 0, 0])
     );
     const probe = mountProbe();
     await probe.move();
@@ -115,7 +115,7 @@ describe('ScalarProbe segment samples', () => {
   });
 
   it('names a covering segment that has no name', async () => {
-    seedVoxel(addMask('ct', ''), [1, 0, 0]);
+    seedVoxel(addSegment('ct', ''), [1, 0, 0]);
     const probe = mountProbe();
     await probe.move();
     expect(probe.displayedSamples()[0]).toEqual(['Segment', '(no name)']);

@@ -3,7 +3,7 @@ import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
 import {
-  addMask,
+  addSegment,
   extentOf,
   maskValueAt,
   activateAppPinia,
@@ -12,7 +12,6 @@ import {
   store,
   type Index3,
   selectSegment,
-  segmentOfMask,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { usePaintProcessStore } from '@/src/segmentation/editing/paintProcess';
 import type { Extent3D } from '@/src/segmentation/geometry';
@@ -36,7 +35,7 @@ function growMask(maskId: string, extent: Extent3D) {
 function rasterize(maskId: string) {
   return rasterizePolygon({
     imageId: 'img-1',
-    segmentId: segmentOfMask(maskId),
+    segmentId: maskId,
     points: SQUARE,
     slice: 0,
     viewAxis: 'Axial',
@@ -49,9 +48,9 @@ async function setUpRasterizeView() {
 }
 
 function setUpOverlappingSegments(extent: Extent3D) {
-  const target = addMask('img-1', 'Target');
+  const target = addSegment('img-1', 'Target');
   growMask(target, extent);
-  const neighbor = addMask('img-1', 'Neighbor');
+  const neighbor = addSegment('img-1', 'Neighbor');
   seedVoxel(neighbor, [2, 3, 0]);
   // Outside the polygon, so the neighbor keeps a voxel and its mask.
   seedVoxel(neighbor, [5, 5, 0]);

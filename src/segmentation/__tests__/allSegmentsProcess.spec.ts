@@ -12,8 +12,8 @@ import {
 import { useViewStore } from '@/src/store/views';
 import {
   activateAppPinia,
-  addMask,
-  deleteSegmentOf,
+  addSegment,
+  deleteSegment,
   markedVoxels,
   maskValueAt,
   seatImage,
@@ -42,8 +42,8 @@ const DIMENSIONS: Index3 = [SIZE, SIZE, 1];
 
 /** A segment covering the whole slice, marked at the named cells. */
 function segmentAt(name: string, cells: Array<[number, number]>) {
-  const maskId = addMask('img-1', name);
-  const voxels = store().maskVoxels(maskId);
+  const segmentId = addSegment('img-1', name);
+  const voxels = store().maskVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains([0, SIZE - 1, 0, SIZE - 1, 0, 0]);
   const scalars = voxels.scalars();
@@ -51,7 +51,7 @@ function segmentAt(name: string, cells: Array<[number, number]>) {
     scalars[i + j * SIZE] = SEGMENT_VALUE;
   });
   voxels.image().modified();
-  return maskId;
+  return segmentId;
 }
 
 const ringAround = (ci: number, cj: number): Array<[number, number]> =>
@@ -209,20 +209,20 @@ describe('a process running over every segment', () => {
 
     await runOverEverySegment(algorithm);
 
-    expect(seen.map((target) => target.maskId)).toEqual([left, right]);
+    expect(seen.map((target) => target.segmentId)).toEqual([left, right]);
     expect(seen.map((target) => target.scalars.filter(Boolean).length)).toEqual(
       [8, 8]
     );
   });
 
-  it('skips a segment that holds no voxels', async () => {
+  it('skips a segment without a mask', async () => {
     const filled = segmentAt('Filled', ringAround(1, 1));
-    store().maskVoxels(addMask('img-1', 'Empty')).materialize();
+    addSegment('img-1', 'Empty');
     const { seen, algorithm } = recordingTargets();
 
     await runOverEverySegment(algorithm);
 
-    expect(seen.map((target) => target.maskId)).toEqual([filled]);
+    expect(seen.map((target) => target.segmentId)).toEqual([filled]);
   });
 
   it('restores every segment when the preview is cancelled', async () => {
@@ -267,7 +267,7 @@ describe('a process running over every segment', () => {
     const sparedTime = sparedMask.getMTime();
 
     await runOverEverySegment(async (target) =>
-      target.maskId === spared ? undefined : fillHolesOn(target)
+      target.segmentId === spared ? undefined : fillHolesOn(target)
     );
 
     expect(maskValueAt(filled, [1, 1, 0])).toBe(SEGMENT_VALUE);
@@ -342,7 +342,7 @@ describe('a process running over every segment', () => {
     selectSegment(left);
 
     await runOverEverySegment();
-    deleteSegmentOf(right);
+    deleteSegment(right);
 
     expect(usePaintProcessStore().processState.step).toBe('start');
     expect(maskValueAt(left, [1, 1, 0])).toBe(0);

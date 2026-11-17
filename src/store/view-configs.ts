@@ -9,6 +9,7 @@ import useVolumeColoringStore from './view-configs/volume-coloring';
 import useCinePlaybackStore from './view-configs/cine-playback';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
+import type { SegmentResolver } from '@/src/segmentation/segments';
 
 /**
  * This store saves view configuration that is associated with a specific
@@ -57,7 +58,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewID: string,
     config: Record<string, ViewConfig>,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string>
+    resolveSegment: SegmentResolver
   ) => {
     // First update the view config map to use the new dataIDs
     const updatedConfig: Record<string, ViewConfig> = {};
@@ -73,13 +74,13 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     viewCameraStore.deserialize(viewID, updatedConfig);
     volumeColoringStore.deserialize(viewID, updatedConfig);
     cinePlaybackStore.deserialize(viewID, updatedConfig);
-    enFaceViewStore.deserialize(viewID, updatedConfig, segmentIdMap);
+    enFaceViewStore.deserialize(viewID, updatedConfig, resolveSegment);
   };
 
   const deserializeAll = (
     manifest: StateFile['manifest'],
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string>
+    resolveSegment: SegmentResolver
   ) => {
     // Layer images are rebuilt after view settings are restored.
     const configIDMap = { ...dataIDMap };
@@ -105,7 +106,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
 
     Object.entries(manifest.viewByID ?? {}).forEach(([viewID, view]) => {
       if (view.config) {
-        deserialize(viewID, view.config, configIDMap, segmentIdMap);
+        deserialize(viewID, view.config, configIDMap, resolveSegment);
       }
     });
   };

@@ -8,7 +8,7 @@ import {
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
 import { useLayersStore } from '@/src/store/datasets-layers';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { parseUrl } from '@/src/utils/url';
@@ -234,10 +234,10 @@ function autoLayerByName(
   });
 }
 
-// Converts other DataSources into segments on the primary image:
+// Other DataSources that convert into segments on the primary image:
 // - DICOM SEG modalities with matching StudyUIDs.
 // - DataSources that have a name like foo.segmentation.bar and the primary DataSource is named foo.baz
-function loadSegmentations(
+function matchingSegmentations(
   primaryDataSource: LoadableVolumeResult,
   succeeded: Array<ImportResult>,
   segmentationExtension: string
@@ -262,14 +262,7 @@ function loadSegmentations(
     return modality.trim() === 'SEG';
   });
 
-  const segmentationStore = useSegmentationStore();
-  [...otherSegVolumesInStudy, ...matchingNames].forEach((ds) => {
-    const loadable = toDataSelection(ds);
-    segmentationStore.startLabelmapConversion(
-      loadable,
-      toDataSelection(primaryDataSource)
-    );
-  });
+  return [...otherSegVolumesInStudy, ...matchingNames];
 }
 
 export type DataSourceImporter = (
@@ -286,13 +279,18 @@ export function showImportedData(results: ImportResult[]) {
   );
   if (!primaryDataSource || !isVolumeResult(primaryDataSource)) return;
 
-  useViewStore().setDataForAllViews(toDataSelection(primaryDataSource));
-  autoLayerDicoms(primaryDataSource, results);
-  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
-  loadSegmentations(
+  const primary = toDataSelection(primaryDataSource);
+  const segmentations = matchingSegmentations(
     primaryDataSource,
     results,
     loadDataStore.segmentationExtension
+  );
+  useViewStore().setDataForAllViews(primary);
+  autoLayerDicoms(primaryDataSource, results);
+  autoLayerByName(primaryDataSource, results, loadDataStore.layerExtension);
+  const conversionStore = useLabelmapImportStore();
+  segmentations.forEach((ds) =>
+    conversionStore.startLabelmapConversion(toDataSelection(ds), primary)
   );
 }
 

@@ -3,7 +3,7 @@ import { setActivePinia, createPinia } from 'pinia';
 
 import { extentSize, isEmptyExtent } from '@/src/segmentation/geometry';
 import {
-  addMask,
+  addSegment,
   extentOf,
   maskValueAt,
   parentImage,
@@ -36,7 +36,7 @@ describe('bounded segment masks', () => {
 
   describe('first growth', () => {
     it('allocates exactly the requested extent and reports the invalidation', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
 
@@ -54,7 +54,7 @@ describe('bounded segment masks', () => {
         spacing: [2, 3, 4],
         origin: [10, 20, 30],
       });
-      const maskId = addMask('img-2', 'Tumor');
+      const maskId = addSegment('img-2', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
 
@@ -79,7 +79,7 @@ describe('bounded segment masks', () => {
     });
 
     it('leaves empty storage empty for an empty extent', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
 
@@ -90,7 +90,7 @@ describe('bounded segment masks', () => {
     });
 
     it('refuses to allocate outside the parent image', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
 
@@ -102,7 +102,7 @@ describe('bounded segment masks', () => {
 
   describe('later growth', () => {
     it('grows to the union of what it had and what it was asked for', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
       voxels.ensureContains([1, 1, 1, 1, 1, 1]);
@@ -114,7 +114,7 @@ describe('bounded segment masks', () => {
     });
 
     it('keeps the voxels it already had at the same parent indices', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       seedVoxel(maskId, [1, 1, 1]);
 
       store().maskVoxels(maskId).ensureContains([1, 3, 1, 3, 1, 1]);
@@ -126,7 +126,7 @@ describe('bounded segment masks', () => {
     });
 
     it('grows downward, moving its origin and keeping its voxels', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       seedVoxel(maskId, [2, 2, 2]);
 
       store().maskVoxels(maskId).ensureContains([0, 0, 0, 0, 0, 0]);
@@ -141,7 +141,7 @@ describe('bounded segment masks', () => {
     });
 
     it('does not reallocate for an extent it already covers', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
       voxels.ensureContains([1, 3, 1, 3, 0, 3]);
@@ -156,7 +156,7 @@ describe('bounded segment masks', () => {
     });
 
     it('never shrinks', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
       voxels.ensureContains([1, 3, 1, 3, 0, 3]);
@@ -168,7 +168,7 @@ describe('bounded segment masks', () => {
     });
 
     it('leaves the mask alone when it refuses a growth', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       seedVoxel(maskId, [1, 1, 1]);
       expect(extentOf(maskId)).toEqual([1, 1, 1, 1, 1, 1]);
       const before = extentOf(maskId)!;
@@ -184,7 +184,7 @@ describe('bounded segment masks', () => {
 
   describe('invalidation', () => {
     it('replaces the scalars a caller captured before growing', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
       voxels.ensureContains([1, 1, 1, 1, 1, 1]);
@@ -199,7 +199,7 @@ describe('bounded segment masks', () => {
     });
 
     it('keeps the same vtk image so the actor bound to it survives growth', () => {
-      const maskId = addMask('img-1', 'Tumor');
+      const maskId = addSegment('img-1', 'Tumor');
       const voxels = store().maskVoxels(maskId);
       voxels.materialize();
       const image = voxels.image();
@@ -216,9 +216,9 @@ describe('bounded segment masks', () => {
     // is allocated against a per-image pool.
     it('materializes any number of masks on one image', () => {
       Array.from({ length: 255 }, () =>
-        store().maskVoxels(addMask('img-1')).materialize()
+        store().maskVoxels(addSegment('img-1')).materialize()
       );
-      const overflow = addMask('img-1', 'One too many');
+      const overflow = addSegment('img-1', 'One too many');
 
       expect(() => store().maskVoxels(overflow).materialize()).not.toThrow();
       expect(store().maskVoxels(overflow).binding()).toBeDefined();
@@ -228,8 +228,8 @@ describe('bounded segment masks', () => {
 
   describe('isolation', () => {
     it("writes through one segment's mask without touching another's", () => {
-      const tumor = addMask('img-1', 'Tumor');
-      const node = addMask('img-1', 'Node');
+      const tumor = addSegment('img-1', 'Tumor');
+      const node = addSegment('img-1', 'Node');
       seedVoxel(tumor, [1, 1, 1]);
       seedVoxel(node, [2, 2, 2]);
 

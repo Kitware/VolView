@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import vtkColorTransferFunction from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction';
+import vtkPiecewiseFunction from '@kitware/vtk.js/Common/DataModel/PiecewiseFunction';
 
 import {
   SEGMENT_ACTOR_OPACITY,
   SEGMENT_COINCIDENT_OFFSET,
+  LABEL_TABLE_RANGE,
+  labelLookupTables,
   segmentFillAlpha,
   segmentOutline,
 } from '@/src/segmentation/rendering/display';
@@ -101,5 +105,78 @@ describe('SEGMENT_COINCIDENT_OFFSET', () => {
     const [factor, units] = SEGMENT_COINCIDENT_OFFSET;
     expect(factor).toBeLessThan(0);
     expect(units).toBeLessThan(0);
+  });
+});
+
+describe('labelLookupTables', () => {
+  // The vtk.js 38 image mapper samples a 1024 texel table built with
+  // getTable over the function range, at texel floor((v - lo) / (hi - lo) * W).
+  const TEXELS = 1024;
+  const sampledTexels = (value: number, [lo, hi]: readonly number[]) => {
+    const at = ((value - lo) / (hi - lo)) * TEXELS;
+    // Either neighbor when the coordinate lands on a texel boundary.
+    return [...new Set([Math.floor(at - 1e-6), Math.floor(at + 1e-6)])].map(
+      (texel) => Math.min(Math.max(texel, 0), TEXELS - 1)
+    );
+  };
+  const labels = Array.from({ length: 255 }, (_, index) => ({
+    value: index + 1,
+    color: [index % 2 ? 0 : 255, (index * 97) % 256, index] as number[],
+    fillOpacity: index % 2 ? 0.25 : 0.75,
+    outlineThickness: (index % 3) + 1,
+    outlineOpacity: index % 2 ? 1 : 0.5,
+  }));
+
+  it('looks up exactly each label color with no neighbor blended in', () => {
+    const tables = labelLookupTables(labels);
+    const colors = vtkColorTransferFunction.newInstance();
+    colors.setNodes(tables.colorNodes);
+    const table = new Array<number>(TEXELS * 3).fill(0);
+    colors.getTable(...colors.getRange(), TEXELS, table);
+
+    expect(colors.getRange()).toEqual([...LABEL_TABLE_RANGE]);
+    labels.forEach(({ value, color }) => {
+      sampledTexels(value, colors.getRange()).forEach((texel) => {
+        expect(
+          table
+            .slice(texel * 3, texel * 3 + 3)
+            .map((channel) => Math.round(channel * 255))
+        ).toEqual(color);
+      });
+    });
+  });
+
+  it('looks up exactly each label fill opacity, and none for background', () => {
+    const tables = labelLookupTables(labels);
+    const opacity = vtkPiecewiseFunction.newInstance();
+    opacity.setNodes(tables.opacityNodes);
+    const table = new Array<number>(TEXELS).fill(0);
+    const range = opacity.getRange();
+    opacity.getTable(range[0], range[1], TEXELS, table);
+
+    expect(range).toEqual([...LABEL_TABLE_RANGE]);
+    sampledTexels(0, range).forEach((texel) => expect(table[texel]).toBe(0));
+    labels.forEach(({ value, fillOpacity }) => {
+      sampledTexels(value, range).forEach((texel) =>
+        expect(table[texel]).toBeCloseTo(fillOpacity, 6)
+      );
+    });
+  });
+
+  it('indexes outline tables by label minus one, zero where no label is', () => {
+    const tables = labelLookupTables([
+      { ...labels[0], value: 3, outlineThickness: 4, outlineOpacity: 0.5 },
+      { ...labels[0], value: 1, outlineThickness: 2, outlineOpacity: 1 },
+    ]);
+
+    expect(tables.thicknesses).toEqual([2, 0, 4]);
+    expect(tables.opacities).toEqual([1, 0, 0.5]);
+  });
+
+  it('draws nothing without labels', () => {
+    const tables = labelLookupTables([]);
+
+    expect(tables.opacityNodes.map((node) => node.y)).toEqual([0, 0]);
+    expect(tables.thicknesses).toEqual([]);
   });
 });

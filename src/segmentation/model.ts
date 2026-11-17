@@ -1,8 +1,9 @@
-import { isEmptyExtent, type Extent3D } from '@/src/segmentation/geometry';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import type { ProcessingResultSource } from '@/src/types';
 import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
 import type vtkLabelMap from '@/src/vtk/LabelMap';
+import type { Segment } from '@/src/segmentation/segment';
 
 /** A fresh segmentation tints the anatomy under it rather than hiding it. */
 export const DEFAULT_SEGMENTATION_FILL_OPACITY = 0.3;
@@ -20,37 +21,7 @@ export type LabelmapBinding = {
    */
   image: vtkLabelMap;
   extent: Extent3D; // the mask's own bounds, in parent image index space
-  /** Reaches the saved archive's entry path, so a round trip keeps it. */
-  name: string;
   source?: ProcessingResultSource;
-};
-
-/**
- * One image's mask for one segment. Its id is its own, distinct from the
- * segment id: everything the user sees or sets, visibility and lock included,
- * lives on the segment, so this record is storage and nothing else.
- */
-export type SegmentMask = {
-  id: string;
-  segmentId: string;
-  representations: {
-    // absent until voxels are allocated
-    labelmap?: LabelmapBinding;
-  };
-};
-
-/**
- * Whether a mask holds anything. A record alone is not content, and neither is
- * storage bound over an empty extent: both mean the segment was resolved on
- * this image but never painted. Storage over any other extent holds a voxel,
- * since an edit deletes a mask it leaves empty once it ends; only a restored
- * file, or an edit that has not ended, can still bind an allocation holding
- * none. Readers that count or gate on what an image actually has ask this
- * instead of whether the record exists.
- */
-export const maskHasContent = (mask: SegmentMask) => {
-  const binding = mask.representations.labelmap;
-  return !!binding && !isEmptyExtent(binding.extent);
 };
 
 export const LABELMAP_BACKGROUND_VALUE = 0;
@@ -80,21 +51,29 @@ export type ResolvedLabelmapSegment = Required<LabelmapSegment>;
 export const maskScalars = (mask: vtkLabelMap) =>
   mask.getPointData().getScalars().getData() as Uint8Array;
 
-export type Segmentation = {
-  id: string;
-  name: string;
-  parentImageId: string;
-  masks: Record<string, SegmentMask>;
-  order: string[];
-  fillOpacity: number;
-  outlineOpacity: number;
-  outlineThickness: number;
-};
+/** A segment's mask, as walks over an image's masks hand it out. */
+export type SegmentMaskEntry = { segmentId: string; binding: LabelmapBinding };
 
-/** The display multipliers every segment of a segmentation is scaled by. */
-export type SegmentationDisplayPatch = Partial<
-  Pick<Segmentation, 'fillOpacity' | 'outlineOpacity' | 'outlineThickness'>
->;
+export type SegmentationDisplay = typeof DEFAULT_SEGMENTATION_DISPLAY;
+
+/** The display multipliers every segment of an image is scaled by. */
+export type SegmentationDisplayPatch = Partial<SegmentationDisplay>;
+
+/**
+ * One image's segments and everything stored for them. Masks are keyed by
+ * segment id, so a segment has at most one and nothing else names it.
+ */
+export type ImageSegments = {
+  // Segment ids: the only order.
+  order: string[];
+  selected?: string;
+  selectionRevision: number;
+  segments: Record<string, Segment>;
+  // Absent until the segment's voxels are allocated.
+  masks: Map<string, LabelmapBinding>;
+  // Absent until set or restored; readers fall back to the defaults.
+  display?: SegmentationDisplay;
+};
 
 /**
  * The voxel operations every labelmap consumer routes through. Storage is one
@@ -140,15 +119,6 @@ export type MaskVoxelAccessor = VoxelStorage & {
   /** Allocates storage if needed and returns the binding. Idempotent. */
   materialize(): LabelmapBinding;
 };
-
-/** Masks in `order`; `order` is the authority, `masks` the store. */
-export function listMasks(segmentation: Segmentation) {
-  return segmentation.order.map((id) => segmentation.masks[id]);
-}
-
-/** Whether saving or staging this segmentation would write a voxel. */
-export const segmentationHasContent = (segmentation: Segmentation) =>
-  listMasks(segmentation).some(maskHasContent);
 
 /**
  * Aimed writes take voxels from unlocked neighbors and go around locked ones,

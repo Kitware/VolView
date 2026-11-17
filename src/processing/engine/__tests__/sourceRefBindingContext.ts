@@ -11,7 +11,7 @@ export const createSourceRefBindingContext = (
   overrides: Partial<SourceRefBindingContext> = {}
 ): SourceRefBindingContext => ({
   activeDataSource: defaultDataSource,
-  segmentationId: undefined,
+  segmentedImageId: undefined,
   hasFinishedAnnotations: false,
   ...overrides,
 });

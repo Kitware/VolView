@@ -4,7 +4,7 @@ import {
   seatSpecImage,
   SPEC_FULL_EXTENT as FULL_EXTENT,
   SPEC_VOXEL_COUNT as VOXEL_COUNT,
-  deleteSegmentOf,
+  deleteSegment,
   mintSegment,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -12,22 +12,18 @@ import {
 // ---------------------------------------------------------------------------
 // The tolerant half of the voxel accessor seam. Unlike maskVoxels(), this one
 // is constructible for a segment that is already gone: the renderer, the paint
-// widget and the probe are Vue computeds keyed on a mask id that can vanish a
+// widget and the probe are Vue computeds keyed on a segment id that can vanish a
 // tick before the component does. Its contract on existing storage is pinned
 // alongside the strict one in segmentVoxels.spec.ts.
 // ---------------------------------------------------------------------------
 
 /** A mask grown to the whole parent image, holding nothing. */
 function seatMask(imageId: string) {
-  const segmentation = store().ensureSegmentationForImage(imageId);
-  const segment = store().createMask(
-    segmentation.id,
-    mintSegment({ name: 'Tumor' })
-  );
-  const voxels = store().maskVoxels(segment.id);
+  const segmentId = mintSegment(imageId, { name: 'Tumor' });
+  const voxels = store().maskVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains(FULL_EXTENT);
-  return segment.id;
+  return segmentId;
 }
 
 describe('tolerant mask voxel accessor', () => {
@@ -53,11 +49,11 @@ describe('tolerant mask voxel accessor', () => {
     });
 
     it('re-resolves the storage on every call rather than capturing it', () => {
-      const maskId = seatMask('img-1');
-      const voxels = store().findMaskVoxels(maskId);
+      const segmentId = seatMask('img-1');
+      const voxels = store().findMaskVoxels(segmentId);
       expect(voxels.exists()).toBe(true);
 
-      deleteSegmentOf(maskId);
+      deleteSegment(segmentId);
 
       expect(voxels.exists()).toBe(false);
       expect(() => voxels.image()).toThrow();
@@ -66,21 +62,23 @@ describe('tolerant mask voxel accessor', () => {
 
   describe('shared storage', () => {
     it('shows a strict accessor write through the tolerant one', () => {
-      const maskId = seatMask('img-1');
+      const segmentId = seatMask('img-1');
 
       const next = new Uint8Array(VOXEL_COUNT);
       next[2] = 1;
-      store().maskVoxels(maskId).apply(next);
+      store().maskVoxels(segmentId).apply(next);
 
-      expect(Array.from(store().findMaskVoxels(maskId).snapshot())[2]).toBe(1);
+      expect(Array.from(store().findMaskVoxels(segmentId).snapshot())[2]).toBe(
+        1
+      );
     });
 
     it('shows a tolerant accessor write through the strict one', () => {
-      const maskId = seatMask('img-1');
+      const segmentId = seatMask('img-1');
 
-      store().findMaskVoxels(maskId).scalars()[6] = 1;
+      store().findMaskVoxels(segmentId).scalars()[6] = 1;
 
-      expect(Array.from(store().maskVoxels(maskId).snapshot())[6]).toBe(1);
+      expect(Array.from(store().maskVoxels(segmentId).snapshot())[6]).toBe(1);
     });
   });
 });

@@ -55,7 +55,7 @@ describe('labelmap binding through bindSourceRefs', () => {
       fields: [{ kind: 'int', id: 'radius', default: 1 }],
       hidden: [],
     };
-    const bindings = bindSourceRefs(model, context({ segmentationId: 'g1' }));
+    const bindings = bindSourceRefs(model, context({ segmentedImageId: 'g1' }));
     expect(bindings.labelmap).toEqual({
       segmentations: {},
       states: {},
@@ -118,7 +118,7 @@ describe('labelmap binding through bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model,
       context({
-        segmentationId: 'g1',
+        segmentedImageId: 'g1',
       })
     );
     expect(bindings.states.segA).toBe('ambiguous');
@@ -144,7 +144,7 @@ describe('no-provenance background blocks the labelmap flow for free', () => {
       model,
       context({
         activeDataSource: localFile('local.nrrd'),
-        segmentationId: 'seg',
+        segmentedImageId: 'seg',
       })
     );
 

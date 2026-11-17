@@ -48,18 +48,13 @@ async function inputFor(pixelSpacing: string, oblique = false) {
 async function mountInput(id: string) {
   const image = useImageCacheStore().getVtkImageData(id)!;
   const segmentation = useSegmentationStore();
-  const segment = useSegmentStore().segments.addSegment({ name: 'Layer' });
-  const mask = segmentation.createMask(
-    segmentation.ensureSegmentationForImage(id).id,
-    segment
-  );
+  const segment = useSegmentStore().segments.addSegment(id, { name: 'Layer' });
   const extent: Extent3D = [0, 1, 0, 1, 0, 1];
-  mask.representations.labelmap = {
+  useSegmentStore().segments.setMask(segment, {
     image: markRaw(allocateMask(image, extent)),
     extent,
-    name: 'Layer.vti',
-  };
-  segmentation.maskVoxels(mask.id).apply(new Uint8Array(8).fill(1));
+  });
+  segmentation.maskVoxels(segment).apply(new Uint8Array(8).fill(1));
   const settings = useEnFaceViewStore().configFor('calibration', id);
   Object.assign(settings, { highlightThin: true, segmentId: segment });
   const host = defineComponent({
@@ -117,7 +112,7 @@ async function mountInput(id: string) {
     wrapper,
     settings,
     image,
-    maskImage: segmentation.findMaskBinding(mask.id)!.image,
+    maskImage: segmentation.maskOf(segment)!.image,
   };
 }
 

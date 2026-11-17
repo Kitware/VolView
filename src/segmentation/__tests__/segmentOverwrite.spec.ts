@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 
 import {
-  addMask,
+  addSegment,
   bindingOf,
   extentOf,
   maskValueAt,
@@ -35,8 +35,8 @@ const clearFor = (maskId: string) => {
 };
 
 function pairAt(index: Index3) {
-  const tumor = addMask('img-1', 'Tumor');
-  const node = addMask('img-1', 'Node');
+  const tumor = addSegment('img-1', 'Tumor');
+  const node = addSegment('img-1', 'Node');
   seedVoxel(tumor, index);
   seedVoxel(node, index);
   return { tumor, node };
@@ -44,9 +44,9 @@ function pairAt(index: Index3) {
 
 /** A locked and an unlocked sibling of the segment about to claim. */
 function siblingsOfPainting(lockedAt: Index3, unlockedAt: Index3) {
-  const locked = addMask('img-1', 'Locked');
-  const unlocked = addMask('img-1', 'Unlocked');
-  const painting = addMask('img-1', 'Painting');
+  const locked = addSegment('img-1', 'Locked');
+  const unlocked = addSegment('img-1', 'Unlocked');
+  const painting = addSegment('img-1', 'Painting');
   seedVoxel(locked, lockedAt);
   seedVoxel(unlocked, unlockedAt);
   lockSegment(locked);
@@ -74,9 +74,9 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('clears the voxel in every other segment, not just the first', () => {
-    const first = addMask('img-1', 'First');
-    const second = addMask('img-1', 'Second');
-    const painting = addMask('img-1', 'Painting');
+    const first = addSegment('img-1', 'First');
+    const second = addSegment('img-1', 'Second');
+    const painting = addSegment('img-1', 'Painting');
     seedVoxel(first, [1, 1, 1]);
     seedVoxel(second, [1, 1, 1]);
     seedVoxel(painting, [1, 1, 1]);
@@ -88,8 +88,8 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('leaves the other voxels of the segments it clears alone', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     store().maskVoxels(tumor).ensureContains([1, 2, 1, 1, 1, 1]);
     seedVoxel(tumor, [2, 1, 1]);
@@ -101,8 +101,8 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('does not grow a mask that does not reach the voxel', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 1, 1]);
     seedVoxel(node, [3, 3, 3]);
     const extent = extentOf(tumor);
@@ -114,8 +114,8 @@ describe('clearing the other segments of an image', () => {
   });
 
   it("does not clear an aliased offset outside a neighbor's extent", () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     seedVoxel(tumor, [1, 2, 1]);
     store().maskVoxels(tumor).ensureContains([1, 2, 1, 2, 1, 2]);
     seedVoxel(node, [3, 1, 1]);
@@ -126,8 +126,8 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('allocates nothing for a segment that has no storage', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const unbound = addMask('img-1', 'Unbound');
+    const tumor = addSegment('img-1', 'Tumor');
+    const unbound = addSegment('img-1', 'Unbound');
     seedVoxel(tumor, [1, 1, 1]);
 
     clearFor(tumor)?.(1, 1, 1);
@@ -137,8 +137,8 @@ describe('clearing the other segments of an image', () => {
 
   it('leaves the segments of another image alone', async () => {
     await seatImage('img-2');
-    const here = addMask('img-1', 'Here');
-    const there = addMask('img-2', 'There');
+    const here = addSegment('img-1', 'Here');
+    const there = addSegment('img-2', 'There');
     seedVoxel(here, [1, 1, 1]);
     seedVoxel(there, [1, 1, 1]);
 
@@ -148,7 +148,7 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('does nothing for a segment that has no neighbors', () => {
-    const only = addMask('img-1', 'Only');
+    const only = addSegment('img-1', 'Only');
     seedVoxel(only, [1, 1, 1]);
 
     expect(() => clearFor(only)?.(1, 1, 1)).not.toThrow();
@@ -207,8 +207,8 @@ describe('clearing the other segments of an image', () => {
   });
 
   it('addresses voxels in parent index space, not in mask offsets', () => {
-    const tumor = addMask('img-1', 'Tumor');
-    const node = addMask('img-1', 'Node');
+    const tumor = addSegment('img-1', 'Tumor');
+    const node = addSegment('img-1', 'Node');
     // A mask that starts away from the origin: parent (3, 3, 3) is mask
     // (1, 1, 1) here, and mask (3, 3, 3) does not exist at all.
     seedVoxel(tumor, [2, 2, 2]);

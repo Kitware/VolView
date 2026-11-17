@@ -5,6 +5,7 @@ import { distance2BetweenPoints } from '@kitware/vtk.js/Common/Core/Math';
 import { ToolID } from '@/src/types/annotation-tool';
 
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { SegmentResolver } from '@/src/segmentation/segments';
 
 import {
   declareAnnotationToolManifestRefs,
@@ -39,14 +40,17 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
     deserializeTools,
   } = annotationTool;
 
-  const lengthByID = computed<Record<string, number>>(() => {
+  const lengthByID = computed(() => {
     const byID = rulerByID.value;
-    return rulerIDs.value.reduce((lengths, id) => {
-      const { firstPoint, secondPoint } = byID[id];
-      return Object.assign(lengths, {
-        [id]: Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint)),
-      });
-    }, {});
+    return Object.fromEntries(
+      rulerIDs.value.map((id) => {
+        const { firstPoint, secondPoint } = byID[id];
+        return [
+          id,
+          Math.sqrt(distance2BetweenPoints(firstPoint, secondPoint)),
+        ] as const;
+      })
+    );
   });
 
   function getPoints(id: ToolID) {
@@ -64,9 +68,9 @@ export const useRulerStore = defineAnnotationToolStore('ruler', () => {
   function deserialize(
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string>
+    resolveSegment: SegmentResolver
   ) {
-    deserializeTools(manifest.tools?.rulers, dataIDMap, segmentIdMap);
+    deserializeTools(manifest.tools?.rulers, dataIDMap, resolveSegment);
   }
 
   return {

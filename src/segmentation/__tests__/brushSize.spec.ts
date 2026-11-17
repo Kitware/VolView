@@ -7,7 +7,7 @@ import { usePaintToolStore } from '@/src/store/tools/paint';
 import { useViewStore } from '@/src/store/views';
 import {
   activateAppPinia,
-  addMask,
+  addSegment,
   markedVoxels,
   parentImage,
   seatImage,
@@ -22,7 +22,7 @@ const IMAGE_DIMENSIONS: Index3 = [9, 9, 70];
 const SLICE_AXES = [0, 1, 2] as const;
 
 const paintAt = (imageId: string, axis: 0 | 1 | 2, center = CENTER) => {
-  const maskId = addMask(imageId, `Plane ${axis}`);
+  const maskId = addSegment(imageId, `Plane ${axis}`);
   selectSegment(maskId);
   const paint = usePaintToolStore();
   paint.setSliceAxis(axis, imageId);
@@ -120,7 +120,7 @@ describe('brush size on the image grid', () => {
 
   it('initializes the default brush footprint when activating the tool', async () => {
     await viewImage('image', { dimensions: IMAGE_DIMENSIONS });
-    const maskId = addMask('image');
+    const maskId = addSegment('image');
     selectSegment(maskId);
     const paint = usePaintToolStore();
 

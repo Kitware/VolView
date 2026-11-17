@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import {
-  addMask,
+  addSegment,
   seatSpecImage,
   seedVoxel,
-  segmentOfMask,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
@@ -17,21 +16,18 @@ describe('the segments holding a voxel', () => {
   });
 
   it('lists every covering segment in registry order', () => {
-    const first = addMask('img-1', 'First');
-    const second = addMask('img-1', 'Second');
-    const elsewhere = addMask('img-1', 'Elsewhere');
+    const first = addSegment('img-1', 'First');
+    const second = addSegment('img-1', 'Second');
+    const elsewhere = addSegment('img-1', 'Elsewhere');
     seedVoxel(second, [1, 1, 0]);
     seedVoxel(first, [1, 1, 0]);
     seedVoxel(elsewhere, [2, 2, 1]);
 
-    expect(store().segmentsAt('img-1', 1, 1, 0)).toEqual([
-      segmentOfMask(first),
-      segmentOfMask(second),
-    ]);
+    expect(store().segmentsAt('img-1', 1, 1, 0)).toEqual([first, second]);
   });
 
   it('finds nothing where no mask holds the voxel', () => {
-    seedVoxel(addMask('img-1', 'Only'), [1, 1, 0]);
+    seedVoxel(addSegment('img-1', 'Only'), [1, 1, 0]);
 
     expect(store().segmentsAt('img-1', 0, 0, 0)).toEqual([]);
     expect(store().segmentsAt('img-1', -1, 1, 0)).toEqual([]);

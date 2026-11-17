@@ -484,31 +484,20 @@ describe('JobsModule segmentation staging', () => {
     outputs: [],
   });
 
-  const seedSegmentation = (name: string) => {
-    const store = useSegmentationStore();
-    const segmentation = store.ensureSegmentationForImage('image-1');
-    segmentation.name = name;
-    const segment = store.createMask(
-      segmentation.id,
-      mintSegment({ name: 'Tumor' })
-    );
+  const seedSegmentation = () => {
+    const segmentId = mintSegment('image-1', { name: 'Tumor' });
     // A segmentation with no voxel is no input, so it holds one.
-    seedVoxel(segment.id, [1, 1, 1]);
-    selectSegment(segment.id);
-    return { segmentationId: segmentation.id, maskId: segment.id };
+    seedVoxel(segmentId, [1, 1, 1]);
+    selectSegment(segmentId);
+    return segmentId;
   };
 
   const seedOverlappingSegments = () => {
-    const { segmentationId, maskId } = seedSegmentation('Overlap');
-    const second = useSegmentationStore().createMask(
-      segmentationId,
-      mintSegment({
-        name: 'Node',
-      })
-    );
-    seedVoxel(maskId, [1, 1, 1]);
-    seedVoxel(second.id, [1, 1, 1]);
-    selectSegment(second.id);
+    const first = seedSegmentation();
+    const second = mintSegment('image-1', { name: 'Node' });
+    seedVoxel(first, [1, 1, 1]);
+    seedVoxel(second, [1, 1, 1]);
+    selectSegment(second);
   };
 
   const stagingProvider = (spec: TaskSpecEnvelope): FakeProvider => {
@@ -761,7 +750,7 @@ describe('JobsModule segmentation staging', () => {
     const layers = useLayersStore();
     await layers.addLayer('image-1', 'pet-1');
     await layers.addLayer('image-1', 'mr-1');
-    seedSegmentation('Tumor');
+    seedSegmentation();
     finishRuler();
     const spec = orderedImageSpec();
     spec.parameters.splice(1, 0, {
@@ -799,7 +788,10 @@ describe('JobsModule segmentation staging', () => {
       referenceScan,
       auxiliaryScan,
       detailScan,
-      regions: { type: 'labelmap', uris: ['girder://staged/Tumor.seg.nrrd'] },
+      regions: {
+        type: 'labelmap',
+        uris: ['girder://staged/CT volume.seg.nrrd'],
+      },
       measurements: {
         type: 'annotations',
         uris: ['girder://staged/CT volume.annotations.json'],
@@ -808,40 +800,40 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('stages the image’s segmentation for a multiple param', async () => {
-    seedSegmentation('Tumor');
+    seedSegmentation();
 
     const { provider, submitSpy } = await submit(labelmapSpec(true));
 
     expect(provider.stageInput).toHaveBeenCalledTimes(1);
     expect(provider.stageInput.mock.calls[0][0].descriptor.name).toBe(
-      'Tumor.seg.nrrd'
+      'image.seg.nrrd'
     );
     expect(submitSpy).toHaveBeenCalledTimes(1);
     expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
       type: 'labelmap',
-      uris: ['girder://staged/Tumor.seg.nrrd'],
+      uris: ['girder://staged/image.seg.nrrd'],
     });
   });
 
   it('stages the active image’s segmentation for a singular param', async () => {
-    seedSegmentation('Liver');
+    seedSegmentation();
 
     const { provider, submitSpy } = await submit(labelmapSpec(false));
 
     expect(provider.stageInput).toHaveBeenCalledTimes(1);
     expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
       type: 'labelmap',
-      uris: ['girder://staged/Liver.seg.nrrd'],
+      uris: ['girder://staged/image.seg.nrrd'],
     });
   });
 
   it('stages the labelmap under the image name without its extension', async () => {
-    seedSegmentation('scan.nii.gz');
+    seedSegmentation();
 
     const { provider } = await submit(labelmapSpec(false));
 
     expect(provider.stageInput.mock.calls[0][0].descriptor.name).toBe(
-      'scan.seg.nrrd'
+      'image.seg.nrrd'
     );
   });
 
@@ -868,7 +860,7 @@ describe('JobsModule segmentation staging', () => {
       expect(provider.stageInput).toHaveBeenCalledTimes(multiple ? 2 : 1);
       expect(submitSpy.mock.calls[0][2].inputSeg).toEqual({
         type: 'labelmap',
-        uris: (multiple ? ['Overlap', 'Overlap_layer1'] : ['Overlap']).map(
+        uris: (multiple ? ['image', 'image_layer1'] : ['image']).map(
           (name) => `girder://staged/${name}.seg.nrrd`
         ),
       });
@@ -897,7 +889,7 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('says nothing about overlap when the segments hold no voxel in common', async () => {
-    seedSegmentation('Tumor');
+    seedSegmentation();
 
     expect(
       overlapNotice(await mountWithSpec(labelmapSpec(false))).exists()
@@ -908,20 +900,13 @@ describe('JobsModule segmentation staging', () => {
     reach?: [number, number, number, number, number, number]
   ) => {
     const segmentStore = useSegmentationStore();
-    const segmentation = segmentStore.ensureSegmentationForImage('image-1');
-    const first = segmentStore.createMask(
-      segmentation.id,
-      mintSegment({ name: 'A' })
-    );
-    const second = segmentStore.createMask(
-      segmentation.id,
-      mintSegment({ name: 'B' })
-    );
-    seedVoxel(first.id, [0, 0, 0]);
-    seedVoxel(second.id, [1, 1, 1]);
-    selectSegment(second.id);
-    if (reach) segmentStore.maskVoxels(second.id).ensureContains(reach);
-    selectSegment(first.id);
+    const first = mintSegment('image-1', { name: 'A' });
+    const second = mintSegment('image-1', { name: 'B' });
+    seedVoxel(first, [0, 0, 0]);
+    seedVoxel(second, [1, 1, 1]);
+    selectSegment(second);
+    if (reach) segmentStore.maskVoxels(second).ensureContains(reach);
+    selectSegment(first);
 
     const wrapper = await mountWithSpec(labelmapSpec(false));
     expect(overlapNotice(wrapper).exists()).toBe(false);
@@ -939,7 +924,7 @@ describe('JobsModule segmentation staging', () => {
     const { second, wrapper } = await seedDisjointPair();
 
     const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
-    seedVoxel(second.id, [0, 0, 0]);
+    seedVoxel(second, [0, 0, 0]);
     await flushPromises();
 
     expect(scans).not.toHaveBeenCalled();
@@ -954,7 +939,7 @@ describe('JobsModule segmentation staging', () => {
     const { second, wrapper } = await seedDisjointPair();
 
     const scans = vi.spyOn(segmentationComposition, 'planLabelmapExport');
-    selectSegment(second.id);
+    selectSegment(second);
     await flushPromises();
 
     expect(scans).not.toHaveBeenCalled();
@@ -970,11 +955,9 @@ describe('JobsModule segmentation staging', () => {
       0, 1, 0, 1, 0, 1,
     ]);
 
-    const extentBefore = [...segmentStore.findMaskBinding(second.id)!.extent];
-    seedVoxel(second.id, [0, 0, 0]);
-    expect([...segmentStore.findMaskBinding(second.id)!.extent]).toEqual(
-      extentBefore
-    );
+    const extentBefore = [...segmentStore.maskOf(second)!.extent];
+    seedVoxel(second, [0, 0, 0]);
+    expect([...segmentStore.maskOf(second)!.extent]).toEqual(extentBefore);
 
     await afterDebounce();
 
@@ -1008,7 +991,7 @@ describe('JobsModule segmentation staging', () => {
   });
 
   it('reports a staging failure and submits nothing', async () => {
-    seedSegmentation('Tumor');
+    seedSegmentation();
 
     const p = stagingProvider(labelmapSpec(true));
     p.stageInput = vi.fn(async () => {

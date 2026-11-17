@@ -3,8 +3,8 @@ import { setActivePinia, createPinia } from 'pinia';
 import { importDataSources } from '@/src/io/import/importDataSources';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
-// A manifest's top-level `segments` is also a config key, so a session JSON
-// that fails its schema must still be reported as a state file.
+// A session JSON that fails its schema must still be reported as a state file,
+// not read as config.
 describe('a session JSON that fails its schema', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -14,8 +14,19 @@ describe('a session JSON that fails its schema', () => {
     const manifest = {
       version: MANIFEST_VERSION,
       dataSources: [{ id: 0, type: 'uri', uri: 'https://example.com/ct.nrrd' }],
-      segments: [
-        { id: 's', name: 'Tumor', color: 'red', visible: true, locked: false },
+      imageSegments: [
+        {
+          imageId: 'ct',
+          segments: [
+            {
+              id: 's',
+              name: 'Tumor',
+              color: 'red',
+              visible: true,
+              locked: false,
+            },
+          ],
+        },
       ],
     };
     const file = new File([JSON.stringify(manifest)], 'session.volview.json', {

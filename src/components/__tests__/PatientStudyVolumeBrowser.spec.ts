@@ -6,9 +6,9 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import PatientStudyVolumeBrowser from '@/src/components/PatientStudyVolumeBrowser.vue';
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
-import { useSegmentationStore } from '@/src/segmentation/store';
 import { seatImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { defer } from '@/src/utils';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 enableAutoUnmount(afterEach);
 
@@ -63,7 +63,7 @@ describe('DICOM segmentation conversion progress', () => {
   it('covers the source thumbnail until a pending conversion fails', async () => {
     const pending = defer<vtkImageData>();
     const entered = defer<void>();
-    const conversion = useSegmentationStore().convertImageToLabelmap(
+    const conversion = useLabelmapImportStore().convertImageToLabelmap(
       'seg-volume',
       'parent',
       {

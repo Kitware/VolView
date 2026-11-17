@@ -2,8 +2,18 @@ import { cycle, omit } from '@/src/utils';
 import { pipe } from '@/src/utils/functional';
 import { emptyExtent } from '@/src/segmentation/geometry';
 import { cssColorToRGBA, tryCssColorToRGBA } from '@/src/segmentation/color';
-import { makeDefaultSegmentName } from '@/src/segmentation/model';
+import {
+  DEFAULT_SEGMENTATION_DISPLAY,
+  makeDefaultSegmentName,
+  type SegmentationDisplay,
+} from '@/src/segmentation/model';
 import { TOOL_COLORS } from '@/src/config';
+import { manifestDatasets } from '@/src/io/state-file/schema';
+
+export type ManifestMigration = {
+  // Saved masks the migration could not carry, reported with the restore.
+  droppedMasks: Array<{ name: string; reason: string }>;
+};
 
 const migrateOrPass =
   (versions: Array<string>, migrationFunc: (manifest: any) => any) =>
@@ -13,6 +23,14 @@ const migrateOrPass =
     }
     return inputManifest;
   };
+
+const legacyViewDataId = (config: any, primarySelection: any) => {
+  const configKeys = Object.keys(config || {});
+  if (configKeys.length === 0) return null;
+  return primarySelection && configKeys.includes(primarySelection)
+    ? primarySelection
+    : configKeys[0];
+};
 
 const migrate501To600 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
@@ -51,16 +69,10 @@ const migrate501To600 = (inputManifest: any) => {
         migratedView.type = 'Oblique';
       }
 
-      const configKeys = Object.keys(migratedView.config || {});
-      const primarySelection = manifest.primarySelection;
-
-      migratedView.dataID = null;
-      if (configKeys.length > 0) {
-        migratedView.dataID =
-          primarySelection && configKeys.includes(primarySelection)
-            ? primarySelection
-            : configKeys[0];
-      }
+      migratedView.dataID = legacyViewDataId(
+        migratedView.config,
+        manifest.primarySelection
+      );
 
       manifest.viewByID[migratedView.id] = migratedView;
     });
@@ -297,11 +309,21 @@ const dropLegacyViewDisplay = (manifest: any, groupIds: string[]) => {
   });
 };
 
+const ANNOTATION_TOOL_KEYS = ['rulers', 'rectangles', 'polygons'];
+
+// Suffixes a candidate until no id in `usedIds` has it, then claims it.
+const uniqueIdAmong = (usedIds: Set<string>) => (candidate: string) => {
+  let id = candidate;
+  for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
+  usedIds.add(id);
+  return id;
+};
+
 // 6.4.0 -> 7.0.0 moves identity off segment groups and tool labels onto
 // segments. JSON only: no voxels are read here, so each group becomes an
 // artifact the loaded restore stage splits into bounded masks, and every
 // binding's extent is a placeholder that stage replaces.
-const migrate640To700 = (inputManifest: any) => {
+export const migrate640To700 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
 
   // Insertion order is the migrated order: groups in manifest order, then per
@@ -310,13 +332,7 @@ const migrate640To700 = (inputManifest: any) => {
   const segments: any[] = [];
 
   // Joined legacy ids can collide, and restore keys a map on them.
-  const usedIds = new Set<string>();
-  const uniqueId = (candidate: string) => {
-    let id = candidate;
-    for (let n = 2; usedIds.has(id); n += 1) id = `${candidate}-${n}`;
-    usedIds.add(id);
-    return id;
-  };
+  const uniqueId = uniqueIdAmong(new Set<string>());
 
   const addSegment = (id: string, segment: any) => {
     segments.push({ id, ...segment });
@@ -405,8 +421,6 @@ const migrate640To700 = (inputManifest: any) => {
     };
   });
 
-  const toolKeys = ['rulers', 'rectangles', 'polygons'];
-
   const nextToolColor = cycle(TOOL_COLORS);
   const nextPaletteColor = () => cssColorToRGBA(nextToolColor());
 
@@ -417,7 +431,7 @@ const migrate640To700 = (inputManifest: any) => {
     tryCssColorToRGBA(css ?? '') ?? nextPaletteColor();
 
   const labelNames = new Set(
-    toolKeys.flatMap((key) =>
+    ANNOTATION_TOOL_KEYS.flatMap((key) =>
       Object.entries(manifest.tools?.[key]?.labels ?? {}).map(
         ([labelId, label]: [string, any]) => label.labelName || labelId
       )
@@ -493,7 +507,7 @@ const migrate640To700 = (inputManifest: any) => {
     delete entry.labels;
   };
 
-  toolKeys.forEach(migrateToolLabels);
+  ANNOTATION_TOOL_KEYS.forEach(migrateToolLabels);
 
   const segmentations = [...recordsByParent.entries()].map(
     ([parentImage, records]) => {
@@ -501,7 +515,6 @@ const migrate640To700 = (inputManifest: any) => {
         displays.outlineThicknessByParent.get(parentImage);
       return {
         id: `segmentation-${parentImage}`,
-        // Unnamed: restore names it after the loaded image, as a live one is.
         name: '',
         parentImage,
         masks: records,
@@ -526,15 +539,139 @@ const migrate640To700 = (inputManifest: any) => {
   return manifest;
 };
 
+// A 7.0.0 mask's restore label: its segment's name, else where its voxels are.
+const legacyMaskLabel = (manifest: any, catalog: any[], mask: any) => {
+  const binding = mask.representations?.labelmap;
+  const artifact = (manifest.segmentationArtifacts ?? []).find(
+    (entry: any) => entry.id === binding?.artifactId
+  );
+  const segment = catalog.find(({ id }) => id === mask.segmentId);
+  return (
+    segment?.name ||
+    binding?.path ||
+    (artifact && `${artifact.name} label ${binding.sourceValue ?? 1}`) ||
+    mask.id
+  );
+};
+
+const legacySegmentationDisplay = (segmentation: any) => ({
+  fillOpacity:
+    segmentation.fillOpacity ?? DEFAULT_SEGMENTATION_DISPLAY.fillOpacity,
+  outlineOpacity:
+    segmentation.outlineOpacity ?? DEFAULT_SEGMENTATION_DISPLAY.outlineOpacity,
+  outlineThickness:
+    segmentation.outlineThickness ??
+    DEFAULT_SEGMENTATION_DISPLAY.outlineThickness,
+});
+
+// Each image's listed masks by segment id. A mask its segmentation leaves out
+// of the order was never restored, so it is reported, and one without voxels
+// has nothing to restore.
+const legacyMasksByImage = (
+  manifest: any,
+  catalog: any[],
+  migration: ManifestMigration
+) => {
+  const catalogIds = new Set(catalog.map(({ id }) => id));
+  const byImage = new Map<string, Map<string, any>>();
+  const drop = (mask: any, reason: string) =>
+    migration.droppedMasks.push({
+      name: legacyMaskLabel(manifest, catalog, mask),
+      reason,
+    });
+  (manifest.segmentations ?? []).forEach((segmentation: any) => {
+    const masks: any[] = segmentation.masks ?? [];
+    const order: string[] = segmentation.order ?? [];
+    const listed = new Set(order);
+    masks
+      .filter((mask) => !listed.has(mask.id))
+      .forEach((mask) => drop(mask, 'its segmentation does not list it'));
+    const byId = new Map(masks.map((mask) => [mask.id, mask]));
+    const held = byImage.get(segmentation.parentImage) ?? new Map();
+    byImage.set(segmentation.parentImage, held);
+    order.forEach((id) => {
+      const mask = byId.get(id);
+      const labelmap = mask?.representations?.labelmap;
+      if (!labelmap) return;
+      if (!catalogIds.has(mask.segmentId))
+        drop(mask, 'its segment is not in the file');
+      else if (held.has(mask.segmentId))
+        drop(mask, 'the image already has a mask for its segment');
+      else held.set(mask.segmentId, labelmap);
+    });
+  });
+  return byImage;
+};
+
+// Every saved image keeps the full catalog the global picker offered under its
+// original ids, unused rows included, and takes its masks and its first
+// segmentation's display. An image with a segmentation keeps a set for its
+// display even when the catalog is empty. Mask buffers stay where they are.
+const migrate700To800 = (inputManifest: any, migration: ManifestMigration) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  // Restore seats one segment per id, so the first row answers for it.
+  const rows: any[] = Array.isArray(manifest.segments) ? manifest.segments : [];
+  const catalog = rows.filter(
+    ({ id }, index) => rows.findIndex((row) => row.id === id) === index
+  );
+  const catalogIds = new Set(catalog.map(({ id }) => id));
+  const segmentations: any[] = manifest.segmentations ?? [];
+  const masksByImage = legacyMasksByImage(manifest, catalog, migration);
+  const displayByImage = new Map<string, SegmentationDisplay>();
+  segmentations.forEach((segmentation) => {
+    if (!displayByImage.has(segmentation.parentImage))
+      displayByImage.set(
+        segmentation.parentImage,
+        legacySegmentationDisplay(segmentation)
+      );
+  });
+  const imageIds = [
+    ...new Set([
+      ...(catalog.length ? manifestDatasets(manifest) : []).map(({ id }) => id),
+      ...segmentations.map(({ parentImage }) => parentImage),
+    ]),
+  ];
+  const selectedSegmentId = catalogIds.has(manifest.selectedSegment)
+    ? manifest.selectedSegment
+    : undefined;
+
+  manifest.imageSegments = imageIds.map((imageId) => {
+    const display = displayByImage.get(imageId);
+    return {
+      imageId,
+      ...(selectedSegmentId ? { selectedSegmentId } : {}),
+      ...(display ? { display } : {}),
+      segments: catalog.map((segment) => {
+        const labelmap = masksByImage.get(imageId)?.get(segment.id);
+        return {
+          ...segment,
+          ...(Array.isArray(segment.color)
+            ? { color: [...segment.color] }
+            : {}),
+          ...(labelmap ? { labelmap } : {}),
+        };
+      }),
+    };
+  });
+  delete manifest.segments;
+  delete manifest.segmentations;
+  delete manifest.selectedSegment;
+  manifest.version = '8.0.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
-  return pipe(
+  const migration: ManifestMigration = { droppedMasks: [] };
+  const manifest = pipe(
     inputManifest,
     migrateOrPass(['5.0.1'], migrate501To600),
     migrateOrPass(['6.0.0'], migrate600To610),
     migrateOrPass(['6.1.0', '6.1.1'], migrate610To620),
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
-    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700)
+    migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
+    migrateOrPass(['7.0.0'], (legacy) => migrate700To800(legacy, migration))
   );
+  return { manifest, migration };
 };

@@ -1,13 +1,14 @@
-import { computed, reactive, unref, type MaybeRef } from 'vue';
+import { reactive } from 'vue';
 
-const pulseByMaskId = reactive<Record<string, number>>({});
-const animationByMaskId = new Map<string, number>();
+const pulseBySegmentId = reactive<Record<string, number>>({});
+const animationBySegmentId = new Map<string, number>();
 
-export const revealPulseStrength = (maskId: MaybeRef<string>) =>
-  computed(() => pulseByMaskId[unref(maskId)] ?? 0);
+/** Reactive pulse strength in 0..1, zero when the segment is not pulsing. */
+export const revealPulse = (segmentId: string) =>
+  pulseBySegmentId[segmentId] ?? 0;
 
-export function pulseSegmentMask(maskId: string) {
-  const previous = animationByMaskId.get(maskId);
+export function pulseSegmentMask(segmentId: string) {
+  const previous = animationBySegmentId.get(segmentId);
   if (previous != null) cancelAnimationFrame(previous);
 
   const started = performance.now();
@@ -16,15 +17,15 @@ export function pulseSegmentMask(maskId: string) {
   const animate = (now: number) => {
     const elapsed = now - started;
     if (elapsed < duration) {
-      pulseByMaskId[maskId] = Math.abs(
+      pulseBySegmentId[segmentId] = Math.abs(
         Math.sin((Math.PI * elapsed) / pulsePeriod)
       );
-      animationByMaskId.set(maskId, requestAnimationFrame(animate));
+      animationBySegmentId.set(segmentId, requestAnimationFrame(animate));
       return;
     }
-    delete pulseByMaskId[maskId];
-    animationByMaskId.delete(maskId);
+    delete pulseBySegmentId[segmentId];
+    animationBySegmentId.delete(segmentId);
   };
 
-  animationByMaskId.set(maskId, requestAnimationFrame(animate));
+  animationBySegmentId.set(segmentId, requestAnimationFrame(animate));
 }

@@ -149,8 +149,10 @@ for (const legacy of [false, true]) {
         await zip.file('manifest.json')!.async('string')
       );
       expect(saved.segmentationArtifacts).toBeUndefined();
-      const bindings = saved.segmentations.flatMap((segmentation: any) =>
-        segmentation.masks.map((mask: any) => mask.representations.labelmap)
+      const bindings = saved.imageSegments.flatMap((entry: any) =>
+        entry.segments.flatMap((segment: any) =>
+          segment.labelmap ? [segment.labelmap] : []
+        )
       );
       expect(bindings).toHaveLength(2);
       expect(new Set(bindings.map((binding: any) => binding.path)).size).toBe(

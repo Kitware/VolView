@@ -57,8 +57,7 @@ const collectDatasetInfo = (): string[] => {
         ? 'DICOM'
         : 'unknown';
 
-    const segCount =
-      segmentationStore.getSegmentationForImage(id)?.order.length ?? 0;
+    const segCount = segmentationStore.imageMasks(id).length;
     const segPart =
       segCount > 0
         ? ` (segments: ${segCount} as ${segmentationStore.saveFormat})`

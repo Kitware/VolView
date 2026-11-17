@@ -1,25 +1,10 @@
-import JSZip from 'jszip';
 import type { Manifest } from '@/src/io/state-file/schema';
-import { useRulerStore } from '@/src/store/tools/rulers';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
-import { usePolygonStore } from '@/src/store/tools/polygons';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import {
   inMemoryArtifactIO,
   manifestForImages,
   serializeToStateFiles,
+  serializeAnnotations,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-
-export const serializeAnnotations = (
-  manifest = manifestForImages([], { tools: {} })
-) => {
-  const state = { zip: new JSZip(), manifest };
-  useSegmentStore().serialize(state);
-  useRulerStore().serialize(state);
-  useRectangleStore().serialize(state);
-  usePolygonStore().serialize(state);
-  return JSON.parse(JSON.stringify(manifest)) as Manifest;
-};
 
 export const serializeScene = async (imageIds: string[]) => {
   const codec = inMemoryArtifactIO();
@@ -60,22 +45,23 @@ export const savedMasks = (
   imageId: string
 ) => {
   const { manifest, artifacts } = scene;
-  const segments = new Map(
-    manifest.segments?.map((segment) => [segment.id, segment])
-  );
-  return (manifest.segmentations ?? [])
-    .filter((segmentation) => segmentation.parentImage === imageId)
-    .flatMap((segmentation) =>
-      segmentation.masks.map((mask) => {
-        const binding = mask.representations.labelmap;
-        return {
-          id: mask.id,
-          segmentId: mask.segmentId,
-          segment: segments.get(mask.segmentId),
-          extent: binding?.extent,
-          source: binding?.source,
-          artifact: binding?.path ? artifacts.get(binding.path) : undefined,
-        };
-      })
+  return (manifest.imageSegments ?? [])
+    .filter((entry) => entry.imageId === imageId)
+    .flatMap((entry) =>
+      entry.segments.flatMap(({ labelmap, ...segment }) =>
+        labelmap
+          ? [
+              {
+                segmentId: segment.id,
+                segment,
+                extent: labelmap.extent,
+                source: labelmap.source,
+                artifact: labelmap.path
+                  ? artifacts.get(labelmap.path)
+                  : undefined,
+              },
+            ]
+          : []
+      )
     );
 };
