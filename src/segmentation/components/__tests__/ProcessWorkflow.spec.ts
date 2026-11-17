@@ -128,7 +128,7 @@ describe('the process Preview button', () => {
 
     expect(button(wrapper, 'Preview').attributes('disabled')).toBeDefined();
     expect(wrapper.get('[role="tooltip"]').text()).toBe(
-      'No segment content to process'
+      'No segments to process'
     );
   });
 

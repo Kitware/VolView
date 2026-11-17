@@ -5,7 +5,7 @@ import {
 } from '@/src/segmentation/io/composition';
 import { writeSegmentation } from '@/src/io/readWriteImage';
 import { sanitizeSegmentationFileStem } from '@/src/io/state-file/maskArchivePath';
-import type { SegmentMask } from '@/src/segmentation/model';
+import type { SegmentMaskEntry } from '@/src/segmentation/model';
 import { isRegularImage } from '@/src/utils/dataSelection';
 import { stripExtension } from '@/src/utils/path';
 
@@ -34,7 +34,7 @@ export const segmentationFileStem = (parentImageId: string, name: string) =>
   );
 
 export async function writeLabelmapParts(
-  { parentId, parts }: { parentId: string; parts: SegmentMask[][] },
+  { parentId, parts }: { parentId: string; parts: SegmentMaskEntry[][] },
   stem: string,
   format: string,
   {

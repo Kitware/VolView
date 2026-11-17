@@ -1,4 +1,5 @@
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { SegmentResolver } from '@/src/segmentation/segments';
 import { Maybe } from '@/src/types';
 import type { AnnotationToolStore } from '@/src/store/tools/useAnnotationTool';
 import { defineStore } from 'pinia';
@@ -11,7 +12,6 @@ import { useRectangleStore } from './rectangles';
 import { AnnotationToolType, IToolStore, Tools } from './types';
 import { usePolygonStore } from './polygons';
 import { useToolSelectionStore } from './toolSelection';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import { useViewStore } from '@/src/store/views';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
@@ -54,15 +54,6 @@ export function getToolUnavailableReason(
     return null;
   return getEnFaceUnavailableReason(effective.renderDataID);
 }
-// These tools draw into the selected segment, so picking one up seats a
-// segment: the palette shows the color the next stroke will be before it is
-// made. Seating allocates no voxels.
-const SEGMENT_TOOLS = new Set([
-  Tools.Paint,
-  Tools.Rectangle,
-  Tools.Ruler,
-  Tools.Polygon,
-]);
 
 const activeEffectiveView = () => getEffectiveView(useViewStore().activeView);
 
@@ -158,10 +149,6 @@ export const useToolStore = defineStore('tool', () => {
     }
     teardownTool(currentTool.value);
     currentTool.value = coerced;
-    // A shortcut can pick a tool up with no image, where a seat would linger.
-    if (SEGMENT_TOOLS.has(coerced) && currentImageID.value) {
-      useSegmentStore().segments.ensureSelectedSegment();
-    }
   }
 
   // Shared by the toolbar and the Paint hints, so no hint asks for a disabled tool.
@@ -219,15 +206,15 @@ export const useToolStore = defineStore('tool', () => {
 
   function deserialize(
     manifest: Manifest,
-    segmentIdMap: Record<string, string>,
+    resolveSegment: SegmentResolver,
     dataIDMap: Record<string, string>
   ) {
     Object.values(ToolStoreMap)
       .map((useStore) => useStore?.())
       .filter((store): store is IToolStore => !!store)
-      .forEach((store) => {
-        store.deserialize?.(manifest, dataIDMap, segmentIdMap);
-      });
+      .forEach((store) =>
+        store.deserialize?.(manifest, dataIDMap, resolveSegment)
+      );
 
     if (manifest.tools?.current) {
       currentTool.value = coerceForEffective(

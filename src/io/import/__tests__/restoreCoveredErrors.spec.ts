@@ -118,8 +118,10 @@ describe('importDataSources — restore-covered failures return as ok, not error
 
     await openSession(restore);
 
-    const [, , , , failedLeaves] = restore.completions[0];
-    expect(failedLeaves).toEqual([{ stateID: 'ds-a', name: 'ds-a.bin' }]);
+    const options = restore.completions[0][3];
+    expect(options?.failedLeaves).toEqual([
+      { stateID: 'ds-a', name: 'ds-a.bin' },
+    ]);
   });
 
   it('keeps a leaf failure as an error when the restore never completed', async () => {

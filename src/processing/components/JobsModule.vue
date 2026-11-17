@@ -154,7 +154,6 @@ import { cropPlanesToWorldBounds } from '@/src/processing/engine/bounds';
 import { useInputStaging } from '@/src/processing/composables/useInputStaging';
 import { planSegmentationInput } from '@/src/processing/segmentationInput';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { segmentationHasContent } from '@/src/segmentation/model';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useMessageStore } from '@/src/store/messages';
 
@@ -232,8 +231,11 @@ watch(
 async function loadWhileCurrent(
   onCleanup: (fn: () => void) => void,
   stillWanted: () => boolean,
-  state: { loading: Ref<boolean>; error: Ref<string | null> },
-  fallbackError: string,
+  feedback: {
+    loading: Ref<boolean>;
+    error: Ref<string | null>;
+    fallbackError: string;
+  },
   body: (current: () => boolean) => Promise<void>
 ) {
   let active = true;
@@ -241,15 +243,15 @@ async function loadWhileCurrent(
     active = false;
   });
   const current = () => active && stillWanted();
-  state.loading.value = true;
-  state.error.value = null;
+  feedback.loading.value = true;
+  feedback.error.value = null;
   try {
     await body(current);
   } catch (err) {
     if (!current()) return;
-    state.error.value = getErrorDetail(err, fallbackError);
+    feedback.error.value = getErrorDetail(err, feedback.fallbackError);
   } finally {
-    if (current()) state.loading.value = false;
+    if (current()) feedback.loading.value = false;
   }
 }
 
@@ -269,8 +271,11 @@ watch(
       () =>
         selectedProviderId.value === id &&
         providerLoadVersion.value === version,
-      { loading: loadingProvider, error: providerError },
-      'Failed to load provider',
+      {
+        loading: loadingProvider,
+        error: providerError,
+        fallbackError: 'Failed to load provider',
+      },
       async (current) => {
         const p = await providers.getProvider(id);
         if (!current()) return;
@@ -306,8 +311,11 @@ watch(
         selectedTaskId.value === id &&
         taskLoadVersion.value === version &&
         provider.value === activeProvider,
-      { loading: loadingTask, error: taskError },
-      'Failed to load task spec',
+      {
+        loading: loadingTask,
+        error: taskError,
+        fallbackError: 'Failed to load task spec',
+      },
       async (current) => {
         const envelope = await activeProvider.getTaskSpec(id);
         if (!current()) return;
@@ -503,9 +511,9 @@ function refreshValidation(
 function jobDisplayContext(bindings: SourceRefBindings): JobDisplayContext {
   const labelmapNames = Object.fromEntries(
     Object.entries(bindings.labelmap.segmentations).map(
-      ([parameterId, { segmentationId }]) => [
+      ([parameterId, { imageId }]) => [
         parameterId,
-        segmentationStore.segmentations[segmentationId].name,
+        segmentationStore.segmentationName(imageId),
       ]
     )
   );
@@ -533,8 +541,8 @@ const refreshInputWarnings = () => {
       // Only a single-labelmap input can omit segments, and planning costs a
       // voxel sweep.
       .filter(([, { multiple }]) => !multiple)
-      .flatMap(([parameterId, { segmentationId }]) => {
-        const { warning } = planSegmentationInput(segmentationId, false);
+      .flatMap(([parameterId, { imageId }]) => {
+        const { warning } = planSegmentationInput(imageId, false);
         return warning ? [[parameterId, warning] as const] : [];
       })
   );
@@ -546,15 +554,17 @@ const overlapSignal = () => {
   return [
     imageId,
     maskRevision.value,
-    segmentRegistry.selectedSegmentId.value,
+    segmentRegistry.selectedSegmentId(imageId),
     // The first or last finished tool can move a union input off the labelmap.
     finishedAnnotationCount.value > 0,
-    segmentRegistry.segmentList.value
+    segmentRegistry
+      .segmentList(imageId)
       .map(({ id, name }) => `${id}:${name}`)
       .join(),
-    imageId
-      ? segmentationStore.getSegmentationForImage(imageId)?.order.join()
-      : undefined,
+    segmentationStore
+      .imageMasks(imageId)
+      .map(({ segmentId }) => segmentId)
+      .join(),
   ].join('|');
 };
 
@@ -576,14 +586,10 @@ const sourceRefNames = computed(() => {
 watchDebounced(
   () => {
     const id = currentImageID.value;
-    const segmentation = id
-      ? segmentationStore.getSegmentationForImage(id)
-      : undefined;
     return {
       id,
       crop: id ? cropStore.croppingByImageID[id] : undefined,
-      segmentationId: segmentation?.id,
-      hasContent: !!segmentation && segmentationHasContent(segmentation),
+      hasContent: segmentationStore.imageMasks(id).length > 0,
       // Placing the first (or removing the last) tool flips the annotations
       // binding, so the form must revalidate.
       annotationCount: finishedAnnotationCount.value,

@@ -8,19 +8,24 @@ import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useImageStatsStore } from '@/src/store/image-stats';
-import { useEnFaceViewStore } from '@/src/enface/store';
+import {
+  defaultEnFaceViewConfig,
+  useEnFaceViewStore,
+} from '@/src/enface/store';
+import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useEnFaceInput } from '@/src/enface/useEnFaceInput';
 import { useEnFaceOccupiedDepth } from '@/src/enface/useEnFaceOccupiedDepth';
 import EnFaceControls from '@/src/enface/EnFaceControls.vue';
 import { createThinRegionMask, thinCountCutoff } from '@/src/enface/thickness';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 import {
   measureOccupiedDepth,
   type OccupiedDepthInput,
 } from '@/src/segmentation/measurements/occupiedDepth';
 import {
   activateAppPinia,
+  manifestForImages,
   makeImage,
   seatImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -42,6 +47,54 @@ const measureInProcess = () => ({
   release: () => {},
 });
 
+it.each(['foreign', 'missing'])(
+  'drops a %s segment selection when restoring an en-face view',
+  async (segmentId) => {
+    await seatImage('a');
+    await seatImage('b');
+    const manifest = ManifestSchema.parse(
+      manifestForImages(['saved-a', 'saved-b'], {
+        imageSegments: [
+          {
+            imageId: 'saved-a',
+            segments: [
+              { id: 'foreign', name: 'Other image', color: [255, 0, 0, 255] },
+            ],
+          },
+          { imageId: 'saved-b', segments: [] },
+        ],
+        viewByID: {
+          view: {
+            id: 'view',
+            type: 'EnFace',
+            name: 'En face',
+            config: {
+              'saved-b': {
+                enFace: { ...defaultEnFaceViewConfig(), segmentId },
+              },
+            },
+          },
+        },
+      })
+    );
+    await completeStateFileRestore(manifest, [], {
+      'saved-a': 'a',
+      'saved-b': 'b',
+    });
+
+    const saved: StateFile = {
+      zip: new JSZip(),
+      manifest: manifestForImages(['a', 'b'], {
+        viewByID: { view: { id: 'view', type: 'EnFace', name: 'En face' } },
+      }),
+    };
+    useEnFaceViewStore().serialize(saved);
+    expect(
+      saved.manifest.viewByID!.view.config!.b.enFace?.segmentId
+    ).toBeNull();
+  }
+);
+
 it('keeps the projection ready and restores the non-first segment after deferred mask decoding', async () => {
   useImageStatsStore().stats.oct = {
     scalarMin: 0,
@@ -53,31 +106,19 @@ it('keeps the projection ready and restores the non-first segment after deferred
     spacing: [0.01, 0.01, 0.01],
   });
   const manifest = ManifestSchema.parse({
-    version: '7.0.0',
+    version: '8.0.0',
     datasets: [],
     dataSources: [],
-    segments: ['first', 'chosen'].map((id, index) => ({
-      id,
-      name: id,
-      color: index ? [0, 255, 0, 255] : [255, 0, 0, 255],
-      visible: true,
-      locked: false,
-    })),
-    segmentations: [
+    imageSegments: [
       {
-        id: 'segmentation',
-        name: 'OCT layers',
-        parentImage: 'saved-oct',
-        order: ['first', 'chosen'],
-        masks: ['first', 'chosen'].map((id) => ({
+        imageId: 'saved-oct',
+        segments: ['first', 'chosen'].map((id, index) => ({
           id,
-          segmentId: id,
-          representations: {
-            labelmap: {
-              path: `${id}.vti`,
-              extent: [0, 1, 0, 1, 0, 1],
-            },
-          },
+          name: id,
+          color: index ? [0, 255, 0, 255] : [255, 0, 0, 255],
+          visible: true,
+          locked: false,
+          labelmap: { path: `${id}.vti`, extent: [0, 1, 0, 1, 0, 1] },
         })),
       },
     ],
@@ -102,16 +143,15 @@ it('keeps the projection ready and restores the non-first segment after deferred
       },
     },
   });
-  const { segmentIdMap } = useSegmentStore().deserialize(manifest);
   const dataIDMap = { 'saved-oct': 'oct' };
-  useViewConfigStore().deserializeAll(manifest, dataIDMap, segmentIdMap);
+  const resolveSegment = useSegmentStore().deserialize(manifest, dataIDMap);
+  useViewConfigStore().deserializeAll(manifest, dataIDMap, resolveSegment);
   const reading = defer<void>();
   const release = defer<void>();
-  const segmentation = useSegmentationStore();
-  const restored = segmentation.deserialize({
+  const restored = deserializeSegmentation({
     manifest,
     dataIDMap,
-    segmentIdMap,
+    resolveSegment,
     stateFiles: ['first', 'chosen'].map((id) => ({
       archivePath: `${id}.vti`,
       file: new File([], `${id}.vti`),
@@ -198,7 +238,7 @@ it('keeps the projection ready and restores the non-first segment after deferred
     };
     useEnFaceViewStore().serialize(saved);
     expect(saved.manifest.viewByID!.view.config!.oct.enFace).toMatchObject({
-      segmentId: segmentIdMap.chosen,
+      segmentId: resolveSegment('oct', 'chosen'),
       highlightThin: true,
     });
   } finally {

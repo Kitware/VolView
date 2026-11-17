@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import JSZip from 'jszip';
 
+import { serializeSegmentation } from '@/src/segmentation/io/stateFile';
 import {
-  addMask,
+  addSegment,
   inMemoryArtifactIO,
   manifestForImages,
+  savedLabelmaps,
   seatSpecImage,
   seedVoxel,
   store,
@@ -26,10 +28,10 @@ describe('saving a session with an unconfirmed preview', () => {
 
   it('cancels the preview and saves what the mask committed', async () => {
     await seatSpecImage('img-1', 'CT A');
-    const maskId = addMask('img-1', 'Tumor');
-    seedVoxel(maskId, [0, 0, 0]);
-    seedVoxel(maskId, [1, 0, 0]);
-    const voxels = store().maskVoxels(maskId);
+    const segmentId = addSegment('img-1', 'Tumor');
+    seedVoxel(segmentId, [0, 0, 0]);
+    seedVoxel(segmentId, [1, 0, 0]);
+    const voxels = store().maskVoxels(segmentId);
     const committed = new Uint8Array(voxels.scalars());
     voxels.scalars().fill(0);
     const cancelPreview = vi.fn(() => voxels.apply(committed));
@@ -37,10 +39,10 @@ describe('saving a session with an unconfirmed preview', () => {
 
     const manifest = manifestForImages(['img-1']);
     const io = inMemoryArtifactIO();
-    await store().serialize({ zip: new JSZip(), manifest }, io);
+    await serializeSegmentation({ zip: new JSZip(), manifest }, io);
 
     expect(io.snapshots[0].values).toEqual([1, 1]);
     expect(cancelPreview).toHaveBeenCalledTimes(1);
-    expect(manifest.segmentations![0].masks).toHaveLength(1);
+    expect(savedLabelmaps(manifest)).toHaveLength(1);
   });
 });

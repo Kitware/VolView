@@ -8,12 +8,10 @@ import {
   applyIntent,
   appApplyDependencies,
 } from '@/src/processing/applyResults';
-import { segmentRenderMask } from '@/src/segmentation/rendering/renderMask';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import {
-  parentImage,
   seatImage,
   type Index3,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
@@ -56,14 +54,22 @@ const importResult = (segments: SegmentDescriptor[]) =>
 const rowsOf = (
   saved: Awaited<ReturnType<typeof serializeScene>>,
   imageId: string
-) =>
-  savedMasks(saved, imageId).map(({ segment, extent, artifact }) => ({
-    name: segment!.name,
-    color: segment!.color,
-    visible: segment!.visible,
-    extent,
-    artifact,
-  }));
+) => {
+  const masks = savedMasks(saved, imageId);
+  const set = saved.manifest.imageSegments?.find(
+    (entry) => entry.imageId === imageId
+  );
+  return (set?.segments ?? []).map((segment) => {
+    const mask = masks.find(({ segmentId }) => segmentId === segment.id);
+    return {
+      name: segment.name,
+      color: segment.color,
+      visible: segment.visible,
+      extent: mask?.extent,
+      artifact: mask?.artifact,
+    };
+  });
+};
 
 const save = (imageId = 'parent') => serializeScene([imageId]);
 
@@ -78,8 +84,8 @@ const EMPTY_SPLEEN_ROW = {
   name: 'Spleen',
   color: blue,
   visible: true,
-  extent: [0, -1, 0, -1, 0, -1],
-  artifact: { dimensions: [1, 1, 1], values: [0] },
+  extent: undefined,
+  artifact: undefined,
 };
 
 const liverOffset = () =>
@@ -99,31 +105,13 @@ describe('a segment a result declares but leaves empty', () => {
     await seatScene();
   });
 
-  it('appears as an empty row beside the segment that has voxels', async () => {
+  it('appears as a segment without a mask beside the one that has voxels', async () => {
     expect(await importResult(DECLARED)).toEqual({ status: 'applied' });
 
     expect(rowsOf(await save(), 'parent')).toEqual([
       LIVER_ROW,
       EMPTY_SPLEEN_ROW,
     ]);
-  });
-
-  it('draws nothing for the empty segment', async () => {
-    await importResult(DECLARED);
-
-    const saved = await save();
-    const binding =
-      saved.manifest.segmentations![0].masks[1].representations.labelmap!;
-    const entry = saved.stateFiles.find(
-      ({ archivePath }) => archivePath === binding.path
-    )!;
-    const { image } = await saved.io.read(entry.file);
-    expect(
-      segmentRenderMask(image, parentImage('parent'), binding.extent, {
-        axis: 2,
-        index: 1,
-      })
-    ).toBeNull();
   });
 
   it.each([0, 1])(
@@ -158,11 +146,13 @@ describe('a segment a result declares but leaves empty', () => {
 
     setActivePinia(createPinia());
     await seatImage('new-parent', { ...GRID, name: 'CT' });
-    const result = await useSegmentationStore().deserialize({
+    const result = await deserializeSegmentation({
       manifest: saved.manifest,
       stateFiles: saved.stateFiles,
       dataIDMap: { parent: 'new-parent' },
-      segmentIdMap: useSegmentStore().deserialize(saved.manifest).segmentIdMap,
+      resolveSegment: useSegmentStore().deserialize(saved.manifest, {
+        parent: 'new-parent',
+      }),
       io: saved.io,
     });
     await nextTick();

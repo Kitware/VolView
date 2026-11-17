@@ -8,10 +8,9 @@ import {
   composeLabelmapPart,
 } from '@/src/segmentation/io/composition';
 import {
-  addMask,
+  addSegment,
   seatImage,
   seedVoxel,
-  segmentOfMask,
   selectSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
@@ -24,14 +23,12 @@ const seed = async () => {
     ['Conflicting', [3, 4]],
   ] as const;
   const masks = entries.map(([name, xs]) => {
-    const id = addMask('packing-parent', name);
+    const id = addSegment('packing-parent', name);
     xs.forEach((x) => seedVoxel(id, [x, 0, 0]));
     return id;
   });
-  useSegmentStore().segments.selectSegment(segmentOfMask(masks[0]));
-  const segmentation =
-    useSegmentationStore().getSegmentationForImage('packing-parent')!;
-  return { parent, masks, segmentation };
+  useSegmentStore().segments.selectSegment(masks[0]);
+  return { parent, masks, imageId: 'packing-parent' };
 };
 
 const namesAtVoxels = (composite: ReturnType<typeof composeLabelmapPart>) => {
@@ -48,8 +45,8 @@ describe('processing labelmap packing', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
   it('keeps the selected mask whole and omits conflicting masks entirely', async () => {
-    const { segmentation } = await seed();
-    const plan = planSegmentationInput(segmentation.id, false);
+    const { imageId } = await seed();
+    const plan = planSegmentationInput(imageId, false);
     const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
     expect(snapshot.parts).toHaveLength(1);
     expect(
@@ -61,8 +58,8 @@ describe('processing labelmap packing', () => {
   });
 
   it('preserves all whole masks across multiple input files', async () => {
-    const { segmentation } = await seed();
-    const plan = planSegmentationInput(segmentation.id, true);
+    const { imageId } = await seed();
+    const plan = planSegmentationInput(imageId, true);
     const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
     expect(snapshot.parts).toHaveLength(2);
     expect(plan.warning).toBeUndefined();
@@ -77,9 +74,9 @@ describe('processing labelmap packing', () => {
   });
 
   it('changes which whole masks fit when selection changes', async () => {
-    const { masks, segmentation } = await seed();
-    useSegmentStore().segments.selectSegment(segmentOfMask(masks[1]));
-    const plan = planSegmentationInput(segmentation.id, false);
+    const { masks, imageId } = await seed();
+    useSegmentStore().segments.selectSegment(masks[1]);
+    const plan = planSegmentationInput(imageId, false);
     const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
     expect(
       namesAtVoxels(composeLabelmapPart(snapshot.parent, snapshot.parts[0]))
@@ -88,13 +85,13 @@ describe('processing labelmap packing', () => {
   });
 
   it('retains captured pixels and metadata after live masks and the parent change', async () => {
-    const { masks, segmentation, parent } = await seed();
-    const plan = planSegmentationInput(segmentation.id, true);
-    useSegmentStore().segments.updateSegment(segmentOfMask(masks[1]), {
+    const { masks, imageId, parent } = await seed();
+    const plan = planSegmentationInput(imageId, true);
+    useSegmentStore().segments.updateSegment(masks[1], {
       color: [1, 2, 3, 255],
     });
     const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
-    const segmentId = segmentOfMask(masks[1]);
+    const segmentId = masks[1];
     useSegmentStore().segments.updateSegment(segmentId, {
       name: 'Changed',
       color: [10, 20, 30, 255],
@@ -125,9 +122,9 @@ describe('processing labelmap packing', () => {
 const seedTwoImages = async () => {
   await seatImage('image-a', { dimensions: [8, 1, 1] });
   await seatImage('image-b', { dimensions: [8, 1, 1] });
-  const alpha = addMask('image-a', 'Alpha');
-  const beta = addMask('image-a', 'Beta');
-  const gamma = addMask('image-b', 'Gamma');
+  const alpha = addSegment('image-a', 'Alpha');
+  const beta = addSegment('image-a', 'Beta');
+  const gamma = addSegment('image-b', 'Gamma');
   seedVoxel(alpha, [0, 0, 0]);
   seedVoxel(beta, [0, 0, 0]);
   seedVoxel(beta, [1, 0, 0]);
@@ -135,35 +132,34 @@ const seedTwoImages = async () => {
   return {
     alpha,
     gamma,
-    segmentation: useSegmentationStore().getSegmentationForImage('image-a')!,
+    imageId: 'image-a',
   };
 };
 
-describe('single-file packing against a selection from another image', () => {
+describe('single-file packing with image-scoped selection', () => {
   beforeEach(() => setActivePinia(createPinia()));
 
-  it('packs a mask this image holds and says where to select', async () => {
-    const { gamma, segmentation } = await seedTwoImages();
+  it('keeps this image’s preferred mask when another image’s segment is selected', async () => {
+    const { gamma, imageId } = await seedTwoImages();
     selectSegment(gamma);
 
-    const plan = planSegmentationInput(segmentation.id, false);
+    const plan = planSegmentationInput(imageId, false);
     const snapshot = captureLabelmapParts(plan.parentId, plan.parts);
 
     expect(
       namesAtVoxels(composeLabelmapPart(snapshot.parent, snapshot.parts[0]))
     ).toEqual(['Alpha', '', '', '', '', '', '', '']);
     expect(plan.warning).toBe(
-      'This input accepts one labelmap. Omitted whole segments: Beta.' +
-        ' Select a segment on this image to prioritize it.'
+      'This input accepts one labelmap. Omitted whole segments: Beta.'
     );
   });
 
   it('names an omitted unnamed segment the way the lists do', async () => {
-    const { alpha, segmentation } = await seedTwoImages();
-    seedVoxel(addMask('image-a', ''), [0, 0, 0]);
+    const { alpha, imageId } = await seedTwoImages();
+    seedVoxel(addSegment('image-a', ''), [0, 0, 0]);
     selectSegment(alpha);
 
-    const plan = planSegmentationInput(segmentation.id, false);
+    const plan = planSegmentationInput(imageId, false);
 
     expect(plan.warning).toBe(
       'This input accepts one labelmap. Omitted whole segments: Beta, (no name).'
@@ -171,10 +167,10 @@ describe('single-file packing against a selection from another image', () => {
   });
 
   it('drops the advice once a segment on this image is selected', async () => {
-    const { alpha, segmentation } = await seedTwoImages();
+    const { alpha, imageId } = await seedTwoImages();
     selectSegment(alpha);
 
-    const plan = planSegmentationInput(segmentation.id, false);
+    const plan = planSegmentationInput(imageId, false);
 
     expect(plan.warning).toBe(
       'This input accepts one labelmap. Omitted whole segments: Beta.'

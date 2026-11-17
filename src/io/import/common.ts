@@ -6,6 +6,7 @@ import { Config } from '@/src/io/import/configJson';
 import { ChainHandler } from '@/src/utils/evaluateChain';
 import type { Manifest } from '@/src/io/state-file/schema';
 import type { FileEntry } from '@/src/io/types';
+import type { ManifestMigration } from '@/src/io/state-file/migrations';
 
 export type LoadableResult = {
   type: 'data';
@@ -42,6 +43,7 @@ export type StateFileSetupResult = {
   type: 'stateFileSetup';
   dataSources: DataSource[];
   manifest: Manifest;
+  migration?: ManifestMigration;
   stateFiles: FileEntry[];
   // Archive members the state file recorded but does not contain, keyed by the
   // dataset they belong to — a dataset that still resolves from its surviving

@@ -3,7 +3,11 @@ import path from 'node:path';
 import JSZip from 'jszip';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
-import { openThroughDialog, writeManifestToFile } from './utils';
+import {
+  openThroughDialog,
+  waitForModuleTransitions,
+  writeManifestToFile,
+} from './utils';
 import {
   openAnnotationSegments,
   segmentColor,
@@ -14,6 +18,7 @@ import {
 
 const SIZE = 16;
 const STEM = 'restore-binds-names';
+const CONFIGURED_COLOR = 'rgba(255,0,0,1)';
 
 const nrrd = (data: Uint8Array) =>
   Buffer.concat([
@@ -63,8 +68,8 @@ const writeSession = async () => {
   return sessionPath;
 };
 
-describe('Restoring a session into a configured scene', () => {
-  it('binds a saved segment to the empty configured segment of its name', async () => {
+describe('Restoring a session beside a configured image', () => {
+  it('writes the config onto a restored same-named segment and keeps each image its own', async () => {
     const parent = new Uint8Array(SIZE ** 3).map((_, offset) => offset % 251);
     fs.writeFileSync(path.join(TEMP_DIR, `${STEM}.nrrd`), nrrd(parent));
     await writeManifestToFile(
@@ -76,14 +81,25 @@ describe('Restoring a session into a configured scene', () => {
     await openAnnotationSegments();
     await waitForNamedSegments();
     expect(await segmentNames()).toEqual(['Tumor']);
-    const configuredColor = await segmentColor('Tumor');
+    expect(await segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
 
     await openThroughDialog(await writeSession());
 
-    // Only a session segment bound to the first Tumor row gives it content.
     await waitForSegmentContent('Tumor');
     expect(await segmentNames()).toEqual(['Tumor']);
-    expect(await segmentColor('Tumor')).toEqual(configuredColor);
+    expect(await segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
+    await $('button[data-testid="module-tab-Data"]').click();
+    await waitForModuleTransitions();
+    const cards = await $$('.image-list-card');
+    expect(cards.length).toEqual(2);
+    await cards[0].click();
+    await openAnnotationSegments();
+    // Both images share a file name; only the configured one's Tumor is empty.
+    await expect(
+      $('[data-testid="segment-list"] [data-testid="reveal-segment-button"]')
+    ).toBeDisabled();
+    expect(await segmentNames()).toEqual(['Tumor']);
+    expect(await segmentColor('Tumor')).toEqual(CONFIGURED_COLOR);
     expect(await volViewPage.getNotificationsCount()).toEqual(0);
   });
 });

@@ -10,10 +10,14 @@ import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
 import { Tags } from '@/src/core/dicomTags';
 import { useImageCacheStore } from '@/src/store/image-cache';
-import { type LabelmapIO } from '@/src/segmentation/store';
+import {
+  deserializeSegmentation,
+  type LabelmapIO,
+} from '@/src/segmentation/io/stateFile';
 import { useToolStore } from '@/src/store/tools';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
+import { restoreWithIO } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import {
   messageDetails,
   messageTitles,
@@ -30,6 +34,7 @@ import {
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { defer } from '@/src/utils';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 const cache = () => useImageCacheStore();
 const artifact = (parentImage: string) => ({
@@ -69,7 +74,7 @@ const setupRestore = async () => {
 };
 
 const expectPartialRestore = (
-  result: Awaited<ReturnType<ReturnType<typeof store>['deserialize']>>,
+  result: Awaited<ReturnType<typeof deserializeSegmentation>>,
   // Skip entries the scenario expects after the parent artifact's own.
   alsoSkipped: Array<{ name: string; reason: string }> = []
 ) => {
@@ -80,7 +85,7 @@ const expectPartialRestore = (
     reason: 'parent image is unavailable',
   });
   expect(result.skipped.slice(1)).toEqual(alsoSkipped);
-  expect(store().getSegmentationForImage('parent')).toBeUndefined();
+  expect(store().imageMasks('parent')).toEqual([]);
   expect(store().imageMasks('healthy')).toHaveLength(1);
 };
 
@@ -147,7 +152,7 @@ describe('artifact restore parent lifetime', () => {
       await release.promise;
       return { image };
     };
-    const restore = store().deserialize(options);
+    const restore = deserializeSegmentation(options);
     await reading.promise;
 
     cache().removeImage('parent');
@@ -159,7 +164,7 @@ describe('artifact restore parent lifetime', () => {
   it('settles when a parent is removed while its pixel loading is pending', async () => {
     const { options } = await setupRestore();
     const { decoded } = await pendingImage();
-    const restore = store().deserialize(options);
+    const restore = deserializeSegmentation(options);
     await nextTick();
 
     cache().removeImage('parent');
@@ -172,12 +177,10 @@ describe('artifact restore parent lifetime', () => {
     const { options } = await setupRestore();
     const { image, decoded } = await pendingImage();
     let settled = false;
-    const restore = store()
-      .deserialize(options)
-      .then((value) => {
-        settled = true;
-        return value;
-      });
+    const restore = deserializeSegmentation(options).then((value) => {
+      settled = true;
+      return value;
+    });
     await nextTick();
     await flushPromises();
     expect(settled).toBe(false);
@@ -206,7 +209,7 @@ describe('artifact restore parent lifetime', () => {
     idle.status.value = 'incomplete';
     cache().addProgressiveImage(idle, { id: 'parent' });
 
-    const restore = store().deserialize(options);
+    const restore = deserializeSegmentation(options);
     await flushPromises();
     idle.status.value = 'complete';
     const result = await restore;
@@ -220,18 +223,10 @@ describe('artifact restore parent lifetime', () => {
   it('skips a terminal failed DICOM parent and permits downstream tool restore', async () => {
     const { options } = await setupRestore();
     const { image, decoded } = await pendingImage();
-    const originalDeserialize = store().deserialize;
-    const injectIO = vi
-      .spyOn(store(), 'deserialize')
-      .mockImplementation((args) =>
-        originalDeserialize({ ...args, io: options.io })
-      );
     const tools = vi.spyOn(useToolStore(), 'deserialize');
-    const restore = completeStateFileRestore(
-      options.manifest,
-      options.stateFiles,
-      options.dataIDMap
-    );
+    const restore = createStateFileRestorer({
+      restoreSegmentation: restoreWithIO(options.io),
+    })(options.manifest, options.stateFiles, options.dataIDMap);
     await nextTick();
 
     decoded.reject(new Error('Pixel read failed'));
@@ -244,7 +239,6 @@ describe('artifact restore parent lifetime', () => {
     expect(
       messageDetails('Some scene content could not be restored')
     ).toContain('Mask parent (parent image did not load)');
-    injectIO.mockRestore();
     tools.mockRestore();
   });
 
@@ -255,7 +249,7 @@ describe('artifact restore parent lifetime', () => {
       ({ archivePath }) => archivePath !== 'parent.vti'
     );
 
-    const result = await store().deserialize(options);
+    const result = await deserializeSegmentation(options);
 
     expect(result.skipped).toEqual([
       { name: 'Mask parent', reason: 'archive member is missing' },
@@ -268,27 +262,17 @@ describe('artifact restore parent lifetime', () => {
     const { image, options } = await setupRestore();
     // The saved mask is read after artifacts; its IO boundary makes the gap
     // between artifact placement and attachment observable.
-    const segmentId = 'saved-type';
-    const manifest = options.manifest;
-    manifest.segmentations = [
+    options.manifest.imageSegments = [
       {
-        id: 'wire',
-        parentImage: 'healthy',
-        name: '',
-        fillOpacity: 1,
-        outlineOpacity: 1,
-        outlineThickness: 1,
-        order: ['saved-mask'],
-        masks: [
+        imageId: 'healthy',
+        segments: [
           {
-            id: 'saved-mask',
-            segmentId,
-            representations: {
-              labelmap: {
-                path: 'saved.vti',
-                extent: [0, 3, 0, 3, 0, 0],
-              },
-            },
+            id: 'saved-type',
+            name: 'Saved',
+            color: [255, 0, 0, 255],
+            visible: true,
+            locked: false,
+            labelmap: { path: 'saved.vti', extent: [0, 3, 0, 3, 0, 0] },
           },
         ],
       },
@@ -302,12 +286,12 @@ describe('artifact restore parent lifetime', () => {
       return { image };
     };
 
-    const result = await store().deserialize(options);
+    const result = await deserializeSegmentation(options);
 
-    // The saved mask names a segment this restore was given no mapping for,
-    // so it is dropped, and the drop is reported rather than silent.
+    // The saved mask's segment was never seated, so it is dropped, and the
+    // drop is reported rather than silent.
     expectPartialRestore(result, [
-      { name: 'saved.vti', reason: 'its segment is not in the file' },
+      { name: 'Saved', reason: 'its segment did not restore' },
     ]);
   });
 
@@ -336,17 +320,9 @@ describe('artifact restore parent lifetime', () => {
       await release.promise;
       return { image };
     };
-    const originalDeserialize = store().deserialize;
-    const injectIO = vi
-      .spyOn(store(), 'deserialize')
-      .mockImplementation((args) =>
-        originalDeserialize({ ...args, io: options.io })
-      );
-    const restore = completeStateFileRestore(
-      options.manifest,
-      options.stateFiles,
-      options.dataIDMap
-    );
+    const restore = createStateFileRestorer({
+      restoreSegmentation: restoreWithIO(options.io),
+    })(options.manifest, options.stateFiles, options.dataIDMap);
     await reading.promise;
 
     cache().removeImage('parent');
@@ -361,7 +337,6 @@ describe('artifact restore parent lifetime', () => {
         .serializeTools()
         .tools.map(({ imageID }) => imageID)
     ).toEqual(['healthy']);
-    injectIO.mockRestore();
   });
 });
 
@@ -370,10 +345,15 @@ describe('live conversion source lifetime', () => {
     await seatImage('parent', { dimensions: [4, 4, 1] });
     await seatImage('healthy', { dimensions: [4, 4, 1] });
     const { decoded } = await pendingImage('source');
-    const conversion = store().convertImageToLabelmap('source', 'parent');
+    const conversion = useLabelmapImportStore().convertImageToLabelmap(
+      'source',
+      'parent'
+    );
     await nextTick();
 
-    expect(store().convertingLabelmaps.has('source')).toBe(true);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('source')).toBe(
+      true
+    );
     if (action === 'failure') decoded.reject(new Error('Pixel read failed'));
     else {
       cache().removeImage('source');
@@ -381,8 +361,10 @@ describe('live conversion source lifetime', () => {
     }
 
     await expect(conversion).rejects.toThrow(/did not load/i);
-    expect(store().convertingLabelmaps.has('source')).toBe(false);
-    expect(store().getSegmentationForImage('parent')).toBeUndefined();
+    expect(useLabelmapImportStore().convertingLabelmaps.has('source')).toBe(
+      false
+    );
+    expect(store().imageMasks('parent')).toEqual([]);
     expect(cache().imageById.healthy).toBeDefined();
   });
 
@@ -390,7 +372,7 @@ describe('live conversion source lifetime', () => {
     await seatImage('parent', { dimensions: [4, 4, 1] });
     const { decoded } = await pendingImage('source');
     let settled = false;
-    const conversion = store()
+    const conversion = useLabelmapImportStore()
       .convertImageToLabelmap('source', 'parent')
       .then((result) => {
         settled = true;
@@ -402,7 +384,9 @@ describe('live conversion source lifetime', () => {
     decoded.resolve();
     await conversion;
 
-    expect(store().convertingLabelmaps.has('source')).toBe(false);
+    expect(useLabelmapImportStore().convertingLabelmaps.has('source')).toBe(
+      false
+    );
     expect(store().imageMasks('parent')).toHaveLength(1);
   });
 });
@@ -436,14 +420,12 @@ async function pendingSourceRestore(temporary: boolean) {
       artifact('healthy'),
     ],
   });
-  const deserialize = store().deserialize;
-  const injectedIO = vi
-    .spyOn(store(), 'deserialize')
-    .mockImplementation((args) => deserialize({ ...args, io: options.io }));
   const tools = vi.spyOn(useToolStore(), 'deserialize');
   const remove = vi.spyOn(useDatasetStore(), 'remove');
   let completed = false;
-  const restore = completeStateFileRestore(manifest, options.stateFiles, {
+  const restore = createStateFileRestorer({
+    restoreSegmentation: restoreWithIO(options.io),
+  })(manifest, options.stateFiles, {
     healthy: 'healthy',
     [temporary ? leafStateId(2) : 'source']: 'source',
   }).then(() => {
@@ -455,7 +437,6 @@ async function pendingSourceRestore(temporary: boolean) {
     restore,
     tools,
     remove,
-    injectedIO,
     completed: () => completed,
   };
 }
@@ -491,7 +472,6 @@ describe.each([true, false])(
         );
         expect(details).toContain('first');
         expect(details).toContain('second');
-        pending.injectedIO.mockRestore();
         pending.tools.mockRestore();
         pending.remove.mockRestore();
       }
@@ -512,7 +492,6 @@ describe.each([true, false])(
       expect(
         messageTitles().includes('Some scene content could not be restored')
       ).toBe(false);
-      pending.injectedIO.mockRestore();
       pending.tools.mockRestore();
       pending.remove.mockRestore();
     });
@@ -538,7 +517,7 @@ describe('a multi-component artifact', () => {
     labelmapSources?: Record<string, { stateId: string; temporary: boolean }>
   ) => {
     const image = await seatVectorSource();
-    return store().deserialize({
+    return deserializeSegmentation({
       manifest: manifestForImages(['parent', 'source'], {
         segmentationArtifacts: [
           {
@@ -559,7 +538,7 @@ describe('a multi-component artifact', () => {
   };
 
   const expectRejected = (
-    result: Awaited<ReturnType<ReturnType<typeof store>['deserialize']>>
+    result: Awaited<ReturnType<typeof deserializeSegmentation>>
   ) => {
     expect(result.skipped).toEqual([
       {
@@ -603,11 +582,13 @@ describe('an archive artifact', () => {
         ...extra,
       })
     );
-    return store().deserialize({
+    return deserializeSegmentation({
       manifest,
       stateFiles: [{ archivePath: 'a.vti', file: new File([''], 'a.vti') }],
       dataIDMap: { parent: 'parent' },
-      segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+      resolveSegment: useSegmentStore().deserialize(manifest, {
+        parent: 'parent',
+      }),
       io: {
         write: async () => '',
         read: async () => ({ image, headerMetadata }),
@@ -631,23 +612,18 @@ describe('an archive artifact', () => {
     const result = await restoreArtifact(
       new Uint8Array([0, 1, 2, 0]),
       {
-        segments: [{ id: 's1', name: 'Liver', color: [255, 0, 0, 255] }],
-        segmentations: [
+        imageSegments: [
           {
-            id: 'wire',
-            name: 'CT',
-            parentImage: 'parent',
-            order: ['m1'],
-            masks: [
+            imageId: 'parent',
+            segments: [
               {
-                id: 'm1',
-                segmentId: 's1',
-                representations: {
-                  labelmap: {
-                    artifactId: 'atlas',
-                    sourceValue: 1,
-                    extent: [0, -1, 0, -1, 0, -1],
-                  },
+                id: 's1',
+                name: 'Liver',
+                color: [255, 0, 0, 255],
+                labelmap: {
+                  artifactId: 'atlas',
+                  sourceValue: 1,
+                  extent: [0, -1, 0, -1, 0, -1],
                 },
               },
             ],
@@ -670,10 +646,10 @@ describe('an archive artifact', () => {
   });
 });
 
-// A manifest's mask ids are its own, and a hand-authored or server-produced
+// A manifest's segment ids are its own, and a hand-authored or server-produced
 // one may spell an Object.prototype key.
-describe('an artifact-backed mask whose id spells a prototype member', () => {
-  const restoreArtifactMask = async (maskId: string) => {
+describe('an artifact-backed mask whose segment id spells a prototype member', () => {
+  const restoreArtifactMask = async (segmentId: string) => {
     await seatImage('parent', { dimensions: [4, 1, 1] });
     const image = await seatImage('source', {
       dimensions: [4, 1, 1],
@@ -681,23 +657,18 @@ describe('an artifact-backed mask whose id spells a prototype member', () => {
     });
     const manifest = ManifestSchema.parse(
       manifestForImages(['parent'], {
-        segments: [{ id: 'tumor', name: 'Tumor', color: [255, 0, 0, 255] }],
-        segmentations: [
+        imageSegments: [
           {
-            id: 'segmentation',
-            name: 'CT',
-            parentImage: 'parent',
-            order: [maskId],
-            masks: [
+            imageId: 'parent',
+            segments: [
               {
-                id: maskId,
-                segmentId: 'tumor',
-                representations: {
-                  labelmap: {
-                    artifactId: 'tumor-labelmap',
-                    sourceValue: 1,
-                    extent: [0, -1, 0, -1, 0, -1],
-                  },
+                id: segmentId,
+                name: 'Tumor',
+                color: [255, 0, 0, 255],
+                labelmap: {
+                  artifactId: 'tumor-labelmap',
+                  sourceValue: 1,
+                  extent: [0, -1, 0, -1, 0, -1],
                 },
               },
             ],
@@ -713,28 +684,28 @@ describe('an artifact-backed mask whose id spells a prototype member', () => {
         ],
       })
     );
-    const result = await store().deserialize({
+    const result = await deserializeSegmentation({
       manifest,
       stateFiles: [
         { archivePath: 'mask.vti', file: new File([''], 'mask.vti') },
       ],
       dataIDMap: { parent: 'parent' },
-      segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+      resolveSegment: useSegmentStore().deserialize(manifest, {
+        parent: 'parent',
+      }),
       io: { write: async () => '', read: async () => ({ image }) },
     });
     return { result, mask: store().imageMasks('parent')[0] };
   };
 
-  it.each(['ordinary-mask', '__proto__'])(
-    'takes the artifact voxels the id %s claims',
-    async (maskId) => {
-      const { result, mask } = await restoreArtifactMask(maskId);
+  it.each(['ordinary-segment', '__proto__', 'constructor'])(
+    'takes the artifact voxels the segment %s claims',
+    async (segmentId) => {
+      const { result, mask } = await restoreArtifactMask(segmentId);
 
       expect(result.skipped).toEqual([]);
-      expect([...mask.representations.labelmap!.extent]).toEqual([
-        1, 2, 0, 0, 0, 0,
-      ]);
-      expect([...store().maskVoxels(mask.id).scalars()]).toEqual([
+      expect([...mask.binding.extent]).toEqual([1, 2, 0, 0, 0, 0]);
+      expect([...store().maskVoxels(mask.segmentId).scalars()]).toEqual([
         SEGMENT_VALUE,
         SEGMENT_VALUE,
       ]);

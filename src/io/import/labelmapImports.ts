@@ -1,20 +1,34 @@
-import {
-  manifestDatasets,
-  type Manifest,
-  type Segmentation,
-} from '@/src/io/state-file/schema';
+import { manifestDatasets, type Manifest } from '@/src/io/state-file/schema';
 import { leafStateId } from '@/src/io/import/dataSource';
 import type { ProcessingResultSource } from '@/src/types';
+import type { Extent3D } from '@/src/segmentation/geometry';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 
-/** A whole labelmap to split, with optional assignments to existing masks. */
+/** A saved mask, with its own archive entry or awaiting an import's split. */
+export type PlannedMask = {
+  segmentId: string;
+  // Reports name a mask by its segment.
+  name: string;
+  labelmap?: {
+    path: string;
+    extent: Extent3D;
+    source?: ProcessingResultSource;
+  };
+};
+
+export type PlannedSegmentation = {
+  parentImage: string;
+  masks: PlannedMask[];
+};
+
+/** A whole labelmap to split, with optional assignments to saved masks. */
 export type LabelmapImport = {
   id: string;
   parentImage: string;
   name: string;
   path?: string;
   source?: ProcessingResultSource;
-  masks: Array<{ maskId: string; value: number }>;
+  masks: Array<{ mask: PlannedMask; value: number }>;
   decode: boolean;
   activeValue?: number;
   display: {
@@ -29,45 +43,44 @@ export type LabelmapImport = {
  * references.
  */
 export function planLabelmapImports(manifest: Manifest) {
-  const wireSegmentations = manifest.segmentations ?? [];
-  const artifactMasks = wireSegmentations.flatMap((wire) =>
-    wire.masks.flatMap(({ id, representations: { labelmap } }) =>
-      labelmap?.artifactId === undefined
-        ? []
-        : [
-            {
-              artifactId: labelmap.artifactId,
-              maskId: id,
-              value: labelmap.sourceValue ?? SEGMENT_VALUE,
+  const artifactMasks: Array<{
+    artifactId: string;
+    mask: PlannedMask;
+    value: number;
+  }> = [];
+  const segmentations: PlannedSegmentation[] = (
+    manifest.imageSegments ?? []
+  ).map((entry) => ({
+    parentImage: entry.imageId,
+    masks: entry.segments.flatMap(({ id: segmentId, name, labelmap }) => {
+      if (!labelmap) return [];
+      if (labelmap.path !== undefined)
+        return [
+          {
+            segmentId,
+            name,
+            labelmap: {
+              path: labelmap.path,
+              extent: labelmap.extent,
+              source: labelmap.source,
             },
-          ]
-    )
-  );
-  const segmentations: Segmentation[] = wireSegmentations.map((wire) => ({
-    ...wire,
-    masks: wire.masks.map((mask) => {
-      const binding = mask.representations.labelmap;
-      return {
-        ...mask,
-        representations:
-          binding?.path === undefined
-            ? {}
-            : {
-                labelmap: {
-                  path: binding.path,
-                  extent: binding.extent,
-                  name: binding.name,
-                  source: binding.source,
-                },
-              },
-      };
+          },
+        ];
+      const mask = { segmentId, name };
+      if (labelmap.artifactId !== undefined)
+        artifactMasks.push({
+          artifactId: labelmap.artifactId,
+          mask,
+          value: labelmap.sourceValue ?? SEGMENT_VALUE,
+        });
+      return [mask];
     }),
   }));
   const imports: LabelmapImport[] = (manifest.segmentationArtifacts ?? []).map(
     (entry) => {
       const masks = artifactMasks
         .filter(({ artifactId }) => artifactId === entry.id)
-        .map(({ maskId, value }) => ({ maskId, value }));
+        .map(({ mask, value }) => ({ mask, value }));
       return {
         id: entry.id,
         parentImage: entry.parentImage,

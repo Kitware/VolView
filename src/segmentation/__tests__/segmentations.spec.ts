@@ -7,26 +7,36 @@ import {
   SPEC_VOXEL_COUNT,
   bindingOf,
   boundMasks,
-  deleteSegmentOf,
-  maskOn,
+  deleteSegment,
   mintSegment,
-  segmentOfMask,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 
 const segments = () => useSegmentStore().segments;
 
-const labelmapOf = (maskId: string) => store().findMaskVoxels(maskId).image();
+const labelmapOf = (segmentId: string) =>
+  store().findMaskVoxels(segmentId).image();
 
-function makeBoundSegment(segmentationId: string, name?: string) {
-  const segment = store().createMask(segmentationId, mintSegment(name));
-  const binding = store().ensureLabelmapBinding(segment.id);
-  return { id: segment.id, binding };
+function makeBoundSegment(imageId: string, name?: string) {
+  const id = mintSegment(imageId, name);
+  const binding = store().materializeMask(id);
+  return { id, binding };
 }
+
+const maskedSegments = (imageId: string) =>
+  store()
+    .imageMasks(imageId)
+    .map(({ segmentId }) => segmentId);
+
+const segmentIdsOf = (imageId: string) =>
+  segments()
+    .segmentList(imageId)
+    .map(({ id }) => id);
 
 const oneLabelValues = () => {
   const values = new Uint8Array(SPEC_VOXEL_COUNT);
@@ -60,240 +70,167 @@ describe('segmentation store', () => {
     setActivePinia(createPinia());
   });
 
-  describe('one segmentation per parent image', () => {
-    it('reports no segmentation for an image until one is ensured', async () => {
+  describe('masks per parent image', () => {
+    it('holds no masks for an image until one is allocated', async () => {
       await seatSpecImage('img-1');
 
-      expect(store().getSegmentationForImage('img-1')).toBeFalsy();
-    });
+      expect(store().imageMasks('img-1')).toEqual([]);
+      const segmentId = mintSegment('img-1');
+      expect(store().imageMasks('img-1')).toEqual([]);
 
-    it('ensures a segmentation bound to its parent image', async () => {
-      await seatSpecImage('img-1');
+      store().materializeMask(segmentId);
 
-      const segmentation = store().ensureSegmentationForImage('img-1');
-
-      expect(segmentation.parentImageId).toBe('img-1');
-      expect(segmentation.masks).toEqual({});
-      expect(segmentation.order).toEqual([]);
-      expect(store().getSegmentationForImage('img-1')).toBe(segmentation);
-      expect(store().segmentations[segmentation.id]).toBeTruthy();
+      expect(maskedSegments('img-1')).toEqual([segmentId]);
     });
 
     it('names a segmentation after its parent image', async () => {
       await seatSpecImage('img-1', 't2_tse_tra');
 
-      const segmentation = store().ensureSegmentationForImage('img-1');
-
-      expect(segmentation.name).toBe('t2_tse_tra');
+      expect(store().segmentationName('img-1')).toBe('t2_tse_tra');
     });
 
-    it('returns the existing segmentation on a second ensure', async () => {
-      await seatSpecImage('img-1');
-
-      const first = store().ensureSegmentationForImage('img-1');
-      store().createMask(first.id, mintSegment());
-      const second = store().ensureSegmentationForImage('img-1');
-
-      expect(second.id).toBe(first.id);
-      expect(Object.keys(store().segmentations)).toHaveLength(1);
-      expect(store().getSegmentationForImage('img-1')!.id).toBe(first.id);
-    });
-
-    it('keeps separate segmentations for separate images', async () => {
+    it('keeps separate masks for separate images', async () => {
       await seatSpecImage('img-1');
       await seatSpecImage('img-2', 'PET');
 
-      const first = store().ensureSegmentationForImage('img-1');
-      const second = store().ensureSegmentationForImage('img-2');
+      const first = makeBoundSegment('img-1');
+      const second = makeBoundSegment('img-2');
 
-      expect(second.id).not.toBe(first.id);
-      expect(store().getSegmentationForImage('img-1')?.id).toBe(first.id);
-      expect(store().getSegmentationForImage('img-2')?.id).toBe(second.id);
+      expect(maskedSegments('img-1')).toEqual([first.id]);
+      expect(maskedSegments('img-2')).toEqual([second.id]);
     });
   });
 
-  describe('createMask', () => {
-    it('needs no storage choice: the binding is absent until it is ensured', async () => {
+  describe('segment masks', () => {
+    it('needs no storage choice: the mask is absent until it is materialized', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
 
-      const segment = store().createMask(segmentationId, mintSegment());
+      const segmentId = mintSegment('img-1');
 
-      expect(segment.representations.labelmap).toBeUndefined();
-      expect(bindingOf(segment.id)).toBeUndefined();
-      expect(store().findMaskBinding(segment.id)).toBeFalsy();
+      expect(bindingOf(segmentId)).toBeUndefined();
       expect(boundMasks()).toEqual([]);
     });
 
-    it('appends the record to the segmentation order', async () => {
+    it('walks masks in segment order', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
 
-      const first = store().createMask(segmentationId, mintSegment());
-      const second = store().createMask(segmentationId, mintSegment());
+      const first = makeBoundSegment('img-1');
+      const second = makeBoundSegment('img-1');
 
-      expect(store().segmentations[segmentationId].order).toEqual([
-        first.id,
-        second.id,
-      ]);
-      expect(store().getMask(second.id).id).toBe(second.id);
+      expect(maskedSegments('img-1')).toEqual([first.id, second.id]);
+      expect(bindingOf(second.id)).toBe(second.binding);
     });
 
-    it('defaults to visible, unlocked records', async () => {
+    it('defaults to visible, unlocked segments', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
 
-      const segment = store().createMask(segmentationId, mintSegment());
+      const segmentId = mintSegment('img-1');
 
-      // The record is storage; what the user sets lives on its segment.
-      expect(segments().appearanceOf(segment.segmentId).visible).toBe(true);
-      expect(segments().appearanceOf(segment.segmentId).locked).toBe(false);
-    });
-
-    it('gives a record its own id, distinct from the segment it references', async () => {
-      await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const segmentId = mintSegment('Tumor');
-
-      const segment = store().createMask(segmentationId, segmentId);
-
-      expect(segment.segmentId).toBe(segmentId);
-      expect(segment.id).not.toBe(segmentId);
-      expect(segments().appearanceOf(segment.segmentId).name).toBe('Tumor');
+      expect(segments().appearanceOf(segmentId).visible).toBe(true);
+      expect(segments().appearanceOf(segmentId).locked).toBe(false);
     });
 
     it('holds no identity of its own', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const segmentId = mintSegment('Tumor');
-      const segment = store().createMask(segmentationId, segmentId);
+      const { id: segmentId, binding } = makeBoundSegment('img-1', 'Tumor');
 
       segments().updateSegment(segmentId, { name: 'Lesion' });
 
-      expect(store().getMask(segment.id).segmentId).toBe(segmentId);
-      expect(segments().appearanceOf(segment.segmentId).name).toBe('Lesion');
+      expect(bindingOf(segmentId)).toBe(binding);
+      expect(segments().appearanceOf(segmentId).name).toBe('Lesion');
     });
 
-    it('lets two images hold a record for one segment', async () => {
+    it('refuses using one image segment on another image', async () => {
       await seatSpecImage('img-1');
       await seatSpecImage('img-2', 'PET');
-      const segmentId = mintSegment('Tumor');
+      const { id: segmentId, binding } = makeBoundSegment('img-1', 'Tumor');
 
-      const first = maskOn('img-1', segmentId);
-      const second = maskOn('img-2', segmentId);
-
-      expect(second.id).not.toBe(first.id);
-      expect(second.segmentId).toBe(first.segmentId);
-    });
-
-    it('keeps one record per segment on an image', async () => {
-      await seatSpecImage('img-1');
-      const segmentId = mintSegment('Tumor');
-
-      const first = maskOn('img-1', segmentId);
-      const again = maskOn('img-1', segmentId);
-
-      expect(again.id).toBe(first.id);
-      expect(store().getSegmentationForImage('img-1')!.order).toEqual([
-        first.id,
-      ]);
-    });
-
-    it('refuses a second mask for a segment on one image', async () => {
-      await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const segmentId = mintSegment('Tumor');
-      const first = store().createMask(segmentationId, segmentId);
-
-      expect(() => store().createMask(segmentationId, segmentId)).toThrow(
-        'already has a mask'
+      expect(() => store().resolveEditTarget('img-2', segmentId)).toThrow(
+        'Segment belongs to another image'
       );
-      expect(store().segmentations[segmentationId].order).toEqual([first.id]);
+      expect(store().imageMasks('img-2')).toEqual([]);
+      expect(bindingOf(segmentId)).toBe(binding);
+    });
+
+    it('keeps one mask per segment on an image', async () => {
+      await seatSpecImage('img-1');
+      const segmentId = mintSegment('img-1', 'Tumor');
+
+      const first = store().materializeMask(segmentId);
+      const again = store().materializeMask(segmentId);
+
+      expect(again).toBe(first);
+      expect(maskedSegments('img-1')).toEqual([segmentId]);
+    });
+
+    it('refuses a second mask for a segment', async () => {
+      await seatSpecImage('img-1');
+      const { id: segmentId, binding } = makeBoundSegment('img-1', 'Tumor');
+
+      expect(() =>
+        store().allocateSegmentMask(segmentId, [0, 0, 0, 0, 0, 0])
+      ).toThrow('Segment already has a mask');
+      expect(bindingOf(segmentId)).toBe(binding);
+      expect(maskedSegments('img-1')).toEqual([segmentId]);
     });
 
     it('refuses a mask for a segment that does not exist', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
 
-      expect(() => store().createMask(segmentationId, 'nope')).toThrow(
-        'No such segment'
-      );
-      expect(store().segmentations[segmentationId].order).toEqual([]);
+      expect(() =>
+        store().allocateSegmentMask('nope', [0, 0, 0, 0, 0, 0])
+      ).toThrow('No such segment');
+      expect(() => store().maskVoxels('nope')).toThrow('No such segment');
+      expect(boundMasks()).toEqual([]);
     });
   });
 
-  describe('ensureLabelmapBinding', () => {
+  describe('materializeMask', () => {
     it('allocates one mask on the parent image for the segment', async () => {
       await seatSpecImage('img-1', 'Chest CT');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
 
-      const { id: maskId, binding } = makeBoundSegment(segmentationId);
+      const { id: segmentId } = makeBoundSegment('img-1');
 
-      expect(boundMasks().map((mask) => mask.id)).toEqual([maskId]);
-      expect(store().segmentationOfMask(maskId)?.parentImageId).toBe('img-1');
-      expect(binding.name.length).toBeGreaterThan(0);
+      expect(boundMasks().map((mask) => mask.segmentId)).toEqual([segmentId]);
+      expect(maskedSegments('img-1')).toEqual([segmentId]);
     });
   });
 
   describe('stable identity', () => {
-    it('keeps mask ids and bindings across a rename, a recolor and a reorder', async () => {
+    it('keeps segment ids and bindings across a rename, a recolor and a reorder', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const first = makeBoundSegment(segmentationId, 'Tumor');
-      const second = makeBoundSegment(segmentationId, 'Node');
+      const first = makeBoundSegment('img-1', 'Tumor');
+      const second = makeBoundSegment('img-1', 'Node');
 
-      segments().updateSegment(store().getMask(first.id).segmentId, {
+      segments().updateSegment(first.id, {
         name: 'Primary tumor',
         color: [7, 8, 9, 255],
       });
-      useSegmentStore().segments.updateSegment(segmentOfMask(first.id), {
-        visible: false,
-        locked: true,
-      });
-      segments().moveSegment(segmentOfMask(second.id), segmentOfMask(first.id));
+      segments().updateSegment(first.id, { visible: false, locked: true });
+      segments().moveSegment(second.id, first.id);
 
-      const renamed = store().getMask(first.id);
-      expect(renamed.id).toBe(first.id);
-      expect(segments().appearanceOf(renamed.segmentId).name).toBe(
-        'Primary tumor'
-      );
-      expect([...segments().appearanceOf(renamed.segmentId).color]).toEqual([
+      expect(segments().appearanceOf(first.id).name).toBe('Primary tumor');
+      expect([...segments().appearanceOf(first.id).color]).toEqual([
         7, 8, 9, 255,
       ]);
-      expect(segments().appearanceOf(renamed.segmentId).visible).toBe(false);
-      expect(segments().appearanceOf(renamed.segmentId).locked).toBe(true);
-      expect(renamed.representations.labelmap).toEqual(first.binding);
-      expect(store().getMask(second.id).id).toBe(second.id);
-      // The move reorders the registry; the image's masks keep their own
-      // insertion order, and every one of them still draws.
-      expect(segments().segmentList.value.map((segment) => segment.id)).toEqual(
-        [segmentOfMask(second.id), segmentOfMask(first.id)]
-      );
-      expect(store().boundMaskIds('img-1')).toEqual([first.id, second.id]);
+      expect(segments().appearanceOf(first.id).visible).toBe(false);
+      expect(segments().appearanceOf(first.id).locked).toBe(true);
+      expect(bindingOf(first.id)).toBe(first.binding);
+      expect(bindingOf(second.id)).toBe(second.binding);
+      // Masks walk in segment order, so the move reorders them too.
+      expect(segmentIdsOf('img-1')).toEqual([second.id, first.id]);
+      expect(maskedSegments('img-1')).toEqual([second.id, first.id]);
     });
 
-    it('leaves other records untouched when one is updated', async () => {
+    it('leaves other segments untouched when one is updated', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const first = store().createMask(segmentationId, mintSegment('Tumor'));
-      const second = store().createMask(segmentationId, mintSegment('Node'));
+      const first = mintSegment('img-1', 'Tumor');
+      const second = mintSegment('img-1', 'Node');
 
-      segments().updateSegment(first.segmentId, { visible: false });
+      segments().updateSegment(first, { visible: false });
 
-      expect(segments().appearanceOf(second.segmentId).visible).toBe(true);
-      expect(
-        segments().appearanceOf(store().getMask(second.id).segmentId).name
-      ).toBe('Node');
+      expect(segments().appearanceOf(second).visible).toBe(true);
+      expect(segments().appearanceOf(second).name).toBe('Node');
     });
   });
 
@@ -301,16 +238,14 @@ describe('segmentation store', () => {
     it('keep their own masks and storage', async () => {
       await seatSpecImage('img-1');
       await seatSpecImage('img-2', 'PET');
-      const one = store().ensureSegmentationForImage('img-1').id;
-      const two = store().ensureSegmentationForImage('img-2').id;
 
-      const first = makeBoundSegment(one, 'Tumor');
-      const second = makeBoundSegment(two, 'Tumor');
+      const first = makeBoundSegment('img-1', 'Tumor');
+      const second = makeBoundSegment('img-2', 'Tumor');
 
       expect(second.binding.image).not.toBe(first.binding.image);
       expect(second.id).not.toBe(first.id);
-      expect(store().getMask(first.id).id).toBe(first.id);
-      expect(store().getMask(second.id).id).toBe(second.id);
+      expect(bindingOf(first.id)).toBe(first.binding);
+      expect(bindingOf(second.id)).toBe(second.binding);
       expect(labelmapOf(first.id)).not.toBe(labelmapOf(second.id));
     });
   });
@@ -318,83 +253,70 @@ describe('segmentation store', () => {
   describe('deleting a segment', () => {
     it('leaves the neighbor mask alone', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const doomed = makeBoundSegment(segmentationId, 'Tumor');
-      const kept = makeBoundSegment(segmentationId, 'Node');
+      const doomed = makeBoundSegment('img-1', 'Tumor');
+      const kept = makeBoundSegment('img-1', 'Node');
       store().maskVoxels(kept.id).ensureContains([0, 0, 0, 0, 0, 0]);
       store().maskVoxels(kept.id).scalars()[0] = SEGMENT_VALUE;
 
-      deleteSegmentOf(doomed.id);
+      deleteSegment(doomed.id);
 
       expect([...store().maskVoxels(kept.id).scalars()]).toEqual([
         SEGMENT_VALUE,
       ]);
-      expect(store().segmentations[segmentationId].order).toEqual([kept.id]);
-      expect(Object.keys(store().segmentations[segmentationId].masks)).toEqual([
-        kept.id,
-      ]);
+      expect(maskedSegments('img-1')).toEqual([kept.id]);
+      expect(bindingOf(doomed.id)).toBeUndefined();
     });
 
     it('releases the segment mask with the segment', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const first = makeBoundSegment(segmentationId, 'Tumor');
-      const second = makeBoundSegment(segmentationId, 'Node');
+      const first = makeBoundSegment('img-1', 'Tumor');
+      const second = makeBoundSegment('img-1', 'Node');
 
-      deleteSegmentOf(first.id);
+      deleteSegment(first.id);
 
-      expect(boundMasks().map((mask) => mask.id)).toEqual([second.id]);
+      expect(boundMasks().map((mask) => mask.segmentId)).toEqual([second.id]);
 
-      deleteSegmentOf(second.id);
+      deleteSegment(second.id);
 
       expect(boundMasks()).toEqual([]);
-      expect(store().segmentations[segmentationId].order).toEqual([]);
+      expect(segmentIdsOf('img-1')).toEqual([]);
     });
 
-    it('deletes an unbound segment without allocating storage', async () => {
+    it('deletes a maskless segment without allocating storage', async () => {
       await seatSpecImage('img-1');
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      const segment = store().createMask(segmentationId, mintSegment());
+      const segmentId = mintSegment('img-1');
 
-      deleteSegmentOf(segment.id);
+      deleteSegment(segmentId);
 
-      expect(store().segmentations[segmentationId].order).toEqual([]);
+      expect(segmentIdsOf('img-1')).toEqual([]);
       expect(boundMasks()).toEqual([]);
     });
   });
 
   describe('parent image deletion', () => {
-    it("removes the deleted image's segmentation and its masks", async () => {
+    it("removes the deleted image's segments and their masks", async () => {
       await seatSpecImage('img-1');
       // The store subscribes to image deletion on setup, so instantiate it first.
-      const { id: segmentationId } =
-        store().ensureSegmentationForImage('img-1');
-      makeBoundSegment(segmentationId, 'Tumor');
+      makeBoundSegment('img-1', 'Tumor');
 
       useImageCacheStore().removeImage('img-1');
 
-      expect(store().getSegmentationForImage('img-1')).toBeFalsy();
-      expect(Object.keys(store().segmentations)).toEqual([]);
+      expect(segmentIdsOf('img-1')).toEqual([]);
       expect(boundMasks()).toEqual([]);
     });
 
-    it('leaves other images segmentations alone', async () => {
+    it('leaves other images masks alone', async () => {
       await seatSpecImage('img-1');
       await seatSpecImage('img-2', 'PET');
-      const doomed = store().ensureSegmentationForImage('img-1').id;
-      const kept = store().ensureSegmentationForImage('img-2').id;
-      const keptSegment = makeBoundSegment(kept, 'Tumor');
-      makeBoundSegment(doomed, 'Tumor');
+      const keptSegment = makeBoundSegment('img-2', 'Tumor');
+      makeBoundSegment('img-1', 'Tumor');
 
       useImageCacheStore().removeImage('img-1');
 
-      expect(Object.keys(store().segmentations)).toEqual([kept]);
-      expect(store().getSegmentationForImage('img-2')?.id).toBe(kept);
-      expect(boundMasks().map((mask) => mask.id)).toEqual([keptSegment.id]);
-      expect(store().getMask(keptSegment.id).id).toBe(keptSegment.id);
+      expect(boundMasks().map((mask) => mask.segmentId)).toEqual([
+        keptSegment.id,
+      ]);
+      expect(bindingOf(keptSegment.id)).toBe(keptSegment.binding);
     });
   });
 
@@ -402,14 +324,18 @@ describe('segmentation store', () => {
     it('reports the source image while its conversion is pending', async () => {
       await seatConversionSources(['child-img'], twoLabelValues());
 
-      const conversion = store().convertImageToLabelmap(
+      const conversion = useLabelmapImportStore().convertImageToLabelmap(
         'child-img',
         'parent-img'
       );
 
-      expect(store().convertingLabelmaps.has('child-img')).toBe(true);
+      expect(
+        useLabelmapImportStore().convertingLabelmaps.has('child-img')
+      ).toBe(true);
       await conversion;
-      expect(store().convertingLabelmaps.has('child-img')).toBe(false);
+      expect(
+        useLabelmapImportStore().convertingLabelmaps.has('child-img')
+      ).toBe(false);
     });
 
     it('joins a conversion already running for the same image', async () => {
@@ -417,13 +343,23 @@ describe('segmentation store', () => {
 
       // Two entry points fire without awaiting: a load starts one and the
       // browser's Convert button starts the other before the first settles.
-      const first = store().convertImageToLabelmap('child-img', 'parent-img');
-      const second = store().convertImageToLabelmap('child-img', 'parent-img');
+      const first = useLabelmapImportStore().convertImageToLabelmap(
+        'child-img',
+        'parent-img'
+      );
+      const second = useLabelmapImportStore().convertImageToLabelmap(
+        'child-img',
+        'parent-img'
+      );
 
-      expect(store().convertingLabelmaps.has('child-img')).toBe(true);
+      expect(
+        useLabelmapImportStore().convertingLabelmaps.has('child-img')
+      ).toBe(true);
       const [firstResult, secondResult] = await Promise.all([first, second]);
       // The image reports converting until the one conversion really ends.
-      expect(store().convertingLabelmaps.has('child-img')).toBe(false);
+      expect(
+        useLabelmapImportStore().convertingLabelmaps.has('child-img')
+      ).toBe(false);
 
       // One split, so one segment per label value and no suffixed duplicates.
       expect(secondResult).toEqual(firstResult);
@@ -436,8 +372,14 @@ describe('segmentation store', () => {
     it('converts the same image again once the first conversion ended', async () => {
       await seatConversionSources(['child-img'], twoLabelValues());
 
-      await store().convertImageToLabelmap('child-img', 'parent-img');
-      await store().convertImageToLabelmap('child-img', 'parent-img');
+      await useLabelmapImportStore().convertImageToLabelmap(
+        'child-img',
+        'parent-img'
+      );
+      await useLabelmapImportStore().convertImageToLabelmap(
+        'child-img',
+        'parent-img'
+      );
 
       // A second, separate conversion still adds its own segments: the guard
       // only joins calls that overlap.
@@ -447,23 +389,29 @@ describe('segmentation store', () => {
     it('gives a second conversion of the same parent its own segments', async () => {
       await seatConversionSources(['child-a', 'child-b'], oneLabelValues());
 
-      await store().convertImageToLabelmap('child-a', 'parent-img');
-      await store().convertImageToLabelmap('child-b', 'parent-img');
+      await useLabelmapImportStore().convertImageToLabelmap(
+        'child-a',
+        'parent-img'
+      );
+      await useLabelmapImportStore().convertImageToLabelmap(
+        'child-b',
+        'parent-img'
+      );
 
-      expect(Object.keys(store().segmentations)).toHaveLength(1);
       const masks = store().imageMasks('parent-img');
       expect(masks).toHaveLength(2);
-      expect(masks[1].id).not.toBe(masks[0].id);
-      expect(masks[1].representations.labelmap!.image).not.toBe(
-        masks[0].representations.labelmap!.image
-      );
+      expect(masks[1].segmentId).not.toBe(masks[0].segmentId);
+      expect(masks[1].binding.image).not.toBe(masks[0].binding.image);
     });
 
     it('reports which segment each source label value became', async () => {
       await seatConversionSources(['child-a', 'child-b'], oneLabelValues());
 
-      await store().convertImageToLabelmap('child-a', 'parent-img');
-      const [second] = await store().convertImageToLabelmap(
+      await useLabelmapImportStore().convertImageToLabelmap(
+        'child-a',
+        'parent-img'
+      );
+      const [second] = await useLabelmapImportStore().convertImageToLabelmap(
         'child-b',
         'parent-img'
       );
@@ -471,7 +419,9 @@ describe('segmentation store', () => {
       // Both imports carry source value 1 and both masks hold SEGMENT_VALUE,
       // so only the report says which segment the second import became.
       const masks = store().imageMasks('parent-img');
-      expect(second).toEqual([{ sourceValue: 1, maskId: masks[1].id }]);
+      expect(second).toEqual([
+        { sourceValue: 1, segmentId: masks[1].segmentId },
+      ]);
     });
   });
 
@@ -479,61 +429,42 @@ describe('segmentation store', () => {
     async function seatTwoImages() {
       await seatSpecImage('img-1');
       await seatSpecImage('img-2', 'PET');
-      return {
-        one: store().ensureSegmentationForImage('img-1').id,
-        two: store().ensureSegmentationForImage('img-2').id,
-      };
     }
 
-    const maskOf = (maskId: string) => store().getMask(maskId);
-
     it('creates nothing when a segment is selected', async () => {
-      const { one, two } = await seatTwoImages();
-      segments().addSegment({ name: 'Tumor' });
+      await seatTwoImages();
+      segments().addSegment('img-1', { name: 'Tumor' });
 
-      expect(store().segmentations[one].order).toEqual([]);
-      expect(store().segmentations[two].order).toEqual([]);
+      expect(segmentIdsOf('img-2')).toEqual([]);
       expect(boundMasks()).toEqual([]);
     });
 
-    it('creates no segmentation for an image that has none', async () => {
-      await seatSpecImage('img-1');
-      await seatSpecImage('img-2', 'PET');
-      const one = store().ensureSegmentationForImage('img-1').id;
-      segments().addSegment({ name: 'Tumor' });
-
-      expect(store().getSegmentationForImage('img-2')).toBeFalsy();
-      expect(Object.keys(store().segmentations)).toEqual([one]);
-    });
-
-    it('resolves the selected segment to this image record', async () => {
-      const { one } = await seatTwoImages();
-      const segmentId = segments().addSegment({ name: 'Tumor' });
-      const record = maskOn('img-1', segmentId);
+    it('resolves the selected segment of this image without allocating', async () => {
+      await seatTwoImages();
+      const segmentId = segments().addSegment('img-1', { name: 'Tumor' });
 
       const target = store().resolveEditTarget('img-1');
 
-      expect(target).toBe(record.id);
-      expect(store().segmentations[one].order).toEqual([record.id]);
+      expect(target).toBe(segmentId);
+      expect(boundMasks()).toEqual([]);
     });
 
-    it('gives the second image its own record for the selected segment', async () => {
-      const { one, two } = await seatTwoImages();
-      const segmentId = segments().addSegment({ name: 'Tumor' });
+    it('gives the second image its own segment', async () => {
+      await seatTwoImages();
+      const segmentId = segments().addSegment('img-1', { name: 'Tumor' });
       const source = store().resolveEditTarget('img-1');
 
       const target = store().resolveEditTarget('img-2');
 
+      expect(source).toBe(segmentId);
       expect(target).not.toBe(source);
-      expect(maskOf(target).segmentId).toBe(segmentId);
-      expect(maskOf(source).segmentId).toBe(segmentId);
-      expect(store().segmentations[two].order).toEqual([target]);
-      expect(store().segmentations[one].order).toEqual([source]);
+      expect(segmentIdsOf('img-2')).toEqual([target]);
+      expect(segmentIdsOf('img-1')).toEqual([source]);
     });
 
-    it('reuses each image record for the rest of the session', async () => {
-      const { one, two } = await seatTwoImages();
-      segments().addSegment({ name: 'Tumor' });
+    it('reuses each image segment for the rest of the session', async () => {
+      await seatTwoImages();
+      segments().addSegment('img-1', { name: 'Tumor' });
       const source = store().resolveEditTarget('img-1');
 
       const first = store().resolveEditTarget('img-2');
@@ -542,65 +473,59 @@ describe('segmentation store', () => {
 
       expect(back).toBe(source);
       expect(second).toBe(first);
-      expect(store().segmentations[two].order).toEqual([first]);
-      expect(store().segmentations[one].order).toEqual([source]);
+      expect(segmentIdsOf('img-2')).toEqual([first]);
+      expect(segmentIdsOf('img-1')).toEqual([source]);
     });
 
-    it('renames every image record at once, because they share one segment', async () => {
+    it('renames only the owning image segment', async () => {
       await seatTwoImages();
-      const segmentId = segments().addSegment({ name: 'Tumor' });
+      const segmentId = segments().addSegment('img-1', { name: 'Tumor' });
       const source = store().resolveEditTarget('img-1');
       const target = store().resolveEditTarget('img-2');
 
       segments().updateSegment(segmentId, { name: 'Lesion' });
 
-      expect(segments().appearanceOf(maskOf(source).segmentId).name).toBe(
-        'Lesion'
-      );
-      expect(segments().appearanceOf(maskOf(target).segmentId).name).toBe(
-        'Lesion'
-      );
+      expect(segments().appearanceOf(source).name).toBe('Lesion');
+      expect(segments().appearanceOf(target).name).toBe('Segment 1');
     });
 
-    it('never binds a second record of one segment to an image', async () => {
-      const { two } = await seatTwoImages();
-      const segmentId = segments().addSegment({ name: 'Tumor' });
-      const existing = maskOn('img-2', segmentId);
+    it('never allocates a second mask of one segment on an image', async () => {
+      await seatTwoImages();
+      const { id: segmentId, binding } = makeBoundSegment('img-2', 'Tumor');
 
       const target = store().resolveEditTarget('img-2');
 
-      expect(target).toBe(existing.id);
-      expect(store().segmentations[two].order).toEqual([existing.id]);
+      expect(target).toBe(segmentId);
+      expect(store().materializeMask(target)).toBe(binding);
+      expect(maskedSegments('img-2')).toEqual([segmentId]);
     });
 
-    it('creates a record again when its segment was deleted', async () => {
-      const { two } = await seatTwoImages();
-      const tumor = segments().addSegment({ name: 'Tumor' });
+    it('mints a segment again when its segment was deleted', async () => {
+      await seatTwoImages();
+      const tumor = segments().addSegment('img-2', { name: 'Tumor' });
       const first = store().resolveEditTarget('img-2');
 
-      deleteSegmentOf(first);
+      deleteSegment(first);
       const second = store().resolveEditTarget('img-2');
 
-      expect(store().segmentations[two].masks[second]).toBeDefined();
-      expect(second).not.toBe(first);
-      expect(maskOf(second).segmentId).not.toBe(tumor);
-      expect(store().segmentations[two].order).toEqual([second]);
+      expect(first).toBe(tumor);
+      expect(second).not.toBe(tumor);
+      expect(segmentIdsOf('img-2')).toEqual([second]);
     });
 
     it('follows the selection to another segment', async () => {
-      const { one } = await seatTwoImages();
-      const tumor = segments().addSegment({ name: 'Tumor' });
-      const node = segments().addSegment({ name: 'Node' });
+      await seatTwoImages();
+      const tumor = segments().addSegment('img-1', { name: 'Tumor' });
+      const node = segments().addSegment('img-1', { name: 'Node' });
 
       segments().selectSegment(tumor);
       const forTumor = store().resolveEditTarget('img-1');
       segments().selectSegment(node);
       const forNode = store().resolveEditTarget('img-1');
 
-      expect(forNode).not.toBe(forTumor);
-      expect(maskOf(forNode).segmentId).toBe(node);
-      expect(maskOf(forTumor).segmentId).toBe(tumor);
-      expect(store().segmentations[one].order).toEqual([forTumor, forNode]);
+      expect(forTumor).toBe(tumor);
+      expect(forNode).toBe(node);
+      expect(boundMasks()).toEqual([]);
     });
 
     it('mints and selects a segment on the first edit of a session', async () => {
@@ -608,45 +533,41 @@ describe('segmentation store', () => {
 
       const target = store().resolveEditTarget('img-1');
 
-      const segmentation = store().getSegmentationForImage('img-1');
-      expect(segmentation!.order).toEqual([target]);
-      const segment = maskOf(target);
-      const appearance = segments().appearanceOf(segment.segmentId);
+      expect(segmentIdsOf('img-1')).toEqual([target]);
+      const appearance = segments().appearanceOf(target);
       expect(appearance.visible).toBe(true);
       expect(appearance.locked).toBe(false);
-      expect(segments().selectedSegmentId.value).toBe(segment.segmentId);
-      expect(segments().appearanceOf(segment.segmentId).name).toBe('Segment 1');
+      expect(segments().selectedSegmentId('img-1')).toBe(target);
+      expect(appearance.name).toBe('Segment 1');
     });
 
     it('falls back to the first segment and reuses the freed default name', async () => {
       await seatSpecImage('img-1');
       const first = store().resolveEditTarget('img-1');
-      const selected = segments().addSegment();
+      const selected = segments().addSegment('img-1');
       segments().deleteSegment(selected);
 
       const replacement = store().resolveEditTarget('img-1');
 
       expect(replacement).toBe(first);
-      expect(segments().appearanceOf(maskOf(first).segmentId).name).toBe(
-        'Segment 1'
-      );
+      expect(segments().appearanceOf(first).name).toBe('Segment 1');
       // The next minted segment takes the next free default name.
-      expect(segments().appearanceOf(segments().addSegment()).name).toBe(
+      expect(segments().appearanceOf(segments().addSegment('img-1')).name).toBe(
         'Segment 2'
       );
     });
 
-    it('binds the minted record to storage for its own image', async () => {
+    it('binds the minted segment to storage for its own image', async () => {
       await seatSpecImage('img-1');
 
       const target = store().resolveEditTarget('img-1');
-      const binding = store().ensureLabelmapBinding(target);
+      const binding = store().materializeMask(target);
 
-      expect(store().segmentationOfMask(target)?.parentImageId).toBe('img-1');
+      expect(maskedSegments('img-1')).toEqual([target]);
       expect(labelmapOf(target)).toBe(binding.image);
     });
 
-    it('gives each image its own record when nothing was ever selected', async () => {
+    it('gives each image its own segment when nothing was ever selected', async () => {
       await seatSpecImage('img-1');
       await seatSpecImage('img-2', 'PET');
 
@@ -654,36 +575,36 @@ describe('segmentation store', () => {
       const second = store().resolveEditTarget('img-2');
 
       expect(second).not.toBe(first);
-      expect(store().getSegmentationForImage('img-2')!.order).toEqual([second]);
+      expect(segmentIdsOf('img-2')).toEqual([second]);
     });
 
-    it('finds no target for a segment this image has no record for', async () => {
+    it('finds no target for a segment this image has no mask for', async () => {
       await seatSpecImage('img-1');
-      segments().addSegment({ name: 'Tumor' });
+      segments().addSegment('img-1', { name: 'Tumor' });
 
       expect(store().findEditTarget('img-1')).toBeUndefined();
-      expect(store().getSegmentationForImage('img-1')).toBeFalsy();
+      expect(store().imageMasks('img-1')).toEqual([]);
     });
 
     it('targets the first segment while none has been chosen', async () => {
-      const { one } = await seatTwoImages();
-      const first = store().createMask(one, mintSegment('Tumor'));
-      store().createMask(one, mintSegment('Node'));
+      await seatTwoImages();
+      const first = makeBoundSegment('img-1', 'Tumor');
+      makeBoundSegment('img-1', 'Node');
 
       expect(store().findEditTarget('img-1')).toBe(first.id);
     });
 
     it('asks the lock of the segment it targets', async () => {
-      const { one } = await seatTwoImages();
-      const first = store().createMask(one, mintSegment('Tumor'));
-      const second = store().createMask(one, mintSegment('Node'));
-      segments().updateSegment(first.segmentId, { locked: true });
+      await seatTwoImages();
+      const first = makeBoundSegment('img-1', 'Tumor');
+      const second = makeBoundSegment('img-1', 'Node');
+      segments().updateSegment(first.id, { locked: true });
 
-      expect(store().editTargetLocked()).toBe(true);
+      expect(store().editTargetLocked('img-1')).toBe(true);
 
-      segments().selectSegment(second.segmentId);
+      segments().selectSegment(second.id);
 
-      expect(store().editTargetLocked()).toBe(false);
+      expect(store().editTargetLocked('img-1')).toBe(false);
       expect(store().findEditTarget('img-1')).toBe(second.id);
     });
   });

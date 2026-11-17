@@ -81,7 +81,7 @@ const EXTENSIONS = [
 
 const props = withDefaults(
   defineProps<{
-    id: string;
+    imageId: string;
     // Spelled out: `typeof` an import compiles to an untyped prop, whose
     // function default Vue would call as a factory.
     save?: (parentId: string, stem: string, format: string) => Promise<void>;
@@ -97,8 +97,7 @@ const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
 const segmentationStore = useSegmentationStore();
-const segmentation = computed(() => segmentationStore.segmentations[props.id]);
-const parentImageId = computed(() => segmentation.value.parentImageId);
+const parentImageId = computed(() => props.imageId);
 const fileName = computed({
   get: () => fileNameValue.value,
   set: (value: string) => {
@@ -142,7 +141,7 @@ onMounted(() => {
   // trigger form validation check so can immediately save with default value
   fileNameValue.value = segmentationFileStem(
     parentImageId.value,
-    segmentation.value.name
+    segmentationStore.segmentationName(parentImageId.value)
   );
 });
 

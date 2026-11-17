@@ -39,8 +39,8 @@ export type SourceRefBindings = {
 export type SourceRefBindingContext = {
   activeDataSource: DataSource | undefined;
   activeImageName?: string;
-  // The current image's segmentation, when it holds a mask.
-  segmentationId: string | undefined;
+  // The current image, when its masks hold a voxel.
+  segmentedImageId: string | undefined;
   // Whether the active image carries at least one finished annotation tool.
   hasFinishedAnnotations: boolean;
   imageLayers?: readonly ImageLayerInput[];
@@ -83,12 +83,12 @@ export const bindSourceRefs = (
   const imageValue = fields.some((field) => acceptedTypes(field).length > 0)
     ? mintInputValue(context.activeDataSource, TYPE_TAG_IMAGE)
     : null;
-  const { segmentationId } = context;
+  const { segmentedImageId } = context;
   const available = new Set<BoundSourceRefType>(
     imageValue
       ? [
           TYPE_TAG_IMAGE,
-          ...(segmentationId ? ([TYPE_TAG_LABELMAP] as const) : []),
+          ...(segmentedImageId ? ([TYPE_TAG_LABELMAP] as const) : []),
           ...(context.hasFinishedAnnotations
             ? ([TYPE_TAG_ANNOTATIONS] as const)
             : []),
@@ -125,7 +125,7 @@ export const bindSourceRefs = (
   // The segmentation's reference image is the active image.
   const labelmap = bindLabelmapInputs(
     modelForType(model, types, TYPE_TAG_LABELMAP),
-    segmentationId,
+    segmentedImageId,
     Boolean(imageValue)
   );
 

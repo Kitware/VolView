@@ -1,6 +1,7 @@
 import { defineAnnotationToolStore } from '@/src/utils/defineAnnotationToolStore';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { Manifest, StateFile } from '@/src/io/state-file/schema';
+import type { SegmentResolver } from '@/src/segmentation/segments';
 import { ToolID } from '@/src/types/annotation-tool';
 
 import {
@@ -39,12 +40,12 @@ export const useRectangleStore = defineAnnotationToolStore('rectangles', () => {
   function deserialize(
     manifest: Manifest,
     dataIDMap: Record<string, string>,
-    segmentIdMap: Record<string, string>
+    resolveSegment: SegmentResolver
   ) {
     toolAPI.deserializeTools(
       manifest.tools?.rectangles,
       dataIDMap,
-      segmentIdMap
+      resolveSegment
     );
   }
 

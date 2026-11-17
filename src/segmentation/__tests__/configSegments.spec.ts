@@ -1,28 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import {
-  maskOn,
   boundMasks,
   seatSpecImage,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { nextTick } from 'vue';
 
+import { TOOL_COLORS } from '@/src/config';
 import { useSegmentStore } from '@/src/segmentation/segments';
-import { usePolygonStore } from '@/src/store/tools/polygons';
-import { useRectangleStore } from '@/src/store/tools/rectangles';
 import { useRulerStore } from '@/src/store/tools/rulers';
 import { useViewStore } from '@/src/store/views';
 import { applyPostStateConfig, config } from '@/src/io/import/configJson';
 import { cssColorToRGBA } from '@/src/segmentation/color';
-import { resolveSegmentAppearance } from '@/src/segmentation/segment';
-
-// ---------------------------------------------------------------------------
-// Configured segments are declared once for a session, before any image loads.
-// Configuring one creates nothing: no mask, no geometry, no image. A key keeps
-// its segment id across config changes, and dropping a key only removes the
-// segment when nothing references it.
-// ---------------------------------------------------------------------------
 
 const segments = () => useSegmentStore().segments;
 
@@ -38,16 +28,21 @@ const seatAndView = async (id: string) => {
 
 const applyConfig = (raw: unknown) => applyPostStateConfig(config.parse(raw));
 
-const typeNames = () => segments().segmentList.value.map((type) => type.name);
+const typeNames = () =>
+  segments()
+    .segmentList('img-1')
+    .map((type) => type.name);
 
 const segmentIdNamed = (name: string) => {
-  const type = segments().findSegmentByName(name);
+  const type = segments().findSegmentByName('img-1', name);
   if (!type) throw new Error(`No type named "${name}"`);
   return type.id;
 };
 
-const recordsOf = (imageId: string) =>
-  store().getSegmentationForImage(imageId)?.order ?? [];
+const maskedSegmentsOf = (imageId: string) =>
+  store()
+    .imageMasks(imageId)
+    .map(({ segmentId }) => segmentId);
 
 const TWO_TYPES = {
   segments: {
@@ -57,8 +52,9 @@ const TWO_TYPES = {
 };
 
 describe('a configured segment creates nothing', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
+    await seatAndView('img-1');
   });
 
   it('touches no image when the config is applied', async () => {
@@ -67,18 +63,26 @@ describe('a configured segment creates nothing', () => {
     applyConfig(TWO_TYPES);
 
     expect(typeNames()).toEqual(['Tumor', 'Node']);
-    expect(store().getSegmentationForImage('img-1')).toBeFalsy();
+    expect(segments().imageSets.value['img-1']?.display).toBeUndefined();
     expect(boundMasks()).toEqual([]);
   });
 
-  it('offers the same segments on every image the user views', async () => {
+  it('gives each image its own configured definitions', async () => {
     applyConfig(TWO_TYPES);
     await seatAndView('img-1');
     await seatAndView('img-2');
 
     expect(typeNames()).toEqual(['Tumor', 'Node']);
-    expect(recordsOf('img-1')).toEqual([]);
-    expect(recordsOf('img-2')).toEqual([]);
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ name }) => name)
+    ).toEqual(['Tumor', 'Node']);
+    expect(maskedSegmentsOf('img-1')).toEqual([]);
+    expect(maskedSegmentsOf('img-2')).toEqual([]);
+    const second = segments().findSegmentByName('img-2', 'Tumor');
+    expect(second).toBeDefined();
+    expect(second!.id).not.toBe(segmentIdNamed('Tumor'));
   });
 
   it('takes the configured color and appearance', () => {
@@ -101,8 +105,8 @@ describe('a configured segment creates nothing', () => {
   it('offers a selection without allocating for it', () => {
     applyConfig(TWO_TYPES);
 
-    expect(segments().selectedSegmentId.value).toBe(segmentIdNamed('Tumor'));
-    expect(store().segmentations).toEqual({});
+    expect(segments().selectedSegmentId('img-1')).toBe(segmentIdNamed('Tumor'));
+    expect(boundMasks()).toEqual([]);
   });
 
   it('lands the first edit in the selected configured segment', async () => {
@@ -112,7 +116,7 @@ describe('a configured segment creates nothing', () => {
 
     const target = store().resolveEditTarget('img-1');
 
-    expect(store().getMask(target).segmentId).toBe(segmentIdNamed('Node'));
+    expect(target).toBe(segmentIdNamed('Node'));
     expect(typeNames()).toEqual(['Tumor', 'Node']);
   });
 
@@ -129,118 +133,42 @@ describe('a configured segment creates nothing', () => {
   });
 });
 
-describe('a second config replaces the first', () => {
-  beforeEach(() => {
+describe('a config is a template', () => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
-  });
-
-  it('keeps the id of a key both configs state', () => {
-    applyConfig(TWO_TYPES);
-    const before = segmentIdNamed('Tumor');
-
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
-
-    expect(segmentIdNamed('Tumor')).toBe(before);
-    expect(segments().appearanceOf(before).color).toEqual(
-      cssColorToRGBA('blue')
-    );
-  });
-
-  it('removes omitted appearance overrides without changing mask or shape references', async () => {
-    applyConfig({
-      segments: {
-        Tumor: {
-          color: 'red',
-          fillOpacity: 0,
-          outlineOpacity: 0,
-          strokeWidth: 9,
-        },
-      },
-    });
     await seatAndView('img-1');
-    const id = segmentIdNamed('Tumor');
-    const mask = maskOn('img-1', id);
-    const toolId = usePolygonStore().addTool({
-      imageID: 'img-1',
-      segmentId: id,
+  });
+
+  it('writes stated fields onto the same-named segment and leaves the rest', async () => {
+    applyConfig({
+      segments: { Tumor: { color: 'red', fillOpacity: 0.3, strokeWidth: 9 } },
     });
+    const id = segmentIdNamed('Tumor');
+    store().materializeMask(id);
     segments().updateSegment(id, { visible: false, locked: true });
 
     applyConfig({ segments: { Tumor: { color: 'blue' } } });
 
+    expect(segmentIdNamed('Tumor')).toBe(id);
     expect(segments().appearanceOf(id)).toMatchObject({
       color: cssColorToRGBA('blue'),
-      fillOpacity: 1,
-      outlineOpacity: 1,
-      strokeWidth: resolveSegmentAppearance(undefined).strokeWidth,
+      fillOpacity: 0.3,
+      strokeWidth: 9,
       visible: false,
       locked: true,
     });
-    expect(store().getMask(mask.id).segmentId).toBe(id);
-    expect(usePolygonStore().toolByID[toolId].segmentId).toBe(id);
-    expect(segmentIdNamed('Tumor')).toBe(id);
-  });
-
-  it('returns to its automatic color when a retained config omits color', () => {
-    applyConfig({ segments: { First: {}, Second: {} } });
-    const id = segmentIdNamed('Second');
-    const automaticColor = segments().appearanceOf(id).color;
-    applyConfig({ segments: { First: {}, Second: { color: 'blue' } } });
-
-    applyConfig({ segments: { First: {}, Second: {} } });
-
-    expect(segments().appearanceOf(id).color).toEqual(automaticColor);
-    expect(segmentIdNamed('Second')).toBe(id);
-  });
-
-  it('keeps the last configured appearance when a referenced key is dropped', async () => {
-    applyConfig({
-      segments: {
-        Tumor: {
-          color: 'red',
-          fillOpacity: 0.3,
-          outlineOpacity: 0.4,
-          strokeWidth: 9,
-        },
-      },
-    });
-    await seatAndView('img-1');
-    const id = segmentIdNamed('Tumor');
-    const mask = maskOn('img-1', id);
-    const before = segments().appearanceOf(id);
-
-    applyConfig({ segments: {} });
-
-    expect(segments().appearanceOf(id)).toEqual(before);
-    expect(store().getMask(mask.id).segmentId).toBe(id);
-  });
-
-  it('drops an unreferenced segment the second config leaves out', () => {
-    applyConfig(TWO_TYPES);
-
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
-
-    expect(typeNames()).toEqual(['Tumor']);
+    expect(store().maskOf(id)).toBeDefined();
   });
 
   it.each([
-    { replacement: {}, expected: [] },
-    { replacement: null, expected: [] },
-    {
-      replacement: { replacement: { color: 'white' } },
-      expected: ['replacement'],
-    },
+    { replacement: { Tumor: { color: 'blue' } }, expected: ['Tumor', 'Node'] },
+    { replacement: {}, expected: ['Tumor', 'Node'] },
+    { replacement: null, expected: ['Tumor', 'Node'] },
+    { replacement: { Other: {} }, expected: ['Tumor', 'Node', 'Other'] },
   ])(
-    'drops inherited-property names omitted by $replacement',
+    'removes nothing when $replacement follows',
     ({ replacement, expected }) => {
-      applyConfig({
-        segments: {
-          constructor: { color: 'red' },
-          toString: { color: 'blue' },
-          ordinary: { color: 'green' },
-        },
-      });
-      expect(typeNames()).toEqual(['constructor', 'toString', 'ordinary']);
+      applyConfig(TWO_TYPES);
 
       applyConfig({ segments: replacement });
 
@@ -248,31 +176,18 @@ describe('a second config replaces the first', () => {
     }
   );
 
-  it('keeps a dropped segment that a mask still references', async () => {
+  it('starts an unviewed image empty after an empty config', async () => {
     applyConfig(TWO_TYPES);
-    await seatAndView('img-1');
-    const node = segmentIdNamed('Node');
-    const record = maskOn('img-1', node);
+    await seatSpecImage('img-2');
 
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
+    applyConfig({ segments: {} });
+    await viewImage('img-2');
 
-    expect(segments().getSegment(node)?.name).toBe('Node');
-    expect(recordsOf('img-1')).toEqual([record.id]);
-  });
-
-  it('keeps a dropped segment that a shape still references', async () => {
-    applyConfig(TWO_TYPES);
-    await seatAndView('img-1');
-    const node = segmentIdNamed('Node');
-    const toolId = usePolygonStore().addTool({
-      imageID: 'img-1',
-      segmentId: node,
-    });
-
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
-
-    expect(segments().getSegment(node)?.name).toBe('Node');
-    expect(usePolygonStore().toolByID[toolId].segmentId).toBe(node);
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ name }) => name)
+    ).toEqual([]);
   });
 
   it('leaves the registry alone when the section is omitted', () => {
@@ -283,89 +198,101 @@ describe('a second config replaces the first', () => {
     expect(typeNames()).toEqual(['Tumor', 'Node']);
   });
 
-  it('leaves a segment the user made alone', () => {
+  it('adds the configured name again beside a renamed segment', () => {
     applyConfig(TWO_TYPES);
-    const own = segments().addSegment({ name: 'Mine' });
+    const tumor = segmentIdNamed('Tumor');
+    segments().updateSegment(tumor, { name: 'Lesion' });
 
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
+    applyConfig(TWO_TYPES);
 
-    expect(segments().getSegment(own)?.name).toBe('Mine');
-    expect(typeNames()).toEqual(['Tumor', 'Mine']);
+    expect(segments().getSegment(tumor)?.name).toBe('Lesion');
+    expect(typeNames()).toEqual(['Lesion', 'Node', 'Tumor']);
+  });
+
+  it('applies to every image that has segments', async () => {
+    applyConfig(TWO_TYPES);
+    await seatAndView('img-2');
+    const first = segmentIdNamed('Tumor');
+    const second = segments().findSegmentByName('img-2', 'Tumor')!.id;
+
+    applyConfig({ segments: { Tumor: { color: 'blue' }, Extra: {} } });
+
+    expect(segments().appearanceOf(first).cssColor).toBe('#0000ff');
+    expect(segments().appearanceOf(second).cssColor).toBe('#0000ff');
+    expect(typeNames()).toEqual(['Tumor', 'Node', 'Extra']);
   });
 });
 
 describe('config applies after a restore', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     setActivePinia(createPinia());
+    await seatAndView('img-1');
   });
 
   it('overlays a restored segment of the same name rather than adding one', () => {
-    // Restore seats the segment first; the config then states its appearance.
-    const restored = segments().mintSegment({
+    const restored = segments().mintSegment('img-1', {
       name: 'Tumor',
       color: [1, 2, 3, 255],
+      fillOpacity: 0.6,
     });
 
     applyConfig({ segments: { Tumor: { color: 'blue' } } });
 
     expect(typeNames()).toEqual(['Tumor']);
-    expect(segments().appearanceOf(restored).color).toEqual(
-      cssColorToRGBA('blue')
-    );
-  });
-
-  it('restores session appearance when replacement removes a config override', () => {
-    const id = segments().mintSegment({
-      name: 'Tumor',
-      color: [1, 2, 3, 255],
+    expect(segments().appearanceOf(restored)).toMatchObject({
+      color: cssColorToRGBA('blue'),
       fillOpacity: 0.6,
-      outlineOpacity: 0.7,
-      strokeWidth: 4,
-      visible: false,
-      locked: true,
     });
-    const original = segments().appearanceOf(id);
-    applyConfig({
-      segments: { Tumor: { color: 'blue', fillOpacity: 0, strokeWidth: 9 } },
-    });
-    expect(segments().appearanceOf(id).outlineOpacity).toBe(0.7);
-
-    applyConfig({ segments: { Tumor: {} } });
-
-    expect(segments().appearanceOf(id)).toEqual(original);
   });
 
   it('keeps a restored segment the config does not name', () => {
-    const restored = segments().mintSegment({ name: 'Restored' });
+    const restored = segments().mintSegment('img-1', { name: 'Restored' });
 
     applyConfig(TWO_TYPES);
 
     expect(segments().getSegment(restored)?.name).toBe('Restored');
     expect(typeNames()).toEqual(['Restored', 'Tumor', 'Node']);
   });
+});
 
-  it('keeps a restored segment it overlaid once a later config drops the key', () => {
-    const restored = segments().mintSegment({ name: 'Tumor' });
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
-
-    applyConfig({ segments: {} });
-
-    expect(segments().getSegment(restored)?.name).toBe('Tumor');
-    expect(typeNames()).toEqual(['Tumor']);
+describe('configured defaults without an active image', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
   });
 
-  it('keeps a shape pointing at the segment the config took over', () => {
-    const restored = segments().mintSegment({ name: 'Tumor' });
-    const toolId = useRectangleStore().addTool({
-      imageID: 'img-1',
-      segmentId: restored,
-    });
+  it('waits for an image before creating configured segment identities', async () => {
+    applyConfig(TWO_TYPES);
 
-    applyConfig({ segments: { Tumor: { color: 'blue' } } });
+    expect(segments().imageSets.value).toEqual({});
+    expect(boundMasks()).toEqual([]);
 
-    expect(useRectangleStore().toolByID[toolId].segmentId).toBe(restored);
-    expect(useRectangleStore().appearanceOfTool(toolId).cssColor).toBe(
-      '#0000ff'
+    await seatAndView('img-1');
+
+    expect(typeNames()).toEqual(['Tumor', 'Node']);
+    expect(segments().appearanceOf(segmentIdNamed('Tumor')).cssColor).toBe(
+      '#00ff00'
     );
+    expect(boundMasks()).toEqual([]);
+  });
+
+  it('starts future defaults at the first palette color independently of existing rows', async () => {
+    await seatAndView('img-1');
+    segments().mintSegment('img-1', { name: 'User' });
+    applyConfig({ segments: { First: {}, Second: {} } });
+    const configuredColors = ['First', 'Second'].map(
+      (name) => segments().findSegmentByName('img-1', name)!.color
+    );
+    expect(configuredColors).toEqual(
+      TOOL_COLORS.slice(1, 3).map(cssColorToRGBA)
+    );
+
+    setActivePinia(createPinia());
+    applyConfig({ segments: { First: {}, Second: {} } });
+    await seatAndView('img-2');
+    expect(
+      segments()
+        .segmentList('img-2')
+        .map(({ color }) => color)
+    ).toEqual(TOOL_COLORS.slice(0, 2).map(cssColorToRGBA));
   });
 });

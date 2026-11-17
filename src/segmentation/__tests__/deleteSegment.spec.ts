@@ -11,7 +11,7 @@ describe('deleteUnlockedSegment', () => {
 
   it('keeps a locked segment', () => {
     const registry = createSegmentRegistry();
-    const id = registry.addSegment({ name: 'Tumor', locked: true });
+    const id = registry.addSegment('img-1', { name: 'Tumor', locked: true });
 
     deleteUnlockedSegment(registry, id);
 
@@ -20,7 +20,7 @@ describe('deleteUnlockedSegment', () => {
 
   it('deletes an unlocked segment', () => {
     const registry = createSegmentRegistry();
-    const id = registry.addSegment({ name: 'Tumor' });
+    const id = registry.addSegment('img-1', { name: 'Tumor' });
 
     deleteUnlockedSegment(registry, id);
 

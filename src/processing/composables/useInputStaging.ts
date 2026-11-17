@@ -12,7 +12,6 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import { useDatasetStore } from '@/src/store/datasets';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useSegmentationStore } from '@/src/segmentation/store';
-import { segmentationHasContent } from '@/src/segmentation/model';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { resolveSegmentAppearance } from '@/src/segmentation/segment';
 import { getDataSourceName } from '@/src/io/import/dataSource';
@@ -95,7 +94,7 @@ export function useInputStaging(write = writeSegmentation) {
   const annotationToolsView = computed(() => {
     const registry = useSegmentStore().segments;
     const labels = Object.fromEntries(
-      registry.segmentList.value.map((segment) => {
+      registry.segmentList(currentImageID.value).map((segment) => {
         const { name, cssColor, strokeWidth } =
           resolveSegmentAppearance(segment);
         return [segment.id, { labelName: name, color: cssColor, strokeWidth }];
@@ -130,19 +129,13 @@ export function useInputStaging(write = writeSegmentation) {
   // so the context is assembled here rather than re-wiring them at the caller.
   const sourceRefContext = (): SourceRefBindingContext => {
     const currentImageId = currentImageID.value;
-    const record = currentImageId
-      ? segmentationStore.getSegmentationForImage(currentImageId)
-      : undefined;
-    // A record whose masks hold no voxel would stage an all-background file,
-    // so it is not an input at all: the binder falls to its own
-    // 'no-segmentation' branch, and staging never sees the parameter. Display
-    // settings, deleting the last segment and a result that declared only empty
-    // segments all leave such a record behind.
     return {
       activeDataSource: activeDataSource(),
       activeImageName: activeImageName(),
-      segmentationId:
-        record && segmentationHasContent(record) ? record.id : undefined,
+      segmentedImageId:
+        currentImageId && segmentationStore.imageMasks(currentImageId).length
+          ? currentImageId
+          : undefined,
       hasFinishedAnnotations: finishedAnnotationCount.value > 0,
       imageLayers: layersStore
         .getLayers(currentImageId)
@@ -202,8 +195,8 @@ export function useInputStaging(write = writeSegmentation) {
     if (!requests.length) return {};
     useSegmentationEditsStore().beforeRead();
     const staged: Record<string, ProcessingValue> = {};
-    for (const [parameterId, { segmentationId, multiple }] of requests) {
-      const plan = planSegmentationInput(segmentationId, multiple);
+    for (const [parameterId, { imageId, multiple }] of requests) {
+      const plan = planSegmentationInput(imageId, multiple);
       const uris = await stageSegmentationInput(p, plan);
       staged[parameterId] = mintLabelmapValue(uris);
     }

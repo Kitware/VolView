@@ -1,15 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { createStateFileRestorer } from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema } from '@/src/io/state-file/schema';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import type { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 import { useViewStore } from '@/src/store/views';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { defer } from '@/src/utils';
 
 beforeEach(() => setActivePinia(createPinia()));
-afterEach(() => vi.restoreAllMocks());
 
 function restoreWithPendingMasks() {
   const views = useViewStore();
@@ -40,15 +39,7 @@ function restoreWithPendingMasks() {
     },
   });
   views.deserializeLayout(manifest);
-  const masks =
-    defer<
-      Awaited<
-        ReturnType<ReturnType<typeof useSegmentationStore>['deserialize']>
-      >
-    >();
-  vi.spyOn(useSegmentationStore(), 'deserialize').mockReturnValue(
-    masks.promise
-  );
+  const masks = defer<Awaited<ReturnType<typeof deserializeSegmentation>>>();
   const contrastAtBinding: number[] = [];
   const unsubscribe = views.ViewDataChangeEvent.on((viewID, dataID) => {
     if (dataID)
@@ -56,11 +47,10 @@ function restoreWithPendingMasks() {
         useWindowingStore().getConfig(viewID, dataID).width ?? 0
       );
   });
-  const restored = createStateFileRestorer({ addWarning: vi.fn() })(
-    manifest,
-    [],
-    { 'saved-image': 'image' }
-  );
+  const restored = createStateFileRestorer({
+    addWarning: vi.fn(),
+    restoreSegmentation: () => masks.promise,
+  })(manifest, [], { 'saved-image': 'image' });
   unsubscribe.off();
   return { views, id, masks, restored, contrastAtBinding };
 }
