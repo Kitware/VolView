@@ -55,9 +55,11 @@ describe('3D rendering Shift and Width sliders', () => {
       const narrowed = await slider('volume-color-width');
       expect(narrowed.now).toBe(narrowed.min);
       expect(narrowed.now).toBeLessThan(width.now / 100);
-      expect(
-        differingFraction(before, await stablePixels(VIEW, 40))
-      ).toBeGreaterThan(0.05);
+      await browser.waitUntil(
+        async () =>
+          differingFraction(before, await stablePixels(VIEW, 40)) > 0.05,
+        { timeoutMsg: 'Expected Home on Width to narrow the 3D render' }
+      );
 
       await pressOn(shift.thumb, 'ArrowRight');
       const shifted = await slider('volume-color-shift');
