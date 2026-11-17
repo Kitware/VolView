@@ -64,12 +64,7 @@ export function applyOpacityFunction(
       );
       break;
     case vtkPiecewiseFunctionProxy.Mode.Points: {
-      const opacityPoints = getShiftedOpacityFromPreset(
-        opacityFunction.preset,
-        opacityFunction.mappingRange,
-        opacityFunction.shift,
-        opacityFunction.shiftAlpha
-      );
+      const opacityPoints = getShiftedOpacityFromPreset(opacityFunction);
       if (opacityPoints) {
         applyPointsToPiecewiseFunction(ofun, opacityPoints, mappingRange);
       }

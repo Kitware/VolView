@@ -216,6 +216,7 @@ const OpacityPoints = z.object({
   shift: z.number(),
   shiftAlpha: z.number(),
   mappingRange: z.tuple([z.number(), z.number()]),
+  fitRange: z.tuple([z.number(), z.number()]).optional(),
 }) satisfies z.ZodType<OpacityPoints>;
 
 const OpacityNodes = z.object({

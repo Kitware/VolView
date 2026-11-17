@@ -1,41 +1,34 @@
-import { onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { Mode as LookupTableProxyMode } from '@kitware/vtk.js/Proxy/Core/LookupTableProxy';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import vtkPiecewiseFunctionProxy from '@kitware/vtk.js/Proxy/Core/PiecewiseFunctionProxy';
-import { getPresetByName } from '@/src/types/color-map-preset';
 import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer';
 import { useCameraOrientation } from './useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';
+import { useImageStatsStore } from '../store/image-stats';
 import { useCurrentImage } from './useCurrentImage';
-import {
-  getColorFunctionRangeFromPreset,
-  getOpacityRangeFromPreset,
-} from '../utils/vtk-helpers';
+import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
+import useVolumeColoringStore from '../store/view-configs/volume-coloring';
 import { PresetNameList } from '../vtk/ColorMaps';
 import { logError } from '../utils/loggers';
 
 function resetOpacityFunction(
   pwfProxy: vtkPiecewiseFunctionProxy,
   dataRange: [number, number],
+  fitRange: [number, number],
   presetName: string
 ) {
-  // reset pwf proxy range
   pwfProxy.setDataRange(...dataRange);
-
-  const preset = getPresetByName(presetName);
-  if (preset?.OpacityPoints) {
-    const OpacityPoints = preset.OpacityPoints;
-    const points = [];
-    for (let i = 0; i < OpacityPoints.length; i += 2) {
-      points.push([OpacityPoints[i], OpacityPoints[i + 1]]);
-    }
-
-    const [xmin, xmax] = dataRange;
-    const width = xmax - xmin;
-    const pointsNormalized = points.map(([x, y]) => [(x - xmin) / width, y]);
-
+  const points = getShiftedOpacityFromPreset({
+    preset: presetName,
+    mappingRange: dataRange,
+    shift: 0,
+    shiftAlpha: 0,
+    fitRange,
+  });
+  if (points) {
     pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Points);
-    pwfProxy.setPoints(pointsNormalized);
+    pwfProxy.setPoints(points);
   } else {
     pwfProxy.setMode(vtkPiecewiseFunctionProxy.Mode.Gaussians);
     pwfProxy.setGaussians(vtkPiecewiseFunctionProxy.Defaults.Gaussians);
@@ -52,6 +45,8 @@ export function useVolumeThumbnailing(
 
   const { currentImageMetadata, currentImageID, currentImageData } =
     useCurrentImage();
+  const volumeColoringStore = useVolumeColoringStore();
+  const imageStatsStore = useImageStatsStore();
 
   // same as 3D view
   const { cameraDirVec, cameraUpVec } = useCameraOrientation(
@@ -96,19 +91,20 @@ export function useVolumeThumbnailing(
         return;
       }
 
-      const opRange = getOpacityRangeFromPreset(presetName);
+      const colorRange = volumeColoringStore.getPresetColorRange(
+        imageID,
+        presetName
+      );
       resetOpacityFunction(
         thumbnailer.opacityFuncProxy,
-        opRange || imageDataRange,
+        imageDataRange,
+        colorRange,
         presetName
       );
 
       thumbnailer.colorTransferFuncProxy.setMode(LookupTableProxyMode.Preset);
       thumbnailer.colorTransferFuncProxy.setPresetName(presetName);
-      const ctRange = getColorFunctionRangeFromPreset(presetName);
-      thumbnailer.colorTransferFuncProxy.setDataRange(
-        ...(ctRange || imageDataRange)
-      );
+      thumbnailer.colorTransferFuncProxy.setDataRange(...colorRange);
 
       thumbnailer.resetCameraWithOrientation(
         cameraDirVec.value,
@@ -157,13 +153,20 @@ export function useVolumeThumbnailing(
       .catch(logError);
   });
 
+  // Relative presets map onto the fit range, which arrives after loading.
+  const fitRange = computed(
+    () =>
+      currentImageID.value &&
+      imageStatsStore.stats[currentImageID.value]?.autoRangeValues?.LowContrast
+  );
+
   // trigger thumbnailing
   watch(
-    currentImageID,
-    (imageID) => {
-      if (imageID) {
-        doThumbnailing(imageID, currentImageData.value!);
-      }
+    [currentImageID, fitRange],
+    ([imageID], previous) => {
+      if (!imageID) return;
+      if (imageID === previous?.[0]) delete thumbnails[imageID];
+      doThumbnailing(imageID, currentImageData.value!);
     },
     { immediate: true }
   );
