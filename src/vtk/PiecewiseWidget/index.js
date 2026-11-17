@@ -9,58 +9,29 @@ export const Mode = {
 export const ADJUST_POSITION_CURSOR = '-webkit-grab';
 
 /**
- * Samples a piecewise linear function at regular intervals in [0,1].
- * The first and last values are set to zero, since the output
- * is used for vtkPiecewiseGaussianWidget.drawChart().
+ * Samples a piecewise linear function at regular intervals in [0,1]. Beyond the
+ * end points it holds the end values, as vtkPiecewiseFunction clamping does.
  *
- * Assumes normalized x/y coordinate points.
+ * Assumes normalized x/y coordinate points sorted by x.
  */
-
 export function samplePiecewiseLinear(
   points,
   shift = 0,
   shiftAlpha = 0,
   samples = 256
 ) {
-  const filledPoints = [...points];
-  // set endpoints to drop to 0
-  filledPoints.push([points[0][0], 0]);
-  filledPoints.push([points[points.length - 1][0], 0]);
-
-  const sampledPoints = [];
-  let pi = 0;
-  let p1 = filledPoints[0]; // left
-  let p2 = filledPoints[1]; // right
-  let slope = (p2[1] - p1[1]) / (p2[0] - p1[0]);
-  for (let i = 0; i < samples; i += 1) {
-    const sx = i / (samples - 1) - shift; // sample x
-    if (i < samples - 1) {
-      while (sx > p2[0] && pi < filledPoints.length - 2) {
-        pi += 1;
-        // extraneous work if this loop goes over more than once,
-        // which only happens if sx > 0 on first iteration (aka shift < 0)
-        p1 = filledPoints[pi];
-        p2 = filledPoints[pi + 1];
-        if (Math.abs(p2[0] - p1[0]) < 1e-8) {
-          slope = Infinity * Math.sign(p2[1] - p1[1]);
-        } else {
-          slope = (p2[1] - p1[1]) / (p2[0] - p1[0]);
-        }
-      }
-      if (slope === Infinity) {
-        sampledPoints.push(1);
-      } else if (slope === -Infinity) {
-        sampledPoints.push(0);
-      } else {
-        // Non-zero values should be affected by shift
-        // but original values of zero should not
-        let value = slope * (sx - p1[0]) + p1[1];
-        value = value && value - shiftAlpha;
-        sampledPoints.push(value);
-      }
-    }
-  }
-  return sampledPoints;
+  const opacityAt = (x) => {
+    const next = points.findIndex(([px]) => px >= x);
+    if (next <= 0) return (next === 0 ? points[0] : points.at(-1))[1];
+    const [x0, y0] = points[next - 1];
+    const [x1, y1] = points[next];
+    return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+  };
+  return Array.from({ length: samples }, (_, i) => {
+    const value = opacityAt(i / (samples - 1) - shift);
+    // Non-zero values should be affected by shift but values of zero should not
+    return Math.min(Math.max(value && value - shiftAlpha, 0), 1);
+  });
 }
 
 // ----------------------------------------------------------------------------

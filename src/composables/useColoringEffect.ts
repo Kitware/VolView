@@ -24,12 +24,14 @@ type ApplyColoringParams = {
   };
   cfun: vtkColorTransferFunction;
   ofun: vtkPiecewiseFunction;
+  fitRange?: Maybe<[number, number]>;
 };
 
 function applyColoring({
   props: { colorFunction, opacityFunction },
   cfun,
   ofun,
+  fitRange,
 }: ApplyColoringParams) {
   cfun.setVectorModeToMagnitude();
 
@@ -42,12 +44,13 @@ function applyColoring({
     cfun.setMappingRange(...colorFunction.mappingRange);
   }
 
-  applyOpacityFunction(opacityFunction, ofun);
+  applyOpacityFunction(opacityFunction, ofun, fitRange);
 }
 
 export function applyOpacityFunction(
   opacityFunction: OpacityFunction,
-  ofun: vtkPiecewiseFunction
+  ofun: vtkPiecewiseFunction,
+  fitRange?: Maybe<[number, number]>
 ) {
   const { mappingRange } = opacityFunction;
   if (!isZeroWidthRange(opacityFunction.mappingRange)) {
@@ -64,12 +67,10 @@ export function applyOpacityFunction(
       );
       break;
     case vtkPiecewiseFunctionProxy.Mode.Points: {
-      const opacityPoints = getShiftedOpacityFromPreset(
-        opacityFunction.preset,
-        opacityFunction.mappingRange,
-        opacityFunction.shift,
-        opacityFunction.shiftAlpha
-      );
+      const opacityPoints = getShiftedOpacityFromPreset({
+        ...opacityFunction,
+        fitRange: fitRange ?? undefined,
+      });
       if (opacityPoints) {
         applyPointsToPiecewiseFunction(ofun, opacityPoints, mappingRange);
       }
@@ -87,7 +88,8 @@ export function applyOpacityFunction(
 export function useColoringEffect(
   config: MaybeRef<Maybe<ColoringConfig>>,
   cfun: MaybeRef<vtkColorTransferFunction>,
-  ofun: MaybeRef<vtkPiecewiseFunction>
+  ofun: MaybeRef<vtkPiecewiseFunction>,
+  fitRange?: MaybeRef<Maybe<[number, number]>>
 ) {
   const colorTransferFunction = computed(() => unref(config)?.transferFunction);
   const opacityFunction = computed(() => unref(config)?.opacityFunction);
@@ -104,6 +106,7 @@ export function useColoringEffect(
       },
       cfun: unref(cfun),
       ofun: unref(ofun),
+      fitRange: unref(fitRange),
     });
   });
 }

@@ -124,14 +124,16 @@ export function getCSSCoordinatesFromEvent(eventData: any) {
 }
 
 /**
- * Shifts the opacity points from a preset.
+ * Shifts a preset's opacity points, normalized over `mappingRange`. A relative
+ * preset's unit points first map onto `fitRange`, the image's fitted range.
  */
-export function getShiftedOpacityFromPreset(
-  presetName: string,
-  effectiveRange: [number, number],
-  shift: number,
-  shiftAlpha: number
-) {
+export function getShiftedOpacityFromPreset({
+  preset: presetName,
+  mappingRange,
+  shift,
+  shiftAlpha,
+  fitRange = mappingRange,
+}: Omit<OpacityPoints, 'mode'> & { fitRange?: [number, number] }) {
   const preset = getPresetByName(presetName);
   if (preset?.OpacityPoints) {
     const opacityPoints = preset.OpacityPoints;
@@ -140,14 +142,17 @@ export function getShiftedOpacityFromPreset(
       points.push([opacityPoints[i], opacityPoints[i + 1]]);
     }
 
-    const [xmin, xmax] = effectiveRange;
+    const toScalar = getColorFunctionRangeFromPreset(presetName)
+      ? (x: number) => x
+      : (x: number) => fitRange[0] + x * (fitRange[1] - fitRange[0]);
+    const [xmin, xmax] = mappingRange;
     const width = xmax - xmin;
     return points.map(([x, y]) => {
       // Non-zero values should be affected by shift
       // but preset values of zero should not
       const shifted = y && y - shiftAlpha;
       const yVal = Math.max(Math.min(shifted, 1), 0);
-      return [(x - xmin) / width + shift, yVal] as Vector2;
+      return [(toScalar(x) - xmin) / width + shift, yVal] as Vector2;
     });
   }
   return null;
@@ -220,22 +225,6 @@ export function getColorFunctionRangeFromPreset(
       max = Math.max(max, RGBPoints[i]);
     }
     return [min, max];
-  }
-  return null;
-}
-
-/**
- * Retrieves the effective opacity mapping range, if any.
- *
- * Presets may specify an effective range for the scalar opacity
- * mapping range.
- * @param presetName
- * @returns
- */
-export function getOpacityRangeFromPreset(presetName: string) {
-  const preset = getPresetByName(presetName);
-  if (preset?.EffectiveRange) {
-    return [...preset.EffectiveRange] as [number, number];
   }
   return null;
 }
