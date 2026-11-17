@@ -271,6 +271,10 @@ export default defineComponent({
       );
     };
 
+    const resetColoring = () => {
+      if (selectedPreset.value) selectPreset(selectedPreset.value);
+    };
+
     // --- mapping range editing --- //
 
     onKeyDown('Control', () => pwfWidget.setShiftOpacityValues(true));
@@ -348,6 +352,7 @@ export default defineComponent({
       request3DAnimation,
       cancel3DAnimation,
       selectPreset,
+      resetColoring,
     };
   },
 });
@@ -355,32 +360,54 @@ export default defineComponent({
 
 <template>
   <div class="overflow-hidden">
-    <div class="mt-4 pwf-editor" ref="editorContainerRef">
+    <div
+      class="mt-4 pwf-editor"
+      ref="editorContainerRef"
+      data-testid="volume-opacity-editor"
+    >
       <div ref="pwfEditorRef" />
     </div>
-    <div class="mapping-range-editor">
-      <v-slider
-        v-model="rangeShift"
-        density="compact"
-        hide-details
-        label="Shift"
-        :min="rangeShiftMin"
-        :max="rangeShiftMax"
-        :step="colorSliderStep"
-        @pointerdown="request3DAnimation"
-        @pointerup="cancel3DAnimation"
-      />
-      <v-slider
-        v-model="rangeWidth"
-        density="compact"
-        hide-details
-        label="Width"
-        min="1"
-        :max="rangeWidthMax"
-        :step="colorSliderStep"
-        @pointerdown="request3DAnimation"
-        @pointerup="cancel3DAnimation"
-      />
+    <div class="mapping-range-editor d-flex align-center ga-2">
+      <div class="flex-grow-1">
+        <v-slider
+          v-model="rangeShift"
+          data-testid="volume-color-shift"
+          density="compact"
+          hide-details
+          label="Shift"
+          :min="rangeShiftMin"
+          :max="rangeShiftMax"
+          :step="colorSliderStep"
+          @pointerdown="request3DAnimation"
+          @pointerup="cancel3DAnimation"
+        />
+        <v-slider
+          v-model="rangeWidth"
+          data-testid="volume-color-width"
+          density="compact"
+          hide-details
+          label="Width"
+          min="1"
+          :max="rangeWidthMax"
+          :step="colorSliderStep"
+          @pointerdown="request3DAnimation"
+          @pointerup="cancel3DAnimation"
+        />
+      </div>
+      <v-tooltip text="Reset color and opacity to the preset">
+        <template #activator="{ props: tooltipProps }">
+          <v-btn
+            v-bind="tooltipProps"
+            data-testid="volume-reset-color-opacity"
+            aria-label="Reset color and opacity"
+            icon="mdi-restore"
+            size="small"
+            density="compact"
+            variant="text"
+            @click="resetColoring"
+          />
+        </template>
+      </v-tooltip>
     </div>
   </div>
 </template>
