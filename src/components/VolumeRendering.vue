@@ -20,10 +20,7 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import { useResizeObserver } from '@/src/composables/useResizeObserver';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import {
-  getColorFunctionRangeFromPreset,
-  getShiftedOpacityFromPreset,
-} from '@/src/utils/vtk-helpers';
+import { getShiftedOpacityFromPreset } from '@/src/utils/vtk-helpers';
 
 const WIDGET_WIDTH = 250;
 const WIDGET_HEIGHT = 150;
@@ -214,10 +211,16 @@ export default defineComponent({
 
     onVTKEvent(colorTransferFunc, 'onModified', () => pwfWidget.render());
 
+    const fitRange = computed(
+      () =>
+        currentImageID.value &&
+        volumeColoringStore.getFitRange(currentImageID.value)
+    );
+
     // update pwf widget when opacity function changes
     watch(
-      opacityFunction,
-      (opFunc) => {
+      [opacityFunction, fitRange],
+      ([opFunc, range]) => {
         if (!opFunc) return;
 
         if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Gaussians) {
@@ -226,12 +229,12 @@ export default defineComponent({
         } else if (opFunc.mode === vtkPiecewiseFunctionProxy.Mode.Points) {
           pwfWidget.setPointsMode();
           // get non-shifted points for the widget
-          const points = getShiftedOpacityFromPreset(
-            opFunc.preset,
-            opFunc.mappingRange,
-            0,
-            0
-          );
+          const points = getShiftedOpacityFromPreset({
+            ...opFunc,
+            shift: 0,
+            shiftAlpha: 0,
+            fitRange: range || undefined,
+          });
           pwfWidget.setOpacityPoints(points, opFunc.shift, opFunc.shiftAlpha);
         }
       },
@@ -245,7 +248,6 @@ export default defineComponent({
     );
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
-    // the data range, if any
     const imageDataRange = computed((): [number, number] => {
       const image = currentImageData.value;
       if (image) {
@@ -254,10 +256,13 @@ export default defineComponent({
       return [0, 1];
     });
 
-    const fullMappingRange = computed(
-      () =>
-        getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
-        imageDataRange.value
+    const fullMappingRange = computed(() =>
+      currentImageID.value && selectedPreset.value
+        ? volumeColoringStore.getPresetColorRange(
+            currentImageID.value,
+            selectedPreset.value
+          )
+        : [0, 1]
     );
     const fullMappingRangeWidth = computed(() => {
       const range = fullMappingRange.value;

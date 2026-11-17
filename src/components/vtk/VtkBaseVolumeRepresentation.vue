@@ -179,7 +179,16 @@ watchEffect(() => {
 // apply coloring
 useVolumeColoringInitializer(viewID, imageID);
 
-useColoringEffect(coloringConfig, cfun, ofun);
+useColoringEffect(
+  coloringConfig,
+  cfun,
+  ofun,
+  computed(() =>
+    imageID.value
+      ? useVolumeColoringStore().getFitRange(imageID.value)
+      : undefined
+  )
+);
 
 // cropping
 const cropStore = useCropStore();
