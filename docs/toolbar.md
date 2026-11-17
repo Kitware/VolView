@@ -18,7 +18,9 @@ The "Annotations" tab lists the current image's segments, shared by paint, recta
 polygons and rulers.
 Select a segment in the list, use `q` and `w` to cycle through segments, or press `1`
 through `0` to select one of the first ten (each row shows its key). Use "New segment"
-to add one, and its color dot or edit button to change its name and appearance. Drag a
+to add one, and its color dot or edit button to change its name and appearance.
+"Copy segments from..." adds the segment names and appearance of another image that
+the current image lacks. Masks and shapes are not copied. Drag a
 row, or press Alt+Up or Alt+Down, to reorder segments and their keys. The selection
 applies across all four tools on that image.
 

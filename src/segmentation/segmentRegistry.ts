@@ -13,6 +13,7 @@ import { createImageStorage } from '@/src/segmentation/imageStorage';
 import { createNameIndex } from '@/src/segmentation/segmentNames';
 import {
   configuredColor,
+  copiedAppearance,
   fromConfigured,
 } from '@/src/segmentation/segmentConfig';
 import type { ConfiguredSegments } from '@/src/io/import/configSegments';
@@ -282,6 +283,15 @@ export const createSegmentRegistry = ({
       applyConfigTo(imageId, configTemplate.value);
   };
 
+  // Definitions only: a same-named target segment stays exactly as it is.
+  const copySegments = (targetId: string, sourceId: string) =>
+    segmentList(sourceId).forEach((segment) =>
+      seatSegment(targetId, {
+        ...copiedAppearance(segment),
+        name: segment.name,
+      })
+    );
+
   // Image eviction also notifies each shape store, which removes its own tools
   // by image. The segments and their masks go here.
   const removeImage = (imageId: string) => {
@@ -367,6 +377,7 @@ export const createSegmentRegistry = ({
     configTemplate,
     applyConfig,
     applyTemplate,
+    copySegments,
     adopt,
     declareReferences,
     ...masksAndDisplay,

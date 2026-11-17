@@ -580,6 +580,74 @@ describe('image segment sets', () => {
     setActivePinia(createPinia());
   });
 
+  it('copies missing definitions without sharing later edits', () => {
+    const registry = createSegmentRegistry();
+    const first = registry.addSegment('first', {
+      name: 'Tumor',
+      color: [1, 2, 3, 255],
+      visible: false,
+      locked: true,
+      strokeWidth: 4,
+      fillOpacity: 0.2,
+    });
+    const node = registry.addSegment('first', { name: 'Node' });
+    registry.moveSegment(node, first);
+    const kept = registry.addSegment('second', {
+      name: 'Tumor',
+      color: [9, 9, 9, 255],
+    });
+
+    registry.copySegments('third', 'first');
+    registry.copySegments('second', 'first');
+    const [copiedNode, copied] = registry.segmentList('third');
+
+    expect(copied).toMatchObject({
+      name: 'Tumor',
+      color: [1, 2, 3, 255],
+      visible: true,
+      locked: false,
+      strokeWidth: 4,
+      fillOpacity: 0.2,
+    });
+    expect(copied.id).not.toBe(first);
+    expect(namesOf(registry, 'third')).toEqual(['Node', 'Tumor']);
+    expect(namesOf(registry, 'second')).toEqual(['Tumor', 'Node']);
+    expect(registry.getSegment(kept)?.color).toEqual([9, 9, 9, 255]);
+    registry.updateSegment(copied.id, { name: 'Lesion', locked: true });
+    registry.moveSegment(copied.id, copiedNode.id);
+    registry.deleteSegment(copied.id);
+
+    expect(namesOf(registry, 'first')).toEqual(['Node', 'Tumor']);
+    expect(registry.getSegment(first)?.locked).toBe(true);
+    expect(registry.selectedSegmentId('first')).toBe(node);
+    expect(namesOf(registry, 'third')).toEqual(['Node']);
+  });
+
+  it('copies colors unaliased', () => {
+    const registry = createSegmentRegistry();
+    registry.mintSegment('source', {
+      name: 'Tumor',
+      color: cssColorToRGBA('red'),
+    });
+
+    registry.copySegments('target', 'source');
+    registry.findSegmentByName('target', 'Tumor')!.color[0] = 64;
+
+    expect(registry.findSegmentByName('source', 'Tumor')?.color).toEqual(
+      cssColorToRGBA('red')
+    );
+  });
+
+  it('adds nothing when every source name is already on the target', () => {
+    const registry = createSegmentRegistry();
+    registry.addSegment('first', { name: 'Tumor' });
+    registry.copySegments('second', 'first');
+
+    registry.copySegments('second', 'first');
+
+    expect(namesOf(registry, 'second')).toEqual(['Tumor']);
+  });
+
   it('matches names and assigns defaults within one image', () => {
     const registry = createSegmentRegistry();
     const first = registry.addSegment('first', { name: 'Tumor' });

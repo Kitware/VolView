@@ -128,6 +128,7 @@ const globalOptions = {
         '<div v-if="modelValue" class="dialog"><slot :close="() => {}" /></div>',
     },
     SaveSegmentationDialog: SaveDialogStub,
+    CopySegmentsMenu: { template: '<span />' },
     VBtn: BtnStub,
     VIcon: IconStub,
     VSpacer: { template: '<span />' },
