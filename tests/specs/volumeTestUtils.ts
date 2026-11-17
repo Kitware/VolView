@@ -59,6 +59,10 @@ export async function openWith3DLayout(dataUrl: string, name: string) {
   await writeManifestToFile(LAYOUT, config);
   await volViewPage.open(`?urls=[tmp/${config},${dataUrl}]`);
   await volViewPage.waitForViewCounts(0, true);
+  // The load-complete toast covers the lower panel controls for a few seconds.
+  await browser.waitUntil(
+    async () => (await $$('.Vue-Toastification__toast').length) === 0
+  );
 }
 
 /** Fraction of RGBA pixels whose largest channel difference exceeds 8. */
