@@ -3,7 +3,7 @@
 
 import { nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
-import ReasonedAction from '@/src/components/ReasonedAction.vue';
+import ListActionRow from '@/src/components/ListActionRow.vue';
 
 const emit = defineEmits<{
   create: [];
@@ -172,21 +172,14 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
       </v-list-item>
     </div>
 
-    <div role="listitem" class="create-row-wrapper">
-      <reasoned-action :reason="createReason" block v-slot="{ disabled }">
-        <button
-          type="button"
-          class="create-row w-100"
-          :disabled="disabled"
-          @click="emit('create')"
-        >
-          <span class="create-row-content">
-            <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
-            <span class="text-body-2">{{ createText }}</span>
-          </span>
-        </button>
-      </reasoned-action>
-    </div>
+    <list-action-row
+      class="create-row"
+      icon="mdi-plus"
+      :text="createText"
+      :reason="createReason"
+      @click="emit('create')"
+    />
+    <slot name="append"></slot>
   </v-list>
 </template>
 
@@ -207,18 +200,11 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
   min-width: 0;
 }
 
-.v-list-item.item-row,
-.create-row-content {
+.v-list-item.item-row {
   border: 1px solid transparent;
   border-radius: 4px;
   /* The default inset would dwarf the gaps between the row's parts. */
   padding-inline: 4px;
-}
-
-.create-row-content {
-  display: flex;
-  align-items: center;
-  min-height: 40px;
 }
 
 .item-row.v-list-item--active {
@@ -236,25 +222,5 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
 /* Vuetify's active tint would lighten the app's selection color. */
 .item-row.v-list-item--active :deep(.v-list-item__overlay) {
   opacity: 0;
-}
-
-.create-row {
-  opacity: var(--v-medium-emphasis-opacity);
-  text-align: left;
-  border-radius: 4px;
-}
-
-.create-row:hover:enabled,
-.create-row:focus-visible {
-  background-color: rgba(var(--v-theme-on-surface), var(--v-hover-opacity));
-}
-
-.create-row:disabled {
-  opacity: var(--v-disabled-opacity);
-  pointer-events: none;
-}
-
-.create-icon {
-  flex: 0 0 18px;
 }
 </style>

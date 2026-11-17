@@ -40,6 +40,34 @@ export const segmentColor = async (name: string) => {
 
 export const createSegmentRow = () => $(`${SEGMENT_LIST} .create-row`);
 
+export const copySegmentsRow = () => $(`${SEGMENT_LIST} .copy-segments-row`);
+
+/** A source in the open copy menu, titled by image name above its count. */
+export const copySource = (imageName: string) =>
+  $(
+    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and .//div[contains(@class,"v-list-item-title") and normalize-space(.)="' +
+      imageName +
+      '"]]'
+  );
+
+export const openCopySegmentsMenu = async () => {
+  await copySegmentsRow().click();
+  const menu = $('.v-menu.v-overlay--active .v-overlay__content');
+  await menu.waitForDisplayed();
+  // The menu ignores the pointer until its opening transition ends.
+  await browser.waitUntil(
+    async () => (await menu.getCSSProperty('pointer-events')).value !== 'none'
+  );
+};
+
+export const copySegmentsFrom = async (imageName: string) => {
+  await openCopySegmentsMenu();
+  const source = copySource(imageName);
+  await source.waitForClickable();
+  await source.click();
+  await source.waitForDisplayed({ reverse: true });
+};
+
 /** The image whose segments the panel lists. */
 export const segmentImageName = () => $('[data-testid="segment-image-name"]');
 

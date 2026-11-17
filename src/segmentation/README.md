@@ -47,6 +47,8 @@ stores or upper feature modules.
 The registry holds the config as a template. An image's set is created, from
 the template, the first time the image is shown or anything is added to it, or
 empty without a config. It never depends on which image was shown before it.
+"Copy segments from..." adds another image's definitions that the current image
+lacks by name, without masks or shapes.
 
 A restored image keeps its saved set, including a saved empty set: restore
 creates the set without the template. A restored image without one follows the
