@@ -98,28 +98,28 @@ export default defineComponent({
 <template>
   <div class="mx-2 mt-1">
     <template v-if="hasCurrentImage || enFaceView">
-      <div
-        v-if="hasCurrentImage && !canShow3DControls"
-        class="pt-4 text-body-2 text-center text-medium-emphasis"
-      >
-        Create a 3D view to access volume rendering controls
-      </div>
-
       <v-expansion-panels v-model="panels" multiple variant="accordion">
         <v-expansion-panel
-          v-if="canShow3DControls"
+          v-if="hasCurrentImage"
           value="volume"
           data-testid="volume-rendering-panel"
         >
           <v-expansion-panel-title data-testid="volume-rendering-toggle">
-            <v-icon class="flex-grow-0 mr-4">mdi-cube-outline</v-icon>
+            <v-icon class="flex-grow-0 mr-4">mdi-cube</v-icon>
             3D Rendering
           </v-expansion-panel-title>
           <v-expansion-panel-text eager class="volume-controls">
-            <v-skeleton-loader v-if="isImageLoading" type="image" />
+            <div
+              v-if="!canShow3DControls"
+              class="pa-4 text-body-2 text-medium-emphasis"
+            >
+              Create a 3D view to access volume rendering controls
+            </div>
+            <v-skeleton-loader v-else-if="isImageLoading" type="image" />
             <volume-rendering v-else :view-id="view3DId" />
 
             <v-expansion-panels
+              v-if="canShow3DControls"
               v-model="volumePanels"
               multiple
               variant="accordion"
