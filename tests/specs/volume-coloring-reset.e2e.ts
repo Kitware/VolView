@@ -1,0 +1,132 @@
+import { volViewPage } from '../pageobjects/volview.page';
+import { captureViewPixels, waitForModuleTransitions } from './utils';
+import {
+  differingFraction,
+  floatVoxels,
+  nrrd,
+  showColorPresets,
+  openWith3DLayout,
+  pressOn,
+  radialRamp,
+  selectedPreset,
+  sliderThumb,
+  stablePixels,
+  waitForFittedColorRange,
+  writeNrrd,
+} from './volumeTestUtils';
+
+const SIZE = 16;
+const EDITOR = '[data-testid="volume-opacity-editor"]';
+const RESET = '[data-testid="volume-reset-color-opacity"]';
+
+const shiftThumb = () => sliderThumb('volume-color-shift');
+const widthThumb = () => sliderThumb('volume-color-width');
+const ambientThumb = () => $('.v-slider*=Ambient').$('[role="slider"]');
+const sliderValue = async (slider: ChainablePromiseElement) =>
+  String(await slider.getAttribute('aria-valuenow'));
+
+async function pixels(selector: string, inset: number, file: string) {
+  const [{ data }] = await captureViewPixels(selector, inset, file);
+  return data;
+}
+
+async function waitForPixels(
+  selector: string,
+  inset: number,
+  expected: Buffer,
+  matches: boolean,
+  timeoutMsg: string
+) {
+  await browser.waitUntil(
+    async () => {
+      const fraction = differingFraction(
+        await pixels(selector, inset, 'volume-coloring-reset.png'),
+        expected
+      );
+      return matches ? fraction < 0.01 : fraction > 0.05;
+    },
+    { timeoutMsg }
+  );
+}
+
+async function dragOpacityCurve(steps: number) {
+  const editor = $(EDITOR).$('canvas');
+  await editor.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const drag = browser
+    .action('pointer')
+    .move({ origin: editor, x: -60, y: 0 })
+    .down();
+  for (let step = 0; step < steps; step++)
+    drag.move({ origin: 'pointer', x: 30, y: 0, duration: 50 });
+  await drag.up().perform();
+}
+
+describe('3D rendering color and opacity reset', () => {
+  it('restores Shift, Width, and the opacity curve while keeping lighting', async () => {
+    const name = 'volume-coloring-reset';
+    const voxels = floatVoxels(SIZE, radialRamp(SIZE));
+    await openWith3DLayout(
+      writeNrrd(name, nrrd([], 'float', SIZE), voxels),
+      name
+    );
+    await volViewPage.renderingModuleTab.waitForClickable();
+    await volViewPage.renderingModuleTab.click();
+    await waitForModuleTransitions();
+    const reset = $(RESET);
+    await expect(reset).toHaveAttribute(
+      'aria-label',
+      'Reset color and opacity'
+    );
+
+    await waitForFittedColorRange(1000);
+
+    // Reset must keep a preset chosen over the Grayscale default.
+    await showColorPresets();
+    await $('.thumbnail-container*=MR Default').click();
+    await expect(selectedPreset()).toHaveText('MR Default');
+    // The open preset grid pushes the opacity editor out of the capture area.
+    await showColorPresets(false);
+
+    await pressOn(ambientThumb(), 'ArrowRight');
+    await expect(ambientThumb()).toHaveAttribute('aria-valuenow', '0.3');
+
+    const shift = await sliderValue(shiftThumb());
+    const width = await sliderValue(widthThumb());
+    // The editor draws both the opacity curve and the color bar for Shift and Width.
+    await browser.execute(
+      (selector) => document.querySelector(selector)?.scrollIntoView(),
+      EDITOR
+    );
+    const editor = await stablePixels(EDITOR, 0);
+
+    await dragOpacityCurve(3);
+    await waitForPixels(
+      EDITOR,
+      0,
+      editor,
+      false,
+      'Expected dragging to change the opacity curve'
+    );
+    await pressOn(shiftThumb(), 'End');
+    await pressOn(widthThumb(), 'Home');
+    await expect(shiftThumb()).not.toHaveAttribute('aria-valuenow', shift);
+    await expect(widthThumb()).not.toHaveAttribute('aria-valuenow', width);
+
+    await browser.keys('Tab');
+    await expect(reset).toBeFocused();
+    await browser.keys('Enter');
+
+    await expect(shiftThumb()).toHaveAttribute('aria-valuenow', shift);
+    await expect(widthThumb()).toHaveAttribute('aria-valuenow', width);
+    await waitForPixels(
+      EDITOR,
+      0,
+      editor,
+      true,
+      'Expected reset to restore the opacity curve and color bar'
+    );
+    await expect(ambientThumb()).toHaveAttribute('aria-valuenow', '0.3');
+    await showColorPresets();
+    await expect(selectedPreset()).toHaveText('MR Default');
+  }).timeout(180_000);
+});
