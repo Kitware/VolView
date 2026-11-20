@@ -11,6 +11,16 @@ import { useEnFaceViewStore } from '@/src/enface/store';
 import { clampValue } from '@/src/utils';
 import { LPSAxes } from '@/src/utils/lps';
 
+/** Whether a view shows a slice: its own, or any within an En face slab. */
+export const showsSlice = (
+  info: Maybe<{ sliceRange: readonly [number, number] }>,
+  slice: Maybe<number>
+) =>
+  !!info &&
+  slice != null &&
+  slice >= info.sliceRange[0] &&
+  slice <= info.sliceRange[1];
+
 /**
  * Returns information about the current slice.
  *
@@ -31,7 +41,12 @@ export function useSliceInfo(
   const enFaceStore = useEnFaceViewStore();
   const cursor = computed(() => {
     const eff = effective.value;
-    if (eff?.kind === 'volume2D') return { axis: eff.axis, slice: slice.value };
+    if (eff?.kind === 'volume2D')
+      return {
+        axis: eff.axis,
+        slice: slice.value,
+        range: [slice.value, slice.value] as const,
+      };
     if (eff?.kind !== 'enface') return null;
     const settings = enFaceStore.settingsFor(unref(viewID), unref(imageID));
     const { dimensions, lpsOrientation } = imageMetadata.value;
@@ -41,6 +56,7 @@ export function useSliceInfo(
     return {
       axis: LPSAxes.find((axis) => lpsOrientation[axis] === settings.axis)!,
       slice: Math.round((first + last) / 2),
+      range: [first, last] as const,
     };
   });
   return computed(() => {
@@ -52,6 +68,7 @@ export function useSliceInfo(
         axisName: 'Axial' as const,
         axisIndex: 2,
         slice: 0,
+        sliceRange: [0, 0] as const,
         planeNormal: AXIAL_FRAME_OF_REFERENCE.planeNormal,
         planeOrigin: AXIAL_FRAME_OF_REFERENCE.planeOrigin,
       };
@@ -59,7 +76,7 @@ export function useSliceInfo(
 
     if (!cursor.value) return null;
 
-    const { axis, slice: currentSlice } = cursor.value;
+    const { axis, slice: currentSlice, range } = cursor.value;
     const { viewDirection } = get2DViewingVectors(axis);
     const { lpsOrientation } = imageMetadata.value;
     const planeOrigin = [0, 0, 0] as Vector3;
@@ -68,6 +85,7 @@ export function useSliceInfo(
       axisName: axis,
       axisIndex: lpsOrientation[axis],
       slice: currentSlice,
+      sliceRange: range,
       planeNormal: lpsOrientation[viewDirection] as Vector3,
       planeOrigin,
     };

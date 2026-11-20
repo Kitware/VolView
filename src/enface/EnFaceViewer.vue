@@ -15,14 +15,12 @@ import RulerTool from '@/src/components/tools/ruler/RulerTool.vue';
 import RectangleTool from '@/src/components/tools/rectangle/RectangleTool.vue';
 import SelectTool from '@/src/components/tools/SelectTool.vue';
 import BoundingRectangle from '@/src/components/tools/BoundingRectangle.vue';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { showsSlice, useSliceInfo } from '@/src/composables/useSliceInfo';
 import {
   doesToolFrameMatchViewAxis,
   isToolVisible,
 } from '@/src/composables/annotationTool';
 import { useToolSelectionStore } from '@/src/store/tools/toolSelection';
-import { useViewStore } from '@/src/store/views';
-import { useSegmentStore } from '@/src/segmentation/segments';
 import { ReferenceLineSegments } from '@/src/referenceLines';
 import { useAnnotationToolStore, useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
@@ -50,11 +48,7 @@ const {
 } = source;
 const annotationSlice = useSliceInfo(viewId, currentImageID);
 const annotationKey = computed(() =>
-  [
-    currentImageID.value,
-    specification.value.axis,
-    annotationSlice.value?.slice,
-  ].join(':')
+  [currentImageID.value, specification.value.axis].join(':')
 );
 const selectionStore = useToolSelectionStore();
 const selectionPoints = computed(() => {
@@ -69,7 +63,7 @@ const selectionPoints = computed(() => {
       ({ tool }) =>
         !!tool &&
         tool.imageID === currentImageID.value &&
-        tool.slice === slice.slice &&
+        showsSlice(slice, tool.slice) &&
         isToolVisible(tool) &&
         doesToolFrameMatchViewAxis(slice.axisName, tool, currentImageMetadata)
     )
@@ -119,30 +113,6 @@ const segmentControls = ref<SegmentControlState>({
   thinReason: null,
 });
 const enFaceStore = useEnFaceViewStore();
-const views = useViewStore();
-const { selectedSegmentId } = useSegmentStore().segments;
-watch(
-  [
-    () => tools.currentTool,
-    selectedSegmentId,
-    currentImageID,
-    () => views.activeView,
-  ],
-  ([tool, segmentId, imageId, activeView]) => {
-    if (
-      tool !== Tools.Paint ||
-      !segmentId ||
-      !imageId ||
-      activeView !== viewId.value
-    )
-      return;
-    const config = enFaceStore.configFor(viewId.value, imageId);
-    config.showFootprints = true;
-    if (!config.footprintSegmentIds.includes(segmentId))
-      config.footprintSegmentIds = [...config.footprintSegmentIds, segmentId];
-  },
-  { immediate: true }
-);
 const controlState = computed(() => ({
   ...controls.value,
   projectionReason: stateMessage.value,
@@ -295,10 +265,10 @@ watch(
         <div v-if="projectionReady && annotationSlice" class="annotation-cell">
           <ReasonedAction
             class="pointer-events-all"
-            tooltip="Annotations use the source slice nearest the slab midpoint. Painting and polygon rasterization edit only that slice."
+            tooltip="New rulers, rectangles and polygons are placed on the source slice at the slab midpoint. Painting fills the whole slab depth."
           >
             <span data-testid="enface-annotation-slice">
-              Annotations: {{ annotationSlice.axisName }} slice
+              New annotations: {{ annotationSlice.axisName }} slice
               {{ annotationSlice.slice + 1 }}
             </span>
           </ReasonedAction>

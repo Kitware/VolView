@@ -70,7 +70,7 @@ export default defineComponent({
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
 
-    const { locator, frame, slice } = useViewLocator(viewId, imageId);
+    const { locator, frame, showsSlice } = useViewLocator(viewId, imageId);
 
     const { currentImageID } = useCurrentImage();
     const isToolActive = computed(() => toolStore.currentTool === toolType);
@@ -126,7 +126,10 @@ export default defineComponent({
       frame
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover: baseOnHover, overlayInfo } = useHover(
+      currentTools,
+      showsSlice
+    );
 
     // Check if any polygon is actively being placed (has points)
     const polygonStore = usePolygonStore();

@@ -128,12 +128,15 @@ function revealEnFaceSlices(
       if (!axis) return;
       const slice = sliceForAxis(axis);
       if (slice == null) return;
+      const maximum = dimensions[settings.axis] - 1;
+      // A slab already showing the slice stays where the user left it.
+      if (
+        slice >= settings.depthStart &&
+        slice <= (settings.depthEnd ?? maximum)
+      )
+        return;
       const { first, last } = centerSlabOnSlice(
-        {
-          first: settings.depthStart,
-          last: settings.depthEnd,
-          maximum: dimensions[settings.axis] - 1,
-        },
+        { first: settings.depthStart, last: settings.depthEnd, maximum },
         slice
       );
       Object.assign(settings, { depthStart: first, depthEnd: last });

@@ -17,7 +17,8 @@ defineProps<{ message: string | null }>();
 <style scoped>
 .measurement-status {
   position: absolute;
-  bottom: 8px;
+  /* Clears the corner annotation line. */
+  bottom: 32px;
   left: 12px;
   right: 80px;
   padding: 4px 6px;

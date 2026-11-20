@@ -15,14 +15,13 @@ import {
   chooseEnFaceProjection,
   enFacePixel,
   enFaceScreenPoint,
-  openEnFaceControls,
-  PANEL,
   setEnFaceSlab,
   toolButton,
   waitForEnFaceReady,
 } from './octTestUtils';
 import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
 import {
+  addSegment,
   openAnnotationSegments,
   openSegmentShapes,
   revealSegment,
@@ -74,7 +73,7 @@ async function scene(permuted = false) {
   await waitForEnFaceReady();
   await setReferenceLinesEnabled(true);
   await setEnFaceSlab(4, 9);
-  await expect($(SLICE)).toHaveText(`Annotations: ${axis} slice 8`);
+  await expect($(SLICE)).toHaveText(`New annotations: ${axis} slice 8`);
   await toolButton('Select').click();
   await openAnnotationSegments();
   await waitForModuleTransitions();
@@ -112,8 +111,7 @@ async function expectMarks(expected: number[]) {
       async () =>
         JSON.stringify(await visibleMarks()) === JSON.stringify(expected),
       {
-        timeoutMsg:
-          'Expected the saved annotations on the midpoint source slice',
+        timeoutMsg: 'Expected the saved annotations within the En face slab',
       }
     )
     .catch(async (error: Error) => {
@@ -196,19 +194,26 @@ async function expectPaintedProjection(present: boolean) {
   );
 }
 
-describe('En face source-slice annotations', () => {
+describe('En face annotations', () => {
   after(async () => setReferenceLinesEnabled(false));
 
   for (const permuted of [false, true]) {
-    it(`draws and restores shapes on the nearest midpoint slice with ${permuted ? 'permuted' : 'identity'} source axes`, async () => {
+    it(`draws shapes on the midpoint slice and shows them across the slab with ${permuted ? 'permuted' : 'identity'} source axes`, async () => {
       const axis = await scene(permuted);
       await drawAnnotations();
       await expectPlacement(axis);
       await setEnFaceSlab(2, 3);
       await expectMarks([0, 0, 0]);
       await $(SHAPE_ROW).$('[data-testid="reveal-shape-button"]').click();
-      await expect($(SLICE)).toHaveText(`Annotations: ${axis} slice 8`);
+      await expect($(SLICE)).toHaveText(`New annotations: ${axis} slice 8`);
       await expectMarks([1, 1, 1]);
+      // A slab holding the shapes away from its midpoint still shows them,
+      // and revealing one leaves that slab where it is.
+      await setEnFaceSlab(6, 15);
+      await expect($(SLICE)).toHaveText(`New annotations: ${axis} slice 12`);
+      await expectMarks([1, 1, 1]);
+      await $(SHAPE_ROW).$('[data-testid="reveal-shape-button"]').click();
+      await expect($(SLICE)).toHaveText(`New annotations: ${axis} slice 12`);
       await setEnFaceSlab(4, 9);
       await expectMarks([1, 1, 1]);
 
@@ -222,7 +227,7 @@ describe('En face source-slice annotations', () => {
     });
   }
 
-  it('paints only the midpoint source slice with permuted axes', async () => {
+  it('paints through the slab depth with permuted axes', async () => {
     await scene(true);
     await toolButton('Paint').click();
     await openAnnotationSegments();
@@ -236,35 +241,31 @@ describe('En face source-slice annotations', () => {
     await setEnFaceSlab(0, 3);
     await expectPaintedProjection(false);
     await revealSegment('Segment 1');
-    await expect($(SLICE)).toHaveText('Annotations: Axial slice 8');
+    await expect($(SLICE)).toHaveText('New annotations: Axial slice 7');
     await expectPaintedProjection(true);
-    await expect($(SOURCE).$('.slice-label')).toHaveText('Slice: 8/20');
+    await expect($(SOURCE).$('.slice-label')).toHaveText('Slice: 7/20');
     await expectPaintedSource(true);
-    await sourceSlice(6);
+    await sourceSlice(3);
     await expectPaintedSource(false);
-    await sourceSlice(8);
+    await sourceSlice(4);
+    await expectPaintedSource(true);
+    await sourceSlice(10);
     await expectPaintedSource(false);
-    await sourceSlice(7);
+    await sourceSlice(9);
     await expectPaintedSource(true);
 
-    await toolButton('Paint').click();
-    await openEnFaceControls();
-    const footprintToggle = $(PANEL).$(
-      '[data-testid="enface-footprints-toggle"]'
-    );
-    await footprintToggle.scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
-    await expect(footprintToggle.$('input')).toBeSelected();
-    await footprintToggle.$('label').click();
-    await expect(footprintToggle.$('input')).not.toBeSelected();
-    await expectPaintedProjection(false);
-    await browser.keys('Escape');
-    await toolButton('Select').click();
-    await expectPaintedProjection(false);
-    await toolButton('Paint').click();
+    // The slab still crosses the stroke, but its midpoint slice is unpainted.
+    await setEnFaceSlab(8, 15);
     await expectPaintedProjection(true);
+    await toolButton('Paint').click();
+    await addSegment();
+    const selected = () =>
+      $('[data-testid="segment-list"] .item-row[aria-current="true"]');
+    await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
+    await $('[data-testid="paint-eyedropper-button"]').click();
+    await nudgeTo(point.x, point.y);
+    await pressAtPointer();
+    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
     await toolButton('Select').click();
 
     const saved = await volViewPage.saveSession();
@@ -282,11 +283,11 @@ describe('En face source-slice annotations', () => {
   it('cancels unfinished placement when changing the projection axis at the same midpoint', async () => {
     await scene(true);
     await setEnFaceSlab(14, 18);
-    await expect($(SLICE)).toHaveText('Annotations: Axial slice 17');
+    await expect($(SLICE)).toHaveText('New annotations: Axial slice 17');
     await toolButton('Ruler').click();
     await clickPoint(8.5, 5.5);
     await chooseEnFaceProjection('enface-projection-axis', 'Coronal');
-    await expect($(SLICE)).toHaveText('Annotations: Coronal slice 17');
+    await expect($(SLICE)).toHaveText('New annotations: Coronal slice 17');
     await clickPoint(8.5, 5.5);
     await toolButton('Select').click();
     await expectMarks([0, 0, 0]);
