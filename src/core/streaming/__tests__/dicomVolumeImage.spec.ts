@@ -3,20 +3,29 @@ import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import {
   allocateVolume,
-  createDicomRuntime,
-  fromBlob,
-  readInstance,
-  Tags,
-  type ByteSource,
-  type DecodedPixels,
-  type DicomRuntime,
-  type Extent,
-  type Instance,
   type Volume,
-  type WholeInstanceDecode,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/volume/allocateVolume';
+import {
+  createDicomRuntime,
+  type DicomRuntime,
+} from '@/packages/dicom/core/runtime/createDicomRuntime';
+import {
+  fromBlob,
+  type ByteSource,
+} from '@/packages/dicom/core/source/byteSource';
+import {
+  readInstance,
+  type Instance,
+} from '@/packages/dicom/core/instance/readInstance';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import type {
+  DecodedPixels,
+  WholeInstanceDecode,
+} from '@/packages/dicom/core/pixels/pixelDecoder';
+import type { Extent } from '@/packages/dicom/core/volume/loadVolume';
 import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
-import { sliceThumbnail, type ThumbnailSlice } from '@/packages/dicom/vtk';
+import { sliceThumbnail } from '@/packages/dicom/vtk/volumeImage';
+import type { ThumbnailSlice } from '@/packages/dicom/vtk/thumbnail';
 import { defer } from '@/src/utils';
 import { nativePixelDicom } from '@/tests/nativePixelDicom';
 import DicomVolumeImage, {

@@ -4,7 +4,8 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
-import { Tags, type DicomDataset } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import {
   OCT_GEOMETRY_ERROR,
   OCT_SCAN_PATTERN,

@@ -1,4 +1,4 @@
-import type { ByteSource } from '@/packages/dicom/core';
+import type { ByteSource } from '@/packages/dicom/core/source/byteSource';
 
 /** Hands out bytes a chunk at a time and counts what readers pulled and cancelled. */
 export const trackedSource = (bytes: Uint8Array, chunkSize = bytes.length) => {

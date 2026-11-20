@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import type { Instance } from '@/packages/dicom/core';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import {
   buildStateIDToStoreID,
   findMergedStateDatasets,
