@@ -1,5 +1,3 @@
-// Sole entry point for the processing feature, enforced by eslint import zones.
-
 import { defineAsyncComponent } from 'vue';
 
 import { registerConfigSection } from '@/src/io/import/configJson';
@@ -10,9 +8,6 @@ import {
   type ProcessingSection,
 } from './config';
 import { useProcessingJobsStore } from './store';
-
-export { useProcessingJobsStore } from './store';
-export type { ProcessingProviderConfig } from './types';
 
 // Lazy so the panel chunk stays out of the boot bundle.
 export const JobsModule = defineAsyncComponent(
@@ -33,12 +28,12 @@ export const processingConfigSection = {
   },
 };
 
-// Module-evaluation-time registration: this entry point is statically imported
+// Module-evaluation-time registration: this module is statically imported
 // at boot (App.vue), which runs before any config file can be recognized.
 registerConfigSection(processingConfigSection);
 
 // Job re-discovery after reload: once the launch data + providers are in,
-// re-find THIS study's jobs for the Jobs panel — still-running jobs join the
+// re-find THIS study's jobs for the Jobs panel. Still-running jobs join the
 // normal poller (finishing while open fires the ordinary in-session live
 // path), terminal ones are observability rows only. Inert with no configured
 // provider (the demo posture registers none) and never fatal to the load.

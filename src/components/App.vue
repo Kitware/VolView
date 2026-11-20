@@ -58,7 +58,7 @@ import useLoadDataStore from '@/src/store/load-data';
 import { useViewStore } from '@/src/store/views';
 // Side-effect import: registers processing's config section and
 // launch-load subscriber before any config or data loads.
-import '@/src/processing';
+import '@/src/processing/integration';
 import { signalLaunchLoadComplete } from '@/src/core/launchLoad';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import AppBar from '@/src/components/AppBar.vue';

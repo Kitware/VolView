@@ -1,5 +1,5 @@
 import { vtkReader, vtkWriter, vtkClass } from '@/src/types/vtk-types';
-import { readFileAsArrayBuffer, readFileAsUTF8Text } from '@/src/io';
+import { readFileAsArrayBuffer, readFileAsUTF8Text } from '@/src/io/io';
 import vtkDataSet from '@kitware/vtk.js/Common/DataModel/DataSet';
 
 export async function readFile(
