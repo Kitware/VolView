@@ -3,7 +3,6 @@ import { createPinia, setActivePinia } from 'pinia';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import {
   buildStateIDToStoreID,
-  findMergedStateDatasets,
   importDicomInstanceSources,
 } from '@/src/io/import/importDataSources';
 import type { DicomInstanceSource } from '@/src/io/import/dataSource';
@@ -224,7 +223,7 @@ describe('importDicomInstanceSources through the DICOM store', () => {
     );
   });
 
-  it('binds no saved state when two saved volumes restore as one', () => {
+  it('binds both saved volumes to the one they now restore as', () => {
     // Without the first pass's last slice the passes no longer overlap.
     const first = acquisition('1', [0, 2.5]);
     const second = acquisition('2', [4, 6.5, 9]);
@@ -235,8 +234,7 @@ describe('importDicomInstanceSources through the DICOM store', () => {
     ]);
 
     const [mergedId] = idsOf(loadables);
-    expect(buildStateIDToStoreID(loadables)).toEqual({});
-    expect(findMergedStateDatasets(loadables)).toEqual({
+    expect(buildStateIDToStoreID(loadables)).toEqual({
       'pass-1': mergedId,
       'pass-2': mergedId,
     });
