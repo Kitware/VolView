@@ -162,7 +162,6 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   /** Shows a newly allocated volume; slices it already holds stay loaded. */
   setVolume(volume: Volume) {
     this.replaceContent({ kind: 'volume', volume, failed: new Set() });
-    this.spatialMetadata.value = volume.spatialMetadata;
     this.replaceImage(toVtkImageData(volume));
     this.settleThumbnail?.();
   }
