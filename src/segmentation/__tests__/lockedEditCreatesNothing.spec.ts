@@ -14,10 +14,8 @@ import {
 // ---------------------------------------------------------------------------
 // Refusing an edit on a locked segment. The selection is shared across images
 // while masks are per image, so the segment an edit aims at routinely has no
-// record here yet. Resolving the target would mint that record and the
-// image's segmentation, and a refusal must not leave either behind: an empty
-// record reaches the saved state file and counts as a reference to the
-// segment.
+// mask here yet. Resolving the target would allocate one, and a refusal must
+// not leave it behind: a mask reaches the saved state file.
 // ---------------------------------------------------------------------------
 
 const SQUARE: Vector3[] = [
@@ -30,14 +28,16 @@ const SQUARE: Vector3[] = [
 const segments = () => useSegmentStore().segments;
 
 const lockedSelection = () => {
-  const segmentId = segments().mintSegment({ name: 'Locked', locked: true });
+  const segmentId = segments().mintSegment('img-1', {
+    name: 'Locked',
+    locked: true,
+  });
   segments().selectSegment(segmentId);
   return segmentId;
 };
 
 const expectNothingCreated = (imageId: string, segmentId: string) => {
-  expect(store().getSegmentationForImage(imageId)).toBeUndefined();
-  expect(store().maskFor(imageId, segmentId)).toBeUndefined();
+  expect(store().maskOf(segmentId)).toBeUndefined();
   expect(store().imageMasks(imageId)).toEqual([]);
 };
 
@@ -47,7 +47,7 @@ describe('a refused edit on a locked segment', () => {
     await seatSpecImage('img-1');
   });
 
-  it('creates no mask record for a refused stroke', () => {
+  it('creates no mask for a refused stroke', () => {
     const segmentId = lockedSelection();
 
     strokeAt('img-1', [1, 1, 0]);
@@ -55,7 +55,7 @@ describe('a refused edit on a locked segment', () => {
     expectNothingCreated('img-1', segmentId);
   });
 
-  it('creates no mask record for a refused polygon', () => {
+  it('creates no mask for a refused polygon', () => {
     const segmentId = lockedSelection();
 
     const result = rasterizePolygon({
@@ -66,15 +66,18 @@ describe('a refused edit on a locked segment', () => {
       viewAxis: 'Axial',
     });
 
-    // Refused: the polygon names its segment back and no record.
-    expect(result).toEqual({ segmentId, maskId: undefined });
+    // Refused: the polygon names its segment back.
+    expect(result).toEqual({ segmentId });
     expect(messageTitles()).toContain('Cannot rasterize into a locked segment');
     expectNothingCreated('img-1', segmentId);
   });
 
-  it('creates no mask record for a polygon naming a locked segment', () => {
-    const locked = segments().mintSegment({ name: 'Locked', locked: true });
-    const active = segments().mintSegment({ name: 'Active' });
+  it('creates no mask for a polygon naming a locked segment', () => {
+    const locked = segments().mintSegment('img-1', {
+      name: 'Locked',
+      locked: true,
+    });
+    const active = segments().mintSegment('img-1', { name: 'Active' });
     segments().selectSegment(active);
 
     const result = rasterizePolygon({
@@ -87,8 +90,8 @@ describe('a refused edit on a locked segment', () => {
 
     // The polygon carries the locked segment, so the selected one is not a
     // fallback target: nothing is created for either.
-    expect(result.maskId).toBeUndefined();
+    expect(result).toEqual({ segmentId: locked });
     expectNothingCreated('img-1', locked);
-    expect(store().maskFor('img-1', active)).toBeUndefined();
+    expect(store().maskOf(active)).toBeUndefined();
   });
 });

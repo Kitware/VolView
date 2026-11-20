@@ -9,7 +9,6 @@ import {
   extentContains,
   extentSize,
   fullExtent,
-  isEmptyExtent,
 } from '@/src/segmentation/geometry';
 import type { OccupiedDepthRequest } from '@/src/segmentation/measurements/useOccupiedDepth';
 import type { SlabSpecification } from '@/src/core/slab/types';
@@ -77,13 +76,16 @@ export function useOccupiedDepthInput(
   const highlightThin = computed(
     () => settings.value.highlightThin && !!storedSegment.value
   );
-  const selectedMask = computed(() =>
-    segmentationStore.maskFor(currentImageID.value, segmentId.value)
+  // The selected segment, when it has a mask on this image.
+  const maskedSegmentId = computed(() =>
+    segmentId.value &&
+    segmentsRegistry.belongsToImage(currentImageID.value, segmentId.value) &&
+    segmentationStore.maskOf(segmentId.value)
+      ? segmentId.value
+      : undefined
   );
   const selectedBinding = computed(() =>
-    selectedMask.value
-      ? segmentationStore.findMaskBinding(selectedMask.value.id)
-      : undefined
+    segmentationStore.maskOf(maskedSegmentId.value)
   );
   const segmentationReason = computed(
     () =>
@@ -113,8 +115,6 @@ export function useOccupiedDepthInput(
     const binding = selectedBinding.value;
     if (!binding)
       return 'The selected segment voxels are not available; load or create its mask to measure occupied depth.';
-    if (isEmptyExtent(binding.extent))
-      return 'The selected segment has no occupied voxels to measure.';
     if (!measurementMask.value)
       return 'The selected segment does not have a supported binary voxel mask.';
     return null;
@@ -236,7 +236,7 @@ export function useOccupiedDepthInput(
     return {
       dimensions: image.getDimensions(),
       source: image,
-      segment: selectedMask.value!.id,
+      segment: maskedSegmentId.value!,
       grid: JSON.stringify([
         image.getOrigin(),
         image.getSpacing(),
@@ -253,7 +253,7 @@ export function useOccupiedDepthInput(
     settings,
     segmentId,
     highlightThin,
-    selectedMask,
+    maskedSegmentId,
     segmentOptions,
     segmentationReason,
     highlightReason,

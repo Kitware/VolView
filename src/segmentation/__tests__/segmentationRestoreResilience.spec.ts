@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 import { leafStateId } from '@/src/io/import/dataSource';
 import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -12,7 +11,11 @@ import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
 import { useMessageStore } from '@/src/store/messages';
-import { boundMasks } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  boundMasks,
+  cacheLabelledImage as seatLabelmap,
+  makeImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 // ---------------------------------------------------------------------------
 // Resilient segment-group restore:
@@ -71,21 +74,8 @@ const manifestWith = (groups: Array<Record<string, unknown>>): Manifest =>
         datasets: [{ id: 'ds-ct', dataSourceId: 1 }],
         segmentGroups: groups,
       })
-    )
+    ).manifest
   );
-
-function makeImage(fillValue = 0) {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(4 * 4 * 4).fill(fillValue),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
 
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(makeImage(), name, { id });
@@ -93,32 +83,15 @@ const seatImage = (id: string, name: string) =>
 // An image that IS registered in the cache (imageById) but whose zero-length
 // scalars make getVtkImageData return null — so a path-less restore throws
 // AFTER the temp artifact has already materialized.
-function makeEmptyScalarsImage() {
-  const image = vtkImageData.newInstance();
-  image.setDimensions([4, 4, 4]);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      numberOfComponents: 1,
-      values: new Uint8Array(0),
-    })
-  );
-  image.computeTransforms();
-  return image;
-}
+const makeEmptyScalarsImage = () => makeImage({ values: new Uint8Array(0) });
 
 // A restored legacy group is split into one bounded mask per segment, so what a
 // survivor leaves behind is its segments, not a group record.
 const maskCount = () => boundMasks().length;
 
 /** The image's segments that ended up with storage. */
-const catalogFor = (parentImageId: string) => {
-  const segmentation =
-    useSegmentationStore().getSegmentationForImage(parentImageId);
-  if (!segmentation) return [];
-  return segmentation.order
-    .map((id) => segmentation.masks[id])
-    .filter((mask) => mask.representations.labelmap);
-};
+const catalogFor = (parentImageId: string) =>
+  useSegmentationStore().imageMasks(parentImageId);
 
 const nameOf = (segment: { segmentId: string }) =>
   useSegmentStore().segments.appearanceOf(segment.segmentId).name;
@@ -130,11 +103,11 @@ const restoreGroups = (
   stateFiles: { archivePath: string; file: File }[],
   dataIDMap: Record<string, string>
 ) =>
-  useSegmentationStore().deserialize({
+  deserializeSegmentation({
     manifest,
     stateFiles,
     dataIDMap,
-    segmentIdMap: useSegmentStore().deserialize(manifest).segmentIdMap,
+    resolveSegment: useSegmentStore().deserialize(manifest, dataIDMap),
     labelmapSources: planLabelmapSources(manifest).sources,
     io: artifactIO,
   });
@@ -160,7 +133,7 @@ describe('migrated segment groups: resilient restore', () => {
     stateFiles: Array<{ archivePath: string; file: File }> = []
   ) => {
     seatImage('store-ct', 'CT Chest');
-    seatImage('store-liver', 'Liver.seg.nrrd');
+    seatLabelmap('store-liver', 'Liver.seg.nrrd');
     return restoreGroups(
       manifestWith([
         group('sg-tumor', tumorSource),
@@ -265,7 +238,7 @@ describe('migrated segment groups: resilient restore', () => {
   it('an unresolved base skips its group (with reason) while survivors attach', async () => {
     // `sg-liver`'s base (ds-ct) resolves; `sg-tumor`'s base (ds-missing) does not.
     seatImage('store-ct', 'CT Chest');
-    seatImage('store-liver', 'Liver.seg.nrrd');
+    seatLabelmap('store-liver', 'Liver.seg.nrrd');
 
     await completeStateFileRestore(
       manifestWith([

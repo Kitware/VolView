@@ -9,7 +9,7 @@ import {
   mintSegment,
   lockSegment,
   addActiveSegment,
-  deleteSegmentOf,
+  deleteSegment,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { usePaintToolStore } from '@/src/store/tools/paint';
 import {
@@ -29,16 +29,12 @@ import { defer } from '@/src/utils';
 const TWO_VOXELS = { dimensions: [2, 1, 1] as Index3 };
 
 /** Another segment of the same image, grown to the same two voxels. */
-function addBoundSegment(segmentationId: string, name: string) {
-  const segmentationStore = useSegmentationStore();
-  const segment = segmentationStore.createMask(
-    segmentationId,
-    mintSegment({ name })
-  );
-  const voxels = segmentationStore.maskVoxels(segment.id);
+function addBoundSegment(name: string) {
+  const segmentId = mintSegment('image-1', { name });
+  const voxels = useSegmentationStore().maskVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains([0, 1, 0, 0, 0, 0]);
-  return { maskId: segment.id };
+  return segmentId;
 }
 
 const buffer = (labelMap: vtkLabelMap) =>
@@ -59,11 +55,11 @@ function recordingAlgorithm(result: () => Uint8Array) {
 
 const startedProcess = async (options?: { requiresActiveSegment: boolean }) => {
   const processStore = usePaintProcessStore();
-  const { labelMap, maskId } = addActiveSegment(new Uint8Array([1, 0]));
+  const { labelMap, segmentId } = addActiveSegment(new Uint8Array([1, 0]));
   const original = buffer(labelMap);
   const { algorithm } = recordingAlgorithm(() => new Uint8Array([1, 1]));
   await processStore.startProcess(algorithm, options);
-  return { processStore, labelMap, original, maskId };
+  return { processStore, labelMap, original, segmentId };
 };
 
 describe('paint process storage', () => {
@@ -185,11 +181,11 @@ describe('paint process storage', () => {
       requiresActiveSegment: boolean;
     }) => {
       const paintStore = usePaintToolStore();
-      const { maskId, processStore } = await startedProcess(options);
+      const { segmentId, processStore } = await startedProcess(options);
 
       expect(processStore.processState.step).toBe('previewing');
 
-      deleteSegmentOf(maskId);
+      deleteSegment(segmentId);
       await nextTick();
 
       expect(processStore.processState.step).toBe('start');
@@ -204,10 +200,10 @@ describe('paint process storage', () => {
 
     it('confirms without a write when the storage is gone', async () => {
       const paintStore = usePaintToolStore();
-      const { maskId, processStore } = await startedProcess();
+      const { segmentId, processStore } = await startedProcess();
 
       processStore.setShowingOriginal(true);
-      deleteSegmentOf(maskId);
+      deleteSegment(segmentId);
 
       expect(() => processStore.confirmProcess()).not.toThrow();
       expect(processStore.processState.step).toBe('start');
@@ -215,9 +211,9 @@ describe('paint process storage', () => {
     });
 
     it('ends the preview before its storage is deleted', async () => {
-      const { maskId, processStore } = await startedProcess();
+      const { segmentId, processStore } = await startedProcess();
 
-      deleteSegmentOf(maskId);
+      deleteSegment(segmentId);
 
       expect(() => processStore.setShowingOriginal(true)).not.toThrow();
       expect(processStore.processStep).toBe('start');
@@ -226,10 +222,10 @@ describe('paint process storage', () => {
     it('abandons the run when the storage goes away while the algorithm runs', async () => {
       const processStore = usePaintProcessStore();
       const paintStore = usePaintToolStore();
-      const { maskId } = addActiveSegment();
+      const { segmentId } = addActiveSegment();
 
       await processStore.startProcess(async (target) => {
-        deleteSegmentOf(maskId);
+        deleteSegment(segmentId);
         return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
       });
 
@@ -243,7 +239,7 @@ describe('paint process storage', () => {
       const processStore = usePaintProcessStore();
       const segmentationStore = useSegmentationStore();
       await viewImage('image-2', { dimensions: [4, 1, 1] });
-      const { maskId } = addActiveSegment(new Uint8Array([1, 0]), 'image-2');
+      const { segmentId } = addActiveSegment(new Uint8Array([1, 0]), 'image-2');
 
       await processStore.startProcess(async (target: ProcessTarget) => ({
         scalars: new Uint8Array([1, 1]),
@@ -252,7 +248,9 @@ describe('paint process storage', () => {
       expect(processStore.processState.step).toBe('previewing');
 
       // Grown behind the coordinator: the snapshot no longer fits the storage.
-      segmentationStore.maskVoxels(maskId).ensureContains([0, 3, 0, 0, 0, 0]);
+      segmentationStore
+        .maskVoxels(segmentId)
+        .ensureContains([0, 3, 0, 0, 0, 0]);
 
       expect(() => processStore.cancelProcess()).not.toThrow();
       expect(processStore.processState.step).toBe('start');
@@ -298,7 +296,7 @@ describe('paint process storage', () => {
 
   describe('live target locks', () => {
     it('cancels computing immediately, discards late output, and allows an unlocked retry', async () => {
-      const { maskId, labelMap } = addActiveSegment(new Uint8Array([1, 0]));
+      const { segmentId, labelMap } = addActiveSegment(new Uint8Array([1, 0]));
       const process = usePaintProcessStore();
       const paint = usePaintToolStore();
       paint.setMode(PaintMode.Erase);
@@ -307,9 +305,9 @@ describe('paint process storage', () => {
         await release.promise;
         return { scalars: new Uint8Array([1, 1]), extent: target.maskExtent };
       });
-      lockSegment(maskId);
+      lockSegment(segmentId);
       // Even a lock/unlock within one task invalidates the pending operation.
-      lockSegment(maskId, false);
+      lockSegment(segmentId, false);
       expect(process.processStep).toBe('start');
       expect(paint.activeMode).toBe(PaintMode.Erase);
       const { algorithm } = recordingAlgorithm(() => new Uint8Array(2));
@@ -326,10 +324,10 @@ describe('paint process storage', () => {
     it.each(['confirmProcess', 'setShowingOriginal'] as const)(
       'refuses %s in the same turn as locking an Original preview',
       async (action) => {
-        const { processStore, labelMap, maskId } = await startedProcess();
+        const { processStore, labelMap, segmentId } = await startedProcess();
         processStore.setShowingOriginal(true);
         expect(values(labelMap)).toEqual([1, 0]);
-        lockSegment(maskId);
+        lockSegment(segmentId);
         if (action === 'confirmProcess') processStore.confirmProcess();
         else processStore.setShowingOriginal(false);
         expect(processStore.processStep).toBe('start');
@@ -339,9 +337,9 @@ describe('paint process storage', () => {
     );
 
     it('rolls back a processed preview immediately when its target locks', async () => {
-      const { processStore, labelMap, maskId } = await startedProcess();
+      const { processStore, labelMap, segmentId } = await startedProcess();
       expect(values(labelMap)).toEqual([1, 1]);
-      lockSegment(maskId);
+      lockSegment(segmentId);
       expect(values(labelMap)).toEqual([1, 0]);
       expect(processStore.processStep).toBe('start');
     });
@@ -349,11 +347,11 @@ describe('paint process storage', () => {
     it.each(['computing', 'previewing'])(
       'cancels all targets when one locks during %s',
       async (step) => {
-        const { segmentationId, maskId, labelMap } = addActiveSegment(
+        const { segmentId, labelMap } = addActiveSegment(
           new Uint8Array([1, 0])
         );
-        const second = addBoundSegment(segmentationId, 'Second');
-        const secondVoxels = useSegmentationStore().maskVoxels(second.maskId);
+        const second = addBoundSegment('Second');
+        const secondVoxels = useSegmentationStore().maskVoxels(second);
         secondVoxels.apply(new Uint8Array([0, 1]));
         const process = usePaintProcessStore();
         const release = defer<void>();
@@ -370,22 +368,19 @@ describe('paint process storage', () => {
           expect(values(labelMap)).toEqual([0, 0]);
           expect(Array.from(secondVoxels.scalars())).toEqual([0, 0]);
         }
-        lockSegment(second.maskId);
+        lockSegment(second);
         release.resolve();
         await running;
         expect(process.processStep).toBe('start');
         expect(values(labelMap)).toEqual([1, 0]);
         expect(Array.from(secondVoxels.scalars())).toEqual([0, 1]);
-        expect(useSegmentationStore().isLocked(maskId)).toBe(false);
+        expect(useSegmentationStore().isLocked(segmentId)).toBe(false);
       }
     );
 
     it('keeps a scoped preview when an unrelated segment locks', async () => {
       const { processStore, labelMap } = await startedProcess();
-      const segmentation =
-        useSegmentationStore().getSegmentationForImage('image-1')!;
-      const unrelated = addBoundSegment(segmentation.id, 'Unrelated');
-      lockSegment(unrelated.maskId);
+      lockSegment(addBoundSegment('Unrelated'));
       await nextTick();
       expect(processStore.processStep).toBe('previewing');
       processStore.confirmProcess();

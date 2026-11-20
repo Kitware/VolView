@@ -5,6 +5,7 @@ import type { Manifest, StateFile } from '@/src/io/state-file/schema';
 import type { Maybe } from '@/src/types';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
+import { confineWrites } from '@/src/segmentation/masks/writeRegion';
 import { computed, ref, unref, watch, watchEffect } from 'vue';
 import { watchImmediate } from '@vueuse/core';
 import { vec3 } from 'gl-matrix';
@@ -53,7 +54,7 @@ export const usePaintToolStore = defineStore('paint', () => {
   const activePaintViewID = ref<Maybe<string>>(null);
   // Masks strokes wrote or cleared, checked for emptiness when a stroke ends
   // rather than per sample. A stroke that never ended leaves them to the next.
-  const strokeMaskIds = new Set<string>();
+  const strokeSegmentIds = new Set<string>();
 
   const { currentImageID, currentImageData, currentImageMetadata } =
     useCurrentImage('global');
@@ -141,19 +142,15 @@ export const usePaintToolStore = defineStore('paint', () => {
   function resolveStrokeTarget(imageID: string, allocate: boolean) {
     if (![PaintMode.CirclePaint, PaintMode.Erase].includes(activeMode.value))
       return undefined;
-    const maskId = allocate
+    const segmentId = allocate
       ? segmentationStore.resolveEditTarget(imageID)
       : segmentationStore.findEditTarget(imageID);
-    if (!maskId) return undefined;
-
-    const binding = allocate
-      ? segmentationStore.ensureLabelmapBinding(maskId)
-      : segmentationStore.findMaskBinding(maskId);
-    if (!binding) return undefined;
+    if (!segmentId) return undefined;
+    if (allocate) segmentationStore.materializeMask(segmentId);
 
     return {
-      maskId,
-      voxels: segmentationStore.maskVoxels(maskId),
+      segmentId,
+      voxels: segmentationStore.maskVoxels(segmentId),
     };
   }
 
@@ -225,7 +222,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     // Asked before anything else: cancelling a preview and resolving the target
     // (which mints the mask and its segmentation) are both side effects a
     // refused stroke must not have.
-    if (segmentationStore.editTargetLocked()) return;
+    if (segmentationStore.editTargetLocked(imageID)) return;
 
     const parentImage = useImageCacheStore().getVtkImageData(imageID);
     if (!parentImage) return;
@@ -238,7 +235,7 @@ export const usePaintToolStore = defineStore('paint', () => {
     const target = resolveStrokeTarget(imageID, !erasing);
     if (!target) return;
 
-    const { voxels, maskId } = target;
+    const { voxels, segmentId } = target;
     const underlyingImagePixels = parentImage
       .getPointData()
       .getScalars()
@@ -250,14 +247,13 @@ export const usePaintToolStore = defineStore('paint', () => {
     }
 
     const { extent } = voxels.binding()!;
-    if (isEmptyExtent(extent)) return;
 
     // Resolved once per stroke: the claim below is made for every voxel the
     // brush touches. A stroke is aimed at a place, so it takes the voxel from
     // an unlocked neighbor.
     const claimVoxel = erasing
       ? undefined
-      : segmentationStore.voxelClaim(maskId, 'aimed', strokeExtent);
+      : segmentationStore.voxelClaim(segmentId, 'aimed', strokeExtent);
     const parentDimensions = parentImage.getDimensions();
     const rowStride = parentDimensions[0];
     const sliceStride = parentDimensions[0] * parentDimensions[1];
@@ -283,17 +279,22 @@ export const usePaintToolStore = defineStore('paint', () => {
       return claimVoxel?.claim(point[0], point[1], point[2]) ?? true;
     };
 
-    try {
-      this.$paint.paintLabelmap(voxels.image(), axisIndex, lastIndexPoint, {
-        endPoint: prevIndexPoint,
-        // Where this mask's buffer sits on the parent grid the points are in.
-        origin: [extent[0], extent[2], extent[4]],
-        shouldPaint,
-      });
-    } finally {
-      strokeMaskIds.add(maskId);
-      claimVoxel?.finish().forEach((cleared) => strokeMaskIds.add(cleared));
-    }
+    // The brush and the voxels it takes from neighbors stay inside the stroke.
+    confineWrites(strokeExtent, () => {
+      try {
+        this.$paint.paintLabelmap(voxels.image(), axisIndex, lastIndexPoint, {
+          endPoint: prevIndexPoint,
+          // Where this mask's buffer sits on the parent grid the points are in.
+          origin: [extent[0], extent[2], extent[4]],
+          shouldPaint,
+        });
+      } finally {
+        strokeSegmentIds.add(segmentId);
+        claimVoxel
+          ?.finish()
+          .forEach((cleared) => strokeSegmentIds.add(cleared));
+      }
+    });
   }
 
   function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
@@ -346,8 +347,8 @@ export const usePaintToolStore = defineStore('paint', () => {
     try {
       doPaintStroke.call(this, axisIndex, imageID);
     } finally {
-      const touched = [...strokeMaskIds];
-      strokeMaskIds.clear();
+      const touched = [...strokeSegmentIds];
+      strokeSegmentIds.clear();
       segmentationStore.deleteEmptyMasks(touched);
     }
   }
@@ -457,13 +458,14 @@ export const usePaintToolStore = defineStore('paint', () => {
   // store before any tool deserializes.
   function deserialize(this: _This, manifest: Manifest) {
     const paint = manifest.tools?.paint;
-    if (!paint) return;
+    if (!paint) return [];
 
     if (paint.brushSize !== undefined) {
       setBrushSize.call(this, paint.brushSize);
     }
     isActive.value = manifest.tools?.current === Tools.Paint;
     setCrossPlaneSync(paint.crossPlaneSync ?? false);
+    return [];
   }
 
   return {

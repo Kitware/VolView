@@ -213,7 +213,7 @@ export default defineComponent({
         return 'Rasterization is not supported for cine images';
       if (!rasterizeFrame(toolId))
         return 'The polygon must align with a loaded image slice';
-      return rasterizeTargetDisabledReason(tool.segmentId);
+      return rasterizeTargetDisabledReason(tool.imageID, tool.segmentId);
     }
 
     function rasterize(toolId: ToolID) {

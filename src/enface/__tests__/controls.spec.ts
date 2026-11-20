@@ -444,12 +444,10 @@ function mountImageControls(spacing = 0.01) {
   const cache = useImageCacheStore();
   const imageId = cache.addVTKImageData(source, 'relative-spacing.vti');
   const segmentation = useSegmentationStore();
-  const segmentId = useSegmentStore().segments.addSegment({ name: 'Retina' });
-  const mask = segmentation.createMask(
-    segmentation.ensureSegmentationForImage(imageId).id,
-    segmentId
-  );
-  const voxels = segmentation.maskVoxels(mask.id);
+  const segmentId = useSegmentStore().segments.addSegment(imageId, {
+    name: 'Retina',
+  });
+  const voxels = segmentation.maskVoxels(segmentId);
   voxels.materialize();
   voxels.ensureContains([0, 1, 0, 1, 0, 1]);
   voxels.apply(new Uint8Array(8).fill(1));

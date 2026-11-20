@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { makeSpecImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  cacheLabelledImage as seatLabelmap,
+  makeSpecImage,
+} from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -8,7 +11,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
 import { planLabelmapSources } from '@/src/io/import/labelmapImports';
-import { listMasks } from '@/src/segmentation/model';
+import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 
 // ---------------------------------------------------------------------------
 // Backward compatibility: manifests saved before `datasets` existed (and
@@ -50,11 +53,23 @@ const legacyManifest = ManifestSchema.parse(
         },
       ],
     })
-  )
+  ).manifest
 );
 
 const seatImage = (id: string, name: string) =>
   useImageCacheStore().addVTKImageData(makeSpecImage(), name, { id });
+
+const restoreLegacySegmentation = () => {
+  // Restore keys every fallback dataset by its stringified source id.
+  const dataIDMap = { '1': 'store-ct', '3': 'store-seg' };
+  return deserializeSegmentation({
+    manifest: legacyManifest,
+    stateFiles: [],
+    dataIDMap,
+    resolveSegment: useSegmentStore().deserialize(legacyManifest, dataIDMap),
+    labelmapSources: planLabelmapSources(legacyManifest).sources,
+  });
+};
 
 describe('migrated legacy manifests without `datasets`', () => {
   beforeEach(() => {
@@ -63,18 +78,12 @@ describe('migrated legacy manifests without `datasets`', () => {
 
   it('attaches a path-less group via the dataset covering its dataSourceId', async () => {
     seatImage('store-ct', 'CT Chest');
-    seatImage('store-seg', 'Tumor');
+    seatLabelmap('store-seg', 'Tumor');
     const removeSpy = vi.spyOn(useDatasetStore(), 'remove');
 
     const store = useSegmentationStore();
-    const { restoredImportIds: restored, skipped } = await store.deserialize({
-      manifest: legacyManifest,
-      stateFiles: [],
-      // Restore keys every fallback dataset by its stringified source id.
-      dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
-      segmentIdMap: useSegmentStore().deserialize(legacyManifest).segmentIdMap,
-      labelmapSources: planLabelmapSources(legacyManifest).sources,
-    });
+    const { restoredImportIds: restored, skipped } =
+      await restoreLegacySegmentation();
 
     expect(skipped).toEqual([]);
     expect(restored.has('sg-tumor')).toBe(true);
@@ -83,13 +92,14 @@ describe('migrated legacy manifests without `datasets`', () => {
     expect(removeSpy).toHaveBeenCalledWith('store-seg');
 
     // The migrated descriptor restored as a segment with its own bounded mask.
-    const segmentation = store.getSegmentationForImage('store-ct')!;
     expect(
-      listMasks(segmentation).map((segment) => ({
-        name: useSegmentStore().segments.appearanceOf(segment.segmentId).name,
-        bound: !!segment.representations.labelmap,
-      }))
-    ).toEqual([{ name: 'Tumor', bound: true }]);
+      store
+        .imageMasks('store-ct')
+        .map(
+          ({ segmentId }) =>
+            useSegmentStore().segments.appearanceOf(segmentId).name
+        )
+    ).toEqual(['Tumor']);
   });
 
   // The split reuses the segment the manifest named only while that segment
@@ -97,23 +107,15 @@ describe('migrated legacy manifests without `datasets`', () => {
   // Splitting before the detach mints a suffixed duplicate instead.
   it('reuses the migrated segment rather than minting a second one', async () => {
     seatImage('store-ct', 'CT Chest');
-    seatImage('store-seg', 'Tumor');
+    seatLabelmap('store-seg', 'Tumor');
 
     const store = useSegmentationStore();
-    await store.deserialize({
-      manifest: legacyManifest,
-      stateFiles: [],
-      dataIDMap: { '1': 'store-ct', '3': 'store-seg' },
-      segmentIdMap: useSegmentStore().deserialize(legacyManifest).segmentIdMap,
-      labelmapSources: planLabelmapSources(legacyManifest).sources,
-    });
+    await restoreLegacySegmentation();
 
-    const names = useSegmentStore().segments.segmentList.value.map(
-      (segment) => segment.name
-    );
+    const names = useSegmentStore()
+      .segments.segmentList('store-ct')
+      .map((segment) => segment.name);
     expect(names).toEqual(['Tumor']);
-    expect(listMasks(store.getSegmentationForImage('store-ct')!)).toHaveLength(
-      1
-    );
+    expect(store.imageMasks('store-ct')).toHaveLength(1);
   });
 });

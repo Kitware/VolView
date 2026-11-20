@@ -18,16 +18,16 @@ import {
   strokeAt,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
-function boundSegment(segmentationId: string, name: string) {
-  const segment = store().createMask(segmentationId, mintSegment({ name }));
-  store().ensureLabelmapBinding(segment.id);
-  return segment;
+function boundSegment(imageId: string, name: string) {
+  const segmentId = mintSegment(imageId, { name });
+  store().materializeMask(segmentId);
+  return segmentId;
 }
 
-function paintAndLock(maskId: string) {
-  selectSegment(maskId);
+function paintAndLock(segmentId: string) {
+  selectSegment(segmentId);
   strokeAt('img-1', [1, 1, 0]);
-  lockSegment(maskId, true);
+  lockSegment(segmentId, true);
 }
 
 describe('paint edit target', () => {
@@ -37,122 +37,116 @@ describe('paint edit target', () => {
 
   it("writes SEGMENT_VALUE into the selected segment's mask", async () => {
     await seatSpecImage('img-1');
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    boundSegment(segmentation.id, 'Other');
-    const active = boundSegment(segmentation.id, 'Tumor');
-    selectSegment(active.id);
+    boundSegment('img-1', 'Other');
+    const active = boundSegment('img-1', 'Tumor');
+    selectSegment(active);
 
     strokeAt('img-1', [1, 1, 0]);
 
-    expect(bindingOf(active.id)).toBeDefined();
-    expect(maskValueAt(active.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(bindingOf(active)).toBeDefined();
+    expect(maskValueAt(active, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it("writes into the painted image's own mask", async () => {
     await seatSpecImage('img-1');
     await seatSpecImage('img-2');
-    const first = store().ensureSegmentationForImage('img-1');
-    const source = boundSegment(first.id, 'Tumor');
-    selectSegment(source.id);
+    const source = boundSegment('img-1', 'Tumor');
+    selectSegment(source);
 
     strokeAt('img-2', [1, 1, 0]);
 
-    // The segment is shared; this image gets its own record and its own mask.
     const painted = store().findEditTarget('img-2')!;
-    expect(store().getMask(painted).segmentId).toBe(source.segmentId);
+    expect(painted).not.toBe(source);
     const paintedBinding = bindingOf(painted)!;
-    const sourceBinding = bindingOf(source.id)!;
+    const sourceBinding = bindingOf(source)!;
     expect(paintedBinding.image).not.toBe(sourceBinding.image);
     expect(maskValueAt(painted, [1, 1, 0])).toBe(SEGMENT_VALUE);
-    expect(markedVoxels(source.id)).toEqual([]);
+    expect(markedVoxels(source)).toEqual([]);
   });
 
-  it('seeds a segmentation and a segment on the first stroke', async () => {
+  it('seeds a segment and its mask on the first stroke', async () => {
     await seatSpecImage('img-1');
 
     strokeAt('img-1', [1, 1, 0]);
 
-    const segmentation = store().getSegmentationForImage('img-1')!;
-    expect(segmentation.order).toHaveLength(1);
-    const [maskId] = segmentation.order;
-    const { segmentId } = segmentation.masks[maskId];
+    const masks = store().imageMasks('img-1');
+    expect(masks).toHaveLength(1);
+    const [{ segmentId }] = masks;
     expect(useSegmentStore().segments.appearanceOf(segmentId).name).toBe(
       'Segment 1'
     );
-    expect(useSegmentStore().segments.selectedSegmentId.value).toBe(segmentId);
-    expect(maskValueAt(maskId, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(useSegmentStore().segments.selectedSegmentId('img-1')).toBe(
+      segmentId
+    );
+    expect(maskValueAt(segmentId, [1, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it("erases only the active segment's voxels", async () => {
     await seatSpecImage('img-1');
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    const neighbor = boundSegment(segmentation.id, 'Neighbor');
-    const active = boundSegment(segmentation.id, 'Tumor');
+    const neighbor = boundSegment('img-1', 'Neighbor');
+    const active = boundSegment('img-1', 'Tumor');
     const paintStore = usePaintToolStore();
 
-    selectSegment(neighbor.id);
+    selectSegment(neighbor);
     strokeAt('img-1', [1, 1, 0]);
     store().allowOverlap = true;
-    selectSegment(active.id);
+    selectSegment(active);
     strokeAt('img-1', [1, 1, 0]);
-    expect(maskValueAt(active.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(active, [1, 1, 0])).toBe(SEGMENT_VALUE);
 
     paintStore.setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
-    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(neighbor, [1, 1, 0])).toBe(SEGMENT_VALUE);
     // Erased to nothing, so the active mask went with its voxels.
-    expect(store().maskExists(active.id)).toBe(false);
+    expect(store().maskOf(active)).toBeUndefined();
   });
 
   // A mask holds SEGMENT_VALUE and nothing else, so any other byte in it is
   // not this segment's to clear.
   it('does not erase a foreign label value from the active buffer', async () => {
     await seatSpecImage('img-1');
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    const active = boundSegment(segmentation.id, 'Tumor');
-    selectSegment(active.id);
+    const active = boundSegment('img-1', 'Tumor');
+    selectSegment(active);
     strokeAt('img-1', [1, 1, 0]);
     const foreignValue = SEGMENT_VALUE + 1;
-    store().maskVoxels(active.id).scalars()[offsetOf(active.id, [1, 1, 0])!] =
+    store().maskVoxels(active).scalars()[offsetOf(active, [1, 1, 0])!] =
       foreignValue;
 
     usePaintToolStore().setMode(PaintMode.Erase);
     strokeAt('img-1', [1, 1, 0]);
 
-    expect(maskValueAt(active.id, [1, 1, 0])).toBe(foreignValue);
+    expect(maskValueAt(active, [1, 1, 0])).toBe(foreignValue);
   });
 
   it('blocks a stroke when the active segment is locked', async () => {
     await seatSpecImage('img-1');
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    boundSegment(segmentation.id, 'Neighbor');
-    const active = boundSegment(segmentation.id, 'Tumor');
-    lockSegment(active.id, true);
-    selectSegment(active.id);
+    boundSegment('img-1', 'Neighbor');
+    const active = boundSegment('img-1', 'Tumor');
+    lockSegment(active, true);
+    selectSegment(active);
 
     strokeAt('img-1', [1, 1, 0]);
 
-    expect(markedVoxels(active.id)).toEqual([]);
+    expect(markedVoxels(active)).toEqual([]);
   });
 
   it('paints around a locked neighbor without overwriting it', async () => {
     await seatSpecImage('img-1');
-    const segmentation = store().ensureSegmentationForImage('img-1');
-    const neighbor = boundSegment(segmentation.id, 'Neighbor');
-    const active = boundSegment(segmentation.id, 'Tumor');
+    const neighbor = boundSegment('img-1', 'Neighbor');
+    const active = boundSegment('img-1', 'Tumor');
 
-    paintAndLock(neighbor.id);
+    paintAndLock(neighbor);
 
-    selectSegment(active.id);
+    selectSegment(active);
     strokeAt('img-1', [1, 1, 0]);
     strokeAt('img-1', [3, 1, 0]);
 
     // The first stroke painted nothing and left no mask, so the second one
     // minted the mask the segment has now.
-    const painted = store().maskFor('img-1', active.segmentId)!.id;
-    expect(maskValueAt(neighbor.id, [1, 1, 0])).toBe(SEGMENT_VALUE);
-    expect(maskValueAt(painted, [1, 1, 0])).toBeFalsy();
-    expect(maskValueAt(painted, [3, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(bindingOf(active)).toBeDefined();
+    expect(maskValueAt(neighbor, [1, 1, 0])).toBe(SEGMENT_VALUE);
+    expect(maskValueAt(active, [1, 1, 0])).toBeFalsy();
+    expect(maskValueAt(active, [3, 1, 0])).toBe(SEGMENT_VALUE);
   });
 
   it('creates nothing when the paint tool is merely activated', async () => {
@@ -161,23 +155,22 @@ describe('paint edit target', () => {
 
     paintStore.activateTool();
 
-    expect(store().getSegmentationForImage('img-1')).toBeUndefined();
-    expect(store().boundMaskIds('img-1')).toEqual([]);
+    expect(useSegmentStore().segments.segmentList('img-1')).toEqual([]);
+    expect(store().imageMasks('img-1')).toEqual([]);
   });
 
   it.each([false, true])(
     'publishes overwritten voxels at the end of a paint sample (throws: %s)',
     async (throws) => {
       await seatSpecImage('img-1');
-      const segmentation = store().ensureSegmentationForImage('img-1');
-      const neighbor = boundSegment(segmentation.id, 'Neighbor');
-      const voxels = store().maskVoxels(neighbor.id);
+      const neighbor = boundSegment('img-1', 'Neighbor');
+      const voxels = store().maskVoxels(neighbor);
       voxels.ensureContains([0, 3, 0, 3, 0, 1]);
       voxels.scalars().fill(1);
       const modified = vi.fn();
       voxels.image().onModified(modified);
-      const active = boundSegment(segmentation.id, 'Active');
-      selectSegment(active.id);
+      const active = boundSegment('img-1', 'Active');
+      selectSegment(active);
       const paint = usePaintToolStore();
       paint.setBrushSize(3);
       const paintLabelmap = paint.$paint.paintLabelmap.bind(paint.$paint);

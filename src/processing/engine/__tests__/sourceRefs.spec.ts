@@ -39,7 +39,7 @@ const context = (
   });
 
 const oneSegmentation = {
-  segmentationId: 'segmentation-1',
+  segmentedImageId: 'image-1',
 };
 
 describe('bindSourceRefs', () => {
@@ -58,13 +58,13 @@ describe('bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model([inputField('input', ['labelmap', 'image'], { multiple: true })]),
       context({
-        segmentationId: 'segmentation-1',
+        segmentedImageId: 'image-1',
       })
     );
 
     expect(bindings.types.input).toBe('labelmap');
     expect(bindings.labelmap.segmentations.input).toEqual({
-      segmentationId: 'segmentation-1',
+      imageId: 'image-1',
       multiple: true,
     });
     expect(bindings.issues).toEqual([]);
@@ -77,13 +77,13 @@ describe('bindSourceRefs', () => {
         inputField('either', ['image', 'labelmap']),
       ]),
       context({
-        segmentationId: 'segmentation-1',
+        segmentedImageId: 'image-1',
       })
     );
 
     expect(bindings.types).toEqual({ segs: 'labelmap', either: 'image' });
     expect(bindings.labelmap.segmentations.segs).toEqual({
-      segmentationId: 'segmentation-1',
+      imageId: 'image-1',
       multiple: true,
     });
     expect(bindings.states.segs).toBe('bound');
@@ -94,12 +94,12 @@ describe('bindSourceRefs', () => {
     const bindings = bindSourceRefs(
       model([inputField('input', ['labelmap'])]),
       context({
-        segmentationId: 'segmentation-1',
+        segmentedImageId: 'image-1',
       })
     );
 
     expect(bindings.labelmap.segmentations.input).toEqual({
-      segmentationId: 'segmentation-1',
+      imageId: 'image-1',
       multiple: false,
     });
     expect(bindings.issues).toEqual([]);
@@ -112,7 +112,7 @@ describe('bindSourceRefs', () => {
         inputField('either', ['image', 'labelmap']),
       ]),
       context({
-        segmentationId: 'segmentation-1',
+        segmentedImageId: 'image-1',
       })
     );
 
@@ -301,9 +301,7 @@ describe('bindSourceRefs — annotations', () => {
       seg: 'labelmap',
       annotations: 'annotations',
     });
-    expect(bindings.labelmap.segmentations.seg?.segmentationId).toBe(
-      'segmentation-1'
-    );
+    expect(bindings.labelmap.segmentations.seg?.imageId).toBe('image-1');
     expect(bindings.annotations.parameters).toEqual(['annotations']);
     expect(bindings.issues).toEqual([]);
   });

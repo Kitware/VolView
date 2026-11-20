@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import {
@@ -9,9 +9,14 @@ import {
 import { useSegmentationStore } from '@/src/segmentation/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { leafStateId } from '@/src/io/import/dataSource';
-import { completeStateFileRestore } from '@/src/io/import/processors/restoreStateFile';
+import {
+  completeStateFileRestore,
+  createStateFileRestorer,
+} from '@/src/io/import/processors/restoreStateFile';
 import { ManifestSchema, type Manifest } from '@/src/io/state-file/schema';
 import { migrateManifest } from '@/src/io/state-file/migrations';
+import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
+import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
 
 // ---------------------------------------------------------------------------
 // Compose-validity refinement PARITY PIN: segment descriptors are OPTIONAL on
@@ -32,8 +37,10 @@ const labelValues = () => new Uint8Array(4 * 4 * 4).fill(1, 20, 44).fill(2, 44);
 // A parent-bound, descriptor-less group: metadata carries name + parentImage,
 // NO segments. The migration turns it into an artifact no mask names, and the
 // LOADED restore stage is what enumerates its voxels.
-const migrated = (manifest: Record<string, unknown>): Manifest =>
-  ManifestSchema.parse(migrateManifest(JSON.stringify(manifest)));
+const migrated = (legacy: Record<string, unknown>) => {
+  const { manifest, migration } = migrateManifest(JSON.stringify(legacy));
+  return { manifest: ManifestSchema.parse(manifest) as Manifest, migration };
+};
 
 const descriptorlessComposedManifest = (visibility = true) =>
   migrated({
@@ -73,17 +80,12 @@ const descriptorlessArchiveManifest = (name: string) =>
     ],
   });
 
-// The image's segments in mask order, compared by appearance.
-const catalogFor = (parentImageId: string) => {
-  const segmentation =
-    useSegmentationStore().getSegmentationForImage(parentImageId);
-  if (!segmentation) return [];
-  return segmentation.order
-    .map((id) => segmentation.masks[id])
-    .map((mask) => {
-      const appearance = useSegmentStore().segments.appearanceOf(
-        mask.segmentId
-      );
+// The image's masked segments in order, compared by appearance.
+const catalogFor = (parentImageId: string) =>
+  useSegmentationStore()
+    .imageMasks(parentImageId)
+    .map(({ segmentId }) => {
+      const appearance = useSegmentStore().segments.appearanceOf(segmentId);
       return {
         name: appearance.name,
         color: [...appearance.color],
@@ -91,7 +93,6 @@ const catalogFor = (parentImageId: string) => {
         locked: appearance.locked,
       };
     });
-};
 
 // A descriptor-less group saved in the archive, restored with no loaded
 // dataset to take a name from.
@@ -101,29 +102,24 @@ async function archiveCatalog(
 ) {
   setActivePinia(createPinia());
   await seatImage('parent-store', { name: 'CT Chest' });
-  const store = useSegmentationStore();
-  const deserialize = store.deserialize;
-  const read = vi.spyOn(store, 'deserialize').mockImplementation((options) =>
-    deserialize({
-      ...options,
-      io: { read: async () => decoded, write: vi.fn() },
-    })
+  const archive = descriptorlessArchiveManifest(groupName);
+  await createStateFileRestorer({
+    restoreSegmentation: (options) =>
+      deserializeSegmentation({
+        ...options,
+        io: { read: async () => decoded, write: async () => '' },
+      }),
+  })(
+    archive.manifest,
+    [
+      {
+        archivePath: 'segmentations/Tumor.seg.nrrd',
+        file: new File([''], 'Tumor.seg.nrrd'),
+      },
+    ],
+    { 'ds-ct': 'parent-store' },
+    { migration: archive.migration }
   );
-
-  try {
-    await completeStateFileRestore(
-      descriptorlessArchiveManifest(groupName),
-      [
-        {
-          archivePath: 'segmentations/Tumor.seg.nrrd',
-          file: new File([''], 'Tumor.seg.nrrd'),
-        },
-      ],
-      { 'ds-ct': 'parent-store' }
-    );
-  } finally {
-    read.mockRestore();
-  }
   return catalogFor('parent-store');
 }
 
@@ -136,7 +132,7 @@ async function liveCatalog(segmentMetadata?: Map<string, string>) {
     values: labelValues(),
     headerMetadata: segmentMetadata,
   });
-  const store = useSegmentationStore();
+  const store = useLabelmapImportStore();
   await store.convertImageToLabelmap('child-img', 'parent-img');
   return catalogFor('parent-img');
 }
@@ -154,13 +150,15 @@ async function coldCatalog(
     values: labelValues(),
     headerMetadata: segmentMetadata,
   });
+  const { manifest, migration } = descriptorlessComposedManifest(visibility);
   await completeStateFileRestore(
-    descriptorlessComposedManifest(visibility),
+    manifest,
     [],
     {
       'ds-ct': 'parent-store',
       [leafStateId(3)]: 'artifact-store',
-    }
+    },
+    { migration }
   );
   return catalogFor('parent-store');
 }
@@ -180,17 +178,16 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
   it('applies legacy display state after decoding the segment catalog', async () => {
     await coldCatalog(undefined, false);
 
-    const segmentation =
-      useSegmentationStore().getSegmentationForImage('parent-store')!;
     const registry = useSegmentStore().segments;
-    const masks = segmentation.order.map((id) => segmentation.masks[id]);
+    const display = registry.displayOf('parent-store');
+    const masks = useSegmentationStore().imageMasks('parent-store');
     // Fill renders as the product of the segment's share and the image's
     // multiplier, and 0.4 is what the legacy group showed.
     expect(
       masks.map(
         (mask) =>
           registry.appearanceOf(mask.segmentId).fillOpacity *
-          segmentation.fillOpacity
+          display.fillOpacity
       )
     ).toEqual([0.4, 0.4]);
     expect(
@@ -199,7 +196,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
     expect(
       masks.map((mask) => registry.appearanceOf(mask.segmentId).visible)
     ).toEqual([false, false]);
-    expect(segmentation.outlineThickness).toBe(5);
+    expect(display.outlineThickness).toBe(5);
   });
 
   it('embedded .seg.nrrd metadata: identical overlay result in both paths', async () => {
@@ -266,7 +263,7 @@ describe('descriptor-less segment catalogs: cold restore == live conversion (par
       name: 'Sparse.seg.nrrd',
       values: new Uint8Array(4 * 4 * 4).fill(1, 8, 16).fill(255, 48),
     });
-    const store = useSegmentationStore();
+    const store = useLabelmapImportStore();
 
     await store.convertImageToLabelmap('child-img', 'parent-img');
 

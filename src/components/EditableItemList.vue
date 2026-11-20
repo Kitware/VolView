@@ -3,6 +3,7 @@
 
 import { nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
+import ListActionRow from '@/src/components/ListActionRow.vue';
 
 const emit = defineEmits<{
   create: [];
@@ -13,6 +14,7 @@ const emit = defineEmits<{
 const props = defineProps<{
   items: Array<T>;
   createText: string;
+  createReason?: string;
   reorderHint: string;
   modelValue: Maybe<string>;
   selectionRevision?: number;
@@ -170,20 +172,14 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
       </v-list-item>
     </div>
 
-    <div role="listitem" class="create-row-wrapper">
-      <v-list-item
-        tag="button"
-        type="button"
-        role="button"
-        class="create-row w-100"
-        @click="emit('create')"
-      >
-        <div class="d-flex align-center">
-          <v-icon class="create-icon mr-3" size="18">mdi-plus</v-icon>
-          <span class="text-body-2">{{ createText }}</span>
-        </div>
-      </v-list-item>
-    </div>
+    <list-action-row
+      class="create-row"
+      icon="mdi-plus"
+      :text="createText"
+      :reason="createReason"
+      @click="emit('create')"
+    />
+    <slot name="append"></slot>
   </v-list>
 </template>
 
@@ -204,8 +200,7 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
   min-width: 0;
 }
 
-.v-list-item.item-row,
-.v-list-item.create-row {
+.v-list-item.item-row {
   border: 1px solid transparent;
   border-radius: 4px;
   /* The default inset would dwarf the gaps between the row's parts. */
@@ -227,13 +222,5 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
 /* Vuetify's active tint would lighten the app's selection color. */
 .item-row.v-list-item--active :deep(.v-list-item__overlay) {
   opacity: 0;
-}
-
-.create-row {
-  opacity: var(--v-medium-emphasis-opacity);
-}
-
-.create-icon {
-  flex: 0 0 18px;
 }
 </style>

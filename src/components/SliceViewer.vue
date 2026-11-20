@@ -79,13 +79,11 @@
             :image-id="currentImageID"
             :axis="viewAxis"
           ></vtk-base-slice-representation>
-          <vtk-segmentation-slice-representation
-            v-for="maskId in segmentMaskIds"
-            :key="`seg-${maskId}`"
+          <vtk-segment-slice-planes
             :view-id="viewId"
-            :mask-id="maskId"
+            :image-id="currentImageID"
             :axis="viewAxis"
-          ></vtk-segmentation-slice-representation>
+          ></vtk-segment-slice-planes>
           <template v-if="currentImageID">
             <vtk-layer-slice-representation
               v-for="layer in currentLayers"
@@ -152,8 +150,7 @@ import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import { VtkViewApi } from '@/src/types/vtk-types';
 import { Tools } from '@/src/store/tools/types';
 import VtkBaseSliceRepresentation from '@/src/components/vtk/VtkBaseSliceRepresentation.vue';
-import VtkSegmentationSliceRepresentation from '@/src/segmentation/rendering/VtkSegmentationSliceRepresentation.vue';
-import { useSegmentationStore } from '@/src/segmentation/store';
+import VtkSegmentSlicePlanes from '@/src/segmentation/rendering/VtkSegmentSlicePlanes.vue';
 import VtkLayerSliceRepresentation from '@/src/components/vtk/VtkLayerSliceRepresentation.vue';
 import { useViewAnimationListener } from '@/src/composables/useViewAnimationListener';
 import CropTool from '@/src/components/tools/crop/CropTool.vue';
@@ -244,12 +241,6 @@ const windowingManipulatorProps = computed(() => {
 
 onVTKEvent(currentImageData, 'onModified', () => {
   vtkView.value?.requestRender();
-});
-
-// One representation per mask with storage on this image.
-const segmentMaskIds = computed(() => {
-  if (!currentImageID.value) return [];
-  return useSegmentationStore().boundMaskIds(currentImageID.value);
 });
 
 // --- selection points --- //

@@ -42,6 +42,7 @@ const useSegmentShapesStore = defineStore('segmentShapes', () => {
           )?.axis;
           return {
             id: tool.id,
+            imageId: tool.imageID,
             type,
             icon,
             segmentId: tool.segmentId,

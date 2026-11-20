@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  Segment,
+  ImageSegments,
   ManifestSchema,
-  Segmentation,
   SegmentationArtifact,
 } from '@/src/io/state-file/schema';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
 // Provenance rides on the artifact record, which is where persistent labelmap
-// identity lives in the 7.0.0 wire schema; segment identity lives on the
-// segmentation.
+// identity lives in the wire schema; segment identity lives on the image's
+// segments.
 
 const baseArtifact = {
   id: 'artifact-1',
@@ -28,34 +27,16 @@ const artifactWithSource = {
   },
 };
 
-const segmentation = {
-  id: 'segmentation-1',
-  name: 'CT Chest',
-  parentImage: 'img-1',
-  masks: [
-    {
-      id: 'mask-1',
-      segmentId: 'segment-1',
-      representations: {
-        labelmap: {
-          path: 'mask.vti',
-          extent: [0, 3, 0, 3, 0, 1],
-        },
-      },
-    },
-  ],
-  order: ['mask-1'],
+const segment = {
+  id: 'segment-1',
+  name: 'Bin 1',
+  color: [255, 0, 0, 255],
+  visible: true,
+  locked: false,
+  labelmap: { path: 'mask.vti', extent: [0, 3, 0, 3, 0, 1] },
 };
 
-const segments = [
-  {
-    id: 'segment-1',
-    name: 'Bin 1',
-    color: [255, 0, 0, 255],
-    visible: true,
-    locked: false,
-  },
-];
+const entry = { imageId: 'img-1', segments: [segment] };
 
 describe('SegmentationArtifact.source', () => {
   it('accepts and round-trips structured provenance', () => {
@@ -91,46 +72,34 @@ describe('SegmentationArtifact.source', () => {
       version: MANIFEST_VERSION,
       dataSources: [],
       segmentationArtifacts: [artifactWithSource],
-      segmentations: [segmentation],
-      segments,
+      imageSegments: [entry],
     };
-    const parsed = ManifestSchema.parse(manifest) as any;
-    expect(parsed.segmentationArtifacts[0].source).toEqual(
+    const parsed = ManifestSchema.parse(manifest);
+    expect(parsed.segmentationArtifacts![0].source).toEqual(
       artifactWithSource.source
     );
-    expect(parsed.segments).toEqual(segments);
-    expect(parsed.segmentations[0].masks[0].segmentId).toBe('segment-1');
+    expect(parsed.imageSegments).toEqual([entry]);
   });
 });
 
-describe('Segmentation wire shape', () => {
-  it('carries the mask id, its segment and the order', () => {
-    const parsed = Segmentation.parse(segmentation);
-    expect(parsed.masks[0].id).toBe('mask-1');
-    expect(parsed.masks[0].segmentId).toBe('segment-1');
-    expect(parsed.masks[0].representations.labelmap).toEqual({
-      path: 'mask.vti',
-      extent: [0, 3, 0, 3, 0, 1],
-    });
-    expect(parsed.order).toEqual(['mask-1']);
+describe('image segments wire shape', () => {
+  it('carries each segment with its labelmap', () => {
+    expect(ImageSegments.parse(entry)).toEqual(entry);
   });
 
   it.each([{ path: 'mask.vti', artifactId: 'artifact-1' }, {}])(
-    'rejects a mask binding with ambiguous or missing storage %j',
+    'rejects a labelmap with ambiguous or missing storage %j',
     (storage) => {
       const parsed = ManifestSchema.safeParse({
         version: MANIFEST_VERSION,
         dataSources: [],
-        segments,
-        segmentations: [
+        imageSegments: [
           {
-            ...segmentation,
-            masks: [
+            ...entry,
+            segments: [
               {
-                ...segmentation.masks[0],
-                representations: {
-                  labelmap: { ...storage, extent: [0, 3, 0, 3, 0, 1] },
-                },
+                ...segment,
+                labelmap: { ...storage, extent: [0, 3, 0, 3, 0, 1] },
               },
             ],
           },
@@ -141,37 +110,31 @@ describe('Segmentation wire shape', () => {
   );
 
   it('defaults a segment to visible and unlocked', () => {
-    const parsed = Segment.parse({
-      id: 'segment-1',
-      name: 'Bin 1',
-      color: [255, 0, 0, 255],
-    });
+    const [parsed] = ImageSegments.parse({
+      imageId: 'img-1',
+      segments: [{ id: 'segment-1', name: 'Bin 1', color: [255, 0, 0, 255] }],
+    }).segments;
 
     expect(parsed.visible).toBe(true);
     expect(parsed.locked).toBe(false);
   });
 
-  it('allows a mask with no labelmap binding', () => {
-    const parsed = Segmentation.parse({
-      ...segmentation,
-      masks: [{ id: 'mask-1', segmentId: 'segment-1', representations: {} }],
-    });
-    expect(parsed.masks[0].representations.labelmap).toBeUndefined();
-  });
-
-  it('rejects a mask that names no segment', () => {
-    const parsed = Segmentation.safeParse({
-      ...segmentation,
-      masks: [{ id: 'mask-1', representations: {} }],
+  it('saves only labelmaps that own an archive entry', () => {
+    const parsed = ImageSegments.safeParse({
+      ...entry,
+      segments: [
+        {
+          ...segment,
+          labelmap: { artifactId: 'artifact-1', extent: [0, 3, 0, 3, 0, 1] },
+        },
+      ],
     });
     expect(parsed.success).toBe(false);
   });
 });
 
 describe('manifest version', () => {
-  // The segment model replaces `segmentGroups` with `segmentations` plus
-  // `segmentationArtifacts`, including display state in that breaking change.
-  it('pins MANIFEST_VERSION at 7.0.0', () => {
-    expect(MANIFEST_VERSION).toBe('7.0.0');
+  it('writes the image segment ownership version', () => {
+    expect(MANIFEST_VERSION).toBe('8.0.0');
   });
 });

@@ -23,9 +23,7 @@ export function useEnFaceOccupiedDepth(
   const { geometry, blockedReason } = projection;
   const input = useOccupiedDepthInput(viewId, projection);
   const { settings, highlightThin, micronsPerVoxel } = input;
-  const appearance = useThinRegionAppearance(
-    computed(() => input.selectedMask.value?.id)
-  );
+  const appearance = useThinRegionAppearance(input.maskedSegmentId);
   const {
     accepted: measurement,
     computing: measuring,

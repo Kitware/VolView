@@ -18,7 +18,7 @@ export const labelmapInputFields = (model: TaskFormModel): SourceRefField[] =>
   sourceRefFields(model, TYPE_TAG_LABELMAP);
 
 export type LabelmapBindingResult = {
-  segmentations: Record<string, { segmentationId: string; multiple: boolean }>;
+  segmentations: Record<string, { imageId: string; multiple: boolean }>;
   states: Record<string, SourceRefBindingState>;
   // Caller must suppress its generic issue for these param ids.
   issues: FormValidationIssue[];
@@ -32,7 +32,7 @@ const EMPTY_BINDING: LabelmapBindingResult = {
 
 const bindLabelmapFields = (
   fields: SourceRefField[],
-  segmentationId: string | undefined,
+  segmentedImageId: string | undefined,
   referenceAvailable: boolean
 ): LabelmapBindingResult => {
   if (fields.length === 0) return EMPTY_BINDING;
@@ -43,7 +43,7 @@ const bindLabelmapFields = (
 
   const [field] = fields;
 
-  if (!segmentationId) {
+  if (!segmentedImageId) {
     return {
       segmentations: {},
       ...unboundBinding(field, 'no-segmentation', 'segmentation'),
@@ -59,7 +59,10 @@ const bindLabelmapFields = (
 
   return {
     segmentations: {
-      [field.id]: { segmentationId, multiple: field.multiple === true },
+      [field.id]: {
+        imageId: segmentedImageId,
+        multiple: field.multiple === true,
+      },
     },
     states: { [field.id]: 'bound' },
     issues: [],
@@ -68,12 +71,12 @@ const bindLabelmapFields = (
 
 export const bindLabelmapInputs = (
   model: TaskFormModel,
-  segmentationId: string | undefined,
+  segmentedImageId: string | undefined,
   referenceAvailable: boolean
 ): LabelmapBindingResult =>
   bindLabelmapFields(
     labelmapInputFields(model),
-    segmentationId,
+    segmentedImageId,
     referenceAvailable
   );
 

@@ -5,18 +5,24 @@ import JSZip from 'jszip';
 
 import {
   seatSpecImage,
-  addMask,
+  addSegment,
   inMemoryArtifactIO,
   markedVoxels,
-  bindEmptyMasks,
+  bindMasks,
   stateFilesOf,
   manifestForImages,
+  savedLabelmaps,
+  savedSegmentNames,
   seedVoxel,
-  deleteSegmentOf,
+  deleteSegment,
   serializeToStateFiles,
   store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { MASK_IO_CONCURRENCY } from '@/src/segmentation/io/stateFile';
+import {
+  MASK_IO_CONCURRENCY,
+  deserializeSegmentation,
+  serializeSegmentation,
+} from '@/src/segmentation/io/stateFile';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { ManifestSchema } from '@/src/io/state-file/schema';
@@ -68,7 +74,7 @@ const countingIO = () => {
 
 const buildScene = async () => {
   await seatSpecImage('img-1', 'CT A');
-  bindEmptyMasks(
+  bindMasks(
     'img-1',
     Array.from({ length: MASK_COUNT }, (_, index) => `Segment ${index}`)
   );
@@ -77,9 +83,9 @@ const buildScene = async () => {
 
 const seedMasks = (count: number) =>
   Array.from({ length: count }, (_, index) => {
-    const maskId = addMask('img-1', `Segment ${index}`);
-    seedVoxel(maskId, [0, 0, 0]);
-    return maskId;
+    const segmentId = addSegment('img-1', `Segment ${index}`);
+    seedVoxel(segmentId, [0, 0, 0]);
+    return segmentId;
   });
 
 // Holding a full batch leaves the next mask editable until its write starts.
@@ -104,8 +110,7 @@ const startGatedSave = () => {
   };
   const zip = new JSZip();
   const manifest = manifestForImages(['img-1']);
-  useSegmentStore().serialize({ zip, manifest });
-  const saving = store().serialize({ zip, manifest }, gatedIO);
+  const saving = serializeSegmentation({ zip, manifest }, gatedIO);
   return {
     io,
     zip,
@@ -132,30 +137,29 @@ describe('mask io concurrency', () => {
       manifestForImages(['img-1']),
       io
     );
-    const wire = parsed.segmentations[0];
-    expect(wire.masks).toHaveLength(MASK_COUNT);
+    expect(savedLabelmaps(parsed)).toHaveLength(MASK_COUNT);
     expect(io.peak.write).toBe(MASK_IO_CONCURRENCY);
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
-    const result = await store().deserialize({
+    const resolveSegment = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+    });
+    const result = await deserializeSegmentation({
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap,
+      resolveSegment,
       io,
     });
     await nextTick();
 
     expect(io.peak.read).toBe(MASK_IO_CONCURRENCY);
     expect(result.skipped).toEqual([]);
-    expect(store().getSegmentationForImage('new-1')!.order).toHaveLength(
-      MASK_COUNT
-    );
+    expect(store().imageMasks('new-1')).toHaveLength(MASK_COUNT);
   });
 
-  it('keeps the masks in wire order', async () => {
+  it('restores the masks in segment order whatever order the reads finish in', async () => {
     await buildScene();
 
     const io = inMemoryArtifactIO();
@@ -163,20 +167,14 @@ describe('mask io concurrency', () => {
       manifestForImages(['img-1']),
       io
     );
-    const wire = parsed.segmentations[0];
-    wire.order.reverse();
-    const names = wire.order.map((id: string) => {
-      const mask = wire.masks.find((entry: any) => entry.id === id);
-      return parsed.segments.find(
-        (segment: any) => segment.id === mask.segmentId
-      ).name;
-    });
+    const names = savedSegmentNames('img-1', parsed);
     const completed: number[] = [];
+    // Later archive entries settle sooner, so the reads finish reversed.
     const unorderedIO = {
       ...io,
       read: async (file: File) => {
         const index = Number((await file.text()).split('-')[1]);
-        for (let pending = index + 1; pending > 0; pending -= 1) {
+        for (let pending = MASK_COUNT - index; pending > 0; pending -= 1) {
           await Promise.resolve();
         }
         const result = await io.read(file);
@@ -187,24 +185,24 @@ describe('mask io concurrency', () => {
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const { segmentIdMap } = useSegmentStore().deserialize(parsed);
-    await store().deserialize({
+    const resolveSegment = useSegmentStore().deserialize(parsed, {
+      'img-1': 'new-1',
+    });
+    await deserializeSegmentation({
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap,
+      resolveSegment,
       io: unorderedIO,
     });
     await nextTick();
 
     expect(completed.map((index) => `Segment ${index}`)).not.toEqual(names);
     const segments = useSegmentStore().segments;
-    const segmentation = store().getSegmentationForImage('new-1')!;
     expect(
-      segmentation.order.map(
-        (maskId) =>
-          segments.appearanceOf(segmentation.masks[maskId].segmentId).name
-      )
+      store()
+        .imageMasks('new-1')
+        .map(({ segmentId }) => segments.appearanceOf(segmentId).name)
     ).toEqual(names);
   });
 
@@ -225,21 +223,21 @@ describe('mask io concurrency', () => {
 
     setActivePinia(createPinia());
     await seatSpecImage('new-1', 'CT A');
-    const result = await store().deserialize({
+    const result = await deserializeSegmentation({
       manifest: parsed,
       stateFiles,
       dataIDMap: { 'img-1': 'new-1' },
-      segmentIdMap: useSegmentStore().deserialize(parsed).segmentIdMap,
+      resolveSegment: useSegmentStore().deserialize(parsed, {
+        'img-1': 'new-1',
+      }),
       io: save.io,
     });
     await nextTick();
 
     expect(result.skipped).toEqual([]);
     const restored = store().imageMasks('new-1')[MASK_IO_CONCURRENCY];
-    expect([...restored.representations.labelmap!.extent]).toEqual([
-      0, 3, 0, 0, 0, 0,
-    ]);
-    expect(markedVoxels(restored.id)).toEqual([
+    expect([...restored.binding.extent]).toEqual([0, 3, 0, 0, 0, 0]);
+    expect(markedVoxels(restored.segmentId)).toEqual([
       [0, 0, 0, SEGMENT_VALUE],
       [3, 0, 0, SEGMENT_VALUE],
     ]);
@@ -251,11 +249,27 @@ describe('mask io concurrency', () => {
 
     const save = startGatedSave();
     await save.queued;
-    deleteSegmentOf(deleted);
+    deleteSegment(deleted);
     await save.finish();
 
     expect(save.described[MASK_IO_CONCURRENCY].map(({ name }) => name)).toEqual(
       [`Segment ${MASK_IO_CONCURRENCY}`]
     );
+  });
+
+  it('saves the segments it started with when one is added during encoding', async () => {
+    await seatSpecImage('img-1', 'CT A');
+    seedMasks(MASK_IO_CONCURRENCY);
+
+    const save = startGatedSave();
+    await save.queued;
+    useSegmentStore().segments.addSegment('img-1', {
+      name: 'Added during save',
+    });
+    await save.finish();
+
+    expect(
+      savedSegmentNames('img-1', ManifestSchema.parse(save.manifest))
+    ).not.toContain('Added during save');
   });
 });

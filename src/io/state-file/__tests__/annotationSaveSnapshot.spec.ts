@@ -2,15 +2,23 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
 
-import { MANIFEST, serialize } from '@/src/io/state-file/serialize';
+import {
+  appSerializeDependencies,
+  MANIFEST,
+  serialize,
+} from '@/src/io/state-file/serialize';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import {
-  addMask,
+  addSegment,
   inMemoryArtifactIO,
+  savedSegments,
   seatImage,
   seedVoxel,
-  store,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
+import {
+  serializeSegmentation,
+  type LabelmapIO,
+} from '@/src/segmentation/io/stateFile';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { seatDataSource } from '@/src/store/__tests__/datasetFixtures';
 import { useRulerStore } from '@/src/store/tools/rulers';
@@ -26,15 +34,27 @@ const readManifest = async (blob: Blob) => {
 beforeEach(() => setActivePinia(createPinia()));
 afterEach(() => vi.restoreAllMocks());
 
+// The app's writers with the mask writer last, encoding through `io`.
+const savingMasksThrough = (io: LabelmapIO) => {
+  const dependencies = appSerializeDependencies();
+  return {
+    ...dependencies,
+    writers: [
+      ...dependencies.writers.slice(0, -1),
+      (stateFile: Parameters<typeof serializeSegmentation>[0]) =>
+        serializeSegmentation(stateFile, io),
+    ],
+  };
+};
+
 it.each(['encoding', 'queued update'])(
   'saves matching annotation identities when edited during %s',
   async (phase) => {
     await seatImage('ct');
     seatDataSource('ct', { type: 'uri', uri: '/ct.nrrd', name: 'ct.nrrd' });
-    const maskId = addMask('ct', 'Original');
-    seedVoxel(maskId, [0, 0, 0]);
+    const originalSegment = addSegment('ct', 'Original');
+    seedVoxel(originalSegment, [0, 0, 0]);
     const segments = useSegmentStore();
-    const originalSegment = store().getMask(maskId).segmentId;
     segments.segments.updateSegment(originalSegment, {
       color: [0, 0, 255, 255],
     });
@@ -46,7 +66,7 @@ it.each(['encoding', 'queued update'])(
       segmentId: originalSegment,
     });
     const reassign = () => {
-      const segmentId = segments.segments.mintSegment({
+      const segmentId = segments.segments.mintSegment('ct', {
         name: 'Tumor',
         color: [255, 0, 0, 255],
       });
@@ -62,37 +82,36 @@ it.each(['encoding', 'queued update'])(
     const io = inMemoryArtifactIO();
     const entered = defer<void>();
     const released = defer<void>();
-    const writeMasks = store().serialize;
-    vi.spyOn(store(), 'serialize').mockImplementation((state) =>
-      writeMasks(state, {
-        read: io.read,
-        write: async (...args) => {
-          const bytes = await io.write(args[0], args[1]);
-          entered.resolve();
-          await released.promise;
-          return bytes;
-        },
-      })
-    );
+    const dependencies = savingMasksThrough({
+      read: io.read,
+      write: async (...args) => {
+        const bytes = await io.write(args[0], args[1]);
+        entered.resolve();
+        await released.promise;
+        return bytes;
+      },
+    });
 
-    const saving = serialize();
+    const saving = serialize(dependencies);
     await entered.promise;
     if (phase === 'encoding') reassign();
     released.resolve();
     const saved = await readManifest(await saving);
     segmentWriter.mockRestore();
 
-    const later = await readManifest(await serialize());
+    const later = await readManifest(await serialize(dependencies));
     const laterRuler = later.tools!.rulers!.tools[0];
     expect(
-      later.segments?.find(({ id }) => id === laterRuler.segmentId)
+      savedSegments(later).find(({ id }) => id === laterRuler.segmentId)
     ).toMatchObject({ name: 'Tumor', color: [255, 0, 0, 255] });
 
     setActivePinia(createPinia());
     await seatImage('restored');
-    const { segmentIdMap } = useSegmentStore().deserialize(saved);
+    const resolveSegment = useSegmentStore().deserialize(saved, {
+      ct: 'restored',
+    });
     const restored = useRulerStore();
-    restored.deserialize(saved, { ct: 'restored' }, segmentIdMap);
+    restored.deserialize(saved, { ct: 'restored' }, resolveSegment);
     const [ruler] = restored.serializeTools().tools;
     expect(ruler).toMatchObject({
       imageID: 'restored',

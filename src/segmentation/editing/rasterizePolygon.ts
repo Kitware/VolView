@@ -22,13 +22,16 @@ import {
   type Extent3D,
 } from '@/src/segmentation/geometry';
 
-export const rasterizeTargetDisabledReason = (segmentId: Maybe<string>) =>
-  useSegmentationStore().editTargetLocked(segmentId)
+export const rasterizeTargetDisabledReason = (
+  imageId: string,
+  segmentId: Maybe<string>
+) =>
+  useSegmentationStore().editTargetLocked(imageId, segmentId)
     ? 'Unlock this segment to rasterize into it'
     : '';
 
 /**
- * The labelmap a polygon rasterizes into, absent when the record it lands in
+ * The labelmap a polygon rasterizes into, absent when the segment it lands in
  * is locked. Rasterizing is itself an edit, so it routes through the one entry
  * point that resolves and creates masks: a polygon carrying no segment, or one
  * whose segment was deleted, lands in the selected segment rather than failing.
@@ -38,10 +41,10 @@ function resolveRasterizeTarget(imageId: string, segmentId: Maybe<string>) {
 
   // A locked segment is not editable, the same refusal paint and the processes
   // make. Asked of the segment before the target is resolved, since resolving
-  // mints the mask record and its segmentation: a refused polygon leaves
-  // neither behind. A locked neighbor is a different rule: the fill goes
+  // can mint a segment: a refused polygon leaves nothing behind. A locked
+  // neighbor is a different rule: the fill goes
   // around it, which an aimed `voxelClaim` already honors.
-  if (segmentationStore.editTargetLocked(segmentId)) {
+  if (segmentationStore.editTargetLocked(imageId, segmentId)) {
     useMessageStore().addError('Cannot rasterize into a locked segment');
     return undefined;
   }
@@ -51,11 +54,7 @@ function resolveRasterizeTarget(imageId: string, segmentId: Maybe<string>) {
   // The binding's extent goes stale the moment the fill grows the mask, so
   // the accessor is what travels, not anything read off it now.
   voxels.materialize();
-  return {
-    voxels,
-    maskId: resolved,
-    segmentId: segmentationStore.getMask(resolved).segmentId,
-  };
+  return { voxels, segmentId: resolved };
 }
 
 /**
@@ -119,7 +118,7 @@ function polygonBounds(
  * segments under the aimed rule of `voxelClaim`. World points, parent slice
  * index. Resolving the edit target cancels any competing preview before
  * storage changes. A mask the fill leaves holding nothing, its own or a
- * neighbor's, is deleted, and a deleted target is not named back.
+ * neighbor's, is deleted. Returns the segment the fill landed in.
  */
 export function rasterizePolygon({
   imageId,
@@ -145,17 +144,17 @@ export function rasterizePolygon({
 
   // The part of the image the polygon lands on: what the mask has to grow to
   // hold, and the only place this fill can take a voxel from a neighbor.
-  // Asked before the target is resolved, since resolving mints the mask record
-  // and its storage: a polygon covering nothing leaves neither behind.
+  // Asked before the target is resolved, since resolving allocates the mask:
+  // a polygon covering nothing leaves none behind.
   const polygonExtent = clipExtent(
     polygonBounds(indexPoints, axisIndex, slice),
     fullExtent(parent.getDimensions())
   );
-  if (isEmptyExtent(polygonExtent)) return { segmentId, maskId: undefined };
+  if (isEmptyExtent(polygonExtent)) return { segmentId };
 
-  // A refusal names the segment it was given and no mask: nothing was written.
+  // A refusal names the segment it was given: nothing was written.
   const target = resolveRasterizeTarget(imageId, segmentId);
-  if (!target) return { segmentId, maskId: undefined };
+  if (!target) return { segmentId };
 
   target.voxels.ensureContains(polygonExtent);
 
@@ -174,7 +173,7 @@ export function rasterizePolygon({
   // the polygon rather than the whole mask: a neighbor the polygon does not
   // reach has nothing here to give up, and it would be walked per filled pixel.
   const claimVoxel = segmentationStore.voxelClaim(
-    target.maskId,
+    target.segmentId,
     'aimed',
     polygonExtent
   );
@@ -191,12 +190,7 @@ export function rasterizePolygon({
   } finally {
     const cleared = claimVoxel?.finish() ?? [];
     mask.modified();
-    segmentationStore.deleteEmptyMasks([target.maskId, ...cleared]);
+    segmentationStore.deleteEmptyMasks([target.segmentId, ...cleared]);
   }
-  return {
-    segmentId: target.segmentId,
-    maskId: segmentationStore.maskExists(target.maskId)
-      ? target.maskId
-      : undefined,
-  };
+  return { segmentId: target.segmentId };
 }
