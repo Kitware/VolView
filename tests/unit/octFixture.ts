@@ -29,7 +29,6 @@ export function volumeOf(instances: Instance[]) {
   const update = plannedUpdate(instances);
   if (update.members.length === instances.length) return allocateVolume(update);
   return allocateVolume({
-    kind: 'image',
     members: instances,
     collection: {
       ...plannedUpdate([instances[0]]).collection,

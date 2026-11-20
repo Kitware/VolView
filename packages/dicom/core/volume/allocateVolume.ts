@@ -1,5 +1,5 @@
 import type { Instance } from '../instance/readInstance';
-import type { ImageCollectionUpdate } from '../collections/instanceRegistry';
+import type { InstanceCollectionUpdate } from '../collections/instanceRegistry';
 import type { SpatialMetadata } from '../metadata/spatialMetadata';
 import type { VolumeBuffer } from './pixelFormat';
 import { nativeFramesOverrun } from '../pixels/frameIndex';
@@ -88,7 +88,7 @@ function copyDecoded(volume: Volume, previous: Volume) {
  * again.
  */
 export function allocateVolume(
-  update: Pick<ImageCollectionUpdate, 'kind' | 'collection' | 'members'>,
+  update: Pick<InstanceCollectionUpdate, 'collection' | 'members'>,
   previous?: Volume
 ) {
   const { collection, members } = update;

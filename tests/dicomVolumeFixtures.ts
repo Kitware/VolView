@@ -9,12 +9,9 @@ import {
 } from '@/packages/dicom/core/pixels/pixelDecoder';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 
-/** The first collection planned from these members, which must be an image. */
-export const plannedUpdate = (members: Instance[]) => {
-  const [update] = registerInstances(emptyRegistry, members).updates;
-  if (update.kind !== 'image') throw new Error(`Planned a ${update.kind}`);
-  return update;
-};
+/** The first collection planned from these members. */
+export const plannedUpdate = (members: Instance[]) =>
+  registerInstances(emptyRegistry, members).updates[0];
 
 /** Runtime options that send every instance whole to `decode`. */
 export const decodingWith = (decode: WholeInstanceDecode) => ({

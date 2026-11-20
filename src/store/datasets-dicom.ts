@@ -10,7 +10,10 @@ import {
   type InstanceCollectionUpdate,
   type RegistryState,
 } from '@/packages/dicom/core/collections/instanceRegistry';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import {
+  getDatasetModality,
+  getDatasetTag,
+} from '@/packages/dicom/core/metadata/datasetAccess';
 import { seriesKeyOf } from '@/packages/dicom/core/collections/instanceFacts';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { trimDicomPadding } from '@/packages/dicom/core/utils';
@@ -248,9 +251,15 @@ const cineRecord = (
   };
 };
 
-const cineMember = ({ kind, members }: InstanceCollectionUpdate) =>
-  kind === 'image' && members.length === 1 && isCineInstance(members[0])
-    ? members[0]
+// A SEG object's pixels are labels rather than an image.
+const isSegmentation = ({ members }: InstanceCollectionUpdate) =>
+  getDatasetModality(members[0].dataset) === 'SEG';
+
+const cineMember = (update: InstanceCollectionUpdate) =>
+  !isSegmentation(update) &&
+  update.members.length === 1 &&
+  isCineInstance(update.members[0])
+    ? update.members[0]
     : null;
 
 function cineCandidate(
@@ -266,7 +275,7 @@ function cineCandidate(
 }
 
 function fillFor(update: InstanceCollectionUpdate, previous?: Volume) {
-  if (update.kind === 'segmentation')
+  if (isSegmentation(update))
     return (image: DicomVolumeImage) => image.setSegmentation(update.members);
   const volume = allocateVolume(update, previous);
   return (image: DicomVolumeImage) => {
@@ -285,8 +294,7 @@ function planCandidate(update: InstanceCollectionUpdate): Candidate {
   if (clip) return cineCandidate(id, clip, cached);
   const record = volumeRecord(update);
   // A re-import retries whatever failed to load.
-  if (cached && update.change === 'unchanged')
-    return { kind: 'keep', id, record };
+  if (cached && update.unchanged) return { kind: 'keep', id, record };
   const shown = cached instanceof DicomVolumeImage ? cached : undefined;
   return {
     kind: 'dicom',
