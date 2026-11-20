@@ -97,9 +97,7 @@ const featureBoundaries = (features) => {
       rules: {
         'no-restricted-imports': [
           'error',
-          {
-            patterns: publicFeatures.map(publicSurface),
-          },
+          { patterns: publicFeatures.map(publicSurface) },
         ],
       },
     },
