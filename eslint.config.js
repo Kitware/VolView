@@ -97,9 +97,7 @@ const featureBoundaries = (features) => {
       rules: {
         'no-restricted-imports': [
           'error',
-          {
-            patterns: publicFeatures.map(publicSurface),
-          },
+          { patterns: publicFeatures.map(publicSurface) },
         ],
       },
     },
@@ -161,6 +159,7 @@ const E2E_TIMEOUT_DEBT = [
   'tests/specs/cine-ruler-session.e2e.ts',
   'tests/specs/crosshairs-multi-image.e2e.ts',
   'tests/specs/delete-selected-annotation.e2e.ts',
+  'tests/specs/dicom-dimension-mismatch.e2e.ts',
   'tests/specs/different-direction-labelmap.e2e.ts',
   'tests/specs/imageCacheUtils.ts',
   'tests/specs/layer-source-lifetime.e2e.ts',
@@ -257,10 +256,9 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector:
-            "Property[key.name='timeout']:not([value.type='Identifier'][value.name='DOWNLOAD_TIMEOUT'])",
+          selector: "Property[key.name='timeout']",
           message:
-            'Wait for a state the page publishes; use DOWNLOAD_TIMEOUT for data-loading readiness.',
+            'Wait for a state the page publishes rather than passing a timeout.',
         },
         {
           selector:
