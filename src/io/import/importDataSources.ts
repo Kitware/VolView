@@ -88,22 +88,18 @@ const compareSourceOrder = (a: number[], b: number[]) => {
 };
 
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
-// covers maps to its ONE store id. Many-to-one is the normal shape when each
-// dataset is one file: a merged multi-file DICOM volume covers every member
-// file's per-file dataset id. A dataset whose leaves now load as SEVERAL
-// volumes (a series since split into acquisitions), or a multi-file dataset
-// whose volume now also holds another dataset's files, has a different grid
-// than its saved state; it is left unmapped so restore reports it instead of
-// binding annotations, layers, and views to the wrong slices.
+// covers maps to its ONE store id. Many-to-one is the normal shape: a merged
+// multi-file DICOM volume covers every member file's per-file dataset id. A
+// dataset whose leaves now load as SEVERAL volumes (a series since split into
+// acquisitions) has a different grid than its saved state; it is left
+// unmapped so restore reports it instead of binding annotations, layers, and
+// views to the wrong slices.
 export function buildStateIDToStoreID(
   loadables: readonly LoadableResult[]
 ): Record<string, string> {
-  const merged = findMergedStateDatasets(loadables);
   return Object.fromEntries(
     [...storeIDsByStateID(loadables)]
-      .filter(
-        ([stateID, storeIDs]) => storeIDs.size === 1 && !(stateID in merged)
-      )
+      .filter(([, storeIDs]) => storeIDs.size === 1)
       .map(([stateID, storeIDs]) => [stateID, [...storeIDs][0]])
   );
 }
@@ -120,30 +116,6 @@ export function findSplitStateDatasets(
     [...storeIDsByStateID(loadables)]
       .filter(([, storeIDs]) => storeIDs.size > 1)
       .map(([stateID, storeIDs]) => [stateID, [...storeIDs]])
-  );
-}
-
-/**
- * The state-file datasets the map above leaves out because they share one
- * volume with another dataset and at least one of them is several files, with
- * that volume.
- */
-export function findMergedStateDatasets(
-  loadables: readonly LoadableResult[]
-): Record<string, string> {
-  const leaves = stateLeavesOf(loadables);
-  const leavesByState = groupBy(leaves, ([stateID]) => stateID);
-  return Object.fromEntries(
-    [...groupBy(leaves, ([, storeID]) => storeID).values()]
-      .map((pairs) => new Map(pairs))
-      .filter(
-        (stateToStore) =>
-          stateToStore.size > 1 &&
-          [...stateToStore.keys()].some(
-            (stateID) => leavesByState.get(stateID)!.length > 1
-          )
-      )
-      .flatMap((stateToStore) => [...stateToStore])
   );
 }
 
@@ -338,7 +310,6 @@ async function completeStateFileSetups(
 ) {
   const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
   const splitDatasets = findSplitStateDatasets(loadableResults);
-  const mergedDatasets = findMergedStateDatasets(loadableResults);
   // Leaf stateIDs covered by a consolidated notice that actually ran: only
   // their errors may be suppressed by the import pipeline.
   const reportedStateIDs = new Set<string>();
@@ -353,7 +324,6 @@ async function completeStateFileSetups(
           failedLeaves,
           migration: setup.migration,
           splitDatasets,
-          mergedDatasets,
         }
       );
       setup.dataSources.forEach((src) => {
