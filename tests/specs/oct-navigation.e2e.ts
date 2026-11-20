@@ -19,8 +19,9 @@ import {
   openEnFaceProjection,
   openEnFaceControls,
   selectSetting,
-  setThicknessThreshold,
-  setHighlight,
+  segmentThreshold,
+  segmentEye,
+  setSegmentThreshold,
   expectHighlight,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
@@ -351,8 +352,7 @@ describe('Retinal OCT navigation', () => {
     // Select before capturing the comparison with a textured overlay.
     await $('button[data-testid^="control-button-Select "]').click();
     await openEnFaceControls();
-    await setHighlight(true);
-    await setThicknessThreshold(31);
+    await setSegmentThreshold('Synthetic retinal layer', 31);
     await expectHighlight(true);
     await expectSliceLine();
     await expectControlsBesideSelector();
@@ -378,12 +378,12 @@ describe('Retinal OCT navigation', () => {
     await $(CANVAS).waitForDisplayed();
     await expectHighlight(true);
     await openEnFaceControls();
-    await expandEnFaceSection('thickness');
-    expect(
-      await $(
-        '.v-overlay--active [data-testid="enface-segmentation-segment"]'
-      ).getText()
-    ).toContain('Synthetic retinal layer');
+    await expandEnFaceSection('segments');
+    await expect(segmentEye('Synthetic retinal layer')).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(segmentThreshold('Synthetic retinal layer')).toHaveValue('31');
     await browser.keys('Escape');
     await expectSliceLine();
     expect(await getWindow()).toEqual(savedWindow);

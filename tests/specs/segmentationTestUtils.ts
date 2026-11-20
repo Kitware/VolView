@@ -33,6 +33,16 @@ export const segmentRow = async (name: string) => {
   return row as NonNullable<typeof row>;
 };
 
+const eyeButton = (visible: boolean) =>
+  'button:has(i.' + (visible ? 'mdi-eye' : 'mdi-eye-off') + ')';
+
+export const setSegmentVisible = async (name: string, visible: boolean) => {
+  const row = await segmentRow(name);
+  if (await row.$(eyeButton(!visible)).isExisting())
+    await row.$(eyeButton(!visible)).click();
+  await row.$(eyeButton(visible)).waitForExist();
+};
+
 export const segmentColor = async (name: string) => {
   const row = await segmentRow(name);
   const dot = await row.$('.color-dot');

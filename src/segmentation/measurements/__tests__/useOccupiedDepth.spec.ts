@@ -15,7 +15,6 @@ enableAutoUnmount(afterEach);
 // Answers in call order when told to, measuring the mask as it was sent.
 function controlledMeasurer() {
   const replies: Array<(failure?: Error) => void> = [];
-  const state = { releases: 0 };
   const measure = (input: OccupiedDepthInput) => {
     const values = input.mask.values.slice();
     return new Promise<Error | undefined>((resolve) =>
@@ -29,8 +28,7 @@ function controlledMeasurer() {
     });
   };
   return {
-    state,
-    create: () => ({ measure, release: () => state.releases++ }),
+    measure,
     finish: async (failure?: Error) => {
       // Lets a just-changed request reach the measurer first.
       await flushPromises();
@@ -61,7 +59,7 @@ function mountMeasurement() {
       setup() {
         const { accepted, computing, error } = useOccupiedDepth(
           request,
-          measurer.create
+          measurer
         );
         return () =>
           h(
@@ -128,13 +126,12 @@ describe('occupied-depth result ownership', () => {
     }
   );
 
-  it('releases the worker when the request is withdrawn and ignores its late reply', async () => {
+  it('ignores the late reply of a withdrawn request', async () => {
     const { request, measurer, wrapper } = mountMeasurement();
     const input = request.value!;
     request.value = null;
     await measurer.finish();
     expect(wrapper.text()).toBe('Unavailable');
-    expect(measurer.state.releases).toBe(1);
 
     request.value = { ...input, first: 1, last: 1 };
     await nextTick();

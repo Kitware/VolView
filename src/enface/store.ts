@@ -9,33 +9,45 @@ import {
 import type { ViewConfig } from '@/src/io/state-file/schema';
 import type { SlabAxis, SlabMethod } from '@/src/core/slab/types';
 import type { Maybe } from '@/src/types';
-import type { SegmentResolver } from '@/src/segmentation/segments';
+import {
+  useSegmentStore,
+  type SegmentResolver,
+} from '@/src/segmentation/segments';
 
 export type EnFaceViewConfig = {
   axis: SlabAxis;
   method: SlabMethod;
   depthStart: number;
   depthEnd: number | null;
-  highlightThin: boolean;
-  thresholdMicrons: number;
-  segmentId: string | null;
+  /** By segment id. Segments without an entry stay hidden. */
+  segmentProjections: Record<string, SegmentProjection>;
 };
 
-export type ThicknessControlState = {
-  thresholdMaximum: number;
+export type SegmentProjection = {
+  visible: boolean;
+  /** Keeps only regions thinner than this within the slab; null keeps all. */
+  thresholdMicrons: number | null;
+};
+
+export type SegmentControlState = {
+  segments: {
+    id: string;
+    title: string;
+    color?: string;
+    /** Hidden by its eye in the Annotations segment list. */
+    listHidden: boolean;
+    /** Null while the segment has no measurement. */
+    thresholdMaximum: number | null;
+  }[];
   segmentationReason: string | null;
-  highlightReason: string | null;
-  thicknessReason: string | null;
-  segments: { value: string; title: string; color?: string }[];
-  segmentId: string | null;
-  highlightThin: boolean;
+  thinReason: string | null;
 };
 
 export type EnFaceViewControlState = {
   axes: { title: string; value: number }[];
   depthMaximum: number;
   projectionReason: string | null;
-  thickness: ThicknessControlState;
+  segmentControls: SegmentControlState;
 };
 
 export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
@@ -43,9 +55,12 @@ export const defaultEnFaceViewConfig = (): EnFaceViewConfig => ({
   method: 'mean',
   depthStart: 0,
   depthEnd: null,
-  highlightThin: false,
-  thresholdMicrons: 100,
-  segmentId: null,
+  segmentProjections: {},
+});
+
+export const defaultSegmentProjection = (): SegmentProjection => ({
+  visible: false,
+  thresholdMicrons: null,
 });
 
 export const useEnFaceViewStore = defineStore('enface-view', () => {
@@ -80,6 +95,18 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     controlStates[viewID][dataID] = state;
   }
 
+  // A deleted segment leaves no settings behind to be saved. Settings are not
+  // content, so they never keep a segment alive.
+  useSegmentStore().segments.declareReferences('enface', {
+    holds: () => false,
+    remove: (segmentId) =>
+      Object.values(configs)
+        .flatMap((byData) => Object.values(byData))
+        .forEach(({ segmentProjections }) => {
+          delete segmentProjections[segmentId];
+        }),
+  });
+
   function removeView(viewID: string) {
     delete configs[viewID];
     delete controlStates[viewID];
@@ -106,7 +133,14 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
       const saved = viewConfig.enFace;
       if (!saved) return;
       Object.assign(configFor(viewID, dataID), saved, {
-        segmentId: resolveSegment(dataID, saved.segmentId) ?? null,
+        segmentProjections: Object.fromEntries(
+          Object.entries(saved.segmentProjections).flatMap(
+            ([savedId, projection]) => {
+              const id = resolveSegment(dataID, savedId);
+              return id ? [[id, projection]] : [];
+            }
+          )
+        ),
       });
     });
   }

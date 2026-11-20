@@ -9,6 +9,7 @@ import { expectProjectionPixel } from './octInteractionTestUtils';
 import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
 import { useReferenceLines } from './referenceLinesTestUtils';
 import {
+  setSegmentShown,
   canvasAppearance,
   chooseEnFaceProjection,
   projectionTransform,
@@ -26,11 +27,11 @@ import {
   openEnFaceControls,
   setEnFaceSlab,
   selectSetting,
-  setHighlight,
-  setThicknessThreshold,
+  setSegmentThreshold,
   expectHighlight,
-  THRESHOLD,
-  THRESHOLD_SLIDER,
+  segmentThreshold,
+  segmentThresholdSlider,
+  segmentEye,
 } from './octTestUtils';
 import {
   openAnnotationSegments,
@@ -200,21 +201,26 @@ describe('Public OCT exports', () => {
     await selectEnFace(1);
     await waitForEnFaceReady();
     await openEnFaceControls();
-    for (const section of ['projection', 'thickness'])
+    for (const section of ['projection', 'segments'])
       await expect(
         $('[data-testid="enface-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
     await expandEnFaceSection('projection');
     await selectSetting('enface-projection-axis', 'Coronal');
-    await expandEnFaceSection('thickness');
-    await expect(
-      $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
-    ).toBeEnabled();
-    await setHighlight(true);
-    await selectSetting('enface-segmentation-segment', names[2]);
-    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuemax', '58.1');
-    await setThicknessThreshold(20);
-    await expect($(THRESHOLD_SLIDER)).toHaveAttribute('aria-valuenow', '20');
+    await expandEnFaceSection('segments');
+    for (const name of names)
+      await expect(segmentEye(name)).toHaveAttribute('aria-pressed', 'false');
+    await expect(segmentEye(names[2])).toBeEnabled();
+    await setSegmentShown(names[2], true);
+    await expect(segmentThresholdSlider(names[2])).toHaveAttribute(
+      'aria-valuemax',
+      '58.1'
+    );
+    await setSegmentThreshold(names[2], 20);
+    await expect(segmentThresholdSlider(names[2])).toHaveAttribute(
+      'aria-valuenow',
+      '20'
+    );
     await $(
       '.v-overlay--active [data-testid="enface-projection-toggle"]'
     ).click();
@@ -223,9 +229,9 @@ describe('Public OCT exports', () => {
       .$('.v-expansion-panel-text')
       .waitForDisplayed({ reverse: true });
     await expect(
-      $('.v-overlay--active [data-testid="enface-thickness-toggle"]')
+      $('.v-overlay--active [data-testid="enface-segments-toggle"]')
     ).toHaveAttribute('aria-expanded', 'true');
-    await expect($(THRESHOLD)).toHaveValue('20');
+    await expect(segmentThreshold(names[2])).toHaveValue('20');
     const captureDirectory = process.env.VOLVIEW_OCT_CAPTURE_DIR;
     if (captureDirectory) {
       fs.mkdirSync(captureDirectory, { recursive: true });
