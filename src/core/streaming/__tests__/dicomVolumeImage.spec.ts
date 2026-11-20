@@ -92,17 +92,19 @@ afterEach(() => {
 function holder(
   decoder: WholeInstanceDecode,
   init: Omit<DicomVolumeImageInit, 'runtime'> = {},
-  requestConcurrency?: number
+  readConcurrency?: number
 ) {
   const runtime = createDicomRuntime({
     ...decodingWith(decoder),
     decodeConcurrency: 1,
-    requestConcurrency,
   });
   runtimes.push(runtime);
   const encoded: ThumbnailSlice[] = [];
   const image = new DicomVolumeImage({
-    runtime,
+    runtime: {
+      ...runtime,
+      readConcurrency: readConcurrency ?? runtime.readConcurrency,
+    },
     encodeThumbnail: (slice) => {
       encoded.push(slice);
       return `uri:${Array.from(slice.data).join(',')}`;

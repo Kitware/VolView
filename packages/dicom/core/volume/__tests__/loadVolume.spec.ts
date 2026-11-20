@@ -44,11 +44,14 @@ const collect = async (updates: AsyncIterable<VolumeUpdate>) => {
 const loadAll = (
   volume: Volume,
   runtime: DicomRuntime,
-  options: Pick<LoadVolumeOptions, 'focus' | 'readAhead'> = {}
+  {
+    readConcurrency = runtime.readConcurrency,
+    ...options
+  }: Pick<LoadVolumeOptions, 'focus'> & { readConcurrency?: number } = {}
 ) =>
   collect(
     loadVolume(volume, {
-      runtime,
+      runtime: { ...runtime, readConcurrency },
       signal: new AbortController().signal,
       ...options,
     })
@@ -85,7 +88,7 @@ describe('loadVolume', () => {
     const { volume, reads } = recordedStack(5);
 
     const updates = await loadAll(volume, runtimeWith(valueDecoder(decoded)), {
-      readAhead: 1,
+      readConcurrency: 1,
     });
 
     expect(reads).toEqual([2, 0, 4, 1, 3]);
@@ -113,7 +116,7 @@ describe('loadVolume', () => {
     const volume = stack(5);
 
     const updates = await loadAll(volume, runtimeWith(decoder), {
-      readAhead: 1,
+      readConcurrency: 1,
     });
 
     const errors = updates.flatMap((update) =>
@@ -209,7 +212,7 @@ describe('loadVolume', () => {
 
     const loading = loadAll(volume, runtimeWith(decoder), {
       focus: () => focus,
-      readAhead: 1,
+      readConcurrency: 1,
     });
     // Slice 4 is decoding and the one read allowed ahead has begun.
     await readStarted(2);
@@ -221,13 +224,13 @@ describe('loadVolume', () => {
     expect(decoded).toEqual(reads);
   });
 
-  it('reads ahead of a busy decoder, holding at most readAhead undecoded', async () => {
-    const readAhead = 3;
+  it('reads ahead of a busy decoder, holding at most readConcurrency undecoded', async () => {
+    const readConcurrency = 3;
     const decodesStarted: number[] = [];
     const decode = valueDecoder();
     const { volume, reads, readStarted } = recordedStack(8);
     let mostOutstanding = 0;
-    const ahead = readStarted(1 + readAhead);
+    const ahead = readStarted(1 + readConcurrency);
     const decoder: WholeInstanceDecode = async (request, signal) => {
       decodesStarted.push(0);
       mostOutstanding = Math.max(
@@ -239,11 +242,13 @@ describe('loadVolume', () => {
       return decode(request, signal);
     };
 
-    const updates = await loadAll(volume, runtimeWith(decoder), { readAhead });
+    const updates = await loadAll(volume, runtimeWith(decoder), {
+      readConcurrency,
+    });
 
     expect(updates).toHaveLength(8);
     expect(reads).toHaveLength(8);
-    expect(mostOutstanding).toBeLessThanOrEqual(readAhead);
+    expect(mostOutstanding).toBeLessThanOrEqual(readConcurrency);
   });
 
   it('runs at most decodeConcurrency decodes at once', async () => {

@@ -4,7 +4,6 @@ import type { ByteSource } from '@/packages/dicom/core/source/byteSource';
 export const trackedSource = (bytes: Uint8Array, chunkSize = bytes.length) => {
   const stats = { reads: 0, delivered: 0, cancelled: 0 };
   const source: ByteSource = {
-    size: bytes.length,
     read: () => {
       stats.reads += 1;
       let offset = 0;
