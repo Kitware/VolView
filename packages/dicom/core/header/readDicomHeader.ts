@@ -7,9 +7,6 @@ import {
 } from '../metadata/dicomLayout';
 import { concatBytes, toAscii } from '../utils';
 
-/** `skip-radiotherapy` returns after the Modality tag for RT objects. */
-export type ImageImportPolicy = 'complete-header' | 'skip-radiotherapy';
-
 /** Where the Pixel Data element and its value sit in the source. */
 export type PixelDataElement = Readonly<{
   /** Offset of the element's tag. */
@@ -38,7 +35,7 @@ const isTag = (
 const isRadiotherapy = (modality: string | undefined) =>
   modality?.startsWith('RT') ?? false;
 
-function headerParser(policy: ImageImportPolicy) {
+function headerParser() {
   const found = {
     modality: undefined as string | undefined,
     layout: null as DicomLayout | null,
@@ -48,10 +45,7 @@ function headerParser(policy: ImageImportPolicy) {
   const parse = createDicomParser({
     stopAtElement: (group, element) => {
       found.atPixelData = isTag(PIXEL_DATA, group, element);
-      return (
-        found.atPixelData ||
-        (policy === 'skip-radiotherapy' && isRadiotherapy(found.modality))
-      );
+      return found.atPixelData || isRadiotherapy(found.modality);
     },
     onLayout: (layout) => {
       found.layout = layout;
@@ -137,11 +131,8 @@ function pixelDataElement(
  * object with no Pixel Data, such as a structured report, is header to its
  * last byte.
  */
-export async function readDicomHeader(
-  stream: ReadableStream<Uint8Array>,
-  policy: ImageImportPolicy = 'complete-header'
-) {
-  const { parse, found } = headerParser(policy);
+export async function readDicomHeader(stream: ReadableStream<Uint8Array>) {
+  const { parse, found } = headerParser();
   const { received, total, end } = await readUntilStop(stream, parse, () =>
     found.atPixelData ? PIXEL_DATA_HEAD_LENGTH : 0
   );

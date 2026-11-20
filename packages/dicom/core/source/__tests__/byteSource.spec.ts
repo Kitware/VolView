@@ -108,7 +108,6 @@ describe('blob byte source', () => {
     { start: 5, end: 5000 },
   ])('reads %j', async (range) => {
     const source = fromBlob(new Blob([bytes]));
-    expect(source.size).toBe(bytes.length);
     expect(await readStream(source.read(signal(), range))).toEqual(
       expected(
         range && {

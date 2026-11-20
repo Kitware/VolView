@@ -62,12 +62,10 @@ class MetadataWorker extends EventTarget {
 describe('metadata worker ownership', () => {
   it('settles worker failure, allows retry, and terminates pending work on disposal', async () => {
     const workers: MetadataWorker[] = [];
-    const reader = createMetadataReader({
-      metadataWorkerFactory: () => {
-        const worker = new MetadataWorker();
-        workers.push(worker);
-        return worker as unknown as Worker;
-      },
+    const reader = createMetadataReader(() => {
+      const worker = new MetadataWorker();
+      workers.push(worker);
+      return worker as unknown as Worker;
     });
     const first = reader.read(buildSlice());
     const failure = expect(first).rejects.toThrow('worker failed');
@@ -85,14 +83,12 @@ describe('metadata worker ownership', () => {
   });
 
   it('transfers a copy, so the caller keeps its bytes', async () => {
-    const reader = createMetadataReader({
-      metadataWorkerFactory: () => {
-        const { port1, port2 } = new MessageChannel();
-        Comlink.expose({ readPublicDataset }, port2);
-        return Object.assign(port1, {
-          terminate: () => port2.close(),
-        }) as unknown as Worker;
-      },
+    const reader = createMetadataReader(() => {
+      const { port1, port2 } = new MessageChannel();
+      Comlink.expose({ readPublicDataset }, port2);
+      return Object.assign(port1, {
+        terminate: () => port2.close(),
+      }) as unknown as Worker;
     });
     const bytes = buildSlice();
     const original = bytes.slice();
