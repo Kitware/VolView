@@ -73,6 +73,20 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     return configs[viewID][dataID];
   }
 
+  function patchSegment(
+    viewID: string,
+    dataID: string,
+    segmentId: string,
+    change: Partial<SegmentProjection>
+  ) {
+    const projections = configFor(viewID, dataID).segmentProjections;
+    projections[segmentId] = {
+      ...defaultSegmentProjection(),
+      ...projections[segmentId],
+      ...change,
+    };
+  }
+
   /** Controls without a volume show, but never store, the defaults. */
   function settingsFor(viewID: string, dataID: Maybe<string>) {
     return (
@@ -148,6 +162,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
   return {
     configFor,
     settingsFor,
+    patchSegment,
     controlStateFor,
     setControlState,
     removeView,

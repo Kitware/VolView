@@ -29,7 +29,7 @@ import {
 } from '@/src/composables/annotationTool';
 import { ToolID } from '@/src/types/annotation-tool';
 import { Maybe } from '@/src/types';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { showsSlice, useSliceInfo } from '@/src/composables/useSliceInfo';
 import { useCineFrame } from '@/src/composables/useCineFrame';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { whenever } from '@vueuse/core';
@@ -136,7 +136,9 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    const isVisible = computed(() => ruler.value?.slice === slice.value);
+    const isVisible = computed(() =>
+      showsSlice(sliceInfo.value, ruler.value?.slice)
+    );
     useWidgetVisibility(widget, isVisible, view);
 
     // --- handle pick visibility --- //
@@ -162,7 +164,7 @@ export default defineComponent({
 
     return {
       ruler,
-      slice,
+      isVisible,
       appearance: computed(() => rulerStore.appearanceOfTool(toolId.value)),
       firstPoint: computed(() => {
         return visibleStates.firstPoint ? ruler.value?.firstPoint : undefined;
@@ -178,7 +180,7 @@ export default defineComponent({
 
 <template>
   <RulerSVG2D
-    v-show="slice === ruler.slice"
+    v-show="isVisible"
     :point1="firstPoint"
     :point2="secondPoint"
     :color="appearance.cssColor"

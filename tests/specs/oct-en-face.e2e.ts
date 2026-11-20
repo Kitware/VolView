@@ -227,7 +227,6 @@ describe('Retinal OCT en-face', () => {
     await $(CANVAS).click();
     const pan = $('button[data-testid^="control-button-Pan "]');
     const crosshairs = $('button[data-testid^="control-button-Crosshairs "]');
-    const select = $('button[data-testid^="control-button-Select "]');
     const ruler = $('button[data-testid^="control-button-Ruler "]');
     const keyboard = () =>
       browser.action('key', { id: 'oct-crosshairs-shortcut' });
@@ -258,7 +257,7 @@ describe('Retinal OCT en-face', () => {
       await expect(crosshairs).toHaveElementClass('tool-btn-selected');
       await expect(crosshairs).toBeEnabled();
       await release();
-      await expect(select).toHaveElementClass('tool-btn-selected');
+      await expect(ruler).toHaveElementClass('tool-btn-selected');
     } finally {
       await browser.releaseActions();
     }

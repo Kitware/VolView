@@ -161,7 +161,7 @@ export const useToolStore = defineStore('tool', () => {
     const effective = activeEffectiveView();
     if (effective?.kind === 'cine') return 'A clip cannot be painted';
     if (effective?.viewInfo.type === 'EnFace')
-      return getEnFaceUnavailableReason(effective.renderDataID) ?? '';
+      return getToolUnavailableReason(Tools.Paint, effective) ?? '';
     if (effective?.kind === 'oblique')
       return 'Painting is not available in an oblique view';
     return '';

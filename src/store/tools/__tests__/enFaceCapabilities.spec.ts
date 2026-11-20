@@ -141,7 +141,7 @@ describe('temporary crosshairs in the toolbar', () => {
       });
       const initial =
         scenario === 'focus change'
-          ? 'Ruler'
+          ? 'Crop'
           : scenario === 'denied'
             ? 'Select'
             : 'Pan';
@@ -159,7 +159,9 @@ describe('temporary crosshairs in the toolbar', () => {
         expect(button('Crosshairs').classes()).toContain('tool-btn-selected');
       }
       await crosshairsChord('keyup');
-      expect(button(initial).classes()).toContain('tool-btn-selected');
+      expect(
+        button(scenario === 'focus change' ? 'Select' : initial).classes()
+      ).toContain('tool-btn-selected');
     }
   );
 });
