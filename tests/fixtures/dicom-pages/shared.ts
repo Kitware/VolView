@@ -3,13 +3,11 @@ import {
   type DicomRuntimeOptions,
 } from '@/packages/dicom/core/runtime/createDicomRuntime';
 import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import {
   planDecode,
   singleDecoderTable,
 } from '@/packages/dicom/core/pixels/decoderTable';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { fixtureBytes } from './fixtureData';
 
 export const assetUrls = (
   pipelineWorker = './assets/itk-wasm-pipeline.min.worker.js'
@@ -54,22 +52,6 @@ export function report(name: string, value: string) {
   output.id = name;
   output.textContent = value;
   document.querySelector('main')!.append(output);
-}
-
-export async function loadInstance() {
-  const input =
-    new URL(location.href).searchParams.get('source') === 'http'
-      ? new URL('./corpus-data/fixture.dcm', document.baseURI)
-      : new File([fixtureBytes() as Uint8Array<ArrayBuffer>], 'fixture.dcm');
-  return runtime.readInstance(sourceOf(input), never);
-}
-
-export function describeMetadata({ dataset }: Instance) {
-  const numbers = (tag: string) =>
-    getDatasetTag(dataset, tag)!.split('\\').map(Number).join(', ');
-  report('patient', getDatasetTag(dataset, '00100010')!.trim());
-  report('position', numbers('00200032'));
-  report('pixel-spacing', numbers('00280030'));
 }
 
 export function failed(error: unknown) {
