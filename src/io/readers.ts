@@ -2,7 +2,7 @@ import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { readImage, extensionToImageIo } from '@itk-wasm/image-io';
 import type { vtkObject } from '@kitware/vtk.js/interfaces';
 import { getWorker } from '@/src/io/itk/worker';
-import { FileReaderMap, ReaderResult } from '.';
+import { FileReaderMap, ReaderResult } from './readerRegistry';
 
 import { stlReader, vtiReader, vtpReader } from './vtk/async';
 import { FILE_EXT_TO_MIME } from './mimeTypes';
