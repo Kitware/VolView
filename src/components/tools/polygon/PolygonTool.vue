@@ -108,7 +108,7 @@ export default defineComponent({
     const toolStore = useToolStore();
     const activeToolStore = useActiveToolStore();
 
-    const { locator, frame, slice } = useViewLocator(viewId, imageId);
+    const { locator, frame, showsSlice } = useViewLocator(viewId, imageId);
 
     const isToolActive = computed(() => toolStore.currentTool === toolType);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
@@ -179,7 +179,10 @@ export default defineComponent({
       frame
     );
 
-    const { onHover: baseOnHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover: baseOnHover, overlayInfo } = useHover(
+      currentTools,
+      showsSlice
+    );
 
     const onHover = (id: ToolID, event: any) => {
       if (shouldSuppressInteraction(id)) {

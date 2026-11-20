@@ -33,6 +33,9 @@ const getBrushSizeLimit = (dimensions: Iterable<number>) =>
 // Growing a mask copies the whole of it, so a stroke that has to grow it asks
 // for room beyond its footprint and the samples that follow grow nothing.
 const STROKE_GROWTH_PADDING = 16;
+
+/** First and last slice a stroke fills along its axis, both included. */
+type SliceRange = readonly [number, number];
 const DEFAULT_THRESHOLD_RANGE: Vector2 = [
   Number.NEGATIVE_INFINITY,
   Number.POSITIVE_INFINITY,
@@ -173,21 +176,29 @@ export const usePaintToolStore = defineStore('paint', () => {
     this.$paint.setBrushSize(nextSize);
   }
 
-  function selectSegmentAt(worldPoint: vec3, imageID: string) {
+  function selectSegmentAt(
+    worldPoint: vec3,
+    imageID: string,
+    axisIndex: 0 | 1 | 2,
+    slices?: SliceRange
+  ) {
     const parent = useImageCacheStore().getVtkImageData(imageID);
     if (!parent) return;
     // Masks share the parent grid, so one parent index addresses every mask.
-    const [i, j, k] = [...worldPointToIndex(parent, worldPoint)].map(
-      Math.round
-    );
+    const index = [...worldPointToIndex(parent, worldPoint)].map(Math.round);
+    const [first, last] = slices ?? [index[axisIndex], index[axisIndex]];
     const registry = useSegmentStore().segments;
-    // The eyedropper takes the first visible segment covering the point,
-    // including locked segments.
-    const hit = segmentationStore
-      .segmentsAt(imageID, i, j, k)
+    // The eyedropper takes the first visible segment covering the point, or
+    // the En face slab column under it, including locked segments.
+    const hit = Array.from({ length: last - first + 1 }, (_, offset) =>
+      index.map((value, axis) => (axis === axisIndex ? first + offset : value))
+    )
+      .flatMap(([i, j, k]) => segmentationStore.segmentsAt(imageID, i, j, k))
       .find((segmentId) => registry.appearanceOf(segmentId).visible);
     if (hit) registry.selectSegment(hit);
   }
+
+  let strokeSlices: SliceRange | undefined;
 
   /**
    * The latest step of the stroke and the parent voxels it can touch, or
@@ -212,8 +223,15 @@ export const usePaintToolStore = defineStore('paint', () => {
         ? worldPointToIndex(parentImage, strokePoints.value[lastIndex - 1])
         : undefined;
 
+    const bounds = this.$paint.strokeBounds(
+      axisIndex,
+      lastIndexPoint,
+      prevIndexPoint
+    );
+    if (strokeSlices)
+      [bounds[axisIndex * 2], bounds[axisIndex * 2 + 1]] = strokeSlices;
     const strokeExtent = clipExtent(
-      this.$paint.strokeBounds(axisIndex, lastIndexPoint, prevIndexPoint),
+      bounds,
       fullExtent(parentImage.getDimensions())
     );
     // A press beside the image covers no voxel, so it must mint nothing.
@@ -283,20 +301,50 @@ export const usePaintToolStore = defineStore('paint', () => {
       return claimVoxel?.claim(point[0], point[1], point[2]) ?? true;
     };
 
+    // The clipped extent holds the slices this stroke fills along its axis.
+    const paintSlices = () => {
+      const onSlice = (point: vec3 | undefined, slice: number) => {
+        if (!point) return undefined;
+        const moved = vec3.clone(point);
+        moved[axisIndex] = slice;
+        return moved;
+      };
+      for (
+        let slice = strokeExtent[axisIndex * 2];
+        slice <= strokeExtent[axisIndex * 2 + 1];
+        slice++
+      )
+        this.$paint.paintLabelmap(
+          voxels.image(),
+          axisIndex,
+          onSlice(lastIndexPoint, slice)!,
+          {
+            endPoint: onSlice(prevIndexPoint, slice),
+            // Where this mask's buffer sits on the parent grid the points are in.
+            origin: [extent[0], extent[2], extent[4]],
+            shouldPaint,
+          }
+        );
+    };
     try {
-      this.$paint.paintLabelmap(voxels.image(), axisIndex, lastIndexPoint, {
-        endPoint: prevIndexPoint,
-        // Where this mask's buffer sits on the parent grid the points are in.
-        origin: [extent[0], extent[2], extent[4]],
-        shouldPaint,
-      });
+      paintSlices();
     } finally {
       strokeMaskIds.add(maskId);
       claimVoxel?.finish().forEach((cleared) => strokeMaskIds.add(cleared));
     }
   }
 
-  function setSliceAxis(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
+  /**
+   * Fits the brush to the view under the pointer. A view showing several
+   * slices at once, such as an En face slab, gives the range its strokes fill.
+   */
+  function setSliceAxis(
+    this: _This,
+    axisIndex: 0 | 1 | 2,
+    imageID: string,
+    slices?: SliceRange
+  ) {
+    strokeSlices = slices;
     const imageData = useImageCacheStore().getVtkImageData(imageID);
     if (!imageData) return;
 

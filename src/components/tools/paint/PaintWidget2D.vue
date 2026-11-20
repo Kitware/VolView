@@ -25,6 +25,7 @@ import { Maybe } from '@/src/types';
 import { PaintMode } from '@/src/core/tools/paint';
 import { usePaintInteractionMode } from '@/src/segmentation/composables/usePaintInteractionMode';
 import { useSegmentStore } from '@/src/segmentation/segments';
+import { useEnFaceViewStore } from '@/src/enface/store';
 import eyedropperCursor from '@/src/assets/eyedropper-cursor.svg?url';
 import { useActionHeld } from '@/src/composables/useKeyboardShortcuts';
 
@@ -49,6 +50,11 @@ export default defineComponent({
 
     const sliceInfo = useSliceInfo(viewId, imageId);
     const slice = computed(() => sliceInfo.value?.slice);
+    // An En face stroke fills the slab the projection shows.
+    const strokeSlices = computed(() => {
+      const range = sliceInfo.value?.sliceRange;
+      return range && range[0] !== range[1] ? range : undefined;
+    });
 
     const paintStore = usePaintToolStore();
     const viewStore = useViewStore();
@@ -100,16 +106,40 @@ export default defineComponent({
       if (!imageId.value) return;
       const origin = widgetState.getBrush().getOrigin()!;
       if (event?.sampling) {
-        paintStore.selectSegmentAt(vec3.clone(origin), imageId.value);
+        paintStore.selectSegmentAt(
+          vec3.clone(origin),
+          imageId.value,
+          viewAxisIndex.value,
+          strokeSlices.value
+        );
         return;
       }
-      paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
+      paintStore.setSliceAxis(
+        viewAxisIndex.value,
+        imageId.value,
+        strokeSlices.value
+      );
       paintStore.startStroke(
         vec3.clone(origin),
         viewAxisIndex.value,
         imageId.value
       );
       paintStore.updatePaintPosition(origin, viewId.value);
+      // En face views start with every segment hidden; paint must show there.
+      const segmentId = segments.selectedSegmentId.value;
+      if (
+        segmentId &&
+        paintStore.activeMode === PaintMode.CirclePaint &&
+        viewStore.getView(viewId.value)?.type === 'EnFace'
+      )
+        useEnFaceViewStore().patchSegment(
+          viewId.value,
+          imageId.value,
+          segmentId,
+          {
+            visible: true,
+          }
+        );
     });
 
     onVTKEvent(widget, 'onInteractionEvent', () => {
@@ -154,7 +184,11 @@ export default defineComponent({
     const pointerInView = ref(false);
     watchEffect(() => {
       if (pointerInView.value && imageId.value) {
-        paintStore.setSliceAxis(viewAxisIndex.value, imageId.value);
+        paintStore.setSliceAxis(
+          viewAxisIndex.value,
+          imageId.value,
+          strokeSlices.value
+        );
       }
     });
     const cursorStyles = view.widgetManager.getCursorStyles();

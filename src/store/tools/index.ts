@@ -32,6 +32,10 @@ const EN_FACE_TOOLS = new Set([
   Tools.Pan,
   Tools.Zoom,
   Tools.Crosshairs,
+  Tools.Paint,
+  Tools.Rectangle,
+  Tools.Ruler,
+  Tools.Polygon,
 ]);
 
 export function isToolAllowedFor(tool: Tools, effective: EffectiveView | null) {
@@ -170,7 +174,7 @@ export const useToolStore = defineStore('tool', () => {
     const effective = activeEffectiveView();
     if (effective?.kind === 'cine') return 'A clip cannot be painted';
     if (effective?.viewInfo.type === 'EnFace')
-      return 'Painting is not available on an En face projection';
+      return getEnFaceUnavailableReason(effective.renderDataID) ?? '';
     if (effective?.kind === 'oblique')
       return 'Painting is not available in an oblique view';
     return '';

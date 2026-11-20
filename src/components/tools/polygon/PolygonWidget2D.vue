@@ -27,7 +27,7 @@ import { Maybe } from '@/src/types';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import { ToolID } from '@/src/types/annotation-tool';
 import { VtkViewContext } from '@/src/components/vtk/context';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { showsSlice, useSliceInfo } from '@/src/composables/useSliceInfo';
 import { useCineFrame } from '@/src/composables/useCineFrame';
 import { toolRenderSlice } from '@/src/core/annotations/locator';
 import SVG2DComponent from './PolygonSVG2D.vue';
@@ -152,7 +152,9 @@ export default defineComponent({
 
     // --- visibility --- //
 
-    const isVisible = computed(() => tool.value?.slice === slice.value);
+    const isVisible = computed(() =>
+      showsSlice(sliceInfo.value, tool.value?.slice)
+    );
     useWidgetVisibility(widget, isVisible, view);
 
     // --- //
@@ -169,7 +171,7 @@ export default defineComponent({
     });
 
     return {
-      slice,
+      isVisible,
       tool,
       appearance: computed(() => toolStore.appearanceOfTool(toolId.value)),
       editState,
@@ -181,7 +183,7 @@ export default defineComponent({
 
 <template>
   <SVG2DComponent
-    v-show="slice === tool.slice"
+    v-show="isVisible"
     :points="tool.points"
     :color="appearance.cssColor"
     :stroke-width="appearance.strokeWidth"
