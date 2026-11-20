@@ -5,7 +5,6 @@ import {
   NONPARALLEL_SLICES_WARNING,
   IRREGULAR_VOLUME_WARNING,
   REPEATED_POSITIONS_WARNING,
-  UNREADABLE_POSITION_WARNING,
   planDicomCollections,
 } from '../planDicomCollections';
 import type { DicomCollection, InstanceFacts } from '../planDicomCollections';
@@ -271,7 +270,7 @@ describe('planDicomCollections', () => {
     const unknown = collectionWith(collections, 'uid-a');
     expect(uidsOf(unknown)).toEqual(['uid-c', 'uid-a']);
     expect(unknown.label).toBe('position unknown');
-    expect(unknown.warnings).toEqual([UNREADABLE_POSITION_WARNING]);
+    expect(unknown.warnings).toEqual([]);
   });
 
   it('says nothing about a series that is one positionless instance', () => {
@@ -303,7 +302,7 @@ describe('planDicomCollections', () => {
     );
   });
 
-  it('warns about a lone positionless instance beside a volume it missed', () => {
+  it('names a lone positionless instance beside a volume it missed', () => {
     const alone = makeFacts('uid-a', {
       projectedPosition: null,
       instanceNumber: 1,
@@ -316,12 +315,9 @@ describe('planDicomCollections', () => {
     const collections = plan([alone, seen]);
 
     expect(collectionWith(collections, 'uid-a').label).toBe('position unknown');
-    expect(collectionWith(collections, 'uid-a').warnings).toEqual([
-      UNREADABLE_POSITION_WARNING,
-    ]);
   });
 
-  it('orders a positionless stack on instance number, then SOP Instance UID, and warns', () => {
+  it('orders a positionless stack on instance number, then SOP Instance UID', () => {
     const second = makeFacts('uid-b', {
       projectedPosition: null,
       instanceNumber: 4,
@@ -339,7 +335,6 @@ describe('planDicomCollections', () => {
 
     expect(uidsOf(collections[0])).toEqual(['uid-c', 'uid-a', 'uid-b']);
     expect(collections[0].label).toBeNull();
-    expect(collections[0].warnings).toEqual([UNREADABLE_POSITION_WARNING]);
   });
 
   it('keeps input order when neither position nor instance number reads', () => {

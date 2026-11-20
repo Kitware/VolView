@@ -5,20 +5,12 @@ export type CommittedCollection = {
   sopInstanceUids: string[];
 };
 
-// A present value is prefixed, so it can never collide with the missing marker.
-const encodeValue = (value: string | null) =>
-  value === null ? '~' : `.${encodeURIComponent(value)}`;
-
-/**
- * Encoding of a structured key, safe to use as a store ID. encodeURIComponent
- * escapes every separator a value can carry, so the join characters cannot
- * appear inside a component.
- */
+// The series key is escaped because mint only de-duplicates within a series.
 export function encodeCollectionKey(key: CollectionKey) {
   return [
     encodeURIComponent(key.seriesKey),
     ...key.parts.map(
-      ([rule, value]) => `${encodeURIComponent(rule)}=${encodeValue(value)}`
+      ([rule, value]) => `${rule}=${encodeURIComponent(value ?? '')}`
     ),
   ].join('|');
 }

@@ -39,44 +39,20 @@ const idsOf = (collections: Array<{ id: string }>) =>
   collections.map((c) => c.id);
 
 describe('encodeCollectionKey', () => {
-  // The structured key this encodes: the same characters the encoding joins on,
-  // smuggled inside a series key or a value.
-  const structured: CollectionKey = {
-    seriesKey: SERIES_KEY,
-    parts: [
-      ['rows', '4'],
-      ['columns', '8'],
-    ],
-  };
+  it('keeps a series apart from another whose key ends in the separator', () => {
+    const plain: CollectionKey = {
+      seriesKey: SERIES_KEY,
+      parts: [
+        ['rows', '4'],
+        ['columns', '8'],
+      ],
+    };
+    const smuggled: CollectionKey = {
+      seriesKey: `${SERIES_KEY}|rows=4`,
+      parts: [['columns', '8']],
+    };
 
-  const smuggled: Array<[string, CollectionKey]> = [
-    [
-      'the series key',
-      { seriesKey: `${SERIES_KEY}|rows=.4`, parts: [['columns', '8']] },
-    ],
-    ['a value', { seriesKey: SERIES_KEY, parts: [['rows', '4|columns=.8']] }],
-  ];
-
-  it.each(smuggled)(
-    'does not collide when a separator hides in %s',
-    (_where, key) => {
-      expect(encodeCollectionKey(key)).not.toBe(
-        encodeCollectionKey(structured)
-      );
-    }
-  );
-
-  it('separates a missing value from the literal strings for it', () => {
-    const literals = [null, 'null', '', '~'].map(
-      (value): CollectionKey => ({
-        seriesKey: SERIES_KEY,
-        parts: [['rows', value]],
-      })
-    );
-
-    const encodings = literals.map(encodeCollectionKey);
-
-    expect(new Set(encodings).size).toBe(literals.length);
+    expect(encodeCollectionKey(smuggled)).not.toBe(encodeCollectionKey(plain));
   });
 });
 

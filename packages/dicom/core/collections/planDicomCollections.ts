@@ -100,10 +100,6 @@ export const IRREGULAR_VOLUME_WARNING =
   'one grid. They were placed one slot apart in the order shown, so ' +
   'positions and measurements along the slice axis may be wrong.';
 
-export const UNREADABLE_POSITION_WARNING =
-  'holds slices whose position could not be read. They were kept out of the ' +
-  'volumes of their series, and their order and spacing may be wrong.';
-
 export const NONPARALLEL_SLICES_WARNING =
   'holds slices that are not parallel to one another. They were stacked on ' +
   'the axes most of them declare, so positions and measurements may be wrong.';
@@ -113,8 +109,8 @@ export const IN_PLANE_SHIFT_WARNING =
   'as a tilted gantry produces. They were stacked without correcting for the ' +
   'offset, so positions and measurements across slices may be wrong.';
 
-// A repeated or unreadable position makes a stack irregular too, and already
-// carries a warning of its own.
+// A repeated position makes a stack irregular too, and already carries a
+// warning of its own.
 const RECONSTRUCTION_WARNINGS: Record<IrregularReason, string[]> = {
   'unreadable-geometry': [],
   'repeated-position': [],
@@ -324,18 +320,6 @@ const orderMembers = (members: InstanceFacts[], positionOf: PositionOf) => {
   return [...members];
 };
 
-// An unreadable position is named only beside a volume it was kept out of,
-// and warned about there or where it leaves an order and spacing to guess.
-const unreadablePositionNotes = (
-  unreadable: boolean,
-  placed: boolean,
-  stacked: boolean
-) => ({
-  label: unreadable && placed ? UNREADABLE_POSITION_LABEL : null,
-  warnings:
-    unreadable && (placed || stacked) ? [UNREADABLE_POSITION_WARNING] : [],
-});
-
 export function planDicomCollections({ seriesKey, instances }: PlanInput) {
   const labelHardFacts = hardFactLabeler(instances);
 
@@ -366,7 +350,10 @@ export function planDicomCollections({ seriesKey, instances }: PlanInput) {
       }))
     );
 
+  // Only a slice kept out of a volume of its series is named for its position.
   const placed = parts.some(({ part }) => !part.unreadablePositions);
+  const unreadableLabel = (unreadable: boolean) =>
+    unreadable && placed ? UNREADABLE_POSITION_LABEL : null;
 
   return parts
     .map(({ group, bucket, positionOf, part }) => {
@@ -383,23 +370,21 @@ export function planDicomCollections({ seriesKey, instances }: PlanInput) {
             : []),
         ],
       };
-      const unreadable = unreadablePositionNotes(
-        part.unreadablePositions,
-        placed,
-        members.length > 1
-      );
       return {
         key,
         members,
         orientation: bucket.orientation,
         reconstruction,
         label:
-          [labelHardFacts(group[0]), part.label, unreadable.label]
+          [
+            labelHardFacts(group[0]),
+            part.label,
+            unreadableLabel(part.unreadablePositions),
+          ]
             .filter(Boolean)
             .join(', ') || null,
         warnings: [
           ...(part.repeatedPositions ? [REPEATED_POSITIONS_WARNING] : []),
-          ...(multiframe(group[0]) ? [] : unreadable.warnings),
           ...reconstructionWarnings(
             reconstruction,
             members.length === 1 && !!members[0].frameReconstruction
