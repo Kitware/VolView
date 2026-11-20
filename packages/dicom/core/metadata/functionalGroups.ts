@@ -1,5 +1,5 @@
 import { findElement, type DicomDataset } from './dicomDataset';
-import { canonicalTag, getDatasetTag } from './datasetAccess';
+import { getDatasetTag } from './datasetAccess';
 import { getNmDetectorTag } from './nmReconstruction';
 
 export const SHARED_GROUPS = '52009229';
@@ -16,7 +16,7 @@ const IMAGE_MACROS = new Map([
 ]);
 
 export function sequenceItems(dataset: DicomDataset, tag: string) {
-  const values = findElement(dataset, canonicalTag(tag))?.values;
+  const values = findElement(dataset, tag)?.values;
   return values?.kind === 'sequence' ? values.items : [];
 }
 
@@ -36,16 +36,15 @@ export function getFrameTag(
   frameIndex = 0
 ) {
   if (!dataset) return undefined;
-  const key = canonicalTag(tag);
-  const macro = IMAGE_MACROS.get(key);
-  if (!macro) return getDatasetTag(dataset, key);
+  const macro = IMAGE_MACROS.get(tag);
+  if (!macro) return getDatasetTag(dataset, tag);
   const perFrame = sequenceItems(dataset, PER_FRAME_GROUPS)[frameIndex];
   const shared = sequenceItems(dataset, SHARED_GROUPS)[0];
   return (
-    macroValue(perFrame, macro, key) ??
-    macroValue(shared, macro, key) ??
-    getNmDetectorTag(dataset, key) ??
-    getDatasetTag(dataset, key)
+    macroValue(perFrame, macro, tag) ??
+    macroValue(shared, macro, tag) ??
+    getNmDetectorTag(dataset, tag) ??
+    getDatasetTag(dataset, tag)
   );
 }
 

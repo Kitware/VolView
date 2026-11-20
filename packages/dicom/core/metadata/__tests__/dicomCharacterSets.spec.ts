@@ -21,8 +21,8 @@ import {
 } from '@/tests/specs/dicomElementFixtures';
 import { rawElement } from '@/tests/specs/syntheticDicom';
 
-const CURRENT_PATIENT_LOCATION = '0038|0300';
-const STUDY_COMMENTS = '0032|4000';
+const CURRENT_PATIENT_LOCATION = '00380300';
+const STUDY_COMMENTS = '00324000';
 const JIS = 'ISO 2022 IR 13\\ISO 2022 IR 87';
 
 const encodeUtf8 = (text: string) => new TextEncoder().encode(text);
