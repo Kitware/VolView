@@ -22,6 +22,7 @@ import {
   valueDecoder,
 } from './volumeFixture';
 import { decodingWith } from '@/tests/dicomVolumeFixtures';
+import { Tags } from '../../metadata/dicomTags';
 
 const runtimes: DicomRuntime[] = [];
 afterEach(() => runtimes.splice(0).forEach((runtime) => runtime.dispose()));
@@ -151,7 +152,7 @@ describe('loadVolume', () => {
     const volume = allocated([
       pixelSlice(0, {
         rows: '1',
-        tags: { '0028|0011': '1', '0028|0008': String(frames) },
+        tags: { [Tags.Columns]: '1', [Tags.NumberOfFrames]: String(frames) },
       }),
     ]);
 
