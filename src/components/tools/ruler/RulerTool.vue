@@ -64,7 +64,7 @@ export default defineComponent({
     const toolStore = useToolStore();
     const rulerStore = useRulerStore();
 
-    const { locator, frame, slice } = useViewLocator(viewId, imageId);
+    const { locator, frame, showsSlice } = useViewLocator(viewId, imageId);
 
     const isToolActive = computed(() => toolStore.currentTool === Tools.Ruler);
     const viewAxis = computed(() => getLPSAxisFromDir(viewDirection.value));
@@ -125,7 +125,7 @@ export default defineComponent({
       }));
     });
 
-    const { onHover, overlayInfo } = useHover(currentTools, slice);
+    const { onHover, overlayInfo } = useHover(currentTools, showsSlice);
 
     return {
       rulers: currentRulers,

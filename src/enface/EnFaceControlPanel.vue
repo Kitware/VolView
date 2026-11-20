@@ -3,7 +3,6 @@ import { computed } from 'vue';
 import type { Maybe } from '@/src/types';
 import { useWindowingStore } from '@/src/store/view-configs/windowing';
 import {
-  defaultSegmentProjection,
   useEnFaceViewStore,
   type EnFaceViewConfig,
   type EnFaceViewControlState,
@@ -55,14 +54,8 @@ function patch(patchSettings: Partial<EnFaceViewConfig>) {
     windowing.resetContrast(viewId, dataId);
 }
 function patchSegment(segmentId: string, change: Partial<SegmentProjection>) {
-  const { viewId, dataId } = props;
-  if (!dataId) return;
-  const projections = enFaceStore.configFor(viewId, dataId).segmentProjections;
-  projections[segmentId] = {
-    ...defaultSegmentProjection(),
-    ...projections[segmentId],
-    ...change,
-  };
+  if (props.dataId)
+    enFaceStore.patchSegment(props.viewId, props.dataId, segmentId, change);
 }
 </script>
 

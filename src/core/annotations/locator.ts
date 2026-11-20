@@ -12,8 +12,8 @@ import { useViewStore } from '@/src/store/views';
 import useViewSliceStore from '@/src/store/view-configs/slicing';
 import useCinePlaybackStore from '@/src/store/view-configs/cine-playback';
 import { useEnFaceViewStore } from '@/src/enface/store';
-import { centerSlabOnSlice } from '@/src/core/slab/range';
-import { LPSAxes } from '@/src/utils/lps';
+import { centerSlabOnSlice, slabDepthRange } from '@/src/core/slab/range';
+import { lpsAxisOfSourceAxis } from '@/src/utils/getViewingVectors';
 import {
   computeEffectiveView,
   getEffectiveView,
@@ -122,18 +122,19 @@ function revealEnFaceSlices(
       if (effective?.kind !== 'enface' || effective.renderDataID !== imageID)
         return;
       const settings = enFaceStore.configFor(view.id, imageID);
-      const axis = LPSAxes.find(
-        (name) => lpsOrientation[name] === settings.axis
+      const slice = sliceForAxis(
+        lpsAxisOfSourceAxis(settings.axis, lpsOrientation)
       );
-      if (!axis) return;
-      const slice = sliceForAxis(axis);
       if (slice == null) return;
+      const {
+        first: shownFirst,
+        last: shownLast,
+        maximum,
+      } = slabDepthRange(settings, dimensions[settings.axis]);
+      // A slab already showing the slice stays where the user left it.
+      if (slice >= shownFirst && slice <= shownLast) return;
       const { first, last } = centerSlabOnSlice(
-        {
-          first: settings.depthStart,
-          last: settings.depthEnd,
-          maximum: dimensions[settings.axis] - 1,
-        },
+        { first: settings.depthStart, last: settings.depthEnd, maximum },
         slice
       );
       Object.assign(settings, { depthStart: first, depthEnd: last });

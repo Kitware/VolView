@@ -38,6 +38,13 @@ export const nudgeTo = (x: number, y: number) =>
 
 export const pressAtPointer = () => hoveringMouse().down().up().perform(true);
 
+export const dragPointerTo = (x: number, y: number) =>
+  hoveringMouse()
+    .down()
+    .move({ duration: INSTANT, x: Math.round(x), y: Math.round(y) })
+    .up()
+    .perform(true);
+
 export const rightPressAtPointer = () =>
   hoveringMouse().down({ button: 2 }).up({ button: 2 }).perform(true);
 
