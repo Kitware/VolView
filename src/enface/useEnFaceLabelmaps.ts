@@ -32,7 +32,7 @@ const sameGeometry = (
 export function useEnFaceLabelmaps(
   geometry: MaybeRef<MeasurementPlaneGeometry | null>,
   measurement: MaybeRef<OccupiedDepthResult | null>,
-  threshold: MaybeRef<number>,
+  threshold: MaybeRef<number | null>,
   micronsPerVoxel: MaybeRef<number>
 ) {
   const image = vtkImageData.newInstance();
@@ -43,14 +43,17 @@ export function useEnFaceLabelmaps(
   image.getPointData().setScalars(scalars);
   const cutoff = computed(() => {
     const result = unref(measurement);
-    return result
-      ? thinCountCutoff(result, unref(threshold), unref(micronsPerVoxel))
-      : 0;
+    const value = unref(threshold);
+    if (!result) return 0;
+    return value === null
+      ? result.maximumCount
+      : thinCountCutoff(result, value, unref(micronsPerVoxel));
   });
   // New counts or cutoffs need no render when the highlighted pixels agree.
   const pixels = computed((previous: Uint8Array | null = null) => {
     const result = unref(measurement);
-    if (!result) return null;
+    // A segment outside the slab gets no plane, so no actor or texture.
+    if (!result || result.maximumCount === 0) return null;
     const values = createThinRegionMask(result.counts, cutoff.value);
     return previous && arrayEquals(previous, values) ? previous : values;
   });
