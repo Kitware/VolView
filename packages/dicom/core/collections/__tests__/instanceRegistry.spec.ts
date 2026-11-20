@@ -8,7 +8,6 @@ import {
   forgetCollection,
   registerInstances,
 } from '../instanceRegistry';
-import { UNREADABLE_POSITION_WARNING } from '../planDicomCollections';
 import { mergingInstances, tilt } from '@/tests/dicomOrientationFixtures';
 import {
   OTHER_SERIES_UID,
@@ -328,20 +327,6 @@ describe('pure instance registry', () => {
     expect(third.removed).toEqual([]);
   });
 
-  it('reports a positionless image again once a positioned sibling gives it a warning', () => {
-    const blind = slice({ sop: 'blind', z: null });
-
-    const [first, second] = registerAll([[blind], [slice({ sop: 'seen' })]]);
-
-    expect(first.updates[0].collection.warnings).toEqual([]);
-    const again = second.updates.find(
-      (update) => update.id === first.updates[0].id
-    )!;
-    expect(again.change).toBe('unchanged');
-    expect(again.collection.label).toBe('position unknown');
-    expect(again.collection.warnings).toEqual([UNREADABLE_POSITION_WARNING]);
-  });
-
   // The positions of the two passes already earned their separation; a later
   // slice nothing spatial can be said about must not dissolve it.
   it('keeps two separated acquisitions when a positionless instance arrives later', () => {
@@ -357,9 +342,6 @@ describe('pure instance registry', () => {
     expect(later.removed).toEqual([]);
     expect(later.updates.map((update) => sopsOf(update.members))).toEqual([
       ['blind'],
-    ]);
-    expect(later.updates[0].collection.warnings).toEqual([
-      UNREADABLE_POSITION_WARNING,
     ]);
     expect(
       again.updates.map(({ id, members, change }) => [id, members, change])

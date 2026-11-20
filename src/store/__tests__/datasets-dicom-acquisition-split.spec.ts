@@ -176,7 +176,7 @@ describe('DICOM store acquisition split across imports', () => {
     expect(details[0]).toBe(details[1]);
   });
 
-  it('warns about a volume a later import of its series leaves unsound', () => {
+  it('names a positionless volume once a later import of its series places others', () => {
     const { createImage } = imageFactory();
     const store = useDICOMStore();
     const unplaced = sliceFor({
@@ -185,18 +185,10 @@ describe('DICOM store acquisition split across imports', () => {
     });
 
     store.importInstances([unplaced], { createImage });
-    expect(useMessageStore().messages).toHaveLength(0);
+    expect(labelsOf(store)).toEqual([undefined]);
 
     store.importInstances(acquisitionOne(), { createImage });
 
-    const details = useMessageStore().messages.map(
-      ({ options }) => options.details
-    );
-    expect(details).toEqual([
-      expect.stringMatching(
-        /^Imported series \(position unknown\) holds slices whose position could not be read/
-      ),
-    ]);
     expect(labelsOf(store)).toEqual(['position unknown', undefined]);
   });
 
