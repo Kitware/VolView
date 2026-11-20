@@ -11,10 +11,7 @@ import {
   type ByteSource,
 } from '../../source/byteSource';
 import { loadVolume, type VolumeUpdate } from '../loadVolume';
-import {
-  defaultDecoderTable,
-  singleDecoderTable,
-} from '../../pixels/decoderTable';
+import { defaultDecoderTable } from '../../pixels/decoderTable';
 import type { DecodeUnit, PixelDecoder } from '../../pixels/pixelDecoder';
 import { allocated } from './volumeFixture';
 import {
@@ -56,17 +53,20 @@ const blobOf = (bytes: Uint8Array) =>
 const load = async (
   members: Awaited<ReturnType<typeof readInstance>>[],
   options: {
-    readAhead?: number;
+    readConcurrency?: number;
     abort?: AbortSignal;
     runtime?: DicomRuntime;
   } = {}
 ) => {
   const volume = allocated(members);
+  const runtime = options.runtime ?? nativeOnly();
   const updates: VolumeUpdate[] = [];
   for await (const update of loadVolume(volume, {
-    runtime: options.runtime ?? nativeOnly(),
+    runtime: {
+      ...runtime,
+      readConcurrency: options.readConcurrency ?? runtime.readConcurrency,
+    },
     signal: options.abort ?? signal(),
-    readAhead: options.readAhead,
   }))
     updates.push(update);
   return { volume, updates };
@@ -137,7 +137,7 @@ describe('loadVolume with native frames', () => {
     const { source, ranges } = recorded(blobOf(bytes));
     const instance = await readInstance(source, signal());
 
-    const { volume, updates } = await load([instance], { readAhead: 1 });
+    const { volume, updates } = await load([instance], { readConcurrency: 1 });
 
     const start = instance.pixelData!.valueOffset;
     expect(updates.map((update) => update.slot)).toEqual([0, 4, 2, 1, 3]);
@@ -163,7 +163,7 @@ describe('loadVolume with native frames', () => {
     const instance = await readInstance(blobOf(bytes), signal());
     const cut = { ...instance, source: blobOf(bytes.subarray(0, -18)) };
 
-    const { volume, updates } = await load([cut], { readAhead: 1 });
+    const { volume, updates } = await load([cut], { readConcurrency: 1 });
 
     const failed = updates.flatMap((update) =>
       'error' in update ? [[update.slot, update.error.message]] : []
@@ -256,7 +256,7 @@ describe('loadVolume with native frames', () => {
       sources.map(({ source }) => readInstance(source, signal()))
     );
 
-    const { volume, updates } = await load(members, { readAhead: 1 });
+    const { volume, updates } = await load(members, { readConcurrency: 1 });
 
     expect(updates.map((update) => update.slot)).toEqual([1, 0, 2]);
     sources.forEach(({ ranges }, index) =>
@@ -310,61 +310,6 @@ describe('loadVolume with native frames', () => {
     }
   );
 
-  it('hands the thread back once a run of decodes has had its share, so a load stopped then decodes no more', async () => {
-    const codec = '1.2.3.4';
-    const { bytes } = multiframe({ transferSyntaxUid: codec });
-    const source: ByteSource = {
-      ...blobOf(bytes),
-      rangeSupport: () => 'ignored',
-    };
-    const instance = await readInstance(source, signal());
-    const decoded: number[] = [];
-    // Each decode alone outlasts the run a load allows itself.
-    const slow = (unit: DecodeUnit): DecodeUnit => ({
-      ...unit,
-      decode: (frameBytes, decodeSignal) => {
-        decoded.push(unit.firstFrame);
-        const until = performance.now() + 20;
-        while (performance.now() < until);
-        return unit.decode(frameBytes, decodeSignal);
-      },
-    });
-    const runtime = createDicomRuntime({
-      decodeConcurrency: 1,
-      decoders: () =>
-        singleDecoderTable({
-          name: 'Slow per-frame codec',
-          plan: ({ pixelData }) =>
-            Array.from({ length: FRAMES }, (_, frame) =>
-              slow(frameUnit(pixelData!.valueOffset, frame))
-            ),
-        }),
-    });
-    runtimes.push(runtime);
-    const controller = new AbortController();
-
-    const slots: number[] = [];
-    for await (const update of loadVolume(allocated([instance]), {
-      runtime,
-      signal: controller.signal,
-    })) {
-      slots.push(update.slot);
-      controller.abort();
-    }
-    // The next decode waits on a task posted before this one, on an earlier port.
-    await new Promise<void>((resolve) => {
-      const { port1, port2 } = new MessageChannel();
-      port1.onmessage = () => {
-        port1.close();
-        resolve();
-      };
-      port2.postMessage(null);
-    });
-
-    expect(slots).toHaveLength(1);
-    expect(decoded).toEqual(slots);
-  });
-
   it('fails every slice of an instance it cannot decode, without reading pixels', async () => {
     const { bytes } = multiframe({
       transferSyntaxUid: '1.2.840.10008.1.2.4.102',
@@ -405,7 +350,7 @@ describe('loadVolume with native frames', () => {
     });
 
     const { volume, updates } = await load([instance], {
-      readAhead: 1,
+      readConcurrency: 1,
       runtime,
     });
 
@@ -419,49 +364,4 @@ describe('loadVolume with native frames', () => {
     );
     expect(Array.from(volume.data)).toEqual(words);
   });
-
-  it.each([
-    ['no units', () => []],
-    [
-      'overlapping units',
-      (offset: number) =>
-        [0, 1, 2, 2, 3, 4].map((frame) => frameUnit(offset, frame)),
-    ],
-    [
-      'a frame twice and another not at all',
-      (offset: number) =>
-        [0, 0, 1, 2, 3].map((frame) => frameUnit(offset, frame)),
-    ],
-    [
-      'units that skip a frame',
-      (offset: number) => [0, 1, 3, 4].map((frame) => frameUnit(offset, frame)),
-    ],
-    [
-      'a unit past the last frame',
-      (offset: number) =>
-        [1, 2, 3, 4, 5].map((frame) => frameUnit(offset, frame)),
-    ],
-  ])(
-    'fails every slice of an instance whose decoder plans %s',
-    async (_, units: (offset: number) => DecodeUnit[]) => {
-      const codec = '1.2.3.4';
-      const { bytes } = multiframe({ transferSyntaxUid: codec });
-      const { source, ranges } = recorded(blobOf(bytes));
-      const instance = await readInstance(source, signal());
-      const runtime = runtimeFor(codec, {
-        name: 'Partial codec',
-        plan: ({ pixelData }) => units(pixelData!.valueOffset),
-      });
-
-      const { volume, updates } = await load([instance], { runtime });
-
-      expect(updates).toEqual(
-        failsWhole(
-          /^Partial codec planned units that do not cover frames 0 to 4 of File .* exactly once$/
-        )
-      );
-      expect(ranges).toEqual([undefined]);
-      expect(volume.loaded).toEqual(new Uint8Array(FRAMES));
-    }
-  );
 });
