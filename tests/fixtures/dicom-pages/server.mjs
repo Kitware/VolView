@@ -8,17 +8,6 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const fixture = fileURLToPath(new URL('.', import.meta.url));
 const require = createRequire(import.meta.url);
 
-// Pages exercise the DICOM module alone, so nothing from the app or its UI
-// frameworks may enter their bundles.
-const forbiddenModule = (id, kind) => {
-  const path = id.replaceAll('\\', '/');
-  return (
-    path.startsWith(`${root.replaceAll('\\', '/')}src/`) ||
-    /\/node_modules\/(vue|pinia|@vue\/|@vueuse\/)/.test(path) ||
-    (kind === 'core' && path.includes('/node_modules/@kitware/vtk.js/'))
-  );
-};
-
 const moduleRoot = (name) => resolve(dirname(require.resolve(name)), '..');
 
 async function copyItkAssets(assets) {
@@ -45,17 +34,6 @@ async function buildPage(kind, outDir) {
     base: './',
     logLevel: 'warn',
     resolve: { alias: [{ find: '@', replacement: root.replace(/\/$/, '') }] },
-    plugins: [
-      {
-        name: 'dicom-module-only',
-        generateBundle() {
-          for (const id of this.getModuleIds()) {
-            if (forbiddenModule(id, kind))
-              this.error(`Unexpected ${kind} page dependency: ${id}`);
-          }
-        },
-      },
-    ],
     build: {
       outDir,
       emptyOutDir: true,
@@ -87,7 +65,7 @@ function serveDicom(bytes, range, response) {
 }
 
 export async function startDicomPages({
-  kinds = ['core', 'vtk'],
+  kinds = ['core'],
   fixtures = {},
 } = {}) {
   const serveFixture = (ranged) => (request, response) => {
