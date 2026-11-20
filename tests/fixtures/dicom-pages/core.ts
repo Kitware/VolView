@@ -3,10 +3,8 @@ import {
   assetUrls,
   createRuntime,
   firstUnit,
-  describeMetadata,
   failed,
   gdcmOnly,
-  loadInstance,
   never,
   report,
 } from './shared';
@@ -42,17 +40,4 @@ async function recoverWorker() {
   report('status', 'complete');
 }
 
-async function run() {
-  const instance = await loadInstance();
-  describeMetadata(instance);
-  const bytes = await readBytes(instance.source, never);
-  const image = await firstUnit(createRuntime(gdcmOnly), instance).decode(
-    bytes,
-    never
-  );
-  report('pixels', Array.from(image.data).join(', '));
-  report('dimensions', image.size.join(', '));
-  report('status', 'complete');
-}
-const scenario = new URL(location.href).searchParams.get('scenario');
-(scenario === 'worker-recovery' ? recoverWorker() : run()).catch(failed);
+recoverWorker().catch(failed);
