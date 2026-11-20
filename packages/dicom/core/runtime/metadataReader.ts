@@ -3,14 +3,10 @@ import { readPublicDataset, type DicomDataset } from '../metadata/dicomDataset';
 import type { DicomDatasetWorker } from '../metadata/readDicomDataset.worker';
 import { abortError } from '../utils';
 
-export type MetadataReaderOptions = {
-  metadataWorkerFactory?: () => Worker;
-};
-
 const WORKER_COUNT = 2;
 
 /** Owns parser workers. Input bytes are copied before transfer; the caller keeps its buffer. */
-export function createMetadataReader(options: MetadataReaderOptions = {}) {
+export function createMetadataReader(createWorker?: () => Worker) {
   const workers: Array<{
     worker: Worker;
     remote: Comlink.Remote<DicomDatasetWorker>;
@@ -18,8 +14,8 @@ export function createMetadataReader(options: MetadataReaderOptions = {}) {
   const pending = new Set<(reason: unknown) => void>();
   let next = 0;
   let disposal: unknown;
-  const createWorker =
-    options.metadataWorkerFactory ??
+  const spawn =
+    createWorker ??
     (() =>
       new Worker(
         new URL('../metadata/readDicomDataset.worker.ts', import.meta.url),
@@ -36,10 +32,10 @@ export function createMetadataReader(options: MetadataReaderOptions = {}) {
   };
   const read = async (bytes: Uint8Array): Promise<DicomDataset> => {
     if (disposal) throw disposal;
-    if (typeof Worker === 'undefined' && !options.metadataWorkerFactory)
+    if (typeof Worker === 'undefined' && !createWorker)
       return readPublicDataset(bytes);
     if (workers.length < WORKER_COUNT) {
-      const worker = createWorker();
+      const worker = spawn();
       const fail = (message: string) => {
         if (workers.some((entry) => entry.worker === worker))
           resetWorkers(new Error(message));

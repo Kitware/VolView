@@ -1,12 +1,8 @@
 import type { ByteSource } from '../source/byteSource';
 import { readInstance } from '../instance/readInstance';
-import type { ImageImportPolicy } from '../header/readDicomHeader';
 import { RequestPool } from './requestPool';
 import { abortError, linkedController, untilAborted } from '../utils';
-import {
-  createMetadataReader,
-  type MetadataReaderOptions,
-} from './metadataReader';
+import { createMetadataReader } from './metadataReader';
 import { defaultDecoderTable, type DecoderTable } from '../pixels/decoderTable';
 import type { PixelDecoder } from '../pixels/pixelDecoder';
 import {
@@ -15,9 +11,8 @@ import {
   type DicomAssets,
 } from './gdcmDecoder';
 
-export type DicomRuntimeOptions = MetadataReaderOptions & {
+export type DicomRuntimeOptions = {
   fetch?: typeof fetch;
-  requestConcurrency?: number;
   assets?: DicomAssets;
   /** Builds the decoder table around the runtime's GDCM decoder. */
   decoders?: (gdcm: PixelDecoder) => DecoderTable;
@@ -26,7 +21,6 @@ export type DicomRuntimeOptions = MetadataReaderOptions & {
    * carries its own WASM heap.
    */
   decodeConcurrency?: number;
-  imageImportPolicy?: ImageImportPolicy;
 };
 
 const MAX_DEFAULT_DECODERS = 4;
@@ -55,8 +49,8 @@ export function createDicomRuntime(
   if (!Number.isInteger(decodeConcurrency) || decodeConcurrency < 1)
     throw new Error('Decode concurrency must be a positive integer');
   const lifetime = new AbortController();
-  const requests = new RequestPool(options.requestConcurrency, options.fetch);
-  const metadata = createMetadataReader(options);
+  const requests = new RequestPool(undefined, options.fetch);
+  const metadata = createMetadataReader();
   const gdcm = createGdcmDecoder(
     options.assets,
     decodeConcurrency,
@@ -67,10 +61,7 @@ export function createDicomRuntime(
     const { controller, release } = linkedController(signal, lifetime.signal);
     try {
       return await untilAborted(
-        readInstance(source, controller.signal, {
-          readDataset: metadata.read,
-          imageImportPolicy: options.imageImportPolicy,
-        }),
+        readInstance(source, controller.signal, { readDataset: metadata.read }),
         controller.signal
       );
     } finally {

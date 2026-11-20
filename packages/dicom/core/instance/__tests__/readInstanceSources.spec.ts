@@ -232,14 +232,11 @@ describe('readInstance over byte sources', () => {
     expect(transferSyntaxUid).toBe(EXPLICIT_VR_LITTLE_ENDIAN);
   });
 
-  it('reads a radiotherapy object no further than its modality, only when asked to', async () => {
+  it('reads a radiotherapy object no further than its modality', async () => {
     const bytes = syntheticSlice({ modality: 'RTDOSE', patientName: 'DOE' });
     const skipped = trackedSource(bytes, 32);
 
-    const shortcut = await readInstance(skipped.source, never(), {
-      imageImportPolicy: 'skip-radiotherapy',
-    });
-    const full = await readHeader(bytes, 32);
+    const shortcut = await readInstance(skipped.source, never());
 
     expect(getDatasetTag(shortcut.dataset, Tags.Modality)?.trim()).toBe(
       'RTDOSE'
@@ -247,7 +244,6 @@ describe('readInstance over byte sources', () => {
     expect(getDatasetTag(shortcut.dataset, '00100010')).toBeUndefined();
     expect(shortcut.pixelData).toBeNull();
     expect(skipped.stats.delivered).toBeLessThan(pixelDataStart(bytes));
-    expect(full.pixelData?.offset).toBe(pixelDataStart(bytes));
   });
 
   it('rejects a byte source that is not DICOM', async () => {

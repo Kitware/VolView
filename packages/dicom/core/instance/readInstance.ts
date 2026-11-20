@@ -4,7 +4,6 @@ import type { DicomLayout } from '../metadata/dicomLayout';
 import { getDatasetModality } from '../metadata/datasetAccess';
 import {
   readDicomHeader,
-  type ImageImportPolicy,
   type PixelDataElement,
 } from '../header/readDicomHeader';
 import {
@@ -33,7 +32,6 @@ export type Instance = Readonly<{
 
 export type ReadInstanceOptions = {
   readDataset?: (bytes: Uint8Array) => Awaitable<DicomDataset>;
-  imageImportPolicy?: ImageImportPolicy;
 };
 
 /** Reads the header only, cancelling the stream where Pixel Data begins. */
@@ -44,7 +42,7 @@ export async function readInstance(
 ): Promise<Instance> {
   signal.throwIfAborted();
   const { header, layout, transferSyntaxUid, pixelData } =
-    await readDicomHeader(source.read(signal), options.imageImportPolicy);
+    await readDicomHeader(source.read(signal));
   signal.throwIfAborted();
   const dataset = await (options.readDataset ?? readPublicDataset)(header);
   signal.throwIfAborted();
