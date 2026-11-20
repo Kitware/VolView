@@ -1,13 +1,13 @@
 import {
   emptyRegistry,
   registerInstances,
-} from '@/packages/dicom/core/collections/instanceRegistry';
-import { singleDecoderTable } from '@/packages/dicom/core/pixels/decoderTable';
+} from '@/src/dicom/core/collections/instanceRegistry';
+import { singleDecoderTable } from '@/src/dicom/core/pixels/decoderTable';
 import {
   wholeInstanceDecoder,
   type WholeInstanceDecode,
-} from '@/packages/dicom/core/pixels/pixelDecoder';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+} from '@/src/dicom/core/pixels/pixelDecoder';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 
 /** The first collection planned from these members. */
 export const plannedUpdate = (members: Instance[]) =>

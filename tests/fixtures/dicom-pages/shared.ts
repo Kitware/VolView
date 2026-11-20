@@ -1,13 +1,13 @@
 import {
   createDicomRuntime,
   type DicomRuntimeOptions,
-} from '@/packages/dicom/core/runtime/createDicomRuntime';
-import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
+} from '@/src/dicom/core/runtime/createDicomRuntime';
+import { fromBlob, fromUrl } from '@/src/dicom/core/source/byteSource';
 import {
   planDecode,
   singleDecoderTable,
-} from '@/packages/dicom/core/pixels/decoderTable';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+} from '@/src/dicom/core/pixels/decoderTable';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 
 export const assetUrls = (
   pipelineWorker = './assets/itk-wasm-pipeline.min.worker.js'

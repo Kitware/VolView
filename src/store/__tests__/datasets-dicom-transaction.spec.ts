@@ -1,4 +1,4 @@
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
