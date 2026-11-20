@@ -32,7 +32,8 @@ import {
 } from '@/src/io/dicom';
 import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
-import { abortError, ensureError } from '@/src/utils';
+import { ensureError } from '@/src/utils';
+import { abortError } from '@/packages/dicom/core/utils';
 
 type DicomVolumeImageEvents = ProgressiveImageEvents & {
   /** A decoded region of the current image, as an inclusive extent. */

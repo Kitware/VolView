@@ -3,7 +3,7 @@ import StreamingByteReader from '@/packages/dicom/core/header/streamingByteReade
 import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { getFileMimeFromMagicStream } from '@/src/io/magic';
 import { getMimeTypeFromFilename } from '@/src/io/io';
-import { asCoroutine } from '@/src/utils';
+import { asCoroutine } from '@/packages/dicom/core/utils';
 
 const DoneSignal = Symbol('DoneSignal');
 
