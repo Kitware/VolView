@@ -29,8 +29,7 @@ import {
   waitForModuleTransitions,
 } from './utils';
 import { selectBasePalette } from './layerDisplayTestUtils';
-import { deflatedExplicitVR, nonOCTDicom } from '../fixtures/oct/volumes';
-import { createSyntheticOCT } from '../fixtures/oct/dicom';
+import { nonOCTDicom } from '../fixtures/oct/volumes';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
 import {
   reference,
@@ -278,10 +277,9 @@ describe('Retinal OCT en-face', () => {
 
   it('renders declared padding through the standard image contrast and palette', async () => {
     const name = STEM + '/retina-padding.dcm';
-    const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(
       path.join(makeTempDir(STEM), 'retina-padding.dcm'),
-      padded.bytes
+      paddedSyntheticOCT()
     );
     await openVolViewPage(name);
     await selectEnFace();
@@ -305,8 +303,7 @@ describe('Retinal OCT en-face', () => {
   it('imports deflated OCT through the file dialog with calibrated geometry and padding', async () => {
     const directory = makeTempDir(STEM);
     const file = path.join(directory, 'retina-padding-deflated.dcm');
-    const padded = paddedSyntheticOCT(createSyntheticOCT());
-    fs.writeFileSync(file, deflatedExplicitVR(padded.bytes));
+    fs.writeFileSync(file, paddedSyntheticOCT({ deflate: true }));
     await volViewPage.open();
     await openThroughDialog(file);
     await volViewPage.waitForViews();
@@ -321,7 +318,7 @@ describe('Retinal OCT en-face', () => {
     const image = STEM + '/ordinary-volume.dcm';
     fs.writeFileSync(
       path.join(makeTempDir(STEM), 'ordinary-volume.dcm'),
-      nonOCTDicom(createSyntheticOCT())
+      nonOCTDicom()
     );
     await openVolViewPage(image);
     await selectEnFace();

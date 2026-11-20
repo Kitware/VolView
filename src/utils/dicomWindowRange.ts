@@ -1,4 +1,4 @@
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 
 type DicomMetadata = Iterable<readonly [string, string]> | null | undefined;
 

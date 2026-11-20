@@ -4,7 +4,7 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { RGBAColor, TypedArray } from '@kitware/vtk.js/types';
 
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import DicomChunkImage from '@/src/core/streaming/dicomChunkImage';
+import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { ensureSameSpace } from '@/src/io/resample/resample';
 import {
   overlaySegmentMetadata,
@@ -186,18 +186,20 @@ async function segBuildDescriptors(
   if (useDICOMStore().volumeInfo[imageId]?.kind === 'cine') return undefined;
 
   await untilLoaded(imageId);
-  const chunkImage = useImageCacheStore().imageById[imageId] as DicomChunkImage;
-  if (chunkImage.getModality() !== 'SEG' || !chunkImage.segBuildInfo)
+  const image = useImageCacheStore().imageById[imageId];
+  if (
+    !(image instanceof DicomVolumeImage) ||
+    image.getModality() !== 'SEG' ||
+    !image.segBuildInfo
+  )
     return undefined;
 
-  return chunkImage.segBuildInfo.segmentAttributes[component].map(
-    (segment) => ({
-      value: segment.labelID,
-      name: segment.SegmentLabel,
-      color: [...segment.recommendedDisplayRGBValue, 255] as RGBAColor,
-      visible: true,
-    })
-  );
+  return image.segBuildInfo.segmentAttributes[component].map((segment) => ({
+    value: segment.labelID,
+    name: segment.SegmentLabel,
+    color: [...segment.recommendedDisplayRGBValue, 255] as RGBAColor,
+    visible: true,
+  }));
 }
 
 export const distinctLabelValues = (image: vtkLabelMap) =>

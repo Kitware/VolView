@@ -1,0 +1,72 @@
+export type Awaitable<T> = T | Promise<T>;
+
+/** Boundary padding accepted by numeric readers, without changing the stored text. */
+export const trimDicomPadding = (value: string) =>
+  value.replace(/^[\s\0]+|[\s\0]+$/g, '');
+
+export function concatBytes(
+  parts: readonly Uint8Array[],
+  length = parts.reduce((total, part) => total + part.length, 0)
+) {
+  const out = new Uint8Array(length);
+  parts.reduce((offset, part) => {
+    if (offset >= length) return offset;
+    const slice = part.subarray(0, length - offset);
+    out.set(slice, offset);
+    return offset + slice.length;
+  }, 0);
+  return out;
+}
+
+export const toAscii = (bytes: Uint8Array, { ignoreNulls = false } = {}) =>
+  Array.from(ignoreNulls ? bytes.filter((byte) => byte !== 0) : bytes, (byte) =>
+    String.fromCharCode(byte)
+  ).join('');
+
+/** Starts a generator and returns a function that feeds it one value per step. */
+export function asCoroutine<T, R, N>(gen: Generator<T, R, N>) {
+  const result = gen.next();
+  if (result.done) return () => result;
+  return (value: N): IteratorResult<T, R> => gen.next(value);
+}
+
+export const numberOr = (value: string | undefined, fallback: number) => {
+  const text = trimDicomPadding(value ?? '');
+  const number = Number(text);
+  return text && Number.isFinite(number) ? number : fallback;
+};
+
+/**
+ * A controller that aborts as soon as any parent signal does, with its reason.
+ * `release` detaches it from long-lived parents once its work is done.
+ */
+export function linkedController(...signals: AbortSignal[]) {
+  const controller = new AbortController();
+  const onAbort = (event: Event) =>
+    controller.abort((event.target as AbortSignal).reason);
+  const release = () =>
+    signals.forEach((signal) => signal.removeEventListener('abort', onAbort));
+  const aborted = signals.find((signal) => signal.aborted);
+  if (aborted) controller.abort(aborted.reason);
+  else
+    signals.forEach((signal) =>
+      signal.addEventListener('abort', onAbort, { once: true })
+    );
+  controller.signal.addEventListener('abort', release, { once: true });
+  return { controller, release };
+}
+
+export const abortError = (message: string) =>
+  new DOMException(message, 'AbortError');
+
+/** Settles with the signal's reason on abort, without stopping the work itself. */
+export function untilAborted<T>(operation: Promise<T>, signal: AbortSignal) {
+  return new Promise<T>((resolve, reject) => {
+    const aborted = () => reject(signal.reason);
+    signal.addEventListener('abort', aborted, { once: true });
+    operation
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', aborted));
+    if (signal.aborted) aborted();
+  });
+}

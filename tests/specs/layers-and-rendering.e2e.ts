@@ -44,6 +44,9 @@ describe('Layers and Rendering', () => {
     await renderTab.click();
 
     const view3D = await volViewPage.getView3D();
+    await volViewPage.waitForLoadingIndicator(
+      $('[data-testid~="vtk-volume-view"]')
+    );
 
     const volumeRenderingSection =
       await volViewPage.getVolumeRenderingSection();

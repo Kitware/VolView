@@ -1,6 +1,6 @@
 import * as path from 'path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import dicomParser from 'dicom-parser';
+import dcmjs from 'dcmjs';
 import { TEMP_DIR } from '@/wdio.shared.conf';
 import { PET_CT_DICOM_DATASETS } from '../datasets';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
@@ -40,13 +40,20 @@ async function useLocalSampleFiles(files: { url: string; name: string }[]) {
   }, files);
 }
 
+async function clickSample() {
+  const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
+  await sample.waitForExist();
+  await sample.execute((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
+  await sample.waitForClickable();
+  await sample.click();
+}
+
 async function openAxialSample() {
   await volViewPage.open();
   await selectLayout('Axial Only', 1, false);
-  const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-  await sample.scrollIntoView();
-  await sample.waitForClickable();
-  await sample.click();
+  await clickSample();
   await volViewPage.waitForViews();
 }
 
@@ -58,6 +65,17 @@ async function displayedPetRange() {
           'title'
         ))!
     )
+  );
+}
+
+async function expectPetRange([minimum, maximum]: string[]) {
+  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
+    'title',
+    minimum
+  );
+  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
+    'title',
+    maximum
   );
 }
 
@@ -125,14 +143,7 @@ async function editPetColors(
     narrowedMaximum
   );
   await $('header').moveTo();
-  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-    'title',
-    minimum
-  );
-  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-    'title',
-    narrowedMaximum
-  );
+  await expectPetRange([minimum, narrowedMaximum]);
   await browser.waitUntil(
     async () => {
       const pixels = await captureAxialPixels();
@@ -149,28 +160,25 @@ async function editPetColors(
   };
 }
 
+async function showSampleData() {
+  await $('[data-testid="module-tab-Data"]').click();
+  await waitForModuleTransitions();
+  const samplesSection = $('.v-expansion-panel-title*=Sample Data');
+  if ((await samplesSection.getAttribute('aria-expanded')) !== 'true') {
+    await samplesSection.click();
+    await expect(samplesSection).toHaveAttribute('aria-expanded', 'true');
+    await waitForModuleTransitions();
+  }
+}
+
 async function reopenSample(
   expected: Awaited<ReturnType<typeof captureAxialPixels>>,
   range: string[],
   preset = 'DICOM Hot Iron'
 ) {
-  await $('[data-testid="module-tab-Data"]').click();
-  await waitForModuleTransitions();
-  const samplesSection = $('.v-expansion-panel-title*=Sample Data');
-  if ((await samplesSection.getAttribute('aria-expanded')) === 'true') {
-    await samplesSection.click();
-    await expect(samplesSection).toHaveAttribute('aria-expanded', 'false');
-    await waitForModuleTransitions();
-  }
-  await samplesSection.click();
-  await expect(samplesSection).toHaveAttribute('aria-expanded', 'true');
-  const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-  await sample.waitForExist();
-  await waitForModuleTransitions();
-  await sample.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await showSampleData();
   await browser.saveScreenshot(path.join(TEMP_DIR, 'pet-ct-sample-reload.png'));
-  await sample.waitForClickable();
-  await sample.click();
+  await clickSample();
   await expect(
     $('.volume-card[html-title="PET WB Corrected"]')
   ).toBeDisplayed();
@@ -186,14 +194,7 @@ async function reopenSample(
     'layer-opacity-slider',
   ])
     await expect($$(`[data-testid="${control}"]`)).toBeElementsArrayOfSize(1);
-  await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-    'title',
-    range[0]
-  );
-  await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-    'title',
-    range[1]
-  );
+  await expectPetRange(range);
   await expect($('[data-testid="layer-colormap"]')).toHaveText(
     expect.stringContaining(preset)
   );
@@ -220,6 +221,18 @@ async function reopenSample(
   );
 }
 
+/** Rewrites the windows through a full read and write; null removes the tag. */
+function withWindow(file: Buffer, window: Record<string, string | null>) {
+  const message = dcmjs.data.DicomMessage.readFile(
+    Uint8Array.from(file).buffer
+  );
+  Object.entries(window).forEach(([tag, value]) => {
+    if (value === null) delete message.dict[tag];
+    else message.dict[tag]!.Value = [value];
+  });
+  return Buffer.from(message.write());
+}
+
 async function openPetMetadataVariant(
   variant: 'valid' | 'different' | 'missing' | 'invalid'
 ) {
@@ -227,29 +240,17 @@ async function openPetMetadataVariant(
   const petFiles = PET_CT_DICOM_DATASETS.filter(({ name }) =>
     name.startsWith('PET-CT-PT-')
   );
+  const lastWidth = {
+    valid: '6000',
+    different: '7000',
+    invalid: '0',
+    missing: null,
+  };
   for (const [index, { name }] of petFiles.entries()) {
-    const bytes = Buffer.from(readFileSync(path.join(TEMP_DIR, name)));
-    const dataset = dicomParser.parseDicom(bytes);
-    for (const [tag, value] of [
-      ['x00281050', '3000'],
-      ['x00281051', '6000'],
-    ]) {
-      const element = dataset.elements[tag];
-      let replacement = value;
-      if (index === petFiles.length - 1 && tag === 'x00281051') {
-        if (variant === 'different') replacement = '7000';
-        if (variant === 'invalid') replacement = '0';
-        if (variant === 'missing')
-          bytes.writeUInt16LE(0x7777, element.dataOffset - 8);
-      }
-      expect(replacement.length).toBeLessThanOrEqual(element.length);
-      bytes.write(
-        replacement.padEnd(element.length, ' '),
-        element.dataOffset,
-        element.length,
-        'ascii'
-      );
-    }
+    const bytes = withWindow(readFileSync(path.join(TEMP_DIR, name)), {
+      '00281050': '3000',
+      '00281051': index === petFiles.length - 1 ? lastWidth[variant] : '6000',
+    });
     writeFileSync(path.join(directory, name), bytes);
   }
   await useLocalSampleFiles(
@@ -303,28 +304,19 @@ describe('PET/CT sample', () => {
     const ctFile = PET_CT_DICOM_DATASETS.find(({ name }) =>
       name.startsWith('PET-CT-CT-')
     )!;
-    const tags = dicomParser.parseDicom(
-      new Uint8Array(readFileSync(path.join(TEMP_DIR, ctFile.name)))
+    const { dict } = dcmjs.data.DicomMessage.readFile(
+      Uint8Array.from(readFileSync(path.join(TEMP_DIR, ctFile.name))).buffer
     );
-    const width = Number(tags.string('x00281051')!.split('\\')[0]);
-    const level = Number(tags.string('x00281050')!.split('\\')[0]);
+    const firstValue = (tag: string) => Number(dict[tag]!.Value[0]);
+    const width = firstValue('00281051');
+    const level = firstValue('00281050');
     expect(width).toBeGreaterThan(0);
     expect(Number.isFinite(level)).toBe(true);
     await volViewPage.open();
     await selectLayout('Four Up', 3, true);
     for (let loading = 0; loading < 2; loading++) {
-      await $('[data-testid="module-tab-Data"]').click();
-      await waitForModuleTransitions();
-      const samplesSection = $('.v-expansion-panel-title*=Sample Data');
-      if ((await samplesSection.getAttribute('aria-expanded')) !== 'true') {
-        await samplesSection.click();
-        await expect(samplesSection).toHaveAttribute('aria-expanded', 'true');
-        await waitForModuleTransitions();
-      }
-      const sample = volViewPage.samplesList.$('[title="PET/CT Chest"]');
-      await sample.scrollIntoView({ block: 'center', behavior: 'instant' });
-      await sample.waitForClickable();
-      await sample.click();
+      await showSampleData();
+      await clickSample();
       await expect($('[data-testid~="vtk-two-view"]')).toHaveText(
         expect.stringContaining('CT WB')
       );
@@ -382,14 +374,7 @@ describe('PET/CT sample', () => {
     await expect(
       $('[data-testid="layer-opacity-slider"] [role="slider"]')
     ).toHaveAttribute('aria-valuenow', opacity);
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      '0'
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      maximum
-    );
+    await expectPetRange(['0', maximum]);
     await expect(
       $('[data-testid="layer-transparent-background"] input')
     ).toBeChecked();
@@ -423,18 +408,10 @@ describe('PET/CT sample', () => {
       initial.pixels,
       initial.range
     );
-    const [minimum, narrowedMaximum] = range;
     await selectLayout('3D Only', 0, true);
     await expect($('[data-testid="layer-range-max"] input')).toBeEnabled();
     await selectLayout('Axial Only', 1, false);
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      minimum
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      narrowedMaximum
-    );
+    await expectPetRange(range);
     await expect($('[data-testid="layer-colormap"]')).toHaveText(
       expect.stringContaining('Cool to Warm')
     );
@@ -499,14 +476,7 @@ describe('PET/CT sample', () => {
 
   it('uses consistent PET DICOM windows and preserves an edited range when saving and reopening', async () => {
     await openPetMetadataVariant('valid');
-    await expect($('[data-testid="layer-range-min"] input')).toHaveAttribute(
-      'title',
-      '0'
-    );
-    await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(
-      'title',
-      '5999'
-    );
+    await expectPetRange(['0', '5999']);
     await setValueVueInput($('[data-testid="layer-range-min"] input'), '100');
     await setValueVueInput($('[data-testid="layer-range-max"] input'), '3000');
     await expect($('[data-testid="layer-range-max"] input')).toHaveAttribute(

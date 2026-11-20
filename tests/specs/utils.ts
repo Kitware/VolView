@@ -6,6 +6,7 @@ import { PNG } from 'pngjs';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
 import type { TestDataset } from '../datasets';
+import { buildSyntheticDicom, newUid } from './syntheticDicom';
 
 export async function captureViewPixels(
   selector: string,
@@ -296,6 +297,83 @@ export async function useCachedSample(dataset: {
     },
     dataset.origin,
     `/tmp/${dataset.name}`
+  );
+}
+
+/** Drops local files onto the open app using its files-list import path. */
+export async function dropFiles(filePaths: string[]) {
+  const encoded = filePaths.map((filePath) => ({
+    name: path.basename(filePath),
+    base64: fs.readFileSync(filePath).toString('base64'),
+  }));
+  const dropped = await browser.execute(
+    (files: Array<{ name: string; base64: string }>) => {
+      const transfer = new DataTransfer();
+      files.forEach(({ name, base64 }) => {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1)
+          bytes[i] = binary.charCodeAt(i);
+        transfer.items.add(new File([bytes], name));
+      });
+
+      const target = document.querySelector('#app-container');
+      if (!target) return false;
+
+      const drop = new Event('drop', { bubbles: true, cancelable: true });
+      // Synthetic items have no filesystem entry, so use the files list.
+      Object.defineProperty(drop, 'dataTransfer', {
+        value: { items: null, files: transfer.files },
+      });
+      // dispatchEvent reports preventDefault, not delivery.
+      target.dispatchEvent(drop);
+      return true;
+    },
+    encoded
+  );
+  expect(dropped).toBe(true);
+}
+
+const ACQUISITION_SLICE_SPACING = 2.5;
+
+type AcquisitionPass = {
+  number: number;
+  firstSliceZ: number;
+  sliceCount: number;
+};
+
+/**
+ * Writes acquisitions of one series as axial 2.5 mm stacks and returns their
+ * manifest resources. Instance numbers are unique across passes, so no
+ * instance looks like a re-send.
+ */
+export function writeAcquisitions(
+  dirName: string,
+  uids: { studyUid: string; seriesUid: string },
+  passes: AcquisitionPass[]
+) {
+  const dir = makeTempDir(dirName);
+  return passes.flatMap(({ number, firstSliceZ, sliceCount }) =>
+    Array.from({ length: sliceCount }, (_, i) => {
+      const name = `acq${number}-slice${i}.dcm`;
+      fs.writeFileSync(
+        path.join(dir, name),
+        buildSyntheticDicom({
+          ...uids,
+          sopUid: newUid(),
+          instanceNumber: number * 100 + i,
+          acquisitionNumber: number,
+          imageOrientationPatient: [1, 0, 0, 0, 1, 0],
+          imagePositionPatient: [
+            0,
+            0,
+            firstSliceZ + i * ACQUISITION_SLICE_SPACING,
+          ],
+          sliceThickness: ACQUISITION_SLICE_SPACING,
+        })
+      );
+      return { url: `tmp/${dirName}/${name}`, name };
+    })
   );
 }
 

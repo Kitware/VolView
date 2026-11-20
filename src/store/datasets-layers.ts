@@ -25,7 +25,7 @@ export const useLayersStore = defineStore('layer', () => {
 
   async function buildLayerImage(parent: DataSelection, layer: Layer) {
     const { selection: source, id } = layer;
-    // ensureSameSpace need final image array to resample, so wait for all chunks
+    // ensureSameSpace need final image array to resample, so wait for all slices
     await untilLoaded(source);
 
     const [parentImage, sourceImage] = await Promise.all(

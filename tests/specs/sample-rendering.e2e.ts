@@ -11,7 +11,9 @@ describe('VolView', () => {
 
     await AppPage.open();
     await AppPage.downloadProstateSample();
-    await AppPage.waitForViews();
+
+    await AppPage.waitForViewCounts(3, true);
+    await AppPage.waitForViewsLoaded();
 
     const layoutContainer = await $('.layout-container');
 

@@ -64,13 +64,31 @@ describe('restore with a partially missing dataset archive', () => {
       ManifestSchema.parse(manifest),
       [],
       { 'ds-ct': 'store-ct' }, // the dataset resolved from its surviving files
-      [{ stateID: 'ds-ct', path: 'data/20/b.dcm' }]
+      { missingFiles: [{ stateID: 'ds-ct', path: 'data/20/b.dcm' }] }
     );
 
     const warning = useMessageStore().messages.find(
       (message) => message.title === 'Some scene content could not be restored'
     );
     expect(warning?.options.details).toContain('b.dcm');
+  });
+
+  it('names a dataset whose files now load as several volumes as split, not missing', async () => {
+    await completeStateFileRestore(
+      ManifestSchema.parse(manifest),
+      [],
+      {},
+      { splitDatasets: { 'ds-ct': ['store-acq1', 'store-acq2'] } }
+    );
+
+    const warning = useMessageStore().messages.find(
+      (message) => message.title === 'Some scene content could not be restored'
+    );
+    expect(warning?.options.details).toContain(
+      'image: a.dcm, b.dcm (loaded as 2 volumes'
+    );
+    expect(warning?.options.details).toContain('not restored');
+    expect(warning?.options.details).not.toMatch(/image: a\.dcm, b\.dcm\n/);
   });
 
   it('names the files in a collection that failed to resolve entirely', async () => {

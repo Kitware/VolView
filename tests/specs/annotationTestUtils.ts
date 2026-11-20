@@ -41,27 +41,24 @@ export const pressAtPointer = () => hoveringMouse().down().up().perform(true);
 export const rightPressAtPointer = () =>
   hoveringMouse().down({ button: 2 }).up({ button: 2 }).perform(true);
 
-/**
- * Loads the minimal DICOM or a generated fixture and returns the axial view
- * with the center of its canvas in page coordinates.
- */
-export const setupTest = async (fileName?: string) => {
-  if (fileName) await openVolViewPage(fileName);
-  else await openUrls([MINIMAL_DICOM]);
-
-  const views2D = await AppPage.getViews2D();
-  const axialView = views2D[0];
-  const canvas = await axialView.$('canvas');
+export const canvasCenter = async (view: ChainablePromiseElement) => {
+  const canvas = view.$('canvas');
   const [location, size] = await Promise.all([
     canvas.getLocation(),
     canvas.getSize(),
   ]);
-
   return {
-    axialView,
     centerX: location.x + size.width / 2,
     centerY: location.y + size.height / 2,
   };
+};
+
+/** Loads a dataset and returns its axial view and canvas center. */
+export const setupTest = async (fileName?: string) => {
+  if (fileName) await openVolViewPage(fileName);
+  else await openUrls([MINIMAL_DICOM]);
+  const axialView = (await AppPage.getViews2D())[0];
+  return { axialView, ...(await canvasCenter(axialView)) };
 };
 
 export const drawSquare = async (cx: number, cy: number, half: number) => {

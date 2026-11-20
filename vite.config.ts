@@ -249,13 +249,6 @@ export default defineConfig({
         {
           src: resolvePath(
             rootDir,
-            'src/io/itk-dicom/emscripten-build/**/dicom*'
-          ),
-          dest: 'itk/pipelines',
-        },
-        {
-          src: resolvePath(
-            rootDir,
             'src/io/resample/emscripten-build/**/resample*'
           ),
           dest: 'itk/pipelines',

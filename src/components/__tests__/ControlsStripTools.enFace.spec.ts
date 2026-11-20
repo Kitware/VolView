@@ -13,6 +13,7 @@ import {
   activateEnFace,
   createOCTFixture,
   loadOCT,
+  volumeOf,
 } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
@@ -60,7 +61,7 @@ describe('En face contrast toolbar availability', () => {
   );
 
   it('updates the disabled reason as metadata arrives and enables contrast once real OCT pixels finish loading', async () => {
-    const fixture = createOCTFixture({ deferDecode: true });
+    const fixture = await createOCTFixture({ deferDecode: true });
     decodeReleases.push(fixture.releaseDecode);
     useImageCacheStore().addProgressiveImage(fixture.image, { id: 'pending' });
     const wrapper = mountToolbar('pending');
@@ -68,8 +69,7 @@ describe('En face contrast toolbar availability', () => {
     expect(
       windowAction(wrapper).get(':scope > [role="tooltip"]').text()
     ).toMatch(/complete volume/);
-    await fixture.chunk.loadMeta();
-    await fixture.image.addChunks([fixture.chunk]);
+    fixture.image.setVolume(volumeOf([fixture.instance]));
     await nextTick();
     expect(wrapper.get(windowTool).attributes('disabled')).toBeDefined();
     expect(
@@ -98,7 +98,7 @@ describe('En face contrast toolbar availability', () => {
     ).toMatch(/scan pattern.*reconstruction/);
   });
 
-  it('shows the Paint panel reason on the disabled toolbar action', async () => {
+  it('shows the Paint panel reason on the disabled toolbar action', () => {
     const wrapper = mountToolbar('missing');
     const selector = 'button[data-testid^="control-button-Paint "]';
     const action = wrapper

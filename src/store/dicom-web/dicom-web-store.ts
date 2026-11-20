@@ -22,6 +22,11 @@ import {
   Instance,
 } from '@/src/core/dicom-web-api';
 import { useViewStore } from '@/src/store/views';
+import {
+  isVolumeResult,
+  type ImportDataSourcesResult,
+} from '@/src/io/import/common';
+import { trimDicomPadding } from '@/src/dicom/core/utils';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 
@@ -71,6 +76,35 @@ const importSettled = (results: PromiseSettledResult<Instance[]>[]) => {
       error: failure.reason,
     });
 };
+
+/**
+ * The volume to show from a series download. Files that failed beside a
+ * loaded volume are reported without hiding it.
+ */
+function primaryVolumeResult(results: ImportDataSourcesResult[]) {
+  const failures = results.filter((result) => result.type === 'error');
+  const selectable = results.filter(isVolumeResult);
+  if (selectable.length === 0)
+    throw (
+      failures[0]?.error ??
+      new Error('The series contains no supported image data')
+    );
+  failures.forEach(({ error }) =>
+    useMessageStore().addError(
+      'Some files of the DICOM series failed to load; the volume may be incomplete',
+      { error }
+    )
+  );
+  // A series holding overlapping acquisitions loads as several volumes;
+  // show the one with the most slices rather than whichever import
+  // happened to finish first.
+  const dicomStore = useDICOMStore();
+  const sliceCount = (result: (typeof selectable)[number]) =>
+    dicomStore.volumeInfo[result.dataID]?.NumberOfSlices ?? 0;
+  return selectable.reduce((best, result) =>
+    sliceCount(result) > sliceCount(best) ? result : best
+  );
+}
 
 /**
  * Collect DICOM data from DICOMWeb
@@ -164,7 +198,11 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
 
   const volumes = ref({} as Progress);
 
-  const downloadVolume = async (volumeKey: string) => {
+  const downloadVolume = async (
+    volumeKey: string,
+    retrieve = fetchSeries,
+    importSources = importDataSources
+  ) => {
     const dicoms = useDicomMetaStore();
 
     if (!isDownloadable(volumes.value[volumeKey])) return;
@@ -194,7 +232,7 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         studyInstanceUID: studyInfo.StudyInstanceUID,
         seriesInstanceUID: volumeInfo.SeriesInstanceUID,
       };
-      const files = await fetchSeries(
+      const files = await retrieve(
         cleanHost.value,
         seriesInfo,
         progressCallback
@@ -204,15 +242,12 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
         throw new Error('Could not fetch series');
       }
 
-      const [loadResult] = await importDataSources(files.map(fileToDataSource));
-      if (!loadResult) {
+      const results = await importSources(files.map(fileToDataSource));
+      if (results.length === 0) {
         throw new Error('Did not receive a load result');
       }
-      if (loadResult.type === 'error') {
-        throw loadResult.error;
-      }
-
-      const selection = convertSuccessResultToDataSelection(loadResult);
+      const primaryResult = primaryVolumeResult(results);
+      const selection = convertSuccessResultToDataSelection(primaryResult);
       useViewStore().setDataForAllViews(selection);
       volumes.value[volumeKey] = {
         ...volumes.value[volumeKey],
@@ -305,17 +340,24 @@ export const useDicomWebStore = defineStore('dicom-web', () => {
   loadedDicoms.$onAction(({ name, args, after }) => {
     if (name !== 'deleteVolume') return;
 
+    const [loadedVolumeKey] = args;
+    const seriesInstanceUID = trimDicomPadding(
+      loadedDicoms.volumeInfo[loadedVolumeKey]?.SeriesInstanceUID ?? ''
+    );
+
     after(() => {
-      const [loadedVolumeKey] = args;
-      const volumeKey = Object.keys(volumes.value).find((key) =>
-        loadedVolumeKey.startsWith(key)
+      if (!seriesInstanceUID || !(seriesInstanceUID in volumes.value)) return;
+      // A split series loads as several volumes with one Series Instance UID;
+      // only mark the series remote when the last of them is deleted.
+      const stillLoaded = Object.values(loadedDicoms.volumeInfo).some(
+        (info) => trimDicomPadding(info.SeriesInstanceUID) === seriesInstanceUID
       );
-      if (volumeKey)
-        volumes.value[volumeKey] = {
-          ...volumes.value[volumeKey],
-          state: 'Remote',
-          loaded: 0,
-        };
+      if (stillLoaded) return;
+      volumes.value[seriesInstanceUID] = {
+        ...volumes.value[seriesInstanceUID],
+        state: 'Remote',
+        loaded: 0,
+      };
     });
   });
 

@@ -37,12 +37,14 @@ const configWithProvider = (
 const jsonFile = (obj: unknown, name = 'config.json') =>
   new File([JSON.stringify(obj)], name, { type: 'application/json' });
 
+const resetImportContext = () => {
+  vi.resetModules();
+  setActivePinia(createPinia());
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+};
+
 describe('processing config injection (config-by-shape, origin-gated)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
+  beforeEach(resetImportContext);
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -194,11 +196,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
 });
 
 describe('multiple configs merge at section granularity, last-wins (in-flight decision)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
+  beforeEach(resetImportContext);
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -237,11 +235,7 @@ describe('multiple configs merge at section granularity, last-wins (in-flight de
 });
 
 describe('config with unknown top-level keys applies known sections (forward-compat)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    setActivePinia(createPinia());
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-  });
+  beforeEach(resetImportContext);
 
   afterEach(() => {
     vi.restoreAllMocks();

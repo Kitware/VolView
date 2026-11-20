@@ -1,7 +1,5 @@
-type CachedImageScalars = { type: string; values: number[] };
-
-async function readFirstCachedImage(property: 'spacing' | 'complete-scalars') {
-  return browser.execute((requestedProperty) => {
+function getFirstCachedImageSpacing() {
+  return browser.execute(() => {
     const app = (document.querySelector('#app') as any)?.__vue_app__;
     const pinia =
       app?.config?.globalProperties?.$pinia ??
@@ -17,22 +15,8 @@ async function readFirstCachedImage(property: 'spacing' | 'complete-scalars') {
     const id = imageCache?.imageIds?.[0];
     const imageData = imageCache?.getVtkImageData(id);
     if (!imageData) return null;
-    if (requestedProperty === 'spacing') {
-      return Array.from(imageData.getSpacing()).map(Number);
-    }
-    if (imageCache.imageStatus[id] !== 'complete') return null;
-
-    const data = imageData.getPointData().getScalars()?.getData();
-    if (!data) return null;
-    return {
-      type: data.constructor.name,
-      values: Array.from(data as ArrayLike<number>),
-    };
-  }, property);
-}
-
-export function getFirstCachedImageSpacing() {
-  return readFirstCachedImage('spacing') as Promise<number[] | null>;
+    return Array.from(imageData.getSpacing()).map(Number);
+  }) as Promise<number[] | null>;
 }
 
 export async function waitForFirstCachedImageSpacing() {
@@ -48,25 +32,4 @@ export async function waitForFirstCachedImageSpacing() {
     }
   );
   return spacing!;
-}
-
-export function getFirstCompleteCachedImageScalars() {
-  return readFirstCachedImage(
-    'complete-scalars'
-  ) as Promise<CachedImageScalars | null>;
-}
-
-export async function waitForFirstCompleteCachedImageScalars() {
-  let scalars: CachedImageScalars | null = null;
-  await browser.waitUntil(
-    async () => {
-      scalars = await getFirstCompleteCachedImageScalars();
-      return scalars !== null;
-    },
-    {
-      timeout: 30_000,
-      timeoutMsg: 'Expected first cached image scalars to become available',
-    }
-  );
-  return scalars!;
 }

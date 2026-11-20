@@ -68,6 +68,67 @@ class VolViewPage extends Page {
     );
   }
 
+  /** Every view has a sized canvas and none is still loading its image. */
+  async waitForViewsLoaded() {
+    await browser.waitUntil(
+      () =>
+        browser.execute(() => {
+          const canvases = Array.from(
+            document.querySelectorAll<HTMLCanvasElement>(
+              'div[data-testid~="vtk-view"] canvas'
+            )
+          );
+          return (
+            canvases.length > 0 &&
+            canvases.every(({ width, height }) => width > 10 && height > 10) &&
+            !document.querySelector('.loading-indicator')
+          );
+        }),
+      {
+        timeout: DOWNLOAD_TIMEOUT,
+        timeoutMsg: 'Expected every view to finish loading',
+      }
+    );
+  }
+
+  get volumeCards() {
+    return $$('.volume-card');
+  }
+
+  /** Waits for the volume cards' "[N]" slice counts, ascending, to be `expected`. */
+  async waitForVolumeCardSliceCounts(expected: number[]) {
+    await browser.waitUntil(
+      async () => {
+        const labels = await Promise.all(
+          [...(await this.volumeCards)].map((card) => card.getText())
+        );
+        const counts = labels
+          .map((label) => Number(label.match(/\[(\d+)\]/)?.[1]))
+          .filter(Number.isFinite)
+          .sort((a, b) => a - b);
+        return counts.join() === expected.join();
+      },
+      {
+        timeout: DOWNLOAD_TIMEOUT,
+        timeoutMsg: `expected volume cards holding ${expected.join(
+          ', '
+        )} slices`,
+      }
+    );
+  }
+
+  /** Deletes the volume whose card label carries `[sliceCount]`. */
+  async deleteVolumeCard(sliceCount: number) {
+    const menu = $(`.volume-card*=[${sliceCount}]`).$(
+      'button[data-testid="dataset-menu-button"]'
+    );
+    await menu.waitForClickable();
+    await menu.click();
+    const remove = $('.v-overlay-container').$('.v-list-item=Delete');
+    await remove.waitForClickable();
+    await remove.click();
+  }
+
   get notifications() {
     return $('#notifications');
   }
@@ -92,8 +153,17 @@ class VolViewPage extends Page {
     );
   }
 
-  async getNotificationTitles() {
+  /** Opens the message center once no toast covers its button. */
+  async openNotifications() {
+    await browser.waitUntil(
+      async () => (await $$('.Vue-Toastification__toast').length) === 0,
+      { timeoutMsg: 'expected the toasts to close' }
+    );
     await this.notifications.click();
+  }
+
+  async getNotificationTitles() {
+    await this.openNotifications();
     const titles = $$(
       '.message-center .v-expansion-panel-title .header > span'
     );
@@ -302,10 +372,8 @@ class VolViewPage extends Page {
     return $$('div[data-testid="layer-opacity-slider"]');
   }
 
-  async getVolumeRenderingSection() {
-    const pwfEditor = await $('div.pwf-editor');
-    const exists = await pwfEditor.isExisting();
-    return exists ? pwfEditor : null;
+  getVolumeRenderingSection() {
+    return $('div.pwf-editor');
   }
 
   async getView3D() {
