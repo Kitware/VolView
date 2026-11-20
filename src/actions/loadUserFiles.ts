@@ -7,6 +7,7 @@ import {
 } from '@/src/io/import/dataSource';
 import useLoadDataStore from '@/src/store/load-data';
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useImageCacheStore } from '@/src/store/image-cache';
 import { useLayersStore } from '@/src/store/datasets-layers';
 import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
 import { wrapInArray, nonNullable, partition } from '@/src/utils';
@@ -269,8 +270,13 @@ export type DataSourceImporter = (
   sources: DataSource[]
 ) => Promise<ImportDataSourcesResult[]>;
 
-export function showImportedData(results: ImportResult[]) {
+export function showImportedData(importResults: ImportResult[]) {
   const loadDataStore = useLoadDataStore();
+  const { imageById } = useImageCacheStore();
+  // A later import can dissolve a volume before its import shows it.
+  const results = importResults.filter(
+    (result) => !isVolumeResult(result) || result.dataID in imageById
+  );
 
   const primaryDataSource = findBaseDataSource(
     results,
