@@ -5,6 +5,7 @@ import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
 import { readBytes } from '@/packages/dicom/core/source/byteSource';
 import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { readUltrasoundRegions } from '@/packages/dicom/core/metadata/ultrasoundRegion';
 import type { DataSource } from '@/src/io/import/dataSource';
 import { fileToDataSource } from '@/src/io/import/dataSource';
 import handleDicom from '@/src/io/import/processors/handleDicom';
@@ -169,13 +170,10 @@ describe('handleDicom', () => {
 
       const { instance } = instanceOf(await handleDicom(source(bytes)));
 
-      expect(instance.ultrasoundRegions?.regionCount).toBe(1);
-      expect(instance.ultrasoundRegions?.region?.physicalDeltaX).toBeCloseTo(
-        REGION.physicalDeltaX
-      );
-      expect(instance.ultrasoundRegions?.region?.physicalDeltaY).toBeCloseTo(
-        REGION.physicalDeltaY
-      );
+      const regions = readUltrasoundRegions(instance.dataset);
+      expect(regions.regionCount).toBe(1);
+      expect(regions.region?.physicalDeltaX).toBeCloseTo(REGION.physicalDeltaX);
+      expect(regions.region?.physicalDeltaY).toBeCloseTo(REGION.physicalDeltaY);
     }
   );
 

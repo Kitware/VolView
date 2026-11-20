@@ -1,5 +1,5 @@
 import { getDatasetModality } from '../metadata/datasetAccess';
-import { unitToMm } from '../metadata/ultrasoundRegion';
+import { readUltrasoundRegions, unitToMm } from '../metadata/ultrasoundRegion';
 import {
   physicalSpacing,
   type SpatialMetadata,
@@ -26,8 +26,8 @@ export function applyUltrasoundSpacing(
 
   // Ultrasound DICOMs are typically a single multi-frame instance, so the
   // first region table applies to the whole image.
-  const regions = sources[0].ultrasoundRegions;
-  if (!regions?.region) return unchanged;
+  const regions = readUltrasoundRegions(sources[0].dataset);
+  if (!regions.region) return unchanged;
 
   const { region } = regions;
   const notes = [...spatialMetadata.notes, ...regionNotes(regions.regionCount)];

@@ -4,6 +4,8 @@ import { allocated, pixelSlice } from './volumeFixture';
 import { plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import { readHeader } from '@/tests/dicomSourceFixtures';
 import { nativePixelDicom } from '@/tests/nativePixelDicom';
+import { datasetFromTags } from '@/tests/dicomDataset';
+import { Tags } from '../../metadata/dicomTags';
 
 describe('allocateVolume', () => {
   it('allocates an empty buffer placed by the planned stack', () => {
@@ -93,18 +95,22 @@ describe('allocateVolume', () => {
   });
 
   it('applies the first ultrasound region as display spacing', () => {
-    const ultrasound = {
-      ...pixelSlice(0, { modality: 'US' }),
-      ultrasoundRegions: {
-        regionCount: 1,
-        region: {
-          physicalDeltaX: 0.01,
-          physicalDeltaY: 0.02,
-          physicalUnitsXDirection: 3,
-          physicalUnitsYDirection: 3,
-        },
+    const ultrasound = pixelSlice(0, { modality: 'US' });
+    ultrasound.dataset.elements.push({
+      ...datasetFromTags([[Tags.SequenceOfUltrasoundRegions, '']]).elements[0],
+      vr: 'SQ',
+      values: {
+        kind: 'sequence',
+        items: [
+          datasetFromTags([
+            [Tags.PhysicalDeltaX, '0.01'],
+            [Tags.PhysicalDeltaY, '0.02'],
+            [Tags.PhysicalUnitsXDirection, '3'],
+            [Tags.PhysicalUnitsYDirection, '3'],
+          ]),
+        ],
       },
-    };
+    });
 
     const volume = allocated([ultrasound]);
 

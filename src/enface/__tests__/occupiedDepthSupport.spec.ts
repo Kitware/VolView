@@ -7,7 +7,12 @@ import { createOCTFixture, volumeOf } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { removeDicomTag, setDicomTag } from './dicomMetadataFixture';
+import { datasetFromTags } from '@/tests/dicomDataset';
+import {
+  removeDicomTag,
+  setDicomSequence,
+  setDicomTag,
+} from './dicomMetadataFixture';
 
 describe('occupied-depth support for loaded volumes', () => {
   const pendingReads: (() => void)[] = [];
@@ -66,19 +71,18 @@ describe('occupied-depth support for loaded volumes', () => {
       const { dataset } = fixture.instance;
       removeDicomTag(dataset, Tags.PixelSpacing);
       setDicomTag(dataset, Tags.Modality, 'US');
-      const ultrasound = Object.freeze({
-        ...fixture.instance,
-        ultrasoundRegions: {
-          regionCount,
-          region: {
-            physicalUnitsXDirection: 3,
-            physicalUnitsYDirection: 3,
-            physicalDeltaX: 0.002,
-            physicalDeltaY: 0.00104,
-          },
-        },
-      });
-      fixture.image.setVolume(volumeOf([ultrasound]));
+      const region = datasetFromTags([
+        [Tags.PhysicalUnitsXDirection, '3'],
+        [Tags.PhysicalUnitsYDirection, '3'],
+        [Tags.PhysicalDeltaX, '0.002'],
+        [Tags.PhysicalDeltaY, '0.00104'],
+      ]);
+      setDicomSequence(
+        dataset,
+        Tags.SequenceOfUltrasoundRegions,
+        Array.from({ length: regionCount }, () => region)
+      );
+      fixture.image.setVolume(volumeOf([fixture.instance]));
       const id = useImageCacheStore().addProgressiveImage(fixture.image);
       await untilLoaded(id);
       expect(fixture.image.getVtkImageData().getSpacing()[1]).toBeCloseTo(
