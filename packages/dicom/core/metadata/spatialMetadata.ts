@@ -1,70 +1,17 @@
-import type { IrregularReason } from '../collections/reconstructVolume';
 import type { DicomDataset } from './dicomDataset';
 import { getFrameTag } from './functionalGroups';
 import { trimDicomPadding } from '../utils';
 
-/** Describes the spacing actually used by the image, not independent calibration. */
-type AxisSpacing = {
-  value: number;
-  unit: 'mm' | 'unknown';
-  status: 'declared' | 'derived' | 'fallback';
-  source: string;
-  reason?: string;
-};
-
-export type SpatialMetadata = {
-  /** Image index axes, in x/y/z order. */
-  axes: [AxisSpacing, AxisSpacing, AxisSpacing];
-  reconstruction?: { kind: 'regular' | 'irregular'; reason?: IrregularReason };
-  notes: string[];
-  calibration?: { type?: string; description?: string };
-};
-
-export const physicalSpacing = (
-  value: number,
-  source: string,
-  status: 'declared' | 'derived' = 'declared'
-): AxisSpacing => ({ value, unit: 'mm', status, source });
-
-export const fallbackSpacing = (reason: string): AxisSpacing => ({
-  value: 1,
-  unit: 'unknown',
-  status: 'fallback',
-  source: 'Display default',
-  reason,
-});
-
-export function declaredSpacing(raw: string | undefined, source: string) {
-  const text = trimDicomPadding(raw ?? '');
-  if (!text) return fallbackSpacing(`${source} is not supplied.`);
-  const value = Number(text);
-  return Number.isFinite(value) && value > 0
-    ? physicalSpacing(value, source)
-    : fallbackSpacing(`${source} has no usable positive spacing.`);
+/** A positive spacing in mm, or the 1 mm display default. */
+export function spacingOr1(raw: string | undefined) {
+  const value = Number(trimDicomPadding(raw ?? ''));
+  return Number.isFinite(value) && value > 0 ? value : 1;
 }
 
-function singletonPixelSpacing(raw: string) {
-  const declared = declaredSpacing(raw, 'PixelSpacing');
-  if (declared.status === 'fallback') return declared;
-  return {
-    ...fallbackSpacing(
-      'PixelSpacing has only one value; square pixels are assumed for display.'
-    ),
-    value: declared.value,
-    source: 'Single PixelSpacing value',
-  };
-}
-
-/** Preserve a usable axis even when the other axis is missing or unusable. */
+/** Column and row spacing; one value means square pixels, and each axis falls back alone. */
 export function readPixelSpacing(metadata: DicomDataset | null | undefined) {
   const raw = trimDicomPadding(getFrameTag(metadata, '00280030') ?? '');
-  const parts = raw ? raw.split('\\') : undefined;
-  if (parts && parts.length < 2) {
-    const assumed = singletonPixelSpacing(parts[0]);
-    return [assumed, { ...assumed }] as const;
-  }
-  return [
-    declaredSpacing(parts?.[1], 'PixelSpacing'),
-    declaredSpacing(parts?.[0], 'PixelSpacing'),
-  ] as const;
+  const parts = raw.split('\\');
+  if (parts.length < 2) return [spacingOr1(parts[0]), spacingOr1(parts[0])];
+  return [spacingOr1(parts[1]), spacingOr1(parts[0])];
 }

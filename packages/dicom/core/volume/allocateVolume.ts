@@ -1,6 +1,5 @@
 import type { Instance } from '../instance/readInstance';
 import type { InstanceCollectionUpdate } from '../collections/instanceRegistry';
-import type { SpatialMetadata } from '../metadata/spatialMetadata';
 import type { VolumeBuffer } from './pixelFormat';
 import { nativeFramesOverrun } from '../pixels/frameIndex';
 import { planVolumeAllocation } from './volumeLayout';
@@ -22,7 +21,6 @@ export type Volume = Readonly<{
   /** Row-major 3x3: row direction, column direction, slice direction. */
   direction: readonly number[];
   spacing: Vector3;
-  spatialMetadata: SpatialMetadata;
   /** Allocation warnings as [title, details]. */
   warnings: ReadonlyArray<readonly [string, string]>;
   data: VolumeBuffer;
@@ -110,8 +108,7 @@ export function allocateVolume(
     components: samplesPerPixel,
     origin: (layout.origin ?? [0, 0, 0]) as Triple,
     direction: layout.direction ?? IDENTITY,
-    spacing: layout.spatialMetadata.axes.map((axis) => axis.value) as Triple,
-    spatialMetadata: layout.spatialMetadata,
+    spacing: layout.spacing as Triple,
     warnings,
     data: new layout.bufferType(columns * rows * slices * samplesPerPixel),
     loaded: new Uint8Array(slices),

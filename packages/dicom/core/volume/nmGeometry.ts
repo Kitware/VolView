@@ -15,10 +15,5 @@ export function nmGeometry(metadata: DicomDataset) {
     kind: 'regular',
     sliceSpacing: nm.sliceSpacing ? Math.abs(nm.sliceSpacing) : null,
   };
-  return {
-    ...geometry,
-    direction,
-    reconstruction,
-    sliceSpacingSource: 'SpacingBetweenSlices',
-  };
+  return { ...geometry, direction, reconstruction };
 }
