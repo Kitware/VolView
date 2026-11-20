@@ -7,6 +7,7 @@ import {
   registerInstances,
   type InstanceCollectionUpdate,
 } from '@/packages/dicom/core/collections/instanceRegistry';
+import { getDatasetModality } from '@/packages/dicom/core/metadata/datasetAccess';
 import { loadVolume } from '@/packages/dicom/core/volume/loadVolume';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import {
@@ -20,8 +21,8 @@ export async function loadCollection(
   update: InstanceCollectionUpdate,
   previous?: Volume
 ) {
-  if (update.kind !== 'image')
-    throw new Error(`Expected a volume, got ${update.kind}`);
+  if (getDatasetModality(update.members[0].dataset) === 'SEG')
+    throw new Error('Expected a volume, got a segmentation');
   const volume = allocateVolume(update, previous);
   const image = toVtkImageData(volume);
   for await (const loaded of loadVolume(volume, { runtime, signal: never })) {

@@ -174,11 +174,15 @@ describe('pure instance registry', () => {
 
     expect(after.removed).toEqual([]);
     expect(
-      again.updates.map(({ id, members, change }) => [id, members[0], change])
-    ).toContainEqual([idOf(clips[1]), clips[1], 'unchanged']);
+      again.updates.map(({ id, members, unchanged }) => [
+        id,
+        members[0],
+        unchanged,
+      ])
+    ).toContainEqual([idOf(clips[1]), clips[1], true]);
     expect(
-      again.updates.find((update) => update.members[0] === clips[0])!.change
-    ).toBe('new');
+      again.updates.find((update) => update.members[0] === clips[0])!.unchanged
+    ).toBe(false);
   });
 
   it('does not confuse a numeric UID with an anonymous clip identity', () => {
@@ -269,10 +273,10 @@ describe('pure instance registry', () => {
     const [a, b] = [0, 1].map((z) => slice({ sop: `c${z}`, z }));
 
     const changes = registerAll([[a], [slice({ sop: 'c0', z: 0 })], [b]]).map(
-      ({ updates }) => updates.map((update) => update.change)
+      ({ updates }) => updates.map((update) => update.unchanged)
     );
 
-    expect(changes).toEqual([['new'], ['unchanged'], ['changed']]);
+    expect(changes).toEqual([[false], [true], [false]]);
   });
 
   it('reports a collection a sibling relabelled without calling its volume changed', () => {
@@ -283,14 +287,14 @@ describe('pure instance registry', () => {
 
     expect(first.updates[0].collection.label).toBeNull();
     expect(
-      second.updates.map(({ id, change, collection }) => [
+      second.updates.map(({ id, unchanged, collection }) => [
         id === first.updates[0].id,
-        change,
+        unchanged,
         collection.label,
       ])
     ).toEqual([
-      [true, 'unchanged', 'acquisition 1'],
-      [false, 'new', 'acquisition 2'],
+      [true, true, 'acquisition 1'],
+      [false, false, 'acquisition 2'],
     ]);
     expect(second.removed).toEqual([]);
   });
@@ -306,15 +310,15 @@ describe('pure instance registry', () => {
 
     expect(
       second.updates
-        .map(({ members, change, collection }) => [
+        .map(({ members, unchanged, collection }) => [
           sopsOf(members),
-          change,
+          unchanged,
           collection.label,
         ])
         .sort()
     ).toEqual([
-      [['1-0', '1-2'], 'unchanged', 'rows 4'],
-      [['scout'], 'new', 'rows 8'],
+      [['1-0', '1-2'], true, 'rows 4'],
+      [['scout'], false, 'rows 8'],
     ]);
     expect(
       third.updates.map((update) => sopsOf(update.members))
@@ -344,10 +348,12 @@ describe('pure instance registry', () => {
       ['blind'],
     ]);
     expect(
-      again.updates.map(({ id, members, change }) => [id, members, change])
-    ).toEqual(
-      separated.updates.map(({ id, members }) => [id, members, 'unchanged'])
-    );
+      again.updates.map(({ id, members, unchanged }) => [
+        id,
+        members,
+        unchanged,
+      ])
+    ).toEqual(separated.updates.map(({ id, members }) => [id, members, true]));
   });
 
   it('reports a collection whose axes a sibling pass outvoted as changed', () => {
@@ -368,19 +374,8 @@ describe('pure instance registry', () => {
     expect(after.collection.orientation).not.toEqual(
       before.collection.orientation
     );
-    expect(after.change).toBe('changed');
+    expect(after.unchanged).toBe(false);
   });
-
-  it.each(['SEG', 'SEG\u0000'])(
-    'reports SEG modality %j as a segmentation collection',
-    (modality) => {
-      const [image, seg] = lastUpdates([
-        [slice({ sop: 'image' }), slice({ sop: 'seg', modality, rows: '8' })],
-      ]);
-
-      expect([image.kind, seg.kind]).toEqual(['image', 'segmentation']);
-    }
-  );
 
   it('plans series independently', () => {
     const first = slice({ sop: 'a', series: SERIES_UID });
