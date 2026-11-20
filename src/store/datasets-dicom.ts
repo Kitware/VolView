@@ -1,19 +1,21 @@
 import { defineStore } from 'pinia';
 import {
   allocateVolume,
+  type Volume,
+} from '@/packages/dicom/core/volume/allocateVolume';
+import {
   emptyRegistry,
   forgetCollection,
-  getDatasetTag,
   registerInstances,
-  seriesKeyOf,
-  Tags,
-  trimDicomPadding,
-  type DicomDataset,
-  type Instance,
   type InstanceCollectionUpdate,
   type RegistryState,
-  type Volume,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/collections/instanceRegistry';
+import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { seriesKeyOf } from '@/packages/dicom/core/collections/instanceFacts';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { trimDicomPadding } from '@/packages/dicom/core/utils';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';

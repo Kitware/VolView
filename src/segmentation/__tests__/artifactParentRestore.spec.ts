@@ -6,12 +6,10 @@ import { flushPromises } from '@vue/test-utils';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
-import {
-  allocateVolume,
-  createDicomRuntime,
-  fromBlob,
-  Tags,
-} from '@/packages/dicom/core';
+import { allocateVolume } from '@/packages/dicom/core/volume/allocateVolume';
+import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
+import { fromBlob } from '@/packages/dicom/core/source/byteSource';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';

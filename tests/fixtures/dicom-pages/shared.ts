@@ -1,13 +1,14 @@
 import {
   createDicomRuntime,
-  fromBlob,
-  fromUrl,
-  getDatasetTag,
+  type DicomRuntimeOptions,
+} from '@/packages/dicom/core/runtime/createDicomRuntime';
+import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
+import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import {
   planDecode,
   singleDecoderTable,
-  type DicomRuntimeOptions,
-  type Instance,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/pixels/decoderTable';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { fixtureBytes } from './fixtureData';
 
 export const assetUrls = (

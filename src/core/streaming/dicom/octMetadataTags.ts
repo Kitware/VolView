@@ -1,4 +1,5 @@
-import { Tags, trimDicomPadding } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { trimDicomPadding } from '@/packages/dicom/core/utils';
 
 export const OPHTHALMIC_TOMOGRAPHY_SOP = '1.2.840.10008.5.1.4.1.1.77.1.5.4';
 export const OPHTHALMIC_BSCAN_ANALYSIS_SOP = '1.2.840.10008.5.1.4.1.1.77.1.5.8';

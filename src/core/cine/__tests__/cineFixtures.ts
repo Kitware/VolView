@@ -1,11 +1,11 @@
 import { datasetFromTags } from '@/tests/dicomDataset';
+import { fromBlob } from '@/packages/dicom/core/source/byteSource';
 import {
-  fromBlob,
   SOP_CLASS_ULTRASOUND_MULTIFRAME,
   Tags,
-  type DicomDataset,
-  type Instance,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/metadata/dicomTags';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { seatVolume } from '@/src/store/__tests__/datasetFixtures';
 import DicomCineImage from '@/src/core/cine/DicomCineImage';

@@ -1,9 +1,9 @@
 import {
   emptyRegistry,
-  getDatasetTag,
   registerInstances,
-  type Instance,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/collections/instanceRegistry';
+import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import corpus from '../../dicomCompositionCorpus.json';
 import { failed, never, report, runtime, sourceOf } from './shared';
 import { loadCollection } from './loadVolume';

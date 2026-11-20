@@ -14,10 +14,10 @@ import {
 import {
   fallbackSpacing,
   physicalSpacing,
-  unitToMm,
-  type Instance,
   type SpatialMetadata,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/metadata/spatialMetadata';
+import { unitToMm } from '@/packages/dicom/core/metadata/ultrasoundRegion';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { abortError } from '@/src/utils';
 import {
   type CineHeader,

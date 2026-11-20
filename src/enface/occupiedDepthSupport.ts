@@ -3,7 +3,9 @@ import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
-import { Tags, unitToMm, type Instance } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { unitToMm } from '@/packages/dicom/core/metadata/ultrasoundRegion';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 
 function measurementMetadata(instance: Instance) {

@@ -46,11 +46,8 @@ const importsOf = (file: string) => {
   return imports;
 };
 
-const entryPoints = new Set(['core', 'core/index', 'vtk', 'vtk/index']);
-
-// ESLint matches import specifiers, so relative paths that leave the module,
-// reach vtk from core or come back through an entry point are checked against
-// resolved locations here.
+// ESLint matches import specifiers, so relative paths that leave the module or
+// reach vtk from core are checked against resolved locations here.
 for (const entry of ['core', 'vtk']) {
   describe(`DICOM ${entry} relative imports`, () => {
     const sources = sourceFiles(resolve(root, entry));
@@ -64,7 +61,6 @@ for (const entry of ['core', 'vtk']) {
             resolve(dirname(resolve(root, name)), specifier)
           );
           expect(target.startsWith('..'), specifier).toBe(false);
-          expect(entryPoints.has(target), specifier).toBe(false);
           if (entry === 'core')
             expect(target.startsWith('vtk/'), specifier).toBe(false);
         }
@@ -81,7 +77,7 @@ const resolveImport = (from: string, specifier: string) => {
       ? resolve(dirname(from), specifier)
       : undefined;
   if (!base) return undefined;
-  return [base, `${base}.ts`, resolve(base, 'index.ts')].find(
+  return [base, `${base}.ts`].find(
     (file) => existsSync(file) && file.endsWith('.ts')
   );
 };
