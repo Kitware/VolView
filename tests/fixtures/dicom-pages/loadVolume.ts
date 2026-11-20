@@ -1,19 +1,16 @@
 import {
   allocateVolume,
   type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
+} from '@/src/dicom/core/volume/allocateVolume';
 import {
   emptyRegistry,
   registerInstances,
   type InstanceCollectionUpdate,
-} from '@/packages/dicom/core/collections/instanceRegistry';
-import { getDatasetModality } from '@/packages/dicom/core/metadata/datasetAccess';
-import { loadVolume } from '@/packages/dicom/core/volume/loadVolume';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import {
-  applyVolumeUpdate,
-  toVtkImageData,
-} from '@/packages/dicom/vtk/volumeImage';
+} from '@/src/dicom/core/collections/instanceRegistry';
+import { getDatasetModality } from '@/src/dicom/core/metadata/datasetAccess';
+import { loadVolume } from '@/src/dicom/core/volume/loadVolume';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
+import { applyVolumeUpdate, toVtkImageData } from '@/src/dicom/vtk/volumeImage';
 import { never, runtime } from './shared';
 
 /** Allocates a planned collection and decodes it the way a viewer would. */

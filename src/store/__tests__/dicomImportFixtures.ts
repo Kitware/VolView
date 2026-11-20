@@ -1,13 +1,10 @@
 import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
-import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
-import {
-  fromBlob,
-  type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import type { WholeInstanceDecode } from '@/packages/dicom/core/pixels/pixelDecoder';
+import { createDicomRuntime } from '@/src/dicom/core/runtime/createDicomRuntime';
+import { fromBlob, type ByteSource } from '@/src/dicom/core/source/byteSource';
+import { getDatasetTag } from '@/src/dicom/core/metadata/datasetAccess';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
+import type { WholeInstanceDecode } from '@/src/dicom/core/pixels/pixelDecoder';
 import { onTestFinished, expect } from 'vitest';
 import { decodingWith } from '@/tests/dicomVolumeFixtures';
 import { tilt } from '@/tests/dicomOrientationFixtures';

@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  fromBlob,
-  type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
-import { readInstance } from '@/packages/dicom/core/instance/readInstance';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import { fromBlob, type ByteSource } from '@/src/dicom/core/source/byteSource';
+import { readInstance } from '@/src/dicom/core/instance/readInstance';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
+import type { DicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
 import { buildSyntheticCineDicom } from '@/tests/specs/syntheticDicom';
 import { datasetFromTags } from '@/tests/dicomDataset';
 import DicomCineImage from '../DicomCineImage';

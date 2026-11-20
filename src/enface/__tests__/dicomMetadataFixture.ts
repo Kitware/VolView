@@ -1,4 +1,4 @@
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import type { DicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
 import { datasetFromTags } from '@/tests/dicomDataset';
 
 const keyOf = (tag: string) => tag.replace('|', '').toUpperCase();

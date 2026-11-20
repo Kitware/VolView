@@ -1,4 +1,4 @@
-import { fromBlob, readBytes } from '@/packages/dicom/core/source/byteSource';
+import { fromBlob, readBytes } from '@/src/dicom/core/source/byteSource';
 import {
   assetUrls,
   createRuntime,

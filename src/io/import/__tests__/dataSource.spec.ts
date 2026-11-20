@@ -3,7 +3,7 @@ import {
   getDataSourceName,
   isRemoteDataSource,
 } from '@/src/io/import/dataSource';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 
 describe('isRemoteDatasource', () => {
   it('should work', () => {

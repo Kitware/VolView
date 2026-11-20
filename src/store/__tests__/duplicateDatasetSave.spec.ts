@@ -13,7 +13,7 @@ import {
   MANIFEST_VERSION,
 } from '@/src/io/state-file/serialize';
 import type { Manifest } from '@/src/io/state-file/schema';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 
 /** Saves the dataset store into a fresh manifest and zip. */

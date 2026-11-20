@@ -11,9 +11,9 @@ import {
   BaseProgressiveImage,
   ProgressiveImageEvents,
 } from '@/src/core/progressiveImage';
-import { unitToMm } from '@/packages/dicom/core/metadata/ultrasoundRegion';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { abortError } from '@/packages/dicom/core/utils';
+import { unitToMm } from '@/src/dicom/core/metadata/ultrasoundRegion';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
+import { abortError } from '@/src/dicom/core/utils';
 import {
   type CineHeader,
   isNativeTransferSyntax,

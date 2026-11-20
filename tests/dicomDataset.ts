@@ -1,9 +1,6 @@
-import {
-  fromBlob,
-  type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import { fromBlob, type ByteSource } from '@/src/dicom/core/source/byteSource';
+import type { DicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 
 /** Structured headers for fixtures whose values are written as tag strings. */
 export const datasetFromTags = (

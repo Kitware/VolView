@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { fromBlob } from '@/packages/dicom/core/source/byteSource';
-import { readInstance } from '@/packages/dicom/core/instance/readInstance';
+import { fromBlob } from '@/src/dicom/core/source/byteSource';
+import { readInstance } from '@/src/dicom/core/instance/readInstance';
 import {
   SOP_CLASS_ULTRASOUND_MULTIFRAME_RETIRED,
   Tags,
-} from '@/packages/dicom/core/metadata/dicomTags';
+} from '@/src/dicom/core/metadata/dicomTags';
 import {
   buildSyntheticCineDicom,
   rawElement,

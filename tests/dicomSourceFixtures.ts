@@ -1,7 +1,7 @@
 import {
   readInstance,
   type ReadInstanceOptions,
-} from '@/packages/dicom/core/instance/readInstance';
+} from '@/src/dicom/core/instance/readInstance';
 import { trackedSource } from '@/tests/byteSourceFixtures';
 import {
   buildSyntheticDicom,

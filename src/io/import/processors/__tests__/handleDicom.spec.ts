@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
-import { readBytes } from '@/packages/dicom/core/source/byteSource';
-import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { readUltrasoundRegions } from '@/packages/dicom/core/metadata/ultrasoundRegion';
+import { getDatasetTag } from '@/src/dicom/core/metadata/datasetAccess';
+import { readBytes } from '@/src/dicom/core/source/byteSource';
+import { readDicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
+import { readUltrasoundRegions } from '@/src/dicom/core/metadata/ultrasoundRegion';
 import type { DataSource } from '@/src/io/import/dataSource';
 import { fileToDataSource } from '@/src/io/import/dataSource';
 import handleDicom from '@/src/io/import/processors/handleDicom';

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import {
