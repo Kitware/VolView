@@ -13,7 +13,6 @@ export const useDicomRuntimeStore = defineStore('dicom-runtime', () => {
         pipelineWorkerUrl: itkConfig.pipelineWorkerUrl,
         imageIOUrl: itkConfig.imageIOUrl,
       },
-      imageImportPolicy: 'skip-radiotherapy',
     })
   );
   onScopeDispose(() => runtime.dispose());

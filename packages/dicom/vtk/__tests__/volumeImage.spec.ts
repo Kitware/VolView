@@ -47,9 +47,8 @@ async function loadRanges(volume: Volume) {
   });
   const ranges: number[][] = [];
   for await (const update of loadVolume(volume, {
-    runtime,
+    runtime: { ...runtime, readConcurrency: 1 },
     signal: new AbortController().signal,
-    readAhead: 1,
   })) {
     applyVolumeUpdate(image, update);
     ranges.push(rangeOf(image));

@@ -13,7 +13,6 @@ export type ByteRange = { start: number; end?: number };
  * the signal or a cancel closes; nothing stays open or cached between reads.
  */
 export type ByteSource = {
-  size?: number;
   read: (signal: AbortSignal, range?: ByteRange) => ReadableStream<Uint8Array>;
   /**
    * Whether a ranged read costs only its range. Absent means it does; a
@@ -31,7 +30,6 @@ const rangeLength = (range?: ByteRange) =>
   range?.end === undefined ? Infinity : Math.max(0, range.end - range.start);
 
 export const fromBlob = (blob: Blob): ByteSource => ({
-  size: blob.size,
   read: (signal, range) => {
     let offset = range?.start ?? 0;
     const end = Math.min(blob.size, offset + rangeLength(range));
@@ -121,7 +119,6 @@ function rangedBody(response: Response, range?: ByteRange) {
 
 type UrlSourceOptions = {
   fetch?: typeof fetch;
-  init?: Omit<RequestInit, 'signal'>;
 };
 
 function assertReadableStatus(response: Response, url: string | URL) {
@@ -149,18 +146,13 @@ export const fromUrl = (
     options.fetch ?? ((input, init) => globalThis.fetch(input, init));
   let rangeSupport: RangeSupport = 'unknown';
   const open = async (signal: AbortSignal, range?: ByteRange) => {
-    const headers = Object.fromEntries(new Headers(options.init?.headers));
-    if (range) headers.Range = rangeHeader(range);
     // Chrome can answer a Range from a cache entry an earlier cancelled read
     // left behind with status 200 and only the range's bytes, which reads
     // exactly like a server that ignored Range.
-    const cache = range ? { cache: 'no-store' as const } : {};
-    const response = await fetchFn(url, {
-      ...cache,
-      ...options.init,
-      headers,
-      signal,
-    });
+    const ranged = range
+      ? { cache: 'no-store' as const, headers: { Range: rangeHeader(range) } }
+      : {};
+    const response = await fetchFn(url, { ...ranged, signal });
     assertReadableStatus(response, url);
     if (range)
       rangeSupport =

@@ -35,30 +35,11 @@ export type LoadVolumeOptions = {
   signal: AbortSignal;
   /** Read before every read and decode; defaults to the middle member's slot. */
   focus?: () => number;
-  /**
-   * Units being read or read but not yet decoding, which bounds both
-   * concurrent reads and undecoded bytes held. Defaults to the runtime's
-   * read concurrency.
-   */
-  readAhead?: number;
 };
 
 /** A planned unit placed in the volume; `slot` is its first slice. */
 type Unit = DecodeUnit &
   Readonly<{ member: number; slices: readonly number[]; slot: number }>;
-
-/** How long decodes may run back to back before the thread is handed back. */
-const DECODE_RUN_MS = 8;
-
-const nextTask = () =>
-  new Promise<void>((resolve) => {
-    const { port1, port2 } = new MessageChannel();
-    port1.onmessage = () => {
-      port1.close();
-      resolve();
-    };
-    port2.postMessage(null);
-  });
 
 const ensureError = (error: unknown) =>
   error instanceof Error ? error : new Error(String(error));
@@ -167,21 +148,6 @@ function write(volume: Volume, unit: Unit, pixels: DecodedPixels) {
   };
 }
 
-/** Whether the units cover frames 0 to `frames - 1` exactly once, in any order. */
-const tiles = (units: readonly DecodeUnit[], frames: number) => {
-  const covered = units.flatMap((unit) =>
-    Array.from({ length: unit.frames }, (_, index) => unit.firstFrame + index)
-  );
-  return (
-    units.every((unit) => Number.isInteger(unit.frames) && unit.frames >= 1) &&
-    covered.length === frames &&
-    covered.every(
-      (frame) => Number.isInteger(frame) && frame >= 0 && frame < frames
-    ) &&
-    new Set(covered).size === frames
-  );
-};
-
 function planMember(volume: Volume, member: number, decoders: DecoderTable) {
   const instance = volume.members[member];
   const slices = memberSlices(volume, member);
@@ -191,10 +157,6 @@ function planMember(volume: Volume, member: number, decoders: DecoderTable) {
     throw new Error(
       `${memberName(volume, member)} cannot be decoded: ${planned.error.message}`,
       { cause: planned.error }
-    );
-  if (!tiles(planned.units, slices.length))
-    throw new Error(
-      `${planned.decoder.name} planned units that do not cover frames 0 to ${slices.length - 1} of ${memberName(volume, member)} exactly once`
     );
   return planned.units.map((unit): Unit => {
     const covered = slices.slice(
@@ -239,16 +201,15 @@ type Loader = {
   runtime: LoadVolumeOptions['runtime'];
   stopped: AbortSignal;
   focus: () => number;
-  readAhead: number;
 };
 
 /**
  * Starts reads and decodes whenever one settles: decodes first, up to the
- * decode concurrency, then reads while fewer than `readAhead` units are being
- * read or wait to decode. A decoded unit is written at once, so decoding never
- * waits for the consumer.
+ * decode concurrency, then reads while fewer than the read concurrency are
+ * being read or wait to decode. A decoded unit is written at once, so decoding
+ * never waits for the consumer.
  */
-function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
+function createLoader({ volume, runtime, stopped, focus }: Loader) {
   const { units, failures } = planUnits(volume, runtime.decoders);
   const waiting = new Map(units.map((unit) => [unit.slot, unit]));
   const ready = new Map<number, { unit: Unit; bytes: Uint8Array }>();
@@ -346,31 +307,14 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
     }
   };
 
-  // A decode that returns at once lets its successor start in the same task,
-  // so a batch of frames would hold the thread until all are decoded. While
-  // pump starts what follows a decode, `inherited` is when that run began.
-  let inherited: number | undefined;
-
   const startDecode = (slot: number) => {
     const { unit, bytes } = ready.get(slot)!;
     ready.delete(slot);
     decoding += 1;
-    let runStarted = inherited;
     Promise.resolve()
-      .then(async () => {
-        if (
-          runStarted !== undefined &&
-          performance.now() - runStarted > DECODE_RUN_MS
-        ) {
-          await nextTask();
-          runStarted = undefined;
-        }
-        runStarted ??= performance.now();
+      .then(() => {
         stopped.throwIfAborted();
-        const pixels = unit.decode(bytes, stopped);
-        // An awaited decode resumes in a task of its own.
-        if (pixels instanceof Promise) runStarted = undefined;
-        return pixels;
+        return unit.decode(bytes, stopped);
       })
       .then(
         (pixels) => (stopped.aborted ? undefined : written(unit, pixels)),
@@ -380,9 +324,7 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
       .then((update) => {
         decoding -= 1;
         if (update) settle(update);
-        inherited = runStarted;
         pump();
-        inherited = undefined;
       });
   };
 
@@ -396,7 +338,7 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
       ? next(ready.keys())
       : undefined;
   const nextRead = () =>
-    !stopped.aborted && reading + ready.size < readAhead
+    !stopped.aborted && reading + ready.size < runtime.readConcurrency
       ? next(claimable())
       : undefined;
 
@@ -425,18 +367,11 @@ function createLoader({ volume, runtime, stopped, focus, readAhead }: Loader) {
  */
 export async function* loadVolume(
   volume: Volume,
-  {
-    runtime,
-    signal,
-    focus = () => middleSlot(volume),
-    readAhead = runtime.readConcurrency,
-  }: LoadVolumeOptions
+  { runtime, signal, focus = () => middleSlot(volume) }: LoadVolumeOptions
 ) {
-  if (!Number.isInteger(readAhead) || readAhead < 1)
-    throw new Error('Read ahead must be a positive integer');
   const { controller, release } = linkedController(signal, runtime.signal);
   const stopped = controller.signal;
-  const loader = createLoader({ volume, runtime, stopped, focus, readAhead });
+  const loader = createLoader({ volume, runtime, stopped, focus });
   loader.start();
   try {
     for (;;) {
