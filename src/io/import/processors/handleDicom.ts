@@ -1,10 +1,10 @@
-import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
-import { getDatasetModality } from '@/packages/dicom/core/metadata/datasetAccess';
+import { fromBlob, fromUrl } from '@/src/dicom/core/source/byteSource';
+import { getDatasetModality } from '@/src/dicom/core/metadata/datasetAccess';
 import {
   IMPLICIT_VR_LITTLE_ENDIAN,
   type DicomLayout,
-} from '@/packages/dicom/core/metadata/dicomLayout';
-import type { DicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
+} from '@/src/dicom/core/metadata/dicomLayout';
+import type { DicomRuntime } from '@/src/dicom/core/runtime/createDicomRuntime';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { Skip } from '@/src/utils/evaluateChain';
 import {

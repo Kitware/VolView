@@ -4,28 +4,25 @@ import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import {
   allocateVolume,
   type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
+} from '@/src/dicom/core/volume/allocateVolume';
 import {
   createDicomRuntime,
   type DicomRuntime,
-} from '@/packages/dicom/core/runtime/createDicomRuntime';
-import {
-  fromBlob,
-  type ByteSource,
-} from '@/packages/dicom/core/source/byteSource';
+} from '@/src/dicom/core/runtime/createDicomRuntime';
+import { fromBlob, type ByteSource } from '@/src/dicom/core/source/byteSource';
 import {
   readInstance,
   type Instance,
-} from '@/packages/dicom/core/instance/readInstance';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+} from '@/src/dicom/core/instance/readInstance';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 import type {
   DecodedPixels,
   WholeInstanceDecode,
-} from '@/packages/dicom/core/pixels/pixelDecoder';
-import type { Extent } from '@/packages/dicom/core/volume/loadVolume';
+} from '@/src/dicom/core/pixels/pixelDecoder';
+import type { Extent } from '@/src/dicom/core/volume/loadVolume';
 import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
-import { sliceThumbnail } from '@/packages/dicom/vtk/volumeImage';
-import type { ThumbnailSlice } from '@/packages/dicom/vtk/thumbnail';
+import { sliceThumbnail } from '@/src/dicom/vtk/volumeImage';
+import type { ThumbnailSlice } from '@/src/dicom/vtk/thumbnail';
 import { defer } from '@/src/utils';
 import { nativePixelDicom } from '@/tests/nativePixelDicom';
 import DicomVolumeImage, {

@@ -2,23 +2,23 @@ import { defineStore } from 'pinia';
 import {
   allocateVolume,
   type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
+} from '@/src/dicom/core/volume/allocateVolume';
 import {
   emptyRegistry,
   forgetCollection,
   registerInstances,
   type InstanceCollectionUpdate,
   type RegistryState,
-} from '@/packages/dicom/core/collections/instanceRegistry';
+} from '@/src/dicom/core/collections/instanceRegistry';
 import {
   getDatasetModality,
   getDatasetTag,
-} from '@/packages/dicom/core/metadata/datasetAccess';
-import { seriesKeyOf } from '@/packages/dicom/core/collections/instanceFacts';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { trimDicomPadding } from '@/packages/dicom/core/utils';
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+} from '@/src/dicom/core/metadata/datasetAccess';
+import { seriesKeyOf } from '@/src/dicom/core/collections/instanceFacts';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
+import { trimDicomPadding } from '@/src/dicom/core/utils';
+import type { DicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { ProgressiveImage } from '@/src/core/progressiveImage';
@@ -27,7 +27,7 @@ import { isCineInstance, readCineHeader } from '@/src/core/cine/cineInstance';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { viewedSlice } from '@/src/store/dicom-viewed-slice';
 import { ensureError, removeFromArray } from '../utils';
-import { groupBy } from '@/packages/dicom/core/collections/groupBy';
+import { groupBy } from '@/src/dicom/core/collections/groupBy';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';

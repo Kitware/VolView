@@ -1,9 +1,9 @@
 import { Skip } from '@/src/utils/evaluateChain';
-import StreamingByteReader from '@/packages/dicom/core/header/streamingByteReader';
+import StreamingByteReader from '@/src/dicom/core/header/streamingByteReader';
 import { ImportHandler, asIntermediateResult } from '@/src/io/import/common';
 import { getFileMimeFromMagicStream } from '@/src/io/magic';
 import { getMimeTypeFromFilename } from '@/src/io/io';
-import { asCoroutine } from '@/packages/dicom/core/utils';
+import { asCoroutine } from '@/src/dicom/core/utils';
 
 const DoneSignal = Symbol('DoneSignal');
 

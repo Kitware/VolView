@@ -291,7 +291,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/vtk/**/*.{js,ts}', 'packages/dicom/vtk/**/*.{js,ts}'],
+    files: ['src/vtk/**/*.{js,ts}', 'src/dicom/vtk/**/*.{js,ts}'],
     rules: {
       'no-param-reassign': [
         'error',
@@ -382,7 +382,7 @@ export default tseslint.config(
   // level because the ratchet only fails a file whose debt grows, so existing
   // files stay over these numbers without failing `npm run lint`.
   {
-    files: ['src/**/*.{js,ts,vue}', 'packages/dicom/**/*.{js,ts}'],
+    files: ['src/**/*.{js,ts,vue}'],
     ignores: [
       '**/__tests__/**',
       'src/**/*.{spec,test}.{js,ts}',
@@ -402,7 +402,7 @@ export default tseslint.config(
   // ESLint matches specifiers, not resolved paths. Core and vtk files sit at
   // most one directory deep, so climbing two levels always leaves them.
   {
-    files: ['packages/dicom/core/**/*.{js,ts}'],
+    files: ['src/dicom/core/**/*.{js,ts}'],
     ignores: ['**/__tests__/**'],
     rules: {
       'no-restricted-imports': [
@@ -421,7 +421,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['packages/dicom/vtk/**/*.{js,ts}'],
+    files: ['src/dicom/vtk/**/*.{js,ts}'],
     ignores: ['**/__tests__/**'],
     rules: {
       'no-restricted-imports': [

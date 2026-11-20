@@ -2,26 +2,26 @@ import { computed } from 'vue';
 import mitt from 'mitt';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { JsonCompatible } from '@itk-wasm/image-io';
-import { getDatasetModality } from '@/packages/dicom/core/metadata/datasetAccess';
+import { getDatasetModality } from '@/src/dicom/core/metadata/datasetAccess';
 import {
   loadVolume,
   middleSlot,
   type Extent,
   type VolumeUpdate,
-} from '@/packages/dicom/core/volume/loadVolume';
-import { readBytes } from '@/packages/dicom/core/source/byteSource';
-import type { DicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import type { Volume } from '@/packages/dicom/core/volume/allocateVolume';
+} from '@/src/dicom/core/volume/loadVolume';
+import { readBytes } from '@/src/dicom/core/source/byteSource';
+import type { DicomRuntime } from '@/src/dicom/core/runtime/createDicomRuntime';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
+import type { Volume } from '@/src/dicom/core/volume/allocateVolume';
 import {
   applyVolumeUpdate,
   sliceThumbnail,
   toVtkImageData,
-} from '@/packages/dicom/vtk/volumeImage';
+} from '@/src/dicom/vtk/volumeImage';
 import {
   encodeThumbnailToUri,
   type ThumbnailSlice,
-} from '@/packages/dicom/vtk/thumbnail';
+} from '@/src/dicom/vtk/thumbnail';
 import {
   BaseProgressiveImage,
   type ProgressiveImageEvents,
@@ -33,7 +33,7 @@ import {
 import { convertItkToVtkImage } from '@/src/io/convertItkToVtkImage';
 import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { ensureError } from '@/src/utils';
-import { abortError } from '@/packages/dicom/core/utils';
+import { abortError } from '@/src/dicom/core/utils';
 
 type DicomVolumeImageEvents = ProgressiveImageEvents & {
   /** A decoded region of the current image, as an inclusive extent. */
