@@ -1,6 +1,6 @@
 import type { Instance } from '../instance/readInstance';
 import { trimDicomPadding } from '../utils';
-import { getDatasetModality, getDatasetTag } from '../metadata/datasetAccess';
+import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
 import {
   planDicomCollections,
@@ -13,31 +13,15 @@ import { readDatasetDetails } from './datasetDetails';
 import { groupBy } from './groupBy';
 import type { Reconstruction } from './reconstructVolume';
 
-/**
- * How a collection differs from what was last committed under its ID:
- * `unchanged` has the same members and geometry, so its volume stands.
- */
-type CollectionChange = 'new' | 'unchanged' | 'changed';
-
-type CollectionUpdateFields = {
+export type InstanceCollectionUpdate = {
   id: string;
   collection: DicomCollection;
   /** Registered instances in the collection's order, aligned with collection.members. */
   members: Instance[];
   /** Aligned with members: the batch's own instance wherever it re-supplied one. */
   provenance: Instance[];
-  change: CollectionChange;
-};
-
-/**
- * An image volume, or a SEG object whose pixels are labels rather than an
- * image. A union so that checking `kind` narrows the update for allocateVolume.
- */
-export type InstanceCollectionUpdate = CollectionUpdateFields &
-  ({ kind: 'image' } | { kind: 'segmentation' });
-
-export type ImageCollectionUpdate = InstanceCollectionUpdate & {
-  kind: 'image';
+  /** Same members and geometry as last committed under this ID, so its volume stands. */
+  unchanged: boolean;
 };
 
 // An instance with no SOP Instance UID is identified by its object, so two of
@@ -112,22 +96,14 @@ const sameReconstruction = (a: Reconstruction, b: Reconstruction) =>
   reasonOf(a) === reasonOf(b) &&
   a.sliceSpacing === b.sliceSpacing;
 
-const unchanged = (before: Committed, after: Committed) =>
+const sameVolume = (before: Committed, after: Committed) =>
   sameList(before.members, after.members) &&
   sameList(before.orientation, after.orientation) &&
   sameReconstruction(before.reconstruction, after.reconstruction);
 
-const changeOf = (before: Committed | undefined, after: Committed) => {
-  if (!before) return 'new';
-  return unchanged(before, after) ? 'unchanged' : 'changed';
-};
-
 const sameDescription = (before: Committed | undefined, after: Committed) =>
   !before ||
   (before.label === after.label && sameList(before.warnings, after.warnings));
-
-const kindOf = (first: Instance) =>
-  getDatasetModality(first.dataset) === 'SEG' ? 'segmentation' : 'image';
 
 // The first registration of an instance wins; a re-supply only reports back.
 function mergeBatch(series: SeriesState, batch: Registered[]) {
@@ -182,18 +158,17 @@ function planSeries(
     };
     const members = entries.map((entry) => entry.instance);
     const previous = series.committed.get(id);
-    const change = changeOf(previous, committed);
+    const unchanged = !!previous && sameVolume(previous, committed);
     const update: InstanceCollectionUpdate = {
       id,
       collection,
       members,
       provenance: entries.map(provenanceOf),
-      change,
-      kind: kindOf(members[0]),
+      unchanged,
     };
     // A replan can move members or relabel a collection the batch brought nothing.
     const changed =
-      change !== 'unchanged' ||
+      !unchanged ||
       !sameDescription(previous, committed) ||
       committed.members.some((key) => supplied.has(key));
     return { committed, update, changed };
