@@ -39,8 +39,7 @@
     "backend-contract/**/*.ts",
     "test/**/*.ts",
     "tests/**/*.ts",
-    "tests/**/*.tsx",
-    "packages/dicom/**/*.ts"
+    "tests/**/*.tsx"
   ],
   "exclude": [
     "node_modules"

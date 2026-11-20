@@ -17,10 +17,10 @@ import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import {
   allocateVolume,
   type Volume,
-} from '@/packages/dicom/core/volume/allocateVolume';
-import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
-import { fromBlob } from '@/packages/dicom/core/source/byteSource';
-import type { DecodedPixels } from '@/packages/dicom/core/pixels/pixelDecoder';
+} from '@/src/dicom/core/volume/allocateVolume';
+import { createDicomRuntime } from '@/src/dicom/core/runtime/createDicomRuntime';
+import { fromBlob } from '@/src/dicom/core/source/byteSource';
+import type { DecodedPixels } from '@/src/dicom/core/pixels/pixelDecoder';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { LoadedVtkImage } from '@/src/core/progressiveImage';
 import { useDICOMStore } from '@/src/store/datasets-dicom';

@@ -1,4 +1,4 @@
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 import type { Fetcher } from '@/src/core/streaming/types';
 import { Maybe } from '@/src/types';
 

@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, h, markRaw, nextTick, ref } from 'vue';
 import { createVuetify } from 'vuetify';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { useImageCacheStore } from '@/src/store/image-cache';
