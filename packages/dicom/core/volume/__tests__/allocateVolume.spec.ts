@@ -22,11 +22,6 @@ describe('allocateVolume', () => {
     expect(volume.data).toBeInstanceOf(Uint16Array);
     expect(volume.data).toHaveLength(48);
     expect([...volume.loaded]).toEqual([0, 0, 0]);
-    expect(volume.spatialMetadata.axes.map((axis) => axis.status)).toEqual([
-      'declared',
-      'declared',
-      'derived',
-    ]);
     expect(Object.isFrozen(volume)).toBe(true);
   });
 
@@ -66,14 +61,12 @@ describe('allocateVolume', () => {
     );
   });
 
-  it('keeps an irregular stack in order and reports why it is irregular', () => {
-    const volume = allocated([0, 1, 3].map((z) => pixelSlice(z)));
+  it('keeps an irregular stack in order', () => {
+    const members = [3, 0, 1].map((z) => pixelSlice(z));
+    const volume = allocated(members);
 
     expect(volume.dimensions[2]).toBe(3);
-    expect(volume.spatialMetadata.reconstruction).toEqual({
-      kind: 'irregular',
-      reason: 'uneven-slice-spacing',
-    });
+    expect(volume.members).toEqual([members[1], members[2], members[0]]);
   });
 
   it('takes the planned slice spacing as given', () => {

@@ -21,8 +21,14 @@ import {
 const allocate = (metadata: DicomDataset) =>
   allocateVolume(plannedUpdate([instanceFor(metadata)]));
 
-const reconstructionOf = (metadata: DicomDataset) =>
-  allocate(metadata).spatialMetadata.reconstruction;
+/** The planned reconstruction's kind and, when irregular, its reason. */
+const reconstructionOf = (metadata: DicomDataset) => {
+  const planned = plannedUpdate([instanceFor(metadata)]).collection
+    .reconstruction;
+  return planned.kind === 'irregular'
+    ? { kind: planned.kind, reason: planned.reason }
+    : { kind: planned.kind };
+};
 
 const indexToWorld = (volume: Volume, index: number[]) =>
   [0, 1, 2].map(
@@ -43,7 +49,7 @@ describe('enhanced volume Functional Groups', () => {
       positioned('99.5\\-301.5\\-149'),
     ]);
     const volume = allocate(metadata);
-    expect(volume.spatialMetadata.reconstruction).toEqual({ kind: 'regular' });
+    expect(reconstructionOf(metadata)).toEqual({ kind: 'regular' });
     expect(volume.spacing).toEqual([0.388672, 0.388672, 10]);
     expect(indexToWorld(volume, [0, 0, 0])).toEqual([99.5, -301.5, -159]);
     expect(indexToWorld(volume, [0, 0, 1])).toEqual([99.5, -301.5, -149]);
@@ -67,7 +73,7 @@ describe('enhanced volume Functional Groups', () => {
       ]
     );
     const volume = allocate(metadata);
-    expect(volume.spatialMetadata.reconstruction).toEqual({ kind: 'regular' });
+    expect(reconstructionOf(metadata)).toEqual({ kind: 'regular' });
     expect(volume.spacing[2]).toBeCloseTo(1.33, 8);
     expect(indexToWorld(volume, [0, 0, 1])[0]).toBeCloseTo(-81.8877146, 7);
     expect(volume.direction[1]).toBeCloseTo(0.9762960207, 8);
@@ -133,13 +139,12 @@ describe('enhanced volume Functional Groups', () => {
   ])(
     'keeps %s frames in stored order and reports the reason',
     (reason, positions) => {
-      const volume = allocate(
-        enhanced(
-          ctShared(),
-          positions.map((z) => positioned(`0\\0\\${z}`))
-        )
+      const metadata = enhanced(
+        ctShared(),
+        positions.map((z) => positioned(`0\\0\\${z}`))
       );
-      expect(volume.spatialMetadata.reconstruction).toEqual({
+      const volume = allocate(metadata);
+      expect(reconstructionOf(metadata)).toEqual({
         kind: 'irregular',
         reason,
       });
@@ -197,7 +202,7 @@ describe('enhanced volume Functional Groups', () => {
 
   it('reports shared-plane temporal frames as irregular', () => {
     const metadata = sharedPlaneTemporal();
-    expect(reconstructionOf(metadata)?.kind).toBe('irregular');
+    expect(reconstructionOf(metadata).kind).toBe('irregular');
   });
 
   it.each([1, -1])(
@@ -271,19 +276,11 @@ describe('reconstructed NM spatial volumes', () => {
         element.tag === tag ? tags({ [tag]: '' }).elements[0] : element
       );
       const volume = allocate(metadata);
-      const { spatialMetadata } = volume;
       expect(volume.dimensions).toEqual([2, 2, 3]);
-      if (tag === '00200032') {
-        expect(volume.origin).toEqual([0, 0, 0]);
-        expect(spatialMetadata.notes.join(' ')).toContain('zero origin');
-      } else if (tag === '00200037') {
+      if (tag === '00200032') expect(volume.origin).toEqual([0, 0, 0]);
+      else if (tag === '00200037')
         expect(volume.direction).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-        expect(spatialMetadata.notes.join(' ')).toContain('default axes');
-      } else {
-        const axis = tag === '00280030' ? 0 : 2;
-        expect(volume.spacing[axis]).toBe(1);
-        expect(spatialMetadata.axes[axis].status).toBe('fallback');
-      }
+      else expect(volume.spacing[tag === '00280030' ? 0 : 2]).toBe(1);
       if (tag !== '00180088') expect(volume.spacing[2]).toBe(4.7951998710632);
     }
   );
@@ -294,9 +291,6 @@ describe('reconstructed NM spatial volumes', () => {
       const volume = allocate(
         nmMetadata({ '00180088': String(sign * 4.7951998710632) })
       );
-      expect(volume.spatialMetadata.reconstruction).toEqual({
-        kind: 'regular',
-      });
       expect(volume.spacing).toEqual([
         4.7951998710632, 4.7951998710632, 4.7951998710632,
       ]);
@@ -316,7 +310,6 @@ describe('reconstructed NM spatial volumes', () => {
       '00180088': '',
     });
     const volume = allocate(metadata);
-    expect(volume.spatialMetadata.reconstruction).toEqual({ kind: 'regular' });
     expect(volume.origin).toEqual([4, 5, 6]);
     expect(volume.spacing).toEqual([4.7951998710632, 4.7951998710632, 1]);
     expect(volume.direction).toEqual([1, 0, 0, 0, 1, 0, 0, 0, 1]);

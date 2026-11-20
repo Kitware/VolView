@@ -4,12 +4,7 @@ import { Tags } from '../metadata/dicomTags';
 import { readGeometryFacts, sliceNormalOf } from '../collections/instanceFacts';
 import type { Reconstruction } from '../collections/reconstructVolume';
 import { readDatasetDetails } from '../collections/datasetDetails';
-import {
-  declaredSpacing,
-  physicalSpacing,
-  readPixelSpacing,
-  type SpatialMetadata,
-} from '../metadata/spatialMetadata';
+import { readPixelSpacing, spacingOr1 } from '../metadata/spatialMetadata';
 import { getFrameTag } from '../metadata/functionalGroups';
 import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr } from '../utils';
@@ -29,7 +24,7 @@ const frameGeometry = (sources: readonly VolumeSource[]) => {
   if (sources.length !== 1) return { frames: null };
   const { dataset } = sources[0];
   const nm = nmGeometry(dataset);
-  if (nm) return { frames: nm, sliceSpacingSource: nm.sliceSpacingSource };
+  if (nm) return { frames: nm };
   return {
     frames:
       frameCount(dataset) < 2
@@ -52,14 +47,12 @@ function allocationGeometry(
   reconstruction: Reconstruction
 ) {
   const { dataset } = sources[0];
-  const { frames, sliceSpacingSource = 'ImagePositionPatient' } =
-    frameGeometry(sources);
+  const { frames } = frameGeometry(sources);
   const geometry = frames ?? readGeometryFacts(dataset);
   const effectiveOrientation = orientation ?? geometry.orientation;
   return {
     ...geometry,
     reconstruction: frames?.reconstruction ?? reconstruction,
-    sliceSpacingSource,
     direction: allocationDirection(effectiveOrientation, frames?.direction),
   };
 }
@@ -75,67 +68,15 @@ function allocationShape(sources: readonly VolumeSource[]) {
   };
 }
 
-function allocationNotes(
-  sources: readonly VolumeSource[],
-  geometry: ReturnType<typeof allocationGeometry>
+function allocationSpacing(
+  dataset: DicomDataset,
+  { reconstruction }: ReturnType<typeof allocationGeometry>
 ) {
-  const notes = [];
-  if (!geometry.position)
-    notes.push(
-      'Patient position is unavailable; the display uses a zero origin.'
-    );
-  if (!geometry.direction)
-    notes.push(
-      'Patient orientation is unavailable; the display uses default axes.'
-    );
-  if (
-    sources.length > 1 &&
-    sources.some((source) =>
-      readPixelSpacing(source.dataset).some(
-        (axis) => axis.status === 'fallback'
-      )
-    )
-  )
-    notes.push(
-      'Some slices lack usable PixelSpacing; the displayed in-plane grid uses the first slice.'
-    );
-  return notes;
-}
-
-function allocationCalibration(metadata: DicomDataset) {
-  const type = getDatasetTag(metadata, '00280A02')?.trim();
-  const description = getDatasetTag(metadata, '00280A04')?.trim();
-  return type || description ? { calibration: { type, description } } : {};
-}
-
-function allocationSpatialMetadata(
-  sources: readonly VolumeSource[],
-  geometry: ReturnType<typeof allocationGeometry>
-): SpatialMetadata {
-  const metadata = sources[0].dataset;
-  const { reconstruction, sliceSpacingSource } = geometry;
   const sliceSpacing = reconstruction.sliceSpacing ?? 0;
   const z = isPositiveFiniteNumber(sliceSpacing)
-    ? physicalSpacing(
-        sliceSpacing,
-        sliceSpacingSource,
-        sliceSpacingSource === 'ImagePositionPatient' ? 'derived' : 'declared'
-      )
-    : declaredSpacing(
-        getFrameTag(metadata, Tags.SpacingBetweenSlices),
-        'SpacingBetweenSlices'
-      );
-  return {
-    axes: [...readPixelSpacing(metadata), z],
-    reconstruction: {
-      kind: reconstruction.kind,
-      ...(reconstruction.kind === 'irregular'
-        ? { reason: reconstruction.reason }
-        : {}),
-    },
-    notes: allocationNotes(sources, geometry),
-    ...allocationCalibration(metadata),
-  };
+    ? sliceSpacing
+    : spacingOr1(getFrameTag(dataset, Tags.SpacingBetweenSlices));
+  return [...readPixelSpacing(dataset), z];
 }
 
 /**
@@ -155,7 +96,7 @@ export function volumeLayout(
     ...shape,
     origin: geometry.position,
     direction: geometry.direction,
-    spatialMetadata: allocationSpatialMetadata(sources, geometry),
+    spacing: allocationSpacing(sources[0].dataset, geometry),
     bufferType: getVolumeBufferType(
       sources.flatMap((source) => instancePixelFormats(source.dataset))
     ),
@@ -169,9 +110,6 @@ export function planVolumeAllocation(
   reconstruction: Reconstruction
 ) {
   const layout = volumeLayout(sources, orientation, reconstruction);
-  const { spatialMetadata, warnings } = applyUltrasoundSpacing(
-    layout.spatialMetadata,
-    sources
-  );
-  return { layout: { ...layout, spatialMetadata }, warnings };
+  const { spacing, warnings } = applyUltrasoundSpacing(layout.spacing, sources);
+  return { layout: { ...layout, spacing }, warnings };
 }
