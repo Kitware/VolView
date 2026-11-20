@@ -24,7 +24,7 @@ import itkConfig from '@/src/io/itk/itkConfig';
 
 import App from './components/App.vue';
 import vuetify from './plugins/vuetify';
-import { FILE_READERS } from './io';
+import { FILE_READERS } from './io/readerRegistry';
 import { registerAllReaders } from './io/readers';
 import { CorePiniaProviderPlugin } from './core/provider';
 import { patchExitPointerLock } from './utils/hacks';

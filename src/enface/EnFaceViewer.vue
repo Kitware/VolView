@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRefs, watch, watchPostEffect } from 'vue';
 import { useViewWindowingRanges } from '@/src/composables/useViewWindowingRanges';
-import { useReferenceLinesStore } from '@/src/referenceLines';
+import { useReferenceLinesStore } from '@/src/referenceLines/store';
 import { slabWindowRanges } from '@/src/core/slab/windowRanges';
 import { useEnFaceInput } from './useEnFaceInput';
 import { useEnFaceOccupiedDepth } from './useEnFaceOccupiedDepth';
@@ -11,7 +11,7 @@ import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
 import VtkSlabProjectionRepresentation from '@/src/components/vtk/VtkSlabProjectionRepresentation.vue';
 import CrosshairsWidget from '@/src/components/tools/crosshairs/CrosshairsWidget.vue';
-import { ReferenceLineSegments } from '@/src/referenceLines';
+import ReferenceLineSegments from '@/src/referenceLines/ReferenceLineSegments.vue';
 import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import { useResetViewsEvents } from '@/src/components/tools/ResetViews.vue';
