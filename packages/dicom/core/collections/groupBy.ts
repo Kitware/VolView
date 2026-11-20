@@ -1,5 +1,5 @@
 /** Groups preserve input order, both of the keys and of their members. */
-export const groupBy = <T, K>(items: T[], keyOf: (item: T) => K) => {
+export const groupBy = <T, K>(items: readonly T[], keyOf: (item: T) => K) => {
   const groups = new Map<K, T[]>();
   items.forEach((item) => {
     const key = keyOf(item);

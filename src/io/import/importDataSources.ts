@@ -42,7 +42,8 @@ import openUriStream from '@/src/io/import/processors/openUriStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
-import { ensureError, groupBy } from '@/src/utils';
+import { ensureError } from '@/src/utils';
+import { groupBy } from '@/packages/dicom/core/collections/groupBy';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
