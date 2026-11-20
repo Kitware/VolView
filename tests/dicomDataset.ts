@@ -33,7 +33,6 @@ export const instanceFor = (
     source,
     dataset,
     layout: null,
-    ultrasoundRegions: null,
     transferSyntaxUid: null,
     pixelData: null,
   });

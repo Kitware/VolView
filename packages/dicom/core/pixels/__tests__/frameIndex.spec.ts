@@ -89,7 +89,6 @@ describe('indexFrames', () => {
         source: { read: () => new ReadableStream() },
         dataset: { elements: [], specificCharacterSet: null },
         layout: null,
-        ultrasoundRegions: null,
         transferSyntaxUid: EXPLICIT_LE,
         pixelData: null,
       })

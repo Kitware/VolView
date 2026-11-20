@@ -11,18 +11,14 @@ import {
   type SpatialMetadata,
 } from '../metadata/spatialMetadata';
 import { getFrameTag } from '../metadata/functionalGroups';
-import type { UltrasoundRegions } from '../metadata/ultrasoundRegion';
 import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr } from '../utils';
 import { nmGeometry } from './nmGeometry';
 import { getVolumeBufferType, instancePixelFormats } from './pixelFormat';
 import { applyUltrasoundSpacing } from './ultrasoundSpacing';
 
-/** What allocation reads from one member: its header and ultrasound regions. */
-export type VolumeSource = {
-  dataset: DicomDataset;
-  ultrasoundRegions?: UltrasoundRegions | null;
-};
+/** What allocation reads from one member: its header. */
+export type VolumeSource = { dataset: DicomDataset };
 
 const isPositiveFiniteNumber = (value: number) =>
   Number.isFinite(value) && value > 0;

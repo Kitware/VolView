@@ -4,6 +4,7 @@ import { Tags } from '../../metadata/dicomTags';
 import { findElement, readDicomDataset } from '../../metadata/dicomDataset';
 import { getDatasetTag } from '../../metadata/datasetAccess';
 import { sequenceItems } from '../../metadata/functionalGroups';
+import { readUltrasoundRegions } from '../../metadata/ultrasoundRegion';
 import {
   EXPLICIT_VR_LITTLE_ENDIAN,
   IMPLICIT_VR_LITTLE_ENDIAN,
@@ -205,20 +206,11 @@ describe('readInstance over byte sources', () => {
     const instance = await readInstance(source, never());
 
     expect(instance.dataset).toEqual(readDicomDataset(bytes));
-    expect(instance.ultrasoundRegions?.regionCount).toBe(1);
-    expect(instance.ultrasoundRegions?.region?.physicalDeltaX).toBeCloseTo(
-      REGION.physicalDeltaX
-    );
-    expect(instance.ultrasoundRegions?.region?.physicalDeltaY).toBeCloseTo(
-      REGION.physicalDeltaY
-    );
+    const regions = readUltrasoundRegions(instance.dataset);
+    expect(regions.regionCount).toBe(1);
+    expect(regions.region?.physicalDeltaX).toBeCloseTo(REGION.physicalDeltaX);
+    expect(regions.region?.physicalDeltaY).toBeCloseTo(REGION.physicalDeltaY);
     expect(stats.reads).toBe(1);
-  });
-
-  it('reports no ultrasound regions for a non-ultrasound modality', async () => {
-    const bytes = syntheticSlice({ modality: 'MR', ultrasoundRegion: REGION });
-
-    expect((await readHeader(bytes)).ultrasoundRegions).toBeNull();
   });
 
   it('reads every tag of an object that has no Pixel Data', async () => {
