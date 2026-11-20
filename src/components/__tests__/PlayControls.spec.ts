@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentPublicInstance, nextTick } from 'vue';
 import PlayControls from '@/src/components/PlayControls.vue';
 import { seatCineImage } from '@/src/core/cine/__tests__/cineFixtures';
-import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 
 type PlayControlsProps = { viewId: string; imageId: string | null };
 type PlayControlsWrapper = VueWrapper<

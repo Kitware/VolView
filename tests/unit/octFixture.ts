@@ -1,12 +1,12 @@
-import { allocateVolume } from '@/packages/dicom/core/volume/allocateVolume';
-import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
-import { fromBlob } from '@/packages/dicom/core/source/byteSource';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
+import { allocateVolume } from '@/src/dicom/core/volume/allocateVolume';
+import { createDicomRuntime } from '@/src/dicom/core/runtime/createDicomRuntime';
+import { fromBlob } from '@/src/dicom/core/source/byteSource';
+import { getDatasetTag } from '@/src/dicom/core/metadata/datasetAccess';
 import {
   readInstance,
   type Instance,
-} from '@/packages/dicom/core/instance/readInstance';
-import type { WholeInstanceDecode } from '@/packages/dicom/core/pixels/pixelDecoder';
+} from '@/src/dicom/core/instance/readInstance';
+import type { WholeInstanceDecode } from '@/src/dicom/core/pixels/pixelDecoder';
 import { decodingWith, plannedUpdate } from '@/tests/dicomVolumeFixtures';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import { useImageCacheStore } from '@/src/store/image-cache';

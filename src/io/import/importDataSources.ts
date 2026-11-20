@@ -41,8 +41,8 @@ import downloadStream from '@/src/io/import/processors/downloadStream';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
 import { ensureError } from '@/src/utils';
-import { groupBy } from '@/packages/dicom/core/collections/groupBy';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+import { groupBy } from '@/src/dicom/core/collections/groupBy';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 import { useDatasetStore } from '@/src/store/datasets';
 import {
   useDICOMStore,

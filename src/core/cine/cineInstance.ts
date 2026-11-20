@@ -1,19 +1,19 @@
 import {
   EXPLICIT_VR_LITTLE_ENDIAN,
   IMPLICIT_VR_LITTLE_ENDIAN,
-} from '@/packages/dicom/core/metadata/dicomLayout';
-import { getDatasetTag } from '@/packages/dicom/core/metadata/datasetAccess';
-import { indexFrames } from '@/packages/dicom/core/pixels/frameIndex';
+} from '@/src/dicom/core/metadata/dicomLayout';
+import { getDatasetTag } from '@/src/dicom/core/metadata/datasetAccess';
+import { indexFrames } from '@/src/dicom/core/pixels/frameIndex';
 import {
   isUltrasoundMultiframeSopClass,
   Tags,
-} from '@/packages/dicom/core/metadata/dicomTags';
-import { readBytes } from '@/packages/dicom/core/source/byteSource';
-import { splitEncapsulatedFrames } from '@/packages/dicom/core/pixels/encapsulatedFrames';
-import { trimDicomPadding } from '@/packages/dicom/core/utils';
-import { ultrasoundRegionsOf } from '@/packages/dicom/core/metadata/ultrasoundRegion';
-import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
-import type { Instance } from '@/packages/dicom/core/instance/readInstance';
+} from '@/src/dicom/core/metadata/dicomTags';
+import { readBytes } from '@/src/dicom/core/source/byteSource';
+import { splitEncapsulatedFrames } from '@/src/dicom/core/pixels/encapsulatedFrames';
+import { trimDicomPadding } from '@/src/dicom/core/utils';
+import { ultrasoundRegionsOf } from '@/src/dicom/core/metadata/ultrasoundRegion';
+import type { DicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 
 const JPEG_BASELINE = '1.2.840.10008.1.2.4.50';
 
