@@ -1,13 +1,13 @@
 import {
   getVolumeBufferType,
   instancePixelFormats,
-  nativeFrameDecoder,
-  planDecode,
-  readBytes,
-  type DecodeUnit,
-  type Instance,
   type VolumeBufferConstructor,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/volume/pixelFormat';
+import { nativeFrameDecoder } from '@/packages/dicom/core/pixels/nativeFrame';
+import { planDecode } from '@/packages/dicom/core/pixels/decoderTable';
+import { readBytes } from '@/packages/dicom/core/source/byteSource';
+import type { DecodeUnit } from '@/packages/dicom/core/pixels/pixelDecoder';
+import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import {
   createRuntime,
   failed,

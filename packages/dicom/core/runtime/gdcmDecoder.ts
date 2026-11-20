@@ -72,7 +72,7 @@ function createGdcmLane(assets: DicomAssets) {
       rejectActive = rejectFailure;
     });
     try {
-      // Loaded on first decode so the core entry point imports outside a browser.
+      // Loaded on first decode so core imports outside a browser.
       const itk = await Promise.race([import('itk-wasm'), failed]);
       const { InterfaceTypes } = itk;
       const result = await Promise.race([

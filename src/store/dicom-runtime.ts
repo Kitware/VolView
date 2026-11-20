@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { markRaw, onScopeDispose } from 'vue';
-import { createDicomRuntime } from '@/packages/dicom/core';
+import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
 import { $fetch } from '@/src/utils/fetch';
 import itkConfig from '@/src/io/itk/itkConfig';
 

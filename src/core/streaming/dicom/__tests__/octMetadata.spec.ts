@@ -1,12 +1,9 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  fromBlob,
-  fromUrl,
-  readDicomDataset,
-  readInstance,
-  Tags,
-} from '@/packages/dicom/core';
+import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
+import { readDicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
+import { readInstance } from '@/packages/dicom/core/instance/readInstance';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { enFaceTags } from '@/src/core/streaming/dicom/octMetadata';
 import { trackedSource } from '@/tests/byteSourceFixtures';
 

@@ -75,13 +75,6 @@ const ownFeatureExceptPure = (feature) => {
 const upperLayerMessage = (feature) =>
   `The ${feature.dir} pure layer must not import stores, components, or upper feature modules. Dependencies point downward only.`;
 
-// The DICOM module's public surface is its two entry points, core and vtk.
-const dicomPublicSurface = {
-  regex: '(^|/)packages/dicom(?!/(core|vtk)$)',
-  message:
-    'Import the DICOM module only through @/packages/dicom/core or @/packages/dicom/vtk.',
-};
-
 const featureBoundaries = (features) => {
   const publicSurface = ({ dir, publicModules }) => ({
     group: [
@@ -94,10 +87,8 @@ const featureBoundaries = (features) => {
   const publicFeatures = features.filter(
     (feature) => feature.publicSurface !== false
   );
-  const otherSurfaces = (feature) => [
-    dicomPublicSurface,
-    ...publicFeatures.filter((other) => other !== feature).map(publicSurface),
-  ];
+  const otherSurfaces = (feature) =>
+    publicFeatures.filter((other) => other !== feature).map(publicSurface);
 
   return [
     {
@@ -107,10 +98,7 @@ const featureBoundaries = (features) => {
         'no-restricted-imports': [
           'error',
           {
-            patterns: [
-              dicomPublicSurface,
-              ...publicFeatures.map(publicSurface),
-            ],
+            patterns: publicFeatures.map(publicSurface),
           },
         ],
       },
@@ -421,12 +409,6 @@ export default tseslint.config(
     files: ['packages/dicom/**/*.{js,ts}'],
     ignores: ['packages/dicom/**/__tests__/**'],
     rules: limitRules('error'),
-  },
-  {
-    files: ['tests/**/*.{js,ts,mjs}'],
-    rules: {
-      'no-restricted-imports': ['error', { patterns: [dicomPublicSurface] }],
-    },
   },
   {
     files: ['packages/dicom/core/**/*.{js,ts}'],

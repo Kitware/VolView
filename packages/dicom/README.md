@@ -4,22 +4,20 @@ Reads DICOM instances from Blobs or URLs, groups them into collections and
 loads calibrated pixel volumes in the browser. It is a directory of VolView
 source, not a separate package.
 
-## Entry points
+## Layout
 
-- `@/packages/dicom/core`: sources, instances, datasets, collections, volume
-  allocation and loading, decoders and the runtime. No Vue, Pinia, vtk.js or
-  VolView application code.
-- `@/packages/dicom/vtk`: shows a core `Volume` as a `vtkImageData` and makes
-  slice thumbnails.
+- `core`: sources, instances, datasets, collections, volume allocation and
+  loading, decoders and the runtime. No Vue, Pinia, vtk.js or VolView
+  application code.
+- `vtk`: shows a core `Volume` as a `vtkImageData` and makes slice
+  thumbnails.
 
-Each `index.ts` lists every exported name, grouped by topic. Lint lets `src`
-and `tests` import the module only through these two paths, by alias or by
-relative path. Inside the module, `core` imports only relative paths and its
-npm dependencies (`comlink`, `dcmjs`, `itk-wasm`); `vtk` adds vtk.js and
-gl-matrix. `__tests__/boundaries.spec.ts` checks that relative imports stay
-inside the module, that `core` does not reach `vtk`, that no module file
-imports an entry point, and that module tests, with the shared fixtures they
-import from `tests/`, reach no VolView application code.
+Callers import each name from the file that defines it. Inside the module,
+`core` imports only relative paths and its npm dependencies (`comlink`,
+`dcmjs`, `itk-wasm`); `vtk` adds vtk.js and gl-matrix.
+`__tests__/boundaries.spec.ts` checks that relative imports stay inside the
+module, that `core` does not reach `vtk`, and that module tests, with the
+shared fixtures they import from `tests/`, reach no VolView application code.
 
 | Directory          | Holds                                                                    |
 | ------------------ | ------------------------------------------------------------------------ |
@@ -38,19 +36,21 @@ import from `tests/`, reach no VolView application code.
 Instances, collection updates and volumes are plain values. Only the runtime
 holds resources, and only it has `dispose()`. Every asynchronous operation
 takes an `AbortSignal`; aborting it is the whole of cancellation. Importing
-an entry point starts no worker and touches no DOM.
+a module file starts no worker and touches no DOM.
 
 ```ts
+import { fromBlob, fromUrl } from '@/packages/dicom/core/source/byteSource';
+import { createDicomRuntime } from '@/packages/dicom/core/runtime/createDicomRuntime';
 import {
-  allocateVolume,
-  createDicomRuntime,
   emptyRegistry,
-  fromBlob,
-  fromUrl,
-  loadVolume,
   registerInstances,
-} from '@/packages/dicom/core';
-import { applyVolumeUpdate, toVtkImageData } from '@/packages/dicom/vtk';
+} from '@/packages/dicom/core/collections/instanceRegistry';
+import { allocateVolume } from '@/packages/dicom/core/volume/allocateVolume';
+import { loadVolume } from '@/packages/dicom/core/volume/loadVolume';
+import {
+  applyVolumeUpdate,
+  toVtkImageData,
+} from '@/packages/dicom/vtk/volumeImage';
 
 const runtime = createDicomRuntime({
   assets: {
@@ -324,8 +324,7 @@ between slices.
 without VolView startup. `server.mjs` builds them with Vite straight from
 this source, beside the ITK pipeline worker and GDCM image reader assets from
 `node_modules`. A page build fails if it pulls in VolView application code,
-Vue or Pinia, and the core page also fails on vtk.js. The pages import the
-module through the entry points, as the app does.
+Vue or Pinia, and the core page also fails on vtk.js.
 
 - `dicom-module-pages.e2e.ts` generates DICOM in memory and checks Blob and
   HTTP metadata, calibrated pixel values, decode worker recovery and vtk

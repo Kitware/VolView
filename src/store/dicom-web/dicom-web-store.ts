@@ -26,7 +26,7 @@ import {
   isVolumeResult,
   type ImportDataSourcesResult,
 } from '@/src/io/import/common';
-import { trimDicomPadding } from '@/packages/dicom/core';
+import { trimDicomPadding } from '@/packages/dicom/core/utils';
 
 const DICOM_WEB_URL_PARAM = 'dicomweb';
 

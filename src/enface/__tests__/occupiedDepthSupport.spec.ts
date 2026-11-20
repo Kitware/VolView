@@ -6,7 +6,7 @@ import { getOccupiedDepthSupport } from '@/src/enface/occupiedDepthSupport';
 import { createOCTFixture, volumeOf } from '@/tests/unit/octFixture';
 import { cleanupCachedImages } from '@/tests/unit/imageCacheCleanup';
 import { untilLoaded } from '@/src/composables/untilLoaded';
-import { Tags } from '@/packages/dicom/core';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
 import { removeDicomTag, setDicomTag } from './dicomMetadataFixture';
 
 describe('occupied-depth support for loaded volumes', () => {

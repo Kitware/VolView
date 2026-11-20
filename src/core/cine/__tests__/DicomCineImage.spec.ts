@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   fromBlob,
-  readInstance,
-  Tags,
   type ByteSource,
-  type DicomDataset,
-} from '@/packages/dicom/core';
+} from '@/packages/dicom/core/source/byteSource';
+import { readInstance } from '@/packages/dicom/core/instance/readInstance';
+import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
+import type { DicomDataset } from '@/packages/dicom/core/metadata/dicomDataset';
 import { buildSyntheticCineDicom } from '@/tests/specs/syntheticDicom';
 import { datasetFromTags } from '@/tests/dicomDataset';
 import DicomCineImage from '../DicomCineImage';
