@@ -20,7 +20,7 @@ defines it.
 | `vtk`              | the vtk.js image and slice thumbnails                                    |
 
 `core` uses no Vue, Pinia, vtk.js or VolView application code. `vtk` shows a
-core `Volume` as a `vtkImageData`.
+core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
 
 ## Invariants
 

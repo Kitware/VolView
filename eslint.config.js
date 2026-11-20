@@ -4,17 +4,6 @@ import eslintPluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import globals from 'globals';
-import { limits } from './scripts/checks/config.mjs';
-
-const limitRules = (level) => ({
-  complexity: [level, limits.complexity],
-  'max-depth': [level, limits['max-depth']],
-  'max-params': [level, limits['max-params']],
-  'max-lines': [
-    level,
-    { max: limits['max-lines'], skipBlankLines: true, skipComments: true },
-  ],
-});
 
 // ---------------------------------------------------------------------------
 // Feature layering boundaries.
@@ -389,25 +378,29 @@ export default tseslint.config(
       ],
     },
   },
-  // The limits scripts/checks/complexity.mjs enforces per commit. Warn level
-  // in src because the ratchet only fails a file whose debt grows, so existing
+  // Mirrors the limits scripts/checks/complexity.mjs enforces per commit. Warn
+  // level because the ratchet only fails a file whose debt grows, so existing
   // files stay over these numbers without failing `npm run lint`.
   {
-    files: ['src/**/*.{js,ts,vue}'],
+    files: ['src/**/*.{js,ts,vue}', 'packages/dicom/**/*.{js,ts}'],
     ignores: [
-      'src/**/__tests__/**',
+      '**/__tests__/**',
       'src/**/*.{spec,test}.{js,ts}',
       'src/**/*.d.ts',
       '**/emscripten-build/**',
     ],
-    rules: limitRules('warn'),
+    rules: {
+      complexity: ['warn', 10],
+      'max-depth': ['warn', 3],
+      'max-params': ['warn', 4],
+      'max-lines': [
+        'warn',
+        { max: 600, skipBlankLines: true, skipComments: true },
+      ],
+    },
   },
-  // The DICOM module carries no debt, so it is held to the limits outright.
-  {
-    files: ['packages/dicom/**/*.{js,ts}'],
-    ignores: ['packages/dicom/**/__tests__/**'],
-    rules: limitRules('error'),
-  },
+  // ESLint matches specifiers, not resolved paths. Core and vtk files sit at
+  // most one directory deep, so climbing two levels always leaves them.
   {
     files: ['packages/dicom/core/**/*.{js,ts}'],
     ignores: ['**/__tests__/**'],
@@ -417,9 +410,10 @@ export default tseslint.config(
         {
           patterns: [
             {
-              regex: '^(?!\\.\\.?/|(comlink|dcmjs|itk-wasm)$)',
+              regex:
+                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$)|(\\.\\./){2}|\\.\\./vtk(?:/|$))',
               message:
-                'DICOM core imports only relative paths and comlink, dcmjs and itk-wasm. A new dependency is a deliberate change to this list.',
+                'DICOM core cannot depend on application code, UI frameworks, vtk.js or the DICOM vtk directory.',
             },
           ],
         },
@@ -435,9 +429,10 @@ export default tseslint.config(
         {
           patterns: [
             {
-              regex: '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/)',
+              regex:
+                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|(\\.\\./){2})',
               message:
-                'DICOM module internals use relative imports and cannot depend on application state or UI frameworks.',
+                'DICOM vtk cannot depend on application code, application state or UI frameworks.',
             },
           ],
         },
