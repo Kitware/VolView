@@ -2,10 +2,7 @@ import { mat4, vec3 } from 'gl-matrix';
 import type { Vector3 } from '@kitware/vtk.js/types';
 import type { ImageMetadata } from '@/src/types/image';
 import type { SlabGeometry } from '@/src/core/slab/geometry';
-import {
-  computeReferenceLine,
-  type SlicePlane,
-} from '@/src/referenceLines/geometry';
+import { computeReferenceLine, type SlicePlane } from '@/src/referenceLines';
 
 /** Intersect a world-space slice plane with the displayed en face slab midpoint. */
 export function enFaceSliceLine(

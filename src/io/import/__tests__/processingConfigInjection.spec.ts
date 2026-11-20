@@ -44,10 +44,7 @@ const resetImportContext = () => {
 };
 
 describe('processing config injection (config-by-shape, origin-gated)', () => {
-  beforeEach(async () => {
-    resetImportContext();
-    await import('@/src/processing/integration');
-  });
+  beforeEach(resetImportContext);
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -61,7 +58,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     ] = await Promise.all([
       import('@/src/io/import/importDataSources'),
       import('@/src/io/import/dataSource'),
-      import('@/src/processing/store'),
+      import('@/src/processing'),
     ]);
 
     const ordinaryDataSource: DataSource = {
@@ -95,7 +92,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     ] = await Promise.all([
       import('@/src/io/import/importDataSources'),
       import('@/src/io/import/dataSource'),
-      import('@/src/processing/store'),
+      import('@/src/processing'),
       import('@/src/store/view-configs/windowing'),
     ]);
 
@@ -130,7 +127,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     ] = await Promise.all([
       import('@/src/io/import/importDataSources'),
       import('@/src/io/import/dataSource'),
-      import('@/src/processing/store'),
+      import('@/src/processing'),
     ]);
 
     // A config that both points a provider cross-origin AND tries to bless that
@@ -161,7 +158,7 @@ describe('processing config injection (config-by-shape, origin-gated)', () => {
     const [{ importVolumeDataSources }, { useProcessingJobsStore }] =
       await Promise.all([
         import('@/src/io/import/importDataSources'),
-        import('@/src/processing/store'),
+        import('@/src/processing'),
       ]);
 
     const dataSource: DataSource = {

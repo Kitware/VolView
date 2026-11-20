@@ -48,8 +48,7 @@
 import { Component, computed, defineComponent, ref, watch } from 'vue';
 
 import { ConnectionState, useServerStore } from '@/src/store/server';
-import { JobsModule } from '@/src/processing/integration';
-import { useProcessingJobsStore } from '@/src/processing/store';
+import { JobsModule, useProcessingJobsStore } from '@/src/processing';
 import DataBrowser from './DataBrowser.vue';
 import RenderingModule from './RenderingModule.vue';
 import AnnotationsModule from './AnnotationsModule.vue';
