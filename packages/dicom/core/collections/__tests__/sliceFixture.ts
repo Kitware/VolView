@@ -52,7 +52,7 @@ export function sliceDataset(options: SliceOptions = {}) {
       ...present(Tags.SeriesInstanceUID, series),
       ...present(Tags.SOPInstanceUID, sop),
       ...present(Tags.ImagePositionPatient, z, (value) => `0\\0\\${value}`),
-      ...present('0020|0013', instanceNumber),
+      ...present(Tags.InstanceNumber, instanceNumber),
       ...Object.entries(tags),
     ])
   );
