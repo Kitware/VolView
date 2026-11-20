@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import JSZip from 'jszip';
-import { useEnFaceViewStore } from '@/src/enface/store';
+import {
+  defaultEnFaceViewConfig,
+  useEnFaceViewStore,
+} from '@/src/enface/store';
 import { ManifestSchema, type StateFile } from '@/src/io/state-file/schema';
 import { parseNamedLayouts } from '@/src/utils/layoutParsing';
 import { computeEffectiveView } from '@/src/core/views/effectiveView';
@@ -31,7 +34,9 @@ describe('En face view settings', () => {
       axis: 1,
       depthStart: 20,
       depthEnd: 40,
-      thresholdMicrons: 35,
+      segmentProjections: {
+        layer: { visible: true, thresholdMicrons: null },
+      },
     });
     const state: StateFile = {
       zip: new JSZip(),
@@ -78,10 +83,8 @@ describe('En face view settings', () => {
       method: 'sum',
       depthStart: 20,
       depthEnd: 40,
-      thresholdMicrons: 35,
-      highlightThin: false,
+      segmentProjections: {},
     });
-    expect(store.configFor('restored', 'new-oct').segmentId).toBeNull();
     expect(useWindowingStore().getConfig('restored', 'new-oct')).toMatchObject({
       width: 120,
       level: 60,
@@ -89,7 +92,7 @@ describe('En face view settings', () => {
     });
   });
 
-  it('restores a slab scene saved without occupied-depth settings', () => {
+  it('restores a slab scene saved before per-segment settings with every segment hidden', () => {
     const parsed = ManifestSchema.parse({
       version: '7.0.0',
       datasets: [],
@@ -101,7 +104,15 @@ describe('En face view settings', () => {
           name: 'En face',
           config: {
             source: {
-              enFace: { axis: 2, method: 'max', depthStart: 1, depthEnd: 4 },
+              enFace: {
+                axis: 2,
+                method: 'max',
+                depthStart: 1,
+                depthEnd: 4,
+                highlightThin: true,
+                thresholdMicrons: 30,
+                segmentId: 'layer',
+              },
             },
           },
         },
@@ -118,32 +129,34 @@ describe('En face view settings', () => {
       method: 'max',
       depthStart: 1,
       depthEnd: 4,
-      highlightThin: false,
-      thresholdMicrons: 100,
-      segmentId: null,
+      segmentProjections: {},
     });
   });
 
   it('remaps saved segment ids and drops unknown ones on restore', () => {
     const store = useEnFaceViewStore();
-    const saved = (segmentId: string) => ({
-      enFace: {
-        axis: 1 as const,
-        method: 'mean' as const,
-        depthStart: 0,
-        depthEnd: null,
-        thresholdMicrons: 35,
-        highlightThin: true,
-        segmentId,
-      },
-    });
+    const projection = {
+      visible: true,
+      thresholdMicrons: 35,
+    };
     store.deserialize(
       'view',
-      { kept: saved('saved-layer'), dropped: saved('missing-layer') },
+      {
+        data: {
+          enFace: {
+            ...defaultEnFaceViewConfig(),
+            segmentProjections: {
+              'saved-layer': projection,
+              'missing-layer': projection,
+            },
+          },
+        },
+      },
       { 'saved-layer': 'chosen' }
     );
-    expect(store.configFor('view', 'kept').segmentId).toBe('chosen');
-    expect(store.configFor('view', 'dropped').segmentId).toBeNull();
+    expect(store.configFor('view', 'data').segmentProjections).toEqual({
+      chosen: projection,
+    });
   });
 
   it('resolves custom enface layouts without treating the projection as a slice', () => {

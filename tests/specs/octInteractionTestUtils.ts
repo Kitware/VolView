@@ -12,8 +12,7 @@ import {
   displayedWindow,
   selectEnFace,
   openEnFaceControls,
-  setHighlight,
-  setThicknessThreshold,
+  setSegmentThreshold,
   expectHighlight,
   CANVAS,
   CONTROLS,
@@ -52,7 +51,7 @@ export async function observeSlabProjectionChanges() {
   await browser.execute(() => {
     const viewer = document.querySelector('[data-testid="enface-viewer"]')!;
     const threshold = document.querySelector(
-      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
+      '.v-overlay--active [data-testid="enface-segment-threshold"] [role="slider"]'
     )!;
     const changes: string[] = [];
     const observer = new MutationObserver((records) => {
@@ -103,10 +102,9 @@ export async function getOriginalWindow() {
   return displayedWindow(source);
 }
 
-export async function openHighlightedSegmentationDisplay() {
+export async function openHighlightedSegmentationDisplay(segment: string) {
   await openEnFaceControls();
-  await setHighlight(true);
-  await setThicknessThreshold(31);
+  await setSegmentThreshold(segment, 31);
   await expectHighlight(true);
   await browser.keys('Escape');
   await openSegmentDisplay();

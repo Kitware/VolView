@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
-import { computed, defineComponent, h, markRaw, nextTick, ref } from 'vue';
+import { defineComponent, h, markRaw, nextTick, ref } from 'vue';
 import { createVuetify } from 'vuetify';
 import { Tags } from '@/src/core/dicomTags';
 import { CurrentImageInjectionKey } from '@/src/composables/useCurrentImage';
 import { untilLoaded } from '@/src/composables/untilLoaded';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import { useEnFaceInput } from '@/src/enface/useEnFaceInput';
-import { useOccupiedDepthInput } from '@/src/enface/useOccupiedDepthInput';
+import { useThinCalibration } from '@/src/enface/useThinCalibration';
+import { useMaskDepthRequest } from '@/src/enface/useMaskDepthRequest';
 import EnFaceControls from '@/src/enface/EnFaceControls.vue';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -61,19 +62,25 @@ async function mountInput(id: string) {
   };
   segmentation.maskVoxels(mask.id).apply(new Uint8Array(8).fill(1));
   const settings = useEnFaceViewStore().configFor('calibration', id);
-  Object.assign(settings, { highlightThin: true, segmentId: segment });
+  settings.segmentProjections[segment] = {
+    visible: true,
+    thresholdMicrons: 100,
+  };
   const host = defineComponent({
     setup() {
       const projection = useEnFaceInput('calibration');
-      const input = useOccupiedDepthInput('calibration', {
-        source: projection.source,
-        slab: projection.specification,
-        blockedReason: computed(
-          () => projection.controls.value.projectionReason
-        ),
-      });
+      const calibration = useThinCalibration(
+        projection.source,
+        projection.specification
+      );
+      const depth = useMaskDepthRequest(
+        projection.source,
+        projection.specification,
+        mask.id
+      );
       return () => {
-        const request = input.request.value;
+        const reason = calibration.reason.value || depth.geometryReason.value;
+        const request = reason ? null : depth.request.value;
         const result = request ? measureOccupiedDepth(request) : null;
         return h('div', [
           h(
@@ -82,22 +89,25 @@ async function mountInput(id: string) {
               'data-measurable': Boolean(request),
               'data-counts': result ? Array.from(result.counts).join(',') : '',
               'data-depth': result
-                ? result.maximumCount * input.micronsPerVoxel.value
+                ? result.maximumCount * calibration.micronsPerVoxel.value
                 : '',
             },
-            input.thicknessReason.value ?? 'Ready'
+            reason ?? 'Ready'
           ),
           h(EnFaceControls, {
             ...projection.controls.value,
-            settings: input.settings.value,
-            thickness: {
-              thresholdMaximum: 200,
-              segmentationReason: input.segmentationReason.value,
-              highlightReason: input.highlightReason.value,
-              thicknessReason: input.thicknessReason.value,
-              segments: input.segmentOptions.value,
-              segmentId: input.segmentId.value,
-              highlightThin: input.highlightThin.value,
+            settings,
+            segmentControls: {
+              segments: [
+                {
+                  id: segment,
+                  title: 'Layer',
+                  listHidden: false,
+                  thresholdMaximum: 200,
+                },
+              ],
+              segmentationReason: null,
+              thinReason: calibration.reason.value,
             },
           }),
         ]);
@@ -131,12 +141,14 @@ describe('occupied-depth input calibration', () => {
           'false'
         );
         expect(wrapper.text()).toMatch(/no reliable declared voxel spacing/);
-        for (const control of ['thin-highlight', 'thickness-threshold-input'])
-          expect(
-            wrapper
-              .get(`[data-testid="enface-${control}"] input`)
-              .attributes('disabled')
-          ).toBeDefined();
+        expect(
+          wrapper.find('[data-testid="enface-thin-reason"]').exists()
+        ).toBe(true);
+        expect(
+          wrapper
+            .find('[data-testid="enface-segment-threshold-input"]')
+            .exists()
+        ).toBe(false);
       } finally {
         wrapper.unmount();
       }
@@ -148,20 +160,16 @@ describe('occupied-depth input calibration', () => {
     try {
       expect(wrapper.get('output').attributes('data-measurable')).toBe('true');
       expect(wrapper.get('output').attributes('data-depth')).toBe('20.8');
-      const highlight = wrapper.get(
-        '[data-testid="enface-thin-highlight"] input'
-      );
-      const threshold = wrapper.get(
-        '[data-testid="enface-thickness-threshold-input"] input'
-      );
-      expect(highlight.attributes('disabled')).toBeUndefined();
-      expect(threshold.attributes('disabled')).toBeUndefined();
+      const reason = '[data-testid="enface-thin-reason"]';
+      const threshold = '[data-testid="enface-segment-threshold-input"]';
+      expect(wrapper.find(reason).exists()).toBe(false);
+      expect(wrapper.find(threshold).exists()).toBe(true);
       settings.axis = 0;
       await nextTick();
       expect(wrapper.get('output').attributes('data-measurable')).toBe('false');
       expect(wrapper.text()).toMatch(/no reliable declared voxel spacing/);
-      expect(highlight.attributes('disabled')).toBeDefined();
-      expect(threshold.attributes('disabled')).toBeDefined();
+      expect(wrapper.find(reason).exists()).toBe(true);
+      expect(wrapper.find(threshold).exists()).toBe(false);
     } finally {
       wrapper.unmount();
     }

@@ -28,6 +28,8 @@ import {
   writeManifestToFile,
 } from './utils';
 
+import { openAnnotationSegments } from './segmentationTestUtils';
+
 const STEM = 'projection-contrast';
 
 function stageSumContrastControl(
@@ -160,6 +162,16 @@ describe('Projection default contrast', () => {
     const sample = volViewPage.samplesList.$('div[title="Retinal OCT layers"]');
     await sample.waitForClickable();
     await sample.click();
+    await waitForEnFaceReady();
+    // The sample's layers would tint the projection this test measures.
+    await openAnnotationSegments();
+    const everySegment = $('[data-testid="toggle-segments-visible-button"]');
+    await everySegment.waitForEnabled();
+    await everySegment.click();
+    await expect(everySegment).toHaveAttribute(
+      'aria-label',
+      'Show every segment'
+    );
     await waitForEnFaceReady();
     await expectVisibleContrast(35);
   });

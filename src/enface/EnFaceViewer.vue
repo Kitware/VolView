@@ -4,8 +4,6 @@ import { useViewWindowingRanges } from '@/src/composables/useViewWindowingRanges
 import { useReferenceLinesStore } from '@/src/referenceLines';
 import { slabWindowRanges } from '@/src/core/slab/windowRanges';
 import { useEnFaceInput } from './useEnFaceInput';
-import { useEnFaceOccupiedDepth } from './useEnFaceOccupiedDepth';
-import VtkEnFaceLabelmapRepresentation from './VtkEnFaceLabelmapRepresentation.vue';
 import VtkSliceView from '@/src/components/vtk/VtkSliceView.vue';
 import VtkSliceViewNavigation from '@/src/components/vtk/VtkSliceViewNavigation.vue';
 import VtkSliceViewWindowManipulator from '@/src/components/vtk/VtkSliceViewWindowManipulator.vue';
@@ -23,8 +21,8 @@ import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import EnFaceControlPanel from './EnFaceControlPanel.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
-import EnFaceMeasurementStatus from './EnFaceMeasurementStatus.vue';
-import { useEnFaceViewStore } from './store';
+import EnFaceSegmentationProjection from './EnFaceSegmentationProjection.vue';
+import { useEnFaceViewStore, type SegmentControlState } from './store';
 
 const props = defineProps<{ viewId: string }>();
 const { viewId } = toRefs(props);
@@ -73,22 +71,17 @@ const windowingManipulatorProps = computed(() => ({
 const stateMessage = computed(
   () => controls.value.projectionReason || fatalContextError.value
 );
-const {
-  overlay: thinRegions,
-  controls: thicknessControls,
-  measuring,
-  message: measurementMessage,
-} = useEnFaceOccupiedDepth(viewId, {
-  source,
-  slab: specification,
-  geometry,
-  blockedReason: stateMessage,
+const measuring = ref(false);
+const segmentControls = ref<SegmentControlState>({
+  segments: [],
+  segmentationReason: null,
+  thinReason: null,
 });
 const enFaceStore = useEnFaceViewStore();
 const controlState = computed(() => ({
   ...controls.value,
   projectionReason: stateMessage.value,
-  thickness: thicknessControls.value,
+  segmentControls: segmentControls.value,
 }));
 watch(
   [viewId, currentImageID, controlState],
@@ -157,10 +150,17 @@ watch(
         :plane-origin="geometry.planeOrigin"
         :plane-normal="geometry.planeNormal"
       />
-      <VtkEnFaceLabelmapRepresentation v-bind="thinRegions" />
+      <EnFaceSegmentationProjection
+        :view-id="viewId"
+        :source="source"
+        :slab="specification"
+        :geometry="geometry"
+        :blocked-reason="stateMessage"
+        @controls="segmentControls = $event"
+        @measuring="measuring = $event"
+      />
     </VtkSliceView>
     <EnFaceStatus :message="stateMessage" :ready="projectionReady" />
-    <EnFaceMeasurementStatus :message="measurementMessage" />
     <ViewOverlayGrid class="overlay-no-events view-annotations">
       <template #top-left>
         <div class="annotation-cell" @click.stop @dblclick.stop>
@@ -202,7 +202,7 @@ watch(
             :close-on-content-click="false"
             location="top end"
             :offset="8"
-            :max-width="320"
+            :max-width="450"
           >
             <template #activator="{ props: menuProps }">
               <v-btn

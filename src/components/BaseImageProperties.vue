@@ -163,7 +163,7 @@ function setRange([min, max]: [number, number]) {
   >
     <template #label>
       <span class="text-caption text-medium-emphasis text-no-wrap">
-        Base image
+        {{ displayView?.type === 'EnFace' ? 'En face image' : 'Base image' }}
       </span>
     </template>
     <template #contrast="{ resetRangeDrafts }">
