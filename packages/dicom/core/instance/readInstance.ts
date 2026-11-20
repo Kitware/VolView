@@ -1,15 +1,10 @@
 import type { ByteSource } from '../source/byteSource';
 import { readPublicDataset, type DicomDataset } from '../metadata/dicomDataset';
 import type { DicomLayout } from '../metadata/dicomLayout';
-import { getDatasetModality } from '../metadata/datasetAccess';
 import {
   readDicomHeader,
   type PixelDataElement,
 } from '../header/readDicomHeader';
-import {
-  readUltrasoundRegions,
-  type UltrasoundRegions,
-} from '../metadata/ultrasoundRegion';
 import type { Awaitable } from '../utils';
 
 /**
@@ -23,7 +18,6 @@ export type Instance = Readonly<{
   dataset: DicomDataset;
   /** How the bytes opened: with or without the Part 10 preamble and file meta. */
   layout: DicomLayout | null;
-  ultrasoundRegions: UltrasoundRegions | null;
   /** As the file meta names it, or as a bare data set's first element suggests. */
   transferSyntaxUid: string | null;
   /** Null when the header names no Pixel Data or its element head is cut short. */
@@ -50,10 +44,6 @@ export async function readInstance(
     source,
     dataset,
     layout,
-    ultrasoundRegions:
-      getDatasetModality(dataset) === 'US'
-        ? readUltrasoundRegions(dataset)
-        : null,
     transferSyntaxUid,
     pixelData,
   });

@@ -60,7 +60,6 @@ export const cineInstance = (
     source: fromBlob(new Blob([pixels as BlobPart])),
     dataset: { ...dataset, elements: [...dataset.elements, ...elements] },
     layout: { preamble: true, fileMeta: true } as const,
-    ultrasoundRegions: null,
     transferSyntaxUid,
     pixelData: {
       offset: 0,

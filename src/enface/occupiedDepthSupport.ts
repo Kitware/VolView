@@ -4,19 +4,18 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import DicomVolumeImage from '@/src/core/streaming/dicomVolumeImage';
 import type { Maybe } from '@/src/types';
 import { Tags } from '@/packages/dicom/core/metadata/dicomTags';
-import { unitToMm } from '@/packages/dicom/core/metadata/ultrasoundRegion';
+import {
+  readUltrasoundRegions,
+  unitToMm,
+} from '@/packages/dicom/core/metadata/ultrasoundRegion';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
 import { dicomSeriesGeometry } from '@/src/core/streaming/dicom/seriesGeometry';
 
 function measurementMetadata(instance: Instance) {
   const tags = new Map(enFaceTags(instance.dataset));
-  const regions = instance.ultrasoundRegions;
-  if (
-    tags.get(Tags.Modality)?.trim() !== 'US' ||
-    !regions?.region ||
-    regions.regionCount > 1
-  )
-    return tags;
+  if (tags.get(Tags.Modality)?.trim() !== 'US') return tags;
+  const regions = readUltrasoundRegions(instance.dataset);
+  if (!regions.region || regions.regionCount > 1) return tags;
   const { region } = regions;
   const xFactor = unitToMm(region.physicalUnitsXDirection);
   const yFactor = unitToMm(region.physicalUnitsYDirection);

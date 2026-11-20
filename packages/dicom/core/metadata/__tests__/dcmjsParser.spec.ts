@@ -1,6 +1,7 @@
 import { readDicomDataset, findElement } from '../dicomDataset';
 import { getDatasetTag } from '../datasetAccess';
 import { getFrameTag, sequenceItems } from '../functionalGroups';
+import { readUltrasoundRegions } from '../ultrasoundRegion';
 import { createDicomParser } from '../../header/dicomParser';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
@@ -279,7 +280,7 @@ describe('lenient headers with standards-defined values', () => {
         ultrasoundRegion: { physicalDeltaX: 0.05, physicalDeltaY: 0.1 },
       });
       const instance = await readHeader(bytes);
-      expect(instance.ultrasoundRegions).toMatchObject({
+      expect(readUltrasoundRegions(instance.dataset)).toMatchObject({
         regionCount: 1,
         region: { physicalDeltaX: 0.05, physicalDeltaY: 0.1 },
       });
