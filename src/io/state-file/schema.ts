@@ -286,9 +286,15 @@ const EnFaceViewConfig = z.object({
   method: z.enum(SLAB_METHODS),
   depthStart: z.number().int().nonnegative(),
   depthEnd: z.number().int().nonnegative().nullable(),
-  highlightThin: z.boolean().default(false),
-  thresholdMicrons: z.number().nonnegative().default(100),
-  segmentId: z.string().nullable().default(null),
+  segmentProjections: z
+    .record(
+      z.string(),
+      z.object({
+        visible: z.boolean(),
+        thresholdMicrons: z.number().nonnegative().nullable(),
+      })
+    )
+    .default({}),
 }) satisfies z.ZodType<EnFaceViewConfig>;
 
 const ViewConfig = z.object({

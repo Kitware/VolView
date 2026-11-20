@@ -4,6 +4,7 @@
 import { nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
 import ListActionRow from '@/src/components/ListActionRow.vue';
+import ListItemRow from '@/src/components/ListItemRow.vue';
 
 const emit = defineEmits<{
   create: [];
@@ -123,20 +124,19 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
     <!-- Selection is mandatory: clicking a row picks it, and nothing clears it
          back to none. -->
     <div ref="listElement" class="item-list-scroll">
-      <v-list-item
+      <list-item-row
         v-for="item in items"
         :key="item.id"
         v-memo="[item, item.id === modelValue]"
-        class="item-row"
+        :name="item.name"
         @dragover="dragOver($event, item.id)"
         @drop="drop($event, item.id)"
         @dragleave="leaveRow"
         :active="item.id === modelValue"
-        :aria-label="item.name"
         :aria-current="item.id === modelValue ? 'true' : undefined"
         @click="emit('update:model-value', item.id)"
       >
-        <div class="d-flex align-center flex-nowrap">
+        <template #prepend>
           <button
             type="button"
             class="reorder-handle"
@@ -158,18 +158,11 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
             />
           </button>
           <slot name="item-prepend" :item="item"></slot>
-          <v-tooltip :eager="false" :text="item.name" location="end">
-            <template #activator="{ props: tooltip }">
-              <v-list-item-title v-bind="tooltip">{{
-                item.name
-              }}</v-list-item-title>
-            </template>
-          </v-tooltip>
-          <span class="ml-auto flex-shrink-0 d-flex align-center">
-            <slot name="item-append" :item="item"></slot>
-          </span>
-        </div>
-      </v-list-item>
+        </template>
+        <template #append>
+          <slot name="item-append" :item="item"></slot>
+        </template>
+      </list-item-row>
     </div>
 
     <list-action-row
@@ -195,27 +188,15 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
   cursor: grabbing;
 }
 
-/* Without it the title refuses to shrink and pushes the row controls off. */
-.item-row .v-list-item-title {
-  min-width: 0;
-}
-
-.v-list-item.item-row {
-  border: 1px solid transparent;
-  border-radius: 4px;
-  /* The default inset would dwarf the gaps between the row's parts. */
-  padding-inline: 4px;
-}
-
-.item-row.v-list-item--active {
+.v-list-item.item-row.v-list-item--active {
   background-color: rgb(var(--v-theme-selection-bg-color));
   border-color: rgb(var(--v-theme-selection-border-color));
 }
 
-.item-row[data-drop-position='before'] {
+.v-list-item.item-row[data-drop-position='before'] {
   border-top-color: rgb(var(--v-theme-primary));
 }
-.item-row[data-drop-position='after'] {
+.v-list-item.item-row[data-drop-position='after'] {
   border-bottom-color: rgb(var(--v-theme-primary));
 }
 

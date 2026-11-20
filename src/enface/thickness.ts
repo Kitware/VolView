@@ -34,11 +34,10 @@ export function createThinRegionMask(counts: Uint32Array, cutoff: number) {
 }
 
 export function thicknessSliderMaximum(
-  result: OccupiedDepthResult | null,
+  result: OccupiedDepthResult,
   micronsPerVoxel: number
 ) {
-  if (!result || !Number.isFinite(micronsPerVoxel) || micronsPerVoxel <= 0)
-    return 1;
+  if (!Number.isFinite(micronsPerVoxel) || micronsPerVoxel <= 0) return 1;
   const maximum = result.maximumCount * micronsPerVoxel;
   // The strict below-threshold comparison needs an endpoint above the maximum.
   const tenths = Math.floor(maximum * 10) + 1;
@@ -48,4 +47,4 @@ export function thicknessSliderMaximum(
 }
 
 export const EN_FACE_THICKNESS_HELP =
-  'Thickness of the selected segment within the slab, along the projection axis. Only occupied voxels are counted; gaps are excluded.';
+  'Thickness is measured within the shown depth, along the projection axis. Only occupied voxels are counted; gaps are excluded.';

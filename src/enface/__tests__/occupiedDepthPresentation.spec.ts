@@ -55,7 +55,6 @@ describe('occupied-depth threshold presentation', () => {
     expect(
       isPresentThicknessBelow(41.6, thicknessSliderMaximum(full, 10.4))
     ).toBe(true);
-    expect(thicknessSliderMaximum(null, 10.4)).toBe(1);
     // 13 * 3.9 rounds just below 50.7, so the endpoint steps to 50.8 exactly.
     const rounded = {
       ...full,

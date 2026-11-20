@@ -1,19 +1,31 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { rangeThumbLabels } from '@/src/utils/rangeThumbLabels';
 import { SLAB_METHODS } from '@/src/core/slab/types';
-import EnFaceThicknessControls from './EnFaceThicknessControls.vue';
-import type { EnFaceViewConfig, EnFaceViewControlState } from './store';
+import EnFaceSegmentControls from './EnFaceSegmentControls.vue';
+import type {
+  EnFaceViewConfig,
+  EnFaceViewControlState,
+  SegmentProjection,
+} from './store';
 
 const props = defineProps<
   EnFaceViewControlState & { settings: EnFaceViewConfig; embedded?: boolean }
 >();
 const emit = defineEmits<{
   patch: [settings: Partial<EnFaceViewConfig>];
+  segment: [segmentId: string, patch: Partial<SegmentProjection>];
 }>();
 const expandedSections = ref([0, 1]);
 const slabDraft = ref<number[] | null>(null);
+const slabBounds = computed(
+  () =>
+    slabDraft.value ?? [
+      props.settings.depthStart,
+      props.settings.depthEnd ?? props.depthMaximum,
+    ]
+);
 watch(
   () => [
     props.settings.axis,
@@ -54,7 +66,7 @@ function updateAxis(axis: number) {
   <v-card
     class="en-face-controls"
     :class="{ embedded }"
-    :width="embedded ? '100%' : 300"
+    :width="embedded ? '100%' : 450"
     :rounded="embedded ? 0 : 'lg'"
     :flat="embedded"
     data-testid="enface-rendering-panel"
@@ -111,15 +123,31 @@ function updateAxis(axis: number) {
                 data-testid="enface-projection-axis"
               />
             </ReasonedAction>
+            <div class="slab-heading text-body-2">
+              <span class="d-inline-flex align-center">
+                Slab
+                <ReasonedAction
+                  tooltip="First and last voxel indices along the chosen axis, both included in the projection."
+                  class="ml-1"
+                >
+                  <v-btn
+                    icon="mdi-information-outline"
+                    size="x-small"
+                    variant="text"
+                    aria-label="About slab range"
+                    data-testid="enface-slab-help"
+                  />
+                </ReasonedAction>
+              </span>
+              <span>
+                {{ slabBounds[0] }} to {{ slabBounds[1] }} of
+                {{ depthMaximum }}
+              </span>
+            </div>
             <ReasonedAction :reason="projectionReason ?? undefined" block>
               <v-range-slider
                 v-slab-labels
-                :model-value="
-                  slabDraft ?? [
-                    settings.depthStart,
-                    settings.depthEnd ?? depthMaximum,
-                  ]
-                "
+                :model-value="slabBounds"
                 @update:model-value="slabDraft = $event"
                 @end="updateSlab"
                 @keydown="applyKeyboardSlab"
@@ -131,33 +159,15 @@ function updateAxis(axis: number) {
                 hide-details
                 :disabled="!!projectionReason"
                 data-testid="enface-slab-range"
-              >
-                <template #label>
-                  <span class="d-inline-flex align-center">
-                    Slab
-                    <ReasonedAction
-                      tooltip="First and last voxel indices along the chosen axis, both included in the projection."
-                      class="ml-1"
-                    >
-                      <v-btn
-                        icon="mdi-information-outline"
-                        size="x-small"
-                        variant="text"
-                        aria-label="About slab range"
-                        data-testid="enface-slab-help"
-                      />
-                    </ReasonedAction>
-                  </span>
-                </template>
-              </v-range-slider>
+              />
             </ReasonedAction>
           </v-expansion-panel-text>
         </v-expansion-panel>
-        <EnFaceThicknessControls
-          v-bind="thickness"
+        <EnFaceSegmentControls
+          v-bind="segmentControls"
           :settings="settings"
           :embedded="embedded"
-          @patch="emit('patch', $event)"
+          @segment="(id, patch) => emit('segment', id, patch)"
         />
       </v-expansion-panels>
     </v-card-text>
@@ -180,6 +190,11 @@ function updateAxis(axis: number) {
 .section-title {
   padding: 0 4px;
   font-size: 0.8125rem;
+}
+.slab-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .control-sections :deep(.v-expansion-panel-text__wrapper) {
   padding: 8px 0 0;
