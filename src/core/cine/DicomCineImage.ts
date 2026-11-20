@@ -18,7 +18,7 @@ import {
 } from '@/packages/dicom/core/metadata/spatialMetadata';
 import { unitToMm } from '@/packages/dicom/core/metadata/ultrasoundRegion';
 import type { Instance } from '@/packages/dicom/core/instance/readInstance';
-import { abortError } from '@/src/utils';
+import { abortError } from '@/packages/dicom/core/utils';
 import {
   type CineHeader,
   isNativeTransferSyntax,

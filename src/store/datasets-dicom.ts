@@ -23,7 +23,8 @@ import DicomCineImage from '@/src/core/cine/DicomCineImage';
 import { isCineInstance, readCineHeader } from '@/src/core/cine/cineInstance';
 import { surfaceWarning, useMessageStore } from '@/src/store/messages';
 import { viewedSlice } from '@/src/store/dicom-viewed-slice';
-import { ensureError, groupBy, removeFromArray } from '../utils';
+import { ensureError, removeFromArray } from '../utils';
+import { groupBy } from '@/packages/dicom/core/collections/groupBy';
 
 export const ANONYMOUS_PATIENT = 'Anonymous';
 export const ANONYMOUS_PATIENT_ID = 'ANONYMOUS';

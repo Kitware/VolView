@@ -95,16 +95,6 @@ export function partition<T>(
   return partitioned;
 }
 
-/** Groups keep input order, both of the keys and of their members. */
-export const groupBy = <T>(items: readonly T[], keyOf: (item: T) => string) =>
-  items.reduce((groups, item) => {
-    const key = keyOf(item);
-    const group = groups.get(key);
-    if (group) group.push(item);
-    else groups.set(key, [item]);
-    return groups;
-  }, new Map<string, T[]>());
-
 /** A cursor over `items`: each call hands out the next one, wrapping around. */
 export function cycle<T>(items: readonly T[]) {
   let index = 0;
@@ -255,9 +245,6 @@ export function ensureError(e: unknown) {
   return e instanceof Error ? e : new Error(JSON.stringify(e));
 }
 
-export const abortError = (message: string) =>
-  new DOMException(message, 'AbortError');
-
 export function getErrorDetail(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -325,17 +312,4 @@ export function addEventListenerOnce<T extends EventTarget>(
     return callback();
   };
   target.addEventListener(event, handler);
-}
-
-/**
- * Wraps a generator as a coroutine.
- * @param generator
- * @param args
- * @returns
- */
-export function asCoroutine<T, R, N>(gen: Generator<T, R, N>) {
-  // run initial code
-  const result = gen.next();
-  if (result.done) return () => result;
-  return (value: N): IteratorResult<T, R> => gen.next(value);
 }
