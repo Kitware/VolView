@@ -1,5 +1,4 @@
-import { computed, effectScope, ref, Ref, shallowRef } from 'vue';
-import type { SpatialMetadata } from '@/packages/dicom/core/metadata/spatialMetadata';
+import { computed, effectScope, ref, Ref } from 'vue';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { ImageMetadata } from '@/src/types/image';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
@@ -98,7 +97,6 @@ export function reactiveVtkImageMetadata(
 }
 
 export abstract class BaseProgressiveImage implements ProgressiveImage {
-  protected spatialMetadata = shallowRef<SpatialMetadata>();
   public loading: Ref<boolean>;
   public loaded: Ref<boolean>;
   public status: Ref<ProgressiveImageStatus>;
@@ -120,12 +118,7 @@ export abstract class BaseProgressiveImage implements ProgressiveImage {
       this.vtkImageData,
       this.name
     );
-    this.imageMetadata = computed(() => ({
-      ...imageMetadata.value,
-      ...(this.spatialMetadata.value
-        ? { spatialMetadata: this.spatialMetadata.value }
-        : {}),
-    }));
+    this.imageMetadata = imageMetadata;
 
     this.cleanupListeners = () => {
       stop();

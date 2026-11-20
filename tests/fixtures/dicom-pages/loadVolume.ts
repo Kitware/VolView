@@ -32,7 +32,7 @@ export async function loadCollection(
   return { volume, image };
 }
 
-export function loadInstanceVolume(instance: Instance) {
+export async function loadInstanceVolume(instance: Instance) {
   const [update] = registerInstances(emptyRegistry, [instance]).updates;
-  return loadCollection(update);
+  return { update, ...(await loadCollection(update)) };
 }

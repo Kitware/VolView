@@ -41,8 +41,7 @@ function layoutOf(sources: VolumeSource[], orientation: number[] | null) {
   return volumeLayout(sources, orientation, reconstruction);
 }
 
-const spacingOf = (layout: ReturnType<typeof layoutOf>) =>
-  layout.spatialMetadata.axes.map((axis) => axis.value);
+const spacingOf = (layout: ReturnType<typeof layoutOf>) => layout.spacing;
 
 const dimensionsOf = ({
   columns,

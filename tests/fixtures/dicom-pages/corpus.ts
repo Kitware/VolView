@@ -14,12 +14,9 @@ async function run() {
       ? new File([await (await fetch(url)).blob()], 'volume.dcm')
       : url;
   const instance = await runtime.readInstance(sourceOf(input), never);
-  const { volume, image } = await loadInstanceVolume(instance);
+  const { update, image } = await loadInstanceVolume(instance);
   await describeVolume(image, report);
-  report(
-    'reconstruction',
-    volume.spatialMetadata.reconstruction?.kind ?? 'unreported'
-  );
+  report('reconstruction', update.collection.reconstruction.kind);
   report('status', 'complete');
 }
 
