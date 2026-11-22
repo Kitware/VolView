@@ -16,6 +16,7 @@ describe('DICOM window display range', () => {
   it.each([
     ['unsigned identity', '2048', '4096', undefined, [0, 4095]],
     ['signed window', '0', '100', 'LINEAR', [-50, 49]],
+    ['NUL padded values', '7758\0', '13964\0', undefined, [776, 14739]],
     ['fractional exact window', '0.5', '1', 'LINEAR_EXACT', [0, 1]],
     ['sub-unit exact width', '0', '0.25', 'LINEAR_EXACT', [-0.125, 0.125]],
   ] as const)(
