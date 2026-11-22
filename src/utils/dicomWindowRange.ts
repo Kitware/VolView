@@ -1,4 +1,5 @@
 import { Tags } from '@/src/dicom/core/metadata/dicomTags';
+import { trimDicomPadding } from '@/src/dicom/core/utils';
 
 type DicomMetadata = Iterable<readonly [string, string]> | null | undefined;
 
@@ -7,7 +8,8 @@ const decimal = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const parseValues = (value?: string) =>
   value
     ?.split('\\')
-    .map((token) => (decimal.test(token.trim()) ? Number(token) : NaN)) ?? [];
+    .map(trimDicomPadding)
+    .map((token) => (decimal.test(token) ? Number(token) : NaN)) ?? [];
 
 function readWindow(metadata: DicomMetadata) {
   if (!metadata) return undefined;
