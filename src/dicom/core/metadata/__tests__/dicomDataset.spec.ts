@@ -105,6 +105,16 @@ describe('readDicomDataset', () => {
     });
   });
 
+  it('reads a number element with no value as empty, not as zero', () => {
+    const dataset = readDicomDataset(
+      buildSlice({
+        extraElements: [rawElement(0x0028, 0x0106, 'US', new Uint8Array())],
+      })
+    );
+
+    expect(valuesOf(dataset, '00280106')).toMatchObject({ values: [] });
+  });
+
   it('descends into a sequence and into the sequence inside it', () => {
     const dataset = readDicomDataset(
       buildSlice({ extraElements: [NESTED_SEQUENCE] })
