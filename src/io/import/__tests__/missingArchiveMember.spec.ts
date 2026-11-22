@@ -8,6 +8,7 @@ import {
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useMessageStore } from '@/src/store/messages';
+import { Skip } from '@/src/utils/evaluateChain';
 
 // ---------------------------------------------------------------------------
 // Regression: a state file whose archive is missing SOME of a dataset's files
@@ -57,6 +58,19 @@ describe('restore with a partially missing dataset archive', () => {
     expect(result.missingFiles).toEqual([
       { stateID: 'ds-ct', path: 'data/20/b.dcm' },
     ]);
+  });
+
+  it('leaves a saved dataset archive to extraction, even when the archive holds a manifest', async () => {
+    const file = await stateZipMissingOneMember();
+
+    const result = await restoreStateFile({
+      type: 'file',
+      file,
+      fileType: 'application/zip',
+      stateFileLeaf: { stateID: 'ds-ct', archivePaths: ['data/10/a.dcm'] },
+    });
+
+    expect(result).toBe(Skip);
   });
 
   it('the consolidated notice names a member missing from a dataset that still restored', async () => {

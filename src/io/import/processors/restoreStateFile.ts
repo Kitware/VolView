@@ -9,6 +9,10 @@ import {
   ImportHandler,
   StateFileSetupResult,
 } from '@/src/io/import/common';
+import {
+  type DataSource,
+  findStateFileLeaves,
+} from '@/src/io/import/dataSource';
 import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
 import { partition, getURLBasename } from '@/src/utils';
 import { basename } from '@/src/utils/path';
@@ -354,8 +358,16 @@ async function parseManifestFromJson(file: File) {
   return { manifestString, stateFiles: [] as FileEntry[] };
 }
 
+// Asking each member whether it is a session would read its archive whole.
+const isSavedArchiveMember = (dataSource: DataSource) =>
+  !!findStateFileLeaves(dataSource)[0]?.archivePaths?.length;
+
 export const restoreStateFile: ImportHandler = async (dataSource) => {
-  if (dataSource.type === 'file' && (await isStateFile(dataSource.file))) {
+  if (
+    dataSource.type === 'file' &&
+    !isSavedArchiveMember(dataSource) &&
+    (await isStateFile(dataSource.file))
+  ) {
     const isJson = dataSource.fileType === 'application/json';
     const { manifestString, stateFiles } = isJson
       ? await parseManifestFromJson(dataSource.file)
