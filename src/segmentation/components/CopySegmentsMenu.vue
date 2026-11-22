@@ -8,7 +8,10 @@ import { useImageCacheStore } from '@/src/store/image-cache';
 import type { Maybe } from '@/src/types';
 import { plural } from '@/src/utils';
 
-const props = defineProps<{ imageId: Maybe<string> }>();
+const props = defineProps<{
+  imageId: Maybe<string>;
+  unavailableReason: string;
+}>();
 
 const registry = useSegmentStore().segments;
 const imageCacheStore = useImageCacheStore();
@@ -28,10 +31,11 @@ const sources = computed(() =>
     }))
 );
 
-const reason = computed(() => {
-  if (!props.imageId) return 'Select an image to edit segments';
-  return sources.value.length ? '' : 'No other image has segments yet';
-});
+const reason = computed(
+  () =>
+    props.unavailableReason ||
+    (sources.value.length ? '' : 'No other image has segments yet')
+);
 
 const copyFrom = (sourceId: string) => {
   if (props.imageId) registry.copySegments(props.imageId, sourceId);

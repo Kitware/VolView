@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { TEMP_DIR } from '../../wdio.shared.conf';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { volViewPage } from '../pageobjects/volview.page';
 import {
   openThroughDialog,
   overlayOption,
@@ -14,6 +14,7 @@ import {
 } from './utils';
 import {
   addSegment,
+  clickImageCard,
   copySegmentsFrom,
   copySegmentsRow,
   copySource,
@@ -23,6 +24,7 @@ import {
   lockSegment,
   openAnnotationSegments,
   openCopySegmentsMenu,
+  recolorSegment,
   renameSegment,
   segmentColor,
   segmentNames,
@@ -47,18 +49,7 @@ const active2DView = () =>
   $('.grid-item[style*="mediumseagreen"] [data-testid~="vtk-two-view"]');
 
 const showImage = async (name: string) => {
-  await $('button[data-testid="module-tab-Data"]').click();
-  await waitForModuleTransitions();
-  const card = $(`.image-list-card:has([title="${name}"])`);
-  await card.waitForDisplayed();
-  await card.scrollIntoView();
-  await card.waitForClickable();
-  await card.click();
-  await browser.waitUntil(async () =>
-    ((await card.getAttribute('class')) ?? '').includes(
-      'image-list-card-active'
-    )
-  );
+  await clickImageCard(name);
   await openAnnotationSegments();
   await volViewPage.waitForLoadingIndicator(active2DView());
 };
@@ -106,17 +97,6 @@ const createSourceDefinitions = async () => {
   await renameSegment('Segment 1', 'Tumor');
   await selectSegment('Tumor');
   await waitForSegmentContent('Tumor');
-};
-
-const recolor = async (name: string) => {
-  await (await segmentRow(name))
-    .$('[data-testid="edit-segment-button"]')
-    .click();
-  const dialog = $('div[role="dialog"]');
-  await dialog.waitForDisplayed();
-  await setValueVueInput(dialog.$('.v-color-picker-edit input'), '64');
-  await volViewPage.editLabelModalDoneButton.click();
-  await dialog.waitForDisplayed({ reverse: true });
 };
 
 const openSparseSession = async (activeView?: string) => {
@@ -348,7 +328,7 @@ describe('Image segmentation sets', () => {
     await copied.waitForDisplayed({ reverse: true });
 
     await renameSegment('Tumor', 'Lesion');
-    await recolor('Lesion');
+    await recolorSegment('Lesion', 64);
     const secondColor = await segmentColor('Lesion');
     expect(secondColor).not.toEqual(originalColor);
     await paint();
@@ -387,7 +367,7 @@ describe('Image segmentation sets', () => {
     await showImage(SECOND);
     await addSegment();
     await renameSegment('Segment 1', 'Liver');
-    await recolor('Liver');
+    await recolorSegment('Liver', 64);
     const ownLiver = await segmentColor('Liver');
     expect(ownLiver).not.toEqual(firstLiver);
 
