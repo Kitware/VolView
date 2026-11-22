@@ -36,6 +36,8 @@ export function createImageStorage({
     });
   };
 
+  const allMasks = () => Object.keys(imageSets.value).flatMap(imageMasks);
+
   /** Seats prepared storage as the segment's mask; a segment holds one. */
   const setMask = (segmentId: string, binding: LabelmapBinding) => {
     const set = setOf(segmentId);
@@ -83,6 +85,7 @@ export function createImageStorage({
   return {
     maskOf,
     imageMasks,
+    allMasks,
     setMask,
     removeMask,
     forgetMasks,

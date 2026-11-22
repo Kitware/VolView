@@ -329,9 +329,7 @@ export const usePaintProcessStore = defineStore('paintProcess', () => {
     const segmentId = segmentationStore.findEditTarget(imageId);
     if (segmentId && segmentationStore.isLocked(segmentId))
       return 'Cannot process locked segment';
-    return segmentationStore.maskOf(segmentId)
-      ? ''
-      : 'No segment content to process';
+    return segmentId ? '' : 'No segment content to process';
   }
 
   // Every mask holds a voxel, so masks with none editable are all locked.

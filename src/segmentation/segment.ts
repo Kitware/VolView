@@ -31,13 +31,6 @@ export type Segment = {
 
 export type SegmentInit = Partial<Omit<Segment, 'id'>>;
 
-export type SegmentDefaults = Omit<
-  Segment,
-  'id' | 'color' | 'visible' | 'locked'
-> & {
-  color?: RGBAColor;
-};
-
 export const DEFAULT_SEGMENT_COLOR = cssColorToRGBA(TOOL_COLORS[0]);
 
 const APPEARANCE_DEFAULTS = {

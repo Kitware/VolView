@@ -10,6 +10,7 @@ import {
   deleteSegment,
   mintSegment,
   store,
+  maskedSegmentIds,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -27,11 +28,6 @@ function makeBoundSegment(imageId: string, name?: string) {
   const binding = store().materializeMask(id);
   return { id, binding };
 }
-
-const maskedSegments = (imageId: string) =>
-  store()
-    .imageMasks(imageId)
-    .map(({ segmentId }) => segmentId);
 
 const segmentIdsOf = (imageId: string) =>
   segments()
@@ -80,7 +76,7 @@ describe('segmentation store', () => {
 
       store().materializeMask(segmentId);
 
-      expect(maskedSegments('img-1')).toEqual([segmentId]);
+      expect(maskedSegmentIds('img-1')).toEqual([segmentId]);
     });
 
     it('names a segmentation after its parent image', async () => {
@@ -96,8 +92,8 @@ describe('segmentation store', () => {
       const first = makeBoundSegment('img-1');
       const second = makeBoundSegment('img-2');
 
-      expect(maskedSegments('img-1')).toEqual([first.id]);
-      expect(maskedSegments('img-2')).toEqual([second.id]);
+      expect(maskedSegmentIds('img-1')).toEqual([first.id]);
+      expect(maskedSegmentIds('img-2')).toEqual([second.id]);
     });
   });
 
@@ -117,7 +113,7 @@ describe('segmentation store', () => {
       const first = makeBoundSegment('img-1');
       const second = makeBoundSegment('img-1');
 
-      expect(maskedSegments('img-1')).toEqual([first.id, second.id]);
+      expect(maskedSegmentIds('img-1')).toEqual([first.id, second.id]);
       expect(bindingOf(second.id)).toBe(second.binding);
     });
 
@@ -160,7 +156,7 @@ describe('segmentation store', () => {
       const again = store().materializeMask(segmentId);
 
       expect(again).toBe(first);
-      expect(maskedSegments('img-1')).toEqual([segmentId]);
+      expect(maskedSegmentIds('img-1')).toEqual([segmentId]);
     });
 
     it('refuses a second mask for a segment', async () => {
@@ -171,7 +167,7 @@ describe('segmentation store', () => {
         store().allocateSegmentMask(segmentId, [0, 0, 0, 0, 0, 0])
       ).toThrow('Segment already has a mask');
       expect(bindingOf(segmentId)).toBe(binding);
-      expect(maskedSegments('img-1')).toEqual([segmentId]);
+      expect(maskedSegmentIds('img-1')).toEqual([segmentId]);
     });
 
     it('refuses a mask for a segment that does not exist', async () => {
@@ -192,7 +188,7 @@ describe('segmentation store', () => {
       const { id: segmentId } = makeBoundSegment('img-1');
 
       expect(boundMasks().map((mask) => mask.segmentId)).toEqual([segmentId]);
-      expect(maskedSegments('img-1')).toEqual([segmentId]);
+      expect(maskedSegmentIds('img-1')).toEqual([segmentId]);
     });
   });
 
@@ -219,7 +215,7 @@ describe('segmentation store', () => {
       expect(bindingOf(second.id)).toBe(second.binding);
       // Masks walk in segment order, so the move reorders them too.
       expect(segmentIdsOf('img-1')).toEqual([second.id, first.id]);
-      expect(maskedSegments('img-1')).toEqual([second.id, first.id]);
+      expect(maskedSegmentIds('img-1')).toEqual([second.id, first.id]);
     });
 
     it('leaves other segments untouched when one is updated', async () => {
@@ -263,7 +259,7 @@ describe('segmentation store', () => {
       expect([...store().maskVoxels(kept.id).scalars()]).toEqual([
         SEGMENT_VALUE,
       ]);
-      expect(maskedSegments('img-1')).toEqual([kept.id]);
+      expect(maskedSegmentIds('img-1')).toEqual([kept.id]);
       expect(bindingOf(doomed.id)).toBeUndefined();
     });
 
@@ -497,7 +493,7 @@ describe('segmentation store', () => {
 
       expect(target).toBe(segmentId);
       expect(store().materializeMask(target)).toBe(binding);
-      expect(maskedSegments('img-2')).toEqual([segmentId]);
+      expect(maskedSegmentIds('img-2')).toEqual([segmentId]);
     });
 
     it('mints a segment again when its segment was deleted', async () => {
@@ -563,7 +559,7 @@ describe('segmentation store', () => {
       const target = store().resolveEditTarget('img-1');
       const binding = store().materializeMask(target);
 
-      expect(maskedSegments('img-1')).toEqual([target]);
+      expect(maskedSegmentIds('img-1')).toEqual([target]);
       expect(labelmapOf(target)).toBe(binding.image);
     });
 

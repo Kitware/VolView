@@ -29,12 +29,13 @@ const labels = computed(() =>
   segmentIds.value.flatMap((segmentId, index) => {
     const segment = registry.getSegment(segmentId);
     if (!segment) return [];
-    const appearance = labelmapAppearance(
-      toLabelmapSegment(segment, index + 1),
-      display.value,
-      revealPulse(segmentId)
-    );
-    return [{ ...appearance, value: index + 1 }];
+    return [
+      labelmapAppearance(
+        toLabelmapSegment(segment, index + 1),
+        display.value,
+        revealPulse(segmentId)
+      ),
+    ];
   })
 );
 

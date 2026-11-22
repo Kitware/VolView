@@ -13,7 +13,8 @@ import { useImage } from '@/src/composables/useCurrentImage';
 import { useSliceConfig } from '@/src/composables/useSliceConfig';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useMaskRevision } from '@/src/segmentation/composables/useMaskRevision';
-import { maskScalars, type LabelmapBinding } from '@/src/segmentation/model';
+import { maskScalars, type SegmentMaskEntry } from '@/src/segmentation/model';
+import { arrayEquals, arrayEqualsWithComparator } from '@/src/utils';
 import { placeMask, setMaskScalars } from '@/src/segmentation/masks/storage';
 import { extentReachesSlice, type Extent3D } from '@/src/segmentation/geometry';
 import {
@@ -24,15 +25,10 @@ import {
 import type { LPSAxis } from '@/src/types/lps';
 import type { Maybe } from '@/src/types';
 
-type PlaneMask = { id: string; binding: LabelmapBinding };
 export type RenderedPlane = { image: vtkLabelMap; segmentIds: string[] };
 
-const sameMasks = (a: PlaneMask[], b: PlaneMask[]) =>
-  a.length === b.length &&
-  a.every((mask, index) => mask.binding === b[index].binding);
-
-const sameIds = (a: string[], b: string[]) =>
-  a.length === b.length && a.every((id, index) => id === b[index]);
+const sameMasks = (a: SegmentMaskEntry[], b: SegmentMaskEntry[]) =>
+  arrayEqualsWithComparator(a, b, (x, y) => x.binding === y.binding);
 
 /** One vtk image per plane index, reused while its buffer is. */
 function createPlaneImages() {
@@ -75,10 +71,8 @@ export function useSegmentSlicePlanes(
   requestRender: () => void
 ) {
   const registry = useSegmentStore().segments;
-  const imageMasks = computed((previous: PlaneMask[] = []) => {
-    const masks = registry
-      .imageMasks(imageId.value)
-      .map(({ segmentId, binding }) => ({ id: segmentId, binding }));
+  const imageMasks = computed((previous: SegmentMaskEntry[] = []) => {
+    const masks = registry.imageMasks(imageId.value);
     return sameMasks(masks, previous) ? previous : masks;
   });
   const { metadata, imageData: parent } = useImage(imageId);
@@ -101,8 +95,8 @@ export function useSegmentSlicePlanes(
     shown = undefined;
     if (!parentImage || axisIndex === undefined || index == null) return [];
     shown = { axis: axisIndex, index: Math.round(index) };
-    const masks = imageMasks.value.map(({ id, binding }) => ({
-      id,
+    const masks = imageMasks.value.map(({ segmentId, binding }) => ({
+      id: segmentId,
       // Growth replaces the extent, so reading the raw array still tracks it.
       extent: [...toRaw(binding.extent)] as Extent3D,
       scalars: maskScalars(binding.image),
@@ -129,7 +123,7 @@ export function useSegmentSlicePlanes(
     unref(revision);
     current = compose().map((plane, index) => {
       const held = current[index]?.segmentIds;
-      return held && sameIds(held, plane.segmentIds)
+      return held && arrayEquals(held, plane.segmentIds)
         ? { ...plane, segmentIds: held }
         : plane;
     });

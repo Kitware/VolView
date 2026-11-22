@@ -543,5 +543,9 @@ export async function deserializeSegmentation({
       skipped.push({ name: item.name, reason: 'labelmap holds no segments' });
   });
 
+  (manifest.imageSegments ?? []).forEach(({ imageId }) =>
+    segmentRegistry.applyTemplate(dataIDMap[imageId])
+  );
+
   return { restoredImportIds, skipped };
 }

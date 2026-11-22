@@ -1,4 +1,3 @@
-import { markRaw } from 'vue';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 
 import type {
@@ -81,7 +80,7 @@ export function prepareRestoreBindings(input: RestoreBindingInput) {
 
     placeMask(labelmap, parentImage, extent);
     acceptedBindings.set(wireMask, {
-      image: markRaw(labelmap),
+      image: labelmap,
       extent,
       ...(source ? { source } : {}),
     });

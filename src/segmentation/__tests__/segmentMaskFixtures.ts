@@ -357,6 +357,12 @@ export const segmentNames = (imageId: string) =>
     .segments.segmentList(imageId)
     .map(({ name }) => name);
 
+/** The ids of an image's segments that hold a mask, in its own order. */
+export const maskedSegmentIds = (imageId: string) =>
+  useSegmentStore()
+    .segments.imageMasks(imageId)
+    .map(({ segmentId }) => segmentId);
+
 export const mintSegment = (imageId: string, init: SegmentInit | string = {}) =>
   useSegmentStore().segments.mintSegment(
     imageId,

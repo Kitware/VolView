@@ -4,26 +4,21 @@ import {
   boundMasks,
   seatSpecImage,
   store,
+  maskedSegmentIds,
+  showImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
-import { nextTick } from 'vue';
 
 import { TOOL_COLORS } from '@/src/config';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useRulerStore } from '@/src/store/tools/rulers';
-import { useViewStore } from '@/src/store/views';
 import { applyPostStateConfig, config } from '@/src/io/import/configJson';
 import { cssColorToRGBA } from '@/src/segmentation/color';
 
 const segments = () => useSegmentStore().segments;
 
-const viewImage = async (id: string) => {
-  useViewStore().setDataForAllViews(id);
-  await nextTick();
-};
-
 const seatAndView = async (id: string) => {
   await seatSpecImage(id);
-  await viewImage(id);
+  await showImage(id);
 };
 
 const applyConfig = (raw: unknown) => applyPostStateConfig(config.parse(raw));
@@ -38,11 +33,6 @@ const segmentIdNamed = (name: string) => {
   if (!type) throw new Error(`No type named "${name}"`);
   return type.id;
 };
-
-const maskedSegmentsOf = (imageId: string) =>
-  store()
-    .imageMasks(imageId)
-    .map(({ segmentId }) => segmentId);
 
 const TWO_TYPES = {
   segments: {
@@ -78,8 +68,8 @@ describe('a configured segment creates nothing', () => {
         .segmentList('img-2')
         .map(({ name }) => name)
     ).toEqual(['Tumor', 'Node']);
-    expect(maskedSegmentsOf('img-1')).toEqual([]);
-    expect(maskedSegmentsOf('img-2')).toEqual([]);
+    expect(maskedSegmentIds('img-1')).toEqual([]);
+    expect(maskedSegmentIds('img-2')).toEqual([]);
     const second = segments().findSegmentByName('img-2', 'Tumor');
     expect(second).toBeDefined();
     expect(second!.id).not.toBe(segmentIdNamed('Tumor'));
@@ -181,7 +171,7 @@ describe('a config is a template', () => {
     await seatSpecImage('img-2');
 
     applyConfig({ segments: {} });
-    await viewImage('img-2');
+    await showImage('img-2');
 
     expect(
       segments()

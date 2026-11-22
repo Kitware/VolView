@@ -9,6 +9,7 @@ import {
   addSegment,
   deleteSegment,
   store,
+  maskedSegmentIds,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 import { isEmptyExtent } from '@/src/segmentation/geometry';
@@ -46,11 +47,6 @@ function seatArtifactSegment(imageId: string, values: Uint8Array) {
   };
 }
 
-const maskedSegments = () =>
-  store()
-    .imageMasks('img-1')
-    .map(({ segmentId }) => segmentId);
-
 const scalarsOf = (labelmap: vtkLabelMap) =>
   labelmap.getPointData().getScalars().getData();
 
@@ -86,7 +82,7 @@ describe('segment voxel accessor', () => {
       const target = addSegment('img-1');
 
       expect(store().maskVoxels(target).binding()).toBeUndefined();
-      expect(maskedSegments()).toHaveLength(0);
+      expect(maskedSegmentIds('img-1')).toHaveLength(0);
     });
 
     it('refuses voxel access instead of allocating on read', () => {
@@ -97,7 +93,7 @@ describe('segment voxel accessor', () => {
       expect(() => voxels.snapshot()).toThrow();
       expect(() => voxels.apply(new Uint8Array(VOXEL_COUNT))).toThrow();
       expect(() => voxels.ensureContains(FULL_EXTENT)).toThrow();
-      expect(maskedSegments()).toHaveLength(0);
+      expect(maskedSegmentIds('img-1')).toHaveLength(0);
     });
   });
 
@@ -106,7 +102,7 @@ describe('segment voxel accessor', () => {
       const target = addSegment('img-1');
       const binding = store().maskVoxels(target).materialize();
 
-      expect(maskedSegments()).toEqual([target]);
+      expect(maskedSegmentIds('img-1')).toEqual([target]);
       expect(isEmptyExtent(binding.extent)).toBe(true);
       expect(store().maskVoxels(target).image().getDimensions()).toEqual([
         0, 0, 0,
@@ -121,7 +117,7 @@ describe('segment voxel accessor', () => {
       const second = store().maskVoxels(target).materialize();
 
       expect(second).toBe(first);
-      expect(maskedSegments()).toHaveLength(1);
+      expect(maskedSegmentIds('img-1')).toHaveLength(1);
       expect(store().maskVoxels(target).image()).toBe(image);
     });
 
@@ -132,7 +128,7 @@ describe('segment voxel accessor', () => {
       const a = store().maskVoxels(first).materialize();
       const b = store().maskVoxels(second).materialize();
 
-      expect(maskedSegments()).toHaveLength(2);
+      expect(maskedSegmentIds('img-1')).toHaveLength(2);
       expect(b.image).not.toBe(a.image);
       expect(store().maskVoxels(second).image()).not.toBe(
         store().maskVoxels(first).image()
@@ -145,7 +141,7 @@ describe('segment voxel accessor', () => {
       const target = addSegment('img-1');
 
       expect(() => store().maskVoxels(target).scalars()).toThrow(/No storage/);
-      expect(maskedSegments()).toHaveLength(0);
+      expect(maskedSegmentIds('img-1')).toHaveLength(0);
     });
   });
 });
