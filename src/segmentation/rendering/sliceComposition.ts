@@ -82,7 +82,7 @@ function claimedBits(word: Uint32Array, pixels: Int32Array, count: number) {
 const lowestBit = (bits: number) => 31 - Math.clz32(bits & -bits);
 
 /** Working memory of `composeSlice`, kept between calls to skip allocating. */
-export type SliceScratch = { pixels: Int32Array; words: Uint32Array[] };
+type SliceScratch = { pixels: Int32Array; words: Uint32Array[] };
 
 export const createSliceScratch = (): SliceScratch => ({
   pixels: new Int32Array(0),

@@ -220,8 +220,8 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
     // Asked before anything else: cancelling a preview and resolving the target
-    // (which can mint a segment) are both side effects a
-    // refused stroke must not have.
+    // (which can mint a segment) are both side effects a refused stroke must
+    // not have.
     if (segmentationStore.editTargetLocked(imageID)) return;
 
     const parentImage = useImageCacheStore().getVtkImageData(imageID);
