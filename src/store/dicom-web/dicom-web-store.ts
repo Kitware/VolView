@@ -89,12 +89,15 @@ function primaryVolumeResult(results: ImportDataSourcesResult[]) {
       failures[0]?.error ??
       new Error('The series contains no supported image data')
     );
-  failures.forEach(({ error }) =>
+  // One notice for the series, however many of its files failed.
+  if (failures.length > 0)
     useMessageStore().addError(
-      'Some files of the DICOM series failed to load; the volume may be incomplete',
-      { error }
-    )
-  );
+      `${failures.length} of the DICOM series' files failed to load; the volume may be incomplete`,
+      {
+        error: failures[0].error,
+        details: failures.map(({ error }) => error.message).join('\n'),
+      }
+    );
   // A series holding overlapping acquisitions loads as several volumes;
   // show the one with the most slices rather than whichever import
   // happened to finish first.

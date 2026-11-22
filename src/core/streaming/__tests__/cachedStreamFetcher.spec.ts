@@ -82,12 +82,15 @@ it('aborts its request and ends its streams when closed', async () => {
   expect(await bytesOf(fetcher.getStream())).toEqual(new Uint8Array());
 });
 
-it('reports a missing resource', async () => {
-  const fetcher = new CachedStreamFetcher('https://example.test/missing', {
-    fetch: async () => new Response('gone', { status: 404 }),
-  });
-  await expect(fetcher.connect()).rejects.toThrow(
-    'https://example.test/missing'
-  );
-  expect(fetcher.connected).toBe(false);
-});
+it.each([404, 500])(
+  'reports the HTTP status %i of a failed request',
+  async (status) => {
+    const fetcher = new CachedStreamFetcher('https://example.test/missing', {
+      fetch: async () => new Response('gone', { status }),
+    });
+    await expect(fetcher.connect()).rejects.toThrow(
+      `HTTP ${status} for https://example.test/missing`
+    );
+    expect(fetcher.connected).toBe(false);
+  }
+);
