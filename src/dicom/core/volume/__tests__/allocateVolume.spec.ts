@@ -61,6 +61,26 @@ describe('allocateVolume', () => {
     );
   });
 
+  it('allocates a lone chroma subsampled instance, whose frames hold two bytes per pixel', async () => {
+    const instance = await readHeader(
+      nativePixelDicom({
+        rows: 4,
+        columns: 4,
+        samplesPerPixel: 3,
+        photometric: 'YBR_FULL_422',
+        bitsAllocated: 8,
+        bitsStored: 8,
+        highBit: 7,
+        words: new Array(32).fill(128),
+      })
+    );
+
+    const volume = allocateVolume(plannedUpdate([instance]));
+
+    expect(volume.dimensions).toEqual([4, 4, 1]);
+    expect(volume.components).toBe(3);
+  });
+
   it('keeps an irregular stack in order', () => {
     const members = [3, 0, 1].map((z) => pixelSlice(z));
     const volume = allocated(members);
@@ -87,28 +107,51 @@ describe('allocateVolume', () => {
     });
   });
 
-  it('applies the first ultrasound region as display spacing', () => {
-    const ultrasound = pixelSlice(0, { modality: 'US' });
-    ultrasound.dataset.elements.push({
-      ...datasetFromTags([[Tags.SequenceOfUltrasoundRegions, '']]).elements[0],
-      vr: 'SQ',
-      values: {
-        kind: 'sequence',
-        items: [
-          datasetFromTags([
-            [Tags.PhysicalDeltaX, '0.01'],
-            [Tags.PhysicalDeltaY, '0.02'],
-            [Tags.PhysicalUnitsXDirection, '3'],
-            [Tags.PhysicalUnitsYDirection, '3'],
-          ]),
-        ],
-      },
-    });
+  it.each([
+    {
+      name: 'applies a calibrated region as display spacing',
+      region: { deltaX: '0.01', deltaY: '0.02', unitsX: '3', unitsY: '3' },
+      spacing: [0.1, 0.2],
+      warnings: [],
+    },
+    {
+      name: 'keeps the pixel spacing and warns for a zero delta',
+      region: { deltaX: '0', deltaY: '0.02', unitsX: '3', unitsY: '3' },
+      spacing: [0.5, 0.5],
+      warnings: ['Invalid ultrasound calibration'],
+    },
+    {
+      name: 'keeps the pixel spacing when one axis is not a distance',
+      region: { deltaX: '0.01', deltaY: '0.02', unitsX: '3', unitsY: '4' },
+      spacing: [0.5, 0.5],
+      warnings: [],
+    },
+  ])(
+    '$name for the first ultrasound region',
+    ({ region, spacing, warnings }) => {
+      const ultrasound = pixelSlice(0, { modality: 'US' });
+      ultrasound.dataset.elements.push({
+        ...datasetFromTags([[Tags.SequenceOfUltrasoundRegions, '']])
+          .elements[0],
+        vr: 'SQ',
+        values: {
+          kind: 'sequence',
+          items: [
+            datasetFromTags([
+              [Tags.PhysicalDeltaX, region.deltaX],
+              [Tags.PhysicalDeltaY, region.deltaY],
+              [Tags.PhysicalUnitsXDirection, region.unitsX],
+              [Tags.PhysicalUnitsYDirection, region.unitsY],
+            ]),
+          ],
+        },
+      });
 
-    const volume = allocated([ultrasound]);
+      const volume = allocated([ultrasound]);
 
-    expect(volume.spacing[0]).toBeCloseTo(0.1);
-    expect(volume.spacing[1]).toBeCloseTo(0.2);
-    expect(volume.warnings).toEqual([]);
-  });
+      expect(volume.spacing[0]).toBeCloseTo(spacing[0]);
+      expect(volume.spacing[1]).toBeCloseTo(spacing[1]);
+      expect(volume.warnings.map(([title]) => title)).toEqual(warnings);
+    }
+  );
 });
