@@ -6,7 +6,7 @@ import { cleanuptotal } from 'wdio-cleanuptotal-service';
 import { volViewPage } from '../pageobjects/volview.page';
 import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
 import { writeManifestToFile } from './utils';
-import { openAnnotationSegments, segmentNames } from './segmentationTestUtils';
+import { segmentNames } from './segmentationTestUtils';
 
 const writeBufferToFile = async (data: Buffer, fileName: string) => {
   const filePath = path.join(TEMP_DIR, fileName);
@@ -185,8 +185,9 @@ describe('Session with large URI base and nii.gz labelmap', function () {
       );
       await volViewPage.waitForViews(DOWNLOAD_TIMEOUT * 6);
 
-      // Open the segments panel so the list renders in the DOM
-      await openAnnotationSegments();
+      // The restored layout renders its views before the base image loads,
+      // and the segment list only appears once that image is shown.
+      await volViewPage.annotationsModuleTab.click();
 
       // This session contains no shapes. Reveal can only become enabled once
       // the embedded labelmap has decoded and its foreground mask is attached.
