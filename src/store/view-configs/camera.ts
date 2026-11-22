@@ -120,7 +120,8 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
   const deserialize = (viewID: string, config: Record<string, ViewConfig>) => {
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       if (viewConfig.camera) {
-        updateConfig(viewID, dataID, viewConfig.camera);
+        // A saved camera is a placed one: a resize must not refit it.
+        updateConfig(viewID, dataID, { autoFit: false, ...viewConfig.camera });
         markCameraAsInitialized(viewID, dataID);
       }
     });
