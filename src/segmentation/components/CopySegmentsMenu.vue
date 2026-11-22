@@ -6,16 +6,12 @@ import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
 import type { Maybe } from '@/src/types';
+import { plural } from '@/src/utils';
 
 const props = defineProps<{ imageId: Maybe<string> }>();
 
 const registry = useSegmentStore().segments;
 const imageCacheStore = useImageCacheStore();
-
-// The name index is not reactive, so names come from the reactive list.
-const targetNames = computed(
-  () => new Set(registry.segmentList(props.imageId).map(({ name }) => name))
-);
 
 const sources = computed(() =>
   imageCacheStore.imageIds
@@ -25,10 +21,10 @@ const sources = computed(() =>
     .map(({ id, segments }) => ({
       id,
       name: imageCacheStore.getImageMetadata(id)?.name ?? id,
-      count: `${segments.length} ${segments.length === 1 ? 'segment' : 'segments'}`,
-      reason: segments.every(({ name }) => targetNames.value.has(name))
-        ? 'Every segment is already on this image'
-        : '',
+      count: `${segments.length} ${plural(segments.length, 'segment')}`,
+      reason: registry.missingFrom(props.imageId, id).length
+        ? ''
+        : 'Every segment is already on this image',
     }))
 );
 

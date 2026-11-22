@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { nextTick } from 'vue';
 import type { Vector3 } from '@kitware/vtk.js/types';
 
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { usePolygonStore } from '@/src/store/tools/polygons';
-import { useViewStore } from '@/src/store/views';
 import { rasterizePolygon } from '@/src/segmentation/editing/rasterizePolygon';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import {
@@ -13,19 +11,11 @@ import {
   maskValueAt,
   seatSpecImage,
   store,
+  maskedSegmentIds,
+  showImage,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const segments = () => useSegmentStore().segments;
-
-const viewImage = async (id: string) => {
-  useViewStore().setDataForAllViews(id);
-  await nextTick();
-};
-
-const maskedSegmentsOf = (imageId: string) =>
-  store()
-    .imageMasks(imageId)
-    .map(({ segmentId }) => segmentId);
 
 const SQUARE: Vector3[] = [
   [0, 0, 0],
@@ -45,7 +35,7 @@ const rasterizeOn = (imageId: string, segmentId: string) =>
 
 const copiedTumor = async () => {
   const source = segments().addSegment('img-1', { name: 'Tumor' });
-  await viewImage('img-2');
+  await showImage('img-2');
   const copied = segments().addSegment('img-2', { name: 'Tumor' });
   return { source, copied };
 };
@@ -55,7 +45,7 @@ describe('independent segments across images', () => {
     setActivePinia(createPinia());
     await seatSpecImage('img-1');
     await seatSpecImage('img-2');
-    await viewImage('img-1');
+    await showImage('img-1');
   });
 
   it('offers copied definitions and selection without allocating masks', async () => {
@@ -66,9 +56,9 @@ describe('independent segments across images', () => {
       segments().getSegment(source)?.color
     );
     expect(segments().selectedSegmentId('img-2')).toBe(copied);
-    expect(maskedSegmentsOf('img-2')).toEqual([]);
+    expect(maskedSegmentIds('img-2')).toEqual([]);
 
-    await viewImage('img-1');
+    await showImage('img-1');
 
     expect(segments().selectedSegmentId('img-1')).toBe(source);
   });
@@ -104,12 +94,12 @@ describe('independent segments across images', () => {
 
     segments().deleteSegment(copied);
 
-    expect(maskedSegmentsOf('img-1')).toEqual([first]);
-    expect(maskedSegmentsOf('img-2')).toEqual([]);
+    expect(maskedSegmentIds('img-1')).toEqual([first]);
+    expect(maskedSegmentIds('img-2')).toEqual([]);
     expect(polygons.serializeTools().tools).toEqual([
       expect.objectContaining({ imageID: 'img-1', segmentId: source }),
     ]);
-    await viewImage('img-2');
+    await showImage('img-2');
     expect(segments().segmentList('img-2')).toEqual([]);
   });
 
@@ -134,7 +124,7 @@ describe('independent segments across images', () => {
     expect(segmentId).toBe(copied);
     expect(maskValueAt(copied, [1, 1, 0])).toBe(SEGMENT_VALUE);
     expect(markedVoxels(origin)).toEqual([]);
-    expect(maskedSegmentsOf('img-1')).toEqual([origin]);
+    expect(maskedSegmentIds('img-1')).toEqual([origin]);
   });
 
   it('refuses a segment owned by a different image before creating a mask', async () => {
@@ -143,6 +133,6 @@ describe('independent segments across images', () => {
     expect(() => rasterizeOn('img-2', source)).toThrow(
       'Segment belongs to another image'
     );
-    expect(maskedSegmentsOf('img-2')).toEqual([]);
+    expect(maskedSegmentIds('img-2')).toEqual([]);
   });
 });

@@ -97,7 +97,6 @@ const saving = ref(false);
 const fileFormat = ref(EXTENSIONS[0]);
 
 const segmentationStore = useSegmentationStore();
-const parentImageId = computed(() => props.imageId);
 const fileName = computed({
   get: () => fileNameValue.value,
   set: (value: string) => {
@@ -105,7 +104,7 @@ const fileName = computed({
   },
 });
 
-const plan = computed(() => planLabelmapExport(parentImageId.value));
+const plan = computed(() => planLabelmapExport(props.imageId));
 const splitReason = computed(() =>
   [
     plan.value.hasOverlap && 'overlap',
@@ -131,7 +130,7 @@ async function saveSegmentation() {
   await useErrorMessage('Failed to save segments', async () => {
     const sanitizedFileName = sanitizeSegmentationFileStem(fileName.value);
     fileNameValue.value = sanitizedFileName;
-    await props.save(parentImageId.value, sanitizedFileName, fileFormat.value);
+    await props.save(props.imageId, sanitizedFileName, fileFormat.value);
   });
   saving.value = false;
   emit('done');
@@ -140,8 +139,8 @@ async function saveSegmentation() {
 onMounted(() => {
   // trigger form validation check so can immediately save with default value
   fileNameValue.value = segmentationFileStem(
-    parentImageId.value,
-    segmentationStore.segmentationName(parentImageId.value)
+    props.imageId,
+    segmentationStore.segmentationName(props.imageId)
   );
 });
 

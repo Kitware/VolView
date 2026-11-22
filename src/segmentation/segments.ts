@@ -91,9 +91,7 @@ export const useSegmentStore = defineStore('segments', () => {
   function deserialize(manifest: Manifest, dataIDMap: Record<string, string>) {
     const restored = (manifest.imageSegments ?? []).flatMap((entry) => {
       const imageId = dataIDMap[entry.imageId];
-      return imageId && imageCacheStore.imageById[imageId]
-        ? [{ imageId, entry }]
-        : [];
+      return imageId && imageExists(imageId) ? [{ imageId, entry }] : [];
     });
     // Several saved images can resolve to one: their segments seat together.
     const incoming = new Map<string, RestoredSegment[]>();
@@ -127,15 +125,6 @@ export const useSegmentStore = defineStore('segments', () => {
     return resolve;
   }
 
-  function applyTemplateToRestored(
-    manifest: Manifest,
-    dataIDMap: Record<string, string>
-  ) {
-    (manifest.imageSegments ?? []).forEach(({ imageId }) =>
-      registry.applyTemplate(dataIDMap[imageId])
-    );
-  }
-
   onImageDeleted((deleted) => {
     deleted.forEach((imageId) => registry.removeImage(imageId));
   });
@@ -146,6 +135,5 @@ export const useSegmentStore = defineStore('segments', () => {
     previewSegmentColor,
     serialize,
     deserialize,
-    applyTemplateToRestored,
   };
 });

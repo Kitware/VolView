@@ -7,6 +7,7 @@ import {
   seatImage,
   voxelCount,
   type Index3,
+  segmentNames,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { toLabelMap } from '@/src/segmentation/io/import';
 import { useSegmentStore } from '@/src/segmentation/segments';
@@ -59,14 +60,9 @@ async function seatConvertible() {
   return child;
 }
 
-const segmentNames = () =>
-  useSegmentStore()
-    .segments.segmentList('parent')
-    .map((segment) => segment.name);
-
 const expectNothingMinted = () => {
   expect(Object.keys(useSegmentStore().segments.imageSets.value)).toEqual([]);
-  expect(segmentNames()).toEqual([]);
+  expect(segmentNames('parent')).toEqual([]);
   expect(boundMasks()).toEqual([]);
 };
 

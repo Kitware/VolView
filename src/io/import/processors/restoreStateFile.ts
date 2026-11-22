@@ -274,8 +274,6 @@ export const createStateFileRestorer = ({
       labelmapSources: planLabelmapSources(manifest).sources,
     });
 
-    useSegmentStore().applyTemplateToRestored(manifest, stateIDToStoreID);
-
     useLayersStore().deserialize(manifest, stateIDToStoreID);
 
     useToolStore().deserialize(manifest, resolveSegment, stateIDToStoreID);

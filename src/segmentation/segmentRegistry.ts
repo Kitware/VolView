@@ -57,8 +57,9 @@ export const createSegmentRegistry = ({
   const configTemplate = shallowRef<ConfiguredSegments>({});
   // Reactive: a computed that looked up a segment before it existed must rerun.
   const owners = shallowReactive(new Map<string, string>());
+  const ownerImageId = (id: Maybe<string>) => (id ? owners.get(id) : undefined);
   const setOf = (id: Maybe<string>) => {
-    const imageId = id ? owners.get(id) : undefined;
+    const imageId = ownerImageId(id);
     return imageId ? imageSets.value[imageId] : undefined;
   };
   // Runtime metadata and cached lookups live and go with the image's set.
@@ -108,7 +109,6 @@ export const createSegmentRegistry = ({
       ? metadataFor(imageId).segments.value
       : [];
 
-  const ownerImageId = (id: Maybe<string>) => (id ? owners.get(id) : undefined);
   const belongsToImage = (imageId: Maybe<string>, id: Maybe<string>) =>
     !!imageId && !!id && ownerImageId(id) === imageId;
   const assertBelongsToImage = (imageId: Maybe<string>, id: Maybe<string>) => {
@@ -128,9 +128,8 @@ export const createSegmentRegistry = ({
   };
 
   const selectSegment = (id: Maybe<string>) => {
-    const imageId = ownerImageId(id);
-    if (!imageId || !id) return;
-    const set = ensureSet(imageId);
+    const set = setOf(id);
+    if (!set || !id) return;
     set.selected = id;
     // Reselecting the same segment can still request that its row be revealed.
     set.selectionRevision += 1;
@@ -201,14 +200,13 @@ export const createSegmentRegistry = ({
     };
   };
 
-  const storage = createImageStorage({
+  const { forgetMasks, ...masksAndDisplay } = createImageStorage({
     imageSets,
     setOf,
     ensureSet,
     beforeMaskRemoval,
   });
-  const { forgetMasks, ...masksAndDisplay } = storage;
-  const { maskOf, removeMask } = storage;
+  const { maskOf, removeMask } = masksAndDisplay;
 
   // Deleting a referenced segment takes its mask and shapes with it; the
   // caller owns the confirmation.
@@ -227,9 +225,8 @@ export const createSegmentRegistry = ({
   };
 
   const moveSegment = (id: string, target: string, after = false) => {
-    const imageId = ownerImageId(id);
-    if (!imageId || id === target || !belongsToImage(imageId, target)) return;
-    const set = ensureSet(imageId);
+    const set = setOf(id);
+    if (!set || id === target || setOf(target) !== set) return;
     const order = set.order.filter((key) => key !== id);
     order.splice(order.indexOf(target) + Number(after), 0, id);
     set.order = order;
@@ -283,9 +280,14 @@ export const createSegmentRegistry = ({
       applyConfigTo(imageId, configTemplate.value);
   };
 
+  const missingFrom = (targetId: Maybe<string>, sourceId: string) => {
+    const held = new Set(segmentList(targetId).map(({ name }) => name));
+    return segmentList(sourceId).filter(({ name }) => !held.has(name));
+  };
+
   // Definitions only: a same-named target segment stays exactly as it is.
   const copySegments = (targetId: string, sourceId: string) =>
-    segmentList(sourceId).forEach((segment) =>
+    missingFrom(targetId, sourceId).forEach((segment) =>
       seatSegment(targetId, {
         ...copiedAppearance(segment),
         name: segment.name,
@@ -377,6 +379,7 @@ export const createSegmentRegistry = ({
     configTemplate,
     applyConfig,
     applyTemplate,
+    missingFrom,
     copySegments,
     adopt,
     declareReferences,

@@ -14,7 +14,7 @@ import {
 import { type SegmentMaskEntry } from '@/src/segmentation/model';
 import type { SegmentRegistry } from '@/src/segmentation/segmentRegistry';
 import { toLabelmapSegment } from '@/src/segmentation/segment';
-import { chunk } from '@/src/utils';
+import { chunk, partition } from '@/src/utils';
 
 const byRegistryOrder =
   (registry: SegmentRegistry) => (a: SegmentMaskEntry, b: SegmentMaskEntry) =>
@@ -74,13 +74,10 @@ export function planLabelmapExport(
 ) {
   // Already in registry order, so only the preferred segment moves.
   const masks = useSegmentStore().segments.imageMasks(parentImageId);
-  const preferred = masks.filter(
-    ({ segmentId }) => segmentId === preferredSegmentId
-  );
-  const ordered = [
-    ...preferred,
-    ...masks.filter(({ segmentId }) => segmentId !== preferredSegmentId),
-  ];
+  const ordered = partition(
+    ({ segmentId }) => segmentId === preferredSegmentId,
+    masks
+  ).flat();
   const layers = groupByLayer(ordered, (mask) => boundScalars(mask.binding));
   const parts = layers.flatMap((layer) => chunk(layer, LABELMAP_MAX_VALUE));
   return {

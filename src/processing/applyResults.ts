@@ -386,9 +386,9 @@ export const appApplyDependencies = (): ApplyDependencies => ({
     useLayersStore().addLayer(parentSelection, childSelection),
   segmentWriter: {
     resultSourcesInScene: () =>
-      Object.values(useSegmentStore().segments.imageSets.value).flatMap(
-        ({ masks }) => [...masks.values()].map((binding) => binding.source)
-      ),
+      useSegmentStore()
+        .segments.allMasks()
+        .map(({ binding }) => binding.source),
     convertImageToLabelmap: (...args) =>
       useLabelmapImportStore().convertImageToLabelmap(...args),
   },

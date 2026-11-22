@@ -23,6 +23,7 @@ import {
   store,
   voxelCount,
   type Index3,
+  maskedSegmentIds,
 } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 import { SEGMENT_VALUE } from '@/src/segmentation/masks/labelValue';
 import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
@@ -38,11 +39,6 @@ const parentOffset = flatIndex(DIMENSIONS);
 
 const compositeScalars = (imageId: string, members?: SegmentMaskEntry[]) =>
   maskScalars(compositeLabelmap(imageId, members).labelmap);
-
-const segmentIdsOf = (imageId: string) =>
-  store()
-    .imageMasks(imageId)
-    .map(({ segmentId }) => segmentId);
 
 const GRID = {
   dimensions: DIMENSIONS,
@@ -368,7 +364,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
       { value: 2, at: [3, 3, 3] },
     ]);
 
-    const [first, second] = segmentIdsOf('parent-img');
+    const [first, second] = maskedSegmentIds('parent-img');
     expect(extentOf(first)).toEqual([1, 1, 1, 1, 1, 1]);
     expect(extentOf(second)).toEqual([3, 3, 3, 3, 3, 3]);
     // The source values named which voxels went where; the masks themselves
@@ -384,7 +380,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
       { value: 1, at: [2, 3, 2] },
     ]);
 
-    const [only] = segmentIdsOf('parent-img');
+    const [only] = maskedSegmentIds('parent-img');
     expect(extentOf(only)).toEqual([1, 2, 0, 3, 2, 2]);
     expect(maskValueAt(only, [1, 0, 2])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(only, [2, 3, 2])).toBe(SEGMENT_VALUE);
@@ -404,7 +400,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
         .imageMasks('parent-img')
         .map((mask) => appearanceOf(mask).name)
     ).toEqual(['Tumor 1', 'Tumor 3']);
-    const [first, second] = segmentIdsOf('parent-img');
+    const [first, second] = maskedSegmentIds('parent-img');
     expect(maskValueAt(first, [1, 1, 1])).toBe(SEGMENT_VALUE);
     expect(maskValueAt(second, [3, 3, 3])).toBe(SEGMENT_VALUE);
   });
@@ -412,7 +408,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
   it('lines the split masks up with the parent grid', async () => {
     await importLabelmap([{ value: 1, at: [1, 2, 3] }]);
 
-    const [only] = segmentIdsOf('parent-img');
+    const [only] = maskedSegmentIds('parent-img');
     const mask = store().maskVoxels(only).image();
     expect(Array.from(mask.indexToWorld([0, 0, 0] as never))).toEqual(
       Array.from(parentImage('parent-img').indexToWorld([1, 2, 3] as never))
@@ -435,7 +431,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
         .imageMasks('parent-img')
         .map((mask) => appearanceOf(mask).name)
     ).toEqual(['Tumor 1', 'Tumor 300']);
-    const [first, second] = segmentIdsOf('parent-img');
+    const [first, second] = maskedSegmentIds('parent-img');
     expect(store().maskVoxels(first).scalars()).toBeInstanceOf(Uint8Array);
     expect(store().maskVoxels(second).scalars()).toBeInstanceOf(Uint8Array);
     expect(maskValueAt(second, [3, 3, 3])).toBe(SEGMENT_VALUE);
@@ -454,7 +450,7 @@ describe('splitting an imported labelmap into bounded masks', () => {
 
     const before = compositeLabelmap('parent-img').labelmap;
     const beforeValues = Array.from(maskScalars(before));
-    const masks = segmentIdsOf('parent-img').map((id) => {
+    const masks = maskedSegmentIds('parent-img').map((id) => {
       const binding = store().maskVoxels(id).binding()!;
       return {
         id,

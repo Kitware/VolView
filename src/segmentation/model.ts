@@ -17,7 +17,7 @@ export const DEFAULT_SEGMENTATION_DISPLAY = {
 export type LabelmapBinding = {
   /**
    * This mask's voxels, and no other segment's. Held raw: a vtk object must
-   * not be proxied, so every writer of a binding marks it.
+   * not be proxied, so `setMask` marks it.
    */
   image: vtkLabelMap;
   extent: Extent3D; // the mask's own bounds, in parent image index space
