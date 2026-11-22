@@ -37,6 +37,7 @@ const LENGTH_32_VRS = new Set([
   'UN',
   'UR',
   'UT',
+  'UV',
 ]);
 
 /** Bound on one `String.fromCharCode` spread, which is an argument list. */
@@ -434,10 +435,11 @@ const readNextElement = (
     stopAtPixelData ? READ_OPTIONS : { forceStoreRaw: true }
   );
   const done = stopAtPixelData && element.tag.toCleanString() === PIXEL_DATA;
-  return {
-    element: done || element.vr === 0 ? null : parsedElement(element),
-    done,
-  };
+  if (done || element.vr === 0) return { element: null, done };
+  const parsed = parsedElement(element);
+  // dcmjs reads an empty fixed-size number as its default of 0.
+  const values = head.length === 0 ? [] : parsed.values;
+  return { element: { ...parsed, values }, done };
 };
 
 const readElements = (
