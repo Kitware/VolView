@@ -1,5 +1,10 @@
 import { fromBlob, fromUrl } from '@/src/dicom/core/source/byteSource';
-import { getDatasetModality } from '@/src/dicom/core/metadata/datasetAccess';
+import {
+  getDatasetModality,
+  getDatasetTag,
+} from '@/src/dicom/core/metadata/datasetAccess';
+import type { DicomDataset } from '@/src/dicom/core/metadata/dicomDataset';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 import {
   IMPLICIT_VR_LITTLE_ENDIAN,
   type DicomLayout,
@@ -79,6 +84,17 @@ async function readHeader(dataSource: DataSource, runtime: DicomRuntime) {
 /**
  * Reads a DICOM source's header and hands it on as an instance to import later.
  */
+/** Why a readable DICOM object is not imported, or null when it holds an image. */
+function whySkipped(dataset: DicomDataset, name: Maybe<string>) {
+  const modality = getDatasetModality(dataset);
+  if (modality?.startsWith('RT'))
+    return `DICOM ${modality} modality is not supported. File ${name} will be skipped.`;
+  // Reports, key objects and directories carry no pixel matrix to allocate.
+  if (getDatasetTag(dataset, Tags.Rows) === undefined)
+    return `DICOM file ${name} holds no image${modality ? ` (modality ${modality})` : ''}. It will be skipped.`;
+  return null;
+}
+
 const handleDicom: ImportHandler = async (dataSource) => {
   if (!isDicom(dataSource)) return Skip;
 
@@ -96,11 +112,9 @@ const handleDicom: ImportHandler = async (dataSource) => {
   });
   reportLayout(name, instance.layout);
 
-  const modality = getDatasetModality(instance.dataset);
-  if (modality?.startsWith('RT')) {
-    useMessageStore().addWarning(
-      `DICOM ${modality} modality is not supported. File ${name} will be skipped.`
-    );
+  const skipped = whySkipped(instance.dataset, name);
+  if (skipped) {
+    useMessageStore().addWarning(skipped);
     return asOkayResult(dataSource);
   }
 

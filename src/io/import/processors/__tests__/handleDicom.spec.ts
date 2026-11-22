@@ -12,7 +12,12 @@ import handleDicom from '@/src/io/import/processors/handleDicom';
 import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { Skip } from '@/src/utils/evaluateChain';
 import { useMessageStore } from '@/src/store/messages';
-import { stripFileMeta, stripPreamble } from '@/tests/specs/syntheticDicom';
+import {
+  part10File,
+  rawElement,
+  stripFileMeta,
+  stripPreamble,
+} from '@/tests/specs/syntheticDicom';
 import { syntheticSlice, withoutPixelData } from '@/tests/dicomSourceFixtures';
 import { StopSignal } from '@/src/core/streaming/cachedStreamFetcher';
 import type { Fetcher } from '@/src/core/streaming/types';
@@ -194,6 +199,22 @@ describe('handleDicom', () => {
       expect(warning.title).toContain(name);
     }
   );
+
+  it('skips an object that holds no image and says so', async () => {
+    const report = part10File(
+      '1.2.840.10008.5.1.4.1.1.88.11',
+      '1.2.826.0.1.3680043.10.997.88',
+      '1.2.840.10008.1.2.1',
+      rawElement(0x0008, 0x0060, 'CS', new TextEncoder().encode('SR'))
+    );
+
+    const result = await handleDicom(fileSource(report, 'report.dcm'));
+
+    expect(result).toMatchObject({ type: 'ok' });
+    expect(useMessageStore().messages[0].title).toBe(
+      'DICOM file report.dcm holds no image (modality SR). It will be skipped.'
+    );
+  });
 
   it('does not skip a non-RT modality whose name starts with R', async () => {
     const bytes = syntheticSlice({ modality: 'RG' });
