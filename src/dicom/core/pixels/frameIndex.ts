@@ -8,7 +8,7 @@ import {
   IMPLICIT_VR_LITTLE_ENDIAN,
 } from '../metadata/dicomLayout';
 import { Tags } from '../metadata/dicomTags';
-import { numberOr } from '../utils';
+import { numberOr, trimDicomPadding } from '../utils';
 import { frameCount } from './pixelDecoder';
 
 /** Transfer syntaxes whose Pixel Data is a plain run of fixed-size frames. */
@@ -49,6 +49,14 @@ export const shapeOf = ({ dataset }: Instance) => {
 const positiveInteger = (value: number) =>
   Number.isSafeInteger(value) && value > 0;
 
+// Chroma subsampling stores fewer bytes than Samples per Pixel implies.
+const subsamplesChroma = ({ dataset }: Instance) =>
+  /^YBR_(FULL|PARTIAL)_42[02]$/.test(
+    trimDicomPadding(
+      getDatasetTag(dataset, Tags.PhotometricInterpretation) ?? ''
+    )
+  );
+
 type NativeLayout = Readonly<{
   kind: 'native';
   littleEndian: boolean;
@@ -71,6 +79,8 @@ function nativeLayout(instance: Instance): NativeLayout | FrameIndex {
     );
   if (pixelData.length === null)
     return unindexed('Pixel Data has undefined length');
+  if (subsamplesChroma(instance))
+    return unindexed('Chroma subsampled frames have no fixed sample layout');
   const { rows, columns, samplesPerPixel, bitsAllocated, frames } =
     shapeOf(instance);
   if (![rows, columns, samplesPerPixel].every(positiveInteger))

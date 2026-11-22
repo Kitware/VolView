@@ -57,17 +57,21 @@ describe('planDecode', () => {
     });
   });
 
-  it('names a known transfer syntax that has no decoder', async () => {
-    const { instance } = await pixelInstance({
-      transferSyntaxUid: '1.2.840.10008.1.2.4.102',
-    });
+  it.each([
+    ['1.2.840.10008.1.2.4.102', 'MPEG-4 AVC/H.264 High Profile'],
+    ['1.2.840.10008.1.2.4.201', 'High-Throughput JPEG 2000 Lossless'],
+  ])(
+    'names known transfer syntax %s that has no decoder',
+    async (transferSyntaxUid, name) => {
+      const { instance } = await pixelInstance({ transferSyntaxUid });
 
-    const plan = planDecode(table, instance, Uint16Array);
+      const plan = planDecode(table, instance, Uint16Array);
 
-    expect('error' in plan && plan.error.message).toBe(
-      'Known transfer syntax MPEG-4 AVC/H.264 High Profile (1.2.840.10008.1.2.4.102) has no decoder'
-    );
-  });
+      expect('error' in plan && plan.error.message).toBe(
+        `Known transfer syntax ${name} (${transferSyntaxUid}) has no decoder`
+      );
+    }
+  );
 
   it('takes the first candidate that accepts, in the order listed', async () => {
     const { instance } = await pixelInstance();

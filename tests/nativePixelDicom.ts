@@ -185,7 +185,9 @@ export function nativePixelDicom(options: NativePixelOptions = {}) {
     instance = 1,
     position = [0, 0, 0],
   } = options;
-  const count = rows * columns * samplesPerPixel * (frames ?? 1);
+  // 4:2:2 stores two bytes per pixel, whatever Samples per Pixel says.
+  const storedSamples = photometric.endsWith('_422') ? 2 : samplesPerPixel;
+  const count = rows * columns * storedSamples * (frames ?? 1);
   const words = options.words ?? patternWords(count, bitsAllocated, instance);
   if (words.length !== count)
     throw new Error(`Expected ${count} stored words, got ${words.length}`);

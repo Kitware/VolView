@@ -174,6 +174,30 @@ describe('loadVolume', () => {
     ]);
   });
 
+  it('fails a slice of fractional values bound for an integer buffer and keeps whole-number floats', async () => {
+    const decode = valueDecoder();
+    const decoder: WholeInstanceDecode = async (request, signal) => {
+      const image = await decode(request, signal);
+      const value = image.data[0];
+      return value === 0
+        ? image
+        : { ...image, data: new Float32Array(16).fill(value === 1 ? 1.5 : 2) };
+    };
+    const volume = stack(3);
+
+    const updates = await loadAll(volume, runtimeWith(decoder));
+
+    expect(volume.data).toBeInstanceOf(Uint16Array);
+    expect(updates.find((update) => update.slot === 1)).toMatchObject({
+      error: expect.objectContaining({
+        message: expect.stringMatching(
+          /^File pixel-1 \(member 1\) has fractional pixel values/
+        ),
+      }),
+    });
+    expect(sliceValues(volume)).toEqual([0, null, 2]);
+  });
+
   it('fails a slice whose decoded values the volume buffer cannot hold', async () => {
     const decode = valueDecoder();
     const decoder: WholeInstanceDecode = async (request, signal) => {
