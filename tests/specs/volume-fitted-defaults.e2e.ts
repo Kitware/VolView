@@ -1,24 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { volViewPage } from '../pageobjects/volview.page';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
-import {
-  captureViewPixels,
-  makeTempDir,
-  waitForModuleTransitions,
-  writeManifestToFile,
-} from './utils';
+import { makeTempDir, writeManifestToFile, writeMetaImage } from './utils';
 import {
   differingFraction,
-  floatVoxels,
-  nrrd,
-  showColorPresets,
+  openRenderingModule,
   openWith3DLayout,
   selectedPreset,
+  showColorPresets,
   stablePixels,
   VIEW,
+  viewPixels,
   waitForFittedColorRange,
-  writeNrrd,
+  writeFloatVolume,
 } from './volumeTestUtils';
 
 const sliceValue = (index: number) => 100 * (index + 1);
@@ -52,12 +46,6 @@ function writeDicomSeries(
   });
 }
 
-async function openRenderingModule() {
-  await volViewPage.renderingModuleTab.waitForClickable();
-  await volViewPage.renderingModuleTab.click();
-  await waitForModuleTransitions();
-}
-
 async function expectSelectedPreset(label: string) {
   await openRenderingModule();
   await showColorPresets();
@@ -67,8 +55,10 @@ async function expectSelectedPreset(label: string) {
 describe('default volume preset', () => {
   it('selects Grayscale for untagged data that is not in Hounsfield units', async () => {
     const name = 'default-preset-untagged';
-    const voxels = Buffer.from(Array.from({ length: 512 }, (_, i) => i % 256));
-    await openWith3DLayout(writeNrrd(name, nrrd([]), voxels), name);
+    await openWith3DLayout(
+      `tmp/${writeMetaImage(`${name}.mha`, { size: 8 })}`,
+      name
+    );
     await expectSelectedPreset('Grayscale');
   });
 
@@ -102,7 +92,7 @@ describe('default volume preset', () => {
 const CENTER_INSET = 280;
 
 async function brightCenterPixels(name: string, inset: number, level = 40) {
-  const [{ data }] = await captureViewPixels(VIEW, inset, `${name}.png`);
+  const data = await viewPixels(VIEW, inset, `${name}.png`);
   let bright = 0;
   for (let index = 0; index < data.length; index += 4)
     if (Math.max(data[index], data[index + 1], data[index + 2]) > level)
@@ -128,32 +118,26 @@ describe('grayscale default fitted to the data', () => {
 
   it('guesses CT AAA for untagged data in Hounsfield units', async () => {
     const name = 'fitted-untagged-hu';
-    const voxels = floatVoxels(SIZE, (index) => {
+    const url = writeFloatVolume(name, SIZE, (index) => {
       const radius = Math.hypot(...coordinates(index).map((c) => c - SIZE / 2));
       if (radius < SIZE / 8) return 700;
       return radius < (3 * SIZE) / 8 ? 40 : -1024;
     });
-    await openWith3DLayout(
-      writeNrrd(name, nrrd([], 'float', SIZE), voxels),
-      name
-    );
+    await openWith3DLayout(url, name);
     await expectVisibleVolume(name);
     await expectSelectedPreset('CT AAA');
   });
 
   it('shows a small block on a zero background with a bright outlier', async () => {
     const name = 'fitted-sparse';
-    const voxels = floatVoxels(SIZE, (index) => {
+    const url = writeFloatVolume(name, SIZE, (index) => {
       if (index === 0) return 1e6;
       const inBlock = coordinates(index).every(
         (c) => c >= SIZE / 2 - 4 && c < SIZE / 2 + 4
       );
       return inBlock ? 500 + (index % 7) : 0;
     });
-    await openWith3DLayout(
-      writeNrrd(name, nrrd([], 'float', SIZE), voxels),
-      name
-    );
+    await openWith3DLayout(url, name);
     // Before the fit the block is black against the outlier's range.
     await openRenderingModule();
     await waitForFittedColorRange(1e6);
@@ -163,15 +147,12 @@ describe('grayscale default fitted to the data', () => {
 
   it('renders the brightest voxels opaque, so a binary mask face is solid', async () => {
     const name = 'fitted-binary';
-    const voxels = floatVoxels(SIZE, (index) =>
+    const url = writeFloatVolume(name, SIZE, (index) =>
       coordinates(index).every((c) => c >= SIZE / 4 && c < (3 * SIZE) / 4)
         ? 1
         : 0
     );
-    await openWith3DLayout(
-      writeNrrd(name, nrrd([], 'float', SIZE), voxels),
-      name
-    );
+    await openWith3DLayout(url, name);
     await expectSelectedPreset('Grayscale');
     // A transparent top of range leaves only a speckled shell of interpolated samples.
     await browser.waitUntil(

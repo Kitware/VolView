@@ -1,19 +1,13 @@
 import vtkColorMaps from '@kitware/vtk.js/Rendering/Core/ColorTransferFunction/ColorMaps';
 import { ColorMapPreset } from '@/src/types/color-map-preset';
+// Relative: vite.config.ts loads this module without the @ alias.
+import { interpolateAt } from '../utils/interpolate';
 import MedicalPresets from './MedicalColorPresets.json';
 import DicomPresets from './DicomColorPresets.json';
 
-function colorAt(points: number[][], x: number) {
-  const next = points.findIndex(([px]) => px >= x);
-  if (next <= 0) return (next === 0 ? points[0] : points.at(-1)!).slice(1);
-  const [x0, ...c0] = points[next - 1];
-  const [x1, ...c1] = points[next];
-  return c0.map((c, i) => c + ((c1[i] - c) * (x - x0)) / (x1 - x0));
-}
-
 // MR intensities have no standard scale, so an MR preset's effective range
 // maps onto each image's fitted range instead of fixed scalar values.
-function toRelativePreset(preset: ColorMapPreset): ColorMapPreset {
+function toRelativePreset(preset: ColorMapPreset) {
   const [low, high] = preset.EffectiveRange ?? [0, 1];
   const toUnit = (x: number) => (x - low) / (high - low);
   const flat = preset.RGBPoints ?? [];
@@ -28,9 +22,9 @@ function toRelativePreset(preset: ColorMapPreset): ColorMapPreset {
     AbsoluteRange: false,
     EffectiveRange: undefined,
     RGBPoints: [
-      [0, ...colorAt(rgb, 0)],
+      [0, ...interpolateAt(rgb, 0)],
       ...inside,
-      [1, ...colorAt(rgb, 1)],
+      [1, ...interpolateAt(rgb, 1)],
     ].flat(),
     OpacityPoints: preset.OpacityPoints?.map((value, index) =>
       index % 2 === 0 ? toUnit(value) : value
@@ -38,11 +32,9 @@ function toRelativePreset(preset: ColorMapPreset): ColorMapPreset {
   };
 }
 
-MedicalPresets.forEach((preset) =>
+(MedicalPresets as ColorMapPreset[]).forEach((preset) =>
   vtkColorMaps.addPreset(
-    preset.Name.startsWith('MR-')
-      ? toRelativePreset(preset as ColorMapPreset)
-      : (preset as ColorMapPreset)
+    preset.Name.startsWith('MR-') ? toRelativePreset(preset) : preset
   )
 );
 vtkColorMaps.addPreset({

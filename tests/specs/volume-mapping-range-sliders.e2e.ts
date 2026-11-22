@@ -1,16 +1,13 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { waitForModuleTransitions } from './utils';
 import {
   differingFraction,
-  floatVoxels,
-  nrrd,
+  openRenderingModule,
   openWith3DLayout,
   pressOn,
   radialRamp,
   sliderThumb,
   stablePixels,
   VIEW,
-  writeNrrd,
+  writeFloatVolume,
 } from './volumeTestUtils';
 
 const SIZE = 16;
@@ -36,13 +33,8 @@ describe('3D rendering Shift and Width sliders', () => {
   VOLUMES.forEach(([label, valueAt], index) => {
     it(`edit the color range of a volume ${label}`, async () => {
       const name = `volume-mapping-range-${index}`;
-      await openWith3DLayout(
-        writeNrrd(name, nrrd([], 'float', SIZE), floatVoxels(SIZE, valueAt)),
-        name
-      );
-      await volViewPage.renderingModuleTab.waitForClickable();
-      await volViewPage.renderingModuleTab.click();
-      await waitForModuleTransitions();
+      await openWith3DLayout(writeFloatVolume(name, SIZE, valueAt), name);
+      await openRenderingModule();
 
       const shift = await slider('volume-color-shift');
       const width = await slider('volume-color-width');

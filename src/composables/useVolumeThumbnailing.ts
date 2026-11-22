@@ -6,7 +6,10 @@ import { createVolumeThumbnailer } from '../core/thumbnailers/volume-thumbnailer
 import { useCameraOrientation } from './useCameraOrientation';
 import { useImageStore } from '../store/datasets-images';
 import { useCurrentImage } from './useCurrentImage';
-import { getShiftedOpacityFromPreset } from '../utils/vtk-helpers';
+import {
+  getColorFunctionRangeFromPreset,
+  getShiftedOpacityFromPreset,
+} from '../utils/vtk-helpers';
 import useVolumeColoringStore from '../store/view-configs/volume-coloring';
 import { PresetNameList } from '../vtk/ColorMaps';
 import { logError } from '../utils/loggers';
@@ -152,10 +155,8 @@ export function useVolumeThumbnailing(
   });
 
   // Relative presets map onto the fit range, which arrives after loading.
-  const fitRange = computed(
-    () =>
-      currentImageID.value &&
-      volumeColoringStore.getFitRange(currentImageID.value)
+  const fitRange = computed(() =>
+    volumeColoringStore.getFitRange(currentImageID.value)
   );
 
   // trigger thumbnailing
@@ -163,7 +164,10 @@ export function useVolumeThumbnailing(
     [currentImageID, fitRange],
     ([imageID], previous) => {
       if (!imageID) return;
-      if (imageID === previous?.[0]) thumbnails[imageID] = {};
+      if (imageID === previous?.[0])
+        PresetNameList.filter(
+          (name) => !getColorFunctionRangeFromPreset(name)
+        ).forEach((name) => delete thumbnails[imageID]?.[name]);
       doThumbnailing(imageID, currentImageData.value!);
     },
     { immediate: true }

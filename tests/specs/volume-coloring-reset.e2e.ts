@@ -1,9 +1,6 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { captureViewPixels, waitForModuleTransitions } from './utils';
 import {
   differingFraction,
-  floatVoxels,
-  nrrd,
+  openRenderingModule,
   showColorPresets,
   openWith3DLayout,
   pressOn,
@@ -11,8 +8,9 @@ import {
   selectedPreset,
   sliderThumb,
   stablePixels,
+  viewPixels,
   waitForFittedColorRange,
-  writeNrrd,
+  writeFloatVolume,
 } from './volumeTestUtils';
 
 const SIZE = 16;
@@ -25,11 +23,6 @@ const ambientThumb = () => $('.v-slider*=Ambient').$('[role="slider"]');
 const sliderValue = async (slider: ChainablePromiseElement) =>
   String(await slider.getAttribute('aria-valuenow'));
 
-async function pixels(selector: string, inset: number, file: string) {
-  const [{ data }] = await captureViewPixels(selector, inset, file);
-  return data;
-}
-
 async function waitForPixels(
   selector: string,
   inset: number,
@@ -40,7 +33,7 @@ async function waitForPixels(
   await browser.waitUntil(
     async () => {
       const fraction = differingFraction(
-        await pixels(selector, inset, 'volume-coloring-reset.png'),
+        await viewPixels(selector, inset, 'volume-coloring-reset.png'),
         expected
       );
       return matches ? fraction < 0.01 : fraction > 0.05;
@@ -64,14 +57,11 @@ async function dragOpacityCurve(steps: number) {
 describe('3D rendering color and opacity reset', () => {
   it('restores Shift, Width, and the opacity curve while keeping lighting', async () => {
     const name = 'volume-coloring-reset';
-    const voxels = floatVoxels(SIZE, radialRamp(SIZE));
     await openWith3DLayout(
-      writeNrrd(name, nrrd([], 'float', SIZE), voxels),
+      writeFloatVolume(name, SIZE, radialRamp(SIZE)),
       name
     );
-    await volViewPage.renderingModuleTab.waitForClickable();
-    await volViewPage.renderingModuleTab.click();
-    await waitForModuleTransitions();
+    await openRenderingModule();
     const reset = $(RESET);
     await expect(reset).toHaveAttribute(
       'aria-label',

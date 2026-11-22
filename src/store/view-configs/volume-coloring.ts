@@ -153,8 +153,8 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
   const imageCacheStore = useImageCacheStore();
   const imageStatsStore = useImageStatsStore();
 
-  const getFitRange = (imageID: string) =>
-    imageStatsStore.stats[imageID]?.autoRangeValues?.LowContrast;
+  const getFitRange = (imageID: Maybe<string>) =>
+    imageStatsStore.getAutoRangeValues(imageID).LowContrast;
 
   const getDataRange = (imageID: string) =>
     imageCacheStore
