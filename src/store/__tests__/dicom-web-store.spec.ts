@@ -128,17 +128,19 @@ describe('unsupported DICOMweb downloads', () => {
 
 describe('partly failed DICOMweb downloads', () => {
   beforeEach(() => setActivePinia(createPinia()));
-  it('shows the loaded volume and tells the user which files failed', async () => {
+  it('shows the loaded volume and names every failed file in one notice', async () => {
     const { select, store } = remoteSeries();
     const retrieve = async () => [
       new File([], 'good.dcm'),
       new File([], 'bad.dcm'),
+      new File([], 'worse.dcm'),
     ];
-    const importSources = async ([good, bad]: Parameters<
+    const importSources = async ([good, bad, worse]: Parameters<
       typeof asOkayResult
     >[0][]) => [
       asLoadableResult('volume-1', good, 'image'),
       asErrorResult(new Error('bad.dcm is not DICOM'), bad),
+      asErrorResult(new Error('worse.dcm is not DICOM'), worse),
     ];
 
     await store.downloadVolume('series-uid', retrieve, importSources);
@@ -147,9 +149,9 @@ describe('partly failed DICOMweb downloads', () => {
     expect(select).toHaveBeenCalledWith('volume-1');
     expect(useMessageStore().messages).toEqual([
       expect.objectContaining({
-        title: expect.stringMatching(/may be incomplete/),
+        title: expect.stringMatching(/^2 of .* may be incomplete/),
         options: expect.objectContaining({
-          details: expect.stringMatching(/bad\.dcm is not DICOM/),
+          details: 'bad.dcm is not DICOM\nworse.dcm is not DICOM',
         }),
       }),
     ]);
