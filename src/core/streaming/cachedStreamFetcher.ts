@@ -47,9 +47,7 @@ export class CachedStreamFetcher implements Fetcher {
         signal: request.signal,
       });
       if (response.status !== 200)
-        throw new Error(
-          `The following resource could not be found: ${this.url}`
-        );
+        throw new Error(`HTTP ${response.status} for ${this.url}`);
       if (!response.body) throw new Error('Did not receive a response body');
       this.contentType = response.headers.get('content-type') ?? '';
       this.contentDisposition =
