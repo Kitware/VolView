@@ -251,10 +251,18 @@ function* readFileMetaInfo(
   reader: StreamingByteReader,
   onDataElement: DataElementCallback | undefined
 ) {
-  yield* readDataElementsUntil(reader, equalsToTag(Tags.TransferSyntaxUID), {
-    ...FILE_META_ENCODING,
-    onDataElement,
-  });
+  const isTransferSyntax = equalsToTag(Tags.TransferSyntaxUID);
+  yield* readDataElementsUntil(
+    reader,
+    (group, element) => group !== 0x0002 || isTransferSyntax(group, element),
+    { ...FILE_META_ENCODING, onDataElement }
+  );
+  // Past group 0002 the data set's own encoding is unknown, pixels included.
+  const [nextGroup] = yield* peekElementTag(reader, FILE_META_ENCODING);
+  if (nextGroup !== 0x0002)
+    throw new Error(
+      'Not a DICOM file: the file meta information names no transfer syntax'
+    );
 
   const transferSyntaxUidElement = yield* readDataElement(
     reader,

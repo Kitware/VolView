@@ -51,6 +51,19 @@ const bigEndianItem = (element: number, length: number) => {
 };
 
 describe('streamed header encodings', () => {
+  it('rejects a DICM file whose meta group names no transfer syntax before reading its data set', async () => {
+    const bytes = concatBytes([
+      new Uint8Array(128),
+      encode('DICM'),
+      rawElement(0x0008, 0x0060, 'CS', encode('CT')),
+      rawElement(0x7fe0, 0x0010, 'OW', new Uint8Array(64)),
+    ]);
+
+    await expect(readHeader(bytes, 7)).rejects.toThrow(
+      'the file meta information names no transfer syntax'
+    );
+  });
+
   it.each([sequenceItem, undefinedLengthItem])(
     'passes encapsulated icon fragments inside %s to the metadata reader',
     async (item) => {
