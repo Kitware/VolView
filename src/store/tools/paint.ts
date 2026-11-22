@@ -220,7 +220,7 @@ export const usePaintToolStore = defineStore('paint', () => {
 
   function doPaintStroke(this: _This, axisIndex: 0 | 1 | 2, imageID: string) {
     // Asked before anything else: cancelling a preview and resolving the target
-    // (which mints the mask and its segmentation) are both side effects a
+    // (which can mint a segment) are both side effects a
     // refused stroke must not have.
     if (segmentationStore.editTargetLocked(imageID)) return;
 
@@ -454,18 +454,17 @@ export const usePaintToolStore = defineStore('paint', () => {
     paint.crossPlaneSync = crossPlaneSync.value;
   }
 
-  // The active segment rides on its segmentation, restored by the segmentation
-  // store before any tool deserializes.
+  // The selected segment is restored with its image's segment set, before any
+  // tool deserializes.
   function deserialize(this: _This, manifest: Manifest) {
     const paint = manifest.tools?.paint;
-    if (!paint) return [];
+    if (!paint) return;
 
     if (paint.brushSize !== undefined) {
       setBrushSize.call(this, paint.brushSize);
     }
     isActive.value = manifest.tools?.current === Tools.Paint;
     setCrossPlaneSync(paint.crossPlaneSync ?? false);
-    return [];
   }
 
   return {
