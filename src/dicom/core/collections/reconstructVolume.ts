@@ -61,8 +61,7 @@ const spacingTolerance = (gap: number) =>
     Math.abs(gap) * SLICE_SPACING_RELATIVE_TOLERANCE
   );
 
-// Lower median, so the fallback spacing of an irregular stack is one of its
-// own gaps rather than an average of a gap and a hole.
+// Lower median, so the step a stack is judged against is one of its own gaps.
 const median = (values: number[]) =>
   [...values].sort((left, right) => left - right)[
     Math.floor((values.length - 1) / 2)
@@ -85,9 +84,10 @@ const distance = (left: number[], right: number[]) =>
 /**
  * The step a stack that is no lattice still takes: the lower median of the
  * straight-line distance from each member to the next, in the order given.
- * That is what ITK's series reader steps by, so a tilted gantry's slices,
- * whose planes shift sideways as they advance, keep the extent they were
- * scanned over. Null when a position is unreadable or the members never move.
+ * A tilted gantry's slices, whose planes shift sideways as they advance, keep
+ * the distance they were scanned at, and one slice shifted within its plane
+ * does not stretch the rest. Null when a position is unreadable or the
+ * members never move.
  */
 const positionStep = (members: ReconstructionMember[]) => {
   const positions = members.map((member) => member.position);
@@ -154,7 +154,10 @@ const lattice = (along: number[]): Reconstruction => {
   const gaps = along.slice(1).map((position, index) => position - along[index]);
   const step = median(gaps);
   const count = along.length;
-  const fallback = step > 0 ? step : null;
+  // The mean gap keeps an irregular stack's extent, so a missing slice moves
+  // its neighbours by less than half a slice and overlays stay registered.
+  const mean = (along[count - 1] - along[0]) / gaps.length;
+  const fallback = [mean, step].find((gap) => gap > 0) ?? null;
 
   // Frames are judged in stored order, so a step backwards is not a repeat.
   if (new Set(along).size < count)
@@ -164,14 +167,12 @@ const lattice = (along: number[]): Reconstruction => {
 
   // Every gap matches, so the endpoints fit the members better than any single
   // printed gap does.
-  const sliceSpacing = (along[count - 1] - along[0]) / gaps.length;
   const drifts = along.some(
-    (position, index) =>
-      Math.round((position - along[0]) / sliceSpacing) !== index
+    (position, index) => Math.round((position - along[0]) / mean) !== index
   );
   return drifts
-    ? irregular('uneven-slice-spacing', step)
-    : { kind: 'regular', sliceSpacing };
+    ? irregular('uneven-slice-spacing', fallback)
+    : { kind: 'regular', sliceSpacing: mean };
 };
 
 /**
