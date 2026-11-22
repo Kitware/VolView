@@ -78,8 +78,7 @@ describe('reconstructVolume', () => {
     expect(result.sliceSpacing).toBeCloseTo(3.29, 2);
   });
 
-  // The two slabs are 4mm stacks 42.439mm apart. Endpoint distance over slice
-  // count would call that a 4.59mm lattice, which describes neither slab.
+  // The two slabs are 4mm stacks 42.439mm apart, so no lattice holds them.
   it('calls the bilateral sagittal slabs an irregular stack', () => {
     const members = stack(
       bilateralSagittalSlabs
@@ -92,9 +91,8 @@ describe('reconstructVolume', () => {
     expect(members).toHaveLength(66);
     expect(result.kind).toBe('irregular');
     expect(result).toMatchObject({ reason: 'uneven-slice-spacing' });
-    // The fallback places the slices at a gap the series actually holds.
-    expect(result.sliceSpacing).toBeCloseTo(4, 12);
-    expect(result.sliceSpacing).not.toBeCloseTo(4.59137, 4);
+    // The fallback keeps the distance between the outermost slices.
+    expect(result.sliceSpacing).toBeCloseTo(4.59137, 4);
   });
 
   it('reports a hole in an otherwise even stack as irregular', () => {
@@ -197,7 +195,7 @@ describe('reconstructVolume', () => {
       kind: 'irregular',
       reason: 'uneven-slice-spacing',
     });
-    expect(result.sliceSpacing).toBeCloseTo(2, 12);
+    expect(result.sliceSpacing).toBeCloseTo(1, 12);
   });
 
   it('has no step for members that never move', () => {

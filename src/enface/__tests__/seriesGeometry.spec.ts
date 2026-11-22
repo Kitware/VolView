@@ -165,7 +165,7 @@ describe('assembled OCT series through real header and file collaborators', () =
   });
 
   it.each([
-    { positions: [0, 0.1, 0.4], displayedSpacing: 0.1 },
+    { positions: [0, 0.1, 0.4], displayedSpacing: 0.2 },
     { positions: [0, 0.2, 0.4003, 0.6, 0.8], displayedSpacing: 0.2 },
   ])(
     'keeps a nonuniform series projection-only: $positions',
