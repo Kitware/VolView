@@ -425,7 +425,10 @@ const {
               />
             </template>
             <template #append>
-              <copy-segments-menu :image-id="currentImageID" />
+              <copy-segments-menu
+                :image-id="currentImageID"
+                :unavailable-reason="imageUnavailableReason"
+              />
             </template>
           </editable-item-list>
         </v-expansion-panel-text>

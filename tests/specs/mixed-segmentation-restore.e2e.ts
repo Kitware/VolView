@@ -1,16 +1,13 @@
 import { volViewPage } from '../pageobjects/volview.page';
 import { writeConfigImages } from './configurationImage';
 import {
+  clickImageCard,
   openAnnotationSegments,
   segmentNames,
   segmentRow,
   waitForSegmentContent,
 } from './segmentationTestUtils';
-import {
-  waitForModuleTransitions,
-  writeManifestToFile,
-  writeMetaImage,
-} from './utils';
+import { writeManifestToFile, writeMetaImage } from './utils';
 
 describe('Restoring a labelmap without saved segment definitions', () => {
   it('matches labels on an unviewed image without inheriting definitions', async () => {
@@ -54,11 +51,7 @@ describe('Restoring a labelmap without saved segment definitions', () => {
       'false'
     );
 
-    await $('button[data-testid="module-tab-Data"]').click();
-    await waitForModuleTransitions();
-    const target = $(`.image-list-card:has([title="${stem}.nrrd"])`);
-    await target.waitForClickable();
-    await target.click();
+    await clickImageCard(`${stem}.nrrd`);
     await openAnnotationSegments();
     await waitForSegmentContent('Matched mask');
     expect(await segmentNames()).toEqual(['Matched mask']);

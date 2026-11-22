@@ -1,6 +1,7 @@
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { Key, type ChainablePromiseElement } from 'webdriverio';
 import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
+import { waitForModuleTransitions } from './utils';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
 const SHAPE_ROW = '[data-testid="segment-shape-row"]';
@@ -118,10 +119,29 @@ export const selectedSegmentName = () =>
     `${SEGMENT_LIST} .item-row.v-list-item--active .v-list-item-title`
   ).getText();
 
+const imageCard = (name: string) =>
+  $(`.image-list-card:has([title="${name}"])`);
+
+/** Views an imported image by clicking its card in the Data tab. */
+export const clickImageCard = async (name: string) => {
+  await $('button[data-testid="module-tab-Data"]').click();
+  await waitForModuleTransitions();
+  const card = imageCard(name);
+  await card.waitForDisplayed();
+  await card.scrollIntoView();
+  await card.waitForClickable();
+  await card.click();
+  await browser.waitUntil(async () =>
+    ((await card.getAttribute('class')) ?? '').includes(
+      'image-list-card-active'
+    )
+  );
+};
+
 /** Drops an imported image's card onto a layout slot through its DOM handlers. */
 export const dropImageOnView = async (name: string, slotIndex: number) => {
   await $('button[data-testid="module-tab-Data"]').click();
-  const card = $(`.image-list-card:has([title="${name}"])`);
+  const card = imageCard(name);
   await card.waitForDisplayed();
   await browser.execute(
     (source, destination, mediaType) => {
@@ -172,6 +192,16 @@ export const renameSegment = async (from: string, to: string) => {
   await browser.waitUntil(async () => (await segmentNames()).includes(to), {
     timeoutMsg: `Expected a segment named "${to}"`,
   });
+};
+
+export const recolorSegment = async (name: string, red: number) => {
+  const row = await segmentRow(name);
+  await row.$('[data-testid="edit-segment-button"]').click();
+  const dialog = editDialog();
+  await dialog.waitForDisplayed();
+  await setValueVueInput(dialog.$('.v-color-picker-edit input'), String(red));
+  await volViewPage.editLabelModalDoneButton.click();
+  await dialog.waitForDisplayed({ reverse: true });
 };
 
 /** The Segments list is pinned at the top of the Annotations panel. */
