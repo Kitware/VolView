@@ -1,5 +1,6 @@
 import macro from '@kitware/vtk.js/macro';
 import vtkPiecewiseGaussianWidget from '@kitware/vtk.js/Interaction/Widgets/PiecewiseGaussianWidget';
+import { interpolateAt } from '@/src/utils/interpolate';
 
 export const Mode = {
   Gaussians: 1,
@@ -20,15 +21,8 @@ export function samplePiecewiseLinear(
   shiftAlpha = 0,
   samples = 256
 ) {
-  const opacityAt = (x) => {
-    const next = points.findIndex(([px]) => px >= x);
-    if (next <= 0) return (next === 0 ? points[0] : points.at(-1))[1];
-    const [x0, y0] = points[next - 1];
-    const [x1, y1] = points[next];
-    return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
-  };
   return Array.from({ length: samples }, (_, i) => {
-    const value = opacityAt(i / (samples - 1) - shift);
+    const [value] = interpolateAt(points, i / (samples - 1) - shift);
     // Non-zero values should be affected by shift but values of zero should not
     return Math.min(Math.max(value && value - shiftAlpha, 0), 1);
   });

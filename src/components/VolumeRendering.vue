@@ -212,10 +212,8 @@ export default defineComponent({
 
     onVTKEvent(colorTransferFunc, 'onModified', () => pwfWidget.render());
 
-    const fitRange = computed(
-      () =>
-        currentImageID.value &&
-        volumeColoringStore.getFitRange(currentImageID.value)
+    const fitRange = computed(() =>
+      volumeColoringStore.getFitRange(currentImageID.value)
     );
 
     // update pwf widget when opacity function changes
@@ -234,7 +232,7 @@ export default defineComponent({
             ...opFunc,
             shift: 0,
             shiftAlpha: 0,
-            fitRange: range || undefined,
+            fitRange: range,
           });
           pwfWidget.setOpacityPoints(points, opFunc.shift, opFunc.shiftAlpha);
         }

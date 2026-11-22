@@ -1,7 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { volViewPage } from '../pageobjects/volview.page';
-import { captureViewPixels, makeTempDir, writeManifestToFile } from './utils';
+import {
+  captureViewPixels,
+  makeTempDir,
+  waitForModuleTransitions,
+  writeManifestToFile,
+} from './utils';
 
 export const VIEW = '[data-testid~="vtk-volume-view"]';
 
@@ -14,10 +19,15 @@ const LAYOUT = {
   },
 };
 
-export const nrrd = (fields: string[], type = 'uchar', size = 8) =>
-  [
+/** Writes a float NRRD cube with `size` voxels per edge and returns its URL. */
+export function writeFloatVolume(
+  name: string,
+  size: number,
+  valueAt: (index: number) => number
+) {
+  const header = [
     'NRRD0005',
-    `type: ${type}`,
+    'type: float',
     'dimension: 3',
     `sizes: ${size} ${size} ${size}`,
     'endian: little',
@@ -25,16 +35,17 @@ export const nrrd = (fields: string[], type = 'uchar', size = 8) =>
     'space directions: (1,0,0) (0,1,0) (0,0,1)',
     'space origin: (0,0,0)',
     'encoding: raw',
-    ...fields,
     '',
     '',
   ].join('\n');
-
-export function floatVoxels(size: number, valueAt: (index: number) => number) {
-  const buffer = Buffer.alloc(size ** 3 * 4);
+  const voxels = Buffer.alloc(size ** 3 * 4);
   for (let index = 0; index < size ** 3; index++)
-    buffer.writeFloatLE(valueAt(index), index * 4);
-  return buffer;
+    voxels.writeFloatLE(valueAt(index), index * 4);
+  fs.writeFileSync(
+    path.join(makeTempDir(name), `${name}.nrrd`),
+    Buffer.concat([Buffer.from(header), voxels])
+  );
+  return `tmp/${name}/${name}.nrrd`;
 }
 
 /** 1000 at the cube center, falling linearly to 0 at half the edge length. */
@@ -47,21 +58,18 @@ export const radialRamp = (size: number) => (index: number) => {
   return Math.max(0, 1000 * (1 - Math.hypot(...offsets) / (size / 2)));
 };
 
-export function writeNrrd(name: string, header: string, voxels: Buffer) {
-  const directory = makeTempDir(name);
-  fs.writeFileSync(
-    path.join(directory, `${name}.nrrd`),
-    Buffer.concat([Buffer.from(header), voxels])
-  );
-  return `tmp/${name}/${name}.nrrd`;
-}
-
 export async function showColorPresets(show = true) {
   const title = $('.v-expansion-panel-title*=Color Presets');
   await title.scrollIntoView({ block: 'center', behavior: 'instant' });
   if (((await title.getAttribute('aria-expanded')) === 'true') !== show) {
     await title.click();
   }
+}
+
+export async function openRenderingModule() {
+  await volViewPage.renderingModuleTab.waitForClickable();
+  await volViewPage.renderingModuleTab.click();
+  await waitForModuleTransitions();
 }
 
 export const selectedPreset = () => $('.thumbnail-container.bg-blue');
@@ -107,10 +115,18 @@ export async function waitForFittedColorRange(dataRangeWidth: number) {
   );
 }
 
+export async function viewPixels(
+  selector: string,
+  inset: number,
+  file: string
+) {
+  const [{ data }] = await captureViewPixels(selector, inset, file);
+  return data;
+}
+
 /** Captures a view until two consecutive frames match. */
 export async function stablePixels(selector: string, inset: number) {
-  const capture = async () =>
-    (await captureViewPixels(selector, inset, 'stable-pixels.png'))[0].data;
+  const capture = () => viewPixels(selector, inset, 'stable-pixels.png');
   let previous = await capture();
   await browser.waitUntil(async () => {
     const next = await capture();

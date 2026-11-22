@@ -132,8 +132,8 @@ export function getShiftedOpacityFromPreset({
   mappingRange,
   shift,
   shiftAlpha,
-  fitRange = mappingRange,
-}: Omit<OpacityPoints, 'mode'> & { fitRange?: [number, number] }) {
+  fitRange,
+}: Omit<OpacityPoints, 'mode'> & { fitRange?: Maybe<[number, number]> }) {
   const preset = getPresetByName(presetName);
   if (preset?.OpacityPoints) {
     const opacityPoints = preset.OpacityPoints;
@@ -142,9 +142,10 @@ export function getShiftedOpacityFromPreset({
       points.push([opacityPoints[i], opacityPoints[i + 1]]);
     }
 
+    const [fitLow, fitHigh] = fitRange ?? mappingRange;
     const toScalar = getColorFunctionRangeFromPreset(presetName)
       ? (x: number) => x
-      : (x: number) => fitRange[0] + x * (fitRange[1] - fitRange[0]);
+      : (x: number) => fitLow + x * (fitHigh - fitLow);
     const [xmin, xmax] = mappingRange;
     const width = xmax - xmin;
     return points.map(([x, y]) => {

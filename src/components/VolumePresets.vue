@@ -8,7 +8,6 @@ import { useVolumeColoringInitializer } from '@/src/composables/useVolumeColorin
 import PersistentOverlay from '@/src/components/PersistentOverlay.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import useVolumeColoringStore from '@/src/store/view-configs/volume-coloring';
-import { getColorFunctionRangeFromPreset } from '@/src/utils/vtk-helpers';
 import { useVolumeThumbnailing } from '@/src/composables/useVolumeThumbnailing';
 
 const THUMBNAIL_SIZE = 80;
@@ -51,20 +50,6 @@ export default defineComponent({
     );
     const hasCurrentImage = computed(() => !!currentImageData.value);
 
-    // the data range, if any
-    const imageDataRange = computed((): [number, number] => {
-      const image = currentImageData.value;
-      if (image) {
-        return image.getPointData().getScalars().getRange();
-      }
-      return [0, 1];
-    });
-    const effectiveMappingRange = computed(
-      () =>
-        getColorFunctionRangeFromPreset(selectedPreset.value || '') ||
-        imageDataRange.value
-    );
-
     const selectPreset = (name: string) => {
       if (!viewId.value || !currentImageID.value) return;
       volumeColoringStore.setColorPreset(
@@ -104,7 +89,6 @@ export default defineComponent({
       thumbnails: currentThumbnails,
       hasCurrentImage,
       preset: selectedPreset,
-      fullMappingRange: effectiveMappingRange,
       mappingRange: computed(
         () => colorTransferFunctionRef.value!.mappingRange
       ),

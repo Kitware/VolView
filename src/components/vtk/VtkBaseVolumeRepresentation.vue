@@ -183,11 +183,7 @@ useColoringEffect(
   coloringConfig,
   cfun,
   ofun,
-  computed(() =>
-    imageID.value
-      ? useVolumeColoringStore().getFitRange(imageID.value)
-      : undefined
-  )
+  computed(() => useVolumeColoringStore().getFitRange(imageID.value))
 );
 
 // cropping
