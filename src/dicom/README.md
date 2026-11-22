@@ -38,11 +38,13 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   assigning the returned state. The first registration of a SOP Instance UID
   is kept.
 - In a multi-file volume member i fills slice i. An irregular stack keeps its
-  planned order with approximate spacing and is not resampled.
-- The buffer type comes from the headers' rescaled value ranges. Float32 is
-  used where it holds every value exactly, since vtk.js converts other types
-  to float32 on upload. Decoded values the buffer would round or not hold are
-  rejected.
+  planned order, spaced by its mean gap so its extent is kept, and is not
+  resampled.
+- The buffer type comes from the headers' rescaled value ranges. Ranges that
+  fit 8 or 16 bit integers keep that integer type. Wider integer ranges and
+  fractional rescales use Float32 where it holds every value exactly, else
+  Int32, Uint32 or Float64. Decoded values the buffer would round or not hold
+  are rejected.
 - `loadVolume` writes each decoded unit at once and marks its slices loaded
   only when it yields the update. Units load focus first, then coarse to
   fine. A failed unit yields an error update naming the file and loading
