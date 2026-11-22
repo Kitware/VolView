@@ -81,17 +81,27 @@ function claimedBits(word: Uint32Array, pixels: Int32Array, count: number) {
 
 const lowestBit = (bits: number) => 31 - Math.clz32(bits & -bits);
 
+/** Working memory of `composeSlice`, kept between calls to skip allocating. */
+export type SliceScratch = { pixels: Int32Array; words: Uint32Array[] };
+
+export const createSliceScratch = (): SliceScratch => ({
+  pixels: new Int32Array(0),
+  words: [],
+});
+
 /**
  * Writes each mask's pixels on the plane `extent` into label planes. A mask
  * takes the first plane where it claims no pixel already claimed and a label
  * is free, so masks that do not overlap here share one plane, in order. A
  * mask with no pixel on this plane takes no label. A buffer in `reuse` of the
- * right length is cleared and written instead of allocating one.
+ * right length is cleared and written instead of allocating one, and so is
+ * the working memory in `scratch`, which holds nothing of the result.
  */
 export function composeSlice(
   masks: readonly SliceMask[],
   extent: Extent3D,
-  reuse: readonly Uint8Array[] = []
+  reuse: readonly Uint8Array[] = [],
+  scratch = createSliceScratch()
 ) {
   const plane = boundsOf(extent);
   const [ni, nj, nk] = extentSize(extent);
@@ -109,10 +119,20 @@ export function composeSlice(
   // Bit b of words[w] at a pixel says plane 32 * w + b claims it.
   const words: Uint32Array[] = [];
   const full: number[] = [];
-  const pixels = new Int32Array(size);
+  if (scratch.pixels.length !== size) {
+    scratch.pixels = new Int32Array(size);
+    scratch.words = [];
+  }
+  // Only the first `count` pixels are read, so stale ones need no clearing.
+  const { pixels } = scratch;
+  const wordAt = (w: number) => {
+    const held = scratch.words[w]?.fill(0) ?? new Uint32Array(size);
+    scratch.words[w] = held;
+    return held;
+  };
   const firstFreePlane = (count: number) => {
     for (let w = 0; ; w += 1) {
-      words[w] ??= new Uint32Array(size);
+      words[w] ??= wordAt(w);
       full[w] ??= 0;
       const free = ~(claimedBits(words[w], pixels, count) | full[w]);
       if (free) return w * 32 + lowestBit(free);
