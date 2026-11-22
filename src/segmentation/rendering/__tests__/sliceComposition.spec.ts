@@ -3,6 +3,7 @@ import type { Extent3D } from '@/src/segmentation/geometry';
 import {
   PLANE_LABEL_CAPACITY,
   composeSlice,
+  createSliceScratch,
   slicePlaneExtent,
   type SliceMask,
 } from '@/src/segmentation/rendering/sliceComposition';
@@ -227,6 +228,24 @@ describe('composeSlice', () => {
 
     expect(composed.values).not.toBe(small);
     expect(composed.values).toHaveLength(12);
+  });
+
+  it('composes the same with scratch left by another composition', () => {
+    const scratch = createSliceScratch();
+    const masks = [
+      mask('a', [0, 1, 0, 0, 0, 0]),
+      mask('b', [1, 3, 0, 2, 0, 0]),
+    ];
+    composeSlice(
+      [mask('full', plane), mask('over', plane)],
+      plane,
+      [],
+      scratch
+    );
+
+    expect(composeSlice(masks, plane, [], scratch)).toEqual(
+      composeSlice(masks, plane)
+    );
   });
 
   it('leaves the masks untouched', () => {

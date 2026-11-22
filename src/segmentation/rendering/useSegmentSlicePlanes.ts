@@ -19,6 +19,7 @@ import { placeMask, setMaskScalars } from '@/src/segmentation/masks/storage';
 import { extentReachesSlice, type Extent3D } from '@/src/segmentation/geometry';
 import {
   composeSlice,
+  createSliceScratch,
   slicePlaneExtent,
   type SlicePlane,
 } from '@/src/segmentation/rendering/sliceComposition';
@@ -86,6 +87,7 @@ export function useSegmentSlicePlanes(
     (region) => !shown || extentReachesSlice(region, shown.axis, shown.index)
   );
   const images = createPlaneImages();
+  const scratch = createSliceScratch();
   const planes = shallowRef<RenderedPlane[]>([]);
 
   const compose = () => {
@@ -108,7 +110,7 @@ export function useSegmentSlicePlanes(
       index
     );
     if (!extent) return [];
-    const composed = composeSlice(masks, extent, images.buffers());
+    const composed = composeSlice(masks, extent, images.buffers(), scratch);
     return images
       .publish(parentImage, extent, composed)
       .map((image, plane) => ({
