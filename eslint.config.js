@@ -11,8 +11,8 @@ import globals from 'globals';
 // Enforced with the built-in `no-restricted-imports` — eslint-plugin-import is
 // not a dependency of this repo, and the built-in rule expresses the same
 // zones with no new dependency. Two zones per feature:
-//   1. Code OUTSIDE the feature directory may reach it ONLY through its public
-//      surface `@/src/<dir>` (the index), never a deep path.
+//   1. Code OUTSIDE the feature directory may reach it ONLY through the
+//      modules listed in its `publicModules`, never another path.
 //   2. The feature's pure layer may not import stores, components, or the
 //      upper feature modules, and stays framework-free (no pinia, no vue) —
 //      dependencies point downward only.
@@ -65,9 +65,13 @@ const upperLayerMessage = (feature) =>
   `The ${feature.dir} pure layer must not import stores, components, or upper feature modules. Dependencies point downward only.`;
 
 const featureBoundaries = (features) => {
-  const publicSurface = ({ dir }) => ({
-    group: [`@/src/${dir}/*`, `@/src/${dir}/*/**`, `!@/src/${dir}/index`],
-    message: `Import the ${dir} feature only from its public surface \`@/src/${dir}\` (src/${dir}/index.ts). A deep import bypasses the feature boundary.`,
+  const publicSurface = ({ dir, publicModules }) => ({
+    group: [
+      `@/src/${dir}/*`,
+      `@/src/${dir}/*/**`,
+      ...publicModules.map((module) => `!@/src/${dir}/${module}`),
+    ],
+    message: `Import the ${dir} feature only through its public modules: ${publicModules.join(', ')}.`,
   });
   const publicFeatures = features.filter(
     (feature) => feature.publicSurface !== false
@@ -107,11 +111,6 @@ const featureBoundaries = (features) => {
                 name,
                 message: `The ${feature.dir} pure layer must stay framework-free: no ${name}.`,
               })),
-              // The bare directory is the index, an upper module.
-              {
-                name: `@/src/${feature.dir}`,
-                message: upperLayerMessage(feature),
-              },
             ],
             patterns: [
               {
@@ -336,6 +335,7 @@ export default tseslint.config(
     },
     {
       dir: 'processing',
+      publicModules: ['integration', 'store', 'types'],
       pure: [
         'src/processing/engine/**/*.{js,ts}',
         'src/processing/types.ts',
@@ -344,6 +344,12 @@ export default tseslint.config(
     },
     {
       dir: 'referenceLines',
+      publicModules: [
+        'ReferenceLines.vue',
+        'ReferenceLineSegments.vue',
+        'geometry',
+        'store',
+      ],
       pure: [
         'src/referenceLines/geometry.ts',
         'src/referenceLines/crossings.ts',

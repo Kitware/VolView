@@ -10,11 +10,11 @@ import { createPinia, setActivePinia } from 'pinia';
 // Keep the Jobs async-component cheap and DOM-safe if it ever renders.
 
 import ModulePanel from '@/src/components/ModulePanel.vue';
-import { useProcessingJobsStore } from '@/src/processing';
+import { useProcessingJobsStore } from '@/src/processing/store';
 import useRemoteSaveStateStore from '@/src/store/remote-save-state';
 import { ConnectionState, useServerStore } from '@/src/store/server';
 import { savePost, saveDependencies } from '@/src/store/__tests__/saveFixtures';
-import type { ProcessingProviderConfig } from '@/src/processing';
+import type { ProcessingProviderConfig } from '@/src/processing/types';
 
 // Stub the Vuetify shell so mounting ModulePanel exercises only its own gating
 // logic (we read the `modules` computed, never the rendered DOM).
