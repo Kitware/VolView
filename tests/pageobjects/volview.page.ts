@@ -55,9 +55,17 @@ class VolViewPage extends Page {
           const canvases = document.querySelectorAll(
             'div[data-testid~="vtk-view"] canvas'
           );
+          // A canvas carries its default 300x300 attributes before it is
+          // laid out, so its box on the page has to have a size as well.
           return Array.from(canvases).some((c) => {
             const canvas = c as HTMLCanvasElement;
-            return canvas.width > 10 && canvas.height > 10;
+            const box = canvas.getBoundingClientRect();
+            return (
+              canvas.width > 10 &&
+              canvas.height > 10 &&
+              box.width > 10 &&
+              box.height > 10
+            );
           });
         });
       },
