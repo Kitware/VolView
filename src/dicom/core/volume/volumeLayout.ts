@@ -4,10 +4,10 @@ import { Tags } from '../metadata/dicomTags';
 import { readGeometryFacts, sliceNormalOf } from '../collections/instanceFacts';
 import type { Reconstruction } from '../collections/reconstructVolume';
 import { readDatasetDetails } from '../collections/datasetDetails';
-import { readPixelSpacing, spacingOr1 } from '../metadata/spatialMetadata';
+import { readPixelSpacing } from '../metadata/spatialMetadata';
 import { getFrameTag } from '../metadata/functionalGroups';
 import { frameCount } from '../pixels/pixelDecoder';
-import { numberOr } from '../utils';
+import { numberOr, trimDicomPadding } from '../utils';
 import { nmGeometry } from './nmGeometry';
 import { getVolumeBufferType, instancePixelFormats } from './pixelFormat';
 import { applyUltrasoundSpacing } from './ultrasoundSpacing';
@@ -68,6 +68,13 @@ function allocationShape(sources: readonly VolumeSource[]) {
   };
 }
 
+// SliceThickness is only a stand-in for the gap: it can differ from it, but
+// many enhanced OCT files declare nothing else.
+const declaredSliceSpacing = (dataset: DicomDataset) =>
+  [Tags.SpacingBetweenSlices, Tags.SliceThickness]
+    .map((tag) => Number(trimDicomPadding(getFrameTag(dataset, tag) ?? '')))
+    .find(isPositiveFiniteNumber) ?? 1;
+
 function allocationSpacing(
   dataset: DicomDataset,
   { reconstruction }: ReturnType<typeof allocationGeometry>
@@ -75,7 +82,7 @@ function allocationSpacing(
   const sliceSpacing = reconstruction.sliceSpacing ?? 0;
   const z = isPositiveFiniteNumber(sliceSpacing)
     ? sliceSpacing
-    : spacingOr1(getFrameTag(dataset, Tags.SpacingBetweenSlices));
+    : declaredSliceSpacing(dataset);
   return [...readPixelSpacing(dataset), z];
 }
 

@@ -173,4 +173,35 @@ describe('volumeLayout', () => {
 
     expect(spacingOf(layout)[2]).toBe(2.5);
   });
+
+  it('falls back to SliceThickness when nothing else spaces the frames', () => {
+    const layout = layoutOf(
+      [
+        volumeSource({
+          [Tags.NumberOfFrames]: '32',
+          [Tags.ImagePositionPatient]: '',
+          [Tags.SliceThickness]: '0.25',
+        }),
+      ],
+      AXIAL
+    );
+
+    expect(spacingOf(layout)[2]).toBe(0.25);
+  });
+
+  it('prefers SpacingBetweenSlices over SliceThickness', () => {
+    const layout = layoutOf(
+      [
+        volumeSource({
+          [Tags.NumberOfFrames]: '32',
+          [Tags.ImagePositionPatient]: '',
+          [Tags.SpacingBetweenSlices]: '0.5',
+          [Tags.SliceThickness]: '0.25',
+        }),
+      ],
+      AXIAL
+    );
+
+    expect(spacingOf(layout)[2]).toBe(0.5);
+  });
 });
