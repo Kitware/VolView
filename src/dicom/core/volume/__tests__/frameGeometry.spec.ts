@@ -185,7 +185,7 @@ describe('enhanced volume Functional Groups', () => {
     });
   });
 
-  it('reads OCT in-plane calibration without using optical depth of field as frame separation', () => {
+  it('separates unpositioned OCT frames by the shared SliceThickness', () => {
     const metadata = enhanced(
       groups([
         sequence('00289110', [
@@ -197,7 +197,9 @@ describe('enhanced volume Functional Groups', () => {
       ]),
       [groups([]), groups([])]
     );
-    expect(allocate(metadata).spacing).toEqual([0.01174168, 0.001955034, 1]);
+    expect(allocate(metadata).spacing).toEqual([
+      0.01174168, 0.001955034, 0.002,
+    ]);
   });
 
   it('reports shared-plane temporal frames as irregular', () => {
