@@ -9,6 +9,7 @@ import { batchAfterNextFrame } from '@/src/utils/batchAfterNextFrame';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWindowInteractor';
+import type vtkOpenGLHardwareSelector from '@kitware/vtk.js/Rendering/OpenGL/HardwareSelector';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
 import vtkWidgetManager from '@kitware/vtk.js/Widgets/Core/WidgetManager';
 import type { Bounds } from '@kitware/vtk.js/types';
@@ -146,6 +147,17 @@ export function useVtkView(
 
   // widget manager
   const widgetManager = useWidgetManager(renderer);
+  if (separateImageLayer) {
+    // Each pointer move picks by redrawing every renderer once per selection
+    // pass, then blocks on readPixels; widgets never live in the image layer.
+    const { _selector: selector } = widgetManager.get('_selector') as {
+      _selector: vtkOpenGLHardwareSelector;
+    };
+    onVTKEvent(selector, 'onEvent', (event) => {
+      if (event.type === 'StartEvent') imageRenderer.setDraw(false);
+      if (event.type === 'EndEvent') imageRenderer.setDraw(true);
+    });
+  }
 
   // render API
   // vtk modifies what it draws while drawing it, which needs no second render.
