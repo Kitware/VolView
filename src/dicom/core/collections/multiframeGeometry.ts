@@ -41,7 +41,7 @@ const singleSpatialStack = (groups: DicomDataset[]) =>
  * Patient-space frames keep their stored pixel order. The third direction
  * follows the positions, which can run opposite the row/column cross product.
  * Ophthalmic scan-line coordinates require a separate calibrated localizer;
- * optical SliceThickness cannot substitute for their separation.
+ * SliceThickness cannot place frames, so it is only a spacing fallback.
  */
 export function multiframeGeometry(metadata: DicomDataset, count: number) {
   const groups = perFrameGroups(metadata);
