@@ -6,6 +6,7 @@ import {
   useEnFaceViewStore,
   type EnFaceViewConfig,
   type EnFaceViewControlState,
+  type SegmentProjection,
 } from './store';
 import EnFaceControls from './EnFaceControls.vue';
 
@@ -31,14 +32,10 @@ const controlState = computed(() => {
     axes: [],
     depthMaximum: 0,
     projectionReason: reason,
-    thickness: {
-      thresholdMaximum: 1,
-      segmentationReason: reason,
-      highlightReason: reason,
-      thicknessReason: reason,
+    segmentControls: {
       segments: [],
-      segmentId: null,
-      highlightThin: false,
+      segmentationReason: reason,
+      thinReason: reason,
     },
   } satisfies EnFaceViewControlState;
 });
@@ -56,6 +53,10 @@ function patch(patchSettings: Partial<EnFaceViewConfig>) {
   )
     windowing.resetContrast(viewId, dataId);
 }
+function patchSegment(segmentId: string, change: Partial<SegmentProjection>) {
+  if (props.dataId)
+    enFaceStore.patchSegment(props.viewId, props.dataId, segmentId, change);
+}
 </script>
 
 <template>
@@ -65,6 +66,7 @@ function patch(patchSettings: Partial<EnFaceViewConfig>) {
       :settings="settings"
       :embedded="embedded"
       @patch="patch"
+      @segment="patchSegment"
     />
   </div>
 </template>

@@ -138,12 +138,6 @@ export const VIEWER = '[data-testid="enface-viewer"]';
 export const CONTROLS = '[data-testid="enface-controls"]';
 export const PANEL =
   '.v-overlay--active [data-testid="enface-rendering-panel"]';
-export const THRESHOLD =
-  PANEL + ' [data-testid="enface-thickness-threshold-input"] input';
-export const THRESHOLD_SLIDER =
-  PANEL + ' [data-testid="enface-thickness-threshold"] [role="slider"]';
-export const HIGHLIGHT_TOGGLE =
-  PANEL + ' [data-testid="enface-thin-highlight"]';
 export const WINDOW_TOOL =
   'button[data-testid^="control-button-Window & Level "]';
 export const toolButton = (name: string) =>
@@ -153,9 +147,10 @@ export const windowedGray = (
   value: number,
   { width, level }: { width: number; level: number }
 ) => Math.round(255 * Math.min(1, Math.max(0, (value - level) / width + 0.5)));
-type EnFaceSection = 'projection' | 'thickness';
-const sectionToggle = (section: EnFaceSection) =>
-  '.v-overlay--active [data-testid="enface-' + section + '-toggle"]';
+const SECTIONS = ['projection', 'segments'] as const;
+type EnFaceSection = (typeof SECTIONS)[number];
+const sectionToggle = (section: EnFaceSection, scope = PANEL) =>
+  scope + ' [data-testid="enface-' + section + '-toggle"]';
 const enFaceView = async (view?: WebdriverIO.Element) =>
   view ?? $(VIEWER).getElement();
 
@@ -190,9 +185,10 @@ export async function displayedWindow(view: WebdriverIO.Element) {
 }
 
 export async function expandEnFaceSection(
-  section: EnFaceSection = 'projection'
+  section: EnFaceSection = 'projection',
+  scope = PANEL
 ) {
-  const toggle = $(sectionToggle(section));
+  const toggle = $(sectionToggle(section, scope));
   await toggle.scrollIntoView({ block: 'center', inline: 'nearest' });
   await toggle.waitForClickable();
   if ((await toggle.getAttribute('aria-expanded')) !== 'true')
@@ -201,7 +197,7 @@ export async function expandEnFaceSection(
   const content = toggle.$('..').$('.v-expansion-panel-text');
   await content.waitForDisplayed();
   await content.waitForStable();
-  await $(PANEL).waitForStable();
+  await $(scope).waitForStable();
 }
 
 export async function openEnFaceControls(view?: WebdriverIO.Element) {
@@ -211,21 +207,65 @@ export async function openEnFaceControls(view?: WebdriverIO.Element) {
   await panel.waitForStable();
 }
 
-export async function setThicknessThreshold(value: number) {
-  await expandEnFaceSection('thickness');
-  const input = $(THRESHOLD);
-  await input.scrollIntoView({ block: 'center', inline: 'nearest' });
-  await input.waitForClickable();
-  await setValueVueInput(input, String(value));
+export async function openEnFaceSidebarControls() {
+  await browser.keys(Key.Escape);
+  await $(PANEL).waitForDisplayed({ reverse: true });
+  await volViewPage.renderingModuleTab.click();
+  await waitForModuleTransitions();
+  const toggle = $('[data-testid="enface-rendering-toggle"]');
+  await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
+  await toggle.waitForClickable();
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true')
+    await toggle.click();
+  const sidebar = '[data-testid="enface-sidebar-controls"]';
+  await $(sidebar).waitForDisplayed();
+  await toggle.$('..').waitForStable();
+  return sidebar;
 }
 
-export async function setHighlight(enabled: boolean) {
-  await expandEnFaceSection('thickness');
-  const label = $(HIGHLIGHT_TOGGLE + ' label');
-  await label.scrollIntoView({ block: 'center', inline: 'nearest' });
-  await label.waitForClickable();
-  if ((await $(HIGHLIGHT_TOGGLE + ' input').isSelected()) !== enabled)
-    await label.click();
+export const enFaceSegmentRow = (name: string, scope = PANEL) =>
+  $(scope).$(
+    '[data-testid="enface-segment-row"][data-segment-name="' + name + '"]'
+  );
+
+export const segmentEye = (name: string, scope = PANEL) =>
+  enFaceSegmentRow(name, scope).$('[data-testid="enface-segment-visible"]');
+
+export const segmentThreshold = (name: string, scope = PANEL) =>
+  enFaceSegmentRow(name, scope).$(
+    '[data-testid="enface-segment-threshold-input"] input'
+  );
+
+export const segmentThresholdSlider = (name: string, scope = PANEL) =>
+  enFaceSegmentRow(name, scope).$(
+    '[data-testid="enface-segment-threshold"] [role="slider"]'
+  );
+
+export async function setSegmentShown(
+  name: string,
+  shown: boolean,
+  scope = PANEL
+) {
+  await expandEnFaceSection('segments', scope);
+  const eye = segmentEye(name, scope);
+  await eye.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await eye.waitForClickable();
+  if ((await eye.getAttribute('aria-pressed')) !== String(shown))
+    await eye.click();
+  await expect(eye).toHaveAttribute('aria-pressed', String(shown));
+}
+
+/** Null keeps every region of the segment. */
+export async function setSegmentThreshold(
+  name: string,
+  value: number | null,
+  scope = PANEL
+) {
+  await setSegmentShown(name, true, scope);
+  const input = segmentThreshold(name, scope);
+  await input.scrollIntoView({ block: 'center', inline: 'nearest' });
+  await input.waitForClickable();
+  await setValueVueInput(input, value === null ? '' : String(value));
 }
 
 export async function expectHighlight(present: boolean) {
@@ -564,9 +604,8 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
   const controls = viewer.$(CONTROLS);
   const restorePanel =
     (await controls.getAttribute('aria-expanded')) === 'true';
-  const sections = ['projection', 'thickness'] as const;
   const expanded = await Promise.all(
-    sections.map(
+    SECTIONS.map(
       async (section) =>
         restorePanel &&
         (await $(sectionToggle(section)).getAttribute('aria-expanded')) ===
@@ -589,7 +628,7 @@ export async function getEnFaceWindow(view?: WebdriverIO.Element) {
     const reopened = $(PANEL);
     await reopened.waitForDisplayed();
     await reopened.waitForStable();
-    for (const [index, section] of sections.entries()) {
+    for (const [index, section] of SECTIONS.entries()) {
       const toggle = $(sectionToggle(section));
       if (expanded[index]) {
         await expandEnFaceSection(section);

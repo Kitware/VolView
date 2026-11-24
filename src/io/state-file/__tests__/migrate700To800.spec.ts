@@ -132,7 +132,9 @@ describe('7.0.0 to 8.0.0 migration', () => {
               method: 'mean',
               depthStart: 0,
               depthEnd: null,
-              segmentId: planned.id,
+              segmentProjections: {
+                [planned.id]: { visible: true, thresholdMicrons: null },
+              },
             },
           },
         },
@@ -143,9 +145,9 @@ describe('7.0.0 to 8.0.0 migration', () => {
     expect(
       migrated.tools!.rulers!.tools.map(({ segmentId }) => segmentId)
     ).toEqual([tumor.id, tumor.id]);
-    expect(migrated.viewByID!.view.config!.a.enFace!.segmentId).toBe(
-      planned.id
-    );
+    expect(
+      Object.keys(migrated.viewByID!.view.config!.a.enFace!.segmentProjections)
+    ).toEqual([planned.id]);
   });
 
   it('leaves images without a set when the legacy catalog is empty', () => {

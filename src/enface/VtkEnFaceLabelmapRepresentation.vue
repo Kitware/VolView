@@ -13,14 +13,14 @@ const props = defineProps<{
   geometry: MeasurementPlaneGeometry | null;
   measurement: OccupiedDepthResult | null;
   micronsPerVoxel: number;
-  threshold: number;
+  threshold: number | null;
   appearance: LabelmapAppearance | null;
 }>();
 const { geometry, measurement, micronsPerVoxel, threshold, appearance } =
   toRefs(props);
 const view = inject(VtkViewContext);
 if (!view) throw new Error('No VtkView');
-const thinRegions = useEnFaceLabelmaps(
+const plane = useEnFaceLabelmaps(
   geometry,
   measurement,
   threshold,
@@ -28,7 +28,7 @@ const thinRegions = useEnFaceLabelmaps(
 );
 useLabelmapRepresentation(
   view,
-  computed(() => (appearance.value ? thinRegions.value : null)),
+  computed(() => (appearance.value ? plane.value : null)),
   computed(() => (appearance.value ? [appearance.value] : [])),
   2
 );

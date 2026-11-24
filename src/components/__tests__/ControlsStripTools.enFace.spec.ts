@@ -107,7 +107,7 @@ describe('En face contrast toolbar availability', () => {
     expect(action.get(selector).attributes('disabled')).toBeDefined();
     expect(action.attributes('tabindex')).toBe('0');
     expect(action.get(':scope > [role="tooltip"]').text()).toBe(
-      'Painting is not available on an En face projection'
+      'Load a grayscale 3D volume to use En face.'
     );
   });
 });

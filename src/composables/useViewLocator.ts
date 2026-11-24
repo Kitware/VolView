@@ -2,7 +2,7 @@ import { computed, MaybeRef } from 'vue';
 import { Maybe } from '@/src/types';
 import { useEffectiveView } from '@/src/composables/useEffectiveView';
 import { useImage } from '@/src/composables/useCurrentImage';
-import { useSliceInfo } from '@/src/composables/useSliceInfo';
+import { showsSlice, useSliceInfo } from '@/src/composables/useSliceInfo';
 import { useCineFrame } from '@/src/composables/useCineFrame';
 import { useFrameOfReference } from '@/src/composables/useFrameOfReference';
 import { get2DViewingVectors } from '@/src/utils/getViewingVectors';
@@ -34,5 +34,9 @@ export function useViewLocator(
     })
   );
 
-  return { locator, frame, slice };
+  return {
+    locator,
+    frame,
+    showsSlice: (candidate: number) => showsSlice(sliceInfo.value, candidate),
+  };
 }

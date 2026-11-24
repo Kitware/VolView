@@ -22,11 +22,10 @@ import {
   openEnFaceProjection,
   openEnFaceControls,
   selectSetting,
-  setHighlight,
-  setThicknessThreshold,
+  setSegmentThreshold,
   expectHighlight,
-  HIGHLIGHT_TOGGLE,
-  THRESHOLD,
+  segmentThreshold,
+  segmentEye,
 } from './octTestUtils';
 import {
   makeTempDir,
@@ -237,16 +236,15 @@ describe('Projection camera persistence', () => {
     await stageCameraScene();
     await openCameraScene();
     await waitForEnFaceReady();
-    await attachAndSelectMask(STEM + '/' + MASK_NAME, SEGMENT_NAME);
     await openEnFaceProjection();
     await selectSetting('enface-projection-axis', 'Sagittal');
     await setSlabRange(10, 100);
     await waitForEnFaceReady();
+    // Captured before the mask exists, as the restore shows it while decoding.
     const baseProjection = await panAndZoom();
+    await attachAndSelectMask(STEM + '/' + MASK_NAME, SEGMENT_NAME);
     await openEnFaceControls();
-    await setHighlight(true);
-    await selectSetting('enface-segmentation-segment', SEGMENT_NAME);
-    await setThicknessThreshold(6500);
+    await setSegmentThreshold(SEGMENT_NAME, 6500);
     await expectHighlight(true);
     await expectProjectionTransform(baseProjection.transform);
     const inspected = {
@@ -266,12 +264,12 @@ describe('Projection camera persistence', () => {
     await expectCameraAndPixels(inspected);
     await openEnFaceControls();
     await expectEnFaceProjectionSettings('Sagittal', 10, 100);
-    await expandEnFaceSection('thickness');
-    await expect(
-      $('.v-overlay--active [data-testid="enface-segmentation-segment"]')
-    ).toHaveText(expect.stringContaining(SEGMENT_NAME));
-    await expect($(HIGHLIGHT_TOGGLE + ' input')).toBeSelected();
-    await expect($(THRESHOLD)).toHaveValue('6500');
+    await expandEnFaceSection('segments');
+    await expect(segmentEye(SEGMENT_NAME)).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expect(segmentThreshold(SEGMENT_NAME)).toHaveValue('6500');
     await expectHighlight(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });

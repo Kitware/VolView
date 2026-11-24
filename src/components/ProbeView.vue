@@ -16,13 +16,18 @@ const formattedProbeItems = computed(() => {
       .join(', '),
   }));
 
-  // Add additional item for Position
+  const { pos, index, spacing } = probeData.value;
+  // Enough decimals to tell neighboring voxels apart along the finest axis.
+  const decimals = Math.max(0, Math.ceil(-Math.log10(Math.min(...spacing))));
   const positionItem = {
     label: 'Position',
-    value: Array.from(probeData.value.pos).map(Math.round).join(', '),
+    value: Array.from(pos)
+      .map((coord) => coord.toFixed(decimals))
+      .join(', '),
   };
+  const indexItem = { label: 'Voxel', value: index.join(', ') };
 
-  return [...sampleItems, positionItem];
+  return [...sampleItems, positionItem, indexItem];
 });
 </script>
 

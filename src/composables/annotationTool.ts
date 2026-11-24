@@ -156,13 +156,13 @@ export type OverlayInfo =
 // If one tool hovered, overlayInfo.visible === true with toolID and displayXY.
 export const useHover = (
   tools: Ref<Array<AnnotationTool>>,
-  currentSlice: Ref<number>
+  showsSlice: (slice: number) => boolean
 ) => {
   type Info = OverlayInfo;
   const toolHoverState = ref({}) as Ref<Record<ToolID, Info>>;
 
   const toolsOnCurrentSlice = computed(() =>
-    tools.value.filter((tool) => tool.slice === currentSlice.value)
+    tools.value.filter((tool) => showsSlice(tool.slice))
   );
 
   watch(toolsOnCurrentSlice, () => {

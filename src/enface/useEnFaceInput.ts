@@ -1,7 +1,7 @@
 import { computed, ref, unref, watch, type MaybeRef } from 'vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
-import { clampValue } from '@/src/utils';
+import { slabDepthRange } from '@/src/core/slab/range';
 import { getEnFaceUnavailableReason } from './availability';
 import { useEnFaceViewStore } from './store';
 import { deriveSlabGeometry } from '@/src/core/slab/geometry';
@@ -30,9 +30,10 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
     void volumeRevision.value;
     return currentImageData.value?.getDimensions() ?? [1, 1, 1];
   });
-  const depthMaximum = computed(() =>
-    Math.max(0, dimensions.value[settings.value.axis] - 1)
+  const depth = computed(() =>
+    slabDepthRange(settings.value, dimensions.value[settings.value.axis])
   );
+  const depthMaximum = computed(() => depth.value.maximum);
   const orientation = computed(() =>
     get2DOrientationForSourceAxis(
       settings.value.axis,
@@ -45,16 +46,8 @@ export function useEnFaceInput(viewId: MaybeRef<string>) {
       value: currentImageMetadata.value.lpsOrientation[axis],
     }))
   );
-  const depthStart = computed(() =>
-    clampValue(settings.value.depthStart, 0, depthMaximum.value)
-  );
-  const depthEnd = computed(() =>
-    clampValue(
-      settings.value.depthEnd ?? depthMaximum.value,
-      depthStart.value,
-      depthMaximum.value
-    )
-  );
+  const depthStart = computed(() => depth.value.first);
+  const depthEnd = computed(() => depth.value.last);
   watch(
     [
       settings,

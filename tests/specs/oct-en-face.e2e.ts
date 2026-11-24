@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Key } from 'webdriverio';
 import {
+  setSegmentShown,
   waitForEnFaceReady,
   expectEnFaceDisabledInSwitcher,
   setSlabRange,
@@ -16,9 +17,9 @@ import {
   openEnFaceControls,
   expandEnFaceSection,
   selectSetting,
-  THRESHOLD,
-  setHighlight,
-  setThicknessThreshold,
+  segmentThreshold,
+  segmentThresholdSlider,
+  setSegmentThreshold,
 } from './octTestUtils';
 import { TEMP_DIR } from '../../wdio.shared.conf';
 import { volViewPage } from '../pageobjects/volview.page';
@@ -29,6 +30,7 @@ import {
   waitForModuleTransitions,
 } from './utils';
 import { selectBasePalette } from './layerDisplayTestUtils';
+import { setSegmentVisible } from './segmentationTestUtils';
 import { deflatedExplicitVR, nonOCTDicom } from '../fixtures/oct/volumes';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
@@ -60,28 +62,13 @@ describe('Retinal OCT en-face', () => {
     await $(CONTROLS).doubleClick();
     await expectBothViews();
     await openEnFaceControls();
-    await setHighlight(true);
-    const inlineHelp = await $(
-      '.v-overlay--active [data-testid="enface-thickness-help"]'
-    ).execute((button) => {
-      const text = button.parentElement?.parentElement?.firstChild;
-      if (!text) return false;
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const caption = range.getBoundingClientRect();
-      const icon = button.getBoundingClientRect();
-      return (
-        icon.left >= caption.right &&
-        icon.top < caption.bottom &&
-        icon.bottom > caption.top
-      );
-    });
-    expect(inlineHelp).toBe(true);
-    await $(THRESHOLD).doubleClick();
+    await setSegmentShown('Synthetic retinal layer', true);
+    // The new threshold row grows the menu, which then repositions; a click
+    // aimed before it settles lands on the view below.
+    await segmentThreshold('Synthetic retinal layer').waitForStable();
+    await segmentThreshold('Synthetic retinal layer').doubleClick();
     await expectBothViews();
-    await $(
-      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
-    ).doubleClick();
+    await segmentThresholdSlider('Synthetic retinal layer').doubleClick();
     await expectBothViews();
     await expandEnFaceSection('projection');
     await slabThumb('start').doubleClick();
@@ -103,7 +90,7 @@ describe('Retinal OCT en-face', () => {
     await openRetina();
     expect(await $(WINDOW_TOOL).isEnabled()).toBe(true);
     const compactPanel = await $(PANEL).getSize();
-    expect(compactPanel.width).toBe(300);
+    expect(compactPanel.width).toBe(450);
     expect(compactPanel.height).toBeGreaterThan(0);
     expect(compactPanel.height).toBeLessThanOrEqual(320);
     const contained = await $(PANEL).execute((panel) => {
@@ -116,7 +103,7 @@ describe('Retinal OCT en-face', () => {
       );
     });
     expect(contained).toBe(true);
-    for (const section of ['projection', 'thickness'])
+    for (const section of ['projection', 'segments'])
       await expect(
         $(PANEL).$('[data-testid="enface-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
@@ -155,18 +142,18 @@ describe('Retinal OCT en-face', () => {
     ).toHaveValue('Sagittal');
     await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
     await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '127');
-    await expandEnFaceSection('thickness');
+    await expandEnFaceSection('segments');
     await expect(
-      $('.v-overlay--active [data-testid="enface-thin-highlight"] input')
-    ).toBeDisabled();
-    await expect($(THRESHOLD)).toBeDisabled();
+      $(PANEL).$('[data-testid="enface-segments-reason"]')
+    ).toHaveText(expect.stringContaining('Load or create a segmentation mask'));
     await expect(
-      $('.v-overlay--active [data-testid="enface-segmentation-segment"] input')
-    ).toBeDisabled();
+      $(PANEL).$('[data-testid="enface-segment-row"]')
+    ).not.toExist();
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });
 
   it('shows slab values only during interaction and applies a drag on release', async () => {
+    const band = 'Synthetic retinal band';
     await openRetina(true);
     await waitForEnFaceReady();
     const labels = $$(
@@ -174,18 +161,19 @@ describe('Retinal OCT en-face', () => {
     );
     expect(await labels.length).toBe(2);
     for (const label of await labels) await expect(label).not.toBeDisplayed();
+    await browser.keys(Key.Escape);
+    await setSegmentVisible('Alternative synthetic band', false);
     await setEnFaceWindow(1000, 500);
-    await expectProjectionPixel(81);
     await openEnFaceControls();
-    const threshold = $(
-      '.v-overlay--active [data-testid="enface-thickness-threshold"] [role="slider"]'
-    );
-    await setHighlight(true);
-    await expect($(THRESHOLD)).toBeEnabled();
-    await setThicknessThreshold(0);
+    const threshold = segmentThresholdSlider(band);
+    await setSegmentShown(band, true);
+    await expect(segmentThreshold(band)).toBeEnabled();
+    // A zero threshold draws no region, leaving the projection gray to sample.
+    await setSegmentThreshold(band, 0);
+    await expectProjectionPixel(81);
     const thresholdMaximum = await threshold.getAttribute('aria-valuemax');
     expect(Number(thresholdMaximum)).toBeGreaterThan(1);
-    const thresholdValue = await $(THRESHOLD).getValue();
+    const thresholdValue = await segmentThreshold(band).getValue();
     const start = slabThumb('start');
     const end = slabThumb('end');
     await start.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -215,7 +203,7 @@ describe('Retinal OCT en-face', () => {
         'aria-valuemax',
         thresholdMaximum!
       );
-      await expect($(THRESHOLD)).toHaveValue(thresholdValue);
+      await expect(segmentThreshold(band)).toHaveValue(thresholdValue);
       await expectProjectionPixel(81);
       expect(await readProjectionChanges()).toEqual([]);
     } finally {
@@ -227,7 +215,7 @@ describe('Retinal OCT en-face', () => {
       Math.round(((317 + draggedStart) * 255) / 1000)
     );
     await expect(threshold).toHaveAttribute('aria-valuemax', '0.1');
-    await expect($(THRESHOLD)).toHaveValue(thresholdValue);
+    await expect(segmentThreshold(band)).toHaveValue(thresholdValue);
     await browser.keys(Key.Home);
     await expect(start).toHaveAttribute('aria-valuenow', '0');
     await expectProjectionPixel(81);
@@ -239,7 +227,6 @@ describe('Retinal OCT en-face', () => {
     await $(CANVAS).click();
     const pan = $('button[data-testid^="control-button-Pan "]');
     const crosshairs = $('button[data-testid^="control-button-Crosshairs "]');
-    const select = $('button[data-testid^="control-button-Select "]');
     const ruler = $('button[data-testid^="control-button-Ruler "]');
     const keyboard = () =>
       browser.action('key', { id: 'oct-crosshairs-shortcut' });
@@ -270,7 +257,7 @@ describe('Retinal OCT en-face', () => {
       await expect(crosshairs).toHaveElementClass('tool-btn-selected');
       await expect(crosshairs).toBeEnabled();
       await release();
-      await expect(select).toHaveElementClass('tool-btn-selected');
+      await expect(ruler).toHaveElementClass('tool-btn-selected');
     } finally {
       await browser.releaseActions();
     }
