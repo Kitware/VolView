@@ -138,7 +138,10 @@ export async function stablePixels(selector: string, inset: number) {
 }
 
 export async function pressOn(slider: ChainablePromiseElement, key: string) {
-  await slider.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await slider.click();
+  // A click can land on a neighboring panel still animating open or closed.
+  await browser.execute(
+    (thumb) => (thumb as HTMLElement).focus(),
+    await slider
+  );
   await browser.keys(key);
 }

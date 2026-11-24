@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { useReferenceLines } from './referenceLinesTestUtils';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { applyTestViewport, TEMP_DIR } from '../../wdio.shared.conf';
 import { createNrrdVolume, createVtiVolume } from '../fixtures/oct/volumes';
 import { volViewPage } from '../pageobjects/volview.page';
 import {
@@ -92,6 +92,14 @@ async function openScene(name: string) {
   await waitForEnFaceReady();
 }
 
+// Below 1280 px the side drawer turns temporary and gains a scrim. Back at full
+// width the scrim is still fading out over the views, and a click that lands on
+// it closes the drawer instead of reaching the view.
+async function restoreViewport() {
+  await applyTestViewport(browser);
+  await $('.v-navigation-drawer__scrim').waitForExist({ reverse: true });
+}
+
 async function expectPixels(expected: string) {
   await browser.waitUntil(
     async () => (await enFaceAppearance()).image === expected,
@@ -167,11 +175,7 @@ describe('Slab geometry and automatic camera fitting', () => {
     await browser.setViewport({ width: 500, height: 720, devicePixelRatio: 1 });
     await $(CANVAS).waitForStable();
     const fitted = await fittedPixels();
-    await browser.setViewport({
-      width: 1280,
-      height: 720,
-      devicePixelRatio: 1,
-    });
+    await restoreViewport();
     await $(SOURCE).waitForStable();
     await $(SOURCE).doubleClick();
     await expect($(CANVAS)).not.toExist();
@@ -181,11 +185,7 @@ describe('Slab geometry and automatic camera fitting', () => {
     await browser.setViewport({ width: 500, height: 720, devicePixelRatio: 1 });
     await expectPixels(fitted);
 
-    await browser.setViewport({
-      width: 1280,
-      height: 720,
-      devicePixelRatio: 1,
-    });
+    await restoreViewport();
     await $(CANVAS).waitForStable();
     const saved = await volViewPage.saveSession();
     await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
