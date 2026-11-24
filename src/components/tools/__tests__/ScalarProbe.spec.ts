@@ -16,7 +16,7 @@ import {
 
 enableAutoUnmount(afterEach);
 
-const mountProbe = () => {
+const mountProbe = (imageId = 'ct') => {
   const actor = vtkActor.newInstance();
   const rep = { actor } as unknown as InstanceType<
     typeof ScalarProbe
@@ -39,7 +39,7 @@ const mountProbe = () => {
     slots: { default: () => h(ProbeView) },
     global: {
       provide: {
-        [CurrentImageInjectionKey as symbol]: { imageID: ref('ct') },
+        [CurrentImageInjectionKey as symbol]: { imageID: ref(imageId) },
         [VtkViewContext as symbol]: {
           renderer: {},
           interactor: {
@@ -95,6 +95,7 @@ describe('ScalarProbe segment samples', () => {
       ['Overlay', '0'],
       ['CT', '42'],
       ['Position', '1, 0, 0'],
+      ['Voxel', '1, 0, 0'],
     ]);
     await probe.leave();
     expect(probe.wrapper.find('.probe-value-display').exists()).toBe(false);
@@ -111,6 +112,7 @@ describe('ScalarProbe segment samples', () => {
       ['Overlay', '0'],
       ['CT', '42'],
       ['Position', '1, 0, 0'],
+      ['Voxel', '1, 0, 0'],
     ]);
   });
 
@@ -119,5 +121,20 @@ describe('ScalarProbe segment samples', () => {
     const probe = mountProbe();
     await probe.move();
     expect(probe.displayedSamples()[0]).toEqual(['Segment', '(no name)']);
+  });
+
+  it('shows the position precise enough to separate fine-spaced voxels', async () => {
+    await seatImage('oct', {
+      name: 'OCT',
+      dimensions: [3, 1, 1],
+      spacing: [0.0117, 0.0039, 0.05],
+      origin: [0.5, 0, 0],
+    });
+    const probe = mountProbe('oct');
+    await probe.move();
+    expect(probe.displayedSamples().slice(-2)).toEqual([
+      ['Position', '0.512, 0.000, 0.000'],
+      ['Voxel', '1, 0, 0'],
+    ]);
   });
 });
