@@ -161,6 +161,8 @@ const getImageSamples = (x: number, y: number) => {
 
   return {
     pos: worldPosition,
+    index: [pi, pj, pk],
+    spacing: currentImageData.value.getSpacing(),
     samples,
   };
 };

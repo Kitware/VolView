@@ -11,6 +11,8 @@ export type ProbeSample = {
 export type ProbeData =
   | {
       pos: vec3;
+      index: number[];
+      spacing: number[];
       samples: ProbeSample[];
     }
   | undefined;
