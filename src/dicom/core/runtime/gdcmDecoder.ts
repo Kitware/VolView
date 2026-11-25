@@ -1,6 +1,7 @@
 import type { Image, runPipeline, TypedArray } from 'itk-wasm';
 import { hasUniformModalityRescale } from '../metadata/modalityRescale';
 import { linkedController, untilAborted } from '../utils';
+import { asPart10 } from './part10Bytes';
 import {
   wholeInstanceDecoder,
   type DecodedPixels,
@@ -171,7 +172,8 @@ export function createGdcmDecoder(
     }
   };
 
-  const whole = wholeInstanceDecoder('GDCM', async ({ bytes }, signal) => {
+  const whole = wholeInstanceDecoder('GDCM', async (unit, signal) => {
+    const bytes = asPart10(unit.instance, unit.bytes);
     const { controller, release } = linkedController(signal, lifetime.signal);
     const linked = controller.signal;
     const pooled = async () => {
