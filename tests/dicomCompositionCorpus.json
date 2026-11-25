@@ -1,10 +1,6 @@
 {
-  "referenceDecoder": {
-    "pydicom": "3.0.2",
-    "numpy": "2.4.6",
-    "jpegLossless": "pylibjpeg-libjpeg2.5.0"
-  },
-  "pixelHashEncoding": "SHA256 of calibrated samples, rounded to float32 where a fractional rescale fits the Float32 rule, as Float64 little-endian, C order [slice,row,column], planes sorted by ascending patient-space projection",
+  "reference": "tests/fixtures/dicom-pages/reference (highdicom 0.29.0, pydicom 3.0.2; versions pinned in its uv.lock)",
+  "pixelHashEncoding": "SHA256 of calibrated samples, rounded through float32 when the volume declares module.storage float32, as Float64 little-endian, C order [slice,row,column], planes sorted by ascending patient-space projection",
   "geometryToleranceMm": 0.0001,
   "datasets": [
     {
@@ -698,7 +694,10 @@
             "license": "CC BY 4.0",
             "scope": "Ten contiguous original single-slice instances from the existing pinned test dataset manifest"
           },
-          "acquisitionNumber": 6001
+          "acquisitionNumber": 6001,
+          "module": {
+            "storage": "float32"
+          }
         }
       ]
     },

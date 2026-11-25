@@ -6,7 +6,11 @@ import { SevereServiceError } from 'webdriverio';
 import { projectRoot } from './tests/e2eTestUtils';
 import { AUX_PORT, BASE_URL, TEST_PORT } from './tests/e2ePorts';
 import { TEST_DATASETS } from './tests/datasets';
-import { DATASET_CACHE, downloadDatasets } from './tests/downloadDatasets';
+import {
+  DATASET_CACHE,
+  downloadDatasets,
+  downloadExtendedCorpus,
+} from './tests/downloadDatasets';
 
 // Fixed capture viewport (Playwright's default).
 export const CONTENT_VIEWPORT = { width: 1280, height: 720 } as const;
@@ -201,6 +205,15 @@ export const config: Options.Testrunner = {
     await downloadDatasets().catch((err: Error) => {
       throw new SevereServiceError(err.message);
     });
+    if (process.env.DICOM_CORPUS === 'extended') {
+      const unreachable = await downloadExtendedCorpus().catch((err: Error) => {
+        throw new SevereServiceError(err.message);
+      });
+      if (unreachable.length)
+        console.warn(
+          `Skipping unreachable extended corpus files:\n${unreachable.join('\n')}`
+        );
+    }
     TEST_DATASETS.forEach(({ name }) => linkCachedDataset(name));
   },
 
