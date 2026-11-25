@@ -361,6 +361,17 @@ export async function dropFiles(filePaths: string[]) {
   expect(dropped).toBe(true);
 }
 
+/** Opens the Info dialog from the first data card's menu. */
+export async function openVolumeInfo() {
+  await $('[data-testid="dataset-menu-button"]').click();
+  const item = $('[data-testid="dataset-menu-info-item"]');
+  await item.waitForDisplayed();
+  await item.waitForStable();
+  await item.waitForClickable();
+  await item.click();
+  await $('[data-testid="volume-info"]').waitForDisplayed();
+}
+
 const ACQUISITION_SLICE_SPACING = 2.5;
 
 type AcquisitionPass = {

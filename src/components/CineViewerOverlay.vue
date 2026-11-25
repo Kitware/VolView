@@ -3,7 +3,7 @@ import { toRefs, computed } from 'vue';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { Maybe } from '@/src/types';
 import { useCineFrame } from '@/src/composables/useCineFrame';
-import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import VolumeInfoButton from '@/src/components/VolumeInfoButton.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import PlayControls from '@/src/components/PlayControls.vue';
 
@@ -38,7 +38,7 @@ const frameCount = computed(() => frameRange.value[1] + 1);
     </template>
     <template v-slot:top-right>
       <div class="annotation-cell">
-        <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
+        <volume-info-button :image-id="imageId"></volume-info-button>
       </div>
     </template>
     <template #bottom-right>

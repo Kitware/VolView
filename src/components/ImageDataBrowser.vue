@@ -23,6 +23,7 @@ import { useViewSliceStore } from '@/src/store/view-configs/slicing';
 import { useViewCameraStore } from '@/src/store/view-configs/camera';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { useViewStore } from '@/src/store/views';
+import { useDataBrowserStore } from '@/src/store/data-browser';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 
 function imageCacheKey(dataID: string) {
@@ -46,6 +47,7 @@ export default defineComponent({
     const viewCameraStore = useViewCameraStore();
     const imageCacheStore = useImageCacheStore();
     const viewStore = useViewStore();
+    const dataBrowserStore = useDataBrowserStore();
 
     const { currentImageID } = useCurrentImage();
 
@@ -188,6 +190,7 @@ export default defineComponent({
     }
 
     return {
+      dataBrowserStore,
       selected,
       selectedAll,
       selectedSome,
@@ -312,6 +315,12 @@ export default defineComponent({
             >
               <v-menu activator="parent">
                 <v-list>
+                  <v-list-item
+                    data-testid="dataset-menu-info-item"
+                    @click="dataBrowserStore.infoImageID = image.id"
+                  >
+                    Info
+                  </v-list-item>
                   <v-list-item
                     v-if="image.layerable"
                     data-testid="dataset-menu-layer-item"
