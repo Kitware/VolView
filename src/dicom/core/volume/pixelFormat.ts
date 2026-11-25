@@ -1,9 +1,10 @@
 import type { DicomDataset } from '../metadata/dicomDataset';
+import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
 import { getFrameTag, perFrameGroups } from '../metadata/functionalGroups';
 import { readModalityRescale } from '../metadata/modalityRescale';
 import { frameCount } from '../pixels/pixelDecoder';
-import { numberOr } from '../utils';
+import { numberOr, trimDicomPadding } from '../utils';
 
 type IntegerArrayConstructor =
   | typeof Int8Array
@@ -77,6 +78,22 @@ export function samplesAreIntegral(
 }
 
 /**
+ * The sample depth of a palette colour instance, which decodes to RGB: GDCM
+ * keeps each entry's high byte for 8-bit pixels. Null for other instances.
+ */
+export function paletteSampleBits(metadata: DicomDataset | null | undefined) {
+  const photometric = getDatasetTag(metadata, Tags.PhotometricInterpretation);
+  if (trimDicomPadding(photometric ?? '') !== 'PALETTE COLOR') return null;
+  const descriptor = getDatasetTag(metadata, Tags.RedPaletteColorLUTDescriptor);
+  const entryBits = Number(descriptor?.split('\\')[2]) === 8 ? 8 : 16;
+  const bitsAllocated = numberOr(
+    getDatasetTag(metadata, Tags.BitsAllocated),
+    16
+  );
+  return Math.min(entryBits, bitsAllocated === 8 ? 8 : 16);
+}
+
+/**
  * The tags that decide what values an instance decodes to.
  *
  * A bitsStored of 0 means the tag was absent or unparseable. It is not a DICOM
@@ -87,6 +104,14 @@ export function getPixelFormat(
   frameIndex = 0
 ) {
   const valueOf = (tag: string) => getFrameTag(metadata, tag, frameIndex);
+  const paletteBits = paletteSampleBits(metadata);
+  if (paletteBits)
+    return {
+      bitsStored: paletteBits,
+      pixelRepresentation: 0,
+      rescaleSlope: 1,
+      rescaleIntercept: 0,
+    };
   return {
     bitsStored: numberOr(valueOf(Tags.BitsStored), 0),
     pixelRepresentation: numberOr(valueOf(Tags.PixelRepresentation), 0),
