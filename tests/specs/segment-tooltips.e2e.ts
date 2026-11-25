@@ -9,11 +9,12 @@ import {
   tooltipOf,
   waitForSegmentContent,
   createSegmentRow,
+  copySegmentsRow,
 } from './segmentationTestUtils';
 import { openUrls } from './utils';
 
 describe('Segment tooltips', () => {
-  it('explains why creation is disabled and aligns the enabled create row', async () => {
+  it('explains why creation is disabled and aligns the enabled create button', async () => {
     await volViewPage.open();
     await openAnnotationSegments();
     const disabledCreate = createSegmentRow();
@@ -29,23 +30,21 @@ describe('Segment tooltips', () => {
     const create = createSegmentRow();
     const row = await segmentRow('Segment 1');
     const handle = row.$('.reorder-handle');
-    const icon = create.$('.action-row-icon');
-    const positions = await browser.execute(
-      (reorder, plus) => [
-        reorder.getBoundingClientRect().left,
-        plus.getBoundingClientRect().left,
+    const remove = row.$('[data-testid="delete-segment-button"]');
+    const edges = await browser.execute(
+      (reorder, button, rowEnd, copy) => [
+        reorder.getBoundingClientRect().left -
+          button.getBoundingClientRect().left,
+        rowEnd.getBoundingClientRect().right -
+          copy.getBoundingClientRect().right,
       ],
       await handle,
-      await icon
+      await create,
+      await remove,
+      await copySegmentsRow()
     );
-    expect(Math.abs(positions[0] - positions[1])).toBeLessThan(1);
-    await moveTo(10, 10);
-    const background = await create.getCSSProperty('background-color');
-    await create.moveTo();
-    await browser.waitUntil(async () => {
-      const hovered = await create.getCSSProperty('background-color');
-      return hovered.value !== background.value;
-    });
+    expect(Math.abs(edges[0])).toBeLessThan(1);
+    expect(Math.abs(edges[1])).toBeLessThan(1);
   });
 
   it('shows row descriptions on hover and explains locked controls on keyboard focus', async () => {

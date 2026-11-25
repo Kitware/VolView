@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
-import ListActionRow from '@/src/components/ListActionRow.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import { useSegmentStore } from '@/src/segmentation/segments';
 import { useImageCacheStore } from '@/src/store/image-cache';
@@ -45,13 +44,18 @@ const copyFrom = (sourceId: string) => {
 <template>
   <v-menu location="bottom">
     <template #activator="{ props: menu }">
-      <list-action-row
-        v-bind="menu"
-        class="copy-segments-row"
-        icon="mdi-content-copy"
-        text="Copy segments from..."
-        :reason="reason"
-      />
+      <reasoned-action :reason="reason" v-slot="{ disabled }">
+        <v-btn
+          v-bind="menu"
+          class="copy-segments-row text-none"
+          variant="tonal"
+          size="small"
+          prepend-icon="mdi-content-copy"
+          :disabled="disabled"
+        >
+          Copy segments from...
+        </v-btn>
+      </reasoned-action>
     </template>
     <v-list density="compact">
       <reasoned-action

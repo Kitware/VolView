@@ -3,8 +3,8 @@
 
 import { nextTick, ref, watch } from 'vue';
 import { Maybe } from '@/src/types';
-import ListActionRow from '@/src/components/ListActionRow.vue';
 import ListItemRow from '@/src/components/ListItemRow.vue';
+import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
 const emit = defineEmits<{
   create: [];
@@ -165,18 +165,35 @@ const moveBy = async (id: string, offset: number, event: KeyboardEvent) => {
       </list-item-row>
     </div>
 
-    <list-action-row
-      class="create-row"
-      icon="mdi-plus"
-      :text="createText"
-      :reason="createReason"
-      @click="emit('create')"
-    />
-    <slot name="append"></slot>
+    <div role="listitem" class="list-actions">
+      <reasoned-action :reason="createReason" v-slot="{ disabled }">
+        <v-btn
+          class="create-row text-none"
+          variant="tonal"
+          size="small"
+          prepend-icon="mdi-plus"
+          :disabled="disabled"
+          @click="emit('create')"
+        >
+          {{ createText }}
+        </v-btn>
+      </reasoned-action>
+      <slot name="actions"></slot>
+    </div>
   </v-list>
 </template>
 
 <style scoped>
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 4px 0;
+  /* Matches the rows' border so the buttons line up with row content. */
+  border-inline: 1px solid transparent;
+}
+
 .reorder-handle {
   flex: 0 0 20px;
   width: 20px;

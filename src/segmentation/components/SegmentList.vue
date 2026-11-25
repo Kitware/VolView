@@ -421,7 +421,7 @@ const {
                 @delete="deleteUnlockedSegment(registry, item.id)"
               />
             </template>
-            <template #append>
+            <template #actions>
               <copy-segments-menu
                 :image-id="currentImageID"
                 :unavailable-reason="imageUnavailableReason"
@@ -506,7 +506,8 @@ const {
   scrollbar-gutter: stable;
 }
 
-.segment-items :deep(.list-action-row) {
+/* Reserve the list's scrollbar gutter so the buttons end where the rows do. */
+.segment-items :deep(.list-actions) {
   overflow-y: hidden;
   scrollbar-width: thin;
   scrollbar-gutter: stable;
@@ -521,7 +522,7 @@ const {
 }
 
 .segment-items :deep(.item-row),
-.segment-items :deep(.action-row-content) {
+.segment-items :deep(.list-actions) {
   padding-inline: 16px;
 }
 
