@@ -90,7 +90,7 @@ const cleanupName = (name: string) => {
 
 export const getDisplayName = (info: VolumeInfo) => {
   return (
-    cleanupName(info.SeriesDescription || info.SeriesNumber) ||
+    cleanupName(info.SeriesDescription || info.SeriesNumber || '') ||
     info.SeriesInstanceUID
   );
 };
