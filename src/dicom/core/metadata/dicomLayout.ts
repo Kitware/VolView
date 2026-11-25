@@ -36,12 +36,13 @@ export type DicomLayout =
 const FILE_META_GROUP = 0x0002;
 
 /**
- * The group a bare data set opens with: every SOP instance carries a SOP Class
- * UID in it, and Specific Character Set and Image Type sort ahead of that.
- * Bytes that open with any other group are not a data set, and reading them
- * as one would take arbitrary noise for a header.
+ * The groups a bare data set opens with. Every SOP instance carries a SOP
+ * Class UID in group 0008, so only file meta written in implicit VR (0002) or
+ * a private group (0003, 0005, 0007) can sort ahead of it. Bytes that open
+ * with any other group are not a data set, and reading them as one would take
+ * arbitrary noise for a header.
  */
-const FIRST_DATA_SET_GROUP = 0x0008;
+const FIRST_DATA_SET_GROUPS = new Set([0x0002, 0x0003, 0x0005, 0x0007, 0x0008]);
 
 /** The bytes needed to judge one element's tag and, in explicit VR, its VR. */
 const ELEMENT_HEAD_LENGTH = 6;
@@ -80,7 +81,7 @@ export function sniffDicomLayout(head: Uint8Array): DicomLayout {
   if (group === FILE_META_GROUP && opensWithVr(head))
     return { preamble: false, fileMeta: true };
 
-  if (group !== FIRST_DATA_SET_GROUP)
+  if (!FIRST_DATA_SET_GROUPS.has(group))
     throw new Error(
       'Not DICOM: no preamble, file meta information or data set'
     );

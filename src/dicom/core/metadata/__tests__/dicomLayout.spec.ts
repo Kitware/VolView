@@ -50,9 +50,26 @@ describe('sniffDicomLayout', () => {
   });
 
   it.each([
+    [
+      'file meta written in implicit VR',
+      [0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00],
+    ],
+    [
+      'a private group ahead of group 0008',
+      [0x03, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x00],
+    ],
+  ])('reads a bare implicit VR data set that opens with %s', (_case, bytes) => {
+    expect(sniffDicomLayout(new Uint8Array(bytes))).toEqual({
+      preamble: false,
+      fileMeta: false,
+      transferSyntaxUid: IMPLICIT_VR_LITTLE_ENDIAN,
+    });
+  });
+
+  it.each([
     ['all zeros', new Uint8Array(512)],
     [
-      'a first element outside group 0008',
+      'a first element outside the opening groups',
       new Uint8Array([0x10, 0x00, 0x10, 0x00, 0x50, 0x4e, 0, 0]),
     ],
     ['letters all the way down', new Uint8Array(256).fill(0x41)],
