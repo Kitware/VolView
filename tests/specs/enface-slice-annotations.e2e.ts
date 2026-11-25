@@ -26,6 +26,7 @@ import {
 import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
 import {
   addSegment,
+  clickImageCard,
   openAnnotationSegments,
   openSegmentShapes,
   revealSegment,
@@ -52,29 +53,30 @@ const MARKS = [
   'svg polyline',
 ];
 
-async function scene(permuted = false) {
+async function scene(permuted = false, images = ['source.nrrd']) {
   const axis = permuted ? 'Axial' : 'Coronal';
   const directory = makeTempDir(STEM);
-  fs.writeFileSync(
-    path.join(directory, 'source.nrrd'),
-    createNrrdVolume({
-      dimensions: SIZE,
-      spacing: [0.4, 0.6, 0.7],
-      origin: [19, -25, 7],
-      direction: permuted
-        ? [0, 1, 0, 0, 0, 1, 1, 0, 0]
-        : [1, 0, 0, 0, 1, 0, 0, 0, 1],
-      scalars: Uint16Array.from(
-        { length: SIZE.reduce((count, size) => count * size) },
-        (_, index) => 50 + (index % 300)
-      ),
-    })
+  const volume = createNrrdVolume({
+    dimensions: SIZE,
+    spacing: [0.4, 0.6, 0.7],
+    origin: [19, -25, 7],
+    direction: permuted
+      ? [0, 1, 0, 0, 0, 1, 1, 0, 0]
+      : [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    scalars: Uint16Array.from(
+      { length: SIZE.reduce((count, size) => count * size) },
+      (_, index) => 50 + (index % 300)
+    ),
+  });
+  images.forEach((name) =>
+    fs.writeFileSync(path.join(directory, name), volume)
   );
   await writeManifestToFile(
     { layouts: { Annotations: [[axis.toLowerCase(), 'enface']] } },
     STEM + '.json'
   );
-  await volViewPage.open(`?urls=[tmp/${STEM}.json,tmp/${STEM}/source.nrrd]`);
+  const urls = images.map((name) => `tmp/${STEM}/${name}`).join(',');
+  await volViewPage.open(`?urls=[tmp/${STEM}.json,${urls}]`);
   await waitForEnFaceReady();
   await setReferenceLinesEnabled(true);
   await setEnFaceSlab(4, 9);
@@ -320,6 +322,24 @@ describe('En face annotations', () => {
     await waitForSegmentContent('Segment 1');
     await expectPaintedProjection(true);
     expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('keeps painting after the En face view switches images', async () => {
+    await scene(false, ['source.nrrd', 'second.nrrd']);
+    // Either image may load first.
+    await clickImageCard('source.nrrd');
+    await waitForEnFaceReady();
+    await toolButton('Paint').click();
+    const point = await enFaceScreenPoint(16.5, 12.5);
+    await nudgeTo(point.x, point.y);
+    await pressAtPointer();
+    await expectPaintedProjection(true);
+    await clickImageCard('second.nrrd');
+    await waitForEnFaceReady();
+    await expectPaintedProjection(false);
+    await nudgeTo(point.x, point.y);
+    await pressAtPointer();
+    await expectPaintedProjection(true);
   });
 
   it('cancels unfinished placement when changing the projection axis at the same midpoint', async () => {

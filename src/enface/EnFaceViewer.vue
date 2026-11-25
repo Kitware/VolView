@@ -194,16 +194,18 @@ watch(
         @controls="segmentControls = $event"
         @measuring="measuring = $event"
       />
+      <!-- The paint widget is shared per view, so remounting would delete it. -->
+      <PaintTool
+        v-if="projectionReady"
+        :view-id="viewId"
+        :image-id="currentImageID"
+        :view-direction="orientation.viewDirection"
+      />
       <div
         v-if="projectionReady"
         :key="annotationKey"
         class="overlay-no-events"
       >
-        <PaintTool
-          :view-id="viewId"
-          :image-id="currentImageID"
-          :view-direction="orientation.viewDirection"
-        />
         <PolygonTool
           :view-id="viewId"
           :image-id="currentImageID"
