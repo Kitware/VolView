@@ -51,7 +51,7 @@ const registry = useSegmentStore().segments;
 const { shapesOf } = useSegmentShapes();
 const segmentationStore = useSegmentationStore();
 const conversionStore = useLabelmapImportStore();
-const { currentImageID, currentImageMetadata } = useCurrentImage();
+const { currentImageID } = useCurrentImage();
 const imageUnavailableReason = computed(() =>
   currentImageID.value ? '' : 'Select an image to edit segments'
 );
@@ -234,9 +234,6 @@ const {
 
 <template>
   <div data-testid="segment-list" :aria-busy="masksArriving">
-    <div class="px-3 py-2 text-caption" data-testid="segment-image-name">
-      {{ currentImageID ? currentImageMetadata.name : 'No selected image' }}
-    </div>
     <v-expansion-panels
       v-model="openSections"
       multiple

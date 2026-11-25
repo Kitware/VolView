@@ -316,17 +316,16 @@ describe('flat segment list with no viewed image', () => {
     ]) {
       expect(wrapper.get(selector).attributes('disabled')).toBeDefined();
     }
-    expect(wrapper.text()).toContain('No selected image');
   });
 
-  it('renders the list once an image is viewed', async () => {
+  it('enables editing actions once an image is viewed', async () => {
     const wrapper = mountList();
     await nextTick();
 
     await showImage('img-1');
+    await nextTick();
 
-    expect(wrapper.find('[data-testid="segment-list"]').exists()).toBe(true);
-    expect(wrapper.text()).not.toContain('No selected image');
+    expect(wrapper.get('.create-row').attributes('disabled')).toBeUndefined();
   });
 });
 

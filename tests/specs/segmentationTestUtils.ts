@@ -79,8 +79,11 @@ export const copySegmentsFrom = async (imageName: string) => {
   await source.waitForDisplayed({ reverse: true });
 };
 
-/** The image whose segments the panel lists. */
-export const segmentImageName = () => $('[data-testid="segment-image-name"]');
+/** The image whose segments the panel lists: the active view's image. */
+export const segmentImageName = () =>
+  $(
+    '.grid-item[style*="mediumseagreen"] .view-annotations .annotation-cell > span'
+  );
 
 export const addSegment = async () => {
   const before = await segmentNames();
