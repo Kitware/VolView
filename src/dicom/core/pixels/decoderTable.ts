@@ -25,7 +25,7 @@ export const singleDecoderTable = (decoder: PixelDecoder): DecoderTable => ({
   names: new Map(),
 });
 
-type Codec = 'native' | 'gdcm' | 'none';
+type Codec = 'native' | 'gdcm' | 'htj2k' | 'none';
 
 // prettier-ignore
 const SYNTAXES: Array<[string, string, Codec]> = [
@@ -53,19 +53,32 @@ const SYNTAXES: Array<[string, string, Codec]> = [
   ['1.2.840.10008.1.2.4.106', 'MPEG-4 AVC/H.264 Stereo High Profile', 'none'],
   ['1.2.840.10008.1.2.4.107', 'HEVC/H.265 Main Profile', 'none'],
   ['1.2.840.10008.1.2.4.108', 'HEVC/H.265 Main 10 Profile', 'none'],
-  ['1.2.840.10008.1.2.4.201', 'High-Throughput JPEG 2000 Lossless', 'none'],
-  ['1.2.840.10008.1.2.4.202', 'High-Throughput JPEG 2000 with RPCL Lossless', 'none'],
-  ['1.2.840.10008.1.2.4.203', 'High-Throughput JPEG 2000', 'none'],
+  ['1.2.840.10008.1.2.4.201', 'High-Throughput JPEG 2000 Lossless', 'htj2k'],
+  ['1.2.840.10008.1.2.4.202', 'High-Throughput JPEG 2000 with RPCL Lossless', 'htj2k'],
+  ['1.2.840.10008.1.2.4.203', 'High-Throughput JPEG 2000', 'htj2k'],
   ['1.2.840.10008.1.2.4.110', 'JPEG XL Lossless', 'none'],
   ['1.2.840.10008.1.2.4.111', 'JPEG XL JPEG Recompression', 'none'],
   ['1.2.840.10008.1.2.4.112', 'JPEG XL', 'none'],
 ];
 
-/** Native frames for uncompressed syntaxes, then GDCM for every syntax it may know. */
-export function defaultDecoderTable(gdcm: PixelDecoder): DecoderTable {
+/** The runtime's worker-backed decoders, which a table is built around. */
+export type RuntimeDecoders = Readonly<{
+  gdcm: PixelDecoder;
+  htj2k: PixelDecoder;
+}>;
+
+/**
+ * Native frames for uncompressed syntaxes, then GDCM for every syntax it may
+ * know. HTJ2K, which GDCM lacks, goes to OpenJPH.
+ */
+export function defaultDecoderTable({
+  gdcm,
+  htj2k,
+}: RuntimeDecoders): DecoderTable {
   const candidates = {
     native: [nativeFrameDecoder, gdcm],
     gdcm: [gdcm],
+    htj2k: [htj2k],
     none: [],
   };
   return {

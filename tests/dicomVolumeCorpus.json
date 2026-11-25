@@ -1545,6 +1545,108 @@
       }
     },
     {
+      "id": "pydicom-data-HTJ2KLossless_08_RGB",
+      "name": "dicom-corpus-pydicom-data-HTJ2KLossless_08_RGB.dcm",
+      "url": "https://github.com/pydicom/pydicom-data/raw/9bde4d24b2d4a666fa8c4e93c8bccb2a775ea536/data_store/data/HTJ2KLossless_08_RGB.dcm",
+      "sha256": "38f8e8adf46b928a12f1905df1405bc8a32c10286733c47562c75be84ceae00e",
+      "bytes": 393228,
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "HTJ2K Lossless RGB secondary capture, reversible colour transform, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.201",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [640, 480, 1],
+          "pixels": {
+            "kind": "hash",
+            "value": "9580c6ea228c756b842724bbdaa8f3b32de1535c10b28074b6d5b1daf4de1248"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "pydicom-data-HTJ2K_08_RGB",
+      "name": "dicom-corpus-pydicom-data-HTJ2K_08_RGB.dcm",
+      "url": "https://github.com/pydicom/pydicom-data/raw/9bde4d24b2d4a666fa8c4e93c8bccb2a775ea536/data_store/data/HTJ2K_08_RGB.dcm",
+      "sha256": "9a7ae1960f18315c4d58876c2a8333a704e89ca3697edd5b69f600773220eb90",
+      "bytes": 235614,
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "HTJ2K lossy RGB secondary capture, irreversible colour transform, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.203",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [640, 480, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [64.0, 10.0, 0.0],
+            "max": [255.0, 255.0, 248.0],
+            "mean": [166.2931, 132.6156, 82.4031]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
       "id": "generated-oct-positioned",
       "name": "dicom-corpus-generated-oct-positioned.dcm",
       "generator": "oct-positioned",
@@ -2166,6 +2268,55 @@
         },
         "reference": "manual",
         "referenceNote": "highdicom reads Part 10 little endian files only"
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "generated-htj2k-signed-frames",
+      "name": "dicom-corpus-generated-htj2k-signed-frames.dcm",
+      "generator": "htj2k-signed-frames",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/htj2kCorpus.ts",
+      "sourcePage": null,
+      "quirk": "HTJ2K Lossless, three signed 12 bit frames in 16 bit words, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7.3",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.201",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 3,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 48, 3],
+          "range": [-2048.0, 2047.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "d0ed23ce456e27fdbd53596a250f69f22ec1e444d01d32d2f57ae19e69a65b80"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
       },
       "module": {
         "outcome": "volume",

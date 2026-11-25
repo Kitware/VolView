@@ -16,7 +16,7 @@ defines it.
 | `core/collections` | header facts, collection planning and the registry                       |
 | `core/volume`      | allocation, pixel formats, validation and `loadVolume`                   |
 | `core/pixels`      | decoders, the decoder table, frame index, encapsulated frames            |
-| `core/runtime`     | the runtime, its request pool, metadata workers and GDCM decoder         |
+| `core/runtime`     | the runtime, its request pool, metadata workers, GDCM and HTJ2K decoders |
 | `vtk`              | the vtk.js image and slice thumbnails                                    |
 
 `core` uses no Vue, Pinia, vtk.js or VolView application code. `vtk` shows a
@@ -26,7 +26,7 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
 
 - Instances, collection updates and volumes are plain values. Only the
   runtime from `createDicomRuntime` holds resources (request pool, metadata
-  workers, GDCM workers), and only it has `dispose()`. Importing a file starts
+  workers, GDCM and HTJ2K workers), and only it has `dispose()`. Importing a file starts
   no worker and touches no DOM.
 - Every asynchronous operation takes an `AbortSignal`; aborting it is the
   whole of cancellation.
@@ -56,7 +56,10 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   in one request.
 - `nativeFrameDecoder` accepts only instances whose result is identical to
   GDCM's. The default table sends other instances whole to GDCM in a worker,
-  and fails JPIP, video and JPEG XL syntaxes as having no decoder.
+  HTJ2K instances whole to OpenJPH in a worker, and fails JPIP, video and
+  JPEG XL syntaxes as having no decoder. The HTJ2K decoder reads only the
+  Pixel Data value and finishes samples as native frames are, so it declines
+  what `nativeFrameDecoder` declines.
 
 ## Spacing
 

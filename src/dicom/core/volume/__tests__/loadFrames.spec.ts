@@ -116,13 +116,13 @@ const frameUnit = (valueOffset: number, frame: number): DecodeUnit => {
 /** A runtime whose table tries `decoder` first for transfer syntax `codec`. */
 const runtimeFor = (codec: string, decoder: PixelDecoder) => {
   const runtime = createDicomRuntime({
-    decoders: (gdcm) => {
-      const table = defaultDecoderTable(gdcm);
+    decoders: (decoders) => {
+      const table = defaultDecoderTable(decoders);
       return {
         ...table,
         byTransferSyntax: new Map([
           ...table.byTransferSyntax,
-          [codec, [decoder, gdcm]],
+          [codec, [decoder, decoders.gdcm]],
         ]),
       };
     },

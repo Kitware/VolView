@@ -143,7 +143,11 @@ describe('Public DICOM volume corpus', () => {
   let fixture: Awaited<ReturnType<typeof startDicomPages>>;
   before(async () => {
     const files = Object.fromEntries(
-      [...corpus, ...available].map((entry) => [entry.name, bytesOf(entry)])
+      await Promise.all(
+        [...corpus, ...available].map(
+          async (entry) => [entry.name, await bytesOf(entry)] as const
+        )
+      )
     );
     fixture = await startDicomPages({
       kinds: ['corpus'],

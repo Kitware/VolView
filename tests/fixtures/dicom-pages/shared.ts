@@ -6,6 +6,7 @@ import { fromBlob, fromUrl } from '@/src/dicom/core/source/byteSource';
 import {
   planDecode,
   singleDecoderTable,
+  type RuntimeDecoders,
 } from '@/src/dicom/core/pixels/decoderTable';
 import type { Instance } from '@/src/dicom/core/instance/readInstance';
 
@@ -30,7 +31,9 @@ export const runtime = createRuntime();
 export const never = new AbortController().signal;
 
 /** Runtime options that send every instance whole to GDCM. */
-export const gdcmOnly = { decoders: singleDecoderTable };
+export const gdcmOnly = {
+  decoders: ({ gdcm }: RuntimeDecoders) => singleDecoderTable(gdcm),
+};
 
 /** The first unit `decoding`'s table plans for an instance. */
 export function firstUnit(

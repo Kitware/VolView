@@ -1,6 +1,7 @@
 import reference from '../oct/reference.json';
 import { createSyntheticOCT, element, syntheticScalars } from '../oct/dicom';
 import { part10File } from '../../specs/syntheticDicom';
+import { htj2kSignedFrames } from './htj2kCorpus';
 
 const [width, depth, frames] = reference.size;
 const [sx] = reference.spacing;
@@ -54,7 +55,10 @@ function encapsulatedPdf() {
 }
 
 /** Corpus files built in memory, keyed by the manifest's `generator`. */
-export const GENERATED_CORPUS: Record<string, () => Uint8Array> = {
+export const GENERATED_CORPUS: Record<
+  string,
+  () => Uint8Array | Promise<Uint8Array>
+> = {
   'oct-positioned': () => createSyntheticOCT(),
   'oct-slice-thickness-only': () =>
     createSyntheticOCT({
@@ -86,6 +90,7 @@ export const GENERATED_CORPUS: Record<string, () => Uint8Array> = {
       scalars: bScans(1),
     }),
   'encapsulated-pdf': encapsulatedPdf,
+  'htj2k-signed-frames': htj2kSignedFrames,
 };
 
 export const generatedName = (generator: string) =>

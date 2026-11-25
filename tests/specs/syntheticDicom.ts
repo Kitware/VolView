@@ -51,7 +51,7 @@ export const LONG_FORM_VRS = new Set(
   'OB OD OF OL OV OW SQ SV UC UN UR UT'.split(' ')
 );
 
-const elementHeader = (
+export const elementHeader = (
   group: number,
   element: number,
   vr: string,
