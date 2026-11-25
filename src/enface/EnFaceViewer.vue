@@ -261,19 +261,6 @@ watch(
         ><div class="annotation-cell">
           <DicomQuickInfoButton :image-id="currentImageID" /></div
       ></template>
-      <template #bottom-left>
-        <div v-if="projectionReady && annotationSlice" class="annotation-cell">
-          <ReasonedAction
-            class="pointer-events-all"
-            tooltip="New rulers, rectangles and polygons are placed on the source slice at the slab midpoint. Painting fills the whole slab depth."
-          >
-            <span data-testid="enface-annotation-slice">
-              New annotations: {{ annotationSlice.axisName }} slice
-              {{ annotationSlice.slice + 1 }}
-            </span>
-          </ReasonedAction>
-        </div>
-      </template>
       <template #bottom-right>
         <div class="annotation-cell corner-controls" @click.stop @dblclick.stop>
           <v-menu
