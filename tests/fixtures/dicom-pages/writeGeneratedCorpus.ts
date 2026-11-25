@@ -10,6 +10,6 @@ import { GENERATED_CORPUS, generatedName } from './generatedCorpus';
 mkdirSync(DATASET_CACHE, { recursive: true });
 for (const [generator, build] of Object.entries(GENERATED_CORPUS)) {
   const path = join(DATASET_CACHE, generatedName(generator));
-  writeFileSync(path, build());
+  writeFileSync(path, await build());
   console.log(path);
 }

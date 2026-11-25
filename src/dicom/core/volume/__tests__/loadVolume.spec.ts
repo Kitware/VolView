@@ -424,7 +424,7 @@ describe('loadVolume', () => {
     const runtime = createDicomRuntime(
       {
         assets: { pipelineWorkerUrl: '/unused', imageIOUrl: '/unused' },
-        decoders: singleDecoderTable,
+        decoders: ({ gdcm }) => singleDecoderTable(gdcm),
         decodeConcurrency: 1,
       },
       hangingLane

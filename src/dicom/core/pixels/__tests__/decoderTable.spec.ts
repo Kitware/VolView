@@ -11,7 +11,10 @@ import { pixelInstance } from './pixelFixture';
 const gdcm = wholeInstanceDecoder('GDCM', () => {
   throw new Error('not decoded in these tests');
 });
-const table = defaultDecoderTable(gdcm);
+const htj2k = wholeInstanceDecoder('HTJ2K', () => {
+  throw new Error('not decoded in these tests');
+});
+const table = defaultDecoderTable({ gdcm, htj2k });
 
 const declining = (name: string, reason: string): PixelDecoder => ({
   name,
@@ -58,8 +61,20 @@ describe('planDecode', () => {
   });
 
   it.each([
+    '1.2.840.10008.1.2.4.201',
+    '1.2.840.10008.1.2.4.202',
+    '1.2.840.10008.1.2.4.203',
+  ])('hands HTJ2K syntax %s to the HTJ2K decoder', async (syntax) => {
+    const { instance } = await pixelInstance({ transferSyntaxUid: syntax });
+
+    expect(planDecode(table, instance, Uint16Array)).toMatchObject({
+      decoder: htj2k,
+    });
+  });
+
+  it.each([
     ['1.2.840.10008.1.2.4.102', 'MPEG-4 AVC/H.264 High Profile'],
-    ['1.2.840.10008.1.2.4.201', 'High-Throughput JPEG 2000 Lossless'],
+    ['1.2.840.10008.1.2.4.112', 'JPEG XL'],
   ])(
     'names known transfer syntax %s that has no decoder',
     async (transferSyntaxUid, name) => {

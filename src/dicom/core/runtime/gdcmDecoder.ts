@@ -1,6 +1,6 @@
 import type { Image, runPipeline, TypedArray } from 'itk-wasm';
 import { hasUniformModalityRescale } from '../metadata/modalityRescale';
-import { linkedController, untilAborted } from '../utils';
+import { createLanePool, type Lane } from './lanePool';
 import { asPart10 } from './part10Bytes';
 import {
   wholeInstanceDecoder,
@@ -68,7 +68,8 @@ function createGdcmLane(assets: DicomAssets) {
     ownedWorker.addEventListener('messageerror', onMessageError);
     return ownedWorker;
   };
-  const run = async (name: string, data: Uint8Array) => {
+  const run = async (data: Uint8Array) => {
+    const name = 'instance.dcm';
     const failed = new Promise<never>((_, rejectFailure) => {
       rejectActive = rejectFailure;
     });
@@ -102,41 +103,8 @@ function createGdcmLane(assets: DicomAssets) {
   return { run, reset };
 }
 
-export type GdcmLane = ReturnType<typeof createGdcmLane>;
+export type GdcmLane = Lane<Uint8Array, DecodedPixels>;
 export type CreateGdcmLane = (assets: DicomAssets) => GdcmLane;
-
-/** Numbered slots handed out first come, first served. */
-function createSlots(count: number) {
-  const free = Array.from({ length: count }, (_, index) => count - 1 - index);
-  const waiters: Array<(index: number) => void> = [];
-  const acquire = (signal: AbortSignal) =>
-    new Promise<number>((resolve, reject) => {
-      if (signal.aborted) {
-        reject(signal.reason);
-        return;
-      }
-      if (free.length > 0) {
-        resolve(free.pop()!);
-        return;
-      }
-      const onAbort = () => {
-        waiters.splice(waiters.indexOf(waiter), 1);
-        reject(signal.reason);
-      };
-      const waiter = (index: number) => {
-        signal.removeEventListener('abort', onAbort);
-        resolve(index);
-      };
-      waiters.push(waiter);
-      signal.addEventListener('abort', onAbort, { once: true });
-    });
-  const release = (index: number) => {
-    const next = waiters.shift();
-    if (next) next(index);
-    else free.push(index);
-  };
-  return { acquire, release };
-}
 
 /**
  * Decodes whole instances on at most `count` GDCM workers at once, queueing
@@ -147,48 +115,15 @@ export function createGdcmDecoder(
   count: number,
   createLane: CreateGdcmLane = createGdcmLane
 ) {
-  const lifetime = new AbortController();
-  const slots = createSlots(count);
-  const lanes = assets
-    ? Array.from({ length: count }, () => createLane(assets))
-    : [];
-
-  const decodeOn = async (
-    index: number,
-    bytes: Uint8Array,
-    signal: AbortSignal
-  ) => {
-    signal.throwIfAborted();
-    const lane = lanes[index];
-    if (!lane)
-      throw new Error('GDCM decoding needs createDicomRuntime({ assets })');
-    // GDCM cannot be interrupted, so an abort terminates the worker.
-    const stop = () => lane.reset(signal.reason);
-    signal.addEventListener('abort', stop, { once: true });
-    try {
-      return await lane.run('instance.dcm', bytes);
-    } finally {
-      signal.removeEventListener('abort', stop);
-    }
-  };
+  const pool = createLanePool(
+    assets ? Array.from({ length: count }, () => createLane(assets)) : []
+  );
 
   const whole = wholeInstanceDecoder('GDCM', async (unit, signal) => {
-    const bytes = asPart10(unit.instance, unit.bytes);
-    const { controller, release } = linkedController(signal, lifetime.signal);
-    const linked = controller.signal;
-    const pooled = async () => {
-      const index = await slots.acquire(linked);
-      try {
-        return await decodeOn(index, bytes, linked);
-      } finally {
-        slots.release(index);
-      }
-    };
-    try {
-      return await untilAborted(pooled(), linked);
-    } finally {
-      release();
-    }
+    signal.throwIfAborted();
+    if (!assets)
+      throw new Error('GDCM decoding needs createDicomRuntime({ assets })');
+    return pool.run(asPart10(unit.instance, unit.bytes), signal);
   });
 
   // GDCM applies one transform to an instance, so its frames must agree.
@@ -200,10 +135,5 @@ export function createGdcmDecoder(
         : { declined: 'Frames with differing modality rescale' },
   };
 
-  const dispose = (reason: unknown) => {
-    lifetime.abort(reason);
-    lanes.forEach((lane) => lane.reset(reason));
-  };
-
-  return { decoder, dispose };
+  return { decoder, dispose: pool.dispose };
 }
