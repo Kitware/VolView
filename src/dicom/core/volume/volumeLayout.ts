@@ -9,7 +9,11 @@ import { getFrameTag } from '../metadata/functionalGroups';
 import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr, trimDicomPadding } from '../utils';
 import { nmGeometry } from './nmGeometry';
-import { getVolumeBufferType, instancePixelFormats } from './pixelFormat';
+import {
+  getVolumeBufferType,
+  instancePixelFormats,
+  paletteSampleBits,
+} from './pixelFormat';
 import { applyUltrasoundSpacing } from './ultrasoundSpacing';
 
 /** What allocation reads from one member: its header. */
@@ -63,7 +67,9 @@ function allocationShape(sources: readonly VolumeSource[]) {
   return {
     rows: numberOr(valueOf(Tags.Rows), 0),
     columns: numberOr(valueOf(Tags.Columns), 0),
-    samplesPerPixel: numberOr(valueOf(Tags.SamplesPerPixel), 1),
+    samplesPerPixel: paletteSampleBits(dataset)
+      ? 3
+      : numberOr(valueOf(Tags.SamplesPerPixel), 1),
     slices: sources.length > 1 ? sources.length : frameCount(dataset),
   };
 }

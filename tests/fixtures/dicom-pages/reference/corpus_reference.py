@@ -157,6 +157,9 @@ def stored_pixels(ds):
     if str(ds.get('PhotometricInterpretation', '')) == 'PALETTE COLOR':
         # The palette is the image's colour; its indices are not displayable values.
         raw, samples = apply_color_lut(raw, ds), 3
+        # 8-bit pixels decode to 8-bit colour: the high byte of 16-bit entries, as GDCM does.
+        if int(ds.BitsAllocated) == 8 and raw.dtype == np.uint16:
+            raw = raw >> 8
     raw = raw.astype(np.float64)
     raw = raw.reshape((frames, int(ds.Rows), int(ds.Columns)) + ((samples,) if samples > 1 else ()))
     shared = ds.get('SharedFunctionalGroupsSequence', [None])[0]

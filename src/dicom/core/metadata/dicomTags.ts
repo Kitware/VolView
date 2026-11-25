@@ -41,6 +41,7 @@ export const Tags = {
   SOPClassUID: '00080016',
   OphthalmicVolumetricPropertiesFlag: '00221622',
   PhotometricInterpretation: '00280004',
+  RedPaletteColorLUTDescriptor: '00281101',
   PlanarConfiguration: '00280006',
   FrameTime: '00181063',
   SequenceOfUltrasoundRegions: '00186011',
