@@ -1,6 +1,8 @@
 {
-  "reference": "pydicom 3.0.2; pylibjpeg-libjpeg 2.5.0; pylibjpeg-openjpeg 2.6.0",
-  "pixelHashEncoding": "SHA256 of modality-rescaled samples in original DICOM frame order, Float64 little-endian, C row-major",
+  "reference": "tests/fixtures/dicom-pages/reference (highdicom 0.29.0, pydicom 3.0.2; versions pinned in its uv.lock)",
+  "conventions": "Geometry in VolView order: dimensions and spacing are [column, row, slice], direction is the column, row and slice axis vectors concatenated, origin is the first voxel centre. A single file keeps stored frame order; one plane has no slice spacing and its slice axis is the plane normal.",
+  "pixelEncoding": "hash: SHA256 of modality-rescaled samples, rounded through float32 when module.storage is float32, as Float64 little-endian in [slice, row, column] order. stats: per-sample min, max and mean, used for colour and lossy data, compared within statsTolerance.",
+  "statsTolerance": 2.0,
   "datasets": [
     {
       "id": "pydicom-CT_small",
@@ -8,19 +10,52 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/CT_small.dcm",
       "sha256": "3dd31e5cc835b3f2cdd46c9da1982f59251e78518fefa8163d914631c66437d6",
       "bytes": 39206,
-      "modality": "CT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "expected": {
-        "dimensions": [128, 128, 1],
-        "range": [-896.0, 1167.0],
-        "pixelHash": "ca969f2f193f5325ebbb4e75ed69a9968253f41a43f2498eefb612bb237ffb48",
-        "origin": [-158.135803, -179.035797, -75.699997],
-        "spacing": [0.661468, 0.661468, 5],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "Explicit VR Little Endian CT slice",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 128, 1],
+          "spacing": [0.661468, 0.661468],
+          "origin": [-158.135803, -179.035797, -75.699997],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-896.0, 1167.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "ca969f2f193f5325ebbb4e75ed69a9968253f41a43f2498eefb612bb237ffb48"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -29,19 +64,51 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small.dcm",
       "sha256": "3f27d1c22f1a66e80d7bb7c911e8610fd0bb70325a76746a7adb1c0ddefcf2bb",
       "bytes": 9830,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "expected": {
-        "dimensions": [64, 64, 1],
-        "range": [127.0, 2145.0],
-        "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
-        "origin": [-83.9063, -91.2, 6.6406],
-        "spacing": [0.3125, 0.3125],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "Explicit VR Little Endian MR slice",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 1],
+          "spacing": [0.3125, 0.3125],
+          "origin": [-83.9063, -91.2, 6.6406],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [127.0, 2145.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -50,19 +117,51 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_implicit.dcm",
       "sha256": "6077442c42a56fc7fcc7db8411a657dded9fc109e6d3275765c4de358292b299",
       "bytes": 9702,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
-      "transferSyntaxUID": "1.2.840.10008.1.2",
-      "expected": {
-        "dimensions": [64, 64, 1],
-        "range": [127.0, 2145.0],
-        "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
-        "origin": [-83.9063, -91.2, 6.6406],
-        "spacing": [0.3125, 0.3125],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "Implicit VR",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 1],
+          "spacing": [0.3125, 0.3125],
+          "origin": [-83.9063, -91.2, 6.6406],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [127.0, 2145.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -71,19 +170,58 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_bigendian.dcm",
       "sha256": "3e4c8c9fe70de4f3be149bbd673fa56f211c8e8e2ff9bac63f70f9dc31b5d108",
       "bytes": 9708,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
-      "transferSyntaxUID": "1.2.840.10008.1.2.2",
-      "expected": {
-        "dimensions": [64, 64, 1],
-        "range": [127.0, 2145.0],
-        "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
-        "origin": [-83.9063, -91.2, 6.6406],
-        "spacing": [0.3125, 0.3125],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "Explicit VR Big Endian",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 1],
+          "range": [127.0, 2145.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0"
+          },
+          "spacing": [0.3125, 0.3125],
+          "origin": [-83.9063, -91.2, 6.6406],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only",
+        "derivation": "same geometry tags as the little endian twin: origin is ImagePositionPatient, axes are ImageOrientationPatient rows and their cross product, spacing is PixelSpacing",
+        "derivationTags": {
+          "ImagePositionPatient": [-83.9063, -91.2, 6.6406],
+          "ImageOrientationPatient": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+          "PixelSpacing": [0.3125, 0.3125]
+        }
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -92,19 +230,51 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_RLE.dcm",
       "sha256": "2e5cb60878dc0acc494298ccdad28fce2cf14c51096e5d8cedab40248ea02e6c",
       "bytes": 7790,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
-      "transferSyntaxUID": "1.2.840.10008.1.2.5",
-      "expected": {
-        "dimensions": [64, 64, 1],
-        "range": [127.0, 2145.0],
-        "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
-        "origin": [-83.9063, -91.2, 6.6406],
-        "spacing": [0.3125, 0.3125],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "RLE Lossless",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.5",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 1],
+          "spacing": [0.3125, 0.3125],
+          "origin": [-83.9063, -91.2, 6.6406],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [127.0, 2145.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -113,19 +283,51 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_jp2klossless.dcm",
       "sha256": "4c0049e0355b560c8c846538d827afbdae5311b20fc5e5a93a3892e109bb140d",
       "bytes": 6008,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
-      "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
-      "expected": {
-        "dimensions": [64, 64, 1],
-        "range": [127.0, 2145.0],
-        "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
-        "origin": [-83.9063, -91.2, 6.6406],
-        "spacing": [0.3125, 0.3125],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG 2000 Lossless",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 1],
+          "spacing": [0.3125, 0.3125],
+          "origin": [-83.9063, -91.2, 6.6406],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [127.0, 2145.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -134,19 +336,51 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/MR_small_jpeg_ls_lossless.dcm",
       "sha256": "b2b69dd2ae854bf7dfada6745709cd5d8a4573ea12387adbbdc56e8be6056206",
       "bytes": 6124,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
-      "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
-      "expected": {
-        "dimensions": [64, 64, 1],
-        "range": [127.0, 2145.0],
-        "pixelHash": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0",
-        "origin": [-83.9063, -91.2, 6.6406],
-        "spacing": [0.3125, 0.3125],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG-LS Lossless",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 1],
+          "spacing": [0.3125, 0.3125],
+          "origin": [-83.9063, -91.2, 6.6406],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [127.0, 2145.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e37cddda6b3ad9195a203bf7534360c3688e5516529de975406ba2482bb622c0"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -155,19 +389,52 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/693_J2KR.dcm",
       "sha256": "c392d8bd1f952ed2d9387d5143d34c5a29ac9d74566688169731a50ac6a82aa2",
       "bytes": 107060,
-      "modality": "CT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
-      "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
-      "expected": {
-        "dimensions": [512, 512, 1],
-        "range": [-3024.0, 1468.0],
-        "pixelHash": "4d67876ea09570a5be1de299c66fc45935661a176cb5ec97be05e86b722564e9",
-        "origin": [-122.5, -112.4, 47.0],
-        "spacing": [0.478516, 0.478516],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "JPEG 2000 Lossless, no Frame of Reference UID",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.478516, 0.478516],
+          "origin": [-122.5, -112.4, 47.0],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3024.0, 1468.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "4d67876ea09570a5be1de299c66fc45935661a176cb5ec97be05e86b722564e9"
+          }
+        },
+        "reference": "highdicom (FrameOfReferenceUID injected in memory for highdicom)"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -176,19 +443,52 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/693_UNCI.dcm",
       "sha256": "42d6c33d6666bf569a53951211be6fca2ab04956db43c3f75a9720d976ab128c",
       "bytes": 526324,
-      "modality": "CT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "expected": {
-        "dimensions": [512, 512, 1],
-        "range": [-3995.0, 1812.0],
-        "pixelHash": "86c60cefb8036e6090840b06ab0960e5a3ef9938c1639ec87c8a89f607f497bb",
-        "origin": [-122.5, -112.4, 47.0],
-        "spacing": [0.478516, 0.478516],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "Implicit VR, no Frame of Reference UID",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.478516, 0.478516],
+          "origin": [-122.5, -112.4, 47.0],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3995.0, 1812.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "86c60cefb8036e6090840b06ab0960e5a3ef9938c1639ec87c8a89f607f497bb"
+          }
+        },
+        "reference": "highdicom (FrameOfReferenceUID injected in memory for highdicom)"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -197,19 +497,52 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/693_UNCR.dcm",
       "sha256": "cc4cdd599231922ecf63de2ddacf03d51c4588805c9154c2eef1ff49c23b32be",
       "bytes": 525986,
-      "modality": "CT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "expected": {
-        "dimensions": [512, 512, 1],
-        "range": [-3024.0, 1468.0],
-        "pixelHash": "4d67876ea09570a5be1de299c66fc45935661a176cb5ec97be05e86b722564e9",
-        "origin": [-122.5, -112.4, 47.0],
-        "spacing": [0.478516, 0.478516],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "Explicit VR, no Frame of Reference UID",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.478516, 0.478516],
+          "origin": [-122.5, -112.4, 47.0],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3024.0, 1468.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "4d67876ea09570a5be1de299c66fc45935661a176cb5ec97be05e86b722564e9"
+          }
+        },
+        "reference": "highdicom (FrameOfReferenceUID injected in memory for highdicom)"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -218,19 +551,51 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/eCT_Supplemental.dcm",
       "sha256": "0a4c3aa02d1b0b4826daa5ffe85ef13be83c1433842a9a98b901e075136dd86f",
       "bytes": 1052902,
-      "modality": "CT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2.1",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "expected": {
-        "dimensions": [512, 512, 2],
-        "range": [-1024.0, 172.0],
-        "pixelHash": "da30f5ab3d1573dc246f3968679f0fbdffde1f9158c6dabebf6d467d76d4b31e",
-        "origin": [99.5, -301.5, -159.0],
-        "spacing": [0.388672, 0.388672, 10.0],
-        "direction": [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "Enhanced CT multiframe with functional groups",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2.1",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 2,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "perFrame",
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 2],
+          "spacing": [0.388672, 0.388672, 10.0],
+          "origin": [99.5, -301.5, -159.0],
+          "direction": [-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-1024.0, 172.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "da30f5ab3d1573dc246f3968679f0fbdffde1f9158c6dabebf6d467d76d4b31e"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -239,16 +604,51 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small.dcm",
       "sha256": "151233ec63f64ebb63b979df51aa827cd612a53422c073f6ef341770c7bc9a56",
       "bytes": 84256,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "expected": {
-        "dimensions": [64, 64, 10],
-        "range": [0.0, 467.0],
-        "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "Enhanced MR multiframe without functional groups or geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 10,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [
+            "SpacingBetweenSlices"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 10],
+          "range": [0.0, 467.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
       }
     },
     {
@@ -257,16 +657,51 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_big_endian.dcm",
       "sha256": "8e18ed3542bc4df70dc6acda87eab5095b19e2b4c1b7fb72ba457e7c217b1ab7",
       "bytes": 84256,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
-      "transferSyntaxUID": "1.2.840.10008.1.2.2",
-      "expected": {
-        "dimensions": [64, 64, 10],
-        "range": [0.0, 467.0],
-        "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "Big endian enhanced MR without geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 10,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [
+            "SpacingBetweenSlices"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 10],
+          "range": [0.0, 467.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only"
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
       }
     },
     {
@@ -275,16 +710,51 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_RLE.dcm",
       "sha256": "93c19bca3fb6b7202dcd067de8d16cb6b3f7c6e9a0632e474aab81175ee45266",
       "bytes": 49022,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
-      "transferSyntaxUID": "1.2.840.10008.1.2.5",
-      "expected": {
-        "dimensions": [64, 64, 10],
-        "range": [0.0, 467.0],
-        "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "RLE enhanced MR without geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.5",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 10,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [
+            "SpacingBetweenSlices"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 10],
+          "range": [0.0, 467.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
       }
     },
     {
@@ -293,16 +763,51 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_jpeg_2k_lossless.dcm",
       "sha256": "b2b4063359a08ed3b0afa9f4e4f72f84af79e5116515b446d9a30da9dc7f1888",
       "bytes": 40324,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
-      "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
-      "expected": {
-        "dimensions": [64, 64, 10],
-        "range": [0.0, 467.0],
-        "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "JPEG 2000 enhanced MR without geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 10,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [
+            "SpacingBetweenSlices"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 10],
+          "range": [0.0, 467.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
       }
     },
     {
@@ -311,16 +816,51 @@
       "url": "https://github.com/pydicom/pydicom-data/raw/39a2eb31815eec435dc26c322c27aec5cfcbddb6/data/emri_small_jpeg_ls_lossless.dcm",
       "sha256": "24de03c9c0f8b5aa75d7fbcc894f94e612b66702175b4936589a0849ec9f87b4",
       "bytes": 42834,
-      "modality": "MR",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
-      "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
-      "expected": {
-        "dimensions": [64, 64, 10],
-        "range": [0.0, 467.0],
-        "pixelHash": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "JPEG-LS enhanced MR without geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4.1",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 10,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [
+            "SpacingBetweenSlices"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 64, 10],
+          "range": [0.0, 467.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "abe3500fe9a168a59c82e063060ca7ee6ec47ff13c5acf697507c9adb8660dea"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom-data/blob/master/LICENSE"
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
       }
     },
     {
@@ -329,16 +869,49 @@
       "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/image_dfl.dcm",
       "sha256": "0029ebbba17e7c6f081408d433cd28b5d1cfee0eeb4cff509b4d972ffa9daf27",
       "bytes": 4637,
-      "modality": "OT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1.99",
-      "expected": {
-        "dimensions": [512, 512, 1],
-        "range": [0.0, 255.0],
-        "pixelHash": "4b3989b8545f28dfaa64c94789b06710a8574af593a8a4caf87fb2bf2a13ab2d"
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "Deflated Explicit VR Little Endian, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1.99",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "range": [0.0, 255.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "4b3989b8545f28dfaa64c94789b06710a8574af593a8a4caf87fb2bf2a13ab2d"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
       },
-      "provenance": {
-        "source": "https://github.com/pydicom/pydicom/blob/v3.0.2/LICENSE"
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
       }
     },
     {
@@ -347,19 +920,51 @@
       "url": "https://idc-open-data.s3.amazonaws.com/578233f9-537b-411b-b742-403fdab164a5/16c331c4-6242-44e7-88c5-54e991d140f4.dcm",
       "sha256": "a491cb2a944277b44b97feeb9deea0853e39cf0562c0fcb557cf6573989be930",
       "bytes": 233204,
-      "modality": "CT",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
-      "transferSyntaxUID": "1.2.840.10008.1.2.4.70",
-      "expected": {
-        "dimensions": [512, 512, 1],
-        "range": [-1024.0, 2602.0],
-        "pixelHash": "522ca4beec01da2abc9c379b641a6166f017c4e0b173f600a7b21d647000ccdd",
-        "origin": [-189.62890625, -336.12890625, -121.578],
-        "spacing": [0.7421875, 0.7421875],
-        "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+      "license": "CC BY 3.0",
+      "attribution": "TCGA-UCEC collection, The Cancer Imaging Archive, doi:10.7937/K9/TCIA.2016.GKJ0ZWAC",
+      "sourcePage": "https://doi.org/10.7937/k9/tcia.2016.gkj0zwac",
+      "quirk": "JPEG Lossless (process 14) CT slice",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.70",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.742188, 0.742188],
+          "origin": [-189.628906, -336.128906, -121.578],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-1024.0, 2602.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "522ca4beec01da2abc9c379b641a6166f017c4e0b173f600a7b21d647000ccdd"
+          }
+        },
+        "reference": "highdicom"
       },
-      "provenance": {
-        "source": "https://doi.org/10.7937/k9/tcia.2016.gkj0zwac"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -368,22 +973,62 @@
       "url": "https://idc-open-data.s3.amazonaws.com/3e915859-015b-4c8f-9a67-f17db1bef1e1/e3577f45-0b62-46e0-9b4a-983fc811a403.dcm",
       "sha256": "abc77c4e6239f4b0a605d4f4ad77e730e3c67d6057dea0265b591d7180b62de5",
       "bytes": 1284048,
-      "modality": "NM",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "provenance": {
-        "source": "https://doi.org/10.7937/ghkn-md15",
-        "license": "CC BY 4.0",
-        "collection": "varepop_apollo",
-        "reference": "pydicom3.0.2, NumPy2.4.6"
+      "license": "CC BY 4.0",
+      "attribution": "VAREPOP-APOLLO collection, The Cancer Imaging Archive, doi:10.7937/GHKN-MD15",
+      "sourcePage": "https://doi.org/10.7937/ghkn-md15",
+      "quirk": "NM reconstruction placed by DetectorInformationSequence, oblique",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
+        "modality": "NM",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 39,
+          "frameIncrementPointer": [
+            "00540080"
+          ],
+          "numberOfSlices": 39,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 128, 39],
+          "range": [0.0, 8786.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "67c8ffa6707cc36c649cae4d7ae3fe0240f40855cca87f18f4a148873cbaf5f1"
+          },
+          "spacing": [4.7951998710632, 4.7951998710632, 4.7951998710632],
+          "origin": [-84.307189228102, -560.03891452932, 1820.9574316383],
+          "direction": [0.7969600011737011, 0.6040291437013309, -0.0018841678936000028, -0.18433537197109837, 0.24024041366395787, -0.9530503734235916, -0.5752175476891148, 0.7598903455117845, 0.30280593724116717]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "origin is DetectorInformationSequence[0].ImagePositionPatient; the in-plane axes are its ImageOrientationPatient rows; the slice axis is their cross product times the sign of SpacingBetweenSlices; spacing is PixelSpacing (column, row) and |SpacingBetweenSlices|",
+        "derivationTags": {
+          "DetectorInformationSequence[0].ImagePositionPatient": [-84.307189228102, -560.03891452932, 1820.9574316383],
+          "DetectorInformationSequence[0].ImageOrientationPatient": [0.7969600011737, 0.60402914370133, -0.0018841678936, -0.1843353719711, 0.24024041366396, -0.9530503734236],
+          "PixelSpacing": [4.7951998710632, 4.7951998710632],
+          "SpacingBetweenSlices": 4.7951998710632
+        }
       },
-      "expected": {
-        "dimensions": [128, 128, 39],
-        "spacing": [4.7951998710632, 4.7951998710632, 4.7951998710632],
-        "origin": [-84.307189228102, -560.03891452932, 1820.9574316383],
-        "direction": [0.7969600011737011, 0.6040291437013309, -0.0018841678936000028, -0.18433537197109837, 0.24024041366395787, -0.9530503734235916, -0.5752175476891148, 0.7598903455117845, 0.30280593724116717],
-        "range": [0.0, 8786.0],
-        "pixelHash": "67c8ffa6707cc36c649cae4d7ae3fe0240f40855cca87f18f4a148873cbaf5f1"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -392,22 +1037,62 @@
       "url": "https://idc-open-data.s3.amazonaws.com/e518f6eb-c3ad-432c-933b-7676d3bdc752/64cbffec-caa9-4ee8-bc67-5586d24265c3.dcm",
       "sha256": "2180e2ad8262907cf5c3baea36663b59d8f02250ab5768303ea81eae3aa000eb",
       "bytes": 1445730,
-      "modality": "NM",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "provenance": {
-        "source": "https://doi.org/10.7937/tcia.bbag-2923",
-        "license": "CC BY 4.0",
-        "collection": "covid_19_ny_sbu",
-        "reference": "pydicom3.0.2, NumPy2.4.6"
+      "license": "CC BY 4.0",
+      "attribution": "COVID-19-NY-SBU collection, The Cancer Imaging Archive, doi:10.7937/TCIA.BBAG-2923",
+      "sourcePage": "https://doi.org/10.7937/tcia.bbag-2923",
+      "quirk": "NM reconstruction with negative SpacingBetweenSlices",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
+        "modality": "NM",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 44,
+          "frameIncrementPointer": [
+            "00540080"
+          ],
+          "numberOfSlices": 44,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 128, 44],
+          "range": [0.0, 27893.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "c959b2920236be466698716cc1ff46531bb3b59eebbaf777ccb80251cbf67c87"
+          },
+          "spacing": [4.7951998710632, 4.7951998710632, 4.7951998710632],
+          "origin": [-303.6479406672, -462.85804050024, 1549.5870552885],
+          "direction": [0.9999849232635268, 0.0003446298565199989, -0.005480371876099983, -0.00024031414620000066, 0.9998190041416026, 0.01902370117525005, -0.005485936086894437, 0.019022097349032426, -0.9998040129533861]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "origin is DetectorInformationSequence[0].ImagePositionPatient; the in-plane axes are its ImageOrientationPatient rows; the slice axis is their cross product times the sign of SpacingBetweenSlices; spacing is PixelSpacing (column, row) and |SpacingBetweenSlices|",
+        "derivationTags": {
+          "DetectorInformationSequence[0].ImagePositionPatient": [-303.6479406672, -462.85804050024, 1549.5870552885],
+          "DetectorInformationSequence[0].ImageOrientationPatient": [0.99998492326353, 0.00034462985652, -0.0054803718761, -0.0002403141462, 0.9998190041416, 0.01902370117525],
+          "PixelSpacing": [4.7951998710632, 4.7951998710632],
+          "SpacingBetweenSlices": -4.7951998710632
+        }
       },
-      "expected": {
-        "dimensions": [128, 128, 44],
-        "spacing": [4.7951998710632, 4.7951998710632, 4.7951998710632],
-        "origin": [-303.6479406672, -462.85804050024, 1549.5870552885],
-        "direction": [0.9999849232635268, 0.0003446298565199989, -0.005480371876099983, -0.00024031414620000066, 0.9998190041416026, 0.01902370117525005, -0.005485936086894437, 0.019022097349032426, -0.9998040129533861],
-        "range": [0.0, 27893.0],
-        "pixelHash": "c959b2920236be466698716cc1ff46531bb3b59eebbaf777ccb80251cbf67c87"
+      "module": {
+        "outcome": "volume"
       }
     },
     {
@@ -416,20 +1101,763 @@
       "url": "https://idc-open-data.s3.amazonaws.com/f2827355-24e5-4d43-aa43-20534de8f631/f336328e-f7be-42f6-a549-3c3601987bb3.dcm",
       "sha256": "70ee4d0ba4b4abed6a13245a97173a994771dc7d8c80b3d793169d40196daf17",
       "bytes": 8658576,
-      "modality": "NM",
-      "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
-      "transferSyntaxUID": "1.2.840.10008.1.2.1",
-      "provenance": {
-        "source": "https://doi.org/10.7937/ghkn-md15",
-        "license": "CC BY 4.0",
-        "collection": "varepop_apollo",
-        "reference": "pydicom3.0.2, NumPy2.4.6"
+      "license": "CC BY 4.0",
+      "attribution": "VAREPOP-APOLLO collection, The Cancer Imaging Archive, doi:10.7937/GHKN-MD15",
+      "sourcePage": "https://doi.org/10.7937/ghkn-md15",
+      "quirk": "Gated NM: 33 slices by 8 time slots in one file",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.20",
+        "modality": "NM",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 264,
+          "frameIncrementPointer": [
+            "00540060",
+            "00540070",
+            "00540080"
+          ],
+          "numberOfSlices": 33,
+          "numberOfTimeSlots": 8,
+          "temporalDimension": false
+        },
+        "frameAxis": "mixed",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 128, 264],
+          "range": [0.0, 23418.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "bc4d52c36cc88dfe180f935689f50bfe5940260963add2314a80be05ec6f0a0b"
+          },
+          "spacing": [4.7951998710632, 4.7951998710632]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [4.7951998710632, 4.7951998710632]
+        }
       },
-      "expectedError": "Unsupported NM volume with multiple spatial/time dimensions",
-      "frameTopology": {
-        "slices": 33,
-        "timeSlots": 8,
-        "storedFrames": 264
+      "module": {
+        "outcome": "error",
+        "error": "Unsupported NM volume with multiple spatial/time dimensions"
+      }
+    },
+    {
+      "id": "pydicom-rtstruct",
+      "name": "dicom-corpus-pydicom-rtstruct.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files/rtstruct.dcm",
+      "sha256": "40c41bdf871fd8553396b02476a66024ed23c04927c0dc53fd10ecd3472cd0d3",
+      "bytes": 2534,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files",
+      "quirk": "RT Structure Set: contours only, no preamble and no file meta",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.481.3",
+        "modality": "RTSTRUCT",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": false,
+        "pixels": false,
+        "photometricInterpretation": null,
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "reference": "tags"
+      },
+      "module": {
+        "outcome": "error",
+        "error": "No instance declares Bits Stored and a finite modality rescale range"
+      }
+    },
+    {
+      "id": "pydicom-data-color-pl",
+      "name": "dicom-corpus-pydicom-data-color-pl.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom-data/abc42b90985fb6cf385aa4af766d2c9c94a257a4/data_store/data/color-pl.dcm",
+      "sha256": "16bfc3134e59d789985efddfc70d924420b16e1c6d1f21c960bb4544c9e9dbf9",
+      "bytes": 93278,
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "RGB with PlanarConfiguration 1 (colour by plane)",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [256, 120, 1],
+          "pixels": {
+            "kind": "hash",
+            "value": "77fa42f467292a66cfcf4a485c6af2b2ccb6bbbd90360ae0bed7b55e377cd68f"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: KeyError: 'No IOD found for SOP Class UID: 1.2.840.10008.5.1.4.1.1.6.'"
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "pydicom-SC_ybr_full_422_uncompressed",
+      "name": "dicom-corpus-pydicom-SC_ybr_full_422_uncompressed.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files/SC_ybr_full_422_uncompressed.dcm",
+      "sha256": "08f6f4935ae225282d8481f297d37b1cf33be8c3d99028f310a9a3f9e8aaf284",
+      "bytes": 21686,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files",
+      "quirk": "Secondary Capture, uncompressed YBR_FULL_422",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "YBR_FULL_422",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [100, 100, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [127.72, 127.65, 127.83]
+          },
+          "spacing": [1.0, 1.0]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [1.0, 1.0]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
+    },
+    {
+      "id": "idc-seg-rider-pilot",
+      "name": "dicom-corpus-idc-seg-rider-pilot.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/211267f7-4e58-45be-b56a-0ef1a6ceb7ac/fdaf79ac-a13a-4d2a-b9ab-8aaa3774215c.dcm",
+      "sha256": "d7da79abd6a8ac2f91f239d95f3822a3dccd20c1caa63be8c0bc7ea7ee00acba",
+      "bytes": 3616,
+      "license": "CC BY 4.0",
+      "attribution": "RIDER Pilot collection, The Cancer Imaging Archive, doi:10.7937/TCIA.2020.1C3H-VP70",
+      "sourcePage": "https://doi.org/10.7937/tcia.2020.1c3h-vp70",
+      "quirk": "DICOM SEG, 13 x 13, 4 frames",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.66.4",
+        "modality": "SEG",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 4,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "perFrame",
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [13, 13, 4],
+          "spacing": [0.78125, 0.78125, 2.5],
+          "origin": [-107.65625, 50.78125, -119.25],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [0.0, 255.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "ba7fe73991f1038860f61cc6cd240986b5221fc33216a5cb62fd377cd0e6137c"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "pydicom-test-SR",
+      "name": "dicom-corpus-pydicom-test-SR.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files/test-SR.dcm",
+      "sha256": "eebf00a37e97503b5a65022f9c2f89db6e8dac4cc632682aa3456aee1b6c177e",
+      "bytes": 6796,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files",
+      "quirk": "Comprehensive Structured Report, deeply nested, no pixels",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.88.33",
+        "modality": "SR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": false,
+        "photometricInterpretation": null,
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "reference": "tags"
+      },
+      "module": {
+        "outcome": "error",
+        "error": "No instance declares Bits Stored and a finite modality rescale range"
+      }
+    },
+    {
+      "id": "idc-pr-qiba-ct",
+      "name": "dicom-corpus-idc-pr-qiba-ct.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/837b70d4-371c-44a3-a144-56a534c61932/bbd23377-1bf9-40cc-aa6c-5fe1edc2d69f.dcm",
+      "sha256": "8272cdb2041e1e540638e068e8b37be4950ba71b7eb8b53d8c4bb3dc349ebc68",
+      "bytes": 1266,
+      "license": "CC BY 3.0",
+      "attribution": "QIBA-CT-1C collection, The Cancer Imaging Archive, doi:10.7937/K9/TCIA.2016.YXGR4BLU",
+      "sourcePage": "https://doi.org/10.7937/k9/tcia.2016.yxgr4blu",
+      "quirk": "Grayscale Softcopy Presentation State, no pixels",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.11.1",
+        "modality": "PR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": false,
+        "photometricInterpretation": null,
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "reference": "tags"
+      },
+      "module": {
+        "outcome": "error",
+        "error": "No instance declares Bits Stored and a finite modality rescale range"
+      }
+    },
+    {
+      "id": "pydicom-SC_rgb_small_odd",
+      "name": "dicom-corpus-pydicom-SC_rgb_small_odd.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files/SC_rgb_small_odd.dcm",
+      "sha256": "fd4b944846665e82ff27ee9f9bec91a21a2de26005f532e82dffc8e848c3c7a0",
+      "bytes": 1444,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files",
+      "quirk": "RGB Secondary Capture, odd dimensions, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [3, 3, 1],
+          "pixels": {
+            "kind": "hash",
+            "value": "1607b35bfefee56ee3ca2bbc536630b392c04d9dd4b155da740b35762501397d"
+          },
+          "spacing": [33.333333, 33.333333]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [33.333333, 33.333333]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
+    },
+    {
+      "id": "idc-mg-cmmd",
+      "name": "dicom-corpus-idc-mg-cmmd.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/57c1ffb8-5ccd-40d1-8031-1836b485fd04/608a073d-14ef-455b-be5d-f73f553b97f0.dcm",
+      "sha256": "3264fbdd6699920d6373654f7fccd451589c76d961c3fd78fcbacb0cf06faad3",
+      "bytes": 4393150,
+      "license": "CC BY 4.0",
+      "attribution": "CMMD collection, The Cancer Imaging Archive, doi:10.7937/TCIA.EQDE-4B16",
+      "sourcePage": "https://doi.org/10.7937/tcia.eqde-4b16",
+      "quirk": "Mammogram for presentation, 2294 rows",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.1.2",
+        "modality": "MG",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1914, 2294, 1],
+          "range": [0.0, 241.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "17fe26056c50ad3a2730dccb38c72be9650fee2e03d7cced7104cb1312f34843"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "generated-oct-positioned",
+      "name": "dicom-corpus-generated-oct-positioned.dcm",
+      "generator": "oct-positioned",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/generatedCorpus.ts",
+      "sourcePage": null,
+      "quirk": "Enhanced OCT with per-frame positions: the regular case",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.77.1.5.4",
+        "modality": "OPT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 32,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "perFrame",
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 222, 32],
+          "spacing": [0.046875, 0.0104, 0.1875],
+          "origin": [0.0, 0.0, 0.0],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [0.0, 662.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "fa1bffc324d488652b9cbfb50cf192531a66ba01029e5ad98130a2ccad928cd7"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "generated-oct-slice-thickness-only",
+      "name": "dicom-corpus-generated-oct-slice-thickness-only.dcm",
+      "generator": "oct-slice-thickness-only",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/generatedCorpus.ts",
+      "sourcePage": null,
+      "quirk": "Enhanced OCT with no positions and no SpacingBetweenSlices: slice spacing from the shared SliceThickness (Zeiss Cirrus pattern)",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.77.1.5.4",
+        "modality": "OPT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 32,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 222, 32],
+          "range": [0.0, 662.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "fa1bffc324d488652b9cbfb50cf192531a66ba01029e5ad98130a2ccad928cd7"
+          },
+          "spacing": [0.046875, 0.0104]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "no frame positions and no SpacingBetweenSlices; in-plane spacing is the shared PixelSpacing (column, row); the shared SliceThickness is the only slice measure, used by the module as the gap (module.spacing)",
+        "derivationTags": {
+          "SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing": [0.0104, 0.046875],
+          "SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness": 0.09375
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [0.046875, 0.0104, 0.09375]
+      }
+    },
+    {
+      "id": "generated-oct-spacing-between-slices",
+      "name": "dicom-corpus-generated-oct-spacing-between-slices.dcm",
+      "generator": "oct-spacing-between-slices",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/generatedCorpus.ts",
+      "sourcePage": null,
+      "quirk": "Enhanced OCT with no positions: SpacingBetweenSlices given and preferred over a different SliceThickness",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.77.1.5.4",
+        "modality": "OPT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 32,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": null,
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 222, 32],
+          "range": [0.0, 662.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "fa1bffc324d488652b9cbfb50cf192531a66ba01029e5ad98130a2ccad928cd7"
+          },
+          "spacing": [0.046875, 0.0104, 0.1875]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "no frame positions exist; spacing is the shared PixelSpacing (column, row) and the shared SpacingBetweenSlices, which is the slice gap; SliceThickness (0.05) is the slice extent",
+        "derivationTags": {
+          "SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing": [0.0104, 0.046875],
+          "SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SliceThickness": 0.05,
+          "SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].SpacingBetweenSlices": 0.1875
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
+    },
+    {
+      "id": "generated-oct-radial",
+      "name": "dicom-corpus-generated-oct-radial.dcm",
+      "generator": "oct-radial",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/generatedCorpus.ts",
+      "sourcePage": null,
+      "quirk": "Radial OCT: six B-scans rotated about the depth axis, OphthalmicVolumetricPropertiesFlag NO",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.77.1.5.4",
+        "modality": "OPT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 6,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "perFrame",
+          "imageOrientation": "perFrame",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 222, 6],
+          "range": [0.0, 584.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "4820745f5b60d640225f142ee405ec5e8aab2c259a66dcf77eaa42b00a080dbc"
+          },
+          "spacing": [0.046875, 0.0104],
+          "origin": [0.0, 0.0, 3.0]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Frame positions do not form a regularly-spaced volume.",
+        "derivation": "B-scans are not parallel, so there is no volume direction or slice spacing; in-plane spacing is the shared PixelSpacing (column, row) and the origin is the first frame position",
+        "derivationTags": {
+          "SharedFunctionalGroupsSequence[0].PixelMeasuresSequence[0].PixelSpacing": [0.0104, 0.046875],
+          "PerFrameFunctionalGroupsSequence[0].PlanePositionSequence[0].ImagePositionPatient": [0.0, 0.0, 3.0]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "reconstruction": "irregular"
+      }
+    },
+    {
+      "id": "generated-oct-line",
+      "name": "dicom-corpus-generated-oct-line.dcm",
+      "generator": "oct-line",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/generatedCorpus.ts",
+      "sourcePage": null,
+      "quirk": "Single OCT line scan, OphthalmicVolumetricPropertiesFlag NO",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.77.1.5.4",
+        "modality": "OPT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "perFrame",
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [128, 222, 1],
+          "spacing": [0.046875, 0.0104],
+          "origin": [0.0, 0.0, 0.0],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [0.0, 569.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "c66a95e3380f2735a7354363790e8333a80d24b68c3d6d8f3127b2178433eb76"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "generated-encapsulated-pdf",
+      "name": "dicom-corpus-generated-encapsulated-pdf.dcm",
+      "generator": "encapsulated-pdf",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/generatedCorpus.ts",
+      "sourcePage": null,
+      "quirk": "Encapsulated PDF: no pixels",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.104.1",
+        "modality": "DOC",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": false,
+        "photometricInterpretation": null,
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "reference": "tags"
+      },
+      "module": {
+        "outcome": "error",
+        "error": "No instance declares Bits Stored and a finite modality rescale range"
       }
     }
   ]

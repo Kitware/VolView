@@ -133,11 +133,13 @@ export const PET_CT_DICOM_DATASETS = compositionCorpus.datasets.filter(
   ({ name }) => name.startsWith('PET-CT-')
 );
 
-// Everything declared above is downloaded.
+// Everything declared above is downloaded; generated corpus files are built by the specs.
 export const TEST_DATASETS = [
   ...Object.values(DATASETS),
   ...compositionCorpus.datasets,
-  ...dicomVolumeCorpus.datasets,
+  ...dicomVolumeCorpus.datasets.flatMap(({ name, url, sha256 }) =>
+    url && sha256 ? [{ name, url, sha256 }] : []
+  ),
 ];
 
 export type TestDataset = (typeof TEST_DATASETS)[number];

@@ -1,0 +1,30 @@
+# The slow DICOM corpus tier. Manual only: its failures list known loader gaps.
+name: Extended DICOM corpus
+on:
+  workflow_dispatch:
+
+jobs:
+  corpus:
+    name: Extended DICOM corpus
+    runs-on: ubuntu-latest
+    env:
+      DOWNLOAD_TIMEOUT: 90000
+      DICOM_CORPUS: extended
+      VITE_SHOW_SAMPLE_DATA: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Cache test datasets
+        uses: actions/cache@v4
+        with:
+          path: .tmp/datasets
+          key: dicom-corpus-extended-${{ hashFiles('tests/datasets.ts', 'tests/dicomVolumeCorpus.json', 'tests/dicomCompositionCorpus.json', 'tests/dicomExtendedCorpus.json') }}
+          restore-keys: dicom-corpus-extended-
+      - name: Run the corpus spec
+        run: env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY npm run test:e2e:chrome -- --spec tests/specs/dicom-volume-corpus.e2e.ts

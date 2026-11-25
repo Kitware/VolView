@@ -201,6 +201,12 @@ type SyntheticOCTOptions = Part10Options & {
   scalars?: Uint16Array;
   /** Declares (0028,0120) Pixel Padding Value. */
   pixelPaddingValue?: number;
+  /** B-scans written; `scalars` must hold this many frames. */
+  frameCount?: number;
+  /** Each frame's Plane Position and Orientation, instead of a parallel stack. */
+  framePlanes?: (frame: number) => { position: string; orientation: string };
+  /** (0022,1622) Ophthalmic Volumetric Properties Flag. */
+  volumetric?: 'YES' | 'NO';
 };
 
 /** A regular raster with the intensity x + 2y + 3z and no clinical pixels. */
@@ -208,9 +214,13 @@ export function createSyntheticOCT({
   scanPattern = '128280',
   scalars = syntheticScalars(),
   pixelPaddingValue,
+  frameCount,
+  framePlanes,
+  volumetric = 'YES',
   ...options
 }: SyntheticOCTOptions = {}) {
-  const [width, depth, frames] = reference.size;
+  const [width, depth] = reference.size;
+  const frames = frameCount ?? reference.size[2];
   const [sx, sy, sz] = reference.spacing;
   const uid = '1.2.826.0.1.3680043.10.999.1';
   const us = (tag: string, value: number) => {
@@ -255,7 +265,7 @@ export function createSyntheticOCT({
       leaf('00200037', 'DS', orientation),
       leaf('00200052', 'UI', `${uid}.4`),
       sq('00221618', [[leaf('00080100', 'SH', scanPattern)]]),
-      leaf('00221622', 'CS', 'YES'),
+      leaf('00221622', 'CS', volumetric),
       us('00280002', 1),
       leaf('00280004', 'CS', 'MONOCHROME2'),
       leaf('00280008', 'IS', String(frames)),
@@ -272,9 +282,12 @@ export function createSyntheticOCT({
       sq('52009229', [[measures, orientationSequence(orientation)]]),
       sq(
         '52009230',
-        Array.from({ length: frames }, (_, z) => [
-          positionSequence(`0.0\\0.0\\${(z * sz).toFixed(4)}`),
-        ])
+        Array.from({ length: frames }, (_, z) => {
+          if (!framePlanes)
+            return [positionSequence(`0.0\\0.0\\${(z * sz).toFixed(4)}`)];
+          const { position, orientation: plane } = framePlanes(z);
+          return [positionSequence(position), orientationSequence(plane)];
+        })
       ),
       leaf('7fe00010', 'OW', pixels),
     ],

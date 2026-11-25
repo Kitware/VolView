@@ -1,5 +1,9 @@
+import {
+  emptyRegistry,
+  registerInstances,
+} from '@/src/dicom/core/collections/instanceRegistry';
 import { failed, never, report, runtime, sourceOf } from './shared';
-import { loadInstanceVolume } from './loadVolume';
+import { loadCollection } from './loadVolume';
 import { describeVolume } from './describeVolume';
 
 async function run() {
@@ -14,9 +18,12 @@ async function run() {
       ? new File([await (await fetch(url)).blob()], 'volume.dcm')
       : url;
   const instance = await runtime.readInstance(sourceOf(input), never);
-  const { update, image } = await loadInstanceVolume(instance);
-  await describeVolume(image, report);
-  report('reconstruction', update.collection.reconstruction.kind);
+  const [update] = registerInstances(emptyRegistry, [instance]).updates;
+  if (update) {
+    const { image } = await loadCollection(update);
+    await describeVolume(image, report);
+    report('reconstruction', update.collection.reconstruction.kind);
+  }
   report('status', 'complete');
 }
 
