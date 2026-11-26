@@ -48,6 +48,7 @@ describe('the stem a segmentation is saved and staged under', () => {
       SeriesDescription: 'Ax T2 FSE 3.5mm',
       WindowLevel: '128',
       WindowWidth: '256',
+      PhotometricInterpretation: 'MONOCHROME2',
     };
 
     expect(segmentationFileStem('series-1', 'Ax T2 FSE 3.5mm')).toBe(

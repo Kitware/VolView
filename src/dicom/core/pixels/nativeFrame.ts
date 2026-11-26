@@ -72,10 +72,11 @@ const UNREPRODUCED_ELEMENTS = new Map([
 
 const declinePhotometric = (format: NativePixelFormat) => {
   const { samplesPerPixel, photometricInterpretation } = format;
-  const monochrome2 =
-    samplesPerPixel === 1 && photometricInterpretation === 'MONOCHROME2';
+  const monochrome =
+    samplesPerPixel === 1 &&
+    ['MONOCHROME1', 'MONOCHROME2'].includes(photometricInterpretation);
   const rgb = samplesPerPixel === 3 && photometricInterpretation === 'RGB';
-  return monochrome2 || rgb
+  return monochrome || rgb
     ? null
     : `${photometricInterpretation || 'Unknown'} photometric interpretation with ${samplesPerPixel} samples per pixel`;
 };
@@ -115,10 +116,10 @@ const declineRescale = (format: NativePixelFormat) => {
     : null;
 };
 
-// Each case was compared with GDCM in a browser: MONOCHROME1 comes back
-// inverted, 8 bit words keep bits above Bits Stored, 32 bit words with fewer
-// stored bits do not decode, and big endian words other than 16 bit are read
-// as 16 bit pairs. Palette and YBR colour are not reproduced here.
+// Each case was compared with GDCM in a browser: 8 bit words keep bits above
+// Bits Stored, 32 bit words with fewer stored bits do not decode, and big
+// endian words other than 16 bit are read as 16 bit pairs. Palette and YBR
+// colour are not reproduced here.
 const declineFormat = (format: NativePixelFormat) =>
   declinePhotometric(format) ??
   declineBits(format) ??

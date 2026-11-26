@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
-import { resolveBaseColorPreset } from '@/src/vtk/LayerColorPresets';
+import {
+  MONOCHROME1_PRESET,
+  resolveBaseColorPreset,
+} from '@/src/vtk/LayerColorPresets';
 import { markRaw, reactive, ref } from 'vue';
 import { createEventHook } from '@vueuse/core';
 import deepEqual from 'fast-deep-equal';
@@ -93,8 +96,17 @@ export const useWindowingStore = defineStore('windowing', () => {
     return minMaxToWidthLevel(min, max);
   };
 
+  const defaultPreset = (dataID: string) =>
+    isDicomImage(dataID) &&
+    dicomStore.volumeInfo[dataID]?.PhotometricInterpretation === 'MONOCHROME1'
+      ? { preset: MONOCHROME1_PRESET }
+      : {};
+
   const computeDefaultConfig = (viewID: string, dataID: string) => {
-    const defaults = defaultWindowLevelConfig();
+    const defaults = {
+      ...defaultWindowLevelConfig(),
+      ...defaultPreset(dataID),
+    };
     const source = getDoubleKeyRecord(autoRangeSources, viewID, dataID);
     if (source) {
       return { ...defaults, auto: 'LowContrast' as const, useAuto: true };

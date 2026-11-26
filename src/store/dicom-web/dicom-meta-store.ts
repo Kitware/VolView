@@ -16,7 +16,8 @@ interface InstanceInfo {
   Columns: number;
 }
 
-type VolumeInfoForUi = Omit<VolumeInfo, 'layers'>;
+// DICOMweb series listings carry no Photometric Interpretation.
+type VolumeInfoForUi = Omit<VolumeInfo, 'layers' | 'PhotometricInterpretation'>;
 
 interface State {
   // volume invalidation information

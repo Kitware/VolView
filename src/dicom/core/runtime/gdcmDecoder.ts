@@ -1,5 +1,12 @@
 import type { Image, runPipeline, TypedArray } from 'itk-wasm';
-import { hasUniformModalityRescale } from '../metadata/modalityRescale';
+import { getDatasetTag, isMonochrome1 } from '../metadata/datasetAccess';
+import type { DicomDataset } from '../metadata/dicomDataset';
+import { Tags } from '../metadata/dicomTags';
+import {
+  hasUniformModalityRescale,
+  readModalityRescale,
+} from '../metadata/modalityRescale';
+import { numberOr } from '../utils';
 import { createLanePool, type Lane } from './lanePool';
 import { asPart10 } from './part10Bytes';
 import {
@@ -103,6 +110,26 @@ function createGdcmLane(assets: DicomAssets) {
   return { run, reset };
 }
 
+/**
+ * GDCM reflects MONOCHROME1 stored values across their range, then rescales.
+ * Reflecting its output back gives the stored values, as native frames keep.
+ */
+function restoreMonochrome1(pixels: DecodedPixels, dataset: DicomDataset) {
+  const bitsStored = numberOr(getDatasetTag(dataset, Tags.BitsStored), NaN);
+  const signed =
+    numberOr(getDatasetTag(dataset, Tags.PixelRepresentation), 0) === 1;
+  const { rescaleSlope, rescaleIntercept } = readModalityRescale(dataset);
+  const [low, high] = signed
+    ? [-(2 ** (bitsStored - 1)), 2 ** (bitsStored - 1) - 1]
+    : [0, 2 ** bitsStored - 1];
+  const mirror = rescaleSlope * (low + high) + 2 * rescaleIntercept;
+  // The lane hands back a buffer it owns, and the reflection stays in range.
+  const data = pixels.data as { length: number; [index: number]: number };
+  for (let index = 0; index < data.length; index += 1)
+    data[index] = mirror - data[index];
+  return pixels;
+}
+
 export type GdcmLane = Lane<Uint8Array, DecodedPixels>;
 export type CreateGdcmLane = (assets: DicomAssets) => GdcmLane;
 
@@ -123,7 +150,11 @@ export function createGdcmDecoder(
     signal.throwIfAborted();
     if (!assets)
       throw new Error('GDCM decoding needs createDicomRuntime({ assets })');
-    return pool.run(asPart10(unit.instance, unit.bytes), signal);
+    const pixels = await pool.run(asPart10(unit.instance, unit.bytes), signal);
+    const { dataset } = unit.instance;
+    return isMonochrome1(dataset)
+      ? restoreMonochrome1(pixels, dataset)
+      : pixels;
   });
 
   // GDCM applies one transform to an instance, so its frames must agree.

@@ -13,6 +13,8 @@ type SliceToThumbnailInput = {
   components: number;
   // The window mapped onto 0..255.
   range: readonly [number, number];
+  // MONOCHROME1: the low end of the window displays white.
+  inverted?: boolean;
 };
 
 const THUMBNAIL_MAX_SIZE = 256;
@@ -47,6 +49,7 @@ export function sliceToThumbnail({
   height,
   components,
   range,
+  inverted = false,
 }: SliceToThumbnailInput) {
   const [low, high] = range;
   const span = high - low;
@@ -62,7 +65,8 @@ export function sliceToThumbnail({
   const toByte = (sample: number) => {
     if (!Number.isFinite(sample) || span <= 0) return 0;
     const scaled = Math.round(((sample - low) / span) * BYTE_MAX);
-    return Math.min(BYTE_MAX, Math.max(0, scaled));
+    const byte = Math.min(BYTE_MAX, Math.max(0, scaled));
+    return inverted ? BYTE_MAX - byte : byte;
   };
 
   const thumbData = Uint8Array.from(

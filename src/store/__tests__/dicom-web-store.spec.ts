@@ -43,6 +43,7 @@ function volume(VolumeID: string, SeriesInstanceUID: string): VolumeInfo {
     SeriesDescription: '',
     WindowLevel: '',
     WindowWidth: '',
+    PhotometricInterpretation: 'MONOCHROME2',
     kind: 'volume',
   };
 }

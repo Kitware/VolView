@@ -2165,6 +2165,108 @@
       }
     },
     {
+      "id": "gdcm-CR-MONO1-10-chest",
+      "name": "dicom-corpus-gdcm-CR-MONO1-10-chest.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/CR-MONO1-10-chest.dcm?format=raw",
+      "sha256": "ee3da313f01d2b5054d635da07a5295ceb2886b1e332dc2ff3c4c318a18c86c1",
+      "bytes": 387976,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Computed radiograph, MONOCHROME1, 10 bit, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.1",
+        "modality": "CR",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": false,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME1",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [440, 440, 1],
+          "range": [0.0, 979.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "81f79c72c4a0ff0bf3edaa413ed7d2b88612fd867869d675d0e27226d99d338d"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only"
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "gdcm-D_CLUNIE_RG3_JPLL",
+      "name": "dicom-corpus-gdcm-D_CLUNIE_RG3_JPLL.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/D_CLUNIE_RG3_JPLL.dcm?format=raw",
+      "sha256": "446803e262feb66afbfe97ba60452d6726aba9b968fe5b3005f5f595cb3da762",
+      "bytes": 1398846,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Computed radiograph, MONOCHROME1, 10 bit, JPEG Lossless, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.1",
+        "modality": "CR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.70",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME1",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1760, 1760, 1],
+          "range": [0.0, 1023.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "420e54289b8c2e2b75a79b3f46ad1f9e4704c4651bf4fa4f3d6b70f8248cd941"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
       "id": "gdcm-PICKER-16-MONO2-No_DicomV3_Preamble",
       "name": "dicom-corpus-gdcm-PICKER-16-MONO2-No_DicomV3_Preamble.dcm",
       "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/PICKER-16-MONO2-No_DicomV3_Preamble.dcm?format=raw",

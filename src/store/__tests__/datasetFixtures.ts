@@ -19,6 +19,7 @@ export const seatVolume = (
     SeriesDescription: 'clip',
     WindowLevel: '128',
     WindowWidth: '256',
+    PhotometricInterpretation: 'MONOCHROME2',
     kind: 'volume',
     ...info,
   };
