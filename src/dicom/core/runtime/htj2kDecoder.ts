@@ -37,13 +37,21 @@ type Htj2kCapability =
   | Readonly<{ format: NativePixelFormat; valueOffset: number }>
   | Readonly<{ declined: string }>;
 
-// OpenJPH undoes a colour transform itself, so its samples are those stored.
+/** The photometric interpretations a codestream's colour transform requires. */
+const COLOUR_TRANSFORMED = ['YBR_RCT', 'YBR_ICT'];
+
+// OpenJPH undoes a colour transform itself, so those samples come back RGB.
+const decodedFormat = (format: NativePixelFormat) =>
+  COLOUR_TRANSFORMED.includes(format.photometricInterpretation)
+    ? { ...format, photometricInterpretation: 'RGB' }
+    : format;
+
 function htj2kCapability(instance: Instance): Htj2kCapability {
   const { pixelData } = instance;
   if (!pixelData) return { declined: 'The header locates no Pixel Data' };
   if (pixelData.length !== null)
     return { declined: 'Pixel Data is not encapsulated' };
-  const capability = nativeCapability(instance, true);
+  const capability = nativeCapability(instance, true, decodedFormat);
   if (capability.kind === 'declined') return { declined: capability.reason };
   const { format } = capability;
   if (format.bitsAllocated > 16)
