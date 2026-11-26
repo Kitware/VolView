@@ -224,6 +224,24 @@ describe('readInstance over byte sources', () => {
     expect(transferSyntaxUid).toBe(EXPLICIT_VR_LITTLE_ENDIAN);
   });
 
+  it.each([
+    { name: 'Float Pixel Data', element: 0x0008, vr: 'OF' },
+    { name: 'Double Float Pixel Data', element: 0x0009, vr: 'OD' },
+  ])('stops at $name without locating it', async ({ element, vr }) => {
+    const header = withoutPixelData(syntheticSlice({ modality: 'MR' }));
+    const bytes = concatBytes([
+      header,
+      rawElement(0x7fe0, element, vr, new Uint8Array(64 * 1024)),
+    ]);
+    const { source, stats } = trackedSource(bytes, CHUNK);
+
+    const { dataset, pixelData } = await readInstance(source, never());
+
+    expect(dataset).toEqual(readDicomDataset(header));
+    expect(pixelData).toBeNull();
+    expect(stats.delivered).toBeLessThan(bytes.length / 2);
+  });
+
   it('reads a radiotherapy object no further than its modality', async () => {
     const bytes = syntheticSlice({ modality: 'RTDOSE', patientName: 'DOE' });
     const skipped = trackedSource(bytes, 32);
