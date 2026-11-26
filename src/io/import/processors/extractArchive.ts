@@ -8,16 +8,16 @@ import {
 import { Skip } from '@/src/utils/evaluateChain';
 import { DataSource, findStateFileLeaves } from '@/src/io/import/dataSource';
 
+const withoutLeadingSlashes = (path: string) => path.replace(/^\/+/, '');
+
 const readArchive = (file: File, cache?: ArchiveCache) => {
   const cached = cache?.get(file);
   if (cached) return cached;
   const pending = extractFilesFromZip(file).then((entries) =>
-    Object.fromEntries(
-      entries.map((entry) => [
-        entry.archivePath.replace(/^\/+/, ''),
-        entry.file,
-      ])
-    )
+    entries.map((entry) => ({
+      path: withoutLeadingSlashes(entry.archivePath),
+      file: entry.file,
+    }))
   );
   cache?.set(file, pending);
   return pending;
@@ -33,13 +33,18 @@ const extractArchive: ImportHandler = async (dataSource, context) => {
     const [target, ...remaining] = leaf?.archivePaths ?? [];
     const contents = await readArchive(dataSource.file, context?.archiveCache);
     const entries = target
-      ? ([[target, contents[target.replace(/^\/+/, '')]]] as const)
-      : Object.entries(contents);
-    const newSources = entries.map(([archivePath, file]): DataSource => {
+      ? [
+          {
+            path: target,
+            file: contents.find(
+              ({ path }) => path === withoutLeadingSlashes(target)
+            )?.file,
+          },
+        ]
+      : contents;
+    const newSources = entries.map(({ path, file }): DataSource => {
       if (!file)
-        throw new Error(
-          'File ' + archivePath + ' does not exist in the zip file'
-        );
+        throw new Error('File ' + path + ' does not exist in the zip file');
       return {
         type: 'file',
         file,
@@ -54,7 +59,7 @@ const extractArchive: ImportHandler = async (dataSource, context) => {
           : {}),
         parent: {
           type: 'archive',
-          path: archivePath,
+          path,
           parent: dataSource,
         },
       };
