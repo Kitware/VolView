@@ -124,9 +124,9 @@ const firstSlice = async (zip: string) => {
   return [`${zip}/${file.name}`, await file.async('uint8array')] as const;
 };
 
-// The public singles decode natively except the two compressed ultrasounds.
+// The public singles decode natively except the two JPEG ultrasounds.
 const publicPlan = (name: string) =>
-  /US_multiframe|jpeg_baseline/.test(name) ? 'GDCM' : 'frames';
+  /US_multiframe|jpeg_baseline/.test(name) ? 'JPEG' : 'frames';
 
 // Corpus files a codec decodes in place of GDCM, by the decoder that takes each.
 const codecFiles = Object.entries({
@@ -138,6 +138,13 @@ const codecFiles = Object.entries({
     'generated-rle-32-bit',
   ],
   Deflated: ['pydicom-image_dfl'],
+  'JPEG Lossless': [
+    'idc-ct-jpeg-lossless-slice',
+    'gdcm-D_CLUNIE_RG3_JPLL',
+    'pydicom-SC_rgb_jpeg_gdcm',
+    'gdcm-SignedShortLosslessBug',
+    'pydicom-data-JPEG-LL',
+  ],
   'JPEG-LS': [
     'pydicom-MR_small_jpeg_ls_lossless',
     'pydicom-emri_small_jpeg_ls_lossless',

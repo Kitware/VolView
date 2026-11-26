@@ -45,10 +45,18 @@ const colourInstance = (photometric: string) =>
   });
 
 describe('codec decoders', () => {
-  it.each(['RGB', 'YBR_RCT', 'YBR_ICT'])(
-    'decodes %s colour to the RGB samples OpenJPH returns',
-    async (photometric) => {
-      const decoder = createCodecDecoders(1, rgbLane).decoders.htj2k;
+  it.each([
+    ['htj2k', 'RGB'],
+    ['htj2k', 'YBR_RCT'],
+    ['htj2k', 'YBR_ICT'],
+    ['jpeg2000', 'YBR_RCT'],
+    ['jpeg2000', 'YBR_ICT'],
+    ['jpeg', 'YBR_FULL'],
+    ['jpeg', 'YBR_FULL_422'],
+  ] as const)(
+    'decodes %s %s colour to the RGB samples its codec returns',
+    async (codec, photometric) => {
+      const decoder = createCodecDecoders(1, rgbLane).decoders[codec];
       const units = decoder.plan(await colourInstance(photometric), Uint8Array);
       if ('declined' in units) throw new Error(units.declined);
 
@@ -104,7 +112,19 @@ describe('codec decoders', () => {
     });
   });
 
-  it('hands the worker the header frame shape a codestream may not state', async () => {
+  it('declines JPEG samples over 8 bits, which are the 12 bit process', async () => {
+    const { jpeg, jpegLossless } = createCodecDecoders(1, rgbLane).decoders;
+    const instance = await encapsulatedInstance({ bitsStored: 12 });
+
+    expect(jpeg.plan(instance, Uint16Array)).toEqual({
+      declined: 'Bits Allocated 16',
+    });
+    expect(jpegLossless.plan(instance, Uint16Array)).toMatchObject([
+      { firstFrame: 0, frames: 1 },
+    ]);
+  });
+
+  it('hands the worker what the header says and a codestream may not', async () => {
     const jobs: unknown[] = [];
     const lane: CodecLane = {
       run: async (job) => {
@@ -134,6 +154,7 @@ describe('codec decoders', () => {
         value: 8,
         frameCount: 2,
         shape: { columns: 3, rows: 2, components: 1, bytesPerSample: 2 },
+        photometricInterpretation: 'MONOCHROME2',
       },
     ]);
     expect(pixels).toMatchObject({ size: [3, 2, 2], components: 1 });

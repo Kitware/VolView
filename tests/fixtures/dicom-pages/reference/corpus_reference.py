@@ -172,7 +172,8 @@ def stored_pixels(ds):
             items = group.get('PixelValueTransformationSequence')
             if items and 'RescaleSlope' in items[0]:
                 return float(items[0].RescaleSlope), float(items[0].RescaleIntercept)
-        return float(ds.get('RescaleSlope', 1)), float(ds.get('RescaleIntercept', 0))
+        # A present but empty element reads as None, which means no rescale.
+        return float(ds.get('RescaleSlope') or 1), float(ds.get('RescaleIntercept') or 0)
 
     if samples > 1:
         return raw

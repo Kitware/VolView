@@ -547,6 +547,61 @@
       "module": {
         "outcome": "volume"
       }
+    },
+    {
+      "id": "gdcm-MR-MONO2-12-shoulder",
+      "name": "dicom-corpus-gdcm-MR-MONO2-12-shoulder.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/MR-MONO2-12-shoulder.dcm?format=raw",
+      "sha256": "8733d36f1937e3b58fe016c51eab2e098e89e4ba5854384bdede6c2844686225",
+      "bytes": 720528,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG Lossless, Non-Hierarchical (Process 14), 12 bit MR with a fractional rescale",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.57",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1024, 1024, 1],
+          "spacing": [0.195313, 0.195313],
+          "origin": [-180.058222, -97.147766, 112.82799],
+          "direction": [0.569486015, 0.822001021, 0.0, 0.0, 0.0, -1.0, -0.822001021, 0.569486015, 0.0],
+          "range": [6.0999998822808266e-05, 2245.597900390625],
+          "pixels": {
+            "kind": "hash",
+            "value": "f85cc47a901eab537a4ddcc3ff9b6825cddbf40b7153453a23c9d44bf2a31a2c"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume",
+        "storage": "float32"
+      }
     }
   ]
 }
