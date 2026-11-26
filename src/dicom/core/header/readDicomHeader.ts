@@ -18,6 +18,8 @@ export type PixelDataElement = Readonly<{
 
 const MODALITY = [0x0008, 0x0060] as const;
 const PIXEL_DATA = [0x7fe0, 0x0010] as const;
+const PIXEL_GROUP = 0x7fe0;
+const FLOAT_PIXEL_DATA_ELEMENTS = [0x0008, 0x0009];
 /** Tag, VR, reserved bytes and a 32 bit length: the longest element head. */
 const PIXEL_DATA_HEAD_LENGTH = 12;
 const LONG_FORM_VRS = new Set(['OB', 'OD', 'OF', 'OL', 'OV', 'OW', 'UN']);
@@ -35,6 +37,13 @@ const isTag = (
 const isRadiotherapy = (modality: string | undefined) =>
   modality?.startsWith('RT') ?? false;
 
+/**
+ * Float and Double Float Pixel Data end the header too, but are not located:
+ * frames are indexed from integer samples only.
+ */
+const isFloatPixelData = (group: number, element: number) =>
+  group === PIXEL_GROUP && FLOAT_PIXEL_DATA_ELEMENTS.includes(element);
+
 function headerParser() {
   const found = {
     modality: undefined as string | undefined,
@@ -45,7 +54,11 @@ function headerParser() {
   const parse = createDicomParser({
     stopAtElement: (group, element) => {
       found.atPixelData = isTag(PIXEL_DATA, group, element);
-      return found.atPixelData || isRadiotherapy(found.modality);
+      return (
+        found.atPixelData ||
+        isFloatPixelData(group, element) ||
+        isRadiotherapy(found.modality)
+      );
     },
     onLayout: (layout) => {
       found.layout = layout;
