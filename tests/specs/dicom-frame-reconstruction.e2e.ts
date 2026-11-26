@@ -28,6 +28,13 @@ const frames = {
       [2, 0],
     ],
   }),
+  differing: enhancedFixtureBytes({
+    pixelValues: [2, 2],
+    transforms: [
+      [1, 0],
+      [2, 0],
+    ],
+  }),
 };
 
 const hashFrames = (values: number[]) =>
@@ -51,6 +58,12 @@ const scenarios = [
     name: 'uniform',
     source: 'http',
     values: [4, 4],
+    reconstruction: 'regular',
+  },
+  {
+    name: 'differing',
+    source: 'file',
+    values: [2, 4],
     reconstruction: 'regular',
   },
 ];

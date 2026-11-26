@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decodeNativeFrame,
   nativeCapability,
+  nativeFrameDecoder,
   type NativePixelFormat,
 } from '../nativeFrame';
 import { EXPLICIT_BE, type DataElement } from '@/tests/nativePixelDicom';
@@ -163,6 +164,17 @@ describe('nativeCapability', () => {
         ],
       },
     ],
+    [
+      'a differing per-frame rescale',
+      {
+        sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
+        frames: 2,
+        frameRescales: [
+          [1, 0],
+          [2, 0],
+        ],
+      },
+    ],
     ['Pixel Padding Value', { extra: [element(0x00280120, 'US', [0])] }],
     ['MONOCHROME1, keeping stored values', { photometric: 'MONOCHROME1' }],
   ] as const)('decodes %s natively', async (_name, options) => {
@@ -207,18 +219,6 @@ describe('nativeCapability', () => {
       { samplesPerPixel: 3, bitsAllocated: 8, rescale: [2, 0] },
       /RGB/,
     ],
-    [
-      'differing per-frame rescale',
-      {
-        sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
-        frames: 2,
-        frameRescales: [
-          [1, 0],
-          [2, 0],
-        ],
-      },
-      /differing modality rescale/,
-    ],
     ['overlay planes', { extra: [element(0x60000100, 'US', [1])] }, /Overlay/],
     [
       'a Modality LUT',
@@ -232,5 +232,38 @@ describe('nativeCapability', () => {
       kind: 'declined',
       reason: expect.stringMatching(reason),
     });
+  });
+});
+
+describe('nativeFrameDecoder', () => {
+  it('rescales each frame by its own Pixel Value Transformation', async () => {
+    const { bytes, instance } = await pixelInstance({
+      sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
+      rows: 1,
+      columns: 2,
+      frames: 2,
+      words: [1, 2, 3, 4],
+      frameRescales: [
+        [1, 0],
+        [2, 10],
+      ],
+    });
+    const units = nativeFrameDecoder.plan(instance, Int16Array);
+    if ('declined' in units) throw new Error(units.declined);
+
+    const frames = await Promise.all(
+      units.map((unit) =>
+        unit.decode(
+          bytes.subarray(unit.range!.start, unit.range!.end),
+          new AbortController().signal
+        )
+      )
+    );
+
+    expect(frames.map(({ data }) => Array.from(data))).toEqual([
+      [1, 2],
+      [16, 18],
+    ]);
+    expect(frames.map(({ range }) => range)).toEqual([[[1, 2]], [[16, 18]]]);
   });
 });
