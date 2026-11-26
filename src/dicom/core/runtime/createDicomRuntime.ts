@@ -13,7 +13,7 @@ import {
   type CreateGdcmLane,
   type DicomAssets,
 } from './gdcmDecoder';
-import { createHtj2kDecoder, type CreateHtj2kLane } from './htj2kDecoder';
+import { createCodecDecoders, type CreateCodecLane } from './codecDecoder';
 
 export type DicomRuntimeOptions = {
   fetch?: typeof fetch;
@@ -39,14 +39,14 @@ export const defaultDecodeConcurrency = (
   );
 
 /**
- * Owns the request pool and the metadata, GDCM and HTJ2K workers. Nothing
+ * Owns the request pool and the metadata, GDCM and codec workers. Nothing
  * else in the loading API needs disposal: aborting a signal stops one
  * operation, and `dispose` stops them all and settles what is pending.
  */
 export function createDicomRuntime(
   options: DicomRuntimeOptions = {},
   createGdcmLane?: CreateGdcmLane,
-  createHtj2kLane?: CreateHtj2kLane
+  createCodecLane?: CreateCodecLane
 ) {
   const decodeConcurrency =
     options.decodeConcurrency ??
@@ -61,7 +61,7 @@ export function createDicomRuntime(
     decodeConcurrency,
     createGdcmLane
   );
-  const htj2k = createHtj2kDecoder(decodeConcurrency, createHtj2kLane);
+  const codecs = createCodecDecoders(decodeConcurrency, createCodecLane);
 
   const read = async (source: ByteSource, signal: AbortSignal) => {
     const { controller, release } = linkedController(signal, lifetime.signal);
@@ -82,7 +82,7 @@ export function createDicomRuntime(
     requests.dispose(reason);
     metadata.dispose(reason);
     gdcm.dispose(reason);
-    htj2k.dispose(reason);
+    codecs.dispose(reason);
   };
 
   return {
@@ -93,7 +93,7 @@ export function createDicomRuntime(
     decodeConcurrency,
     decoders: (options.decoders ?? defaultDecoderTable)({
       gdcm: gdcm.decoder,
-      htj2k: htj2k.decoder,
+      ...codecs.decoders,
     }),
     /** Requests awaiting headers at once; also how far reads run ahead of decoding. */
     readConcurrency: requests.poolSize,

@@ -2,6 +2,7 @@ import reference from '../oct/reference.json';
 import { createSyntheticOCT, element, syntheticScalars } from '../oct/dicom';
 import { part10File } from '../../specs/syntheticDicom';
 import { htj2kSignedFrames } from './htj2kCorpus';
+import { rle32Bit, rleRgbFrames, rleSignedFrames } from './rleCorpus';
 
 const [width, depth, frames] = reference.size;
 const [sx] = reference.spacing;
@@ -91,6 +92,9 @@ export const GENERATED_CORPUS: Record<
     }),
   'encapsulated-pdf': encapsulatedPdf,
   'htj2k-signed-frames': htj2kSignedFrames,
+  'rle-signed-frames': rleSignedFrames,
+  'rle-rgb-frames': rleRgbFrames,
+  'rle-32-bit': rle32Bit,
 };
 
 export const generatedName = (generator: string) =>

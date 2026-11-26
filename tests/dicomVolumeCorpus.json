@@ -2425,6 +2425,152 @@
         "fallbackGeometry": true,
         "spacing": [1.0, 1.0]
       }
+    },
+    {
+      "id": "generated-rle-signed-frames",
+      "name": "dicom-corpus-generated-rle-signed-frames.dcm",
+      "generator": "rle-signed-frames",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/rleCorpus.ts",
+      "sourcePage": null,
+      "quirk": "RLE Lossless, three signed 12 bit frames in 16 bit words behind a Basic Offset Table, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7.3",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.5",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 3,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 48, 3],
+          "range": [-2048.0, 2047.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "d0ed23ce456e27fdbd53596a250f69f22ec1e444d01d32d2f57ae19e69a65b80"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "generated-rle-rgb-frames",
+      "name": "dicom-corpus-generated-rle-rgb-frames.dcm",
+      "generator": "rle-rgb-frames",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/rleCorpus.ts",
+      "sourcePage": null,
+      "quirk": "RLE Lossless, two 8 bit RGB frames with a segment per colour plane, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7.4",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.5",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 2,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 48, 2],
+          "pixels": {
+            "kind": "hash",
+            "value": "aae0e266e70df2536d710622712652a4c6af28d6e3997770c33820a93d12e3a9"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "generated-rle-32-bit",
+      "name": "dicom-corpus-generated-rle-32-bit.dcm",
+      "generator": "rle-32-bit",
+      "license": "generated",
+      "attribution": "tests/fixtures/dicom-pages/rleCorpus.ts",
+      "sourcePage": null,
+      "quirk": "RLE Lossless, one unsigned 32 bit frame in four byte-plane segments, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7.3",
+        "modality": "OT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.5",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [64, 48, 1],
+          "range": [0.0, 792660004.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "f2f3ce13ad3cd3826a630260f5542faa60cb3a03971c602e41db1897007390e3"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
     }
   ]
 }

@@ -16,7 +16,7 @@ defines it.
 | `core/collections` | header facts, collection planning and the registry                       |
 | `core/volume`      | allocation, pixel formats, validation and `loadVolume`                   |
 | `core/pixels`      | decoders, the decoder table, frame index, encapsulated frames            |
-| `core/runtime`     | the runtime, its request pool, metadata workers, GDCM and HTJ2K decoders |
+| `core/runtime`     | the runtime, its request pool, metadata workers, GDCM and codec decoders |
 | `vtk`              | the vtk.js image and slice thumbnails                                    |
 
 `core` uses no Vue, Pinia, vtk.js or VolView application code. `vtk` shows a
@@ -26,8 +26,8 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
 
 - Instances, collection updates and volumes are plain values. Only the
   runtime from `createDicomRuntime` holds resources (request pool, metadata
-  workers, GDCM and HTJ2K workers), and only it has `dispose()`. Importing a file starts
-  no worker and touches no DOM.
+  workers, GDCM and codec workers), and only it has `dispose()`. Importing a
+  file starts no worker and touches no DOM.
 - Every asynchronous operation takes an `AbortSignal`; aborting it is the
   whole of cancellation.
 - A `ByteSource` opens a fresh stream per read and holds nothing between
@@ -58,13 +58,17 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   inverts MONOCHROME1, so the GDCM decoder reflects its output back.
 - `nativeFrameDecoder` accepts only instances whose result is identical to
   the GDCM decoder's, but for frames that differ in modality rescale. It and
-  the HTJ2K decoder give each frame its own Pixel Value Transformation; GDCM
-  gives an instance one, so its decoder declines those. The default table sends other instances whole to GDCM in a worker,
-  HTJ2K instances whole to OpenJPH in a worker, and fails JPIP, video and
-  JPEG XL syntaxes as having no decoder. The HTJ2K decoder reads only the
-  Pixel Data value and finishes samples as native frames are, so it declines
-  what `nativeFrameDecoder` declines, except YBR_RCT and YBR_ICT colour,
-  which OpenJPH returns as RGB.
+  the codec decoders give each frame its own Pixel Value Transformation; GDCM
+  gives an instance one, so its decoder declines those.
+- The default table lists each syntax's own decoder ahead of GDCM. RLE and
+  HTJ2K instances are read from their Pixel Data value and decoded whole on
+  the shared codec workers. A Deflated file is read whole and inflated on the
+  calling thread. Each then finishes its samples as native frames are, so it
+  declines what `nativeFrameDecoder` declines, except that HTJ2K takes
+  YBR_RCT and YBR_ICT colour, which OpenJPH returns as RGB. GDCM, whole in a
+  worker, takes what those decline and the syntaxes with no decoder of their
+  own. HTJ2K has no GDCM fallback, and JPIP, video and JPEG XL syntaxes fail
+  as having no decoder.
 
 ## Spacing
 

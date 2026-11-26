@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import JSZip from 'jszip';
+import volumeCorpus from '../dicomVolumeCorpus.json';
+import { GENERATED_CORPUS } from '../fixtures/dicom-pages/generatedCorpus';
 import {
   CINE_US_DATASET,
   COLOR3D_JPEG_BASELINE_DICOM,
@@ -39,6 +41,9 @@ const SOP_CLASSES = {
   WordSC: '1.2.840.10008.5.1.4.1.1.7.3',
 };
 
+const corpus: Array<{ id: string; name: string; generator?: string }> =
+  volumeCorpus.datasets;
+
 const us = (tag: number, value: number): DataElement => ({
   tag,
   vr: 'US',
@@ -53,7 +58,7 @@ const overlay = [
 ];
 
 // Stored words span every bit pattern, high bits above Bits Stored included.
-// The flag says whether the capability predicate must decode natively.
+// The flag says whether the capability predicate must decode natively; the rest go to GDCM.
 // prettier-ignore
 const synthetic: Array<[string, boolean, NativePixelOptions]> = [
   ['u8', true, { bitsAllocated: 8 }],
@@ -120,8 +125,26 @@ const firstSlice = async (zip: string) => {
 };
 
 // The public singles decode natively except the two compressed ultrasounds.
-const publicNative = (name: string) =>
-  !/US_multiframe|jpeg_baseline/.test(name);
+const publicPlan = (name: string) =>
+  /US_multiframe|jpeg_baseline/.test(name) ? 'GDCM' : 'frames';
+
+// Corpus files a codec decodes in place of GDCM, by the decoder that takes each.
+const codecFiles = Object.entries({
+  RLE: [
+    'pydicom-MR_small_RLE',
+    'pydicom-emri_small_RLE',
+    'generated-rle-signed-frames',
+    'generated-rle-rgb-frames',
+    'generated-rle-32-bit',
+  ],
+  Deflated: ['pydicom-image_dfl'],
+}).flatMap(([decoder, ids]) =>
+  ids.map((id) => {
+    const entry = corpus.find((dataset) => dataset.id === id);
+    if (!entry) throw new Error(`No corpus entry ${id}`);
+    return { decoder, ...entry };
+  })
+);
 
 /** Pages small enough to finish quickly under load. */
 const PAGES = 4;
@@ -137,9 +160,9 @@ type ParityResult = {
   error?: string;
 };
 
-describe('Native frame decoding parity with GDCM', () => {
+describe('Decoding parity with GDCM', () => {
   let fixture: Awaited<ReturnType<typeof startDicomPages>>;
-  const expectedNative = new Map<string, boolean>();
+  const expectedPlan = new Map<string, string>();
   let cases: string[] = [];
   before(async () => {
     const publicFiles = [
@@ -157,18 +180,31 @@ describe('Native frame decoding parity with GDCM', () => {
       await firstSlice(PROSTATEX_DATASET.name),
       await firstSlice(MRA_HEAD_NECK_DATASET.name),
     ];
+    const codecCases = await Promise.all(
+      codecFiles.map(
+        async ({ name, generator }) =>
+          [
+            name,
+            generator
+              ? await GENERATED_CORPUS[generator]()
+              : readFileSync(resolve(DATASET_CACHE, name)),
+          ] as const
+      )
+    );
     const files = [
       ...synthetic.map(
         ([name, , options], index) =>
           [name, nativePixelDicom({ ...options, instance: index + 1 })] as const
       ),
       ...publicFiles,
+      ...codecCases,
     ];
     cases = files.map(([name]) => name);
-    synthetic.forEach(([name, native]) => expectedNative.set(name, native));
-    publicFiles.forEach(([name]) =>
-      expectedNative.set(name, publicNative(name))
+    synthetic.forEach(([name, native]) =>
+      expectedPlan.set(name, native ? 'frames' : 'GDCM')
     );
+    publicFiles.forEach(([name]) => expectedPlan.set(name, publicPlan(name)));
+    codecFiles.forEach(({ name, decoder }) => expectedPlan.set(name, decoder));
     fixture = await startDicomPages({
       kinds: ['parity'],
       fixtures: {
@@ -184,7 +220,7 @@ describe('Native frame decoding parity with GDCM', () => {
     cases.slice(page * pageSize(), (page + 1) * pageSize());
 
   for (let page = 0; page < PAGES; page += 1)
-    it(`writes the volume natively as GDCM does, page ${page + 1}`, async () => {
+    it(`writes the volume as GDCM does, page ${page + 1}`, async () => {
       const wanted = pageOf(page);
       const from = page * pageSize();
       await openDicomPage(
@@ -196,8 +232,8 @@ describe('Native frame decoding parity with GDCM', () => {
           result.error ||
           result.mismatch ||
           result.rawMismatch ||
-          (result.plan === 'frames') !== expectedNative.get(result.name) ||
-          (result.plan === 'frames' && result.native !== result.volume)
+          result.plan !== expectedPlan.get(result.name) ||
+          (result.plan !== 'GDCM' && result.native !== result.volume)
       );
       expect(unexpected).toEqual([]);
       expect(results.map(({ name }) => name)).toEqual(wanted);

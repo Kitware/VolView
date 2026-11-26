@@ -4,6 +4,7 @@ import {
   planDecode,
   singleDecoderTable,
 } from '../decoderTable';
+import { deflatedDecoder } from '../deflatedDecoder';
 import { nativeFrameDecoder } from '../nativeFrame';
 import { wholeInstanceDecoder, type PixelDecoder } from '../pixelDecoder';
 import { pixelInstance } from './pixelFixture';
@@ -14,7 +15,10 @@ const gdcm = wholeInstanceDecoder('GDCM', () => {
 const htj2k = wholeInstanceDecoder('HTJ2K', () => {
   throw new Error('not decoded in these tests');
 });
-const table = defaultDecoderTable({ gdcm, htj2k });
+const rle = wholeInstanceDecoder('RLE', () => {
+  throw new Error('not decoded in these tests');
+});
+const table = defaultDecoderTable({ gdcm, htj2k, rle });
 
 const declining = (name: string, reason: string): PixelDecoder => ({
   name,
@@ -62,6 +66,16 @@ describe('planDecode', () => {
       decoder: gdcm,
     });
   });
+
+  it.each([
+    ['RLE Lossless', '1.2.840.10008.1.2.5', rle],
+    ['Deflated', '1.2.840.10008.1.2.1.99', deflatedDecoder],
+  ])(
+    'lists the %s decoder ahead of GDCM for its syntax',
+    (_name, syntax, own) => {
+      expect(table.byTransferSyntax.get(syntax)).toEqual([own, gdcm]);
+    }
+  );
 
   it.each([
     '1.2.840.10008.1.2.4.201',

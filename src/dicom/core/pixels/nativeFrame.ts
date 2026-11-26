@@ -6,7 +6,7 @@ import { readModalityRescale } from '../metadata/modalityRescale';
 import { numberOr, trimDicomPadding } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
 import { indexFrames, shapeOf } from './frameIndex';
-import type { PixelDecoder } from './pixelDecoder';
+import type { DecodedPixels, PixelDecoder } from './pixelDecoder';
 
 /** What decides how one native frame's bytes become samples. */
 export type NativePixelFormat = Readonly<{
@@ -230,6 +230,35 @@ export function decodeNativeFrame(
     return [low, high] as [number, number];
   });
   return { samples, range };
+}
+
+/** Decodes back-to-back native frames, one per format, into one run of samples. */
+export function decodeNativeFrames(
+  bytes: Uint8Array,
+  formats: readonly NativePixelFormat[],
+  Target: VolumeBufferConstructor
+): DecodedPixels {
+  const { columns, rows, samplesPerPixel: components } = formats[0];
+  const count = columns * rows * components;
+  const frameLength = count * (formats[0].bitsAllocated / 8);
+  const data = new Target(count * formats.length);
+  const ranges = formats.map((format, frame) => {
+    const { samples, range } = decodeNativeFrame(
+      bytes.subarray(frame * frameLength),
+      format,
+      Target
+    );
+    data.set(samples, frame * count);
+    return range;
+  });
+  const range = Array.from({ length: components }, (_, component) => {
+    const each = ranges.map((frameRange) => frameRange[component]);
+    return [
+      Math.min(...each.map(([low]) => low)),
+      Math.max(...each.map(([, high]) => high)),
+    ] as const;
+  });
+  return { data, size: [columns, rows, formats.length], components, range };
 }
 
 /** Decodes each frame of an instance it reproduces exactly from its own ranged read. */

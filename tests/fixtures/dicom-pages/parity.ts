@@ -19,9 +19,10 @@ import {
 } from './shared';
 
 // Decodes each listed instance through GDCM and, where the decoder table
-// plans native frames, frame by frame from ranged reads, then reports the
+// plans another decoder, through that decoder's units, then reports the
 // first sample where what each path writes into the volume differs. Integer
-// GDCM output must also equal the native samples before any conversion.
+// GDCM output must also equal those samples before any conversion. Native
+// frames report the plan `frames`; other decoders report their name.
 
 const runtime = createRuntime();
 const gdcm = createRuntime(gdcmOnly);
@@ -74,10 +75,10 @@ async function compare(name: string) {
   const planned = planDecode(runtime.decoders, instance, Float64Array);
   if ('error' in planned)
     return { name, plan: 'unsupported', reason: planned.error.message };
-  if (planned.decoder !== nativeFrameDecoder)
-    return { name, plan: planned.decoder.name };
+  const { decoder } = planned;
+  if (decoder.name === 'GDCM') return { name, plan: decoder.name };
   const Target = getVolumeBufferType(instancePixelFormats(instance.dataset));
-  const units = nativeFrameDecoder.plan(instance, Target) as DecodeUnit[];
+  const units = decoder.plan(instance, Target) as DecodeUnit[];
   const decoded = await firstUnit(gdcm, instance).decode(
     await readBytes(instance.source, never),
     never
@@ -85,7 +86,7 @@ async function compare(name: string) {
   const native = await decodeFrames(instance, units, Target);
   return {
     name,
-    plan: 'frames',
+    plan: decoder === nativeFrameDecoder ? 'frames' : decoder.name,
     volume: Target.name,
     gdcm: decoded.data.constructor.name,
     native: native.constructor.name,
