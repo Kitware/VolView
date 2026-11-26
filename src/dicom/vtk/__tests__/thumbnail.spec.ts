@@ -19,6 +19,19 @@ describe('sliceToThumbnail', () => {
     expect(bytes(slice)).toEqual([0, 36, 73, 109, 146, 182, 219, 255]);
   });
 
+  it('displays the low end of the window white for MONOCHROME1', () => {
+    const slice = sliceToThumbnail({
+      data: [0, 10, 15, 20, 30],
+      width: 5,
+      height: 1,
+      components: 1,
+      range: [10, 20],
+      inverted: true,
+    });
+
+    expect(bytes(slice)).toEqual([255, 255, 127, 0, 0]);
+  });
+
   it('clamps samples outside the window', () => {
     const slice = sliceToThumbnail({
       data: [0, 10, 15, 20, 30],

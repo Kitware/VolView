@@ -58,7 +58,11 @@ export function applyVolumeUpdate(image: vtkImageData, update: VolumeUpdate) {
  * An 8 bit thumbnail of one loaded slice, windowed to the loaded range, or
  * to the slice's own luminance for color.
  */
-export function sliceThumbnail(image: vtkImageData, slice: number) {
+export function sliceThumbnail(
+  image: vtkImageData,
+  slice: number,
+  inverted = false
+) {
   const scalars = image.getPointData().getScalars();
   const components = scalars.getNumberOfComponents();
   const [width, height] = image.getDimensions();
@@ -75,5 +79,6 @@ export function sliceThumbnail(image: vtkImageData, slice: number) {
       components >= 3
         ? thumbnailRange(data, components)
         : (scalars.getRange(0) as [number, number]),
+    inverted,
   });
 }

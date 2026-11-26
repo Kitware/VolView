@@ -36,10 +36,13 @@ describe('planDecode', () => {
   });
 
   it('falls through to GDCM, whole, when native decoding declines', async () => {
-    const { instance } = await pixelInstance({ photometric: 'MONOCHROME1' });
+    const { instance } = await pixelInstance({
+      bitsAllocated: 8,
+      photometric: 'PALETTE COLOR',
+    });
 
     expect(nativeFrameDecoder.plan(instance, Uint16Array)).toEqual({
-      declined: expect.stringMatching(/MONOCHROME1/),
+      declined: expect.stringMatching(/PALETTE COLOR/),
     });
     expect(planDecode(table, instance, Uint16Array)).toEqual({
       decoder: gdcm,

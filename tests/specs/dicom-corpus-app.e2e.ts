@@ -3,7 +3,11 @@ import volumeCorpus from '../dicomVolumeCorpus.json';
 import { DATASET_CACHE } from '../downloadDatasets';
 import { volViewPage } from '../pageobjects/volview.page';
 import { waitForRenderedSlice } from './dicomRenderedSlice';
-import { captureViewPixels, dropFiles } from './utils';
+import {
+  captureViewPixels,
+  dropFiles,
+  waitForModuleTransitions,
+} from './utils';
 
 // Undecoded slices render black; chroma can only come from the image.
 const colorFraction = async (fileName: string) => {
@@ -49,6 +53,31 @@ describe('Corpus files in the application', () => {
       { timeoutMsg: 'Expected the decoded colour image in the slice view' }
     );
     expect(await volViewPage.getNotificationsCount()).toBe(0);
+  });
+
+  it('displays MONOCHROME1 images with inverted grayscale', async () => {
+    const palette = $('[data-testid="base-image-colormap"]');
+    const openShowingPalette = async (id: string) => {
+      await volViewPage.open(`?urls=[tmp/${corpusFile(id)}]`);
+      await volViewPage.waitForVolumeCardSliceCounts([1]);
+      await volViewPage.waitForViewsLoaded();
+      await volViewPage.renderingModuleTab.click();
+      await waitForModuleTransitions();
+      await palette.waitForDisplayed();
+    };
+    await openShowingPalette('gdcm-CR-MONO1-10-chest');
+    await expect(palette).toHaveText(
+      expect.stringContaining('Inverted grayscale')
+    );
+    // An ACR-NEMA era file: no preamble or file meta.
+    expect(await volViewPage.getNotificationTitles()).toEqual([
+      'A DICOM file has no file meta information',
+    ]);
+    await openShowingPalette('pydicom-CT_small');
+    await expect(palette).not.toHaveText(
+      expect.stringContaining('Inverted grayscale')
+    );
+    await expect(palette).toHaveText(expect.stringContaining('Grayscale'));
   });
 
   it('loads the images of a drop that also holds a structured report', async () => {

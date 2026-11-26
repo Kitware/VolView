@@ -348,6 +348,7 @@ describe('En face windowing with normal view controls', () => {
           SeriesDescription: 'CT',
           WindowLevel: '400',
           WindowWidth: '1000',
+          PhotometricInterpretation: 'MONOCHROME2',
         };
       }
       const settings = useEnFaceViewStore().configFor(viewID, 'image');

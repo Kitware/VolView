@@ -24,3 +24,11 @@ export function getDatasetTag(
 
 export const getDatasetModality = (dataset: DicomDataset | null | undefined) =>
   trimDicomPadding(getDatasetTag(dataset, '00080060') ?? '') || null;
+
+export const getDatasetPhotometric = (
+  dataset: DicomDataset | null | undefined
+) => trimDicomPadding(getDatasetTag(dataset, '00280004') ?? '') || null;
+
+/** Low values display bright; decoders keep stored values and displays invert. */
+export const isMonochrome1 = (dataset: DicomDataset | null | undefined) =>
+  getDatasetPhotometric(dataset) === 'MONOCHROME1';

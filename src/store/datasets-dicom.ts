@@ -63,6 +63,7 @@ export type VolumeInfo = {
   SeriesDescription: string;
   WindowLevel: string;
   WindowWidth: string;
+  PhotometricInterpretation: string;
   // Names the scan a split volume was separated out as ('acquisition 2',
   // 'phase 3, echo 1'). Absent on volumes that were not split.
   splitLabel?: string;
@@ -223,6 +224,7 @@ const volumeRecord = ({
       ...series,
       WindowLevel: text(dataset, Tags.WindowLevel),
       WindowWidth: text(dataset, Tags.WindowWidth),
+      PhotometricInterpretation: text(dataset, Tags.PhotometricInterpretation),
       ...(collection.label === null ? {} : { splitLabel: collection.label }),
       kind: 'volume',
     },
@@ -245,6 +247,10 @@ const cineRecord = (
       ...series,
       WindowLevel: '',
       WindowWidth: '',
+      PhotometricInterpretation: text(
+        clip.dataset,
+        Tags.PhotometricInterpretation
+      ),
       kind: 'cine',
     },
     warnings: [],

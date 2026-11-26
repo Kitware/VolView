@@ -2,7 +2,10 @@ import { computed } from 'vue';
 import mitt from 'mitt';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { JsonCompatible } from '@itk-wasm/image-io';
-import { getDatasetModality } from '@/src/dicom/core/metadata/datasetAccess';
+import {
+  getDatasetModality,
+  isMonochrome1,
+} from '@/src/dicom/core/metadata/datasetAccess';
 import {
   loadVolume,
   middleSlot,
@@ -214,7 +217,11 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
         else
           resolve(
             this.init.encodeThumbnail(
-              sliceThumbnail(this.vtkImageData.value, slice)
+              sliceThumbnail(
+                this.vtkImageData.value,
+                slice,
+                isMonochrome1(this.getInstances()[0]?.dataset)
+              )
             )
           );
       };

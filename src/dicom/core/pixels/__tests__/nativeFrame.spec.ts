@@ -164,6 +164,7 @@ describe('nativeCapability', () => {
       },
     ],
     ['Pixel Padding Value', { extra: [element(0x00280120, 'US', [0])] }],
+    ['MONOCHROME1, keeping stored values', { photometric: 'MONOCHROME1' }],
   ] as const)('decodes %s natively', async (_name, options) => {
     const { instance } = await pixelInstance(options);
     expect(
@@ -174,11 +175,6 @@ describe('nativeCapability', () => {
   });
 
   it.each([
-    [
-      'MONOCHROME1, which GDCM inverts',
-      { photometric: 'MONOCHROME1' },
-      /MONOCHROME1/,
-    ],
     [
       'YBR colour',
       { samplesPerPixel: 3, bitsAllocated: 8, photometric: 'YBR_FULL' },

@@ -54,8 +54,10 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   most `decodeConcurrency` decode at once, per volume.
 - A URL source whose server ignores Range has its remaining ranged units read
   in one request.
+- Decoders keep MONOCHROME1 stored values; displays invert them. GDCM
+  inverts MONOCHROME1, so the GDCM decoder reflects its output back.
 - `nativeFrameDecoder` accepts only instances whose result is identical to
-  GDCM's. The default table sends other instances whole to GDCM in a worker,
+  the GDCM decoder's. The default table sends other instances whole to GDCM in a worker,
   HTJ2K instances whole to OpenJPH in a worker, and fails JPIP, video and
   JPEG XL syntaxes as having no decoder. The HTJ2K decoder reads only the
   Pixel Data value and finishes samples as native frames are, so it declines

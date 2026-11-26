@@ -324,7 +324,7 @@ describe('loadVolume with native frames', () => {
   });
 
   it('hands a declined instance to the whole-instance decoder', async () => {
-    const { bytes } = multiframe({ photometric: 'MONOCHROME1' });
+    const { bytes } = multiframe({ photometric: 'PALETTE COLOR' });
     const instance = await readInstance(blobOf(bytes), signal());
 
     const { updates } = await load([instance]);
