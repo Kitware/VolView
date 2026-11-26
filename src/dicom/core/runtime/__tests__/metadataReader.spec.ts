@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as Comlink from 'comlink';
 import {
   readDicomDataset,
@@ -69,11 +69,13 @@ describe('metadata worker ownership', () => {
     });
     const first = reader.read(buildSlice());
     const failure = expect(first).rejects.toThrow('worker failed');
+    await vi.waitFor(() => expect(workers).toHaveLength(1));
     workers[0].dispatchEvent(new Event('error'));
     await failure;
     expect(workers[0].terminated).toBe(true);
     const retry = reader.read(buildSlice());
     const stopped = expect(retry).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.waitFor(() => expect(workers).toHaveLength(2));
     reader.dispose();
     await stopped;
     expect(workers[1].terminated).toBe(true);

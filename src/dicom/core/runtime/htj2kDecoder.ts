@@ -13,6 +13,7 @@ import {
   type PixelDecoder,
 } from '../pixels/pixelDecoder';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
+import { createComlinkLane } from './comlinkLane';
 import { createLanePool, type Lane } from './lanePool';
 
 type Htj2kJob = Readonly<{ value: Uint8Array; frameCount: number }>;
@@ -24,49 +25,13 @@ const createHtj2kWorker = () =>
     type: 'module',
   });
 
-/**
- * One HTJ2K worker, created on first use. A worker error rejects the running
- * decode and drops the worker, so the next decode starts a fresh one.
- */
-function createHtj2kLane(): Htj2kLane {
-  let worker: { worker: Worker; remote: Comlink.Remote<Htj2kWorker> } | null =
-    null;
-  let rejectActive: ((reason: unknown) => void) | undefined;
-  const reset = (reason: unknown) => {
-    if (worker) {
-      worker.remote[Comlink.releaseProxy]();
-      worker.worker.terminate();
-      worker = null;
-    }
-    rejectActive?.(reason);
-  };
-  const start = () => {
-    const created = createHtj2kWorker();
-    created.addEventListener('error', () =>
-      reset(new Error('HTJ2K decoder worker failed'))
-    );
-    created.addEventListener('messageerror', () =>
-      reset(new Error('HTJ2K decoder worker message failed'))
-    );
-    worker = { worker: created, remote: Comlink.wrap<Htj2kWorker>(created) };
-    return worker;
-  };
-  const run = async ({ value, frameCount: frames }: Htj2kJob) => {
-    const failed = new Promise<never>((_, reject) => {
-      rejectActive = reject;
-    });
-    try {
-      const { remote } = worker ?? start();
-      return await Promise.race([
-        remote.decode(Comlink.transfer(value, [value.buffer]), frames),
-        failed,
-      ]);
-    } finally {
-      rejectActive = undefined;
-    }
-  };
-  return { run, reset };
-}
+const createHtj2kLane = (): Htj2kLane =>
+  createComlinkLane<Htj2kWorker, Htj2kJob, DecodedFrames>(
+    createHtj2kWorker,
+    'HTJ2K decoder',
+    (remote, { value, frameCount: frames }) =>
+      remote.decode(Comlink.transfer(value, [value.buffer]), frames)
+  );
 
 type Htj2kCapability =
   | Readonly<{ format: NativePixelFormat; valueOffset: number }>
