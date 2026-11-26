@@ -56,6 +56,12 @@ type Codec = Readonly<{
   maxBitsAllocated: number;
   /** The format of the samples the codec returns, where not the header's. */
   decodedAs?: (format: NativePixelFormat) => NativePixelFormat;
+  /**
+   * Whether a codestream precision above Bits Stored is kept, as GDCM and
+   * pydicom keep a JPEG 2000 stream's. Other streams carry unused high bits
+   * that Bits Stored masks off.
+   */
+  keepsPrecision?: boolean;
 }>;
 
 const CODECS: Record<CodecName, Codec> = {
@@ -63,6 +69,7 @@ const CODECS: Record<CodecName, Codec> = {
     name: 'HTJ2K',
     maxBitsAllocated: 16,
     decodedAs: colourTransformedAsRgb,
+    keepsPrecision: true,
   },
   // Samples over 8 bits are the 12 bit extended process, which stays GDCM's.
   jpeg: { name: 'JPEG', maxBitsAllocated: 8, decodedAs: jpegColourAsRgb },
@@ -70,6 +77,7 @@ const CODECS: Record<CodecName, Codec> = {
     name: 'JPEG 2000',
     maxBitsAllocated: 16,
     decodedAs: colourTransformedAsRgb,
+    keepsPrecision: true,
   },
   jpegLossless: { name: 'JPEG Lossless', maxBitsAllocated: 16 },
   jpegLs: { name: 'JPEG-LS', maxBitsAllocated: 16 },
@@ -113,6 +121,16 @@ function checkShape(name: string, decoded: FrameShape, declared: FrameShape) {
     );
 }
 
+/** `formats` with Bits Stored raised to a codestream precision that exceeds it. */
+const holding = (formats: NativePixelFormat[], precision: number) =>
+  precision > formats[0].bitsStored
+    ? formats.map((format) => ({
+        ...format,
+        bitsStored: precision,
+        highBit: precision - 1,
+      }))
+    : formats;
+
 // The worker takes ownership of what it is sent.
 const ownedBytes = (bytes: Uint8Array) =>
   bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
@@ -149,7 +167,13 @@ const codecDecoder = (name: CodecName, pool: CodecPool): PixelDecoder => ({
           };
           const decoded = await pool.run(job, signal);
           checkShape(CODECS[name].name, decoded, shape);
-          return decodeNativeFrames(decoded.bytes, formats, Target);
+          return decodeNativeFrames(
+            decoded.bytes,
+            CODECS[name].keepsPrecision
+              ? holding(formats, decoded.precision)
+              : formats,
+            Target
+          );
         },
       },
     ];

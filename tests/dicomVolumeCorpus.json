@@ -3763,6 +3763,112 @@
         "fallbackGeometry": true,
         "spacing": [1.0, 1.0]
       }
+    },
+    {
+      "id": "gdcm-SC16BitsAllocated_8BitsStoredJ2K",
+      "name": "dicom-corpus-gdcm-SC16BitsAllocated_8BitsStoredJ2K.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/SC16BitsAllocated_8BitsStoredJ2K.dcm?format=raw",
+      "sha256": "b27afbb7735cf18df7fe6e9d347cc0f41556ef37e981105b8b361d629d975999",
+      "bytes": 72418,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG 2000 Lossless, signed 8 bit codestream under a header of 16 bits allocated and stored, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "range": [0.0, 74.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "ce56e7ab97433e250aab8670520bfeb8f9648ac6ab5da1f26299032cda2065ab"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "gdcm-Osirix10vs8BitsStored",
+      "name": "dicom-corpus-gdcm-Osirix10vs8BitsStored.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/Osirix10vs8BitsStored.dcm?format=raw",
+      "sha256": "58ba6daef4082789339b0b47f8ec65094fbf8576a0f2e01b77aa930f6cd9cf9b",
+      "bytes": 117746,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG 2000 Lossless, unsigned 10 bit codestream under a header of 8 bits stored",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [232, 256, 1],
+          "spacing": [0.9375, 0.9375],
+          "origin": [-134.295171, -120.763235, -69.933772],
+          "direction": [0.964567946, -0.204594077, 0.166583138, 0.235136326, 0.952999502, -0.191057209, -0.119664474, 0.223457407, 0.967340271],
+          "range": [0.0, 644.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "f9bb92af287e117760f9ec1fb63bdac7e40b776909688494726d967d5f89ba60"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "error",
+        "error": "File 1.2.826.0.1.3680043.8.498.14430950170191209830185436912184280703 (member 0) has pixel values the volume it belongs to cannot represent. Its pixel values run from 0 to 644, but the volume's buffer is Uint8Array, holding values from 0 to 255. Every file in a volume must decode to values its buffer can hold without conversion."
+      }
     }
   ]
 }

@@ -15,8 +15,9 @@ export const jpegLosslessFrameCodec =
       frame.length,
       bytesPerSample
     );
-    const { dimX, dimY, numComp } = decoder.frame;
+    const { dimX, dimY, numComp, precision } = decoder.frame;
     return {
+      precision,
       shape: {
         columns: dimX,
         rows: dimY,

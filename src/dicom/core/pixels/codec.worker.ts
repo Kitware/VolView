@@ -18,18 +18,26 @@ import { asStoredRgb } from './jpegColour';
 import { jpegLosslessFrameCodec } from './jpegLosslessFrame';
 import { rleFrameCodec } from './rleFrame';
 
-/** A codec whose WASM loads on the first job that names it. */
-const lazily = (load: () => Promise<FrameCodec>) => {
-  let codec: Promise<FrameCodec> | undefined;
-  return () => (codec ??= load());
+/** Loads on first use and keeps the result; a failed load is tried again. */
+const lazily = <T>(load: () => Promise<T>) => {
+  let loaded: Promise<T> | undefined;
+  return () =>
+    (loaded ??= load().catch((error) => {
+      loaded = undefined;
+      throw error;
+    }));
 };
 
-const libJpegTurbo = lazily(async () => {
-  const module = await createLibJpegTurbo({
-    locateFile: () => libJpegTurboWasmUrl,
-  });
-  return embindFrameCodec(module.JPEGDecoder);
-});
+const openJph = lazily(() =>
+  createOpenJph({ locateFile: () => openJphWasmUrl })
+);
+const openJpeg = lazily(() =>
+  createOpenJpeg({ locateFile: () => openJpegWasmUrl })
+);
+const charLs = lazily(() => createCharLs({ locateFile: () => charLsWasmUrl }));
+const libJpegTurbo = lazily(() =>
+  createLibJpegTurbo({ locateFile: () => libJpegTurboWasmUrl })
+);
 
 const CODECS: Record<
   CodecName,
@@ -37,15 +45,16 @@ const CODECS: Record<
 > = {
   htj2k: {
     name: 'HTJ2K',
-    open: lazily(async () => {
-      const module = await createOpenJph({ locateFile: () => openJphWasmUrl });
-      return embindFrameCodec(module.HTJ2KDecoder);
-    }),
+    open: async ({ shape }) =>
+      embindFrameCodec((await openJph()).HTJ2KDecoder, shape),
   },
   jpeg: {
     name: 'JPEG',
-    open: async ({ photometricInterpretation }) => {
-      const decode = await libJpegTurbo();
+    open: async ({ shape, photometricInterpretation }) => {
+      const decode = embindFrameCodec(
+        (await libJpegTurbo()).JPEGDecoder,
+        shape
+      );
       return photometricInterpretation === 'RGB'
         ? (frame) => decode(asStoredRgb(frame))
         : decode;
@@ -53,12 +62,8 @@ const CODECS: Record<
   },
   jpeg2000: {
     name: 'JPEG 2000',
-    open: lazily(async () => {
-      const module = await createOpenJpeg({
-        locateFile: () => openJpegWasmUrl,
-      });
-      return embindFrameCodec(module.J2KDecoder);
-    }),
+    open: async ({ shape }) =>
+      embindFrameCodec((await openJpeg()).J2KDecoder, shape),
   },
   jpegLossless: {
     name: 'JPEG Lossless',
@@ -66,10 +71,8 @@ const CODECS: Record<
   },
   jpegLs: {
     name: 'JPEG-LS',
-    open: lazily(async () => {
-      const module = await createCharLs({ locateFile: () => charLsWasmUrl });
-      return embindFrameCodec(module.JpegLSDecoder);
-    }),
+    open: async ({ shape }) =>
+      embindFrameCodec((await charLs()).JpegLSDecoder, shape),
   },
   rle: { name: 'RLE', open: async ({ shape }) => rleFrameCodec(shape) },
 };

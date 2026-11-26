@@ -71,5 +71,5 @@ export const rleFrameCodec =
           `RLE segment ${index + 1} holds ${(end - first) / stride} of ${columns * rows} bytes`
         );
     });
-    return { shape, samples };
+    return { shape, precision: bytesPerSample * 8, samples };
   };
