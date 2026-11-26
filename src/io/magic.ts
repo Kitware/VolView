@@ -1,4 +1,5 @@
 import StreamingByteReader from '@/src/dicom/core/header/streamingByteReader';
+import { sniffDicomLayout } from '@/src/dicom/core/metadata/dicomLayout';
 import { Maybe } from '../types';
 
 interface MagicDatabase {
@@ -7,6 +8,8 @@ interface MagicDatabase {
   skip?: number;
   readTotal: number;
 }
+
+const DICOM_MIME = 'application/dicom';
 
 /**
  * file magic database for when files have no extension
@@ -17,7 +20,7 @@ const FILE_MAGIC_DB: MagicDatabase[] = [
     header: [0x50, 0x4b, 0x03, 0x04], // PK\x03\x04
   },
   {
-    mime: 'application/dicom',
+    mime: DICOM_MIME,
     skip: 128,
     header: Array.from('DICM').map((c) => c.charCodeAt(0)),
   },
@@ -44,6 +47,17 @@ function prefixEquals(
   return true;
 }
 
+// A DICOM data set written without the Part 10 preamble has no magic, so
+// its first element decides once every magic has failed.
+const bareDicomMime = (head: Uint8Array) => {
+  try {
+    sniffDicomLayout(head);
+    return DICOM_MIME;
+  } catch {
+    return null;
+  }
+};
+
 export async function getFileMimeFromMagic(file: File): Promise<Maybe<string>> {
   return new Promise((resolve) => {
     const head = file.slice(0, HEAD_CHUNK);
@@ -57,7 +71,7 @@ export async function getFileMimeFromMagic(file: File): Promise<Maybe<string>> {
           return;
         }
       }
-      resolve(null);
+      resolve(bareDicomMime(chunk));
     };
     reader.readAsArrayBuffer(head);
   });
@@ -86,5 +100,5 @@ export function* getFileMimeFromMagicStream(reader: StreamingByteReader) {
       return mime;
     }
   }
-  return null;
+  return bareDicomMime(Uint8Array.from(head));
 }
