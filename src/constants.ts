@@ -19,6 +19,11 @@ export const Messages = {
     details:
       'Lost the WebGL context! Please reload the webpage. If the problem persists, you may need to restart your web browser.',
   },
+  WebGLUnavailable: {
+    title: 'WebGL2 is unavailable',
+    details:
+      'Images cannot be displayed because the browser refused a WebGL2 context. Enable hardware acceleration in the browser settings, or restart the browser.',
+  },
 } as const;
 
 export const ANNOTATION_TOOL_HANDLE_RADIUS = 6; // CSS pixels
