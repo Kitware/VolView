@@ -2571,6 +2571,649 @@
         "fallbackGeometry": true,
         "spacing": [1.0, 1.0]
       }
+    },
+    {
+      "id": "gdcm-D_CLUNIE_CT1_JLSL",
+      "name": "dicom-corpus-gdcm-D_CLUNIE_CT1_JLSL.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/D_CLUNIE_CT1_JLSL.dcm?format=raw",
+      "sha256": "9d848ee70d48e43924eb821bb28e5bbd94035473db7aad6d6e86a37d48f98ae3",
+      "bytes": 170882,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG-LS Lossless, signed 16 bit CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.80",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.661468, 0.661468],
+          "origin": [-158.135803, -179.035797, -75.699997],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3024.0, 1254.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "9712f90568d53130f04a77ab8bf6232b9f662cb8d9d36ee393414ff55548eeec"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-D_CLUNIE_CT1_JLSN",
+      "name": "dicom-corpus-gdcm-D_CLUNIE_CT1_JLSN.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/D_CLUNIE_CT1_JLSN.dcm?format=raw",
+      "sha256": "98dee161acfc65a65987f5066cd3cbe9d7f8d182645f2417f9564c262066f144",
+      "bytes": 91682,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG-LS Near-Lossless, signed 16 bit CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.81",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.661468, 0.661468],
+          "origin": [-158.135803, -179.035797, -75.699997],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3028.0, 1254.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [-3028.0],
+            "max": [1254.0],
+            "mean": [-871.1151]
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "pydicom-JPEGLSNearLossless_08",
+      "name": "dicom-corpus-pydicom-JPEGLSNearLossless_08.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/JPEGLSNearLossless_08.dcm",
+      "sha256": "9dc95a64bc671d410dce98da56832c2424ecfae2c1712735142e595567763bee",
+      "bytes": 644,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG-LS Near-Lossless, 8 bit, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.81",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [10, 45, 1],
+          "range": [0.0, 255.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0],
+            "max": [255.0],
+            "mean": [55.5556]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "pydicom-JPEGLSNearLossless_16",
+      "name": "dicom-corpus-pydicom-JPEGLSNearLossless_16.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/JPEGLSNearLossless_16.dcm",
+      "sha256": "dcefcc3f6b95688027ebc1d432d06aee639b6c0fddb2b35f80cd2cf1ec3c4e80",
+      "bytes": 738,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG-LS Near-Lossless, unsigned 16 bit, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.81",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [10, 50, 1],
+          "range": [0.0, 65535.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0],
+            "max": [65535.0],
+            "mean": [12014.5]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "pydicom-SC_rgb_jls_lossy_line",
+      "name": "dicom-corpus-pydicom-SC_rgb_jls_lossy_line.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/SC_rgb_jls_lossy_line.dcm",
+      "sha256": "34fc0ba5adab81baf72ee509d468f8aecdff0d24069ac7be62db074420f18a54",
+      "bytes": 1100,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG-LS Near-Lossless RGB, line interleaved, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.81",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [100, 100, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [128.0, 128.0, 128.0]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "pydicom-SC_rgb_jls_lossy_sample",
+      "name": "dicom-corpus-pydicom-SC_rgb_jls_lossy_sample.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/SC_rgb_jls_lossy_sample.dcm",
+      "sha256": "c487f2ac9bf0efc0af85ccc43f4a6296e4e90722678650c63a34bcd7ffba29eb",
+      "bytes": 1122,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG-LS Near-Lossless RGB, sample interleaved, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.81",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [100, 100, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [128.0, 128.0, 128.0]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "gdcm-D_CLUNIE_CT1_J2KR",
+      "name": "dicom-corpus-gdcm-D_CLUNIE_CT1_J2KR.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/D_CLUNIE_CT1_J2KR.dcm?format=raw",
+      "sha256": "121f77705f8e26eefaacafe0d7becc8dd42c9b5553e3dcb904283d9a96c9f16a",
+      "bytes": 180916,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG 2000 Lossless, signed 16 bit CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.661468, 0.661468],
+          "origin": [-158.135803, -179.035797, -75.699997],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3024.0, 1254.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "9712f90568d53130f04a77ab8bf6232b9f662cb8d9d36ee393414ff55548eeec"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-D_CLUNIE_CT1_J2KI",
+      "name": "dicom-corpus-gdcm-D_CLUNIE_CT1_J2KI.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/D_CLUNIE_CT1_J2KI.dcm?format=raw",
+      "sha256": "ee5cb9fa931ac6d31a67cd8b58d05d7e6d5212f4666ba41c2b3ece9a069c2738",
+      "bytes": 14156,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG 2000 lossy, signed 16 bit CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.91",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.661468, 0.661468],
+          "origin": [-158.135803, -179.035797, -75.699997],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3339.0, 1385.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [-3339.0],
+            "max": [1385.0],
+            "mean": [-871.1976]
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "pydicom-693_J2KI",
+      "name": "dicom-corpus-pydicom-693_J2KI.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/693_J2KI.dcm",
+      "sha256": "8d5d503fd46b9a59c628762d71d7391ea1a2a5fd8d339ac82ef9e281a15ef65f",
+      "bytes": 3590,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG 2000 lossy, signed 14 bits stored in a 16 bit codestream, no Frame of Reference UID",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.91",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.478516, 0.478516],
+          "origin": [-122.5, -112.4, 47.0],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-3995.0, 1812.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [-3995.0],
+            "max": [1812.0],
+            "mean": [-1032.3228]
+          }
+        },
+        "reference": "highdicom (FrameOfReferenceUID injected in memory for highdicom)"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "pydicom-J2K_pixelrep_mismatch",
+      "name": "dicom-corpus-pydicom-J2K_pixelrep_mismatch.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/J2K_pixelrep_mismatch.dcm",
+      "sha256": "2df92c523d36639e4d88f892f47e4f6616c48ab017a445a6241ffe38b2d07bbf",
+      "bytes": 138518,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG 2000 Lossless, Pixel Representation signed over an unsigned 13 bit codestream",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.431, 0.431005],
+          "origin": [-110.2153, -98.1898, 72.1446],
+          "direction": [1.0, 0.0, 0.0, 0.0, 0.92718841, -0.374595318, 0.0, 0.374595318, 0.92718841],
+          "range": [-2000.0, 1896.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "80a78a4f3b70fdea6ca249e1e9a76ed5433e31c56307be80008901beb66c4e3e"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "pydicom-GDCMJ2K_TextGBR",
+      "name": "dicom-corpus-pydicom-GDCMJ2K_TextGBR.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/v3.0.2/src/pydicom/data/test_files/GDCMJ2K_TextGBR.dcm",
+      "sha256": "69f5fb9e92e57a0b2ae176c891e809c3349d5af2d71f5553231847e6343439db",
+      "bytes": 30706,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
+      "quirk": "JPEG 2000 Lossless in a JP2 wrapper, YBR_RCT colour, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
+        "modality": "",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.90",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "YBR_RCT",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [400, 400, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [122.5355, 126.4196, 124.3525]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "pydicom-data-US1_J2KI",
+      "name": "dicom-corpus-pydicom-data-US1_J2KI.dcm",
+      "url": "https://github.com/pydicom/pydicom-data/raw/9bde4d24b2d4a666fa8c4e93c8bccb2a775ea536/data_store/data/US1_J2KI.dcm",
+      "sha256": "22340375674ff253196ce8a147acf0458bea3f105ff2c6af81f0eb119729605b",
+      "bytes": 59140,
+      "license": "MIT",
+      "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
+      "sourcePage": "https://github.com/pydicom/pydicom-data",
+      "quirk": "JPEG 2000 lossy ultrasound, YBR_ICT colour, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.91",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "YBR_ICT",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [640, 480, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [40.4463, 34.6161, 29.0096]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
     }
   ]
 }

@@ -9,16 +9,18 @@ import { nativeFrameDecoder } from '../nativeFrame';
 import { wholeInstanceDecoder, type PixelDecoder } from '../pixelDecoder';
 import { pixelInstance } from './pixelFixture';
 
-const gdcm = wholeInstanceDecoder('GDCM', () => {
-  throw new Error('not decoded in these tests');
-});
-const htj2k = wholeInstanceDecoder('HTJ2K', () => {
-  throw new Error('not decoded in these tests');
-});
-const rle = wholeInstanceDecoder('RLE', () => {
-  throw new Error('not decoded in these tests');
-});
-const table = defaultDecoderTable({ gdcm, htj2k, rle });
+const undecoded = (name: string) =>
+  wholeInstanceDecoder(name, () => {
+    throw new Error('not decoded in these tests');
+  });
+const gdcm = undecoded('GDCM');
+const htj2k = undecoded('HTJ2K');
+const codecs = {
+  jpeg2000: undecoded('JPEG 2000'),
+  jpegLs: undecoded('JPEG-LS'),
+  rle: undecoded('RLE'),
+};
+const table = defaultDecoderTable({ gdcm, htj2k, ...codecs });
 
 const declining = (name: string, reason: string): PixelDecoder => ({
   name,
@@ -57,7 +59,7 @@ describe('planDecode', () => {
   });
 
   it.each([
-    ['a codec GDCM provides', '1.2.840.10008.1.2.4.90'],
+    ['a codec GDCM provides', '1.2.840.10008.1.2.4.50'],
     ['an unlisted transfer syntax', '1.2.3.4'],
   ])('hands %s to GDCM', async (_name, syntax) => {
     const { instance } = await pixelInstance({ transferSyntaxUid: syntax });
@@ -68,8 +70,12 @@ describe('planDecode', () => {
   });
 
   it.each([
-    ['RLE Lossless', '1.2.840.10008.1.2.5', rle],
+    ['RLE Lossless', '1.2.840.10008.1.2.5', codecs.rle],
     ['Deflated', '1.2.840.10008.1.2.1.99', deflatedDecoder],
+    ['JPEG-LS Lossless', '1.2.840.10008.1.2.4.80', codecs.jpegLs],
+    ['JPEG-LS Near-Lossless', '1.2.840.10008.1.2.4.81', codecs.jpegLs],
+    ['JPEG 2000 Lossless', '1.2.840.10008.1.2.4.90', codecs.jpeg2000],
+    ['JPEG 2000', '1.2.840.10008.1.2.4.91', codecs.jpeg2000],
   ])(
     'lists the %s decoder ahead of GDCM for its syntax',
     (_name, syntax, own) => {

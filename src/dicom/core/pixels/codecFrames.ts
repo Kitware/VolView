@@ -15,7 +15,7 @@ export type FrameCodec = (
   frame: Uint8Array
 ) => Readonly<{ shape: FrameShape; samples: Uint8Array }>;
 
-export type CodecName = 'htj2k' | 'rle';
+export type CodecName = 'htj2k' | 'jpeg2000' | 'jpegLs' | 'rle';
 
 export type CodecJob = Readonly<{
   codec: CodecName;

@@ -138,6 +138,27 @@ const codecFiles = Object.entries({
     'generated-rle-32-bit',
   ],
   Deflated: ['pydicom-image_dfl'],
+  'JPEG-LS': [
+    'pydicom-MR_small_jpeg_ls_lossless',
+    'pydicom-emri_small_jpeg_ls_lossless',
+    'gdcm-D_CLUNIE_CT1_JLSL',
+    'gdcm-D_CLUNIE_CT1_JLSN',
+    'pydicom-JPEGLSNearLossless_08',
+    'pydicom-JPEGLSNearLossless_16',
+    'pydicom-SC_rgb_jls_lossy_line',
+    'pydicom-SC_rgb_jls_lossy_sample',
+  ],
+  'JPEG 2000': [
+    'pydicom-MR_small_jp2klossless',
+    'pydicom-693_J2KR',
+    'pydicom-emri_small_jpeg_2k_lossless',
+    'gdcm-D_CLUNIE_CT1_J2KR',
+    'gdcm-D_CLUNIE_CT1_J2KI',
+    'pydicom-693_J2KI',
+    'pydicom-J2K_pixelrep_mismatch',
+    'pydicom-GDCMJ2K_TextGBR',
+    'pydicom-data-US1_J2KI',
+  ],
 }).flatMap(([decoder, ids]) =>
   ids.map((id) => {
     const entry = corpus.find((dataset) => dataset.id === id);
