@@ -6,6 +6,7 @@ import {
   IMPLICIT_VR_LITTLE_ENDIAN,
 } from '../metadata/dicomLayout';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
+import { deflatedDecoder } from './deflatedDecoder';
 import { nativeFrameDecoder } from './nativeFrame';
 import type { DecodeUnit, PixelDecoder } from './pixelDecoder';
 
@@ -25,14 +26,14 @@ export const singleDecoderTable = (decoder: PixelDecoder): DecoderTable => ({
   names: new Map(),
 });
 
-type Codec = 'native' | 'gdcm' | 'htj2k' | 'none';
+type Codec = 'native' | 'deflated' | 'rle' | 'gdcm' | 'htj2k' | 'none';
 
 // prettier-ignore
 const SYNTAXES: Array<[string, string, Codec]> = [
   [IMPLICIT_VR_LITTLE_ENDIAN, 'Implicit VR Little Endian', 'native'],
   [EXPLICIT_VR_LITTLE_ENDIAN, 'Explicit VR Little Endian', 'native'],
   [EXPLICIT_VR_BIG_ENDIAN, 'Explicit VR Big Endian', 'native'],
-  [DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN, 'Deflated Explicit VR Little Endian', 'gdcm'],
+  [DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN, 'Deflated Explicit VR Little Endian', 'deflated'],
   ['1.2.840.10008.1.2.4.50', 'JPEG Baseline', 'gdcm'],
   ['1.2.840.10008.1.2.4.51', 'JPEG Extended', 'gdcm'],
   ['1.2.840.10008.1.2.4.57', 'JPEG Lossless', 'gdcm'],
@@ -41,7 +42,7 @@ const SYNTAXES: Array<[string, string, Codec]> = [
   ['1.2.840.10008.1.2.4.81', 'JPEG-LS Near-Lossless', 'gdcm'],
   ['1.2.840.10008.1.2.4.90', 'JPEG 2000 Lossless', 'gdcm'],
   ['1.2.840.10008.1.2.4.91', 'JPEG 2000', 'gdcm'],
-  ['1.2.840.10008.1.2.5', 'RLE Lossless', 'gdcm'],
+  ['1.2.840.10008.1.2.5', 'RLE Lossless', 'rle'],
   ['1.2.840.10008.1.2.4.94', 'JPIP Referenced', 'none'],
   ['1.2.840.10008.1.2.4.95', 'JPIP Referenced Deflate', 'none'],
   ['1.2.840.10008.1.2.4.100', 'MPEG2 Main Profile', 'none'],
@@ -65,18 +66,23 @@ const SYNTAXES: Array<[string, string, Codec]> = [
 export type RuntimeDecoders = Readonly<{
   gdcm: PixelDecoder;
   htj2k: PixelDecoder;
+  rle: PixelDecoder;
 }>;
 
 /**
- * Native frames for uncompressed syntaxes, then GDCM for every syntax it may
- * know. HTJ2K, which GDCM lacks, goes to OpenJPH.
+ * Each syntax's own decoder first, then GDCM for what that decoder declines
+ * and for every syntax GDCM alone knows. HTJ2K, which GDCM lacks, has only
+ * its codec.
  */
 export function defaultDecoderTable({
   gdcm,
   htj2k,
+  rle,
 }: RuntimeDecoders): DecoderTable {
   const candidates = {
     native: [nativeFrameDecoder, gdcm],
+    deflated: [deflatedDecoder, gdcm],
+    rle: [rle, gdcm],
     gdcm: [gdcm],
     htj2k: [htj2k],
     none: [],

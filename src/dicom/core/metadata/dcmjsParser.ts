@@ -169,6 +169,17 @@ const openFile = (bytes: Uint8Array) => {
   };
 };
 
+/**
+ * The data set of a Deflated Explicit VR Little Endian file, inflated as the
+ * parser reads it: Explicit VR Little Endian with no preamble or file meta
+ * information. Bytes after the deflate stream are ignored, which the
+ * browser's own inflater refuses.
+ */
+export function inflateDataSet(bytes: Uint8Array) {
+  const { dataSet } = openFile(bytes);
+  return new Uint8Array(dataSet.slice(0, dataSet.endOffset));
+}
+
 const needsSequenceReader = (vr: string | undefined, length: number) =>
   vr === 'SQ' ||
   ((vr === 'UN' || vr === undefined) && length === UNDEFINED_LENGTH);
