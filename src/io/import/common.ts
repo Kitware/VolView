@@ -116,7 +116,8 @@ export const asOkayResult = (dataSource: DataSource): OkayResult => ({
   dataSource,
 });
 
-export type ArchiveContents = Record<string, File>;
+/** Members in archive order, their paths without leading slashes. */
+export type ArchiveContents = Array<{ path: string; file: File }>;
 export type ArchiveCache = Map<File, Awaitable<ArchiveContents>>;
 
 export type ImportContext = {
