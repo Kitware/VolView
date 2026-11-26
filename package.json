@@ -116,5 +116,9 @@
       "eslint",
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "@cornerstonejs/codec-charls": "1.2.7",
+    "@cornerstonejs/codec-openjpeg": "1.3.6"
   }
 }

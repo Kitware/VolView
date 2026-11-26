@@ -26,7 +26,15 @@ export const singleDecoderTable = (decoder: PixelDecoder): DecoderTable => ({
   names: new Map(),
 });
 
-type Codec = 'native' | 'deflated' | 'rle' | 'gdcm' | 'htj2k' | 'none';
+type Codec =
+  | 'native'
+  | 'deflated'
+  | 'rle'
+  | 'jpegLs'
+  | 'jpeg2000'
+  | 'gdcm'
+  | 'htj2k'
+  | 'none';
 
 // prettier-ignore
 const SYNTAXES: Array<[string, string, Codec]> = [
@@ -38,10 +46,10 @@ const SYNTAXES: Array<[string, string, Codec]> = [
   ['1.2.840.10008.1.2.4.51', 'JPEG Extended', 'gdcm'],
   ['1.2.840.10008.1.2.4.57', 'JPEG Lossless', 'gdcm'],
   ['1.2.840.10008.1.2.4.70', 'JPEG Lossless, First-Order Prediction', 'gdcm'],
-  ['1.2.840.10008.1.2.4.80', 'JPEG-LS Lossless', 'gdcm'],
-  ['1.2.840.10008.1.2.4.81', 'JPEG-LS Near-Lossless', 'gdcm'],
-  ['1.2.840.10008.1.2.4.90', 'JPEG 2000 Lossless', 'gdcm'],
-  ['1.2.840.10008.1.2.4.91', 'JPEG 2000', 'gdcm'],
+  ['1.2.840.10008.1.2.4.80', 'JPEG-LS Lossless', 'jpegLs'],
+  ['1.2.840.10008.1.2.4.81', 'JPEG-LS Near-Lossless', 'jpegLs'],
+  ['1.2.840.10008.1.2.4.90', 'JPEG 2000 Lossless', 'jpeg2000'],
+  ['1.2.840.10008.1.2.4.91', 'JPEG 2000', 'jpeg2000'],
   ['1.2.840.10008.1.2.5', 'RLE Lossless', 'rle'],
   ['1.2.840.10008.1.2.4.94', 'JPIP Referenced', 'none'],
   ['1.2.840.10008.1.2.4.95', 'JPIP Referenced Deflate', 'none'],
@@ -66,6 +74,8 @@ const SYNTAXES: Array<[string, string, Codec]> = [
 export type RuntimeDecoders = Readonly<{
   gdcm: PixelDecoder;
   htj2k: PixelDecoder;
+  jpeg2000: PixelDecoder;
+  jpegLs: PixelDecoder;
   rle: PixelDecoder;
 }>;
 
@@ -74,15 +84,14 @@ export type RuntimeDecoders = Readonly<{
  * and for every syntax GDCM alone knows. HTJ2K, which GDCM lacks, has only
  * its codec.
  */
-export function defaultDecoderTable({
-  gdcm,
-  htj2k,
-  rle,
-}: RuntimeDecoders): DecoderTable {
+export function defaultDecoderTable(decoders: RuntimeDecoders): DecoderTable {
+  const { gdcm, htj2k } = decoders;
   const candidates = {
     native: [nativeFrameDecoder, gdcm],
     deflated: [deflatedDecoder, gdcm],
-    rle: [rle, gdcm],
+    rle: [decoders.rle, gdcm],
+    jpegLs: [decoders.jpegLs, gdcm],
+    jpeg2000: [decoders.jpeg2000, gdcm],
     gdcm: [gdcm],
     htj2k: [htj2k],
     none: [],

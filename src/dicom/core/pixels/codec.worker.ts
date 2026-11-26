@@ -1,7 +1,9 @@
 import * as Comlink from 'comlink';
-import createOpenJph, {
-  type OpenJphModule,
-} from '@cornerstonejs/codec-openjph';
+import createCharLs from '@cornerstonejs/codec-charls/decodewasmjs';
+import charLsWasmUrl from '@cornerstonejs/codec-charls/decodewasm?url';
+import createOpenJpeg from '@cornerstonejs/codec-openjpeg/decodewasmjs';
+import openJpegWasmUrl from '@cornerstonejs/codec-openjpeg/decodewasm?url';
+import createOpenJph from '@cornerstonejs/codec-openjph';
 import openJphWasmUrl from '@cornerstonejs/codec-openjph/wasm?url';
 import {
   decodeEncapsulatedFrames,
@@ -10,21 +12,41 @@ import {
   type FrameCodec,
   type FrameShape,
 } from './codecFrames';
-import { openJphFrameCodec } from './htj2kFrames';
+import { embindFrameCodec } from './embindFrames';
 import { rleFrameCodec } from './rleFrame';
 
-let openJph: Promise<OpenJphModule> | undefined;
-const loadOpenJph = () =>
-  (openJph ??= createOpenJph({ locateFile: () => openJphWasmUrl }));
+/** A codec whose WASM loads on the first job that names it. */
+const lazily = (load: () => Promise<FrameCodec>) => {
+  let codec: Promise<FrameCodec> | undefined;
+  return () => (codec ??= load());
+};
 
-// Each codec's WASM loads on the first job that names it.
 const CODECS: Record<
   CodecName,
   Readonly<{ name: string; open: (shape: FrameShape) => Promise<FrameCodec> }>
 > = {
   htj2k: {
     name: 'HTJ2K',
-    open: async () => openJphFrameCodec(await loadOpenJph()),
+    open: lazily(async () => {
+      const module = await createOpenJph({ locateFile: () => openJphWasmUrl });
+      return embindFrameCodec(module.HTJ2KDecoder);
+    }),
+  },
+  jpeg2000: {
+    name: 'JPEG 2000',
+    open: lazily(async () => {
+      const module = await createOpenJpeg({
+        locateFile: () => openJpegWasmUrl,
+      });
+      return embindFrameCodec(module.J2KDecoder);
+    }),
+  },
+  jpegLs: {
+    name: 'JPEG-LS',
+    open: lazily(async () => {
+      const module = await createCharLs({ locateFile: () => charLsWasmUrl });
+      return embindFrameCodec(module.JpegLSDecoder);
+    }),
   },
   rle: { name: 'RLE', open: async (shape) => rleFrameCodec(shape) },
 };

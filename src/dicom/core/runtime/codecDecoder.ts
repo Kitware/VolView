@@ -55,6 +55,12 @@ const CODECS: Record<CodecName, Codec> = {
     maxBitsAllocated: 16,
     decodedAs: colourTransformedAsRgb,
   },
+  jpeg2000: {
+    name: 'JPEG 2000',
+    maxBitsAllocated: 16,
+    decodedAs: colourTransformedAsRgb,
+  },
+  jpegLs: { name: 'JPEG-LS', maxBitsAllocated: 16 },
   rle: { name: 'RLE', maxBitsAllocated: 32 },
 };
 
@@ -146,6 +152,8 @@ export function createCodecDecoders(
   return {
     decoders: {
       htj2k: codecDecoder('htj2k', pool),
+      jpeg2000: codecDecoder('jpeg2000', pool),
+      jpegLs: codecDecoder('jpegLs', pool),
       rle: codecDecoder('rle', pool),
     },
     dispose: pool.dispose,
