@@ -1,4 +1,4 @@
-import type { FrameCodec } from './codecFrames';
+import type { FrameCodec, FrameShape } from './codecFrames';
 
 /** The decoder class every Cornerstone codec build exposes through Embind. */
 export type EmbindDecoder = {
@@ -9,6 +9,7 @@ export type EmbindDecoder = {
     height: number;
     bitsPerSample: number;
     componentCount: number;
+    isSigned?: boolean;
   };
   /** A view of the WASM heap, valid until the next call. */
   getDecodedBuffer(): Uint8Array;
@@ -30,28 +31,47 @@ function interleaved(planes: Uint8Array, components: number, width: number) {
   return samples;
 }
 
+/** One byte samples as 16 bit words, keeping the sign a codestream gives them. */
+const widened = (samples: Uint8Array, signed: boolean) =>
+  new Uint8Array(
+    (signed
+      ? Int16Array.from(
+          new Int8Array(samples.buffer, samples.byteOffset, samples.length)
+        )
+      : Uint16Array.from(samples)
+    ).buffer
+  );
+
+/**
+ * `header` is the frame shape the DICOM header declares. A codestream of 8
+ * bits or fewer returns one byte per sample even where the header allocates
+ * two, so those samples are widened to match.
+ */
 export const embindFrameCodec =
-  (Decoder: new () => EmbindDecoder): FrameCodec =>
+  (Decoder: new () => EmbindDecoder, header: FrameShape): FrameCodec =>
   (frame) => {
     const decoder = new Decoder();
     try {
       decoder.getEncodedBuffer(frame.length).set(frame);
       decoder.decode();
       const info = decoder.getFrameInfo();
-      const shape = {
-        columns: info.width,
-        rows: info.height,
-        components: info.componentCount,
-        bytesPerSample: info.bitsPerSample > 8 ? 2 : 1,
-      };
+      const bytesPerSample = info.bitsPerSample > 8 ? 2 : 1;
+      const components = info.componentCount;
       const decoded = decoder.getDecodedBuffer();
-      const planar =
-        shape.components > 1 && decoder.getInterleaveMode?.() === 0;
+      const planar = components > 1 && decoder.getInterleaveMode?.() === 0;
+      const samples = planar
+        ? interleaved(decoded, components, bytesPerSample)
+        : decoded.slice();
+      const widen = bytesPerSample < header.bytesPerSample;
       return {
-        shape,
-        samples: planar
-          ? interleaved(decoded, shape.components, shape.bytesPerSample)
-          : decoded.slice(),
+        shape: {
+          columns: info.width,
+          rows: info.height,
+          components,
+          bytesPerSample: widen ? 2 : bytesPerSample,
+        },
+        precision: info.bitsPerSample,
+        samples: widen ? widened(samples, info.isSigned === true) : samples,
       };
     } finally {
       decoder.delete();

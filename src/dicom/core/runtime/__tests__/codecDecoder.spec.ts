@@ -17,6 +17,7 @@ const rgbLane = (): CodecLane => ({
     rows: 2,
     components: 3,
     bytesPerSample: 1,
+    precision: 8,
   }),
   reset: () => {},
 });
@@ -78,6 +79,7 @@ describe('codec decoders', () => {
         rows: 1,
         components: 1,
         bytesPerSample: 2,
+        precision: 16,
       }),
       reset: () => {},
     };
@@ -129,7 +131,7 @@ describe('codec decoders', () => {
     const lane: CodecLane = {
       run: async (job) => {
         jobs.push({ ...job, value: job.value.length });
-        return { ...job.shape, bytes: new Uint8Array(24) };
+        return { ...job.shape, precision: 16, bytes: new Uint8Array(24) };
       },
       reset: () => {},
     };
@@ -165,6 +167,7 @@ describe('codec decoders', () => {
       run: async (job) => ({
         ...job.shape,
         rows: 4,
+        precision: 16,
         bytes: new Uint8Array(48),
       }),
       reset: () => {},
@@ -182,4 +185,34 @@ describe('codec decoders', () => {
       'RLE frames decode to 3x4, 1 samples of 16 bits; the header declares 3x2, 1 samples of 16 bits'
     );
   });
+
+  it.each([
+    ['jpeg2000', 'keeps', [644, 3]],
+    ['jpegLossless', 'masks off', [132, 3]],
+  ] as const)(
+    '%s %s the bits a codestream holds beyond Bits Stored',
+    async (codec, _rule, samples) => {
+      const lane: CodecLane = {
+        run: async (job) => ({
+          ...job.shape,
+          precision: 10,
+          bytes: new Uint8Array(Uint16Array.from([644, 3]).buffer),
+        }),
+        reset: () => {},
+      };
+      const decoder = createCodecDecoders(1, () => lane).decoders[codec];
+      const units = decoder.plan(
+        await encapsulatedInstance({ rows: 1, columns: 2, bitsStored: 8 }),
+        Uint16Array
+      );
+      if ('declined' in units) throw new Error(units.declined);
+
+      const pixels = await units[0].decode(
+        new Uint8Array(8),
+        new AbortController().signal
+      );
+
+      expect(Array.from(pixels.data)).toEqual(samples);
+    }
+  );
 });

@@ -8,12 +8,17 @@ export type FrameShape = Readonly<{
 }>;
 
 /** Every frame's samples back to back, interleaved by component, little endian. */
-export type DecodedFrames = FrameShape & Readonly<{ bytes: Uint8Array }>;
+export type DecodedFrames = FrameShape &
+  Readonly<{
+    bytes: Uint8Array;
+    /** The bits of each sample the codestream holds, which may not be Bits Stored. */
+    precision: number;
+  }>;
 
 /** One frame's codestream to its samples, which the caller owns. */
 export type FrameCodec = (
   frame: Uint8Array
-) => Readonly<{ shape: FrameShape; samples: Uint8Array }>;
+) => Readonly<{ shape: FrameShape; precision: number; samples: Uint8Array }>;
 
 export type CodecName =
   | 'htj2k'
@@ -51,14 +56,16 @@ export function decodeEncapsulatedFrames(
       try {
         return decodeFrame(frame);
       } catch (error) {
-        throw new Error(`${name} frame ${index + 1} did not decode`, {
-          cause: error,
-        });
+        // The reason goes in the message: a cause does not cross from a worker.
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`${name} frame ${index + 1} did not decode: ${reason}`);
       }
     }
   );
-  const [{ shape, samples }] = frames;
-  const mismatch = frames.findIndex((frame) => !sameShape(frame.shape, shape));
+  const [{ shape, precision, samples }] = frames;
+  const mismatch = frames.findIndex(
+    (frame) => !sameShape(frame.shape, shape) || frame.precision !== precision
+  );
   if (mismatch >= 0)
     throw new Error(
       `${name} frame ${mismatch + 1} differs in size or depth from frame 1`
@@ -67,5 +74,5 @@ export function decodeEncapsulatedFrames(
   frames.forEach((frame, index) =>
     bytes.set(frame.samples, index * samples.length)
   );
-  return { bytes, ...shape };
+  return { bytes, precision, ...shape };
 }
