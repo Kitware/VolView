@@ -14,6 +14,14 @@ function makeDicomFile(name: string) {
   return new File([buffer.buffer], name);
 }
 
+// SOP Class UID in explicit VR, as a data set with no preamble opens.
+function makeBareDicomFile(name: string) {
+  return new File(
+    [new Uint8Array([0x08, 0x00, 0x16, 0x00, 0x55, 0x49, 0x02, 0x00, 0x31, 0])],
+    name
+  );
+}
+
 describe('I/O', () => {
   it('should detect dicom files', async () => {
     expect((await retypeFile(makeDicomFile('file.DCM'))).type).to.equal(
@@ -22,6 +30,20 @@ describe('I/O', () => {
     expect((await retypeFile(makeDicomFile('somedicom'))).type).to.equal(
       'application/dicom'
     );
+  });
+
+  it('should detect an extensionless dicom data set that has no preamble', async () => {
+    expect((await retypeFile(makeBareDicomFile('IM000001'))).type).to.equal(
+      'application/dicom'
+    );
+  });
+
+  it('should leave an extensionless file of another format untyped', async () => {
+    const elf = new File(
+      [new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0])],
+      'tool'
+    );
+    expect((await retypeFile(elf)).type).to.equal('');
   });
 
   it('should retype files based on extension', async () => {
