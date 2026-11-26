@@ -45,3 +45,12 @@ declare module '@cornerstonejs/codec-openjpeg/decodewasmjs' {
   }) => Promise<{ J2KDecoder: new () => EmbindDecoder }>;
   export default createOpenJpeg;
 }
+
+declare module '@cornerstonejs/codec-libjpeg-turbo-8bit/decodewasmjs' {
+  import type { EmbindDecoder } from '@/src/dicom/core/pixels/embindFrames';
+
+  const createLibJpegTurbo: (options?: {
+    locateFile?: (path: string) => string;
+  }) => Promise<{ JPEGDecoder: new () => EmbindDecoder }>;
+  export default createLibJpegTurbo;
+}

@@ -16,6 +16,8 @@ const undecoded = (name: string) =>
 const gdcm = undecoded('GDCM');
 const htj2k = undecoded('HTJ2K');
 const codecs = {
+  jpeg: undecoded('JPEG'),
+  jpegLossless: undecoded('JPEG Lossless'),
   jpeg2000: undecoded('JPEG 2000'),
   jpegLs: undecoded('JPEG-LS'),
   rle: undecoded('RLE'),
@@ -58,11 +60,8 @@ describe('planDecode', () => {
     });
   });
 
-  it.each([
-    ['a codec GDCM provides', '1.2.840.10008.1.2.4.50'],
-    ['an unlisted transfer syntax', '1.2.3.4'],
-  ])('hands %s to GDCM', async (_name, syntax) => {
-    const { instance } = await pixelInstance({ transferSyntaxUid: syntax });
+  it('hands an unlisted transfer syntax to GDCM', async () => {
+    const { instance } = await pixelInstance({ transferSyntaxUid: '1.2.3.4' });
 
     expect(planDecode(table, instance, Uint16Array)).toMatchObject({
       decoder: gdcm,
@@ -72,6 +71,10 @@ describe('planDecode', () => {
   it.each([
     ['RLE Lossless', '1.2.840.10008.1.2.5', codecs.rle],
     ['Deflated', '1.2.840.10008.1.2.1.99', deflatedDecoder],
+    ['JPEG Baseline', '1.2.840.10008.1.2.4.50', codecs.jpeg],
+    ['JPEG Extended', '1.2.840.10008.1.2.4.51', codecs.jpeg],
+    ['JPEG Lossless', '1.2.840.10008.1.2.4.57', codecs.jpegLossless],
+    ['JPEG Lossless SV1', '1.2.840.10008.1.2.4.70', codecs.jpegLossless],
     ['JPEG-LS Lossless', '1.2.840.10008.1.2.4.80', codecs.jpegLs],
     ['JPEG-LS Near-Lossless', '1.2.840.10008.1.2.4.81', codecs.jpegLs],
     ['JPEG 2000 Lossless', '1.2.840.10008.1.2.4.90', codecs.jpeg2000],

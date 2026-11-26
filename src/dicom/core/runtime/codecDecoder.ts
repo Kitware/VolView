@@ -1,5 +1,7 @@
 import * as Comlink from 'comlink';
 import type { Instance } from '../instance/readInstance';
+import { getDatasetTag } from '../metadata/datasetAccess';
+import { Tags } from '../metadata/dicomTags';
 import type { CodecWorker } from '../pixels/codec.worker';
 import type {
   CodecJob,
@@ -14,6 +16,7 @@ import {
   type NativePixelFormat,
 } from '../pixels/nativeFrame';
 import { frameCount, type PixelDecoder } from '../pixels/pixelDecoder';
+import { trimDicomPadding } from '../utils';
 import { createComlinkLane } from './comlinkLane';
 import { createLanePool, type Lane } from './lanePool';
 
@@ -42,6 +45,12 @@ const colourTransformedAsRgb = (format: NativePixelFormat) =>
     ? { ...format, photometricInterpretation: 'RGB' }
     : format;
 
+// libjpeg-turbo converts the YCbCr a JPEG stream holds to RGB.
+const jpegColourAsRgb = (format: NativePixelFormat) =>
+  ['YBR_FULL', 'YBR_FULL_422'].includes(format.photometricInterpretation)
+    ? { ...format, photometricInterpretation: 'RGB' }
+    : format;
+
 type Codec = Readonly<{
   name: string;
   maxBitsAllocated: number;
@@ -55,11 +64,14 @@ const CODECS: Record<CodecName, Codec> = {
     maxBitsAllocated: 16,
     decodedAs: colourTransformedAsRgb,
   },
+  // Samples over 8 bits are the 12 bit extended process, which stays GDCM's.
+  jpeg: { name: 'JPEG', maxBitsAllocated: 8, decodedAs: jpegColourAsRgb },
   jpeg2000: {
     name: 'JPEG 2000',
     maxBitsAllocated: 16,
     decodedAs: colourTransformedAsRgb,
   },
+  jpegLossless: { name: 'JPEG Lossless', maxBitsAllocated: 16 },
   jpegLs: { name: 'JPEG-LS', maxBitsAllocated: 16 },
   rle: { name: 'RLE', maxBitsAllocated: 32 },
 };
@@ -119,6 +131,9 @@ const codecDecoder = (name: CodecName, pool: CodecPool): PixelDecoder => ({
     const frames = frameCount(instance.dataset);
     const formats = frameFormats(format, instance.dataset, frames);
     const shape = shapeOf(format);
+    const photometricInterpretation = trimDicomPadding(
+      getDatasetTag(instance.dataset, Tags.PhotometricInterpretation) ?? ''
+    );
     return [
       {
         firstFrame: 0,
@@ -130,6 +145,7 @@ const codecDecoder = (name: CodecName, pool: CodecPool): PixelDecoder => ({
             value: ownedBytes(bytes),
             frameCount: frames,
             shape,
+            photometricInterpretation,
           };
           const decoded = await pool.run(job, signal);
           checkShape(CODECS[name].name, decoded, shape);
@@ -152,7 +168,9 @@ export function createCodecDecoders(
   return {
     decoders: {
       htj2k: codecDecoder('htj2k', pool),
+      jpeg: codecDecoder('jpeg', pool),
       jpeg2000: codecDecoder('jpeg2000', pool),
+      jpegLossless: codecDecoder('jpegLossless', pool),
       jpegLs: codecDecoder('jpegLs', pool),
       rle: codecDecoder('rle', pool),
     },

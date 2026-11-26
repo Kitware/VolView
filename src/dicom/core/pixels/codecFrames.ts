@@ -15,7 +15,13 @@ export type FrameCodec = (
   frame: Uint8Array
 ) => Readonly<{ shape: FrameShape; samples: Uint8Array }>;
 
-export type CodecName = 'htj2k' | 'jpeg2000' | 'jpegLs' | 'rle';
+export type CodecName =
+  | 'htj2k'
+  | 'jpeg'
+  | 'jpeg2000'
+  | 'jpegLossless'
+  | 'jpegLs'
+  | 'rle';
 
 export type CodecJob = Readonly<{
   codec: CodecName;
@@ -24,6 +30,8 @@ export type CodecJob = Readonly<{
   frameCount: number;
   /** The header's frame shape, for codestreams that do not state their own. */
   shape: FrameShape;
+  /** The header's, for codestreams that do not state their colour space. */
+  photometricInterpretation: string;
 }>;
 
 const sameShape = (a: FrameShape, b: FrameShape) =>

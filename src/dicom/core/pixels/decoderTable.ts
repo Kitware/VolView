@@ -30,6 +30,8 @@ type Codec =
   | 'native'
   | 'deflated'
   | 'rle'
+  | 'jpeg'
+  | 'jpegLossless'
   | 'jpegLs'
   | 'jpeg2000'
   | 'gdcm'
@@ -42,10 +44,10 @@ const SYNTAXES: Array<[string, string, Codec]> = [
   [EXPLICIT_VR_LITTLE_ENDIAN, 'Explicit VR Little Endian', 'native'],
   [EXPLICIT_VR_BIG_ENDIAN, 'Explicit VR Big Endian', 'native'],
   [DEFLATED_EXPLICIT_VR_LITTLE_ENDIAN, 'Deflated Explicit VR Little Endian', 'deflated'],
-  ['1.2.840.10008.1.2.4.50', 'JPEG Baseline', 'gdcm'],
-  ['1.2.840.10008.1.2.4.51', 'JPEG Extended', 'gdcm'],
-  ['1.2.840.10008.1.2.4.57', 'JPEG Lossless', 'gdcm'],
-  ['1.2.840.10008.1.2.4.70', 'JPEG Lossless, First-Order Prediction', 'gdcm'],
+  ['1.2.840.10008.1.2.4.50', 'JPEG Baseline', 'jpeg'],
+  ['1.2.840.10008.1.2.4.51', 'JPEG Extended', 'jpeg'],
+  ['1.2.840.10008.1.2.4.57', 'JPEG Lossless', 'jpegLossless'],
+  ['1.2.840.10008.1.2.4.70', 'JPEG Lossless, First-Order Prediction', 'jpegLossless'],
   ['1.2.840.10008.1.2.4.80', 'JPEG-LS Lossless', 'jpegLs'],
   ['1.2.840.10008.1.2.4.81', 'JPEG-LS Near-Lossless', 'jpegLs'],
   ['1.2.840.10008.1.2.4.90', 'JPEG 2000 Lossless', 'jpeg2000'],
@@ -74,7 +76,9 @@ const SYNTAXES: Array<[string, string, Codec]> = [
 export type RuntimeDecoders = Readonly<{
   gdcm: PixelDecoder;
   htj2k: PixelDecoder;
+  jpeg: PixelDecoder;
   jpeg2000: PixelDecoder;
+  jpegLossless: PixelDecoder;
   jpegLs: PixelDecoder;
   rle: PixelDecoder;
 }>;
@@ -90,6 +94,8 @@ export function defaultDecoderTable(decoders: RuntimeDecoders): DecoderTable {
     native: [nativeFrameDecoder, gdcm],
     deflated: [deflatedDecoder, gdcm],
     rle: [decoders.rle, gdcm],
+    jpeg: [decoders.jpeg, gdcm],
+    jpegLossless: [decoders.jpegLossless, gdcm],
     jpegLs: [decoders.jpegLs, gdcm],
     jpeg2000: [decoders.jpeg2000, gdcm],
     gdcm: [gdcm],

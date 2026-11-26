@@ -61,15 +61,20 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   the codec decoders give each frame its own Pixel Value Transformation; GDCM
   gives an instance one, so its decoder declines those.
 - The default table lists each syntax's own decoder ahead of GDCM. RLE,
-  JPEG-LS, JPEG 2000 and HTJ2K instances are read from their Pixel Data value
-  and decoded whole on the shared codec workers, each codec's WASM loading on
-  first use. A Deflated file is read whole and inflated on the calling
-  thread. Each then finishes its samples as native frames are, so it declines
-  what `nativeFrameDecoder` declines, except that JPEG 2000 and HTJ2K take
-  YBR_RCT and YBR_ICT colour, which their codecs return as RGB. GDCM, whole
-  in a worker, takes what those decline and the JPEG syntaxes. HTJ2K has no
-  GDCM fallback, and JPIP, video and JPEG XL syntaxes fail as having no
-  decoder.
+  JPEG, JPEG-LS, JPEG 2000 and HTJ2K instances are read from their Pixel Data
+  value and decoded whole on the shared codec workers, each codec's WASM
+  loading on first use. A Deflated file is read whole and inflated on the
+  calling thread. Each then finishes its samples as native frames are, so it
+  declines what `nativeFrameDecoder` declines, with these exceptions: JPEG
+  2000 and HTJ2K take YBR_RCT and YBR_ICT colour, and JPEG takes YBR_FULL
+  and YBR_FULL_422, all of which their codecs return as RGB.
+- A JPEG frame the header calls RGB is decoded without a colour transform
+  unless its own JFIF or Adobe segment states one. GDCM never transforms
+  such a frame.
+- GDCM, whole in a worker, takes what those decoders decline, which includes
+  JPEG samples over 8 bits that are not lossless (the 12 bit extended
+  process). HTJ2K has no GDCM fallback, and JPIP, video and JPEG XL syntaxes
+  fail as having no decoder.
 
 ## Spacing
 
