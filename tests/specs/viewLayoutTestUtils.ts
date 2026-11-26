@@ -57,7 +57,7 @@ export const createViewLayoutUtils = (page: Page, scratch: Scratch) => {
 
   const openViewActions = (index: number) =>
     volview.openMenu(
-      panes.nth(index).locator('button[aria-label="Split or close view"]')
+      panes.nth(index).locator('button[aria-label="View actions"]')
     );
 
   const viewAction = async (index: number, title: string) => {

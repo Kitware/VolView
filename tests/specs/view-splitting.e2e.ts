@@ -66,6 +66,12 @@ const createSplitHelpers = ({
       2
     );
 
+  const openLoneView = async () => {
+    await openSplitFixture();
+    await layout.viewAction(1, 'Close view');
+    await layout.waitForPaneCount(1);
+  };
+
   const paneOverlay = async (index: number) => {
     const text = (await panes.nth(index).textContent()) ?? '';
     return [
@@ -107,6 +113,7 @@ const createSplitHelpers = ({
     imageWidths,
     openLayoutFixture,
     openSplitFixture,
+    openLoneView,
     paneOverlay,
     pickLayout,
     dragFromPaneCenter,
@@ -205,6 +212,68 @@ test.describe('Splitting individual views', () => {
         { message: 'Expected both split panes to keep the adjusted zoom' }
       )
       .toBe(true);
+  });
+
+  test('keeps Close view visible and disabled when only one view remains', async ({
+    page,
+    volview,
+    utils,
+    layout,
+  }) => {
+    const { openLoneView } = createSplitHelpers({
+      page,
+      volview,
+      utils,
+      layout,
+    });
+    await openLoneView();
+    await layout.openViewActions(0);
+    await layout.expectMenuItemDisabled('Close view');
+    await layout.expectMenuItemReason(
+      'Close view',
+      'This is the only open view'
+    );
+  });
+
+  test('keeps a lone view splittable after it is double-clicked', async ({
+    page,
+    volview,
+    utils,
+    layout,
+  }) => {
+    const { openLoneView } = createSplitHelpers({
+      page,
+      volview,
+      utils,
+      layout,
+    });
+    await openLoneView();
+    await layout.panes
+      .first()
+      .locator('[data-testid~="vtk-view"] .view')
+      .dblclick();
+    await layout.openViewActions(0);
+    await layout.expectMenuItemDisabled('Split side by side', false);
+    await layout.expectMenuItemDisabled('Maximize view');
+  });
+
+  test('maximizes and restores a view from its view actions', async ({
+    page,
+    volview,
+    utils,
+    layout,
+  }) => {
+    const { openSplitFixture } = createSplitHelpers({
+      page,
+      volview,
+      utils,
+      layout,
+    });
+    await openSplitFixture();
+    await layout.viewAction(1, 'Maximize view');
+    await layout.waitForPaneCount(1);
+    await layout.viewAction(0, 'Restore view');
+    await layout.waitForPaneCount(2);
   });
 
   test('starts a picked named layout over with fresh views of the image', async ({

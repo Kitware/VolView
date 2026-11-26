@@ -140,11 +140,6 @@ export const useViewStore = defineStore('view', () => {
   );
 
   const isActiveViewMaximized = ref(false);
-  const maximizedView = computed(() => {
-    if (activeView.value && isActiveViewMaximized.value)
-      return viewByID[activeView.value];
-    return undefined;
-  });
 
   const availableViewsForSwitcher = computed(() => {
     const allViews = getAvailableViews();
@@ -159,6 +154,17 @@ export const useViewStore = defineStore('view', () => {
       viewByID[id] ? [viewByID[id]] : []
     )
   );
+
+  // A lone view has nothing to hide, so it never counts as maximized.
+  const maximizedView = computed(() => {
+    if (
+      activeView.value &&
+      isActiveViewMaximized.value &&
+      layoutViews.value.length > 1
+    )
+      return viewByID[activeView.value];
+    return undefined;
+  });
 
   const visibleViews = computed(() => {
     if (maximizedView.value) return [maximizedView.value];

@@ -21,6 +21,10 @@ const { width, height } = useElementSize(pane, undefined, {
   box: 'border-box',
 });
 
+const isMaximized = computed(
+  () => viewStore.maximizedView?.id === props.viewId
+);
+
 const splitReasons = computed(() => {
   if (viewStore.maximizedView) {
     const restore = 'Restore the view to split it';
@@ -37,14 +41,19 @@ const splitReasons = computed(() => {
         : '',
   };
 });
-const closeReason = computed(() =>
-  viewStore.layoutViews.length <= 1 ? 'Keep at least one view open' : ''
+const singleViewReason = computed(() =>
+  viewStore.layoutViews.length <= 1 ? 'This is the only open view' : ''
 );
 
 function split(direction: LayoutDirection) {
   if (!splitReasons.value[direction]) {
     viewStore.splitView(props.viewId, direction);
   }
+}
+
+function toggleMaximized() {
+  viewStore.setActiveView(props.viewId);
+  viewStore.toggleActiveViewMaximized();
 }
 </script>
 
@@ -58,14 +67,12 @@ function split(direction: LayoutDirection) {
           size="x-small"
           variant="text"
           class="pointer-events-all"
-          aria-label="Split or close view"
+          aria-label="View actions"
           @click.stop
           @dblclick.stop
         >
           <v-icon size="small" :icon="sideBySideIcon" />
-          <v-tooltip activator="parent" location="top"
-            >Split or close view</v-tooltip
-          >
+          <v-tooltip activator="parent" location="top">View actions</v-tooltip>
         </v-btn>
       </template>
       <v-list density="compact" aria-label="View actions">
@@ -90,7 +97,21 @@ function split(direction: LayoutDirection) {
           />
         </ReasonedAction>
         <v-divider />
-        <ReasonedAction :reason="closeReason" block v-slot="{ disabled }">
+        <ReasonedAction
+          :reason="isMaximized ? '' : singleViewReason"
+          block
+          v-slot="{ disabled }"
+        >
+          <v-list-item
+            :prepend-icon="
+              isMaximized ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'
+            "
+            :title="isMaximized ? 'Restore view' : 'Maximize view'"
+            :disabled="disabled"
+            @click="toggleMaximized"
+          />
+        </ReasonedAction>
+        <ReasonedAction :reason="singleViewReason" block v-slot="{ disabled }">
           <v-list-item
             prepend-icon="mdi-close"
             title="Close view"
