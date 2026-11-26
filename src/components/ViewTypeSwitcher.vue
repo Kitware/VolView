@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { getEnFaceUnavailableReason } from '@/src/enface/availability';
 import ViewLayoutActions from '@/src/components/ViewLayoutActions.vue';
+import ViewMoveHandle from '@/src/components/ViewMoveHandle.vue';
 import { useViewStore } from '@/src/store/views';
 import { Maybe } from '@/src/types';
 import { computed, toRefs } from 'vue';
@@ -64,6 +65,7 @@ function updateView(newViewName: string) {
       </template>
     </v-select>
     <ViewLayoutActions :view-id="viewId" />
+    <ViewMoveHandle :view-id="viewId" />
   </div>
 </template>
 

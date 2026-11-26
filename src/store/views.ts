@@ -28,9 +28,11 @@ import { isRecord } from '@/src/utils';
 import {
   layoutViewIds,
   mapLayoutLeaves,
+  moveLayoutView,
   removeLayoutView,
   replaceLayoutView,
   sameLayoutShape,
+  type DropZone,
   splitLayoutView,
 } from '@/src/utils/layoutEditing';
 
@@ -286,6 +288,12 @@ export const useViewStore = defineStore('view', () => {
     layout.value = nextLayout;
   }
 
+  function moveView(id: string, targetId: string, zone: DropZone) {
+    if (id === targetId || !isInLayout(id) || !isInLayout(targetId)) return;
+    commitLayout(moveLayoutView(layout.value, id, targetId, zone));
+    setActiveView(id);
+  }
+
   function closeView(id: string) {
     if (layoutViews.value.length <= 1 || !isInLayout(id)) return false;
     commitLayout(removeLayoutView(layout.value, id));
@@ -463,6 +471,7 @@ export const useViewStore = defineStore('view', () => {
     getView,
     splitView,
     closeView,
+    moveView,
     resizeLayout,
     getAllViews,
     getViewsForData,

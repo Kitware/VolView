@@ -82,34 +82,46 @@ const collapseRoot = (layout: Layout): Layout => {
   return collapseRoot(omit(only, 'type'));
 };
 
-export function splitLayoutView(
+function insertBeside(
   layout: Layout,
-  viewId: string,
-  newViewId: string,
-  direction: LayoutDirection
+  targetId: string,
+  added: ViewLeaf,
+  edge: DropEdge
 ): Layout {
-  const added: ViewLeaf = { type: 'view', viewId: newViewId };
-  const splitIn = (tree: Layout): Layout => {
+  const direction = edge === 'left' || edge === 'right' ? 'row' : 'column';
+  const before = edge === 'left' || edge === 'top';
+  const insertIn = (tree: Layout): Layout => {
     const shares = groupShares(tree);
     return sharedGroup(
       tree.direction,
       tree.items.flatMap((item, index): Shared[] => {
         const share = shares[index];
         if (item.type === 'layout')
-          return [[{ type: 'layout', ...splitIn(item) }, share]];
-        if (item.viewId !== viewId) return [[item, share]];
+          return [[{ type: 'layout', ...insertIn(item) }, share]];
+        if (item.viewId !== targetId) return [[item, share]];
+        const pair = before ? [added, item] : [item, added];
         // A sibling keeps each divider between exactly two neighbors.
         if (tree.direction === direction)
-          return [
-            [item, share / 2],
-            [added, share / 2],
-          ];
-        return [[{ type: 'layout', direction, items: [item, added] }, share]];
+          return pair.map((leaf): Shared => [leaf, share / 2]);
+        return [[{ type: 'layout', direction, items: pair }, share]];
       })
     );
   };
-  return collapseRoot(splitIn(layout));
+  return collapseRoot(insertIn(layout));
 }
+
+export const splitLayoutView = (
+  layout: Layout,
+  viewId: string,
+  newViewId: string,
+  direction: LayoutDirection
+) =>
+  insertBeside(
+    layout,
+    viewId,
+    { type: 'view', viewId: newViewId },
+    direction === 'row' ? 'right' : 'bottom'
+  );
 
 // A group left with one item is replaced by it, merging into a parent of the
 // same direction with its shares scaled to the group's share.
@@ -165,6 +177,33 @@ export function replaceLayoutView(
 ): Layout {
   return mapLayoutLeaves(layout, (leaf) =>
     leaf.viewId === viewId ? { type: 'view', viewId: nextViewId } : leaf
+  );
+}
+
+export const swapLayoutViews = (layout: Layout, a: string, b: string) =>
+  mapLayoutLeaves(layout, (leaf): ViewLeaf => {
+    if (leaf.viewId === a) return { type: 'view', viewId: b };
+    if (leaf.viewId === b) return { type: 'view', viewId: a };
+    return leaf;
+  });
+
+export type DropEdge = 'left' | 'right' | 'top' | 'bottom';
+/** Where a dragged view lands on a target pane: beside an edge, or swapped. */
+export type DropZone = DropEdge | 'center';
+
+export function moveLayoutView(
+  layout: Layout,
+  viewId: string,
+  targetId: string,
+  zone: DropZone
+): Layout {
+  if (viewId === targetId) return layout;
+  if (zone === 'center') return swapLayoutViews(layout, viewId, targetId);
+  return insertBeside(
+    removeLayoutView(layout, viewId),
+    targetId,
+    { type: 'view', viewId },
+    zone
   );
 }
 
@@ -421,6 +460,55 @@ export function moveLayoutDividers(
     (next, divider) => placeDivider(next, divider, clamped),
     layout
   );
+}
+
+const DOCK_EDGE_FRACTION = 0.25;
+
+/**
+ * The drop zone under a point in a pane, both in layout percent. Edges dock
+ * only where the target can split without going below MIN_PANE_SIZE.
+ */
+export function pickDropZone(
+  pane: Bounds,
+  point: { x: number; y: number },
+  container: Size
+): DropZone {
+  const x = (point.x - pane.left) / pane.width;
+  const y = (point.y - pane.top) / pane.height;
+  const fits = {
+    row: (pane.width / 100) * container.width >= 2 * MIN_PANE_SIZE.width,
+    column: (pane.height / 100) * container.height >= 2 * MIN_PANE_SIZE.height,
+  };
+  const edges = [
+    { zone: 'left', distance: x, direction: 'row' },
+    { zone: 'right', distance: 1 - x, direction: 'row' },
+    { zone: 'top', distance: y, direction: 'column' },
+    { zone: 'bottom', distance: 1 - y, direction: 'column' },
+  ] as const;
+  const nearest = edges
+    .filter(
+      ({ distance, direction }) =>
+        fits[direction] && distance < DOCK_EDGE_FRACTION
+    )
+    .sort((a, b) => a.distance - b.distance)[0];
+  return nearest?.zone ?? 'center';
+}
+
+/** The part of the target pane a dropped view will take. */
+export function dropZoneBounds(pane: Bounds, zone: DropZone): Bounds {
+  const half = { width: pane.width / 2, height: pane.height / 2 };
+  switch (zone) {
+    case 'left':
+      return { ...pane, width: half.width };
+    case 'right':
+      return { ...pane, left: pane.left + half.width, width: half.width };
+    case 'top':
+      return { ...pane, height: half.height };
+    case 'bottom':
+      return { ...pane, top: pane.top + half.height, height: half.height };
+    default:
+      return pane;
+  }
 }
 
 /** Splits each divider's two neighbors evenly again. */

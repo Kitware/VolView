@@ -6,6 +6,7 @@ import {
   getLayoutDividers,
   getLayoutPanes,
   moveLayoutDividers,
+  moveLayoutView,
   removeLayoutView,
   replaceLayoutView,
   resetLayoutDividers,
@@ -122,6 +123,42 @@ describe('layout editing', () => {
         same
       )
     ).toBe(true);
+  });
+});
+
+describe('moving views', () => {
+  const fourUp = root(column(row(v('a'), v('b')), row(v('c'), v('d'))));
+
+  it('swaps two views on a center drop, keeping pane sizes in place', () => {
+    const layout = root(sized(row(v('a'), v('b')), [0.7, 0.3]));
+    expect(moveLayoutView(layout, 'a', 'b', 'center')).toEqual(
+      root(sized(row(v('b'), v('a')), [0.7, 0.3]))
+    );
+  });
+
+  it('docks a view beside the target edge, halving the target', () => {
+    expect(moveLayoutView(fourUp, 'a', 'd', 'left')).toEqual(
+      root(
+        column(v('b'), sized(row(v('c'), v('a'), v('d')), [0.5, 0.25, 0.25]))
+      )
+    );
+    expect(moveLayoutView(fourUp, 'a', 'd', 'bottom')).toEqual(
+      root(column(v('b'), row(v('c'), column(v('d'), v('a')))))
+    );
+  });
+
+  it('moves a view across its only sibling', () => {
+    const pair = root(row(v('a'), v('b')));
+    expect(moveLayoutView(pair, 'a', 'b', 'right')).toEqual(
+      root(row(v('b'), v('a')))
+    );
+    expect(moveLayoutView(pair, 'a', 'b', 'top')).toEqual(
+      root(column(v('a'), v('b')))
+    );
+  });
+
+  it('leaves the layout alone when dropped on itself', () => {
+    expect(moveLayoutView(fourUp, 'a', 'a', 'left')).toBe(fourUp);
   });
 });
 

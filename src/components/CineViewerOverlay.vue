@@ -6,6 +6,7 @@ import { useCineFrame } from '@/src/composables/useCineFrame';
 import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import ViewLayoutActions from '@/src/components/ViewLayoutActions.vue';
+import ViewMoveHandle from '@/src/components/ViewMoveHandle.vue';
 import PlayControls from '@/src/components/PlayControls.vue';
 
 type Props = {
@@ -50,6 +51,7 @@ const frameCount = computed(() => frameRange.value[1] + 1);
       >
         <play-controls :view-id="viewId" :image-id="imageId" />
         <ViewLayoutActions :view-id="viewId" />
+        <ViewMoveHandle :view-id="viewId" />
       </div>
     </template>
   </view-overlay-grid>
