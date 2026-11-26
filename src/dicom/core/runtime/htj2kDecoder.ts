@@ -4,6 +4,7 @@ import type { DecodedFrames } from '../pixels/htj2kFrames';
 import type { Htj2kWorker } from '../pixels/htj2k.worker';
 import {
   decodeNativeFrame,
+  frameFormats,
   nativeCapability,
   type NativePixelFormat,
 } from '../pixels/nativeFrame';
@@ -71,19 +72,19 @@ function checkShape(decoded: DecodedFrames, format: NativePixelFormat) {
     );
 }
 
-/** Interleaved samples of every frame, finished as native frames are. */
+/** Interleaved samples of every frame, each finished as a native frame is. */
 function toPixels(
   decoded: DecodedFrames,
-  format: NativePixelFormat,
-  frames: number,
+  formats: NativePixelFormat[],
   Target: VolumeBufferConstructor
 ): DecodedPixels {
-  checkShape(decoded, format);
-  const { columns, rows, samplesPerPixel: components } = format;
+  checkShape(decoded, formats[0]);
+  const frames = formats.length;
+  const { columns, rows, samplesPerPixel: components } = formats[0];
   const count = columns * rows * components;
   const frameLength = count * decoded.bytesPerSample;
   const data = new Target(count * frames);
-  const ranges = Array.from({ length: frames }, (_, frame) => {
+  const ranges = formats.map((format, frame) => {
     const { samples, range } = decodeNativeFrame(
       decoded.bytes.subarray(frame * frameLength),
       format,
@@ -125,6 +126,7 @@ export function createHtj2kDecoder(
       if ('declined' in capability) return capability;
       const { format, valueOffset } = capability;
       const frames = frameCount(instance.dataset);
+      const formats = frameFormats(format, instance.dataset, frames);
       return [
         {
           firstFrame: 0,
@@ -133,7 +135,7 @@ export function createHtj2kDecoder(
           decode: async (bytes, signal) => {
             const job = { value: ownedBytes(bytes), frameCount: frames };
             const decoded = await pool.run(job, signal);
-            return toPixels(decoded, format, frames, Target);
+            return toPixels(decoded, formats, Target);
           },
         },
       ];

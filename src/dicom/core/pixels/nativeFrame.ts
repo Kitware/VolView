@@ -2,10 +2,7 @@ import type { Instance } from '../instance/readInstance';
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
-import {
-  hasUniformModalityRescale,
-  readModalityRescale,
-} from '../metadata/modalityRescale';
+import { readModalityRescale } from '../metadata/modalityRescale';
 import { numberOr, trimDicomPadding } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
 import { indexFrames, shapeOf } from './frameIndex';
@@ -24,6 +21,7 @@ export type NativePixelFormat = Readonly<{
   highBit: number;
   signed: boolean;
   littleEndian: boolean;
+  /** The first frame's; `frameFormats` gives each frame its own. */
   rescaleSlope: number;
   rescaleIntercept: number;
 }>;
@@ -127,8 +125,6 @@ const declineFormat = (format: NativePixelFormat) =>
   declineRescale(format);
 
 function declineDataset(dataset: DicomDataset) {
-  if (!hasUniformModalityRescale(dataset))
-    return 'Frames with differing modality rescale';
   const element = dataset.elements.find(
     ({ tag, group }) =>
       UNREPRODUCED_ELEMENTS.has(tag) || isOverlayOrCurve(group)
@@ -142,8 +138,10 @@ function declineDataset(dataset: DicomDataset) {
 
 /**
  * Whether GDCM's output for this instance is reproduced exactly here. Every
- * declined case keeps the whole-instance GDCM decode. `decodedAs` gives the
- * format of the samples a codec hands back where it differs from the header's.
+ * declined case keeps the whole-instance GDCM decode. Frames that differ in
+ * modality rescale are the exception: GDCM gives an instance one transform,
+ * and each frame gets its own here. `decodedAs` gives the format of the
+ * samples a codec hands back where it differs from the header's.
  */
 export function nativeCapability(
   instance: Instance,
@@ -154,6 +152,17 @@ export function nativeCapability(
   const reason = declineFormat(format) ?? declineDataset(instance.dataset);
   return reason ? { kind: 'declined', reason } : { kind: 'native', format };
 }
+
+/** `format` for each frame, with the modality rescale that frame declares. */
+export const frameFormats = (
+  format: NativePixelFormat,
+  dataset: DicomDataset,
+  frames: number
+) =>
+  Array.from({ length: frames }, (_, frame) => ({
+    ...format,
+    ...readModalityRescale(dataset, frame),
+  }));
 
 const PLATFORM_LITTLE_ENDIAN =
   new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
@@ -231,12 +240,17 @@ export const nativeFrameDecoder: PixelDecoder = {
     if (index.kind === 'unindexed') return { declined: index.detail };
     const capability = nativeCapability(instance, index.littleEndian);
     if (capability.kind === 'declined') return { declined: capability.reason };
-    const { format } = capability;
+    const formats = frameFormats(
+      capability.format,
+      instance.dataset,
+      index.frames.length
+    );
     return index.frames.map((range, frame) => ({
       firstFrame: frame,
       frames: 1,
       range,
       decode: (bytes) => {
+        const format = formats[frame];
         const { samples, range: values } = decodeNativeFrame(
           bytes,
           format,

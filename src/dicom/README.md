@@ -57,7 +57,9 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
 - Decoders keep MONOCHROME1 stored values; displays invert them. GDCM
   inverts MONOCHROME1, so the GDCM decoder reflects its output back.
 - `nativeFrameDecoder` accepts only instances whose result is identical to
-  the GDCM decoder's. The default table sends other instances whole to GDCM in a worker,
+  the GDCM decoder's, but for frames that differ in modality rescale. It and
+  the HTJ2K decoder give each frame its own Pixel Value Transformation; GDCM
+  gives an instance one, so its decoder declines those. The default table sends other instances whole to GDCM in a worker,
   HTJ2K instances whole to OpenJPH in a worker, and fails JPIP, video and
   JPEG XL syntaxes as having no decoder. The HTJ2K decoder reads only the
   Pixel Data value and finishes samples as native frames are, so it declines
