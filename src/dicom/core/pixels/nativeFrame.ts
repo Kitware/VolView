@@ -142,13 +142,15 @@ function declineDataset(dataset: DicomDataset) {
 
 /**
  * Whether GDCM's output for this instance is reproduced exactly here. Every
- * declined case keeps the whole-instance GDCM decode.
+ * declined case keeps the whole-instance GDCM decode. `decodedAs` gives the
+ * format of the samples a codec hands back where it differs from the header's.
  */
 export function nativeCapability(
   instance: Instance,
-  littleEndian: boolean
+  littleEndian: boolean,
+  decodedAs = (format: NativePixelFormat) => format
 ): NativeCapability {
-  const format = readNativePixelFormat(instance, littleEndian);
+  const format = decodedAs(readNativePixelFormat(instance, littleEndian));
   const reason = declineFormat(format) ?? declineDataset(instance.dataset);
   return reason ? { kind: 'declined', reason } : { kind: 'native', format };
 }

@@ -61,7 +61,8 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   HTJ2K instances whole to OpenJPH in a worker, and fails JPIP, video and
   JPEG XL syntaxes as having no decoder. The HTJ2K decoder reads only the
   Pixel Data value and finishes samples as native frames are, so it declines
-  what `nativeFrameDecoder` declines.
+  what `nativeFrameDecoder` declines, except YBR_RCT and YBR_ICT colour,
+  which OpenJPH returns as RGB.
 
 ## Spacing
 
