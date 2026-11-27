@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { datasetFromTags, instanceFor } from '@/tests/dicomDataset';
 import {
@@ -203,6 +203,106 @@ describe('DicomVolumeImage loading', () => {
     await show(image, stack(9));
 
     expect(decoded).toEqual([7, 3, 5, 1, 6, 8, 4, 2, 0]);
+  });
+});
+
+/** Lets pending reads and decodes run, without the timers a test has faked. */
+const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+async function until(met: () => boolean) {
+  while (!met()) await turn();
+}
+
+describe('DicomVolumeImage announcements', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const SLICES = 4;
+
+  /**
+   * A load whose last decode is held, so it cannot finish and announce
+   * itself, at the point where every other slice has decoded, or failed to
+   * when `failFirst`, and waits for the timer. Later decodes wait for the
+   * same release.
+   */
+  async function heldLoad({ failFirst = false } = {}) {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const last = defer<void>();
+    const { decoder } = constantSlices();
+    let decodes = 0;
+    const held = holder(async (request, signal) => {
+      decodes += 1;
+      if (failFirst && decodes === 1) throw new Error('corrupt');
+      if (decodes >= SLICES) await last.promise;
+      return decoder(request, signal);
+    });
+    const statuses: string[] = [];
+    held.image.addEventListener('status', (status) => statuses.push(status));
+    const volume = stack(SLICES);
+    held.image.setVolume(volume);
+    held.image.startLoad();
+    // The failure is yielded ahead of the slices that decode after it.
+    const decoded = SLICES - 1 - (failFirst ? 1 : 0);
+    await until(
+      () => volume.loaded.filter((isLoaded) => isLoaded).length === decoded
+    );
+    return { ...held, statuses, release: () => last.resolve() };
+  }
+
+  const slicesOf = (extents: Extent[]) =>
+    extents.map((extent) => extent[4]).sort();
+
+  it('announces slices that decode between two timer ticks together', async () => {
+    const { image, extents, statuses, release } = await heldLoad();
+
+    expect(extents).toEqual([]);
+    vi.runOnlyPendingTimers();
+    expect(extents).toHaveLength(SLICES - 1);
+    expect(image.isLoaded()).toBe(false);
+
+    release();
+    await idle(image);
+
+    expect(slicesOf(extents)).toEqual([0, 1, 2, 3]);
+    expect(image.isLoaded()).toBe(true);
+    expect(statuses).toEqual(['complete']);
+    expect(scalarRange(image)).toEqual([0, 3]);
+  });
+
+  it('announces slices decoded before a stop, which the next load does not decode again', async () => {
+    const { image, extents, release } = await heldLoad();
+
+    image.stopLoad();
+    image.startLoad();
+    release();
+    await idle(image);
+
+    expect(slicesOf(extents)).toEqual([0, 1, 2, 3]);
+    expect(scalarRange(image)).toEqual([0, 3]);
+    expect(image.isLoaded()).toBe(true);
+  });
+
+  it('drops the slices and errors a replaced volume had yet to announce', async () => {
+    const { image, extents, errors, release } = await heldLoad({
+      failFirst: true,
+    });
+
+    image.setVolume(volumeOf([sliceAt(7), sliceAt(8)]));
+    vi.runOnlyPendingTimers();
+    await turn();
+    expect({ extents, errors }).toEqual({ extents: [], errors: [] });
+
+    image.startLoad();
+    release();
+    await idle(image);
+
+    expect(errors).toEqual([]);
+    expect(slicesOf(extents)).toEqual([0, 1]);
+    expect([0, 1].map((slice) => sliceOf(image, slice))).toEqual([
+      filledWith(7),
+      filledWith(8),
+    ]);
+    expect(scalarRange(image)).toEqual([7, 8]);
+    expect(image.isLoaded()).toBe(true);
   });
 });
 

@@ -38,6 +38,8 @@ import { useDicomRuntimeStore } from '@/src/store/dicom-runtime';
 import { ensureError } from '@/src/utils';
 import { abortError } from '@/src/dicom/core/utils';
 
+const ANNOUNCE_INTERVAL_MS = 30;
+
 type DicomVolumeImageEvents = ProgressiveImageEvents & {
   /** A decoded region of the current image, as an inclusive extent. */
   extentLoaded: Extent;
@@ -341,10 +343,27 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
       signal,
       focus: () => this.init.focus?.() ?? middleSlot(volume),
     });
-    for await (const update of updates) {
-      // An update yielded just before the abort still reaches this body.
-      if (signal.aborted) return;
-      this.onUpdate(content, image, update);
+    // Slices that finish close together are announced together, since each
+    // announcement can cost every view a texture upload.
+    const pending: VolumeUpdate[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const announce = () => {
+      clearTimeout(timer);
+      timer = undefined;
+      const batch = pending.splice(0);
+      // A replaced volume's slices and errors are not the new one's.
+      if (this.vtkImageData.value !== image) return;
+      batch.forEach((update) => this.onUpdate(content, image, update));
+    };
+    try {
+      for await (const update of updates) {
+        pending.push(update);
+        timer ??= setTimeout(announce, ANNOUNCE_INTERVAL_MS);
+      }
+    } finally {
+      // A yielded slice is marked loaded and is never decoded again, so it is
+      // announced even when the load was stopped before its turn.
+      announce();
     }
   }
 
