@@ -71,14 +71,16 @@ both boundaries.
   are looked up, segmented tables included, with 8 bit pixels taking the
   high byte of a 16 bit entry. The JPEG codec converts the YBR it holds, and
   the JPEG 2000 and HTJ2K codecs undo YBR_RCT and YBR_ICT.
-- 16 and 32 bit words are masked to Bits Stored and sign extended from it.
-  An 8 bit word keeps all its bits, and High Bit is not consulted. Samples
-  of 1 or 12 bits allocated are packed across bytes, and big endian 8 bit
-  samples are paired into 16 bit words, so instances whose frames share a
-  byte or a word are read whole. One sample per pixel with any photometric
-  interpretation but PALETTE COLOR is grayscale.
-- The Modality LUT Sequence, overlay planes and ICC profiles are not
-  applied.
+- Samples are masked to Bits Stored and sign extended from it at every
+  width. High Bit is not consulted. Samples of 1 or 12 bits allocated are
+  packed across bytes, and big endian samples under 16 bits may be paired
+  into 16 bit words, so instances whose frames share a byte or a word are
+  read whole. One sample per pixel with any photometric interpretation but
+  PALETTE COLOR is grayscale.
+- Grayscale goes through a Modality LUT Sequence in place of the rescale
+  when the instance has one. X-Ray Angiographic and Radiofluoroscopic images
+  are the exception: their stored values are the ones to display. Overlay
+  planes and ICC profiles are not applied.
 - A codestream of 8 bits or fewer is widened where the header allocates 16.
   A JPEG 2000 or HTJ2K codestream holding more bits than Bits Stored keeps
   them; other codestreams are masked to Bits Stored.

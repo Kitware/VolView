@@ -717,7 +717,7 @@
       "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
       "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
       "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
-      "quirk": "CR, MONOCHROME1, bare implicit VR data set with a Modality LUT Sequence",
+      "quirk": "CR, MONOCHROME1, bare implicit VR data set whose Modality LUT Sequence maps stored values to optical density",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.1",
         "modality": "CR",
@@ -744,10 +744,10 @@
         },
         "volume": {
           "dimensions": [1792, 2392, 1],
-          "range": [214.0, 4087.0],
+          "range": [0.0, 4095.0],
           "pixels": {
             "kind": "hash",
-            "value": "03ecc60dc8653ebdff896436ccba3e786f226bd57638d778e42c79dc3c487be1"
+            "value": "5d5f1fc0f6bc994b8c5f503568e35e7e3429378ef13babe0bd86c6ba2ed14b40"
           },
           "spacing": [0.097, 0.097]
         },

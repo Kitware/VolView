@@ -59,31 +59,24 @@ const joinFragments = (fragments: readonly Fragment[]) =>
     ? fragments[0].bytes
     : concatBytes(fragments.map(({ bytes }) => bytes));
 
+/**
+ * The frames a Basic Offset Table marks, or undefined when its entries do not
+ * each start a fragment, in order, from the first.
+ */
 function framesFromOffsets(fragments: readonly Fragment[], offsets: number[]) {
   const indexAt = new Map(
     fragments.map((fragment, index) => [fragment.offset, index])
   );
-  const starts = offsets.map((offset, frame) => {
-    const index = indexAt.get(offset);
-    if (index === undefined)
-      throw malformed(
-        `Basic Offset Table entry ${frame} (${offset}) starts no fragment`
-      );
-    return index;
-  });
-  if (starts[0] !== 0)
-    throw malformed(
-      `Basic Offset Table entry 0 (${offsets[0]}) skips the first fragment`
-    );
-  return starts.map((start, frame) => {
-    const end =
-      frame + 1 < starts.length ? starts[frame + 1] : fragments.length;
-    if (end <= start)
-      throw malformed(
-        `Basic Offset Table entry ${frame + 1} does not increase`
-      );
-    return fragments.slice(start, end);
-  });
+  const starts = offsets.flatMap((offset) => indexAt.get(offset) ?? []);
+  const fits =
+    starts.length === offsets.length &&
+    starts[0] === 0 &&
+    starts.every((start, frame) => frame === 0 || start > starts[frame - 1]);
+  return fits
+    ? starts.map((start, frame) =>
+        fragments.slice(start, starts[frame + 1] ?? fragments.length)
+      )
+    : undefined;
 }
 
 const endsWithEoi = (bytes: Uint8Array) =>
@@ -106,10 +99,11 @@ const framesAtJpegEnds = (fragments: readonly Fragment[]) =>
 
 /**
  * Cuts an encapsulated Pixel Data value (the bytes after its element head)
- * into `frameCount` frames. The first item is the Basic Offset Table; its
- * offsets decide when it has one per frame. Otherwise one fragment per frame
- * when the counts match. Otherwise a frame ends at each fragment ending in a
- * JPEG End Of Image marker, so that last rule holds only for JPEG codecs.
+ * into `frameCount` frames. One fragment is one frame when the counts match,
+ * whatever the Basic Offset Table in the first item says. Otherwise the
+ * table decides when it has an entry per frame and each starts a fragment.
+ * Otherwise a frame ends at each fragment ending in a JPEG End Of Image
+ * marker, so that last rule holds only for JPEG codecs.
  * A frame of one fragment is a view into `value`; a frame of several is a copy.
  */
 export function splitEncapsulatedFrames(value: Uint8Array, frameCount: number) {
@@ -123,11 +117,11 @@ export function splitEncapsulatedFrames(value: Uint8Array, frameCount: number) {
   }));
   const offsets = readOffsetTable(table.bytes);
   const frames =
-    offsets.length === frameCount
-      ? framesFromOffsets(fragments, offsets)
-      : fragments.length === frameCount
-        ? fragments.map((fragment) => [fragment])
-        : framesAtJpegEnds(fragments);
+    fragments.length === frameCount
+      ? fragments.map((fragment) => [fragment])
+      : (offsets.length === frameCount &&
+          framesFromOffsets(fragments, offsets)) ||
+        framesAtJpegEnds(fragments);
   if (frames.length !== frameCount)
     throw malformed(
       `found ${frames.length} frames in ${fragments.length} fragments; the header declares ${frameCount}`

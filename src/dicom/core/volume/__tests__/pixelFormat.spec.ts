@@ -265,7 +265,65 @@ describe('getVolumeBufferType', () => {
   });
 });
 
+const LUT_DESCRIPTOR = '00283002';
+const LUT_DATA = '00283006';
+const TABLE_ITEM = { [LUT_DESCRIPTOR]: '4096\\0\\16', [LUT_DATA]: '0' };
+
 describe('instancePixelFormats', () => {
+  it.each([
+    [
+      'holds the 16 bit values of an applied table',
+      {},
+      TABLE_ITEM,
+      Uint16Array,
+    ],
+    [
+      'holds unsigned table values for signed pixels',
+      { [Tags.BitsStored]: '12', [Tags.PixelRepresentation]: '1' },
+      TABLE_ITEM,
+      Uint16Array,
+    ],
+    [
+      'holds stored values for X-Ray Angiographic, which leaves the table unapplied',
+      { '00080016': '1.2.840.10008.5.1.4.1.1.12.1' },
+      TABLE_ITEM,
+      Uint8Array,
+    ],
+    [
+      'holds stored values for color',
+      { [Tags.SamplesPerPixel]: '3' },
+      TABLE_ITEM,
+      Uint8Array,
+    ],
+    [
+      'holds rescaled values where the item has no LUT Descriptor',
+      { [Tags.RescaleIntercept]: '-128' },
+      { [LUT_DATA]: TABLE_ITEM[LUT_DATA] },
+      Int8Array,
+    ],
+    [
+      'holds rescaled values where the item has no LUT Data',
+      { [Tags.RescaleIntercept]: '-128' },
+      { [LUT_DESCRIPTOR]: TABLE_ITEM[LUT_DESCRIPTOR] },
+      Int8Array,
+    ],
+  ])('given a Modality LUT Sequence, %s', (_name, root, lut, Buffer) => {
+    const header = datasetFromTags(
+      Object.entries({
+        [Tags.BitsStored]: '8',
+        [Tags.PixelRepresentation]: '0',
+        ...root,
+      })
+    );
+    const item = datasetFromTags(Object.entries(lut));
+    const metadata = {
+      ...header,
+      elements: [...header.elements, sequence('00283000', [item])],
+    };
+
+    expect(getVolumeBufferType(instancePixelFormats(metadata))).toBe(Buffer);
+  });
+
   it.each([
     ['color, which has no rescale', '3', Uint8Array],
     ['grayscale, which its rescale makes signed', '1', Int8Array],

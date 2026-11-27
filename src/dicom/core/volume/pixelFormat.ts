@@ -2,6 +2,7 @@ import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
 import { getFrameTag, perFrameGroups } from '../metadata/functionalGroups';
+import { modalityLutBits } from '../metadata/modalityLut';
 import { readModalityRescale } from '../metadata/modalityRescale';
 import { frameCount } from '../pixels/pixelDecoder';
 import { numberOr, trimDicomPadding } from '../utils';
@@ -115,6 +116,14 @@ export function getPixelFormat(
     };
   // The Modality LUT module belongs to grayscale; color has no rescale.
   const color = numberOr(valueOf(Tags.SamplesPerPixel), 1) > 1;
+  const tableBits = color ? undefined : modalityLutBits(metadata);
+  if (tableBits)
+    return {
+      bitsStored: tableBits,
+      pixelRepresentation: 0,
+      rescaleSlope: 1,
+      rescaleIntercept: 0,
+    };
   return {
     bitsStored: numberOr(valueOf(Tags.BitsStored), 0),
     pixelRepresentation: numberOr(valueOf(Tags.PixelRepresentation), 0),

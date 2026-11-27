@@ -18,6 +18,14 @@ const DELIMITER = Uint8Array.from([0xfe, 0xff, 0xdd, 0xe0, 0, 0, 0, 0]);
 const concat = (...parts: Uint8Array[]) =>
   Uint8Array.from(parts.flatMap((part) => [...part]));
 
+/** A delimited value whose Basic Offset Table holds exactly `offsets`. */
+const withTable = (offsets: number[], ...fragments: Uint8Array[]) =>
+  concat(
+    sequenceItem(new Uint8Array(Uint32Array.from(offsets).buffer)),
+    ...fragments.map(sequenceItem),
+    DELIMITER
+  );
+
 describe('splitEncapsulatedFrames', () => {
   it('takes frames where a populated offset table says they start', () => {
     const frames = [
@@ -152,25 +160,9 @@ describe('splitEncapsulatedFrames', () => {
       /Basic Offset Table holds 2 bytes/,
     ],
     [
-      'an offset that starts no fragment',
-      concat(
-        sequenceItem(Uint8Array.from([0, 0, 0, 0, 3, 0, 0, 0])),
-        sequenceItem(jpeg(1)),
-        sequenceItem(jpeg(2)),
-        DELIMITER
-      ),
-      /entry 1 \(3\) starts no fragment/,
-    ],
-    [
-      'an offset table that skips the first fragment',
-      concat(
-        sequenceItem(Uint8Array.from([13, 0, 0, 0, 26, 0, 0, 0])),
-        sequenceItem(jpeg(1)),
-        sequenceItem(jpeg(2)),
-        sequenceItem(jpeg(3)),
-        DELIMITER
-      ),
-      /^Malformed encapsulated Pixel Data: Basic Offset Table entry 0 \(13\) skips the first fragment$/,
+      'a table that skips the first fragment, with no End Of Image to go by',
+      withTable([13, 26], jpeg(1), jpeg(2), jpeg(3)),
+      /found 3 frames in 3 fragments; the header declares 2/,
     ],
     ['no offset table item', DELIMITER, /no Basic Offset Table/],
     [
@@ -180,6 +172,55 @@ describe('splitEncapsulatedFrames', () => {
     ],
   ])('rejects %s', (_name, value, error) => {
     expect(() => splitEncapsulatedFrames(value, 2)).toThrow(error);
+  });
+
+  // Fragments of two frames, each cut in two.
+  const FIRST = jpeg(1, 1);
+  const SECOND = jpeg(2, 2);
+  const HALVES = [
+    FIRST.subarray(0, 2),
+    FIRST.subarray(2),
+    SECOND.subarray(0, 2),
+    SECOND.subarray(2),
+  ];
+  // Its first fragment ends like a JPEG image, which only the table overrules.
+  const LOOKALIKE = [
+    Uint8Array.of(1, 1, 0xff, 0xd9),
+    Uint8Array.of(2, 2),
+    Uint8Array.of(3, 3),
+  ];
+
+  it.each([
+    [
+      'one fragment each when the counts match, whatever a wrong table says',
+      withTable([0, 3], jpeg(1), jpeg(2)),
+      [[...jpeg(1)], [...jpeg(2)]],
+    ],
+    [
+      'End Of Image markers when a table entry starts no fragment',
+      withTable([0, 3], ...HALVES),
+      [[...FIRST], [...SECOND]],
+    ],
+    [
+      'End Of Image markers when the table entries run backwards',
+      withTable([20, 0], ...HALVES),
+      [[...FIRST], [...SECOND]],
+    ],
+    [
+      'End Of Image markers when the table has an entry too few',
+      withTable([0], ...HALVES),
+      [[...FIRST], [...SECOND]],
+    ],
+    [
+      'a table whose entries each start a fragment, past an End Of Image inside a frame',
+      withTable([0, 22], ...LOOKALIKE),
+      [
+        [1, 1, 0xff, 0xd9, 2, 2],
+        [3, 3],
+      ],
+    ],
+  ])('frames by %s', (_name, value, frames) => {
+    expect(bytesOf(splitEncapsulatedFrames(value, 2))).toEqual(frames);
   });
 
   it('rejects fragments that do not make the declared frame count', () => {

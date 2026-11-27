@@ -3,6 +3,7 @@ import { EXPLICIT_VR_BIG_ENDIAN } from '../metadata/dicomLayout';
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
+import { readModalityLut, type ModalityLut } from '../metadata/modalityLut';
 import { readModalityRescale } from '../metadata/modalityRescale';
 import { numberOr } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
@@ -33,13 +34,15 @@ export type NativePixelFormat = Readonly<{
   bitsStored: number;
   signed: boolean;
   littleEndian: boolean;
-  /** 8 bit samples held in 16 bit words, which a big endian file swaps. */
+  /** Samples of under 16 bits held in 16 bit words, which a big endian file swaps. */
   swappedPairs?: boolean;
   /** The first frame's; `frameFormats` gives each frame its own. */
   rescaleSlope: number;
   rescaleIntercept: number;
   /** The lookup that gives PALETTE COLOR values their color. */
   palette?: Palette;
+  /** The table grayscale values go through in place of the rescale. */
+  modalityLut?: ModalityLut;
 }>;
 
 type NativeCapability =
@@ -69,7 +72,7 @@ function readNativePixelFormat(
     signed: number(dataset, Tags.PixelRepresentation) === 1,
     littleEndian,
     swappedPairs:
-      !littleEndian && bitsAllocated === 8 && instance.pixelData?.vr === 'OW',
+      !littleEndian && bitsAllocated < 16 && instance.pixelData?.vr === 'OW',
     ...readModalityRescale(dataset),
   };
 }
@@ -113,8 +116,11 @@ export function nativeCapability(
   const format = decodedAs(readNativePixelFormat(instance, littleEndian));
   const reason = declineFormat(format);
   if (reason) return { kind: 'declined', reason };
-  if (format.photometricInterpretation !== 'PALETTE COLOR')
-    return { kind: 'native', format };
+  if (format.samplesPerPixel > 1) return { kind: 'native', format };
+  if (format.photometricInterpretation !== 'PALETTE COLOR') {
+    const modalityLut = readModalityLut(instance.dataset, littleEndian);
+    return { kind: 'native', format: { ...format, modalityLut } };
+  }
   const palette = readPalette(instance.dataset, littleEndian);
   return 'missing' in palette
     ? { kind: 'declined', reason: palette.missing }
@@ -169,12 +175,12 @@ function plainSamples(
 ) {
   const { rows, columns, samplesPerPixel: components, planar } = format;
   const { bitsAllocated, signed } = format;
-  // A byte keeps the bits above Bits Stored, as GDCM kept them, so files that
-  // understate Bits Stored still load whole.
-  const bitsStored = bitsAllocated === 8 ? 8 : format.bitsStored;
+  const { bitsStored } = format;
   // The Modality LUT module belongs to grayscale; color has no rescale.
   const [slope, intercept] =
     components === 1 ? [format.rescaleSlope, format.rescaleIntercept] : [1, 0];
+  const table = components === 1 ? format.modalityLut : undefined;
+  const last = table ? table.values.length - 1 : 0;
   const pixels = rows * columns;
   const count = pixels * components;
   const words = storedWords(bytes, format, count);
@@ -190,7 +196,11 @@ function plainSamples(
     for (let pixel = 0; pixel < pixels; pixel += 1) {
       // The unsigned shift undoes the sign a full 32 bit mask leaves.
       const word = (words[first + pixel * stride] & mask) >>> 0;
-      const value = (word >= signBit ? word - wrap : word) * slope + intercept;
+      const stored = word >= signBit ? word - wrap : word;
+      // Values outside the table take its first or last entry.
+      const value = table
+        ? table.values[Math.min(Math.max(stored - table.firstMapped, 0), last)]
+        : stored * slope + intercept;
       samples[pixel * components + component] = value;
       if (value < low) low = value;
       if (value > high) high = value;
@@ -212,7 +222,13 @@ const asRgb = (format: NativePixelFormat): NativePixelFormat => ({
 const paletteIndexes = (bytes: Uint8Array, format: NativePixelFormat) =>
   plainSamples(
     bytes,
-    { ...format, palette: undefined, rescaleSlope: 1, rescaleIntercept: 0 },
+    {
+      ...format,
+      palette: undefined,
+      modalityLut: undefined,
+      rescaleSlope: 1,
+      rescaleIntercept: 0,
+    },
     Int32Array
   ).samples;
 
@@ -316,6 +332,13 @@ export function decodeNativeFrames(
   Target: VolumeBufferConstructor
 ): DecodedPixels {
   const { columns, rows, bitsAllocated, samplesPerPixel } = formats[0];
+  // The words pair bytes from the start of Pixel Data, not of each frame.
+  if (formats[0].swappedPairs)
+    return decodeNativeFrames(
+      swapPairs(bytes),
+      formats.map((format) => ({ ...format, swappedPairs: false })),
+      Target
+    );
   if (isPacked(bitsAllocated)) {
     const samples = columns * rows * samplesPerPixel * formats.length;
     const whole = Math.ceil(bitsAllocated / 8) * 8;
@@ -329,13 +352,6 @@ export function decodeNativeFrames(
       Target
     );
   }
-  // The words pair bytes from the start of Pixel Data, not of each frame.
-  if (formats[0].swappedPairs)
-    return decodeNativeFrames(
-      swapPairs(bytes),
-      formats.map((format) => ({ ...format, swappedPairs: false })),
-      Target
-    );
   const components = decodedComponents(formats[0]);
   const count = columns * rows * components;
   const frameLength = frameByteLength(formats[0]);
@@ -377,8 +393,6 @@ function sharedBytesUnit(instance: Instance, Target: VolumeBufferConstructor) {
   const { format } = capability;
   const oddPairs = format.swappedPairs && frameByteLength(format) % 2 === 1;
   if (!packed && !oddPairs) return undefined;
-  if (packed && !format.littleEndian)
-    return { declined: 'Big endian samples packed across bytes' };
   const frames = frameCount(dataset);
   const formats = frameFormats(format, dataset, frames);
   const start = pixelData.valueOffset;

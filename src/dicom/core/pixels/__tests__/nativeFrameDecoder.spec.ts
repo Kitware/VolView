@@ -9,6 +9,7 @@ import {
 } from '@/tests/nativePixelDicom';
 import {
   instanceOf,
+  modalityLutElement,
   paletteElements,
   pixelInstance,
   withNumber,
@@ -19,8 +20,8 @@ import {
 const element = (
   tag: number,
   vr: string,
-  value: string | number[] | Uint8Array
-) => ({ tag, vr, value }) as DataElement;
+  value: DataElement['value']
+): DataElement => ({ tag, vr, value });
 
 describe('nativeCapability', () => {
   it.each([
@@ -218,9 +219,9 @@ describe('nativeFrameDecoder', () => {
       [171, 171, 171, 205, 205, 205],
     ],
     [
-      '8 bit words whole, keeping the bits above Bits Stored',
-      { bitsAllocated: 8, bitsStored: 6, words: [0xff, 0x3f] },
-      [0xff, 0x3f],
+      '8 bit words masked to Bits Stored',
+      { bitsAllocated: 8, bitsStored: 6, words: [0xff, 0x41] },
+      [0x3f, 0x01],
     ],
     [
       '32 bit words masked to Bits Stored',
@@ -268,7 +269,7 @@ describe('nativeFrameDecoder', () => {
       [5, 6],
     ],
     [
-      'stored values beside a Modality LUT Sequence',
+      'stored values beside a Modality LUT Sequence of no items',
       { words: [5, 6], extra: [element(0x00283000, 'SQ', [])] },
       [5, 6],
     ],
@@ -302,6 +303,105 @@ describe('nativeFrameDecoder', () => {
 
     expect(Array.from(pixels.data)).toEqual(samples);
     expect(pixels.components).toBe(samples.length / (options.columns ?? 2));
+  });
+
+  const XA = '1.2.840.10008.5.1.4.1.1.12.1';
+  const RF = '1.2.840.10008.5.1.4.1.1.12.2';
+  const BIPLANE = '1.2.840.10008.5.1.4.1.1.12.3';
+  const TABLE = [1000, 2000, 3000];
+  const lut = modalityLutElement([3, 10, 16], wordBytes(TABLE));
+
+  it.each<[string, NativePixelOptions, number[]]>([
+    [
+      'maps grayscale through a table of little endian words',
+      { extra: [lut] },
+      [1000, 1000, 2000, 3000],
+    ],
+    [
+      'maps grayscale through a table of big endian words',
+      {
+        transferSyntaxUid: EXPLICIT_BE,
+        extra: [modalityLutElement([3, 10, 16], wordBytes(TABLE, false))],
+      },
+      [1000, 1000, 2000, 3000],
+    ],
+    [
+      'maps grayscale through a table held as numbers',
+      { extra: [modalityLutElement([3, 10, 16], TABLE)] },
+      [1000, 1000, 2000, 3000],
+    ],
+    [
+      'maps grayscale through a table of one byte an entry',
+      { extra: [modalityLutElement([3, 10, 8], Uint8Array.of(100, 150, 200))] },
+      [100, 100, 150, 200],
+    ],
+    [
+      'maps through the table in place of the rescale',
+      { rescale: [2, 5], extra: [lut] },
+      [1000, 1000, 2000, 3000],
+    ],
+    [
+      'leaves X-Ray Angiographic values as stored',
+      { sopClassUid: XA, extra: [lut] },
+      [9, 10, 11, 500],
+    ],
+    [
+      'leaves X-Ray Radiofluoroscopic values as stored',
+      { sopClassUid: RF, extra: [lut] },
+      [9, 10, 11, 500],
+    ],
+    [
+      'leaves retired biplane X-Ray values as stored',
+      { sopClassUid: BIPLANE, extra: [lut] },
+      [9, 10, 11, 500],
+    ],
+    [
+      'rescales as usual where the item has no LUT Descriptor',
+      {
+        rescale: [2, 5],
+        extra: [modalityLutElement(undefined, wordBytes(TABLE))],
+      },
+      [23, 25, 27, 1005],
+    ],
+    [
+      'rescales as usual where the item has no LUT Data',
+      { rescale: [2, 5], extra: [modalityLutElement([3, 10, 16], undefined)] },
+      [23, 25, 27, 1005],
+    ],
+    [
+      'reads a first mapped value past 0x7fff as negative for signed pixels',
+      {
+        transferSyntaxUid: IMPLICIT_LE,
+        pixelRepresentation: 1,
+        words: [0xffff, 0, 1, 2],
+        extra: [
+          modalityLutElement([3, 0xffff, 16], wordBytes([100, 200, 300])),
+        ],
+      },
+      [100, 200, 300, 300],
+    ],
+    [
+      'leaves color as stored',
+      {
+        columns: 1,
+        samplesPerPixel: 3,
+        bitsAllocated: 8,
+        words: [9, 10, 11],
+        extra: [lut],
+      },
+      [9, 10, 11],
+    ],
+  ])('%s, given a Modality LUT', async (_name, options, samples) => {
+    const { bytes, instance } = await pixelInstance({
+      rows: 1,
+      columns: 4,
+      words: [9, 10, 11, 500],
+      ...options,
+    });
+
+    const [{ pixels }] = await decodeUnits(instance, bytes);
+
+    expect(Array.from(pixels.data)).toEqual(samples);
   });
 
   it.each([
@@ -426,14 +526,19 @@ describe('nativeFrameDecoder', () => {
     expect(pixels.size).toEqual([5, 1, 2]);
   });
 
-  it('declines big endian samples packed across bytes', async () => {
-    const { instance } = await packedInstance(
-      { transferSyntaxUid: EXPLICIT_BE, frames: 2 },
+  it.each([
+    ['OB', [1, 0, 0, 1, 1, 0, 1, 1, 0, 1]],
+    // The two bytes are one 16 bit word, stored most significant byte first.
+    ['OW', [0, 1, 0, 0, 0, 0, 0, 0, 1, 0]],
+  ])('unpacks big endian 1 bit samples held as %s', async (vr, samples) => {
+    const { bytes, instance } = await packedInstance(
+      { transferSyntaxUid: EXPLICIT_BE, frames: 2, words: [0b11011001, 0b10] },
       ONE_BIT
     );
+    const held = { ...instance, pixelData: { ...instance.pixelData!, vr } };
 
-    expect(nativeFrameDecoder.plan(instance, Uint8Array)).toEqual({
-      declined: 'Big endian samples packed across bytes',
-    });
+    const [{ pixels }] = await decodeUnits(held, bytes);
+
+    expect(Array.from(pixels.data)).toEqual(samples);
   });
 });

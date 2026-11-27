@@ -25,7 +25,7 @@ from pathlib import Path
 import highdicom as hd
 import numpy as np
 import pydicom
-from pydicom.pixels import apply_color_lut
+from pydicom.pixels import apply_color_lut, apply_modality_lut
 from pydicom.uid import generate_uid
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -149,6 +149,17 @@ def tag_value(ds, path):
 
 # ---- pixels and geometry ----------------------------------------------------
 
+# Their table turns stored values back into beam intensity; viewers display the stored values.
+DISPLAYED_AS_STORED = {'1.2.840.10008.5.1.4.1.1.12.1', '1.2.840.10008.5.1.4.1.1.12.2', '1.2.840.10008.5.1.4.1.1.12.3'}
+
+
+def modality_lut_applies(ds):
+    items = ds.get('ModalityLUTSequence') or []
+    # A present but empty descriptor or table is no table.
+    return bool(items and items[0].get('LUTDescriptor') and items[0].get('LUTData')
+                and str(ds.get('SOPClassUID', '')) not in DISPLAYED_AS_STORED)
+
+
 def stored_pixels(ds):
     """Modality-rescaled samples in stored frame order: [frame, row, column(, sample)]."""
     frames = int(ds.get('NumberOfFrames', 1))
@@ -177,6 +188,8 @@ def stored_pixels(ds):
 
     if samples > 1:
         return raw
+    if modality_lut_applies(ds):
+        return apply_modality_lut(ds.pixel_array, ds).astype(np.float64).reshape(raw.shape)
     return np.stack([raw[f] * s + i for f in range(frames) for s, i in [rescale(f)]])
 
 

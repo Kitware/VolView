@@ -127,29 +127,32 @@ describe('decodeNativeFrame', () => {
 
   it.each([
     [
-      'an 8 bit word whole',
+      'an unsigned 8 bit word',
       { bitsAllocated: 8, bitsStored: 6 },
-      [0xff, 0x3f],
-      [0xff, 0x3f],
+      [0xff, 0x41],
+      [0x3f, 0x01],
     ],
     [
-      'a 32 bit word masked',
+      'a signed 8 bit word, sign extending from the top stored bit',
+      { bitsAllocated: 8, bitsStored: 7, signed: true },
+      [0x7f, 0xc0],
+      [-1, -64],
+    ],
+    [
+      'a 32 bit word',
       { bitsAllocated: 32, bitsStored: 24 },
       [0x56, 0x34, 0x12, 0xff, 7, 0, 0, 0xff],
       [0x123456, 7],
     ],
-  ])(
-    'reads %s where Bits Stored leaves high bits unused',
-    (_name, format, stored, samples) => {
-      const decoded = decodeNativeFrame(
-        Uint8Array.from(stored),
-        mono({ columns: 2, ...format }),
-        Float64Array
-      );
+  ])('masks %s to Bits Stored', (_name, format, stored, samples) => {
+    const decoded = decodeNativeFrame(
+      Uint8Array.from(stored),
+      mono({ columns: 2, ...format }),
+      Float64Array
+    );
 
-      expect(Array.from(decoded.samples)).toEqual(samples);
-    }
-  );
+    expect(Array.from(decoded.samples)).toEqual(samples);
+  });
 
   it.each([
     ['in order', false, [1, 2, 3, 4]],
@@ -283,6 +286,26 @@ describe('decodeNativeFrame', () => {
 
     expect(Array.from(samples)).toEqual(rgb);
     expect(components).toBe(3);
+  });
+
+  it('maps grayscale through its Modality LUT in place of the rescale', () => {
+    const { samples, range } = decodeNativeFrame(
+      littleEndian16([0xffff, 0, 1, 0x8000]),
+      mono({
+        signed: true,
+        rescaleSlope: 2,
+        rescaleIntercept: 5,
+        modalityLut: {
+          firstMapped: -1,
+          bits: 16,
+          values: Uint16Array.of(100, 200, 300),
+        },
+      }),
+      Uint16Array
+    );
+
+    expect(Array.from(samples)).toEqual([100, 200, 300, 100]);
+    expect(range).toEqual([[100, 300]]);
   });
 
   it('rejects a frame shorter than its format', () => {

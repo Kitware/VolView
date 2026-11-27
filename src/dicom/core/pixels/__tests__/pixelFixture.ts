@@ -42,6 +42,33 @@ export const paletteElements = (
     { tag: dataTag + channel, vr: 'OW', value: table },
   ]);
 
+/**
+ * A Modality LUT Sequence of one item. `data` is LUT Data as the file holds
+ * it: bytes for OW, numbers for US. An undefined descriptor or data leaves
+ * the item without that element.
+ */
+export const modalityLutElement = (
+  descriptor: readonly number[] | undefined,
+  data: Uint8Array | readonly number[] | undefined
+): DataElement => ({
+  tag: 0x00283000,
+  vr: 'SQ',
+  value: [
+    [
+      ...(descriptor ? [{ tag: 0x00283002, vr: 'US', value: descriptor }] : []),
+      ...(data
+        ? [
+            {
+              tag: 0x00283006,
+              vr: data instanceof Uint8Array ? 'OW' : 'US',
+              value: data,
+            },
+          ]
+        : []),
+    ],
+  ],
+});
+
 /** The same instance with its Photometric Interpretation replaced. */
 export const withPhotometric = (
   instance: Instance,
