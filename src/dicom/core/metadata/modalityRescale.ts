@@ -1,10 +1,11 @@
 import type { DicomDataset } from './dicomDataset';
 import { getDatasetTag } from './datasetAccess';
-import { getFrameTag, perFrameGroups } from './functionalGroups';
+import { getFrameTag } from './functionalGroups';
 import { numberOr, trimDicomPadding } from '../utils';
 
-// GDCM applies the Pixel Value Transformation functional group only for these
-// SOP classes. The others' IODs keep the modality rescale at the top level.
+// The SOP classes whose Pixel Value Transformation functional group is
+// applied, as GDCM applies it. The others' IODs keep the modality rescale at
+// the top level.
 const FUNCTIONAL_GROUP_RESCALE = new Set([
   '1.2.840.10008.5.1.4.1.1.2.1', // Enhanced CT
   '1.2.840.10008.5.1.4.1.1.2.2', // Legacy Converted Enhanced CT
@@ -35,19 +36,7 @@ export const readModalityRescale = (
   metadata: DicomDataset | null | undefined,
   frameIndex = 0
 ) => ({
-  // GDCM reads a zero slope as 1; matching it keeps native and GDCM pixels equal.
+  // A zero slope reads as 1, as GDCM reads it.
   rescaleSlope: numberOr(rescaleTag(metadata, '00281053', frameIndex), 1) || 1,
   rescaleIntercept: numberOr(rescaleTag(metadata, '00281052', frameIndex), 0),
 });
-
-/** Whether every frame shares the first frame's slope and intercept. */
-export function hasUniformModalityRescale(metadata: DicomDataset) {
-  const first = readModalityRescale(metadata);
-  return perFrameGroups(metadata).every((_, index) => {
-    const frame = readModalityRescale(metadata, index);
-    return (
-      frame.rescaleSlope === first.rescaleSlope &&
-      frame.rescaleIntercept === first.rescaleIntercept
-    );
-  });
-}

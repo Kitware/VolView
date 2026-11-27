@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asStoredRgb } from '../jpegColor';
+import { asStoredRgb, jpegPrecision } from '../jpegFrame';
 
 const SOI = [0xff, 0xd8];
 const QUANTIZATION = [0xff, 0xdb, 0x00, 0x04, 1, 2];
@@ -19,6 +19,37 @@ const segment = (code: number, text: string) => [
 
 const frame = (...segments: number[][]) =>
   Uint8Array.from([...SOI, ...segments.flat(), ...SCAN]);
+
+/** A frame header for one component of a two by two image. */
+const startOfFrame = (code: number, precision: number) => [
+  ...[0xff, code, 0x00, 0x0b, precision],
+  ...[0, 2, 0, 2, 1, 1, 0x11, 0],
+];
+
+describe('jpegPrecision', () => {
+  it.each([
+    ['a baseline SOF0 header of 8 bits', [startOfFrame(0xc0, 8)], 8],
+    ['an extended SOF1 header of 12 bits', [startOfFrame(0xc1, 12)], 12],
+    ['a lossless SOF3 header of 16 bits', [startOfFrame(0xc3, 16)], 16],
+    [
+      'a header behind other segments',
+      [segment(0xe0, 'JFIF\0'), QUANTIZATION, startOfFrame(0xc1, 12)],
+      12,
+    ],
+    [
+      'a stream with no frame header ahead of its scan',
+      [QUANTIZATION],
+      undefined,
+    ],
+    [
+      'a Huffman table, whose marker sits among the frame headers',
+      [startOfFrame(0xc4, 12)],
+      undefined,
+    ],
+  ])('reads %s', (_name, segments, precision) => {
+    expect(jpegPrecision(frame(...segments))).toBe(precision);
+  });
+});
 
 describe('asStoredRgb', () => {
   it('marks a stream that states no color space as holding its components untransformed', () => {

@@ -79,13 +79,14 @@ describe('deflatedDecoder', () => {
 
   it('declines what native frames decline', async () => {
     const bytes = await deflatedFile({
+      samplesPerPixel: 3,
       bitsAllocated: 8,
-      photometric: 'PALETTE COLOR',
+      photometric: 'YBR_PARTIAL_420',
     });
     const instance = await readInstance(fromBlob(blobOf(bytes)), signal());
 
     expect(deflatedDecoder.plan(instance, Uint8Array)).toEqual({
-      declined: expect.stringMatching(/PALETTE COLOR/),
+      declined: expect.stringMatching(/YBR_PARTIAL_420/),
     });
   });
 });

@@ -45,6 +45,13 @@ const sameShape = (a: FrameShape, b: FrameShape) =>
   a.components === b.components &&
   a.bytesPerSample === b.bytesPerSample;
 
+// A WASM codec may throw a plain object or a number in place of an Error.
+const reasonOf = (error: unknown) => {
+  const message = (error as { message?: unknown } | null)?.message;
+  if (typeof message === 'string' && message) return message;
+  return typeof error === 'string' ? error : 'the codec gave no reason';
+};
+
 /** Decodes the frames of an encapsulated Pixel Data value. */
 export function decodeEncapsulatedFrames(
   name: string,
@@ -57,8 +64,9 @@ export function decodeEncapsulatedFrames(
         return decodeFrame(frame);
       } catch (error) {
         // The reason goes in the message: a cause does not cross from a worker.
-        const reason = error instanceof Error ? error.message : String(error);
-        throw new Error(`${name} frame ${index + 1} did not decode: ${reason}`);
+        throw new Error(
+          `${name} frame ${index + 1} did not decode: ${reasonOf(error)}`
+        );
       }
     }
   );

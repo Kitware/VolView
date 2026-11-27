@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeNativeFrame,
-  nativeCapability,
-  nativeFrameDecoder,
+  decodeNativeFrames,
   type NativePixelFormat,
 } from '../nativeFrame';
-import { EXPLICIT_BE, type DataElement } from '@/tests/nativePixelDicom';
-import { pixelInstance } from './pixelFixture';
+import type { Palette } from '../palette';
 
 const mono = (overrides: Partial<NativePixelFormat>): NativePixelFormat => ({
   rows: 1,
@@ -16,7 +14,6 @@ const mono = (overrides: Partial<NativePixelFormat>): NativePixelFormat => ({
   planar: false,
   bitsAllocated: 16,
   bitsStored: 16,
-  highBit: 15,
   signed: false,
   littleEndian: true,
   rescaleSlope: 1,
@@ -28,8 +25,8 @@ const littleEndian16 = (words: number[]) =>
   new Uint8Array(new Uint16Array(words).buffer);
 
 describe('decodeNativeFrame', () => {
-  it('masks bits above Bits Stored and sign-extends from the high bit', () => {
-    const format = mono({ bitsStored: 12, highBit: 11, signed: true });
+  it('masks bits above Bits Stored and sign-extends from the top stored bit', () => {
+    const format = mono({ bitsStored: 12, signed: true });
     const bytes = littleEndian16([0xf7ff, 0x0800, 0x1fff, 0xa001]);
 
     const { samples, range } = decodeNativeFrame(bytes, format, Int16Array);
@@ -41,24 +38,18 @@ describe('decodeNativeFrame', () => {
   it('reads unsigned and 32 bit words whole', () => {
     const unsigned = decodeNativeFrame(
       littleEndian16([0xf123, 0, 1, 0xffff]),
-      mono({ bitsStored: 12, highBit: 11 }),
+      mono({ bitsStored: 12 }),
       Uint16Array
     );
     const words32 = new Uint8Array(new Uint32Array([0xffffffff, 7]).buffer);
     const signed32 = decodeNativeFrame(
       words32,
-      mono({
-        columns: 2,
-        bitsAllocated: 32,
-        bitsStored: 32,
-        highBit: 31,
-        signed: true,
-      }),
+      mono({ columns: 2, bitsAllocated: 32, bitsStored: 32, signed: true }),
       Int32Array
     );
     const unsigned32 = decodeNativeFrame(
       words32,
-      mono({ columns: 2, bitsAllocated: 32, bitsStored: 32, highBit: 31 }),
+      mono({ columns: 2, bitsAllocated: 32, bitsStored: 32 }),
       Uint32Array
     );
 
@@ -84,7 +75,7 @@ describe('decodeNativeFrame', () => {
   it('interleaves planar color and ranges each component', () => {
     const planes = new Uint8Array([1, 2, 30, 40, 250, 200]);
 
-    const { samples, range } = decodeNativeFrame(
+    const { samples, range, components } = decodeNativeFrame(
       planes,
       mono({
         columns: 2,
@@ -93,11 +84,11 @@ describe('decodeNativeFrame', () => {
         planar: true,
         bitsAllocated: 8,
         bitsStored: 8,
-        highBit: 7,
       }),
       Uint8Array
     );
 
+    expect(components).toBe(3);
     expect(Array.from(samples)).toEqual([1, 30, 250, 2, 40, 200]);
     expect(range).toEqual([
       [1, 2],
@@ -120,7 +111,7 @@ describe('decodeNativeFrame', () => {
     expect(narrow.range).toEqual([[0, 600]]);
   });
 
-  it('rounds a fractional rescale into a Float32 volume as GDCM samples are', () => {
+  it('rounds a fractional rescale into a Float32 volume', () => {
     const format = mono({ rescaleSlope: 0.1, rescaleIntercept: 0.3 });
 
     const { samples, range } = decodeNativeFrame(
@@ -134,6 +125,166 @@ describe('decodeNativeFrame', () => {
     expect(range).toEqual([[Math.min(...exact), Math.max(...exact)]]);
   });
 
+  it.each([
+    [
+      'an 8 bit word whole',
+      { bitsAllocated: 8, bitsStored: 6 },
+      [0xff, 0x3f],
+      [0xff, 0x3f],
+    ],
+    [
+      'a 32 bit word masked',
+      { bitsAllocated: 32, bitsStored: 24 },
+      [0x56, 0x34, 0x12, 0xff, 7, 0, 0, 0xff],
+      [0x123456, 7],
+    ],
+  ])(
+    'reads %s where Bits Stored leaves high bits unused',
+    (_name, format, stored, samples) => {
+      const decoded = decodeNativeFrame(
+        Uint8Array.from(stored),
+        mono({ columns: 2, ...format }),
+        Float64Array
+      );
+
+      expect(Array.from(decoded.samples)).toEqual(samples);
+    }
+  );
+
+  it.each([
+    ['in order', false, [1, 2, 3, 4]],
+    ['swapped within each 16 bit word', true, [2, 1, 4, 3]],
+  ])('reads 8 bit samples %s', (_name, swappedPairs, samples) => {
+    const decoded = decodeNativeFrame(
+      Uint8Array.from([1, 2, 3, 4]),
+      mono({ bitsAllocated: 8, bitsStored: 8, swappedPairs }),
+      Uint8Array
+    );
+
+    expect(Array.from(decoded.samples)).toEqual(samples);
+  });
+
+  it.each([
+    ['interleaved YBR_FULL', 'YBR_FULL', false, [128, 128, 128, 76, 85, 255]],
+    ['planar YBR_FULL', 'YBR_FULL', true, [128, 76, 128, 85, 128, 255]],
+  ])(
+    'converts %s color to RGB, ignoring any rescale',
+    (_name, photometricInterpretation, planar, stored) => {
+      const { samples, range, components } = decodeNativeFrame(
+        Uint8Array.from(stored),
+        mono({
+          columns: 2,
+          samplesPerPixel: 3,
+          photometricInterpretation,
+          planar,
+          bitsAllocated: 8,
+          bitsStored: 8,
+          rescaleSlope: 2,
+          rescaleIntercept: 100,
+        }),
+        Uint8Array
+      );
+
+      expect(Array.from(samples)).toEqual([128, 128, 128, 254, 0, 0]);
+      expect(range).toEqual([
+        [128, 254],
+        [0, 128],
+        [0, 128],
+      ]);
+      expect(components).toBe(3);
+    }
+  );
+
+  it.each([
+    ['in file order', false, [128, 76, 85, 255], [255, 52, 52, 254, 0, 0]],
+    [
+      'with its byte pairs put back in order first',
+      true,
+      [150, 100, 128, 128],
+      [100, 100, 100, 150, 150, 150],
+    ],
+  ])(
+    'converts YBR_FULL_422 color, whose pixel pairs share chroma, to RGB %s',
+    (_name, swappedPairs, stored, rgb) => {
+      const { samples } = decodeNativeFrame(
+        Uint8Array.from(stored),
+        mono({
+          columns: 2,
+          samplesPerPixel: 3,
+          photometricInterpretation: 'YBR_FULL_422',
+          bitsAllocated: 8,
+          bitsStored: 8,
+          swappedPairs,
+        }),
+        Uint8Array
+      );
+
+      expect(Array.from(samples)).toEqual(rgb);
+    }
+  );
+
+  const paletteFrom = (firstMapped: number, bits: 8 | 16, scale = 1) => ({
+    photometricInterpretation: 'PALETTE COLOR',
+    palette: {
+      firstMapped,
+      bits,
+      tables: [10, 11, 12].map((first) =>
+        Uint16Array.from([0, 10, 20, 30], (step) => (first + step) * scale)
+      ) as unknown as Palette['tables'],
+    },
+  });
+
+  it.each([
+    [
+      'unsigned 8 bit values, clamped to the table',
+      { bitsAllocated: 8, bitsStored: 8, ...paletteFrom(1, 8) },
+      [0, 1, 4, 0xff],
+      [10, 11, 12, 10, 11, 12, 40, 41, 42, 40, 41, 42],
+    ],
+    [
+      'signed 8 bit values from a negative first mapped',
+      { bitsAllocated: 8, bitsStored: 8, signed: true, ...paletteFrom(-2, 8) },
+      [0xfe, 0xff, 0, 1],
+      [10, 11, 12, 20, 21, 22, 30, 31, 32, 40, 41, 42],
+    ],
+    [
+      'signed 16 bit values from a negative first mapped',
+      { signed: true, ...paletteFrom(-2, 8) },
+      [0xfe, 0xff, 0xff, 0xff, 0, 0, 1, 0],
+      [10, 11, 12, 20, 21, 22, 30, 31, 32, 40, 41, 42],
+    ],
+    [
+      'unsigned values masked to Bits Stored',
+      { bitsStored: 12, ...paletteFrom(4, 8) },
+      Array.from(littleEndian16([0x1005, 0x1004, 0xf006, 0x0007])),
+      [20, 21, 22, 10, 11, 12, 30, 31, 32, 40, 41, 42],
+    ],
+    [
+      'signed values sign extended from Bits Stored',
+      { bitsStored: 12, signed: true, ...paletteFrom(-6, 8) },
+      Array.from(littleEndian16([0x0ffb, 0x0ffa, 0xfffc, 0x0ffd])),
+      [20, 21, 22, 10, 11, 12, 30, 31, 32, 40, 41, 42],
+    ],
+    [
+      '16 bit values to 16 bit color',
+      paletteFrom(0, 16, 1000),
+      [3, 0, 0, 0, 1, 0, 2, 0],
+      [
+        40000, 41000, 42000, 10000, 11000, 12000, 20000, 21000, 22000, 30000,
+        31000, 32000,
+      ],
+    ],
+  ])('looks up %s in the palette', (_name, format, stored, rgb) => {
+    const { samples, components } = decodeNativeFrame(
+      Uint8Array.from(stored),
+      mono(format),
+      Uint16Array
+    );
+
+    expect(Array.from(samples)).toEqual(rgb);
+    expect(components).toBe(3);
+  });
+
   it('rejects a frame shorter than its format', () => {
     expect(() =>
       decodeNativeFrame(new Uint8Array(6), mono({}), Uint16Array)
@@ -141,129 +292,67 @@ describe('decodeNativeFrame', () => {
   });
 });
 
-const element = (tag: number, vr: string, value: string | number[]) =>
-  ({ tag, vr, value }) as DataElement;
+describe('decodeNativeFrames', () => {
+  it('unpacks 1 bit frames that meet inside a byte', () => {
+    const format = mono({ columns: 5, bitsAllocated: 1, bitsStored: 1 });
 
-describe('nativeCapability', () => {
-  it.each([
-    ['signed 12 bit monochrome', { bitsStored: 12, pixelRepresentation: 1 }],
-    [
-      '8 bit RGB',
-      { samplesPerPixel: 3, bitsAllocated: 8, planarConfiguration: 1 },
-    ],
-    ['32 bit words', { bitsAllocated: 32 }],
-    ['big endian 16 bit words', { transferSyntaxUid: EXPLICIT_BE }],
-    [
-      'a uniform per-frame rescale',
-      {
-        sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
-        frames: 2,
-        frameRescales: [
-          [2, 1],
-          [2, 1],
-        ],
-      },
-    ],
-    [
-      'a differing per-frame rescale',
-      {
-        sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
-        frames: 2,
-        frameRescales: [
-          [1, 0],
-          [2, 0],
-        ],
-      },
-    ],
-    ['Pixel Padding Value', { extra: [element(0x00280120, 'US', [0])] }],
-    ['MONOCHROME1, keeping stored values', { photometric: 'MONOCHROME1' }],
-  ] as const)('decodes %s natively', async (_name, options) => {
-    const { instance } = await pixelInstance(options);
-    expect(
-      nativeCapability(instance, !('transferSyntaxUid' in options))
-    ).toMatchObject({
-      kind: 'native',
-    });
-  });
-
-  it.each([
-    [
-      'YBR color',
-      { samplesPerPixel: 3, bitsAllocated: 8, photometric: 'YBR_FULL' },
-      /YBR_FULL/,
-    ],
-    [
-      'palette color',
-      { bitsAllocated: 8, photometric: 'PALETTE COLOR' },
-      /PALETTE COLOR/,
-    ],
-    [
-      '8 bit words with unstored bits, which GDCM keeps',
-      { bitsAllocated: 8, bitsStored: 6 },
-      /6 of 8/,
-    ],
-    [
-      '32 bit words with unstored bits',
-      { bitsAllocated: 32, bitsStored: 24 },
-      /24 of 32/,
-    ],
-    ['a shifted high bit', { bitsStored: 12, highBit: 14 }, /High Bit 14/],
-    [
-      'big endian 8 bit words',
-      { transferSyntaxUid: EXPLICIT_BE, bitsAllocated: 8 },
-      /Big endian 8/,
-    ],
-    ['16 bit RGB', { samplesPerPixel: 3 }, /RGB/],
-    [
-      'rescaled RGB',
-      { samplesPerPixel: 3, bitsAllocated: 8, rescale: [2, 0] },
-      /RGB/,
-    ],
-    ['overlay planes', { extra: [element(0x60000100, 'US', [1])] }, /Overlay/],
-    [
-      'a Modality LUT',
-      { extra: [element(0x00283000, 'SQ', [])] },
-      /Modality LUT/,
-    ],
-  ] as const)('declines %s', async (_name, options, reason) => {
-    const { instance } = await pixelInstance(options);
-    const littleEndian = !('transferSyntaxUid' in options);
-    expect(nativeCapability(instance, littleEndian)).toEqual({
-      kind: 'declined',
-      reason: expect.stringMatching(reason),
-    });
-  });
-});
-
-describe('nativeFrameDecoder', () => {
-  it('rescales each frame by its own Pixel Value Transformation', async () => {
-    const { bytes, instance } = await pixelInstance({
-      sopClassUid: '1.2.840.10008.5.1.4.1.1.2.1',
-      rows: 1,
-      columns: 2,
-      frames: 2,
-      words: [1, 2, 3, 4],
-      frameRescales: [
-        [1, 0],
-        [2, 10],
-      ],
-    });
-    const units = nativeFrameDecoder.plan(instance, Int16Array);
-    if ('declined' in units) throw new Error(units.declined);
-
-    const frames = await Promise.all(
-      units.map((unit) =>
-        unit.decode(
-          bytes.subarray(unit.range!.start, unit.range!.end),
-          new AbortController().signal
-        )
-      )
+    const pixels = decodeNativeFrames(
+      // Lowest bit first: 1 0 0 1 1, then 0 1 1 | 0 1.
+      Uint8Array.from([0b11011001, 0b10]),
+      [format, format],
+      Uint8Array
     );
 
-    expect(frames.map(({ data }) => Array.from(data))).toEqual([
-      [1, 2],
-      [16, 18],
-    ]);
-    expect(frames.map(({ range }) => range)).toEqual([[[1, 2]], [[16, 18]]]);
+    expect(Array.from(pixels.data)).toEqual([1, 0, 0, 1, 1, 0, 1, 1, 0, 1]);
+    expect(pixels).toMatchObject({
+      size: [5, 1, 2],
+      components: 1,
+      range: [[0, 1]],
+    });
+  });
+
+  it.each([
+    ['unsigned', false, [0xabc, 0x123, 0xfff]],
+    ['signed', true, [0xabc - 0x1000, 0x123, -1]],
+  ])(
+    'unpacks %s 12 bit samples packed end to end',
+    (_name, signed, samples) => {
+      const format = mono({
+        columns: 3,
+        bitsAllocated: 12,
+        bitsStored: 12,
+        signed,
+      });
+
+      const pixels = decodeNativeFrames(
+        Uint8Array.from([0xbc, 0x3a, 0x12, 0xff, 0x0f]),
+        [format],
+        Int16Array
+      );
+
+      expect(Array.from(pixels.data)).toEqual(samples);
+    }
+  );
+
+  it('rejects packed Pixel Data too short for its frames', () => {
+    const format = mono({ columns: 5, bitsAllocated: 1, bitsStored: 1 });
+
+    expect(() =>
+      decodeNativeFrames(new Uint8Array(1), [format, format], Uint8Array)
+    ).toThrow('Pixel Data holds 8 bits; its frames need 10');
+  });
+
+  it('rescales each frame by its own format and ranges them together', () => {
+    const pixels = decodeNativeFrames(
+      littleEndian16([1, 2, 3, 4]),
+      [
+        mono({ columns: 2 }),
+        mono({ columns: 2, rescaleSlope: 2, rescaleIntercept: 10 }),
+      ],
+      Int16Array
+    );
+
+    expect(Array.from(pixels.data)).toEqual([1, 2, 16, 18]);
+    expect(pixels.range).toEqual([[1, 18]]);
   });
 });

@@ -8,16 +8,10 @@ import {
   type DecoderTable,
   type RuntimeDecoders,
 } from '../pixels/decoderTable';
-import {
-  createGdcmDecoder,
-  type CreateGdcmLane,
-  type DicomAssets,
-} from './gdcmDecoder';
 import { createCodecDecoders, type CreateCodecLane } from './codecDecoder';
 
 export type DicomRuntimeOptions = {
   fetch?: typeof fetch;
-  assets?: DicomAssets;
   /** Builds the decoder table around the runtime's worker-backed decoders. */
   decoders?: (decoders: RuntimeDecoders) => DecoderTable;
   /**
@@ -39,13 +33,12 @@ export const defaultDecodeConcurrency = (
   );
 
 /**
- * Owns the request pool and the metadata, GDCM and codec workers. Nothing
+ * Owns the request pool and the metadata and codec workers. Nothing
  * else in the loading API needs disposal: aborting a signal stops one
  * operation, and `dispose` stops them all and settles what is pending.
  */
 export function createDicomRuntime(
   options: DicomRuntimeOptions = {},
-  createGdcmLane?: CreateGdcmLane,
   createCodecLane?: CreateCodecLane
 ) {
   const decodeConcurrency =
@@ -56,11 +49,6 @@ export function createDicomRuntime(
   const lifetime = new AbortController();
   const requests = new RequestPool(undefined, options.fetch);
   const metadata = createMetadataReader();
-  const gdcm = createGdcmDecoder(
-    options.assets,
-    decodeConcurrency,
-    createGdcmLane
-  );
   const codecs = createCodecDecoders(decodeConcurrency, createCodecLane);
 
   const read = async (source: ByteSource, signal: AbortSignal) => {
@@ -81,7 +69,6 @@ export function createDicomRuntime(
     lifetime.abort(reason);
     requests.dispose(reason);
     metadata.dispose(reason);
-    gdcm.dispose(reason);
     codecs.dispose(reason);
   };
 
@@ -91,10 +78,7 @@ export function createDicomRuntime(
     /** Aborts when the runtime is disposed. */
     signal: lifetime.signal,
     decodeConcurrency,
-    decoders: (options.decoders ?? defaultDecoderTable)({
-      gdcm: gdcm.decoder,
-      ...codecs.decoders,
-    }),
+    decoders: (options.decoders ?? defaultDecoderTable)(codecs.decoders),
     /** Requests awaiting headers at once; also how far reads run ahead of decoding. */
     readConcurrency: requests.poolSize,
     readInstance: read,

@@ -400,9 +400,9 @@ export default tseslint.config(
           patterns: [
             {
               regex:
-                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$)|(\\.\\./){2}|\\.\\./vtk(?:/|$))',
+                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$)|itk-wasm(?:/|$)|@itk-wasm/|(\\.\\./){2}|\\.\\./vtk(?:/|$))',
               message:
-                'DICOM core cannot depend on application code, UI frameworks, vtk.js or the DICOM vtk directory.',
+                'DICOM core cannot depend on application code, UI frameworks, vtk.js, itk-wasm or the DICOM vtk directory.',
             },
           ],
         },
@@ -419,9 +419,9 @@ export default tseslint.config(
           patterns: [
             {
               regex:
-                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|(\\.\\./){2})',
+                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|itk-wasm(?:/|$)|@itk-wasm/|(\\.\\./){2})',
               message:
-                'DICOM vtk cannot depend on application code, application state or UI frameworks.',
+                'DICOM vtk cannot depend on application code, application state, UI frameworks or itk-wasm.',
             },
           ],
         },

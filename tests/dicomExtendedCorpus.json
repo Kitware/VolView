@@ -602,6 +602,166 @@
         "outcome": "volume",
         "storage": "float32"
       }
+    },
+    {
+      "id": "gdcm-JPEG-Extended",
+      "name": "dicom-corpus-gdcm-JPEG-Extended.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/gdcm-JPEG-Extended.dcm?format=raw",
+      "sha256": "44921d0df18be8ae1374d2008cdfef33a805889f36c205fd67cdba29045d1c97",
+      "bytes": 195164,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG Extended, 12 bit lossy CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.51",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.255859, 0.255859],
+          "origin": [-85.37207, -202.37207, -47.6],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-1024.0, 2663.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [-1024.0],
+            "max": [2663.0],
+            "mean": [-860.1923]
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-US-RGB-8-epicard",
+      "name": "dicom-corpus-gdcm-US-RGB-8-epicard.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/US-RGB-8-epicard.dcm?format=raw",
+      "sha256": "10204a2cb948fe1841f5787f56a17f79d5197c582428d28e93b19cfc26806971",
+      "bytes": 922612,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Ultrasound, Explicit VR Big Endian, 8 bit RGB, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [640, 480, 1],
+          "pixels": {
+            "kind": "hash",
+            "value": "b9f00387faa1de25814a5d6d966568f8df034c516511219140fcb6b722396bf0"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only"
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "gdcm-KODAK-12-MONO1-Odd_Terminated_Sequence",
+      "name": "dicom-corpus-gdcm-KODAK-12-MONO1-Odd_Terminated_Sequence.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/KODAK-12-MONO1-Odd_Terminated_Sequence.dcm?format=raw",
+      "sha256": "d72140a44d75d10a325488e602bbf5a3f9c0f68b09a943d13644fd2a6544f79a",
+      "bytes": 8582062,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "CR, MONOCHROME1, bare implicit VR data set with a Modality LUT Sequence",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.1",
+        "modality": "CR",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": false,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME1",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1792, 2392, 1],
+          "range": [214.0, 4087.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "03ecc60dc8653ebdff896436ccba3e786f226bd57638d778e42c79dc3c487be1"
+          },
+          "spacing": [0.097, 0.097]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [0.097, 0.097]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
     }
   ]
 }

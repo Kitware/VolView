@@ -48,7 +48,11 @@ const widened = (samples: Uint8Array, signed: boolean) =>
  * two, so those samples are widened to match.
  */
 export const embindFrameCodec =
-  (Decoder: new () => EmbindDecoder, header: FrameShape): FrameCodec =>
+  (
+    Decoder: new () => EmbindDecoder,
+    header: FrameShape,
+    { halvesView = false } = {}
+  ): FrameCodec =>
   (frame) => {
     const decoder = new Decoder();
     try {
@@ -57,7 +61,11 @@ export const embindFrameCodec =
       const info = decoder.getFrameInfo();
       const bytesPerSample = info.bitsPerSample > 8 ? 2 : 1;
       const components = info.componentCount;
-      const decoded = decoder.getDecodedBuffer();
+      const view = decoder.getDecodedBuffer();
+      // The 12 bit libjpeg-turbo build sizes its view as one byte a sample.
+      const decoded = halvesView
+        ? new Uint8Array(view.buffer, view.byteOffset, view.length * 2)
+        : view;
       const planar = components > 1 && decoder.getInterleaveMode?.() === 0;
       const samples = planar
         ? interleaved(decoded, components, bytesPerSample)

@@ -3,25 +3,12 @@ import {
   createDicomRuntime,
   defaultDecodeConcurrency,
 } from '../createDicomRuntime';
-import { createGdcmDecoder, type GdcmLane } from '../gdcmDecoder';
+import { createCodecDecoders, type CodecLane } from '../codecDecoder';
 import { getDatasetTag } from '../../metadata/datasetAccess';
-import { readDicomDataset } from '../../metadata/dicomDataset';
 import { fromBlob } from '../../source/byteSource';
-import { instanceFor } from '@/tests/dicomDataset';
-import { enhancedFixtureBytes } from '@/tests/fixtures/dicom-pages/enhancedFixtures';
-import { sliceDataset } from '../../collections/__tests__/sliceFixture';
-import type { DecodedPixels, DecodeUnit } from '../../pixels/pixelDecoder';
+import { pixelInstance } from '../../pixels/__tests__/pixelFixture';
 import { syntheticSlice } from '@/tests/dicomSourceFixtures';
 
-const assets = {
-  pipelineWorkerUrl: '/unused-worker.js',
-  imageIOUrl: '/unused-image-io',
-};
-const decodedPixels: DecodedPixels = {
-  size: [1, 1, 1],
-  data: new Uint16Array(1),
-  components: 1,
-};
 const signal = () => new AbortController().signal;
 
 /** Lanes whose runs settle when the test says, rejecting on reset like a worker. */
@@ -31,10 +18,10 @@ function controlledLanes() {
   const gate = Promise.withResolvers<void>();
   const runs: Array<() => void> = [];
   const resets: unknown[] = [];
-  const createLane = (): GdcmLane => {
+  const createLane = (): CodecLane => {
     let rejectRun: ((reason: unknown) => void) | undefined;
     return {
-      run: () =>
+      run: ({ shape }) =>
         new Promise((resolve, reject) => {
           active += 1;
           peak = Math.max(peak, active);
@@ -42,7 +29,7 @@ function controlledLanes() {
           runs.forEach((started) => started());
           gate.promise.then(() => {
             active -= 1;
-            resolve(decodedPixels);
+            resolve({ ...shape, precision: 16, bytes: new Uint8Array(2) });
           });
         }),
       reset: (reason) => {
@@ -60,14 +47,13 @@ function controlledLanes() {
   return { createLane, gate, started, resets, peak: () => peak };
 }
 
-const decodeWith = (
-  gdcm: ReturnType<typeof createGdcmDecoder>,
-  abort = signal()
-) => {
-  const instance = instanceFor(sliceDataset());
-  const [unit] = gdcm.decoder.plan(instance, Uint16Array) as DecodeUnit[];
-  return Promise.resolve(unit.decode(new Uint8Array(1), abort));
-};
+/** A function that starts one decode on `codecs` each time it is called. */
+async function decodeOn(codecs: ReturnType<typeof createCodecDecoders>) {
+  const { instance } = await pixelInstance({ rows: 1, columns: 1 });
+  const units = codecs.decoders.rle.plan(instance, Uint16Array);
+  if ('declined' in units) throw new Error(units.declined);
+  return async (abort = signal()) => units[0].decode(new Uint8Array(1), abort);
+}
 
 describe('DICOM runtime', () => {
   it.each([
@@ -82,28 +68,32 @@ describe('DICOM runtime', () => {
     }
   );
 
-  it('runs at most its concurrency of GDCM decodes at once', async () => {
+  it('runs at most its concurrency of codec decodes at once', async () => {
     const lanes = controlledLanes();
-    const gdcm = createGdcmDecoder(assets, 2, lanes.createLane);
+    const codecs = createCodecDecoders(2, lanes.createLane);
 
-    const decodes = [0, 1, 2].map(() => decodeWith(gdcm));
+    const decode = await decodeOn(codecs);
+
+    const decodes = [0, 1, 2].map(() => decode());
     await lanes.started(2);
     lanes.gate.resolve();
     await Promise.all(decodes);
 
     expect(lanes.peak()).toBe(2);
-    gdcm.dispose(new Error('done'));
+    codecs.dispose(new Error('done'));
   });
 
-  it('settles running and queued GDCM decodes when disposed', async () => {
+  it('settles running and queued codec decodes when disposed', async () => {
     const lanes = controlledLanes();
-    const gdcm = createGdcmDecoder(assets, 1, lanes.createLane);
+    const codecs = createCodecDecoders(1, lanes.createLane);
 
-    const running = decodeWith(gdcm);
-    const queued = decodeWith(gdcm);
+    const decode = await decodeOn(codecs);
+
+    const running = decode();
+    const queued = decode();
     await lanes.started(1);
     const reason = new DOMException('disposed', 'AbortError');
-    gdcm.dispose(reason);
+    codecs.dispose(reason);
 
     await expect(running).rejects.toBe(reason);
     await expect(queued).rejects.toBe(reason);
@@ -111,34 +101,37 @@ describe('DICOM runtime', () => {
     expect(lanes.resets).toContain(reason);
   });
 
-  it('terminates idle GDCM workers when disposed', async () => {
+  it('terminates idle codec workers when disposed', async () => {
     const lanes = controlledLanes();
-    const gdcm = createGdcmDecoder(assets, 1, lanes.createLane);
+    const codecs = createCodecDecoders(1, lanes.createLane);
     lanes.gate.resolve();
-    await decodeWith(gdcm);
+    await (
+      await decodeOn(codecs)
+    )();
 
     const reason = new DOMException('disposed', 'AbortError');
-    gdcm.dispose(reason);
+    codecs.dispose(reason);
 
     expect(lanes.resets).toEqual([reason]);
   });
 
-  it('terminates the GDCM worker of a decode whose signal aborts', async () => {
+  it('terminates the codec worker of a decode whose signal aborts', async () => {
     const lanes = controlledLanes();
-    const gdcm = createGdcmDecoder(assets, 1, lanes.createLane);
+    const codecs = createCodecDecoders(1, lanes.createLane);
     const controller = new AbortController();
+    const decode = await decodeOn(codecs);
 
-    const decoding = decodeWith(gdcm, controller.signal);
+    const decoding = decode(controller.signal);
     await lanes.started(1);
     const reason = new DOMException('stop', 'AbortError');
     controller.abort(reason);
 
     await expect(decoding).rejects.toBe(reason);
     expect(lanes.resets).toEqual([reason]);
-    gdcm.dispose(reason);
+    codecs.dispose(reason);
   });
 
-  it('reads instances with its own metadata reader, needing no decoder assets', async () => {
+  it('reads instances with its own metadata reader until disposed', async () => {
     const runtime = createDicomRuntime();
     const bytes = syntheticSlice({ patientName: 'DOE^JOHN' });
 
@@ -152,29 +145,5 @@ describe('DICOM runtime', () => {
     await expect(
       runtime.readInstance(fromBlob(new Blob([])), signal())
     ).rejects.toMatchObject({ name: 'AbortError' });
-  });
-
-  it('fails a GDCM decode without assets', async () => {
-    const gdcm = createGdcmDecoder(undefined, 1);
-
-    await expect(decodeWith(gdcm)).rejects.toThrow(
-      'GDCM decoding needs createDicomRuntime({ assets })'
-    );
-  });
-
-  it('declines for GDCM, from the header, an instance whose frames differ in modality rescale', () => {
-    const bytes = enhancedFixtureBytes({
-      pixelValues: [2, 2],
-      transforms: [
-        [1, 0],
-        [2, 0],
-      ],
-    });
-    const gdcm = createGdcmDecoder(assets, 1, controlledLanes().createLane);
-
-    expect(
-      gdcm.decoder.plan(instanceFor(readDicomDataset(bytes)), Float32Array)
-    ).toEqual({ declined: 'Frames with differing modality rescale' });
-    gdcm.dispose(new Error('done'));
   });
 });

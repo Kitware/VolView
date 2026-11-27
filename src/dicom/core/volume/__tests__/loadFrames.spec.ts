@@ -23,7 +23,6 @@ import {
 const runtimes: DicomRuntime[] = [];
 afterEach(() => runtimes.splice(0).forEach((runtime) => runtime.dispose()));
 
-/** No decoder assets: anything not decoded natively fails loudly. */
 const nativeOnly = () => {
   const runtime = createDicomRuntime({});
   runtimes.push(runtime);
@@ -113,7 +112,7 @@ const frameUnit = (valueOffset: number, frame: number): DecodeUnit => {
   };
 };
 
-/** A runtime whose table tries `decoder` first for transfer syntax `codec`. */
+/** A runtime whose table reads transfer syntax `codec` with `decoder`. */
 const runtimeFor = (codec: string, decoder: PixelDecoder) => {
   const runtime = createDicomRuntime({
     decoders: (decoders) => {
@@ -122,7 +121,7 @@ const runtimeFor = (codec: string, decoder: PixelDecoder) => {
         ...table,
         byTransferSyntax: new Map([
           ...table.byTransferSyntax,
-          [codec, [decoder, decoders.gdcm]],
+          [codec, [decoder]],
         ]),
       };
     },
@@ -323,7 +322,7 @@ describe('loadVolume with native frames', () => {
     expect(ranges).toEqual([undefined]);
   });
 
-  it('hands a declined instance to the whole-instance decoder', async () => {
+  it('fails every slice of an instance its decoder declines, saying why', async () => {
     const { bytes } = multiframe({ photometric: 'PALETTE COLOR' });
     const instance = await readInstance(blobOf(bytes), signal());
 
@@ -331,7 +330,7 @@ describe('loadVolume with native frames', () => {
 
     expect(updates).toEqual(
       failsWhole(
-        /^File .* \(member 0\) could not be decoded: GDCM decoding needs createDicomRuntime\(\{ assets \}\)$/
+        /has no decoder: Native frames declined \(No usable Palette Color Lookup Table Descriptor\)$/
       )
     );
   });

@@ -14,6 +14,8 @@ export type PixelDataElement = Readonly<{
   valueOffset: number;
   /** Value length in bytes; null for an undefined length, as encapsulated pixels have. */
   length: number | null;
+  /** OW values are 16 bit words, which a big endian file stores swapped. */
+  vr: string;
 }>;
 
 const MODALITY = [0x0008, 0x0060] as const;
@@ -123,19 +125,18 @@ function pixelDataElement(
   if (head.length < 8) return null;
   const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
   const littleEndian = transferSyntaxUid !== EXPLICIT_VR_BIG_ENDIAN;
-  const element = (length: number, headLength: number) => ({
+  const element = (length: number, headLength: number, vr: string) => ({
     offset,
     valueOffset: offset + headLength,
     length: length === UNDEFINED_LENGTH ? null : length,
+    vr,
   });
   if (transferSyntaxUid === IMPLICIT_VR_LITTLE_ENDIAN)
-    return element(view.getUint32(4, littleEndian), 8);
-  if (
-    head.length < PIXEL_DATA_HEAD_LENGTH ||
-    !LONG_FORM_VRS.has(toAscii(head.subarray(4, 6)))
-  )
+    return element(view.getUint32(4, littleEndian), 8, 'OW');
+  const vr = toAscii(head.subarray(4, 6));
+  if (head.length < PIXEL_DATA_HEAD_LENGTH || !LONG_FORM_VRS.has(vr))
     return null;
-  return element(view.getUint32(8, littleEndian), PIXEL_DATA_HEAD_LENGTH);
+  return element(view.getUint32(8, littleEndian), PIXEL_DATA_HEAD_LENGTH, vr);
 }
 
 /**

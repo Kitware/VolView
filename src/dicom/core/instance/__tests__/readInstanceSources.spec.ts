@@ -105,6 +105,7 @@ describe('readInstance over byte sources', () => {
       offset: start,
       valueOffset: start + 12,
       length: bytes.length - start - 12,
+      vr: 'OW',
     });
     expect(instance.transferSyntaxUid).toBe(EXPLICIT_VR_LITTLE_ENDIAN);
     expect(Object.isFrozen(instance)).toBe(true);
@@ -153,20 +154,34 @@ describe('readInstance over byte sources', () => {
   });
 
   it.each([
-    ['explicit', false, EXPLICIT_VR_LITTLE_ENDIAN],
-    ['implicit', true, IMPLICIT_VR_LITTLE_ENDIAN],
+    ['explicit', false, EXPLICIT_VR_LITTLE_ENDIAN, 12],
+    ['implicit', true, IMPLICIT_VR_LITTLE_ENDIAN, 8],
   ])(
-    'reads a bare %s VR data set with its transfer syntax assumed',
-    async (_kind, implicitVr, transferSyntaxUid) => {
-      const bytes = syntheticSlice({ patientName: 'DOE^JOHN', implicitVr });
+    'reads a bare %s VR data set in the transfer syntax its opening suggests',
+    async (_kind, implicitVr, transferSyntaxUid, headLength) => {
+      const bytes = syntheticSlice({
+        patientName: 'DOE^JOHN',
+        implicitVr,
+        rows: 4,
+        cols: 4,
+      });
+      const bare = stripFileMeta(bytes);
+      const pixelBytes = 4 * 4 * 2;
 
-      const instance = await readHeader(stripFileMeta(bytes), 64);
+      const instance = await readHeader(bare, 64);
 
       expect(instance.dataset).toEqual(readDicomDataset(bytes));
       expect(instance.layout).toEqual({
         preamble: false,
         fileMeta: false,
         transferSyntaxUid,
+      });
+      expect(instance.transferSyntaxUid).toBe(transferSyntaxUid);
+      expect(instance.pixelData).toEqual({
+        offset: bare.length - pixelBytes - headLength,
+        valueOffset: bare.length - pixelBytes,
+        length: pixelBytes,
+        vr: 'OW',
       });
     }
   );

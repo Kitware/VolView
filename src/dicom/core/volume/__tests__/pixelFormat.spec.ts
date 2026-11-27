@@ -266,6 +266,20 @@ describe('getVolumeBufferType', () => {
 });
 
 describe('instancePixelFormats', () => {
+  it.each([
+    ['color, which has no rescale', '3', Uint8Array],
+    ['grayscale, which its rescale makes signed', '1', Int8Array],
+  ])('sizes the buffer of 8 bit %s', (_name, samplesPerPixel, Buffer) => {
+    const metadata = datasetFromTags([
+      [Tags.SamplesPerPixel, samplesPerPixel],
+      [Tags.BitsStored, '8'],
+      [Tags.PixelRepresentation, '0'],
+      [Tags.RescaleIntercept, '-128'],
+    ]);
+
+    expect(getVolumeBufferType(instancePixelFormats(metadata))).toBe(Buffer);
+  });
+
   it('reads frames past the per-frame groups from the root, however many are declared', () => {
     const metadata = enhanced(
       groups([]),

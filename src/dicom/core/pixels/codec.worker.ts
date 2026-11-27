@@ -14,7 +14,8 @@ import {
   type FrameCodec,
 } from './codecFrames';
 import { embindFrameCodec } from './embindFrames';
-import { asStoredRgb } from './jpegColor';
+import { splitEncapsulatedFrames } from './encapsulatedFrames';
+import { asStoredRgb, jpegPrecision } from './jpegFrame';
 import { jpegLosslessFrameCodec } from './jpegLosslessFrame';
 import { rleFrameCodec } from './rleFrame';
 
@@ -39,6 +40,21 @@ const libJpegTurbo = lazily(() =>
   createLibJpegTurbo({ locateFile: () => libJpegTurboWasmUrl })
 );
 
+// A single file build that embeds its WASM, started for the first 12 bit stream.
+const libJpegTurbo12 = lazily(async () =>
+  (await import('@cornerstonejs/codec-libjpeg-turbo-12bit')).default()
+);
+
+/** libjpeg-turbo builds read one sample depth each, which the stream states. */
+async function jpegCodec({ value, frameCount, shape }: CodecJob) {
+  const [first] = splitEncapsulatedFrames(value, frameCount);
+  return (jpegPrecision(first) ?? 8) > 8
+    ? embindFrameCodec((await libJpegTurbo12()).JPEGDecoder, shape, {
+        halvesView: true,
+      })
+    : embindFrameCodec((await libJpegTurbo()).JPEGDecoder, shape);
+}
+
 const CODECS: Record<
   CodecName,
   Readonly<{ name: string; open: (job: CodecJob) => Promise<FrameCodec> }>
@@ -50,12 +66,9 @@ const CODECS: Record<
   },
   jpeg: {
     name: 'JPEG',
-    open: async ({ shape, photometricInterpretation }) => {
-      const decode = embindFrameCodec(
-        (await libJpegTurbo()).JPEGDecoder,
-        shape
-      );
-      return photometricInterpretation === 'RGB'
+    open: async (job) => {
+      const decode = await jpegCodec(job);
+      return job.photometricInterpretation === 'RGB'
         ? (frame) => decode(asStoredRgb(frame))
         : decode;
     },

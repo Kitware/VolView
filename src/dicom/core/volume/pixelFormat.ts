@@ -78,8 +78,9 @@ export function samplesAreIntegral(
 }
 
 /**
- * The sample depth of a palette color instance, which decodes to RGB: GDCM
- * keeps each entry's high byte for 8-bit pixels. Null for other instances.
+ * The sample depth of a palette color instance, which decodes to RGB: 8 bit
+ * pixels take each entry's high byte, as GDCM takes it. Null for other
+ * instances.
  */
 export function paletteSampleBits(metadata: DicomDataset | null | undefined) {
   const photometric = getDatasetTag(metadata, Tags.PhotometricInterpretation);
@@ -112,18 +113,22 @@ export function getPixelFormat(
       rescaleSlope: 1,
       rescaleIntercept: 0,
     };
+  // The Modality LUT module belongs to grayscale; color has no rescale.
+  const color = numberOr(valueOf(Tags.SamplesPerPixel), 1) > 1;
   return {
     bitsStored: numberOr(valueOf(Tags.BitsStored), 0),
     pixelRepresentation: numberOr(valueOf(Tags.PixelRepresentation), 0),
-    ...readModalityRescale(metadata, frameIndex),
+    ...(color
+      ? { rescaleSlope: 1, rescaleIntercept: 0 }
+      : readModalityRescale(metadata, frameIndex)),
   };
 }
 
 type PixelFormat = ReturnType<typeof getPixelFormat>;
 
 /**
- * The values an instance can decode to. ITK/GDCM applies RescaleSlope and
- * RescaleIntercept while decoding, so this is the range after rescaling.
+ * The values an instance can decode to. Decoders apply RescaleSlope and
+ * RescaleIntercept, so this is the range after rescaling.
  *
  * Null when BitsStored is missing, since nothing can be derived without it.
  */

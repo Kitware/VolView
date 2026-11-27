@@ -3869,6 +3869,220 @@
         "outcome": "error",
         "error": "File 1.2.826.0.1.3680043.8.498.14430950170191209830185436912184280703 (member 0) has pixel values the volume it belongs to cannot represent. Its pixel values run from 0 to 644, but the volume's buffer is Uint8Array, holding values from 0 to 255. Every file in a volume must decode to values its buffer can hold without conversion."
       }
+    },
+    {
+      "id": "gdcm-SIEMENS-12-Jpeg_Process_2_4-Lossy-a",
+      "name": "dicom-corpus-gdcm-SIEMENS-12-Jpeg_Process_2_4-Lossy-a.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/SIEMENS-12-Jpeg_Process_2_4-Lossy-a.dcm?format=raw",
+      "sha256": "fda4f59503e99b9326f371642f12399f24f11b1d93e4de94f432e43b183622a0",
+      "bytes": 70022,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG Extended, 12 bit lossy CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.51",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [1.0, 1.0],
+          "origin": [-255.5, -176.0, 285.5],
+          "direction": [1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0],
+          "range": [-224.0, 375.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [-224.0],
+            "max": [375.0],
+            "mean": [22.0558]
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-JPEGDefinedLengthSequenceOfFragments",
+      "name": "dicom-corpus-gdcm-JPEGDefinedLengthSequenceOfFragments.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/JPEGDefinedLengthSequenceOfFragments.dcm?format=raw",
+      "sha256": "ece20c1461547f502bab7f2cd5bb6fd754cc372dcdac691ae3f15abb372eb1aa",
+      "bytes": 183830,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG Lossless whose fragment sequence has a defined length",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.70",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.892578, 0.892578],
+          "origin": [-231.5, -113.5, 652.900024],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-1024.0, 2277.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "d50715e4a37b8bd6f66053687be5e4730ad481d216406fc7396b3c8e4b1b994d"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-ACUSON-24-YBR_FULL-RLE",
+      "name": "dicom-corpus-gdcm-ACUSON-24-YBR_FULL-RLE.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/ACUSON-24-YBR_FULL-RLE.dcm?format=raw",
+      "sha256": "d7fdd5eae02404674de17ab6148d277c583cc3000e359a3e31ba798857fe3f85",
+      "bytes": 270326,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Ultrasound, RLE with YBR_FULL color, two regions",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.5",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "YBR_FULL",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 2,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [768, 576, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [30.9103, 33.6085, 34.1214]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "gdcm-MR-SIEMENS-DICOM-WithOverlays",
+      "name": "dicom-corpus-gdcm-MR-SIEMENS-DICOM-WithOverlays.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/MR-SIEMENS-DICOM-WithOverlays.dcm?format=raw",
+      "sha256": "094faf56c63bff84c30567e29de0c67d7c5a8ae05cf880ac12175491b6b645d2",
+      "bytes": 510928,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "MR with overlay planes in group 6000",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [484, 484, 1],
+          "spacing": [0.72314, 0.72314],
+          "origin": [-159.825655, -175.322024, 28.426151],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [0.0, 1123.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "03bafd55fc4417fda938531d1d6804e8e2526deb38184eb256db5bb889fcb00b"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
     }
   ]
 }

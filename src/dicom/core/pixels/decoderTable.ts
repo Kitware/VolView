@@ -34,7 +34,6 @@ type Codec =
   | 'jpegLossless'
   | 'jpegLs'
   | 'jpeg2000'
-  | 'gdcm'
   | 'htj2k'
   | 'none';
 
@@ -74,7 +73,6 @@ const SYNTAXES: Array<[string, string, Codec]> = [
 
 /** The runtime's worker-backed decoders, which a table is built around. */
 export type RuntimeDecoders = Readonly<{
-  gdcm: PixelDecoder;
   htj2k: PixelDecoder;
   jpeg: PixelDecoder;
   jpeg2000: PixelDecoder;
@@ -83,30 +81,24 @@ export type RuntimeDecoders = Readonly<{
   rle: PixelDecoder;
 }>;
 
-/**
- * Each syntax's own decoder first, then GDCM for what that decoder declines
- * and for every syntax GDCM alone knows. HTJ2K, which GDCM lacks, has only
- * its codec.
- */
+/** Each listed syntax has the one decoder that reads it; any other has none. */
 export function defaultDecoderTable(decoders: RuntimeDecoders): DecoderTable {
-  const { gdcm, htj2k } = decoders;
   const candidates = {
-    native: [nativeFrameDecoder, gdcm],
-    deflated: [deflatedDecoder, gdcm],
-    rle: [decoders.rle, gdcm],
-    jpeg: [decoders.jpeg, gdcm],
-    jpegLossless: [decoders.jpegLossless, gdcm],
-    jpegLs: [decoders.jpegLs, gdcm],
-    jpeg2000: [decoders.jpeg2000, gdcm],
-    gdcm: [gdcm],
-    htj2k: [htj2k],
+    native: [nativeFrameDecoder],
+    deflated: [deflatedDecoder],
+    rle: [decoders.rle],
+    jpeg: [decoders.jpeg],
+    jpegLossless: [decoders.jpegLossless],
+    jpegLs: [decoders.jpegLs],
+    jpeg2000: [decoders.jpeg2000],
+    htj2k: [decoders.htj2k],
     none: [],
   };
   return {
     byTransferSyntax: new Map(
       SYNTAXES.map(([uid, , codec]) => [uid, candidates[codec]])
     ),
-    fallback: [gdcm],
+    fallback: [],
     names: new Map(SYNTAXES.map(([uid, name]) => [uid, name])),
   };
 }

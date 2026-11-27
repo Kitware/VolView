@@ -5,7 +5,7 @@ import {
 } from '../../runtime/createDicomRuntime';
 import type { WholeInstanceDecode } from '../../pixels/pixelDecoder';
 import { singleDecoderTable } from '../../pixels/decoderTable';
-import type { GdcmLane } from '../../runtime/gdcmDecoder';
+import type { CodecLane } from '../../runtime/codecDecoder';
 import { hangingSource } from '@/tests/byteSourceFixtures';
 import { loadedRange, type Volume } from '../allocateVolume';
 import type { ByteSource } from '../../source/byteSource';
@@ -411,10 +411,10 @@ describe('loadVolume', () => {
     expect(sliceValues(volume)).toEqual([null, null, null]);
   });
 
-  it('ends and stops the GDCM worker when the runtime is disposed mid-decode', async () => {
+  it('ends and stops the codec worker when the runtime is disposed mid-decode', async () => {
     const started = Promise.withResolvers<void>();
     const resets: unknown[] = [];
-    const hangingLane = (): GdcmLane => ({
+    const hangingLane = (): CodecLane => ({
       run: () => {
         started.resolve();
         return new Promise(() => {});
@@ -423,15 +423,18 @@ describe('loadVolume', () => {
     });
     const runtime = createDicomRuntime(
       {
-        assets: { pipelineWorkerUrl: '/unused', imageIOUrl: '/unused' },
-        decoders: ({ gdcm }) => singleDecoderTable(gdcm),
+        decoders: ({ rle }) => singleDecoderTable(rle),
         decodeConcurrency: 1,
       },
       hangingLane
     );
     runtimes.push(runtime);
+    const encapsulated = [0, 1].map((z) => ({
+      ...pixelSlice(z, { tags: { [Tags.BitsAllocated]: '16' } }),
+      pixelData: { offset: 0, valueOffset: 0, length: null, vr: 'OB' },
+    }));
 
-    const loading = loadAll(stack(2), runtime);
+    const loading = loadAll(allocated(encapsulated), runtime);
     await started.promise;
     runtime.dispose();
 

@@ -112,6 +112,7 @@ describe('streamed header encodings', () => {
         offset: bytes.length - pixelBytes - headLength,
         valueOffset: bytes.length - pixelBytes,
         length: pixelBytes,
+        vr: 'OW',
       });
       expect(
         findElement(sequenceItems(instance.dataset, '00880200')[0], '7FE00010')
@@ -131,6 +132,7 @@ describe('streamed header encodings', () => {
       offset: bytes.length - 32 - 8,
       valueOffset: bytes.length - 32,
       length: 32,
+      vr: 'OW',
     });
     expect(getDatasetTag(instance.dataset, '00280010')).toBe('4');
   });

@@ -13,16 +13,15 @@ const undecoded = (name: string) =>
   wholeInstanceDecoder(name, () => {
     throw new Error('not decoded in these tests');
   });
-const gdcm = undecoded('GDCM');
-const htj2k = undecoded('HTJ2K');
 const codecs = {
+  htj2k: undecoded('HTJ2K'),
   jpeg: undecoded('JPEG'),
   jpegLossless: undecoded('JPEG Lossless'),
   jpeg2000: undecoded('JPEG 2000'),
   jpegLs: undecoded('JPEG-LS'),
   rle: undecoded('RLE'),
 };
-const table = defaultDecoderTable({ gdcm, htj2k, ...codecs });
+const table = defaultDecoderTable(codecs);
 
 const declining = (name: string, reason: string): PixelDecoder => ({
   name,
@@ -43,31 +42,6 @@ describe('planDecode', () => {
     ]);
   });
 
-  it('falls through to GDCM, whole, when native decoding declines', async () => {
-    const { instance } = await pixelInstance({
-      bitsAllocated: 8,
-      photometric: 'PALETTE COLOR',
-    });
-
-    expect(nativeFrameDecoder.plan(instance, Uint16Array)).toEqual({
-      declined: expect.stringMatching(/PALETTE COLOR/),
-    });
-    expect(planDecode(table, instance, Uint16Array)).toEqual({
-      decoder: gdcm,
-      units: [
-        { firstFrame: 0, frames: 1, range: null, decode: expect.any(Function) },
-      ],
-    });
-  });
-
-  it('hands an unlisted transfer syntax to GDCM', async () => {
-    const { instance } = await pixelInstance({ transferSyntaxUid: '1.2.3.4' });
-
-    expect(planDecode(table, instance, Uint16Array)).toMatchObject({
-      decoder: gdcm,
-    });
-  });
-
   it.each([
     ['RLE Lossless', '1.2.840.10008.1.2.5', codecs.rle],
     ['Deflated', '1.2.840.10008.1.2.1.99', deflatedDecoder],
@@ -79,40 +53,47 @@ describe('planDecode', () => {
     ['JPEG-LS Near-Lossless', '1.2.840.10008.1.2.4.81', codecs.jpegLs],
     ['JPEG 2000 Lossless', '1.2.840.10008.1.2.4.90', codecs.jpeg2000],
     ['JPEG 2000', '1.2.840.10008.1.2.4.91', codecs.jpeg2000],
+    ['HTJ2K Lossless', '1.2.840.10008.1.2.4.201', codecs.htj2k],
+    ['HTJ2K RPCL Lossless', '1.2.840.10008.1.2.4.202', codecs.htj2k],
+    ['HTJ2K', '1.2.840.10008.1.2.4.203', codecs.htj2k],
   ])(
-    'lists the %s decoder ahead of GDCM for its syntax',
-    (_name, syntax, own) => {
-      expect(table.byTransferSyntax.get(syntax)).toEqual([own, gdcm]);
+    'hands %s to the one decoder of its syntax',
+    async (_name, transferSyntaxUid, own) => {
+      const { instance } = await pixelInstance();
+
+      expect(
+        planDecode(table, { ...instance, transferSyntaxUid }, Uint16Array)
+      ).toMatchObject({ decoder: own });
+      expect(table.byTransferSyntax.get(transferSyntaxUid)).toHaveLength(1);
     }
   );
 
   it.each([
-    '1.2.840.10008.1.2.4.201',
-    '1.2.840.10008.1.2.4.202',
-    '1.2.840.10008.1.2.4.203',
-  ])('hands HTJ2K syntax %s to the HTJ2K decoder', async (syntax) => {
-    const { instance } = await pixelInstance({ transferSyntaxUid: syntax });
+    [
+      'a known syntax without one',
+      '1.2.840.10008.1.2.4.102',
+      'Known transfer syntax MPEG-4 AVC/H.264 High Profile (1.2.840.10008.1.2.4.102)',
+    ],
+    [
+      'another known syntax without one',
+      '1.2.840.10008.1.2.4.112',
+      'Known transfer syntax JPEG XL (1.2.840.10008.1.2.4.112)',
+    ],
+    ['an unlisted syntax', '1.2.3.4', 'Transfer syntax 1.2.3.4'],
+    ['a missing syntax', null, 'Transfer syntax unknown'],
+  ])('says %s has no decoder', async (_name, transferSyntaxUid, what) => {
+    const { instance } = await pixelInstance();
 
-    expect(planDecode(table, instance, Uint16Array)).toMatchObject({
-      decoder: htj2k,
-    });
+    const plan = planDecode(
+      table,
+      { ...instance, transferSyntaxUid },
+      Uint16Array
+    );
+
+    expect('error' in plan && plan.error.message).toBe(
+      `${what} has no decoder`
+    );
   });
-
-  it.each([
-    ['1.2.840.10008.1.2.4.102', 'MPEG-4 AVC/H.264 High Profile'],
-    ['1.2.840.10008.1.2.4.112', 'JPEG XL'],
-  ])(
-    'names known transfer syntax %s that has no decoder',
-    async (transferSyntaxUid, name) => {
-      const { instance } = await pixelInstance({ transferSyntaxUid });
-
-      const plan = planDecode(table, instance, Uint16Array);
-
-      expect('error' in plan && plan.error.message).toBe(
-        `Known transfer syntax ${name} (${transferSyntaxUid}) has no decoder`
-      );
-    }
-  );
 
   it('takes the first candidate that accepts, in the order listed', async () => {
     const { instance } = await pixelInstance();
@@ -153,7 +134,7 @@ describe('planDecode', () => {
     const { instance } = await pixelInstance();
 
     expect(
-      planDecode(singleDecoderTable(gdcm), instance, Uint16Array)
-    ).toMatchObject({ decoder: gdcm });
+      planDecode(singleDecoderTable(codecs.rle), instance, Uint16Array)
+    ).toMatchObject({ decoder: codecs.rle });
   });
 });

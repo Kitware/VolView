@@ -16,18 +16,19 @@ defines it.
 | `core/collections` | header facts, collection planning and the registry                       |
 | `core/volume`      | allocation, pixel formats, validation and `loadVolume`                   |
 | `core/pixels`      | decoders, the decoder table, frame index, encapsulated frames            |
-| `core/runtime`     | the runtime, its request pool, metadata workers, GDCM and codec decoders |
+| `core/runtime`     | the runtime, its request pool, metadata workers and codec decoders       |
 | `vtk`              | the vtk.js image and slice thumbnails                                    |
 
-`core` uses no Vue, Pinia, vtk.js or VolView application code. `vtk` shows a
-core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
+`core` uses no Vue, Pinia, vtk.js, itk-wasm or VolView application code.
+`vtk` shows a core `Volume` as a `vtkImageData`. `eslint.config.js` enforces
+both boundaries.
 
 ## Invariants
 
 - Instances, collection updates and volumes are plain values. Only the
   runtime from `createDicomRuntime` holds resources (request pool, metadata
-  workers, GDCM and codec workers), and only it has `dispose()`. Importing a
-  file starts no worker and touches no DOM.
+  workers and codec workers), and only it has `dispose()`. Importing a file
+  starts no worker and touches no DOM.
 - Every asynchronous operation takes an `AbortSignal`; aborting it is the
   whole of cancellation.
 - A `ByteSource` opens a fresh stream per read and holds nothing between
@@ -54,30 +55,36 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   most `decodeConcurrency` decode at once, per volume.
 - A URL source whose server ignores Range has its remaining ranged units read
   in one request.
-- Decoders keep MONOCHROME1 stored values; displays invert them. GDCM
-  inverts MONOCHROME1, so the GDCM decoder reflects its output back.
-- `nativeFrameDecoder` accepts only instances whose result is identical to
-  the GDCM decoder's, but for frames that differ in modality rescale. It and
-  the codec decoders give each frame its own Pixel Value Transformation; GDCM
-  gives an instance one, so its decoder declines those.
-- The default table lists each syntax's own decoder ahead of GDCM. RLE,
+- Decoders keep MONOCHROME1 stored values; displays invert them.
+- Each transfer syntax in the decoder table has one decoder, chosen from the
+  header alone. Uncompressed frames are each read by their own range. RLE,
   JPEG, JPEG-LS, JPEG 2000 and HTJ2K instances are read from their Pixel Data
   value and decoded whole on the shared codec workers, each codec's WASM
   loading on first use. A Deflated file is read whole and inflated on the
-  calling thread. Each then finishes its samples as native frames are, so it
-  declines what `nativeFrameDecoder` declines, with these exceptions: JPEG
-  2000 and HTJ2K take YBR_RCT and YBR_ICT color, and JPEG takes YBR_FULL
-  and YBR_FULL_422, all of which their codecs return as RGB.
+  calling thread. JPIP, video and JPEG XL syntaxes, and any syntax the table
+  does not list, fail as having no decoder.
+- A data set with no file meta information is read in the transfer syntax
+  its first element suggests.
+- Every decoder finishes its samples the same way. Grayscale takes each
+  frame's own Pixel Value Transformation. Color is held as RGB and takes no
+  rescale: YBR_FULL and YBR_FULL_422 are converted, and PALETTE COLOR values
+  are looked up, segmented tables included, with 8 bit pixels taking the
+  high byte of a 16 bit entry. The JPEG codec converts the YBR it holds, and
+  the JPEG 2000 and HTJ2K codecs undo YBR_RCT and YBR_ICT.
+- 16 and 32 bit words are masked to Bits Stored and sign extended from it.
+  An 8 bit word keeps all its bits, and High Bit is not consulted. Samples
+  of 1 or 12 bits allocated are packed across bytes, and big endian 8 bit
+  samples are paired into 16 bit words, so instances whose frames share a
+  byte or a word are read whole. One sample per pixel with any photometric
+  interpretation but PALETTE COLOR is grayscale.
+- The Modality LUT Sequence, overlay planes and ICC profiles are not
+  applied.
 - A codestream of 8 bits or fewer is widened where the header allocates 16.
-  Samples are masked to Bits Stored, except that a JPEG 2000 or HTJ2K
-  codestream holding more bits than that keeps them, as GDCM keeps them.
+  A JPEG 2000 or HTJ2K codestream holding more bits than Bits Stored keeps
+  them; other codestreams are masked to Bits Stored.
 - A JPEG frame the header calls RGB is decoded without a color transform
-  unless its own JFIF or Adobe segment states one. GDCM never transforms
-  such a frame.
-- GDCM, whole in a worker, takes what those decoders decline, which includes
-  JPEG samples over 8 bits that are not lossless (the 12 bit extended
-  process). HTJ2K has no GDCM fallback, and JPIP, video and JPEG XL syntaxes
-  fail as having no decoder.
+  unless its own JFIF or Adobe segment states one. A JPEG stream of more
+  than 8 bits is decoded by a separate 12 bit build of the codec.
 
 ## Spacing
 

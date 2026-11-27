@@ -16,6 +16,7 @@ import {
   type NativePixelFormat,
 } from '../pixels/nativeFrame';
 import { frameCount, type PixelDecoder } from '../pixels/pixelDecoder';
+import type { ByteRange } from '../source/byteSource';
 import { trimDicomPadding } from '../utils';
 import { createComlinkLane } from './comlinkLane';
 import { createLanePool, type Lane } from './lanePool';
@@ -36,26 +37,33 @@ const createCodecLane = (): CodecLane =>
       remote.decode(Comlink.transfer(job, [job.value.buffer as ArrayBuffer]))
   );
 
-/** The photometric interpretations a codestream's color transform requires. */
-const COLOR_TRANSFORMED = ['YBR_RCT', 'YBR_ICT'];
+const decodedFrom =
+  (photometrics: string[], photometricInterpretation: string) =>
+  (format: NativePixelFormat) =>
+    photometrics.includes(format.photometricInterpretation)
+      ? { ...format, photometricInterpretation }
+      : format;
 
-// The codec undoes a color transform itself, so those samples come back RGB.
-const colorTransformedAsRgb = (format: NativePixelFormat) =>
-  COLOR_TRANSFORMED.includes(format.photometricInterpretation)
-    ? { ...format, photometricInterpretation: 'RGB' }
-    : format;
+// The codec undoes a codestream's color transform, so those samples come back RGB.
+const colorTransformedAsRgb = decodedFrom(['YBR_RCT', 'YBR_ICT'], 'RGB');
 
 // libjpeg-turbo converts the YCbCr a JPEG stream holds to RGB.
-const jpegColorAsRgb = (format: NativePixelFormat) =>
-  ['YBR_FULL', 'YBR_FULL_422'].includes(format.photometricInterpretation)
-    ? { ...format, photometricInterpretation: 'RGB' }
-    : format;
+const jpegColorAsRgb = decodedFrom(
+  ['YBR_FULL', 'YBR_FULL_422', 'YBR_PARTIAL_422', 'YBR_PARTIAL_420'],
+  'RGB'
+);
+
+// A codec hands back every sample of every pixel, whatever a stream subsamples.
+const fullySampled = decodedFrom(['YBR_FULL_422'], 'YBR_FULL');
+
+const codestreamColor = (format: NativePixelFormat) =>
+  fullySampled(colorTransformedAsRgb(format));
 
 type Codec = Readonly<{
   name: string;
   maxBitsAllocated: number;
   /** The format of the samples the codec returns, where not the header's. */
-  decodedAs?: (format: NativePixelFormat) => NativePixelFormat;
+  decodedAs: (format: NativePixelFormat) => NativePixelFormat;
   /**
    * Whether a codestream precision above Bits Stored is kept, as GDCM and
    * pydicom keep a JPEG 2000 stream's. Other streams carry unused high bits
@@ -68,39 +76,50 @@ const CODECS: Record<CodecName, Codec> = {
   htj2k: {
     name: 'HTJ2K',
     maxBitsAllocated: 16,
-    decodedAs: colorTransformedAsRgb,
+    decodedAs: codestreamColor,
     keepsPrecision: true,
   },
-  // Samples over 8 bits are the 12 bit extended process, which stays GDCM's.
-  jpeg: { name: 'JPEG', maxBitsAllocated: 8, decodedAs: jpegColorAsRgb },
+  jpeg: { name: 'JPEG', maxBitsAllocated: 16, decodedAs: jpegColorAsRgb },
   jpeg2000: {
     name: 'JPEG 2000',
     maxBitsAllocated: 16,
-    decodedAs: colorTransformedAsRgb,
+    decodedAs: codestreamColor,
     keepsPrecision: true,
   },
-  jpegLossless: { name: 'JPEG Lossless', maxBitsAllocated: 16 },
-  jpegLs: { name: 'JPEG-LS', maxBitsAllocated: 16 },
-  rle: { name: 'RLE', maxBitsAllocated: 32 },
+  jpegLossless: {
+    name: 'JPEG Lossless',
+    maxBitsAllocated: 16,
+    decodedAs: fullySampled,
+  },
+  jpegLs: { name: 'JPEG-LS', maxBitsAllocated: 16, decodedAs: fullySampled },
+  rle: { name: 'RLE', maxBitsAllocated: 32, decodedAs: fullySampled },
 };
 
 type CodecCapability =
-  | Readonly<{ format: NativePixelFormat; valueOffset: number }>
+  | Readonly<{ format: NativePixelFormat; range: ByteRange }>
   | Readonly<{ declined: string }>;
 
 function codecCapability(instance: Instance, codec: Codec): CodecCapability {
   const { pixelData } = instance;
   if (!pixelData) return { declined: 'The header locates no Pixel Data' };
-  if (pixelData.length !== null)
-    return { declined: 'Pixel Data is not encapsulated' };
   const capability = nativeCapability(instance, true, codec.decodedAs);
   if (capability.kind === 'declined') return { declined: capability.reason };
   const { format } = capability;
   if (format.bitsAllocated > codec.maxBitsAllocated)
     return { declined: `Bits Allocated ${format.bitsAllocated}` };
+  const start = pixelData.valueOffset;
   return {
-    format: { ...format, planar: false },
-    valueOffset: pixelData.valueOffset,
+    // A codec returns whole bytes of interleaved samples.
+    format: {
+      ...format,
+      planar: false,
+      bitsAllocated: Math.ceil(format.bitsAllocated / 8) * 8,
+    },
+    // Some writers give the fragment sequence a length instead of a delimiter.
+    range:
+      pixelData.length === null
+        ? { start }
+        : { start, end: start + pixelData.length },
   };
 }
 
@@ -127,7 +146,6 @@ const holding = (formats: NativePixelFormat[], precision: number) =>
     ? formats.map((format) => ({
         ...format,
         bitsStored: precision,
-        highBit: precision - 1,
       }))
     : formats;
 
@@ -145,7 +163,7 @@ const codecDecoder = (name: CodecName, pool: CodecPool): PixelDecoder => ({
   plan: (instance, Target) => {
     const capability = codecCapability(instance, CODECS[name]);
     if ('declined' in capability) return capability;
-    const { format, valueOffset } = capability;
+    const { format, range } = capability;
     const frames = frameCount(instance.dataset);
     const formats = frameFormats(format, instance.dataset, frames);
     const shape = shapeOf(format);
@@ -156,7 +174,7 @@ const codecDecoder = (name: CodecName, pool: CodecPool): PixelDecoder => ({
       {
         firstFrame: 0,
         frames,
-        range: { start: valueOffset },
+        range,
         decode: async (bytes, signal) => {
           const job = {
             codec: name,

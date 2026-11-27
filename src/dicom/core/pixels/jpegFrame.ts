@@ -15,19 +15,33 @@ const ADOBE_NO_TRANSFORM = Uint8Array.from([
   0x00, 0x00, 0x00,
 ]);
 
-/** Whether a JFIF or Adobe segment ahead of the first scan states the color space. */
-function statesColorSpace(frame: Uint8Array) {
+/** The marker code and payload of each segment ahead of the first scan. */
+function* segmentsBeforeScan(frame: Uint8Array) {
   let at = SOI_LENGTH;
   while (at + 4 <= frame.length && frame[at] === 0xff) {
     const code = frame[at + 1];
-    if (code === SOS) return false;
-    const name = COLOR_SEGMENTS.get(code);
-    if (name && toAscii(frame.subarray(at + 4, at + 4 + name.length)) === name)
-      return true;
-    at += 2 + ((frame[at + 2] << 8) | frame[at + 3]);
+    if (code === SOS) return;
+    const length = (frame[at + 2] << 8) | frame[at + 3];
+    yield { code, payload: frame.subarray(at + 4, at + 2 + length) };
+    at += 2 + length;
   }
-  return false;
 }
+
+/** Whether a JFIF or Adobe segment ahead of the first scan states the color space. */
+const statesColorSpace = (frame: Uint8Array) =>
+  [...segmentsBeforeScan(frame)].some(({ code, payload }) => {
+    const name = COLOR_SEGMENTS.get(code);
+    return name && toAscii(payload.subarray(0, name.length)) === name;
+  });
+
+// Start of frame markers are C0 to CF, less the three that define tables.
+const isStartOfFrame = (code: number) =>
+  code >= 0xc0 && code <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(code);
+
+/** Bits per sample the frame header of a JPEG stream declares, or undefined. */
+export const jpegPrecision = (frame: Uint8Array) =>
+  [...segmentsBeforeScan(frame)].find(({ code }) => isStartOfFrame(code))
+    ?.payload[0];
 
 /**
  * A JPEG frame whose header says RGB, marked so a decoder does not take its

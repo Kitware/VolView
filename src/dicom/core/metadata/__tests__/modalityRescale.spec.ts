@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  hasUniformModalityRescale,
-  readModalityRescale,
-} from '../modalityRescale';
+import { readModalityRescale } from '../modalityRescale';
 import {
   enhanced,
   groups,
@@ -74,25 +71,5 @@ describe('readModalityRescale', () => {
       rescaleSlope: 1,
       rescaleIntercept: 0,
     });
-  });
-});
-
-describe('hasUniformModalityRescale', () => {
-  const differing = [transform('1', '0'), transform('2', '0')];
-
-  it('compares the frames of a class whose transform is per frame', () => {
-    expect(
-      hasUniformModalityRescale(
-        multiframe('1.2.840.10008.5.1.4.1.1.2.1', differing)
-      )
-    ).toBe(false);
-  });
-
-  it('ignores functional groups GDCM does not apply', () => {
-    expect(
-      hasUniformModalityRescale(
-        multiframe('1.2.840.10008.5.1.4.1.1.7.3', differing)
-      )
-    ).toBe(true);
   });
 });

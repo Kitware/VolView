@@ -1,31 +1,10 @@
-import { cp, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, preview } from 'vite';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const fixture = fileURLToPath(new URL('.', import.meta.url));
-const require = createRequire(import.meta.url);
-
-const moduleRoot = (name) => resolve(dirname(require.resolve(name)), '..');
-
-async function copyItkAssets(assets) {
-  await mkdir(resolve(assets, 'image-io'), { recursive: true });
-  await cp(
-    resolve(
-      moduleRoot('itk-wasm'),
-      'dist/pipeline/web-workers/bundles/itk-wasm-pipeline.min.worker.js'
-    ),
-    resolve(assets, 'itk-wasm-pipeline.min.worker.js')
-  );
-  const pipelines = resolve(moduleRoot('@itk-wasm/image-io'), 'dist/pipelines');
-  for (const name of await readdir(pipelines)) {
-    if (/^gdcm-read-image\.(js|wasm|wasm\.zst)$/.test(name))
-      await cp(resolve(pipelines, name), resolve(assets, 'image-io', name));
-  }
-}
-
 async function buildPage(kind, outDir) {
   await build({
     configFile: false,
@@ -42,7 +21,6 @@ async function buildPage(kind, outDir) {
     },
     worker: { format: 'es' },
   });
-  await copyItkAssets(resolve(outDir, 'assets'));
 }
 
 /** Serves the byte range asked for, or the whole body when `range` is absent. */
@@ -65,7 +43,7 @@ function serveDicom(bytes, range, response) {
 }
 
 export async function startDicomPages({
-  kinds = ['core'],
+  kinds = ['corpus'],
   fixtures = {},
 } = {}) {
   const serveFixture = (ranged) => (request, response) => {
@@ -91,10 +69,6 @@ export async function startDicomPages({
     for (const kind of kinds) {
       const outDir = resolve(directory, kind);
       await buildPage(kind, outDir);
-      const pipelineWorker = await readFile(
-        resolve(outDir, 'assets/itk-wasm-pipeline.min.worker.js')
-      );
-      let workerRequests = 0;
       const server = await preview({
         configFile: false,
         root,
@@ -104,19 +78,6 @@ export async function startDicomPages({
           {
             name: 'synthetic-dicom-source',
             configurePreviewServer(instance) {
-              instance.middlewares.use(
-                '/recovering-worker.js',
-                (_request, response) => {
-                  response.setHeader('Cache-Control', 'no-store');
-                  response.setHeader('Content-Type', 'text/javascript');
-                  if (workerRequests++ === 0) {
-                    response.statusCode = 503;
-                    response.end('temporary worker script failure');
-                  } else {
-                    response.end(pipelineWorker);
-                  }
-                }
-              );
               instance.middlewares.use('/corpus-data', serveFixture(true));
               // A server that ignores Range answers every read with the file.
               instance.middlewares.use('/unranged-data', serveFixture(false));

@@ -65,6 +65,7 @@ export const cineInstance = (
       offset: 0,
       valueOffset: 0,
       length: transferSyntaxUid === TS_JPEG_BASELINE ? null : pixels.length,
+      vr: 'OB',
     },
   });
 };

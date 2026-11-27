@@ -49,13 +49,50 @@ export const shapeOf = ({ dataset }: Instance) => {
 const positiveInteger = (value: number) =>
   Number.isSafeInteger(value) && value > 0;
 
-// Chroma subsampling stores fewer bytes than Samples per Pixel implies.
-const subsamplesChroma = ({ dataset }: Instance) =>
-  /^YBR_(FULL|PARTIAL)_42[02]$/.test(
-    trimDicomPadding(
-      getDatasetTag(dataset, Tags.PhotometricInterpretation) ?? ''
-    )
+/** Bytes one uncompressed frame of this shape takes. */
+export const frameByteLength = (shape: {
+  rows: number;
+  columns: number;
+  samplesPerPixel: number;
+  bitsAllocated: number;
+  photometricInterpretation: string;
+}) =>
+  // Two pixels share one Cb and one Cr sample: four bytes for six samples.
+  shape.photometricInterpretation === 'YBR_FULL_422'
+    ? shape.rows * shape.columns * 2
+    : shape.rows *
+      shape.columns *
+      shape.samplesPerPixel *
+      (shape.bitsAllocated / 8);
+
+export const ONE_SAMPLE_PHOTOMETRICS = [
+  'MONOCHROME1',
+  'MONOCHROME2',
+  'PALETTE COLOR',
+];
+
+/**
+ * The photometric interpretation the stored samples follow. One sample per
+ * pixel with no palette can only be shades of gray, which is what ACR-NEMA
+ * files and misspelled values mean. Uncompressed YBR_FULL_422 that holds
+ * three bytes a pixel kept the label of the JPEG it was decompressed from.
+ */
+export function storedPhotometric(instance: Instance) {
+  const { dataset, pixelData, transferSyntaxUid } = instance;
+  const declared = trimDicomPadding(
+    getDatasetTag(dataset, Tags.PhotometricInterpretation) ?? ''
   );
+  const { rows, columns, samplesPerPixel, frames } = shapeOf(instance);
+  if (samplesPerPixel === 1)
+    return ONE_SAMPLE_PHOTOMETRICS.includes(declared)
+      ? declared
+      : 'MONOCHROME2';
+  const fullySampled =
+    declared === 'YBR_FULL_422' &&
+    NATIVE_ENCODINGS.has(transferSyntaxUid ?? '') &&
+    (pixelData?.length ?? 0) >= rows * columns * 3 * frames;
+  return fullySampled ? 'YBR_FULL' : declared;
+}
 
 type NativeLayout = Readonly<{
   kind: 'native';
@@ -79,8 +116,11 @@ function nativeLayout(instance: Instance): NativeLayout | FrameIndex {
     );
   if (pixelData.length === null)
     return unindexed('Pixel Data has undefined length');
-  if (subsamplesChroma(instance))
-    return unindexed('Chroma subsampled frames have no fixed sample layout');
+  const photometricInterpretation = storedPhotometric(instance);
+  if (/^YBR_(FULL_420|PARTIAL_42[02])$/.test(photometricInterpretation))
+    return unindexed(
+      `${photometricInterpretation} frames have no supported sample layout`
+    );
   const { rows, columns, samplesPerPixel, bitsAllocated, frames } =
     shapeOf(instance);
   if (![rows, columns, samplesPerPixel].every(positiveInteger))
@@ -92,7 +132,13 @@ function nativeLayout(instance: Instance): NativeLayout | FrameIndex {
   return {
     kind: 'native',
     littleEndian: encoding.littleEndian,
-    frameLength: rows * columns * samplesPerPixel * (bitsAllocated / 8),
+    frameLength: frameByteLength({
+      rows,
+      columns,
+      samplesPerPixel,
+      bitsAllocated,
+      photometricInterpretation,
+    }),
     frames,
     valueOffset: pixelData.valueOffset,
     length: pixelData.length,

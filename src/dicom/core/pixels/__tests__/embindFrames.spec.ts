@@ -5,6 +5,8 @@ type Decoded = {
   info: ReturnType<EmbindDecoder['getFrameInfo']>;
   bytes: number[];
   interleaveMode?: number;
+  /** Bytes of the heap the decoder reports as its decoded view; all by default. */
+  viewLength?: number;
 };
 
 /** A codec build's decoder class, which decodes any frame to `decoded`. */
@@ -15,7 +17,7 @@ function decoderClass(decoded: Decoded) {
     getEncodedBuffer = (length: number) => new Uint8Array(length);
     decode = () => log.push('decode');
     getFrameInfo = () => decoded.info;
-    getDecodedBuffer = () => heap;
+    getDecodedBuffer = () => heap.subarray(0, decoded.viewLength);
     delete = () => log.push('delete');
     getInterleaveMode =
       decoded.interleaveMode === undefined
@@ -57,6 +59,27 @@ describe('embindFrameCodec', () => {
       samples: Uint8Array.from([1, 2, 3, 4]),
     });
     expect(log).toEqual(['decode', 'delete']);
+  });
+
+  it.each([
+    ['only the view a build reports', false, [1, 2]],
+    [
+      'twice the view of a build that reports half its samples',
+      true,
+      [1, 2, 3, 4],
+    ],
+  ])('reads %s', (_name, halvesView, samples) => {
+    const { Decoder } = decoderClass({
+      info: info({ bitsPerSample: 12 }),
+      bytes: [1, 2, 3, 4],
+      viewLength: 2,
+    });
+
+    const frame = embindFrameCodec(Decoder, header(2), { halvesView })(
+      new Uint8Array(3)
+    );
+
+    expect(Array.from(frame.samples)).toEqual(samples);
   });
 
   it('interleaves components a JPEG-LS stream returns as planes', () => {

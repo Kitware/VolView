@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createCodecDecoders, type CodecLane } from '../codecDecoder';
-import { pixelInstance } from '../../pixels/__tests__/pixelFixture';
+import type { Instance } from '../../instance/readInstance';
+import { pixelInstance, withNumber } from '../../pixels/__tests__/pixelFixture';
+import type { PixelDecoder } from '../../pixels/pixelDecoder';
+import type { VolumeBufferConstructor } from '../../volume/pixelFormat';
 import type { NativePixelOptions } from '@/tests/nativePixelDicom';
 
 const HTJ2K_LOSSLESS = '1.2.840.10008.1.2.4.201';
@@ -10,9 +13,10 @@ const RGB = Uint8Array.from([
   10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120,
 ]);
 
-const rgbLane = (): CodecLane => ({
+/** A lane whose codec decodes every job to these two by two color samples. */
+const colorLane = (samples: Uint8Array) => (): CodecLane => ({
   run: async () => ({
-    bytes: RGB.slice(),
+    bytes: samples.slice(),
     columns: 2,
     rows: 2,
     components: 3,
@@ -21,6 +25,24 @@ const rgbLane = (): CodecLane => ({
   }),
   reset: () => {},
 });
+const rgbLane = colorLane(RGB);
+
+// Gray, red, green and blue in full range YCbCr, and the RGB they convert to.
+const YBR = Uint8Array.from([
+  128, 128, 128, 76, 85, 255, 150, 44, 21, 29, 255, 107,
+]);
+const YBR_AS_RGB = [128, 128, 128, 254, 0, 0, 0, 255, 1, 0, 0, 254];
+
+/** The pixels the decoder's one unit decodes for `instance`. */
+async function decodeWhole(
+  decoder: PixelDecoder,
+  instance: Instance,
+  Target: VolumeBufferConstructor
+) {
+  const units = decoder.plan(instance, Target);
+  if ('declined' in units) throw new Error(units.declined);
+  return units[0].decode(new Uint8Array(8), new AbortController().signal);
+}
 
 /** The header of an instance whose Pixel Data is encapsulated. */
 async function encapsulatedInstance(options: NativePixelOptions) {
@@ -54,19 +76,47 @@ describe('codec decoders', () => {
     ['jpeg2000', 'YBR_ICT'],
     ['jpeg', 'YBR_FULL'],
     ['jpeg', 'YBR_FULL_422'],
+    ['jpeg', 'YBR_PARTIAL_422'],
+    ['jpeg', 'YBR_PARTIAL_420'],
   ] as const)(
     'decodes %s %s color to the RGB samples its codec returns',
     async (codec, photometric) => {
       const decoder = createCodecDecoders(1, rgbLane).decoders[codec];
-      const units = decoder.plan(await colorInstance(photometric), Uint8Array);
-      if ('declined' in units) throw new Error(units.declined);
 
-      const pixels = await units[0].decode(
-        new Uint8Array(8),
-        new AbortController().signal
+      const pixels = await decodeWhole(
+        decoder,
+        await colorInstance(photometric),
+        Uint8Array
       );
 
       expect(Array.from(pixels.data)).toEqual(Array.from(RGB));
+      expect(pixels).toMatchObject({ size: [2, 2, 1], components: 3 });
+    }
+  );
+
+  it.each([
+    ['htj2k', 'YBR_FULL'],
+    ['htj2k', 'YBR_FULL_422'],
+    ['jpeg2000', 'YBR_FULL'],
+    ['jpeg2000', 'YBR_FULL_422'],
+    ['rle', 'YBR_FULL'],
+    ['rle', 'YBR_FULL_422'],
+    ['jpegLossless', 'YBR_FULL'],
+    ['jpegLossless', 'YBR_FULL_422'],
+    ['jpegLs', 'YBR_FULL'],
+    ['jpegLs', 'YBR_FULL_422'],
+  ] as const)(
+    'converts the fully sampled YCbCr %s returns for %s to RGB',
+    async (codec, photometric) => {
+      const decoder = createCodecDecoders(1, colorLane(YBR)).decoders[codec];
+
+      const pixels = await decodeWhole(
+        decoder,
+        await colorInstance(photometric),
+        Uint8Array
+      );
+
+      expect(Array.from(pixels.data)).toEqual(YBR_AS_RGB);
       expect(pixels).toMatchObject({ size: [2, 2, 1], components: 3 });
     }
   );
@@ -94,36 +144,74 @@ describe('codec decoders', () => {
         [2, 10],
       ],
     });
-    const units = decoder.plan(instance, Int16Array);
-    if ('declined' in units) throw new Error(units.declined);
 
-    const pixels = await units[0].decode(
-      new Uint8Array(8),
-      new AbortController().signal
-    );
+    const pixels = await decodeWhole(decoder, instance, Int16Array);
 
     expect(Array.from(pixels.data)).toEqual([1, 2, 16, 18]);
     expect(pixels.range).toEqual([[1, 18]]);
   });
 
-  it('declines color no transform of the codestream turns into RGB', async () => {
+  it('declines color that nothing turns into RGB', async () => {
     const decoder = createCodecDecoders(1, rgbLane).decoders.htj2k;
 
-    expect(decoder.plan(await colorInstance('YBR_FULL'), Uint8Array)).toEqual({
-      declined: expect.stringMatching(/YBR_FULL/),
-    });
+    expect(
+      decoder.plan(await colorInstance('YBR_PARTIAL_420'), Uint8Array)
+    ).toEqual({ declined: expect.stringMatching(/YBR_PARTIAL_420/) });
   });
 
-  it('declines JPEG samples over 8 bits, which are the 12 bit process', async () => {
-    const { jpeg, jpegLossless } = createCodecDecoders(1, rgbLane).decoders;
-    const instance = await encapsulatedInstance({ bitsStored: 12 });
+  it.each([16, 12])(
+    'decodes JPEG samples held in %i bits allocated as whole 16 bit words',
+    async (bitsAllocated) => {
+      const shapes: unknown[] = [];
+      const lane: CodecLane = {
+        run: async ({ shape }) => {
+          shapes.push(shape);
+          return {
+            ...shape,
+            precision: 12,
+            bytes: new Uint8Array(Uint16Array.from([0x0abc, 0xffff]).buffer),
+          };
+        },
+        reset: () => {},
+      };
+      const { jpeg } = createCodecDecoders(1, () => lane).decoders;
+      const instance = await encapsulatedInstance({
+        rows: 1,
+        columns: 2,
+        bitsStored: 12,
+      });
 
-    expect(jpeg.plan(instance, Uint16Array)).toEqual({
-      declined: 'Bits Allocated 16',
-    });
-    expect(jpegLossless.plan(instance, Uint16Array)).toMatchObject([
-      { firstFrame: 0, frames: 1 },
-    ]);
+      const pixels = await decodeWhole(
+        jpeg,
+        withNumber(instance, '00280100', bitsAllocated),
+        Uint16Array
+      );
+
+      expect(shapes).toEqual([
+        { columns: 2, rows: 1, components: 1, bytesPerSample: 2 },
+      ]);
+      expect(Array.from(pixels.data)).toEqual([0x0abc, 0x0fff]);
+    }
+  );
+
+  it.each([
+    ['a delimited fragment sequence to its end', true],
+    ['a fragment sequence of defined length within that length', false],
+  ])('reads %s', async (_name, delimited) => {
+    const { instance } = await pixelInstance({ rows: 1, columns: 2 });
+    const { valueOffset: start, length } = instance.pixelData!;
+    const { rle } = createCodecDecoders(1, rgbLane).decoders;
+
+    const units = rle.plan(
+      delimited
+        ? { ...instance, pixelData: { ...instance.pixelData!, length: null } }
+        : instance,
+      Uint16Array
+    );
+
+    expect('declined' in units ? units : units[0].range).toEqual(
+      delimited ? { start } : { start, end: start + length! }
+    );
   });
 
   it('hands the worker what the header says and a codestream may not', async () => {
@@ -142,13 +230,8 @@ describe('codec decoders', () => {
       frames: 2,
       planarConfiguration: 1,
     });
-    const units = rle.plan(instance, Uint16Array);
-    if ('declined' in units) throw new Error(units.declined);
 
-    const pixels = await units[0].decode(
-      new Uint8Array(8),
-      new AbortController().signal
-    );
+    const pixels = await decodeWhole(rle, instance, Uint16Array);
 
     expect(jobs).toEqual([
       {
@@ -173,14 +256,13 @@ describe('codec decoders', () => {
       reset: () => {},
     };
     const { rle } = createCodecDecoders(1, () => lane).decoders;
-    const units = rle.plan(
-      await encapsulatedInstance({ rows: 2, columns: 3 }),
-      Uint16Array
-    );
-    if ('declined' in units) throw new Error(units.declined);
 
     await expect(
-      units[0].decode(new Uint8Array(8), new AbortController().signal)
+      decodeWhole(
+        rle,
+        await encapsulatedInstance({ rows: 2, columns: 3 }),
+        Uint16Array
+      )
     ).rejects.toThrow(
       'RLE frames decode to 3x4, 1 samples of 16 bits; the header declares 3x2, 1 samples of 16 bits'
     );
@@ -201,15 +283,11 @@ describe('codec decoders', () => {
         reset: () => {},
       };
       const decoder = createCodecDecoders(1, () => lane).decoders[codec];
-      const units = decoder.plan(
+
+      const pixels = await decodeWhole(
+        decoder,
         await encapsulatedInstance({ rows: 1, columns: 2, bitsStored: 8 }),
         Uint16Array
-      );
-      if ('declined' in units) throw new Error(units.declined);
-
-      const pixels = await units[0].decode(
-        new Uint8Array(8),
-        new AbortController().signal
       );
 
       expect(Array.from(pixels.data)).toEqual(samples);

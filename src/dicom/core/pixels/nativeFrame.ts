@@ -1,12 +1,25 @@
 import type { Instance } from '../instance/readInstance';
+import { EXPLICIT_VR_BIG_ENDIAN } from '../metadata/dicomLayout';
 import type { DicomDataset } from '../metadata/dicomDataset';
 import { getDatasetTag } from '../metadata/datasetAccess';
 import { Tags } from '../metadata/dicomTags';
 import { readModalityRescale } from '../metadata/modalityRescale';
-import { numberOr, trimDicomPadding } from '../utils';
+import { numberOr } from '../utils';
 import type { VolumeBufferConstructor } from '../volume/pixelFormat';
-import { indexFrames, shapeOf } from './frameIndex';
-import type { DecodedPixels, PixelDecoder } from './pixelDecoder';
+import { planesAsInterleaved, ybr422AsYbrFull, ybrFullAsRgb } from './color';
+import {
+  frameByteLength,
+  indexFrames,
+  ONE_SAMPLE_PHOTOMETRICS,
+  shapeOf,
+  storedPhotometric,
+} from './frameIndex';
+import { paletteAsRgb, readPalette, type Palette } from './palette';
+import {
+  frameCount,
+  type DecodedPixels,
+  type PixelDecoder,
+} from './pixelDecoder';
 
 /** What decides how one native frame's bytes become samples. */
 export type NativePixelFormat = Readonly<{
@@ -18,23 +31,25 @@ export type NativePixelFormat = Readonly<{
   planar: boolean;
   bitsAllocated: number;
   bitsStored: number;
-  highBit: number;
   signed: boolean;
   littleEndian: boolean;
+  /** 8 bit samples held in 16 bit words, which a big endian file swaps. */
+  swappedPairs?: boolean;
   /** The first frame's; `frameFormats` gives each frame its own. */
   rescaleSlope: number;
   rescaleIntercept: number;
+  /** The lookup that gives PALETTE COLOR values their color. */
+  palette?: Palette;
 }>;
 
 type NativeCapability =
   | Readonly<{ kind: 'native'; format: NativePixelFormat }>
   | Readonly<{ kind: 'declined'; reason: string }>;
 
-const text = (dataset: DicomDataset, tag: string) =>
-  trimDicomPadding(getDatasetTag(dataset, tag) ?? '');
-
 const number = (dataset: DicomDataset, tag: string) =>
   numberOr(getDatasetTag(dataset, tag), NaN);
+
+const COLOR_AS_RGB = ['RGB', 'YBR_FULL', 'YBR_FULL_422'];
 
 /** The header's pixel description, read without judging it. */
 function readNativePixelFormat(
@@ -47,101 +62,48 @@ function readNativePixelFormat(
     rows,
     columns,
     samplesPerPixel,
-    photometricInterpretation: text(dataset, Tags.PhotometricInterpretation),
+    photometricInterpretation: storedPhotometric(instance),
     planar: number(dataset, Tags.PlanarConfiguration) === 1,
     bitsAllocated,
     bitsStored: number(dataset, Tags.BitsStored),
-    highBit: number(dataset, '00280102'),
     signed: number(dataset, Tags.PixelRepresentation) === 1,
     littleEndian,
+    swappedPairs:
+      !littleEndian && bitsAllocated === 8 && instance.pixelData?.vr === 'OW',
     ...readModalityRescale(dataset),
   };
 }
 
-const isOverlayOrCurve = (group: number) =>
-  (group >= 0x5000 && group <= 0x501e) || (group >= 0x6000 && group <= 0x601e);
-
-/** Header elements whose effect on GDCM's output is not reproduced here. */
-const UNREPRODUCED_ELEMENTS = new Map([
-  ['00283000', 'Modality LUT Sequence'],
-  ['00281101', 'Red Palette Color Lookup Table Descriptor'],
-  ['00282000', 'ICC Profile'],
-]);
-
 const declinePhotometric = (format: NativePixelFormat) => {
-  const { samplesPerPixel, photometricInterpretation } = format;
-  const monochrome =
-    samplesPerPixel === 1 &&
-    ['MONOCHROME1', 'MONOCHROME2'].includes(photometricInterpretation);
-  const rgb = samplesPerPixel === 3 && photometricInterpretation === 'RGB';
-  return monochrome || rgb
-    ? null
-    : `${photometricInterpretation || 'Unknown'} photometric interpretation with ${samplesPerPixel} samples per pixel`;
+  const { samplesPerPixel, photometricInterpretation, bitsAllocated } = format;
+  const accepted =
+    samplesPerPixel === 1
+      ? ONE_SAMPLE_PHOTOMETRICS.includes(photometricInterpretation)
+      : samplesPerPixel === 3 &&
+        COLOR_AS_RGB.includes(photometricInterpretation);
+  if (!accepted)
+    return `${photometricInterpretation || 'Unknown'} photometric interpretation with ${samplesPerPixel} samples per pixel`;
+  return photometricInterpretation.startsWith('YBR') && bitsAllocated !== 8
+    ? `${photometricInterpretation} samples of ${bitsAllocated} bits`
+    : null;
 };
 
-const declineBits = ({
-  bitsAllocated,
-  bitsStored,
-  highBit,
-}: NativePixelFormat) => {
-  if (![8, 16, 32].includes(bitsAllocated))
+const declineBits = ({ bitsAllocated, bitsStored }: NativePixelFormat) => {
+  if (![1, 8, 12, 16, 32].includes(bitsAllocated))
     return `Bits Allocated ${bitsAllocated}`;
   const valid =
     Number.isInteger(bitsStored) &&
     bitsStored >= 1 &&
-    bitsStored <= bitsAllocated &&
-    highBit === bitsStored - 1;
-  if (!valid) return `Bits Stored ${bitsStored} with High Bit ${highBit}`;
-  return bitsAllocated !== 16 && bitsStored < bitsAllocated
-    ? `${bitsStored} of ${bitsAllocated} allocated bits stored`
-    : null;
+    bitsStored <= bitsAllocated;
+  return valid ? null : `Bits Stored ${bitsStored}`;
 };
 
-const declineByteOrder = ({
-  littleEndian,
-  bitsAllocated,
-}: NativePixelFormat) =>
-  littleEndian || bitsAllocated === 16
-    ? null
-    : `Big endian ${bitsAllocated} bit samples`;
-
-const declineRescale = (format: NativePixelFormat) => {
-  const { rescaleSlope: slope, rescaleIntercept: intercept } = format;
-  const rgb = format.samplesPerPixel === 3;
-  const plain = format.bitsAllocated === 8 && !format.signed;
-  return rgb && !(plain && slope === 1 && intercept === 0)
-    ? 'RGB samples that are not unsigned 8 bit and unscaled'
-    : null;
-};
-
-// Each case was compared with GDCM in a browser: 8 bit words keep bits above
-// Bits Stored, 32 bit words with fewer stored bits do not decode, and big
-// endian words other than 16 bit are read as 16 bit pairs. Palette and YBR
-// color are not reproduced here.
 const declineFormat = (format: NativePixelFormat) =>
-  declinePhotometric(format) ??
-  declineBits(format) ??
-  declineByteOrder(format) ??
-  declineRescale(format);
-
-function declineDataset(dataset: DicomDataset) {
-  const element = dataset.elements.find(
-    ({ tag, group }) =>
-      UNREPRODUCED_ELEMENTS.has(tag) || isOverlayOrCurve(group)
-  );
-  if (element)
-    return isOverlayOrCurve(element.group)
-      ? 'Overlay or curve data, which may share the pixel words'
-      : UNREPRODUCED_ELEMENTS.get(element.tag)!;
-  return null;
-}
+  declinePhotometric(format) ?? declineBits(format);
 
 /**
- * Whether GDCM's output for this instance is reproduced exactly here. Every
- * declined case keeps the whole-instance GDCM decode. Frames that differ in
- * modality rescale are the exception: GDCM gives an instance one transform,
- * and each frame gets its own here. `decodedAs` gives the format of the
- * samples a codec hands back where it differs from the header's.
+ * Whether these samples can be decoded here. `decodedAs` gives the format of
+ * the samples a codec hands back where it differs from the header's.
  */
 export function nativeCapability(
   instance: Instance,
@@ -149,8 +111,14 @@ export function nativeCapability(
   decodedAs = (format: NativePixelFormat) => format
 ): NativeCapability {
   const format = decodedAs(readNativePixelFormat(instance, littleEndian));
-  const reason = declineFormat(format) ?? declineDataset(instance.dataset);
-  return reason ? { kind: 'declined', reason } : { kind: 'native', format };
+  const reason = declineFormat(format);
+  if (reason) return { kind: 'declined', reason };
+  if (format.photometricInterpretation !== 'PALETTE COLOR')
+    return { kind: 'native', format };
+  const palette = readPalette(instance.dataset, littleEndian);
+  return 'missing' in palette
+    ? { kind: 'declined', reason: palette.missing }
+    : { kind: 'native', format: { ...format, palette } };
 }
 
 /** `format` for each frame, with the modality rescale that frame declares. */
@@ -190,25 +158,25 @@ function storedWords(
 }
 
 /**
- * Decodes one native frame into interleaved, modality-rescaled samples of the
- * given element type. `range` is each component's [min, max] before the
- * values are stored, so a caller can reject values `Target` cannot hold.
+ * Samples of a grayscale or interleaved RGB frame: masked to Bits Stored,
+ * sign extended and, for grayscale, rescaled. `range` is each component's
+ * [min, max] before the values are stored in `Target`.
  */
-export function decodeNativeFrame(
+function plainSamples(
   bytes: Uint8Array,
   format: NativePixelFormat,
   Target: VolumeBufferConstructor
 ) {
   const { rows, columns, samplesPerPixel: components, planar } = format;
-  const { bitsStored, bitsAllocated, signed } = format;
-  const { rescaleSlope: slope, rescaleIntercept: intercept } = format;
+  const { bitsAllocated, signed } = format;
+  // A byte keeps the bits above Bits Stored, as GDCM kept them, so files that
+  // understate Bits Stored still load whole.
+  const bitsStored = bitsAllocated === 8 ? 8 : format.bitsStored;
+  // The Modality LUT module belongs to grayscale; color has no rescale.
+  const [slope, intercept] =
+    components === 1 ? [format.rescaleSlope, format.rescaleIntercept] : [1, 0];
   const pixels = rows * columns;
   const count = pixels * components;
-  const frameLength = count * (bitsAllocated / 8);
-  if (bytes.length < frameLength)
-    throw new Error(
-      `A frame needs ${frameLength} bytes of Pixel Data; ${bytes.length} were read`
-    );
   const words = storedWords(bytes, format, count);
   const samples = new Target(count);
   const mask = bitsStored < bitsAllocated ? 2 ** bitsStored - 1 : 0xffffffff;
@@ -229,18 +197,148 @@ export function decodeNativeFrame(
     }
     return [low, high] as [number, number];
   });
-  return { samples, range };
+  return { samples, range, components };
 }
 
-/** Decodes back-to-back native frames, one per format, into one run of samples. */
+const asRgb = (format: NativePixelFormat): NativePixelFormat => ({
+  ...format,
+  photometricInterpretation: 'RGB',
+  samplesPerPixel: 3,
+  planar: false,
+  palette: undefined,
+});
+
+/** A PALETTE COLOR frame's stored values, before any lookup. */
+const paletteIndexes = (bytes: Uint8Array, format: NativePixelFormat) =>
+  plainSamples(
+    bytes,
+    { ...format, palette: undefined, rescaleSlope: 1, rescaleIntercept: 0 },
+    Int32Array
+  ).samples;
+
+/**
+ * A frame as grayscale or interleaved RGB samples: YBR color converted, and
+ * palette values looked up. Any other frame is returned as it is.
+ */
+function asPlainFrame(bytes: Uint8Array, format: NativePixelFormat) {
+  const { rows, columns, planar, palette } = format;
+  const pixels = rows * columns;
+  if (format.photometricInterpretation === 'YBR_FULL_422')
+    return {
+      bytes: ybrFullAsRgb(ybr422AsYbrFull(bytes, pixels)),
+      format: asRgb(format),
+    };
+  if (format.photometricInterpretation === 'YBR_FULL') {
+    const stored = bytes.subarray(0, pixels * 3);
+    return {
+      bytes: ybrFullAsRgb(
+        planar ? planesAsInterleaved(stored, pixels) : stored
+      ),
+      format: asRgb(format),
+    };
+  }
+  if (palette) {
+    const rgb = paletteAsRgb(paletteIndexes(bytes, format), palette);
+    return {
+      bytes: new Uint8Array(rgb.buffer),
+      format: {
+        ...asRgb(format),
+        bitsAllocated: palette.bits,
+        bitsStored: palette.bits,
+        signed: false,
+        littleEndian: PLATFORM_LITTLE_ENDIAN,
+      },
+    };
+  }
+  return { bytes, format };
+}
+
+/** Samples per pixel a frame of this format decodes to. */
+const decodedComponents = (format: NativePixelFormat) =>
+  format.palette ? 3 : format.samplesPerPixel;
+
+/** Each pair of bytes exchanged, as 16 bit words change byte order. */
+const swapPairs = (bytes: Uint8Array) =>
+  Uint8Array.from(bytes, (_, index) => bytes[index ^ 1] ?? 0);
+
+/**
+ * Decodes one native frame into interleaved samples of the given element
+ * type: grayscale with its modality rescale applied, or RGB. `range` is each
+ * component's [min, max] before the values are stored, so a caller can reject
+ * values `Target` cannot hold.
+ */
+export function decodeNativeFrame(
+  bytes: Uint8Array,
+  stored: NativePixelFormat,
+  Target: VolumeBufferConstructor
+) {
+  const frameLength = frameByteLength(stored);
+  if (bytes.length < frameLength)
+    throw new Error(
+      `A frame needs ${frameLength} bytes of Pixel Data; ${bytes.length} were read`
+    );
+  const plain = stored.swappedPairs
+    ? asPlainFrame(swapPairs(bytes), { ...stored, swappedPairs: false })
+    : asPlainFrame(bytes, stored);
+  return plainSamples(plain.bytes, plain.format, Target);
+}
+
+/**
+ * Samples packed end to end with no padding, lowest bit first, as whole
+ * little endian words. Frames of such samples share bytes at their boundaries.
+ */
+function unpackSamples(bytes: Uint8Array, count: number, bits: number) {
+  if (bytes.length * 8 < count * bits)
+    throw new Error(
+      `Pixel Data holds ${bytes.length * 8} bits; its frames need ${count * bits}`
+    );
+  const words = bits <= 8 ? new Uint8Array(count) : new Uint16Array(count);
+  for (let index = 0; index < count; index += 1) {
+    let word = 0;
+    for (let bit = 0; bit < bits; bit += 1) {
+      const at = index * bits + bit;
+      word |= ((bytes[at >> 3] >> (at & 7)) & 1) << bit;
+    }
+    words[index] = word;
+  }
+  return new Uint8Array(words.buffer);
+}
+
+const isPacked = (bitsAllocated: number) => bitsAllocated % 8 !== 0;
+
+/**
+ * Decodes back-to-back native frames, one per format, into one run of
+ * samples.
+ */
 export function decodeNativeFrames(
   bytes: Uint8Array,
   formats: readonly NativePixelFormat[],
   Target: VolumeBufferConstructor
 ): DecodedPixels {
-  const { columns, rows, samplesPerPixel: components } = formats[0];
+  const { columns, rows, bitsAllocated, samplesPerPixel } = formats[0];
+  if (isPacked(bitsAllocated)) {
+    const samples = columns * rows * samplesPerPixel * formats.length;
+    const whole = Math.ceil(bitsAllocated / 8) * 8;
+    return decodeNativeFrames(
+      unpackSamples(bytes, samples, bitsAllocated),
+      formats.map((format) => ({
+        ...format,
+        bitsAllocated: whole,
+        littleEndian: PLATFORM_LITTLE_ENDIAN,
+      })),
+      Target
+    );
+  }
+  // The words pair bytes from the start of Pixel Data, not of each frame.
+  if (formats[0].swappedPairs)
+    return decodeNativeFrames(
+      swapPairs(bytes),
+      formats.map((format) => ({ ...format, swappedPairs: false })),
+      Target
+    );
+  const components = decodedComponents(formats[0]);
   const count = columns * rows * components;
-  const frameLength = count * (formats[0].bitsAllocated / 8);
+  const frameLength = frameByteLength(formats[0]);
   const data = new Target(count * formats.length);
   const ranges = formats.map((format, frame) => {
     const { samples, range } = decodeNativeFrame(
@@ -261,10 +359,45 @@ export function decodeNativeFrames(
   return { data, size: [columns, rows, formats.length], components, range };
 }
 
-/** Decodes each frame of an instance it reproduces exactly from its own ranged read. */
+/**
+ * The one unit that reads every frame of an instance whose frames share
+ * bytes or 16 bit words at their boundaries: samples packed across bytes, and
+ * big endian byte pairs in frames of odd length. Undefined for any other.
+ */
+function sharedBytesUnit(instance: Instance, Target: VolumeBufferConstructor) {
+  const { pixelData, dataset, transferSyntaxUid } = instance;
+  if (!pixelData?.length) return undefined;
+  const capability = nativeCapability(
+    instance,
+    transferSyntaxUid !== EXPLICIT_VR_BIG_ENDIAN
+  );
+  const packed = isPacked(shapeOf(instance).bitsAllocated);
+  if (capability.kind === 'declined')
+    return packed ? { declined: capability.reason } : undefined;
+  const { format } = capability;
+  const oddPairs = format.swappedPairs && frameByteLength(format) % 2 === 1;
+  if (!packed && !oddPairs) return undefined;
+  if (packed && !format.littleEndian)
+    return { declined: 'Big endian samples packed across bytes' };
+  const frames = frameCount(dataset);
+  const formats = frameFormats(format, dataset, frames);
+  const start = pixelData.valueOffset;
+  return [
+    {
+      firstFrame: 0,
+      frames,
+      range: { start, end: start + pixelData.length },
+      decode: (bytes: Uint8Array) => decodeNativeFrames(bytes, formats, Target),
+    },
+  ];
+}
+
+/** Decodes each frame of an uncompressed instance from its own ranged read. */
 export const nativeFrameDecoder: PixelDecoder = {
   name: 'Native frames',
   plan: (instance, Target) => {
+    const shared = sharedBytesUnit(instance, Target);
+    if (shared) return shared;
     const index = indexFrames(instance);
     if (index.kind === 'unindexed') return { declined: index.detail };
     const capability = nativeCapability(instance, index.littleEndian);
@@ -280,16 +413,12 @@ export const nativeFrameDecoder: PixelDecoder = {
       range,
       decode: (bytes) => {
         const format = formats[frame];
-        const { samples, range: values } = decodeNativeFrame(
-          bytes,
-          format,
-          Target
-        );
+        const decoded = decodeNativeFrame(bytes, format, Target);
         return {
-          data: samples,
+          data: decoded.samples,
           size: [format.columns, format.rows, 1],
-          components: format.samplesPerPixel,
-          range: values,
+          components: decoded.components,
+          range: decoded.range,
         };
       },
     }));
