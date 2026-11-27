@@ -135,7 +135,7 @@ export default defineComponent({
       if (!animationRequested && viewId.value) {
         animationRequested = true;
         viewAnimationStore.requestAnimation(pwfWidget, {
-          byViewType: [viewId.value],
+          byViewIds: [viewId.value],
         });
       }
     };
@@ -368,8 +368,8 @@ export default defineComponent({
           :min="sliders.shift[0]"
           :max="sliders.shift[1]"
           :step="sliders.step"
-          @pointerdown="request3DAnimation"
-          @pointerup="cancel3DAnimation"
+          @start="request3DAnimation"
+          @end="cancel3DAnimation"
         />
         <v-slider
           v-model="rangeWidth"
@@ -380,8 +380,8 @@ export default defineComponent({
           :min="sliders.width[0]"
           :max="sliders.width[1]"
           :step="sliders.step"
-          @pointerdown="request3DAnimation"
-          @pointerup="cancel3DAnimation"
+          @start="request3DAnimation"
+          @end="cancel3DAnimation"
         />
       </div>
       <v-tooltip text="Reset color and opacity to the preset">
