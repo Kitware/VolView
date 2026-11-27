@@ -1,4 +1,5 @@
 import { computed, effectScope, ref, Ref } from 'vue';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import { ImageMetadata } from '@/src/types/image';
 import { onVTKEvent } from '@/src/composables/onVTKEvent';
@@ -32,6 +33,8 @@ export type ProgressiveImage = {
   // The base implementation returns null so consumers can call this on any
   // ProgressiveImage without type-narrowing.
   getThumbnail(): Promise<string | null>;
+  // The DICOM instances the image is built from; empty for other sources.
+  getInstances(): readonly Instance[];
   addEventListener<T extends keyof ProgressiveImageEvents>(
     type: T,
     callback: (info: ProgressiveImageEvents[T]) => void
@@ -159,6 +162,10 @@ export abstract class BaseProgressiveImage implements ProgressiveImage {
 
   getThumbnail(): Promise<string | null> {
     return Promise.resolve(null);
+  }
+
+  getInstances(): readonly Instance[] {
+    return [];
   }
 
   abstract startLoad(): void;

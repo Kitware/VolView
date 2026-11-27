@@ -46,7 +46,7 @@ declare module 'dcmjs' {
     };
     data: {
       DicomMetaDictionary: {
-        dictionary: Record<string, { vr: string } | undefined>;
+        dictionary: Record<string, { vr: string; name?: string } | undefined>;
       };
       ReadBufferStream: new (buffer: ArrayBuffer) => DicomReadStream;
       DeflatedReadBufferStream: new (

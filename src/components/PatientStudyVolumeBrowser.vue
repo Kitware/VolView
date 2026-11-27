@@ -15,6 +15,7 @@ import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
 import { useViewStore } from '@/src/store/views';
 import { useLabelmapImportStore } from '@/src/segmentation/io/labelmapImport';
+import { useDataBrowserStore } from '@/src/store/data-browser';
 
 function dicomCacheKey(volKey: string) {
   return `dicom-${volKey}`;
@@ -45,6 +46,7 @@ export default defineComponent({
     const imageCacheStore = useImageCacheStore();
     const viewStore = useViewStore();
     const conversionStore = useLabelmapImportStore();
+    const dataBrowserStore = useDataBrowserStore();
 
     const { currentImageID } = useCurrentImage();
     const volumes = computed(() => {
@@ -185,6 +187,7 @@ export default defineComponent({
     }
 
     return {
+      dataBrowserStore,
       selected,
       selectedAll,
       selectedSome,
@@ -327,6 +330,12 @@ export default defineComponent({
                 >
                   <v-menu activator="parent">
                     <v-list>
+                      <v-list-item
+                        data-testid="dataset-menu-info-item"
+                        @click="dataBrowserStore.infoImageID = volume.key"
+                      >
+                        Info
+                      </v-list-item>
                       <v-list-item
                         v-if="volume.layerable"
                         @click.stop="volume.layerHandler()"

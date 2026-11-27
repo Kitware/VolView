@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useDICOMStore } from '@/src/store/datasets-dicom';
+import { useDataBrowserStore } from '@/src/store/data-browser';
 import { Maybe } from '@/src/types';
 import { isDicomImage } from '@/src/utils/dataSelection';
 import { computed, toRef } from 'vue';
@@ -12,6 +13,7 @@ const props = defineProps<Props>();
 const imageId = toRef(props, 'imageId');
 
 const dicomStore = useDICOMStore();
+const dataBrowserStore = useDataBrowserStore();
 const dicomInfo = computed(() => {
   const volumeKey = imageId.value;
   if (volumeKey && isDicomImage(volumeKey)) {
@@ -44,7 +46,8 @@ const dicomInfo = computed(() => {
   <v-menu
     open-on-hover
     location="bottom left"
-    v-if="dicomInfo !== null"
+    v-if="imageId"
+    :disabled="dicomInfo === null"
     max-width="300px"
   >
     <template v-slot:activator="{ props }">
@@ -52,13 +55,14 @@ const dicomInfo = computed(() => {
         v-bind="props"
         color="white"
         size="medium"
-        class="pointer-events-all dicom-info-trigger"
-        @click.stop
+        class="pointer-events-all volume-info-trigger"
+        data-testid="view-info-button"
+        @click.stop="dataBrowserStore.infoImageID = imageId"
       >
         mdi-information
       </v-icon>
     </template>
-    <v-list class="dicom-info-menu">
+    <v-list v-if="dicomInfo" class="dicom-info-menu">
       <v-list-item>
         <v-list-item-title class="font-weight-bold">
           PATIENT / CASE
@@ -92,9 +96,10 @@ const dicomInfo = computed(() => {
 <style scoped>
 .dicom-info-menu {
   border: 1px solid rgba(var(--v-theme-on-surface), 0.3);
+  user-select: text;
 }
 
-.dicom-info-trigger {
+.volume-info-trigger {
   text-shadow: none;
   letter-spacing: normal;
 }

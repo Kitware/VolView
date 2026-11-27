@@ -185,6 +185,10 @@ export default class DicomCineImage extends BaseProgressiveImage {
     this.vtkImageData.value.delete();
   }
 
+  getInstances(): readonly Instance[] {
+    return [this.instance];
+  }
+
   getNumberOfFrames(): number {
     return this.header.numberOfFrames;
   }

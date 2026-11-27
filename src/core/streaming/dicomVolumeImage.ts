@@ -1,4 +1,4 @@
-import { computed } from 'vue';
+import { computed, shallowRef } from 'vue';
 import mitt from 'mitt';
 import type vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
 import type { JsonCompatible } from '@itk-wasm/image-io';
@@ -115,6 +115,7 @@ function fallbackSlice(volume: Volume) {
  */
 export default class DicomVolumeImage extends BaseProgressiveImage {
   private content: Content | null = null;
+  private readonly instances = shallowRef<readonly Instance[]>([]);
 
   private load: AbortController | null = null;
 
@@ -147,10 +148,7 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
 
   /** The instances the current image is built from, in planned order. */
   getInstances(): readonly Instance[] {
-    if (!this.content) return [];
-    return this.content.kind === 'volume'
-      ? this.content.volume.members
-      : this.content.instances;
+    return this.instances.value;
   }
 
   /** The volume being shown, or null before one is set and for SEG. */
@@ -258,6 +256,8 @@ export default class DicomVolumeImage extends BaseProgressiveImage {
   private replaceContent(content: Content) {
     this.stopLoad();
     this.content = content;
+    this.instances.value =
+      content.kind === 'volume' ? content.volume.members : content.instances;
     this.forgetSettledThumbnail();
     this.segBuildInfo = null;
     this.updateStatus();

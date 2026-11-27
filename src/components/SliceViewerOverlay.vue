@@ -6,7 +6,7 @@ import { Maybe } from '@/src/types';
 import { VtkViewContext } from '@/src/components/vtk/context';
 import { useWindowingConfig } from '@/src/composables/useWindowingConfig';
 import { useOrientationLabels } from '@/src/composables/useOrientationLabels';
-import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import VolumeInfoButton from '@/src/components/VolumeInfoButton.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { computed } from 'vue';
@@ -80,7 +80,7 @@ const isLockedOrientationView = computed(() =>
     </template>
     <template v-slot:top-right>
       <div class="annotation-cell">
-        <dicom-quick-info-button :image-id="imageId"></dicom-quick-info-button>
+        <volume-info-button :image-id="imageId"></volume-info-button>
       </div>
     </template>
     <template #bottom-right>

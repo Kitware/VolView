@@ -29,7 +29,7 @@ import type { VtkViewApi } from '@/src/types/vtk-types';
 import { useEnFaceSliceLines } from './useEnFaceSliceLines';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
-import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
+import VolumeInfoButton from '@/src/components/VolumeInfoButton.vue';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 import EnFaceControlPanel from './EnFaceControlPanel.vue';
 import EnFaceStatus from './EnFaceStatus.vue';
@@ -259,7 +259,7 @@ watch(
       </template>
       <template #top-right
         ><div class="annotation-cell">
-          <DicomQuickInfoButton :image-id="currentImageID" /></div
+          <VolumeInfoButton :image-id="currentImageID" /></div
       ></template>
       <template #bottom-left>
         <div v-if="projectionReady && annotationSlice" class="annotation-cell">
