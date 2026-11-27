@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import {
   DoubleKeyRecord,
+  cloneEntries,
   deleteSecondKey,
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
@@ -94,6 +95,11 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     delete configs[viewID];
   };
 
+  const copyView = (sourceID: string, targetID: string) =>
+    cloneEntries(configs, sourceID).forEach(([dataID, config]) =>
+      updateConfig(targetID, dataID, config)
+    );
+
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
       delete configs[viewID]?.[dataID];
@@ -156,6 +162,7 @@ export const useViewSliceStore = defineStore('viewSlice', () => {
     updateConfig,
     resetSlice,
     removeView,
+    copyView,
     removeData,
     toggleSyncImages,
     updateSyncConfigs,

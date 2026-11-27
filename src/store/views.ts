@@ -34,6 +34,7 @@ import {
   sameLayoutShape,
   type DropZone,
   splitLayoutView,
+  viewLeaf,
 } from '@/src/utils/layoutEditing';
 
 const rawLayoutViewIds = (node: unknown): string[] => {
@@ -74,8 +75,6 @@ declareManifestRefs('views', (manifest) => {
     })),
   ];
 });
-
-const viewLeaf = (viewId: string): ViewLeaf => ({ type: 'view', viewId });
 
 // Each saved view fills exactly one pane, and a layout shows at least one.
 export const isRestorableLayout = (
@@ -133,7 +132,7 @@ export const useViewStore = defineStore('view', () => {
       }
     );
 
-  // A named layout is current when switching to it would only rename views.
+  // A named layout is current when the layout has its shape and view kinds.
   const currentLayoutName = computed(
     () =>
       Object.entries(namedLayouts.value).find(([, template]) =>
@@ -297,7 +296,6 @@ export const useViewStore = defineStore('view', () => {
   function closeView(id: string) {
     if (layoutViews.value.length <= 1 || !isInLayout(id)) return false;
     commitLayout(removeLayoutView(layout.value, id));
-    if (viewByID[id]) deleteView(id);
     return true;
   }
 
@@ -317,11 +315,7 @@ export const useViewStore = defineStore('view', () => {
         const id = addView({ ...cloneViewInit(init), dataID });
         if (sharesSourceWindowing(viewByID[id]))
           windowed.forEach((source) =>
-            Object.entries(
-              useWindowingStore().configs[source.id] ?? {}
-            ).forEach(([data, config]) =>
-              useWindowingStore().updateConfig(id, data, config)
-            )
+            useWindowingStore().copyView(source.id, id)
           );
         return viewLeaf(id);
       })
@@ -412,15 +406,13 @@ export const useViewStore = defineStore('view', () => {
       layoutViewIds(manifest.layout).forEach((id) => {
         viewByID[id] = { ...saved[id], dataID: null } as unknown as ViewInfo;
       });
-      isActiveViewMaximized.value = false;
       layout.value = manifest.layout;
     }
     // A saved active view the layout no longer shows cannot stay maximized.
     const hidden = !!manifest.activeView && !isInLayout(manifest.activeView);
     isActiveViewMaximized.value = !hidden && !!manifest.isActiveViewMaximized;
     // Reused views acquire their saved selection after their data is rebound.
-    if (manifest.viewByID)
-      setActiveView(hidden ? undefined : manifest.activeView);
+    if (manifest.viewByID && !hidden) setActiveView(manifest.activeView);
   }
 
   function bindViewsToData(

@@ -16,19 +16,9 @@ import type { SegmentResolver } from '@/src/segmentation/segments';
 const ownedViewIDs = (viewID: string) =>
   ['', ...Object.values(OBLIQUE_SUB_VIEWS)].map((suffix) => viewID + suffix);
 
-// Configs contain JSON values; clones keep nested camera/coloring state independent.
-const copyConfigs =
-  <T>(
-    configs: Record<string, Record<string, T>>,
-    update: (viewID: string, dataID: string, config: T) => void
-  ) =>
-  (sourceID: string, targetID: string) =>
-    Object.entries(configs[sourceID] ?? {}).forEach(([dataID, config]) =>
-      update(targetID, dataID, JSON.parse(JSON.stringify(config)) as T)
-    );
-
 type PerViewConfigs = {
   removeView: (viewID: string) => void;
+  copyView: (sourceID: string, targetID: string) => void;
   removeData: (dataID: string, viewID?: string) => void;
   serialize: (stateFile: StateFile) => void;
   deserialize: (
@@ -52,63 +42,28 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const enFaceViewStore = useEnFaceViewStore();
 
   // Every per-view store, so copy, remove and save cannot miss one.
-  const perViewStores: Array<{
-    store: PerViewConfigs;
-    copy: (sourceID: string, targetID: string) => void;
-  }> = [
-    {
-      store: viewSliceStore,
-      copy: copyConfigs(viewSliceStore.configs, viewSliceStore.updateConfig),
-    },
-    {
-      store: windowingStore,
-      copy: copyConfigs(windowingStore.configs, windowingStore.updateConfig),
-    },
-    // Layer coloring is derived from each layer's shared display config.
-    { store: layerColoringStore, copy: () => {} },
-    {
-      store: viewCameraStore,
-      copy: (sourceID, targetID) =>
-        copyConfigs(viewCameraStore.configs, (viewID, dataID, config) => {
-          viewCameraStore.updateConfig(viewID, dataID, config);
-          if (viewCameraStore.isCameraInitialized(sourceID, dataID)) {
-            viewCameraStore.markCameraAsInitialized(viewID, dataID);
-          }
-        })(sourceID, targetID),
-    },
-    {
-      store: volumeColoringStore,
-      copy: volumeColoringStore.copyView,
-    },
-    {
-      store: cinePlaybackStore,
-      copy: copyConfigs(cinePlaybackStore.configs, (viewID, dataID, config) =>
-        cinePlaybackStore.updateConfig(viewID, dataID, {
-          ...config,
-          playing: false,
-        })
-      ),
-    },
-    {
-      store: enFaceViewStore,
-      copy: copyConfigs(enFaceViewStore.configs, (viewID, dataID, config) =>
-        Object.assign(enFaceViewStore.configFor(viewID, dataID), config)
-      ),
-    },
+  const perViewStores: PerViewConfigs[] = [
+    viewSliceStore,
+    windowingStore,
+    layerColoringStore,
+    viewCameraStore,
+    volumeColoringStore,
+    cinePlaybackStore,
+    enFaceViewStore,
   ];
 
   const removeView = (viewID: string) => {
     ownedViewIDs(viewID).forEach((id) =>
-      perViewStores.forEach(({ store }) => store.removeView(id))
+      perViewStores.forEach((store) => store.removeView(id))
     );
   };
 
   const removeData = (dataID: string, viewID?: string) => {
-    perViewStores.forEach(({ store }) => store.removeData(dataID, viewID));
+    perViewStores.forEach((store) => store.removeData(dataID, viewID));
   };
 
   const serialize = (stateFile: StateFile) => {
-    perViewStores.forEach(({ store }) => store.serialize(stateFile));
+    perViewStores.forEach((store) => store.serialize(stateFile));
   };
 
   const deserialize = (
@@ -123,7 +78,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
       // A dataset that failed to restore has no new id to carry its config.
       if (newDataID) updatedConfig[newDataID] = viewConfig;
     });
-    perViewStores.forEach(({ store }) =>
+    perViewStores.forEach((store) =>
       store.deserialize(viewID, updatedConfig, resolveSegment)
     );
   };
@@ -165,7 +120,7 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const copyView = (sourceID: string, targetID: string) => {
     const sourceIDs = ownedViewIDs(sourceID);
     ownedViewIDs(targetID).forEach((id, index) =>
-      perViewStores.forEach(({ copy }) => copy(sourceIDs[index], id))
+      perViewStores.forEach((store) => store.copyView(sourceIDs[index], id))
     );
   };
 

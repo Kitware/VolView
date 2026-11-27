@@ -6,7 +6,7 @@ import type {
   LayoutTree,
   ViewLeaf,
 } from '@/src/types/layout';
-import { omit } from '@/src/utils';
+import { clampValue, omit } from '@/src/utils';
 
 type Leaf = { type: 'view' };
 
@@ -36,7 +36,7 @@ const sum = (values: readonly number[]) =>
   values.reduce((total, value) => total + value, 0);
 
 /** Each item's share of its group; sizes that do not fit the items mean equal. */
-export function groupShares(tree: LayoutTree<Leaf>) {
+function groupShares(tree: LayoutTree<Leaf>) {
   const count = tree.items.length;
   const { sizes } = tree;
   if (
@@ -51,17 +51,14 @@ export function groupShares(tree: LayoutTree<Leaf>) {
 const EQUAL_SHARE_TOLERANCE = 1e-9;
 
 // Equal shares are stored as absent sizes, so untouched layouts stay plain.
-function withShares<T extends LayoutTree<Leaf>>(
-  tree: T,
-  shares: readonly number[]
-): T {
+function withShares(tree: Layout, shares: readonly number[]): Layout {
   const rest = omit(tree, 'sizes');
   const total = sum(shares);
   const sizes = shares.map((share) => share / total);
   const equal = sizes.every(
     (size) => Math.abs(size - 1 / sizes.length) < EQUAL_SHARE_TOLERANCE
   );
-  return (equal ? rest : { ...rest, sizes }) as T;
+  return equal ? rest : { ...rest, sizes };
 }
 
 type Shared = [item: LayoutItem, share: number];
@@ -74,6 +71,11 @@ const sharedGroup = (direction: LayoutDirection, entries: Shared[]): Layout =>
 
 export const layoutViewIds = (layout: Layout) =>
   layoutLeaves(layout).map((leaf) => leaf.viewId);
+
+export const viewLeaf = (viewId: string): ViewLeaf => ({
+  type: 'view',
+  viewId,
+});
 
 // A root holding one group draws exactly like that group.
 const collapseRoot = (layout: Layout): Layout => {
@@ -119,7 +121,7 @@ export const splitLayoutView = (
   insertBeside(
     layout,
     viewId,
-    { type: 'view', viewId: newViewId },
+    viewLeaf(newViewId),
     direction === 'row' ? 'right' : 'bottom'
   );
 
@@ -176,18 +178,18 @@ export function replaceLayoutView(
   nextViewId: string
 ): Layout {
   return mapLayoutLeaves(layout, (leaf) =>
-    leaf.viewId === viewId ? { type: 'view', viewId: nextViewId } : leaf
+    leaf.viewId === viewId ? viewLeaf(nextViewId) : leaf
   );
 }
 
-export const swapLayoutViews = (layout: Layout, a: string, b: string) =>
-  mapLayoutLeaves(layout, (leaf): ViewLeaf => {
-    if (leaf.viewId === a) return { type: 'view', viewId: b };
-    if (leaf.viewId === b) return { type: 'view', viewId: a };
+const swapLayoutViews = (layout: Layout, a: string, b: string) =>
+  mapLayoutLeaves(layout, (leaf) => {
+    if (leaf.viewId === a) return viewLeaf(b);
+    if (leaf.viewId === b) return viewLeaf(a);
     return leaf;
   });
 
-export type DropEdge = 'left' | 'right' | 'top' | 'bottom';
+type DropEdge = 'left' | 'right' | 'top' | 'bottom';
 /** Where a dragged view lands on a target pane: beside an edge, or swapped. */
 export type DropZone = DropEdge | 'center';
 
@@ -202,7 +204,7 @@ export function moveLayoutView(
   return insertBeside(
     removeLayoutView(layout, viewId),
     targetId,
-    { type: 'view', viewId },
+    viewLeaf(viewId),
     zone
   );
 }
@@ -237,12 +239,17 @@ export function sameLayoutShape<A extends Leaf, B extends Leaf>(
   return match({ type: 'layout', ...a }, { type: 'layout', ...b });
 }
 
-type Bounds = { left: number; top: number; width: number; height: number };
+export type Bounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
 type Size = { width: number; height: number };
 
 const FULL_BOUNDS: Bounds = { left: 0, top: 0, width: 100, height: 100 };
 
-const axisOf = (direction: LayoutDirection) =>
+export const axisOf = (direction: LayoutDirection) =>
   direction === 'row'
     ? ({ start: 'left', size: 'width' } as const)
     : ({ start: 'top', size: 'height' } as const);
@@ -349,7 +356,13 @@ export function alignedDividers(
 }
 
 /** The smallest pane, in pixels, whose view controls stay usable. */
-export const MIN_PANE_SIZE: Size = { width: 160, height: 120 };
+const MIN_PANE_SIZE: Size = { width: 160, height: 120 };
+
+/** Whether a pane of this pixel size can split in each direction. */
+export const canSplit = ({ width, height }: Size) => ({
+  row: width >= 2 * MIN_PANE_SIZE.width,
+  column: height >= 2 * MIN_PANE_SIZE.height,
+});
 
 const groupAt = (tree: Layout, path: readonly number[]): Layout => {
   if (path.length === 0) return tree;
@@ -392,19 +405,26 @@ const minimumExtent = (
   );
 };
 
+function dividerShares(group: Layout, divider: LayoutDivider) {
+  const shares = groupShares(group);
+  return {
+    shares,
+    before: sum(shares.slice(0, divider.index - 1)),
+    pair: shares[divider.index - 1] + shares[divider.index],
+  };
+}
+
 // Percent positions a divider may take with both neighbors above the minimum.
 function dividerRange(layout: Layout, divider: LayoutDivider, container: Size) {
   const { size } = axisOf(divider.direction);
   const group = groupAt(layout, divider.path);
-  const shares = groupShares(group);
   const groupPixels = (divider.groupSize / 100) * container[size];
   const toPercent = (fraction: number) =>
     divider.groupStart + fraction * divider.groupSize;
   const need = (index: number) =>
     minimumExtent(group.items[index], divider.direction, MIN_PANE_SIZE[size]) /
     groupPixels;
-  const before = sum(shares.slice(0, divider.index - 1));
-  const pair = shares[divider.index - 1] + shares[divider.index];
+  const { before, pair } = dividerShares(group, divider);
   // An undersized neighbor may grow but never shrink further.
   return {
     low: Math.min(
@@ -418,22 +438,21 @@ function dividerRange(layout: Layout, divider: LayoutDivider, container: Size) {
   };
 }
 
-function placeDivider(
+// The second neighbor takes what the first leaves of their pair.
+function setDividerShare(
   layout: Layout,
   divider: LayoutDivider,
-  position: number
+  first: (around: ReturnType<typeof dividerShares>) => number
 ) {
   return updateGroup(layout, divider.path, (group) => {
-    const shares = groupShares(group);
-    const before = sum(shares.slice(0, divider.index - 1));
-    const pair = shares[divider.index - 1] + shares[divider.index];
-    const first = (position - divider.groupStart) / divider.groupSize - before;
+    const around = dividerShares(group, divider);
+    const share = first(around);
     return withShares(
       group,
-      shares.map((share, index) => {
-        if (index === divider.index - 1) return first;
-        if (index === divider.index) return pair - first;
-        return share;
+      around.shares.map((current, index) => {
+        if (index === divider.index - 1) return share;
+        if (index === divider.index) return around.pair - share;
+        return current;
       })
     );
   });
@@ -453,11 +472,19 @@ export function moveLayoutDividers(
   const ranges = dividers.map((divider) =>
     dividerRange(layout, divider, container)
   );
-  const low = Math.max(...ranges.map((range) => range.low));
-  const high = Math.min(...ranges.map((range) => range.high));
-  const clamped = Math.min(high, Math.max(low, position));
+  const clamped = clampValue(
+    position,
+    Math.max(...ranges.map((range) => range.low)),
+    Math.min(...ranges.map((range) => range.high))
+  );
   return dividers.reduce(
-    (next, divider) => placeDivider(next, divider, clamped),
+    (next, divider) =>
+      setDividerShare(
+        next,
+        divider,
+        ({ before }) =>
+          (clamped - divider.groupStart) / divider.groupSize - before
+      ),
     layout
   );
 }
@@ -475,10 +502,10 @@ export function pickDropZone(
 ): DropZone {
   const x = (point.x - pane.left) / pane.width;
   const y = (point.y - pane.top) / pane.height;
-  const fits = {
-    row: (pane.width / 100) * container.width >= 2 * MIN_PANE_SIZE.width,
-    column: (pane.height / 100) * container.height >= 2 * MIN_PANE_SIZE.height,
-  };
+  const fits = canSplit({
+    width: (pane.width / 100) * container.width,
+    height: (pane.height / 100) * container.height,
+  });
   const edges = [
     { zone: 'left', distance: x, direction: 'row' },
     { zone: 'right', distance: 1 - x, direction: 'row' },
@@ -516,10 +543,7 @@ export const resetLayoutDividers = (
   layout: Layout,
   dividers: readonly LayoutDivider[]
 ) =>
-  dividers.reduce((next, divider) => {
-    const shares = groupShares(groupAt(next, divider.path));
-    const before = sum(shares.slice(0, divider.index - 1));
-    const pair = shares[divider.index - 1] + shares[divider.index];
-    const middle = divider.groupStart + (before + pair / 2) * divider.groupSize;
-    return placeDivider(next, divider, middle);
-  }, layout);
+  dividers.reduce(
+    (next, divider) => setDividerShare(next, divider, ({ pair }) => pair / 2),
+    layout
+  );

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue';
-import { useElementSize } from '@vueuse/core';
+import { computed, shallowRef, useTemplateRef } from 'vue';
 import type { LayoutDirection } from '@/src/types/layout';
 import { useViewStore } from '@/src/store/views';
-import { MIN_PANE_SIZE } from '@/src/utils/layoutEditing';
+import { canSplit } from '@/src/utils/layoutEditing';
 import ReasonedAction from '@/src/components/ReasonedAction.vue';
 
 // MDI's split icons read as text beside a box; these are a frame with one divider.
@@ -13,13 +12,13 @@ const topBottomIcon = 'svg:M3 4h18v16H3V4zm2 2v5h14V6H5zm0 7v5h14v-5H5z';
 const props = defineProps<{ viewId: string }>();
 const viewStore = useViewStore();
 const control = useTemplateRef<HTMLElement>('control');
-const pane = computed(() =>
-  control.value?.closest<HTMLElement>('.layout-item')
-);
+const fits = shallowRef({ row: true, column: true });
+
 // Border-box matches the pane bounds the dock and divider limits use.
-const { width, height } = useElementSize(pane, undefined, {
-  box: 'border-box',
-});
+function measure(open: boolean) {
+  const pane = control.value?.closest<HTMLElement>('.layout-item');
+  if (open && pane) fits.value = canSplit(pane.getBoundingClientRect());
+}
 
 const isMaximized = computed(
   () => viewStore.maximizedView?.id === props.viewId
@@ -31,14 +30,10 @@ const splitReasons = computed(() => {
     return { row: restore, column: restore };
   }
   return {
-    row:
-      width.value < 2 * MIN_PANE_SIZE.width
-        ? 'This view is too narrow to split side by side'
-        : '',
-    column:
-      height.value < 2 * MIN_PANE_SIZE.height
-        ? 'This view is too short to split top and bottom'
-        : '',
+    row: fits.value.row ? '' : 'This view is too narrow to split side by side',
+    column: fits.value.column
+      ? ''
+      : 'This view is too short to split top and bottom',
   };
 });
 const singleViewReason = computed(() =>
@@ -59,7 +54,7 @@ function toggleMaximized() {
 
 <template>
   <span ref="control" class="d-inline-flex">
-    <v-menu location="top end">
+    <v-menu location="top end" @update:model-value="measure">
       <template #activator="{ props: menuProps }">
         <v-btn
           v-bind="menuProps"

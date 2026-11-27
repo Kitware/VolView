@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, h, nextTick, onUnmounted } from 'vue';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkRenderWindow from '@kitware/vtk.js/Rendering/Core/RenderWindow';
 import vtkOpenGLRenderWindow from '@kitware/vtk.js/Rendering/OpenGL/RenderWindow';
@@ -11,18 +9,10 @@ import ObliqueSliceViewer from '@/src/components/ObliqueSliceViewer.vue';
 import { useImageStore } from '@/src/store/datasets-images';
 import { useViewStore } from '@/src/store/views';
 import useResliceCursorStore from '@/src/store/reslice-cursor';
+import { makeImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
-const createImage = (size: number) => {
-  const image = vtkImageData.newInstance();
-  image.setDimensions(size, size, size);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      name: 'scalars',
-      values: new Uint8Array(size ** 3),
-    })
-  );
-  return image;
-};
+const createImage = (size: number) =>
+  makeImage({ dimensions: [size, size, size] });
 
 describe('split oblique cursor position', () => {
   const wrappers: VueWrapper[] = [];

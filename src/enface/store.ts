@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import { createViewConfigSerializer } from '@/src/store/view-configs/common';
 import {
+  cloneEntries,
   deleteSecondKey,
   getDoubleKeyRecord,
   type DoubleKeyRecord,
@@ -126,6 +127,12 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     delete controlStates[viewID];
   }
 
+  function copyView(sourceID: string, targetID: string) {
+    cloneEntries(configs, sourceID).forEach(([dataID, config]) =>
+      Object.assign(configFor(targetID, dataID), config)
+    );
+  }
+
   function removeData(dataID: string, viewID?: string) {
     if (viewID) {
       delete configs[viewID]?.[dataID];
@@ -167,6 +174,7 @@ export const useEnFaceViewStore = defineStore('enface-view', () => {
     controlStateFor,
     setControlState,
     removeView,
+    copyView,
     removeData,
     serialize,
     deserialize,

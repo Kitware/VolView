@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createPinia, setActivePinia } from 'pinia';
-import vtkImageData from '@kitware/vtk.js/Common/DataModel/ImageData';
-import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import { useViewStore } from '@/src/store/views';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import { useViewSliceStore } from '@/src/store/view-configs/slicing';
@@ -15,6 +13,7 @@ import { useDatasetStore } from '@/src/store/datasets';
 import { useImageStatsStore } from '@/src/store/image-stats';
 import '@/src/vtk/ColorMaps';
 import { useSyncWindowing } from '@/src/composables/useSyncWindowing';
+import { makeImage } from '@/src/segmentation/__tests__/segmentMaskFixtures';
 
 const configStores = () => ({
   slice: useViewSliceStore(),
@@ -26,14 +25,7 @@ const configStores = () => ({
 });
 
 const seatImage = (id: string) => {
-  const image = vtkImageData.newInstance();
-  image.setDimensions(2, 2, 12);
-  image.getPointData().setScalars(
-    vtkDataArray.newInstance({
-      name: 'scalars',
-      values: new Uint8Array(48),
-    })
-  );
+  const image = makeImage({ dimensions: [2, 2, 12] });
   useImageStatsStore().stats[id] = {
     scalarMin: 0,
     scalarMax: 0,

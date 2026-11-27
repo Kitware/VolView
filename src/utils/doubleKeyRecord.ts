@@ -29,6 +29,12 @@ export function deleteFirstKey<V>(record: DoubleKeyRecord<V>, k1: string) {
   delete record[k1];
 }
 
+/** Independent copies of k1's entries, which must hold JSON values. */
+export const cloneEntries = <V>(record: DoubleKeyRecord<V>, k1: string) =>
+  Object.entries(record[k1] ?? {}).map(
+    ([k2, value]) => [k2, JSON.parse(JSON.stringify(value)) as V] as const
+  );
+
 export function deleteEntry<V>(
   record: DoubleKeyRecord<V>,
   k1: string,

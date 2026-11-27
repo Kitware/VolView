@@ -7,12 +7,14 @@ import { useToolStore } from '@/src/store/tools';
 import { Tools } from '@/src/store/tools/types';
 import {
   alignedDividers,
+  axisOf,
   dropZoneBounds,
   getLayoutDividers,
   getLayoutPanes,
   moveLayoutDividers,
   pickDropZone,
   resetLayoutDividers,
+  type Bounds,
   type DropZone,
   type LayoutDivider,
 } from '@/src/utils/layoutEditing';
@@ -23,34 +25,36 @@ const props = defineProps<{ layout: Layout }>();
 const viewStore = useViewStore();
 const container = useTemplateRef<HTMLElement>('container');
 
+type Capture = { pointerId: number; handle: HTMLElement };
+
+const releaseCapture = ({ pointerId, handle }: Capture) => {
+  if (handle.hasPointerCapture(pointerId))
+    handle.releasePointerCapture(pointerId);
+};
+
+const percentStyle = ({ left, top, width, height }: Bounds) => ({
+  left: `${left}%`,
+  top: `${top}%`,
+  width: `${width}%`,
+  height: `${height}%`,
+});
+
 // Dragging renders from a local draft; the store sees one commit on release.
-type Drag = {
-  pointerId: number;
-  handle: HTMLElement;
+type Drag = Capture & {
   layout: Layout;
   dividers: LayoutDivider[];
   origin: number;
   position: number;
   container: { width: number; height: number };
+  draft?: Layout;
 };
 const drag = shallowRef<Drag>();
-const draft = shallowRef<Layout>();
-const shown = computed(() => draft.value ?? props.layout);
+const shown = computed(() => drag.value?.draft ?? props.layout);
 
 const items = computed(() =>
-  getLayoutPanes(shown.value).flatMap(({ viewId, left, top, width, height }) =>
-    viewStore.getView(viewId)
-      ? [
-          {
-            viewId,
-            style: {
-              left: `${left}%`,
-              top: `${top}%`,
-              width: `${width}%`,
-              height: `${height}%`,
-            },
-          },
-        ]
+  getLayoutPanes(shown.value).flatMap((pane) =>
+    viewStore.getView(pane.viewId)
+      ? [{ viewId: pane.viewId, style: percentStyle(pane) }]
       : []
   )
 );
@@ -63,20 +67,20 @@ const dragged = computed(
 
 const dividers = computed(() =>
   getLayoutDividers(shown.value).map((divider) => {
-    const vertical = divider.direction === 'row';
-    const [along, across] = vertical ? ['left', 'top'] : ['top', 'left'];
-    const [thickness, extent] = vertical
-      ? ['width', 'height']
-      : ['height', 'width'];
+    const along = axisOf(divider.direction);
+    const across = axisOf(divider.direction === 'row' ? 'column' : 'row');
     return {
       divider,
       key: dividerKey(divider),
-      orientation: vertical ? ('vertical' as const) : ('horizontal' as const),
+      orientation:
+        divider.direction === 'row'
+          ? ('vertical' as const)
+          : ('horizontal' as const),
       style: {
-        [along]: `calc(${divider.position}% - var(--divider-size) / 2)`,
-        [across]: `${divider.start}%`,
-        [thickness]: 'var(--divider-size)',
-        [extent]: `${divider.length}%`,
+        [along.start]: `calc(${divider.position}% - var(--divider-size) / 2)`,
+        [across.start]: `${divider.start}%`,
+        [along.size]: 'var(--divider-size)',
+        [across.size]: `${divider.length}%`,
       },
     };
   })
@@ -107,58 +111,54 @@ function moveDrag(event: PointerEvent) {
   const current = drag.value;
   if (!current || event.pointerId !== current.pointerId) return;
   const [divider] = current.dividers;
-  const span =
-    divider.direction === 'row'
-      ? current.container.width
-      : current.container.height;
+  const span = current.container[axisOf(divider.direction).size];
   const moved = ((pointerAlong(divider, event) - current.origin) / span) * 100;
-  draft.value = moveLayoutDividers(
-    current.layout,
-    current.dividers,
-    current.position + moved,
-    current.container
-  );
+  drag.value = {
+    ...current,
+    draft: moveLayoutDividers(
+      current.layout,
+      current.dividers,
+      current.position + moved,
+      current.container
+    ),
+  };
 }
 
 // A canceled drag reverts, whether the browser or Escape ended it.
 function endDrag(event: PointerEvent, commit: boolean) {
-  if (event.pointerId !== drag.value?.pointerId) return;
-  if (commit && draft.value) viewStore.resizeLayout(draft.value);
+  const current = drag.value;
+  if (event.pointerId !== current?.pointerId) return;
+  if (commit && current.draft) viewStore.resizeLayout(current.draft);
   drag.value = undefined;
-  draft.value = undefined;
 }
 
-type Move = {
+type MoveTarget = { viewId: string; zone: DropZone };
+type Move = Capture & {
   viewId: string;
-  pointerId: number;
-  handle: HTMLElement;
-  target?: { viewId: string; zone: DropZone };
+  container: DOMRect;
+  target?: MoveTarget;
 };
 const move = shallowRef<Move>();
 
+const sameTarget = (a?: MoveTarget, b?: MoveTarget) =>
+  a?.viewId === b?.viewId && a?.zone === b?.zone;
+const movingViewId = computed(() => move.value?.viewId);
+const panes = computed(() => getLayoutPanes(props.layout));
+
 const movePreview = computed(() => {
   const target = move.value?.target;
-  const pane = getLayoutPanes(props.layout).find(
-    ({ viewId }) => viewId === target?.viewId
-  );
-  if (!target || !pane) return undefined;
-  const { left, top, width, height } = dropZoneBounds(pane, target.zone);
-  return {
-    left: `${left}%`,
-    top: `${top}%`,
-    width: `${width}%`,
-    height: `${height}%`,
-  };
+  if (!target) return undefined;
+  const pane = panes.value.find(({ viewId }) => viewId === target.viewId);
+  return pane && percentStyle(dropZoneBounds(pane, target.zone));
 });
 
-function dropTarget(viewId: string, event: PointerEvent) {
-  if (!container.value) return undefined;
-  const { left, top, width, height } = container.value.getBoundingClientRect();
+function dropTarget({ viewId, container: rect }: Move, event: PointerEvent) {
+  const { left, top, width, height } = rect;
   const point = {
     x: ((event.clientX - left) / width) * 100,
     y: ((event.clientY - top) / height) * 100,
   };
-  const pane = getLayoutPanes(props.layout).find(
+  const pane = panes.value.find(
     (bounds) =>
       point.x >= bounds.left &&
       point.x < bounds.left + bounds.width &&
@@ -172,11 +172,20 @@ function dropTarget(viewId: string, event: PointerEvent) {
   };
 }
 
+function endMove() {
+  const current = move.value;
+  if (!current) return;
+  move.value = undefined;
+  releaseCapture(current);
+}
+
 function onMovePointer(event: PointerEvent) {
   const current = move.value;
   if (!current || event.pointerId !== current.pointerId) return;
   if (event.type === 'pointermove') {
-    move.value = { ...current, target: dropTarget(current.viewId, event) };
+    const target = dropTarget(current, event);
+    if (!sameTarget(target, current.target))
+      move.value = { ...current, target };
     return;
   }
   if (event.type === 'pointerup' && current.target)
@@ -188,37 +197,27 @@ function onMovePointer(event: PointerEvent) {
   endMove();
 }
 
-const MOVE_EVENTS = [
-  'pointermove',
-  'pointerup',
-  'pointercancel',
-  'lostpointercapture',
-] as const;
-
-function endMove() {
-  const current = move.value;
-  if (!current) return;
-  move.value = undefined;
-  MOVE_EVENTS.forEach((type) =>
-    current.handle.removeEventListener(type, onMovePointer)
-  );
-  if (current.handle.hasPointerCapture(current.pointerId))
-    current.handle.releasePointerCapture(current.pointerId);
-}
+useEventListener(
+  () => move.value?.handle,
+  ['pointermove', 'pointerup', 'pointercancel', 'lostpointercapture'],
+  onMovePointer
+);
 
 function startMove(viewId: string, event: PointerEvent) {
-  if (move.value || drag.value || event.button !== 0) return;
+  if (move.value || drag.value || !container.value || event.button !== 0)
+    return;
   event.preventDefault();
   const handle = event.currentTarget as HTMLElement;
   handle.setPointerCapture(event.pointerId);
-  MOVE_EVENTS.forEach((type) => handle.addEventListener(type, onMovePointer));
-  move.value = { viewId, pointerId: event.pointerId, handle };
+  move.value = {
+    viewId,
+    pointerId: event.pointerId,
+    handle,
+    container: container.value.getBoundingClientRect(),
+  };
 }
 
-provide(ViewMoveKey, {
-  movingViewId: computed(() => move.value?.viewId),
-  start: startMove,
-});
+provide(ViewMoveKey, { movingViewId, start: startMove });
 
 useEventListener(window, 'keydown', (event: KeyboardEvent) => {
   if (event.key !== 'Escape') return;
@@ -226,16 +225,13 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
   const current = drag.value;
   if (!current) return;
   drag.value = undefined;
-  draft.value = undefined;
-  current.handle.releasePointerCapture(current.pointerId);
+  releaseCapture(current);
 });
 
 watch(
   () => props.layout,
   () => {
-    if (drag.value?.layout === props.layout) return;
-    drag.value = undefined;
-    draft.value = undefined;
+    if (drag.value?.layout !== props.layout) drag.value = undefined;
   }
 );
 
@@ -263,7 +259,7 @@ function maximize(id: string) {
       v-for="item in items"
       :key="item.viewId"
       class="layout-item"
-      :class="{ 'layout-item--moving': move?.viewId === item.viewId }"
+      :class="{ 'layout-item--moving': movingViewId === item.viewId }"
       :style="item.style"
       :view-id="item.viewId"
       @pointerdown.capture="viewStore.setActiveView(item.viewId)"
