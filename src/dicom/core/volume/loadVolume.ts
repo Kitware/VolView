@@ -213,7 +213,7 @@ function createLoader({ volume, runtime, stopped, focus }: Loader) {
   const { units, failures } = planUnits(volume, runtime.decoders);
   const waiting = new Map(units.map((unit) => [unit.slot, unit]));
   const ready = new Map<number, { unit: Unit; bytes: Uint8Array }>();
-  /** Members whose source has not yet shown it honours ranges. */
+  /** Members whose source has not yet shown it honors ranges. */
   const probing = new Set<number>();
   const updates = [...failures];
   let reading = 0;
@@ -243,7 +243,7 @@ function createLoader({ volume, runtime, stopped, focus }: Loader) {
   const next = (slots: Iterable<number>) => pickNextSlot(slots, focus());
   const sourceOf = (unit: Unit) => volume.members[unit.member].source;
   const rangeSupport = (unit: Unit) =>
-    sourceOf(unit).rangeSupport?.() ?? 'honoured';
+    sourceOf(unit).rangeSupport?.() ?? 'honored';
 
   // A server that ignores Range would resend the file for every unit, so the
   // remaining ranged units of that member come from one read.

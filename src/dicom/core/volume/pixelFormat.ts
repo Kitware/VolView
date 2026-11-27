@@ -78,7 +78,7 @@ export function samplesAreIntegral(
 }
 
 /**
- * The sample depth of a palette colour instance, which decodes to RGB: GDCM
+ * The sample depth of a palette color instance, which decodes to RGB: GDCM
  * keeps each entry's high byte for 8-bit pixels. Null for other instances.
  */
 export function paletteSampleBits(metadata: DicomDataset | null | undefined) {

@@ -47,7 +47,7 @@ describe('rleFrameCodec', () => {
     ]);
   });
 
-  it('interleaves the planes of colour components', () => {
+  it('interleaves the planes of color components', () => {
     const plane = (value: number) => [255, value];
 
     const { samples } = rleFrameCodec(shape({ columns: 2, components: 3 }))(

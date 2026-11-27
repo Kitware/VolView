@@ -81,7 +81,7 @@ describe('decodeNativeFrame', () => {
     expect(Array.from(samples)).toEqual([0x0102, -32768, 0, -1]);
   });
 
-  it('interleaves planar colour and ranges each component', () => {
+  it('interleaves planar color and ranges each component', () => {
     const planes = new Uint8Array([1, 2, 30, 40, 250, 200]);
 
     const { samples, range } = decodeNativeFrame(
@@ -188,12 +188,12 @@ describe('nativeCapability', () => {
 
   it.each([
     [
-      'YBR colour',
+      'YBR color',
       { samplesPerPixel: 3, bitsAllocated: 8, photometric: 'YBR_FULL' },
       /YBR_FULL/,
     ],
     [
-      'palette colour',
+      'palette color',
       { bitsAllocated: 8, photometric: 'PALETTE COLOR' },
       /PALETTE COLOR/,
     ],

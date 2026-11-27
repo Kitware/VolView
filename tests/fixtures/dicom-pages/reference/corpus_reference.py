@@ -155,9 +155,9 @@ def stored_pixels(ds):
     raw = ds.pixel_array
     samples = int(ds.get('SamplesPerPixel', 1))
     if str(ds.get('PhotometricInterpretation', '')) == 'PALETTE COLOR':
-        # The palette is the image's colour; its indices are not displayable values.
+        # The palette is the image's color; its indices are not displayable values.
         raw, samples = apply_color_lut(raw, ds), 3
-        # 8-bit pixels decode to 8-bit colour: the high byte of 16-bit entries, as GDCM does.
+        # 8-bit pixels decode to 8-bit color: the high byte of 16-bit entries, as GDCM does.
         if int(ds.BitsAllocated) == 8 and raw.dtype == np.uint16:
             raw = raw >> 8
     raw = raw.astype(np.float64)
@@ -183,7 +183,7 @@ def stored_pixels(ds):
 def pixel_fact(data, ds, storage):
     if storage == 'float32':
         data = data.astype(np.float32).astype(np.float64)
-    # Colour converted from YBR depends on the decoder's rounding; a palette lookup does not.
+    # Color converted from YBR depends on the decoder's rounding; a palette lookup does not.
     exact = (str(ds.get('PhotometricInterpretation', '')) in ('MONOCHROME1', 'MONOCHROME2', 'RGB', 'PALETTE COLOR')
              and str(ds.file_meta.TransferSyntaxUID) in LOSSLESS_SYNTAXES)
     if exact:

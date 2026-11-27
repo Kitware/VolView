@@ -21,7 +21,7 @@ export type ByteSource = {
   rangeSupport?: () => RangeSupport;
 };
 
-export type RangeSupport = 'unknown' | 'honoured' | 'ignored';
+export type RangeSupport = 'unknown' | 'honored' | 'ignored';
 
 /** Enough that a header rarely needs a second slice. */
 const OPEN_READ_FIRST_SLICE = 64 * 1024;
@@ -156,9 +156,7 @@ export const fromUrl = (
     assertReadableStatus(response, url);
     if (range)
       rangeSupport =
-        response.status === HTTP_STATUS_PARTIAL_CONTENT
-          ? 'honoured'
-          : 'ignored';
+        response.status === HTTP_STATUS_PARTIAL_CONTENT ? 'honored' : 'ignored';
     return rangedBody(response, range).getReader();
   };
   return {

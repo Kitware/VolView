@@ -16,15 +16,15 @@ const unpositioned = Array.from(
 );
 const sharedMeasure = (tag: string) => `52009229.00289110.${tag}`;
 
-/** B-scans rotated about the depth axis through the scan centre. */
+/** B-scans rotated about the depth axis through the scan center. */
 function radialPlanes(count: number) {
-  const centre = (width * sx) / 2;
+  const center = (width * sx) / 2;
   return (frame: number) => {
     const angle = (frame * Math.PI) / count;
     const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
     const fixed = (value: number) => value.toFixed(6);
     return {
-      position: [centre - centre * cos, 0, centre - centre * sin]
+      position: [center - center * cos, 0, center - center * sin]
         .map(fixed)
         .join('\\'),
       orientation: [cos, 0, sin, 0, 1, 0].map(fixed).join('\\'),

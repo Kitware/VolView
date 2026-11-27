@@ -5,7 +5,7 @@ import type { NativePixelOptions } from '@/tests/nativePixelDicom';
 
 const HTJ2K_LOSSLESS = '1.2.840.10008.1.2.4.201';
 
-// Two by two pixels of three samples, as OpenJPH returns colour.
+// Two by two pixels of three samples, as OpenJPH returns color.
 const RGB = Uint8Array.from([
   10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120,
 ]);
@@ -36,7 +36,7 @@ const htj2kInstance = async (options: NativePixelOptions) => ({
   transferSyntaxUid: HTJ2K_LOSSLESS,
 });
 
-const colourInstance = (photometric: string) =>
+const colorInstance = (photometric: string) =>
   htj2kInstance({
     rows: 2,
     columns: 2,
@@ -55,10 +55,10 @@ describe('codec decoders', () => {
     ['jpeg', 'YBR_FULL'],
     ['jpeg', 'YBR_FULL_422'],
   ] as const)(
-    'decodes %s %s colour to the RGB samples its codec returns',
+    'decodes %s %s color to the RGB samples its codec returns',
     async (codec, photometric) => {
       const decoder = createCodecDecoders(1, rgbLane).decoders[codec];
-      const units = decoder.plan(await colourInstance(photometric), Uint8Array);
+      const units = decoder.plan(await colorInstance(photometric), Uint8Array);
       if ('declined' in units) throw new Error(units.declined);
 
       const pixels = await units[0].decode(
@@ -106,10 +106,10 @@ describe('codec decoders', () => {
     expect(pixels.range).toEqual([[1, 18]]);
   });
 
-  it('declines colour no transform of the codestream turns into RGB', async () => {
+  it('declines color no transform of the codestream turns into RGB', async () => {
     const decoder = createCodecDecoders(1, rgbLane).decoders.htj2k;
 
-    expect(decoder.plan(await colourInstance('YBR_FULL'), Uint8Array)).toEqual({
+    expect(decoder.plan(await colorInstance('YBR_FULL'), Uint8Array)).toEqual({
       declined: expect.stringMatching(/YBR_FULL/),
     });
   });

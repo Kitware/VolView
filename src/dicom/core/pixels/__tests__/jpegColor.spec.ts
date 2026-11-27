@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asStoredRgb } from '../jpegColour';
+import { asStoredRgb } from '../jpegColor';
 
 const SOI = [0xff, 0xd8];
 const QUANTIZATION = [0xff, 0xdb, 0x00, 0x04, 1, 2];
@@ -21,7 +21,7 @@ const frame = (...segments: number[][]) =>
   Uint8Array.from([...SOI, ...segments.flat(), ...SCAN]);
 
 describe('asStoredRgb', () => {
-  it('marks a stream that states no colour space as holding its components untransformed', () => {
+  it('marks a stream that states no color space as holding its components untransformed', () => {
     expect(Array.from(asStoredRgb(frame(QUANTIZATION)))).toEqual([
       ...SOI,
       ...ADOBE_NO_TRANSFORM,

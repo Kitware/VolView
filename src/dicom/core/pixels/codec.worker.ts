@@ -14,7 +14,7 @@ import {
   type FrameCodec,
 } from './codecFrames';
 import { embindFrameCodec } from './embindFrames';
-import { asStoredRgb } from './jpegColour';
+import { asStoredRgb } from './jpegColor';
 import { jpegLosslessFrameCodec } from './jpegLosslessFrame';
 import { rleFrameCodec } from './rleFrame';
 

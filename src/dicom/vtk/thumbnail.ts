@@ -1,4 +1,4 @@
-/** An 8 bit greyscale slice, small enough to encode as a thumbnail. */
+/** An 8 bit grayscale slice, small enough to encode as a thumbnail. */
 export type ThumbnailSlice = {
   width: number;
   height: number;
@@ -42,7 +42,7 @@ export function thumbnailRange(data: ArrayLike<number>, components: number) {
   return [low, high] as const;
 }
 
-/** Downsamples one slice and casts it to 8 bit greyscale. */
+/** Downsamples one slice and casts it to 8 bit grayscale. */
 export function sliceToThumbnail({
   data,
   width,

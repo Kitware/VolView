@@ -2,8 +2,8 @@ import { concatBytes, toAscii } from '../utils';
 
 const SOI_LENGTH = 2;
 const SOS = 0xda;
-/** The segments a JPEG decoder reads the colour space from, by marker code. */
-const COLOUR_SEGMENTS = new Map([
+/** The segments a JPEG decoder reads the color space from, by marker code. */
+const COLOR_SEGMENTS = new Map([
   [0xe0, 'JFIF'],
   [0xee, 'Adobe'],
 ]);
@@ -15,13 +15,13 @@ const ADOBE_NO_TRANSFORM = Uint8Array.from([
   0x00, 0x00, 0x00,
 ]);
 
-/** Whether a JFIF or Adobe segment ahead of the first scan states the colour space. */
-function statesColourSpace(frame: Uint8Array) {
+/** Whether a JFIF or Adobe segment ahead of the first scan states the color space. */
+function statesColorSpace(frame: Uint8Array) {
   let at = SOI_LENGTH;
   while (at + 4 <= frame.length && frame[at] === 0xff) {
     const code = frame[at + 1];
     if (code === SOS) return false;
-    const name = COLOUR_SEGMENTS.get(code);
+    const name = COLOR_SEGMENTS.get(code);
     if (name && toAscii(frame.subarray(at + 4, at + 4 + name.length)) === name)
       return true;
     at += 2 + ((frame[at + 2] << 8) | frame[at + 3]);
@@ -32,10 +32,10 @@ function statesColourSpace(frame: Uint8Array) {
 /**
  * A JPEG frame whose header says RGB, marked so a decoder does not take its
  * three components for YCbCr, as it does for a stream that says nothing.
- * A stream that states its own colour space is left to say so.
+ * A stream that states its own color space is left to say so.
  */
 export const asStoredRgb = (frame: Uint8Array) =>
-  statesColourSpace(frame)
+  statesColorSpace(frame)
     ? frame
     : concatBytes([
         frame.subarray(0, SOI_LENGTH),

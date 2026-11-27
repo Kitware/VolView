@@ -35,7 +35,7 @@ export type CodecJob = Readonly<{
   frameCount: number;
   /** The header's frame shape, for codestreams that do not state their own. */
   shape: FrameShape;
-  /** The header's, for codestreams that do not state their colour space. */
+  /** The header's, for codestreams that do not state their color space. */
   photometricInterpretation: string;
 }>;
 

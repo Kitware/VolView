@@ -50,7 +50,7 @@ describe('Corpus files in the application', () => {
     await $('header').moveTo();
     await browser.waitUntil(
       async () => (await colorFraction(`${name}.png`)) > 0.5,
-      { timeoutMsg: 'Expected the decoded colour image in the slice view' }
+      { timeoutMsg: 'Expected the decoded color image in the slice view' }
     );
     expect(await volViewPage.getNotificationsCount()).toBe(0);
   });

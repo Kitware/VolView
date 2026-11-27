@@ -117,7 +117,7 @@ const declineRescale = (format: NativePixelFormat) => {
 // Each case was compared with GDCM in a browser: 8 bit words keep bits above
 // Bits Stored, 32 bit words with fewer stored bits do not decode, and big
 // endian words other than 16 bit are read as 16 bit pairs. Palette and YBR
-// colour are not reproduced here.
+// color are not reproduced here.
 const declineFormat = (format: NativePixelFormat) =>
   declinePhotometric(format) ??
   declineBits(format) ??

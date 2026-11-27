@@ -270,18 +270,18 @@ describe('loadVolume with native frames', () => {
   });
 
   it.each([
-    ['honours', 1 + FRAMES],
+    ['honors', 1 + FRAMES],
     ['ignores', 3],
   ] as const)(
     'probes a server that %s Range with one frame, then makes %i requests in all',
-    async (behaviour, requests) => {
+    async (behavior, requests) => {
       const { bytes, words } = multiframe();
       const asked: Array<string | null> = [];
       const fetchFn: typeof fetch = async (_url, init) => {
         const range = new Headers(init?.headers).get('Range');
         asked.push(range);
         const [, from, to] = /bytes=(\d+)-(\d+)/.exec(range ?? '') ?? [];
-        return behaviour === 'honours' && from
+        return behavior === 'honors' && from
           ? new Response(bytes.slice(Number(from), Number(to) + 1), {
               status: 206,
             })
@@ -302,7 +302,7 @@ describe('loadVolume with native frames', () => {
       expect(probe).toBe(frames(0));
       expect(rest).toHaveLength(requests - 2);
       expect(rest).toEqual(
-        behaviour === 'honours'
+        behavior === 'honors'
           ? expect.arrayContaining([1, 2, 3, 4].map((index) => frames(index)))
           : [frames(1, FRAMES - 1)]
       );

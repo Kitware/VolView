@@ -66,12 +66,12 @@ core `Volume` as a `vtkImageData`. `eslint.config.js` enforces both boundaries.
   loading on first use. A Deflated file is read whole and inflated on the
   calling thread. Each then finishes its samples as native frames are, so it
   declines what `nativeFrameDecoder` declines, with these exceptions: JPEG
-  2000 and HTJ2K take YBR_RCT and YBR_ICT colour, and JPEG takes YBR_FULL
+  2000 and HTJ2K take YBR_RCT and YBR_ICT color, and JPEG takes YBR_FULL
   and YBR_FULL_422, all of which their codecs return as RGB.
 - A codestream of 8 bits or fewer is widened where the header allocates 16.
   Samples are masked to Bits Stored, except that a JPEG 2000 or HTJ2K
   codestream holding more bits than that keeps them, as GDCM keeps them.
-- A JPEG frame the header calls RGB is decoded without a colour transform
+- A JPEG frame the header calls RGB is decoded without a color transform
   unless its own JFIF or Adobe segment states one. GDCM never transforms
   such a frame.
 - GDCM, whole in a worker, takes what those decoders decline, which includes

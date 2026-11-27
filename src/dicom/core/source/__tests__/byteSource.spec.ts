@@ -175,10 +175,10 @@ describe('URL byte source', () => {
   });
 
   it.each([
-    [true, 'honoured'],
+    [true, 'honored'],
     [false, 'ignored'],
   ])(
-    'reports a server that honours Range (%s) as %s, bypassing the HTTP cache for ranges',
+    'reports a server that honors Range (%s) as %s, bypassing the HTTP cache for ranges',
     async (honorRange, support) => {
       const { http, source } = urlSource({ honorRange });
       expect(source.rangeSupport?.()).toBe('unknown');

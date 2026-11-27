@@ -1,7 +1,7 @@
 {
   "reference": "tests/fixtures/dicom-pages/reference (highdicom 0.29.0, pydicom 3.0.2; versions pinned in its uv.lock)",
-  "conventions": "Geometry in VolView order: dimensions and spacing are [column, row, slice], direction is the column, row and slice axis vectors concatenated, origin is the first voxel centre. A single file keeps stored frame order; one plane has no slice spacing and its slice axis is the plane normal.",
-  "pixelEncoding": "hash: SHA256 of modality-rescaled samples, rounded through float32 when module.storage is float32, as Float64 little-endian in [slice, row, column] order. stats: per-sample min, max and mean, used for colour and lossy data, compared within statsTolerance.",
+  "conventions": "Geometry in VolView order: dimensions and spacing are [column, row, slice], direction is the column, row and slice axis vectors concatenated, origin is the first voxel center. A single file keeps stored frame order; one plane has no slice spacing and its slice axis is the plane normal.",
+  "pixelEncoding": "hash: SHA256 of modality-rescaled samples, rounded through float32 when module.storage is float32, as Float64 little-endian in [slice, row, column] order. stats: per-sample min, max and mean, used for color and lossy data, compared within statsTolerance.",
   "statsTolerance": 2.0,
   "datasets": [
     {
@@ -1207,7 +1207,7 @@
       "license": "MIT",
       "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
       "sourcePage": "https://github.com/pydicom/pydicom-data",
-      "quirk": "RGB with PlanarConfiguration 1 (colour by plane)",
+      "quirk": "RGB with PlanarConfiguration 1 (color by plane)",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.6",
         "modality": "US",
@@ -1553,7 +1553,7 @@
       "license": "MIT",
       "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
       "sourcePage": "https://github.com/pydicom/pydicom-data",
-      "quirk": "HTJ2K Lossless RGB secondary capture, reversible colour transform, no geometry",
+      "quirk": "HTJ2K Lossless RGB secondary capture, reversible color transform, no geometry",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "",
@@ -1603,7 +1603,7 @@
       "license": "MIT",
       "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
       "sourcePage": "https://github.com/pydicom/pydicom-data",
-      "quirk": "HTJ2K lossy RGB secondary capture, irreversible colour transform, no geometry",
+      "quirk": "HTJ2K lossy RGB secondary capture, irreversible color transform, no geometry",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "",
@@ -2482,7 +2482,7 @@
       "license": "generated",
       "attribution": "tests/fixtures/dicom-pages/rleCorpus.ts",
       "sourcePage": null,
-      "quirk": "RLE Lossless, two 8 bit RGB frames with a segment per colour plane, no geometry",
+      "quirk": "RLE Lossless, two 8 bit RGB frames with a segment per color plane, no geometry",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7.4",
         "modality": "OT",
@@ -3120,7 +3120,7 @@
       "license": "MIT",
       "attribution": "pydicom contributors; test file provenance in the pydicom data README",
       "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
-      "quirk": "JPEG 2000 Lossless in a JP2 wrapper, YBR_RCT colour, no geometry",
+      "quirk": "JPEG 2000 Lossless in a JP2 wrapper, YBR_RCT color, no geometry",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "",
@@ -3172,7 +3172,7 @@
       "license": "MIT",
       "attribution": "pydicom-data contributors; file provenance in the pydicom-data README",
       "sourcePage": "https://github.com/pydicom/pydicom-data",
-      "quirk": "JPEG 2000 lossy ultrasound, YBR_ICT colour, no geometry",
+      "quirk": "JPEG 2000 lossy ultrasound, YBR_ICT color, no geometry",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
         "modality": "US",
@@ -3224,7 +3224,7 @@
       "license": "MIT",
       "attribution": "pydicom contributors; test file provenance in the pydicom data README",
       "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
-      "quirk": "JPEG Baseline, YBR_FULL colour with a JFIF marker",
+      "quirk": "JPEG Baseline, YBR_FULL color with a JFIF marker",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "OT",
@@ -3280,7 +3280,7 @@
       "license": "MIT",
       "attribution": "pydicom contributors; test file provenance in the pydicom data README",
       "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
-      "quirk": "JPEG Baseline, YBR_FULL_422 colour",
+      "quirk": "JPEG Baseline, YBR_FULL_422 color",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "OT",
@@ -3336,7 +3336,7 @@
       "license": "MIT",
       "attribution": "pydicom contributors; test file provenance in the pydicom data README",
       "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
-      "quirk": "JPEG Baseline, 3 by 3 pixels of YBR_FULL colour",
+      "quirk": "JPEG Baseline, 3 by 3 pixels of YBR_FULL color",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "OT",
@@ -3444,7 +3444,7 @@
       "license": "MIT",
       "attribution": "pydicom contributors; test file provenance in the pydicom data README",
       "sourcePage": "https://github.com/pydicom/pydicom/tree/v3.0.2/src/pydicom/data/test_files",
-      "quirk": "JPEG Baseline, YBR_FULL colour with no JFIF or Adobe marker",
+      "quirk": "JPEG Baseline, YBR_FULL color with no JFIF or Adobe marker",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "OT",
@@ -3500,7 +3500,7 @@
       "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
       "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
       "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
-      "quirk": "JPEG Baseline, 8 bit greyscale with a Modality LUT Sequence and overlay elements, empty Rescale Slope, no geometry",
+      "quirk": "JPEG Baseline, 8 bit grayscale with a Modality LUT Sequence and overlay elements, empty Rescale Slope, no geometry",
       "facts": {
         "sopClassUID": "1.2.840.10008.5.1.4.1.1.7",
         "modality": "OT",

@@ -36,17 +36,17 @@ const createCodecLane = (): CodecLane =>
       remote.decode(Comlink.transfer(job, [job.value.buffer as ArrayBuffer]))
   );
 
-/** The photometric interpretations a codestream's colour transform requires. */
-const COLOUR_TRANSFORMED = ['YBR_RCT', 'YBR_ICT'];
+/** The photometric interpretations a codestream's color transform requires. */
+const COLOR_TRANSFORMED = ['YBR_RCT', 'YBR_ICT'];
 
-// The codec undoes a colour transform itself, so those samples come back RGB.
-const colourTransformedAsRgb = (format: NativePixelFormat) =>
-  COLOUR_TRANSFORMED.includes(format.photometricInterpretation)
+// The codec undoes a color transform itself, so those samples come back RGB.
+const colorTransformedAsRgb = (format: NativePixelFormat) =>
+  COLOR_TRANSFORMED.includes(format.photometricInterpretation)
     ? { ...format, photometricInterpretation: 'RGB' }
     : format;
 
 // libjpeg-turbo converts the YCbCr a JPEG stream holds to RGB.
-const jpegColourAsRgb = (format: NativePixelFormat) =>
+const jpegColorAsRgb = (format: NativePixelFormat) =>
   ['YBR_FULL', 'YBR_FULL_422'].includes(format.photometricInterpretation)
     ? { ...format, photometricInterpretation: 'RGB' }
     : format;
@@ -68,15 +68,15 @@ const CODECS: Record<CodecName, Codec> = {
   htj2k: {
     name: 'HTJ2K',
     maxBitsAllocated: 16,
-    decodedAs: colourTransformedAsRgb,
+    decodedAs: colorTransformedAsRgb,
     keepsPrecision: true,
   },
   // Samples over 8 bits are the 12 bit extended process, which stays GDCM's.
-  jpeg: { name: 'JPEG', maxBitsAllocated: 8, decodedAs: jpegColourAsRgb },
+  jpeg: { name: 'JPEG', maxBitsAllocated: 8, decodedAs: jpegColorAsRgb },
   jpeg2000: {
     name: 'JPEG 2000',
     maxBitsAllocated: 16,
-    decodedAs: colourTransformedAsRgb,
+    decodedAs: colorTransformedAsRgb,
     keepsPrecision: true,
   },
   jpegLossless: { name: 'JPEG Lossless', maxBitsAllocated: 16 },
