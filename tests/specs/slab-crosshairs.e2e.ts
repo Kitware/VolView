@@ -1,27 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Key } from 'webdriverio';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  chooseEnFaceProjection,
-  dragContrast,
-  enFaceScreenPoint,
-  projectionTransform,
-  setEnFaceWindow,
-  slabThumb,
-  waitForEnFaceReady,
-  CANVAS,
-  openEnFaceProjection,
-  setEnFaceSlab,
-  toolButton,
-} from './octTestUtils';
-import {
-  makeTempDir,
-  waitForModuleTransitions,
-  writeManifestToFile,
-} from './utils';
+import { containsText } from '../pageobjects/volview.page';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { ReferenceLinesUtils } from './referenceLinesTestUtils';
+import { CANVAS, type OctUtils } from './octTestUtils';
+import type { Utils } from './utils';
 
 const STEM = 'slab-crosshairs';
 const VIEW = '[data-testid="enface-viewer"]';
@@ -30,9 +16,21 @@ const OTHER = 'crosshairs-other.nrrd';
 const SIZE = [16, 12, 10];
 // The source's cyclic rotation maps index X/Y/Z to Coronal/Axial/Sagittal.
 const ORIENTATIONS = ['Coronal', 'Axial', 'Sagittal'];
+const SELECTED = /\btool-btn-selected\b/;
 
-async function scene(otherImage = false) {
-  const directory = makeTempDir(STEM);
+type Helpers = {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  oct: OctUtils;
+};
+
+async function scene(
+  { page, volview, utils, oct }: Helpers,
+  referenceLines: ReferenceLinesUtils,
+  otherImage = false
+) {
+  const directory = utils.makeTempDir(STEM);
   for (const name of otherImage ? [SOURCE, OTHER] : [SOURCE]) {
     fs.writeFileSync(
       path.join(directory, name),
@@ -48,7 +46,7 @@ async function scene(otherImage = false) {
       })
     );
   }
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     {
       layouts: {
         Crosshairs: [
@@ -61,14 +59,14 @@ async function scene(otherImage = false) {
   );
   const names = [STEM + '.json', STEM + '/' + SOURCE];
   if (otherImage) names.push(STEM + '/' + OTHER);
-  await volViewPage.open('?urls=[' + names.map((name) => 'tmp/' + name) + ']');
-  await waitForEnFaceReady();
-  await setReferenceLinesEnabled(true);
-  await browser.waitUntil(async () => Object.keys(await slices()).length === 3);
+  await volview.open('?urls=[' + names.map((name) => 'tmp/' + name) + ']');
+  await oct.waitForEnFaceReady();
+  await referenceLines.setReferenceLinesEnabled(true);
+  await expect.poll(async () => Object.keys(await slices(page)).length).toBe(3);
 }
 
-function slices() {
-  return browser.execute(() =>
+function slices(page: Page) {
+  return page.evaluate(() =>
     Object.fromEntries(
       Array.from(document.querySelectorAll('.vtk-container-wrapper')).flatMap(
         (view) => {
@@ -85,32 +83,42 @@ function slices() {
   );
 }
 
-async function point(x: number, y: number) {
-  const screen = await enFaceScreenPoint(x + 0.5, y + 0.5);
+async function point(oct: OctUtils, x: number, y: number) {
+  const screen = await oct.enFaceScreenPoint(x + 0.5, y + 0.5);
   return { x: Math.round(screen.x), y: Math.round(screen.y) };
 }
 
-async function pick(x: number, y: number, dragFrom?: number[]) {
-  const target = await point(x, y);
-  const start = dragFrom ? await point(dragFrom[0], dragFrom[1]) : target;
-  await browser
-    .action('pointer', { id: 'slab-crosshair-pick' })
-    .move(start)
-    .down()
-    .move(target)
-    .up()
-    .perform();
+async function pick(
+  { page, oct }: Helpers,
+  x: number,
+  y: number,
+  dragFrom?: number[]
+) {
+  const target = await point(oct, x, y);
+  const start = dragFrom ? await point(oct, dragFrom[0], dragFrom[1]) : target;
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(target.x, target.y);
+  await page.mouse.up();
 }
 
-async function expectSlices(expected: Record<string, number | null>) {
-  await browser.waitUntil(
-    async () => JSON.stringify(await slices()) === JSON.stringify(expected),
-    { timeoutMsg: 'Expected source slice labels to follow the projection pick' }
-  );
+async function expectSlices(
+  page: Page,
+  expected: Record<string, number | null>
+) {
+  await expect
+    .poll(
+      async () =>
+        JSON.stringify(await slices(page)) === JSON.stringify(expected),
+      {
+        message: 'Expected source slice labels to follow the projection pick',
+      }
+    )
+    .toBe(true);
 }
 
-function gapWidths() {
-  return browser.execute(() => {
+function gapWidths(page: Page) {
+  return page.evaluate(() => {
     const svg = document.querySelector(
       '[data-testid="enface-viewer"] [data-testid="reference-lines"]'
     );
@@ -144,68 +152,85 @@ function gapWidths() {
   });
 }
 
-async function expectGap() {
-  await browser.waitUntil(
-    async () => {
-      const gaps = await gapWidths();
-      return (
-        gaps.length === 2 && gaps.every((width) => Math.abs(width - 16) < 0.5)
-      );
-    },
-    {
-      timeoutMsg:
-        'Expected a 16 CSS-pixel gap at both reference-line crossings',
-    }
-  );
+async function expectGap(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        const gaps = await gapWidths(page);
+        return (
+          gaps.length === 2 && gaps.every((width) => Math.abs(width - 16) < 0.5)
+        );
+      },
+      {
+        message: 'Expected a 16 CSS-pixel gap at both reference-line crossings',
+      }
+    )
+    .toBe(true);
 }
 
-describe('Crosshairs in slab projections', () => {
-  after(async () => setReferenceLinesEnabled(false));
+test.describe('Crosshairs in slab projections', () => {
   for (const axis of [0, 1, 2]) {
-    it(
+    test(
       'picks and drags source coordinates without changing depth on axis ' +
         axis,
-      async () => {
-        await scene();
-        await chooseEnFaceProjection(
+      async ({ page, volview, utils, oct, referenceLines }) => {
+        const helpers = { page, volview, utils, oct };
+        await scene(helpers, referenceLines);
+        await oct.chooseEnFaceProjection(
           'enface-projection-axis',
           ORIENTATIONS[axis]
         );
         const last = 4;
-        await setEnFaceSlab(1, last);
-        await waitForEnFaceReady();
-        const before = await slices();
-        const framing = await projectionTransform();
-        await $(VIEW).click();
-        await expect(toolButton('Crosshairs')).toBeEnabled();
-        await toolButton('Crosshairs').click();
+        await oct.setEnFaceSlab(1, last);
+        await oct.waitForEnFaceReady();
+        const before = await slices(page);
+        const framing = await oct.projectionTransform();
+        await page.locator(VIEW).click();
+        await expect(oct.toolButton('Crosshairs')).toBeEnabled();
+        await oct.toolButton('Crosshairs').click();
         const inPlane = ORIENTATIONS.filter((_, index) => index !== axis);
         const expected = { ...before, [inPlane[0]]: 2, [inPlane[1]]: 3 };
-        await pick(2, 3);
-        await expectSlices(expected);
-        await pick(4, 2, [2, 3]);
-        await expectSlices({ ...before, [inPlane[0]]: 4, [inPlane[1]]: 2 });
-        expect(await projectionTransform()).toEqual(framing);
-        await openEnFaceProjection();
-        await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '1');
-        await expect(slabThumb('end')).toHaveAttribute(
+        await pick(helpers, 2, 3);
+        await expectSlices(page, expected);
+        await pick(helpers, 4, 2, [2, 3]);
+        await expectSlices(page, {
+          ...before,
+          [inPlane[0]]: 4,
+          [inPlane[1]]: 2,
+        });
+        expect(await oct.projectionTransform()).toEqual(framing);
+        await oct.openEnFaceProjection();
+        await expect(oct.slabThumb('start')).toHaveAttribute(
+          'aria-valuenow',
+          '1'
+        );
+        await expect(oct.slabThumb('end')).toHaveAttribute(
           'aria-valuenow',
           String(last)
         );
-        await browser.keys('Escape');
+        await page.keyboard.press('Escape');
       }
     );
   }
 
-  it('keeps the ordinary screen-space crossing gap during navigation and resize', async () => {
-    await scene();
-    await expectGap();
-    await $(VIEW).click();
-    await toolButton('Crosshairs').click();
-    await $(
-      '.vtk-container-wrapper [data-testid="reference-lines"] line'
-    ).waitForExist();
-    const strokes = await browser.execute(() =>
+  test('keeps the ordinary screen-space crossing gap during navigation and resize', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    referenceLines,
+  }) => {
+    const helpers = { page, volview, utils, oct };
+    await scene(helpers, referenceLines);
+    await expectGap(page);
+    await page.locator(VIEW).click();
+    await oct.toolButton('Crosshairs').click();
+    await expect(
+      page
+        .locator('.vtk-container-wrapper [data-testid="reference-lines"] line')
+        .first()
+    ).toBeAttached();
+    const strokes = await page.evaluate(() =>
       [
         document.querySelector(
           '.vtk-container-wrapper [data-testid="reference-lines"] line'
@@ -222,94 +247,90 @@ describe('Crosshairs in slab projections', () => {
       )
     );
     expect(strokes[1]).toEqual(strokes[0]);
-    const sourceSlices = await slices();
+    const sourceSlices = await slices(page);
     for (const [name, dx, dy] of [
       ['Zoom', 0, -35],
       ['Pan', 18, 12],
     ] as const) {
-      const before = await projectionTransform();
-      await toolButton(name).click();
-      await dragContrast(await $(CANVAS).getElement(), dx, dy);
-      await browser.waitUntil(async () =>
-        (await projectionTransform()).some(
-          (value, index) => Math.abs(value - before[index]) > 0.1
+      const before = await oct.projectionTransform();
+      await oct.toolButton(name).click();
+      await oct.dragContrast(page.locator(CANVAS).first(), dx, dy);
+      await expect
+        .poll(async () =>
+          (await oct.projectionTransform()).some(
+            (value, index) => Math.abs(value - before[index]) > 0.1
+          )
         )
-      );
-      await expectGap();
-      await expectSlices(sourceSlices);
+        .toBe(true);
+      await expectGap(page);
+      await expectSlices(page, sourceSlices);
     }
-    const beforeResize = await projectionTransform();
-    try {
-      await browser.setViewport({
-        width: 1000,
-        height: 800,
-        devicePixelRatio: 2,
-      });
-      await browser.waitUntil(async () =>
-        (await projectionTransform()).some(
+    const beforeResize = await oct.projectionTransform();
+    // Playwright sets the device scale only per context, so change it in place.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1000,
+      height: 800,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await expect
+      .poll(async () =>
+        (await oct.projectionTransform()).some(
           (value, index) => Math.abs(value - beforeResize[index]) > 0.1
         )
-      );
-      await expectGap();
-      await toolButton('Crosshairs').click();
-      await pick(3, 4);
-      await expectSlices({ ...sourceSlices, Coronal: 3, Sagittal: 4 });
-    } finally {
-      await browser.setViewport({
-        width: 1280,
-        height: 720,
-        devicePixelRatio: 1,
-      });
-    }
+      )
+      .toBe(true);
+    await expectGap(page);
+    await oct.toolButton('Crosshairs').click();
+    await pick(helpers, 3, 4);
+    await expectSlices(page, { ...sourceSlices, Coronal: 3, Sagittal: 4 });
   });
 
-  it('temporarily navigates the source while leaving another image unchanged', async () => {
-    await scene(true);
-    await $('button[data-testid="module-tab-Data"]').click();
-    await waitForModuleTransitions();
-    const sourceCard = $('.image-list-card:has([title="' + SOURCE + '"])');
-    const menu = sourceCard.$('[data-testid="dataset-menu-button"]');
-    await menu.waitForStable();
-    await menu.waitForClickable();
-    await menu.click();
-    const showAll = $('.v-list-item*=Show in all views');
-    await showAll.waitForDisplayed();
-    await showAll.waitForStable();
-    await showAll.waitForClickable();
-    await showAll.click();
-    await expect($(VIEW)).toHaveText(expect.stringContaining(SOURCE));
-    await waitForEnFaceReady();
-    const coronal = await (await $$('.vtk-container-wrapper'))[1].getElement();
-    await expect(coronal.$('.view-type-select input')).toHaveValue('Coronal');
-    await coronal.$('canvas').click();
-    await $('.image-list-card:has([title="' + OTHER + '"])').click();
-    await expect(coronal).toHaveText(expect.stringContaining(OTHER));
-    const before = await slices();
-    await $(VIEW).click();
-    await volViewPage.renderingModuleTab.click();
-    await waitForModuleTransitions();
-    await $('[data-testid="base-image-visibility"]').click();
-    await setEnFaceWindow(600, 300, await $(VIEW).getElement());
-    await expect($(VIEW)).toHaveAttribute('aria-busy', 'false');
-    await toolButton('Pan').click();
-    const keyboard = () => browser.action('key', { id: 'slab-crosshair-hold' });
-    try {
-      await keyboard().down(Key.Shift).down('c').perform(true);
-      await expect(toolButton('Crosshairs')).toHaveElementClass(
-        'tool-btn-selected'
-      );
-      await browser
-        .action('pointer')
-        .move(await point(3, 2))
-        .perform(true);
-      await expectSlices({ ...before, Sagittal: 2 });
-      await expect(toolButton('Crosshairs')).toHaveElementClass(
-        'tool-btn-selected'
-      );
-      await keyboard().up('c').up(Key.Shift).perform(true);
-      await expect(toolButton('Pan')).toHaveElementClass('tool-btn-selected');
-    } finally {
-      await browser.releaseActions();
-    }
+  test('temporarily navigates the source while leaving another image unchanged', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    referenceLines,
+  }) => {
+    await scene({ page, volview, utils, oct }, referenceLines, true);
+    await page.locator('button[data-testid="module-tab-Data"]').click();
+    await utils.waitForModuleTransitions();
+    const sourceCard = page.locator(
+      '.image-list-card:has([title="' + SOURCE + '"])'
+    );
+    await sourceCard.locator('[data-testid="dataset-menu-button"]').click();
+    await page
+      .locator('.v-list-item', { hasText: containsText('Show in all views') })
+      .click();
+    await expect(page.locator(VIEW)).toContainText(SOURCE);
+    await oct.waitForEnFaceReady();
+    const coronal = page.locator('.vtk-container-wrapper').nth(1);
+    await expect(coronal.locator('.view-type-select input')).toHaveValue(
+      'Coronal'
+    );
+    await coronal.locator('canvas').first().click();
+    await page.locator('.image-list-card:has([title="' + OTHER + '"])').click();
+    await expect(coronal).toContainText(OTHER);
+    const before = await slices(page);
+    await page.locator(VIEW).click();
+    await volview.renderingModuleTab.click();
+    await utils.waitForModuleTransitions();
+    await page.locator('[data-testid="base-image-visibility"]').click();
+    await oct.setEnFaceWindow(600, 300, page.locator(VIEW));
+    await expect(page.locator(VIEW)).toHaveAttribute('aria-busy', 'false');
+    await oct.toolButton('Pan').click();
+    // Playwright does not shift a letter, so the shifted key is named.
+    await page.keyboard.down('Shift');
+    await page.keyboard.down('C');
+    await expect(oct.toolButton('Crosshairs')).toHaveClass(SELECTED);
+    const target = await point(oct, 3, 2);
+    await page.mouse.move(target.x, target.y);
+    await expectSlices(page, { ...before, Sagittal: 2 });
+    await expect(oct.toolButton('Crosshairs')).toHaveClass(SELECTED);
+    await page.keyboard.up('C');
+    await page.keyboard.up('Shift');
+    await expect(oct.toolButton('Pan')).toHaveClass(SELECTED);
   });
 });

@@ -1,11 +1,7 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import JSZip from 'jszip';
-import { volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { waitForDownload } from './utils';
-import { openConfigAndDataset } from './configTestUtils';
+import { test, expect } from '../fixtures';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
 
 /**
@@ -35,24 +31,27 @@ const parseNrrdHeader = (buf: Buffer): Map<string, string> => {
   return entries;
 };
 
-describe('Slicer-compatible seg.nrrd export', function () {
-  this.timeout(120_000);
-
-  it('session save includes Slicer metadata in seg.nrrd labelmap', async () => {
+test.describe('Slicer-compatible seg.nrrd export', () => {
+  test('session save includes Slicer metadata in seg.nrrd labelmap', async ({
+    volview,
+    configUtils,
+    scratch,
+  }) => {
     const config = { io: { segmentGroupSaveFormat: 'seg.nrrd' } };
-    await openConfigAndDataset(config, 'seg-nrrd-export', ONE_CT_SLICE_DICOM);
+    await configUtils.openConfigAndDataset(
+      config,
+      'seg-nrrd-export',
+      ONE_CT_SLICE_DICOM
+    );
 
-    await volViewPage.activatePaint();
+    await volview.activatePaint();
 
     // Paint a stroke so the labelmap has data
-    const views2D = await volViewPage.getViews2D();
-    await volViewPage.paintStrokeOnView(views2D[0]);
+    await volview.paintStrokeOnView(volview.views2D.first());
 
     // Save session — downloads a .volview.zip containing the seg.nrrd
-    const sessionFileName = await volViewPage.saveSession();
-    const downloadedPath = path.join(TEMP_DIR, sessionFileName);
-
-    await waitForDownload(downloadedPath, 30_000);
+    const sessionFileName = await volview.saveSession();
+    const downloadedPath = scratch.path(sessionFileName);
 
     // Extract the seg.nrrd file from the session zip
     const zipData = fs.readFileSync(downloadedPath);

@@ -1,14 +1,11 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { openAnnotationSegments, segmentRow } from './segmentationTestUtils';
-import {
-  capture2DViewPixels,
-  selectLayout,
-  waitForModuleTransitions,
-} from './utils';
-import { openOverlaySegmentationFixture } from './overlaySegmentationTestUtils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { holdKey, waitForTransitions } from '../pageobjects/volview.page';
+import type { SegmentationUtils } from './segmentationTestUtils';
+import type { Utils } from './utils';
 
-const colors = async () => {
-  const [{ data }] = await capture2DViewPixels(
+const colors = async (utils: Utils) => {
+  const [{ data }] = await utils.capture2DViewPixels(
     80,
     'segmentation-layer-compositing.png'
   );
@@ -24,107 +21,138 @@ const colors = async () => {
   return counts;
 };
 
+type Counts = Awaited<ReturnType<typeof colors>>;
+
 const waitForColors = async (
-  matches: (counts: Awaited<ReturnType<typeof colors>>) => boolean,
-  timeoutMsg: string
+  { page, utils }: { page: Page; utils: Utils },
+  matches: (counts: Counts) => boolean,
+  message: string
 ) => {
-  await $('header').moveTo();
-  await waitForModuleTransitions();
-  await $('[data-testid~="vtk-two-view"]').waitForStable();
-  await browser.waitUntil(async () => matches(await colors()), { timeoutMsg });
+  await utils.moveToElement(page.locator('header'));
+  await utils.waitForModuleTransitions();
+  await waitForTransitions(
+    page.locator('[data-testid~="vtk-two-view"]').first()
+  );
+  await expect
+    .poll(async () => matches(await colors(utils)), { message })
+    .toBe(true);
 };
 
-const setFill = async (value: 0 | 0.5 | 1) => {
-  await openAnnotationSegments();
-  const display = $('[data-testid="segment-display-section"]');
+const setFill = async (
+  { page, utils }: { page: Page; utils: Utils },
+  segmentation: SegmentationUtils,
+  value: 0 | 0.5 | 1
+) => {
+  await segmentation.openAnnotationSegments();
+  const display = page.locator('[data-testid="segment-display-section"]');
   if ((await display.getAttribute('aria-expanded')) !== 'true')
     await display.click();
-  await waitForModuleTransitions();
-  const slider = $(
+  await utils.waitForModuleTransitions();
+  const slider = page.locator(
     '.display-controls .v-slider:has(input[name="Fill Opacity"]) [role="slider"]'
   );
-  await slider.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await slider.execute((element) => element.focus());
-  await browser.keys(
-    value === 1
-      ? ['End']
-      : ['Home', ...Array.from({ length: value * 100 }, () => 'ArrowRight')]
+  await slider.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
   );
+  await slider.focus();
+  if (value === 1) await page.keyboard.press('End');
+  else {
+    await page.keyboard.press('Home');
+    await holdKey(page, 'ArrowRight', value * 100);
+  }
   await expect(slider).toHaveAttribute('aria-valuenow', String(value));
 };
 
-describe('Segmentation above image overlays', () => {
-  it('composites fill and outlines over the image layer through display changes', async () => {
-    await openOverlaySegmentationFixture('compositing');
-    const opacity = $('[data-testid="layer-opacity-slider"] [role="slider"]');
-    await opacity.scrollIntoView({ block: 'center', behavior: 'instant' });
-    await opacity.execute((element) => element.focus());
-    await browser.keys('End');
+test.describe('Segmentation above image overlays', () => {
+  test('composites fill and outlines over the image layer through display changes', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    overlaySegmentation,
+  }) => {
+    const view = { page, utils };
+    await overlaySegmentation.openOverlaySegmentationFixture('compositing');
+    const opacity = page.locator(
+      '[data-testid="layer-opacity-slider"] [role="slider"]'
+    );
+    await opacity.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await opacity.focus();
+    await page.keyboard.press('End');
     await expect(opacity).toHaveAttribute('aria-valuenow', '1');
 
-    await setFill(1);
+    await setFill(view, segmentation, 1);
     await waitForColors(
+      view,
       ({ blue, black }) => blue > 2000 && black > 2000,
       'Expected opaque blue segment fill above the full-opacity black image layer'
     );
-    const opaque = await colors();
+    const opaque = await colors(utils);
 
-    await setFill(0.5);
+    await setFill(view, segmentation, 0.5);
     await waitForColors(
+      view,
       ({ blue, halfBlue }) => blue > 100 && halfBlue > 2000,
       'Expected 50% blue fill over black while the outline stays fully blue'
     );
-    await volViewPage.renderingModuleTab.click();
-    const visibility = $('[data-testid="layer-visibility"]');
-    await visibility.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await volview.renderingModuleTab.click();
+    const visibility = page.locator('[data-testid="layer-visibility"]');
+    await visibility.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
     await visibility.click();
-    await expect(visibility).toHaveText(expect.stringContaining('SHOW'));
+    await expect(visibility).toContainText('SHOW', { useInnerText: true });
     await waitForColors(
+      view,
       ({ blue, pastelBlue }) => blue > 100 && pastelBlue > 2000,
       'Expected transparent blue fill to blend with the white base when the image layer is hidden'
     );
     await visibility.click();
-    await expect(visibility).toHaveText(expect.stringContaining('HIDE'));
+    await expect(visibility).toContainText('HIDE', { useInnerText: true });
     await waitForColors(
+      view,
       ({ blue, halfBlue }) => blue > 100 && halfBlue > 2000,
       'Expected showing the image layer to restore the blue-over-black blend'
     );
 
-    await setFill(0);
-    const outlined = ({
-      blue,
-      halfBlue,
-      black,
-    }: Awaited<ReturnType<typeof colors>>) =>
+    await setFill(view, segmentation, 0);
+    const outlined = ({ blue, halfBlue, black }: Counts) =>
       blue > 100 &&
       blue < opaque.blue / 4 &&
       halfBlue === 0 &&
       black > opaque.black + opaque.blue / 2;
     await waitForColors(
+      view,
       outlined,
       'Expected a fully blue outline and transparent interior above the image layer'
     );
-    const row = await segmentRow('Blue mask');
-    await row.$('button:has(i.mdi-eye)').click();
+    const row = await segmentation.segmentRow('Blue mask');
+    await row.locator('button:has(i.mdi-eye)').click();
     await waitForColors(
+      view,
       ({ blue, halfBlue, black }) =>
         blue === 0 && halfBlue === 0 && black > opaque.black + opaque.blue / 2,
       'Expected hiding the segment to remove its outline'
     );
-    await row.$('button:has(i.mdi-eye-off)').click();
+    await row.locator('button:has(i.mdi-eye-off)').click();
     await waitForColors(
+      view,
       outlined,
       'Expected showing the segment to restore its outline'
     );
 
-    await selectLayout('3D Only', 0, true);
-    await selectLayout('Axial Only', 1, false);
+    await utils.selectLayout('3D Only', 0, true);
+    await utils.selectLayout('Axial Only', 1, false);
     await waitForColors(
+      view,
       outlined,
       'Expected the remounted slice to retain the blue outline'
     );
-    await setFill(1);
+    await setFill(view, segmentation, 1);
     await waitForColors(
+      view,
       ({ blue, black }) => blue > 2000 && black > 2000,
       'Expected the remounted slice to retain opaque fill above the image layer'
     );

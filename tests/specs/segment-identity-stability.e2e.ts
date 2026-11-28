@@ -1,17 +1,13 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as zlib from 'node:zlib';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { openUrls, waitForDownload } from './utils';
-import { ONE_CT_SLICE_DICOM } from '../datasets';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import {
-  openAnnotationSegments,
-  waitForNamedSegments,
-} from './segmentationTestUtils';
-
-const SAVE_TIMEOUT = 40_000;
+  setValueVueInput,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
+import type { SaveDownload } from '../scratch';
+import { ONE_CT_SLICE_DICOM } from '../datasets';
 
 const isGzip = (buf: Buffer) => buf[0] === 0x1f && buf[1] === 0x8b;
 
@@ -45,53 +41,72 @@ const readSegNrrd = (filePath: string) => {
   return { header, voxels };
 };
 
-const downloadSegmentation = async (stem: string) => {
-  const filePath = path.join(TEMP_DIR, `${stem}.seg.nrrd`);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  cleanuptotal.addCleanup(async () => {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  });
-
-  await volViewPage.clickSaveSegmentsButton();
-  const input = volViewPage.saveSegmentsFilenameInput;
-  await input.waitForDisplayed();
+const downloadSegmentation = async (
+  {
+    volview,
+    saveDownload,
+  }: { volview: VolViewPage; saveDownload: SaveDownload },
+  stem: string
+) => {
+  await volview.clickSaveSegmentsButton();
+  const input = volview.saveSegmentsFilenameInput;
+  await expect(input).toBeVisible();
   await setValueVueInput(input, stem);
-  await volViewPage.saveSegmentsConfirmButton.click();
-
-  await waitForDownload(filePath, SAVE_TIMEOUT);
+  const filePath = await saveDownload(() =>
+    volview.saveSegmentsConfirmButton.click()
+  );
   return readSegNrrd(filePath);
 };
 
-const editOnlySegment = async (name: string, red: number) => {
-  await $('[data-testid="segment-list"] button i[class~="mdi-pencil"]').click();
-  const dialog = $('div[role="dialog"]');
-  await dialog.waitForDisplayed();
-  await setValueVueInput(dialog.$('.v-text-field input'), name);
-  await setValueVueInput(dialog.$('.v-color-picker-edit input'), String(red));
-  await volViewPage.editLabelModalDoneButton.click();
-  await dialog.waitForDisplayed({ reverse: true });
+const editOnlySegment = async (
+  { page, volview }: { page: Page; volview: VolViewPage },
+  name: string,
+  red: number
+) => {
+  await page
+    .locator('[data-testid="segment-list"] button i[class~="mdi-pencil"]')
+    .click();
+  const dialog = page.locator('div[role="dialog"]').first();
+  await expect(dialog).toBeVisible();
+  await setValueVueInput(dialog.locator('.v-text-field input').first(), name);
+  await setValueVueInput(
+    dialog.locator('.v-color-picker-edit input').first(),
+    String(red)
+  );
+  await volview.editLabelModalDoneButton.click();
+  await expect(dialog).toBeHidden();
 };
 
-describe('Segment identity under rename and recolor', function () {
-  this.timeout(120_000);
+test.describe('Segment identity under rename and recolor', () => {
+  test('leaves the exported voxels untouched while the name and color follow', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    saveDownload,
+  }) => {
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
 
-  it('leaves the exported voxels untouched while the name and color follow', async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
+    await volview.activatePaint();
+    await volview.paintStrokeOnView(volview.views2D.first());
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
 
-    await volViewPage.activatePaint();
-    const views2D = await volViewPage.getViews2D();
-    await volViewPage.paintStrokeOnView(views2D[0]);
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-
+    const download = { volview, saveDownload };
     const stamp = Date.now();
-    const before = await downloadSegmentation(`identity-before-${stamp}`);
+    const before = await downloadSegmentation(
+      download,
+      `identity-before-${stamp}`
+    );
     expect(before.header.get('Segment0_Name')).toEqual('Segment 1');
     expect(before.voxels.some((voxel) => voxel !== 0)).toBe(true);
 
-    await editOnlySegment('Tumor', 0);
+    await editOnlySegment({ page, volview }, 'Tumor', 0);
 
-    const after = await downloadSegmentation(`identity-after-${stamp}`);
+    const after = await downloadSegmentation(
+      download,
+      `identity-after-${stamp}`
+    );
     expect(after.header.get('Segment0_Name')).toEqual('Tumor');
     expect(after.header.get('Segment0_Color')).not.toEqual(
       before.header.get('Segment0_Color')

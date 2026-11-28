@@ -1,19 +1,16 @@
-import { type ChainablePromiseElement } from 'webdriverio';
-import AppPage from '../pageobjects/volview.page';
-import {
-  clickAt,
-  getCircleCount,
-  moveTo,
-  rightClickAt,
-  setupTest,
-  waitForCircleCount,
-} from './annotationTestUtils';
+import type { Locator } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { AnnotationUtils } from './annotationTestUtils';
 
-const selectPolygonTool = () => AppPage.selectTool('mdi-pentagon-outline');
-const selectRectangleTool = () => AppPage.selectTool('mdi-vector-square');
+const selectPolygonTool = (volview: VolViewPage) =>
+  volview.selectTool('mdi-pentagon-outline');
+const selectRectangleTool = (volview: VolViewPage) =>
+  volview.selectTool('mdi-vector-square');
 
 // High-level shape creation
 const createSquarePolygon = async (
+  { clickAt }: AnnotationUtils,
   centerX: number,
   centerY: number,
   halfSize: number
@@ -27,6 +24,7 @@ const createSquarePolygon = async (
 };
 
 const createTrianglePolygon = async (
+  { clickAt }: AnnotationUtils,
   centerX: number,
   centerY: number,
   offsets: [number, number][]
@@ -38,6 +36,7 @@ const createTrianglePolygon = async (
 };
 
 const startPolygonPoints = async (
+  { clickAt }: AnnotationUtils,
   centerX: number,
   centerY: number,
   offsets: [number, number][]
@@ -48,6 +47,7 @@ const startPolygonPoints = async (
 };
 
 const createRectangle = async (
+  { clickAt }: AnnotationUtils,
   centerX: number,
   centerY: number,
   halfSize: number
@@ -57,102 +57,121 @@ const createRectangle = async (
 };
 
 // Assertions
-const getVisibleCircleCount = async (axialView: ChainablePromiseElement) => {
-  const circles = await axialView.$$('svg circle');
-  let count = 0;
-  for (const circle of circles) {
-    if ((await circle.getAttribute('visibility')) !== 'hidden') count++;
-  }
-  return count;
+const getVisibleCircleCount = (axialView: Locator) =>
+  axialView
+    .locator('svg circle')
+    .evaluateAll(
+      (circles) =>
+        circles.filter(
+          (circle) => circle.getAttribute('visibility') !== 'hidden'
+        ).length
+    );
+
+const expectRightClickRemovesOnePoint = async (
+  annotation: AnnotationUtils,
+  axialView: Locator,
+  [x, y]: [number, number],
+  message: string
+) => {
+  const countBefore = await annotation.getCircleCount(axialView);
+  await annotation.rightClickAt(x, y);
+  await annotation.waitForCircleCount(axialView, countBefore - 1, message);
 };
 
-describe('Polygon tool nested interaction', () => {
-  it('should not show first polygon handles when hovering over it while placing second polygon', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
-    await selectPolygonTool();
+test.describe('Polygon tool nested interaction', () => {
+  test('should not show first polygon handles when hovering over it while placing second polygon', async ({
+    volview,
+    annotation,
+  }) => {
+    const { axialView, centerX, centerY } = await annotation.setupTest();
+    await selectPolygonTool(volview);
 
-    await createSquarePolygon(centerX, centerY, 80);
-    expect(await getCircleCount(axialView)).toBe(4);
+    await createSquarePolygon(annotation, centerX, centerY, 80);
+    expect(await annotation.getCircleCount(axialView)).toBe(4);
 
-    await startPolygonPoints(centerX, centerY, [
+    await startPolygonPoints(annotation, centerX, centerY, [
       [-40, -40],
       [40, -40],
     ]);
 
-    await moveTo(centerX - 80, centerY - 80);
+    await annotation.moveTo(centerX - 80, centerY - 80);
 
-    await browser.waitUntil(
-      async () => (await getVisibleCircleCount(axialView)) <= 2,
-      {
-        timeout: 3000,
-        timeoutMsg:
+    await expect
+      .poll(() => getVisibleCircleCount(axialView), {
+        message:
           'First polygon handles should NOT be visible when hovering while placing second polygon',
-      }
-    );
+      })
+      .toBeLessThanOrEqual(2);
   });
 
-  it('should allow right-click to remove points on third polygon inside existing one', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
-    await selectPolygonTool();
+  test('should allow right-click to remove points on third polygon inside existing one', async ({
+    volview,
+    annotation,
+  }) => {
+    const { axialView, centerX, centerY } = await annotation.setupTest();
+    await selectPolygonTool(volview);
 
-    await createSquarePolygon(centerX, centerY, 100);
-    await createTrianglePolygon(centerX, centerY, [
+    await createSquarePolygon(annotation, centerX, centerY, 100);
+    await createTrianglePolygon(annotation, centerX, centerY, [
       [-60, -60],
       [-20, -60],
       [-40, -20],
     ]);
-    await startPolygonPoints(centerX, centerY, [
+    await startPolygonPoints(annotation, centerX, centerY, [
       [20, 20],
       [60, 20],
     ]);
 
-    const countBefore = await getCircleCount(axialView);
-    await rightClickAt(centerX + 40, centerY + 40);
-    await waitForCircleCount(
+    await expectRightClickRemovesOnePoint(
+      annotation,
       axialView,
-      countBefore - 1,
+      [centerX + 40, centerY + 40],
       'Right-click should remove one point from the third polygon'
     );
   });
 
-  it('should allow right-click to remove points while placing new polygon inside existing one', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
-    await selectPolygonTool();
+  test('should allow right-click to remove points while placing new polygon inside existing one', async ({
+    volview,
+    annotation,
+  }) => {
+    const { axialView, centerX, centerY } = await annotation.setupTest();
+    await selectPolygonTool(volview);
 
-    await createSquarePolygon(centerX, centerY, 80);
-    await startPolygonPoints(centerX, centerY, [
+    await createSquarePolygon(annotation, centerX, centerY, 80);
+    await startPolygonPoints(annotation, centerX, centerY, [
       [-40, -40],
       [40, -40],
       [40, 40],
     ]);
 
-    const countBefore = await getCircleCount(axialView);
-    await rightClickAt(centerX, centerY);
-    await waitForCircleCount(
+    await expectRightClickRemovesOnePoint(
+      annotation,
       axialView,
-      countBefore - 1,
+      [centerX, centerY],
       'Right-click should remove exactly one point from the placing polygon'
     );
   });
 
-  it('should allow right-click to remove polygon points when placing inside a rectangle', async () => {
-    const { axialView, centerX, centerY } = await setupTest();
+  test('should allow right-click to remove polygon points when placing inside a rectangle', async ({
+    volview,
+    annotation,
+  }) => {
+    const { axialView, centerX, centerY } = await annotation.setupTest();
 
-    await selectRectangleTool();
-    await createRectangle(centerX, centerY, 80);
+    await selectRectangleTool(volview);
+    await createRectangle(annotation, centerX, centerY, 80);
 
-    await selectPolygonTool();
-    await startPolygonPoints(centerX, centerY, [
+    await selectPolygonTool(volview);
+    await startPolygonPoints(annotation, centerX, centerY, [
       [-40, -40],
       [40, -40],
       [40, 40],
     ]);
 
-    const countBefore = await getCircleCount(axialView);
-    await rightClickAt(centerX, centerY);
-    await waitForCircleCount(
+    await expectRightClickRemovesOnePoint(
+      annotation,
       axialView,
-      countBefore - 1,
+      [centerX, centerY],
       'Right-click should remove one point from the polygon when placing inside a rectangle'
     );
   });

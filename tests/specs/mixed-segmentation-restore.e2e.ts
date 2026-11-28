@@ -1,20 +1,17 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { writeConfigImages } from './configurationImage';
-import {
-  clickImageCard,
-  openAnnotationSegments,
-  segmentNames,
-  segmentRow,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
-import { writeManifestToFile, writeMetaImage } from './utils';
 
-describe('Restoring a labelmap without saved segment definitions', () => {
-  it('matches labels on an unviewed image without inheriting definitions', async () => {
+test.describe('Restoring a labelmap without saved segment definitions', () => {
+  test('matches labels on an unviewed image without inheriting definitions', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
     const stem = 'mixed-segmentation-restore';
-    writeMetaImage(`${stem}-source.mha`, { size: 8 });
+    utils.writeMetaImage(`${stem}-source.mha`, { size: 8 });
     writeConfigImages(stem);
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       {
         version: '8.0.0',
         dataSources: [
@@ -42,19 +39,19 @@ describe('Restoring a labelmap without saved segment definitions', () => {
       },
       `${stem}.json`
     );
-    await volViewPage.open(`?urls=[tmp/${stem}.json]`);
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await expect(await segmentRow('Unused')).toBeDisplayed();
-    await expect($('[data-testid="segment-list"]')).toHaveAttribute(
+    await volview.open(`?urls=[tmp/${stem}.json]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await expect(await segmentation.segmentRow('Unused')).toBeVisible();
+    await expect(page.locator('[data-testid="segment-list"]')).toHaveAttribute(
       'aria-busy',
       'false'
     );
 
-    await clickImageCard(`${stem}.nrrd`);
-    await openAnnotationSegments();
-    await waitForSegmentContent('Matched mask');
-    expect(await segmentNames()).toEqual(['Matched mask']);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await segmentation.clickImageCard(`${stem}.nrrd`);
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForSegmentContent('Matched mask');
+    expect(await segmentation.segmentNames()).toEqual(['Matched mask']);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

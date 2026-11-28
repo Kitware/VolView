@@ -1,33 +1,22 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import JSZip from 'jszip';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  openVolViewPage,
-  writeManifestToFile,
-  waitForDownload,
-  SESSION_SAVE_TIMEOUT,
-} from './utils';
-import {
-  openAnnotationSegments,
-  segmentNames,
-  selectedSegmentName,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
+import { test, expect } from '../fixtures';
+import type { Scratch } from '../scratch';
+import type { SegmentationUtils } from './segmentationTestUtils';
 
-const expectRestoredRegions = async () => {
-  await openAnnotationSegments();
-  await browser.waitUntil(async () =>
-    (await segmentNames()).includes('Left region')
-  );
-  await waitForSegmentContent('Left region');
-  await waitForSegmentContent('Right region');
-  expect(await segmentNames()).toEqual(['Right region', 'Left region']);
-  expect(await selectedSegmentName()).toBe('Left region');
+const expectRestoredRegions = async (segmentation: SegmentationUtils) => {
+  await segmentation.openAnnotationSegments();
+  await expect.poll(segmentation.segmentNames).toContain('Left region');
+  await segmentation.waitForSegmentContent('Left region');
+  await segmentation.waitForSegmentContent('Right region');
+  expect(await segmentation.segmentNames()).toEqual([
+    'Right region',
+    'Left region',
+  ]);
+  expect(await segmentation.selectedSegmentName()).toBe('Left region');
 };
 
-const writeVolume = (name: string, mask: boolean) => {
+const writeVolume = (scratch: Scratch, name: string, mask: boolean) => {
   const header =
     'NRRD0005\ntype: unsigned char\ndimension: 3\nspace: left-posterior-superior\nsizes: 8 8 8\nspace directions: (1,0,0) (0,1,0) (0,0,1)\nspace origin: (0,0,0)\nencoding: raw\n\n';
   const voxels = Buffer.from(
@@ -36,10 +25,7 @@ const writeVolume = (name: string, mask: boolean) => {
       return mask ? (x === 2 ? 3 : x === 5 ? 7 : 0) : index % 256;
     })
   );
-  fs.writeFileSync(
-    path.join(TEMP_DIR, name),
-    Buffer.concat([Buffer.from(header), voxels])
-  );
+  scratch.writeFile(name, Buffer.concat([Buffer.from(header), voxels]));
 };
 
 const catalog = [
@@ -65,10 +51,15 @@ const provenance = {
 };
 
 for (const legacy of [false, true]) {
-  describe(`${legacy ? 'Legacy group' : 'Composed labelmap'} import round trip`, () => {
-    it('restores mask content, order and selection, then saves independent mask files', async () => {
-      writeVolume('import-parent.nrrd', false);
-      writeVolume('import-labels.nrrd', true);
+  test.describe(`${legacy ? 'Legacy group' : 'Composed labelmap'} import round trip`, () => {
+    test('restores mask content, order and selection, then saves independent mask files', async ({
+      scratch,
+      volview,
+      utils,
+      segmentation,
+    }) => {
+      writeVolume(scratch, 'import-parent.nrrd', false);
+      writeVolume(scratch, 'import-labels.nrrd', true);
       const dataSources = [
         { id: 1, type: 'uri', uri: '/tmp/import-parent.nrrd' },
         { id: 2, type: 'uri', uri: '/tmp/import-labels.nrrd' },
@@ -137,14 +128,14 @@ for (const legacy of [false, true]) {
             ],
           };
       const fileName = `labelmap-import-${legacy}.volview.json`;
-      await writeManifestToFile(manifest, fileName);
-      await openVolViewPage(fileName);
-      await expectRestoredRegions();
+      await utils.writeManifestToFile(manifest, fileName);
+      await utils.openVolViewPage(fileName);
+      await expectRestoredRegions(segmentation);
 
-      const savedName = await volViewPage.saveSession();
-      const savedPath = path.join(TEMP_DIR, savedName);
-      await waitForDownload(savedPath, SESSION_SAVE_TIMEOUT);
-      const zip = await JSZip.loadAsync(fs.readFileSync(savedPath));
+      const savedName = await volview.saveSession();
+      const zip = await JSZip.loadAsync(
+        fs.readFileSync(scratch.path(savedName))
+      );
       const saved = JSON.parse(
         await zip.file('manifest.json')!.async('string')
       );
@@ -163,8 +154,8 @@ for (const legacy of [false, true]) {
         expect(binding.source).toEqual(provenance);
         expect(zip.file(binding.path)).not.toBeNull();
       }
-      await openVolViewPage(savedName);
-      await expectRestoredRegions();
+      await utils.openVolViewPage(savedName);
+      await expectRestoredRegions(segmentation);
     });
   });
 }

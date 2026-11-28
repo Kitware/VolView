@@ -1,34 +1,13 @@
-import * as path from 'node:path';
-import fs from 'node:fs';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
-import {
-  openUrls,
-  openVolViewPage,
-  readSavedSessionWithoutSelection,
-  waitForDownload,
-  SESSION_SAVE_TIMEOUT,
-  writeMetaImage,
-  writeManifestToFile,
-} from './utils';
-import {
-  addSegment,
-  dropImageOnView,
-  openAnnotationSegments,
-  segmentNames,
-  selectSegment,
-  segmentImageName,
-  createSegmentRow,
-} from './segmentationTestUtils';
 
-const selected = () =>
-  $('[data-testid="segment-list"] .item-row[aria-current="true"]');
-const segmentRow = (name: string) =>
-  $(`[data-testid="segment-list"] .item-row[aria-label="${name}"]`);
-const titles = () =>
-  browser.execute(() =>
+const selected = (page: Page) =>
+  page.locator('[data-testid="segment-list"] .item-row[aria-current="true"]');
+const segmentRow = (page: Page, name: string) =>
+  page.locator(`[data-testid="segment-list"] .item-row[aria-label="${name}"]`);
+const titles = (page: Page) =>
+  page.evaluate(() =>
     Array.from(
       document.querySelectorAll('[data-testid="segment-list"] .item-row'),
       (row) => row.getAttribute('aria-label')
@@ -37,18 +16,18 @@ const titles = () =>
 
 // Native drag events exercise the same handle/drop handlers without depending
 // on a browser's drag-distance threshold or autoscroll timing.
-const dragBefore = async (name: string, target: string) => {
-  const row = await segmentRow(name);
-  const destination = await segmentRow(target);
-  const handle = await row.$('.reorder-handle');
-  await browser.execute(
+const dragBefore = async (page: Page, name: string, target: string) => {
+  const row = segmentRow(page, name);
+  const destination = segmentRow(page, target);
+  const handle = row.locator('.reorder-handle');
+  await handle.evaluate(
     (source, to) => {
       const dataTransfer = new DataTransfer();
-      const bounds = to.getBoundingClientRect();
+      const bounds = to!.getBoundingClientRect();
       source.dispatchEvent(
         new DragEvent('dragstart', { bubbles: true, dataTransfer })
       );
-      to.dispatchEvent(
+      to!.dispatchEvent(
         new DragEvent('dragover', {
           bubbles: true,
           cancelable: true,
@@ -57,132 +36,143 @@ const dragBefore = async (name: string, target: string) => {
         })
       );
     },
-    handle,
-    destination
+    await destination.elementHandle()
   );
   await expect(destination).toHaveAttribute('data-drop-position', 'before');
   expect(
-    await browser.execute(
-      (element) => getComputedStyle(element).borderTopColor,
-      destination
+    await destination.evaluate(
+      (element) => getComputedStyle(element).borderTopColor
     )
   ).not.toBe('rgba(0, 0, 0, 0)');
-  await browser.execute(
+  await handle.evaluate(
     (source, to) => {
       const dataTransfer = new DataTransfer();
-      to.dispatchEvent(
+      to!.dispatchEvent(
         new DragEvent('drop', {
           bubbles: true,
           cancelable: true,
           dataTransfer,
-          clientY: to.getBoundingClientRect().top + 1,
+          clientY: to!.getBoundingClientRect().top + 1,
         })
       );
       source.dispatchEvent(
         new DragEvent('dragend', { bubbles: true, dataTransfer })
       );
     },
-    handle,
-    destination
+    await destination.elementHandle()
   );
 };
 
-describe('Segment shortcuts and ordering', () => {
-  it('keeps segment shortcuts on the clicked image while hovering other views', async () => {
-    const first = writeMetaImage('shortcut-first.mha');
-    const second = writeMetaImage('shortcut-second.mha');
-    await writeManifestToFile(
+test.describe('Segment shortcuts and ordering', () => {
+  test('keeps segment shortcuts on the clicked image while hovering other views', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    const first = utils.writeMetaImage('shortcut-first.mha');
+    const second = utils.writeMetaImage('shortcut-second.mha');
+    await utils.writeManifestToFile(
       { segments: { Tumor: {}, Liver: {}, Kidney: {} } },
       'shortcut-segments.json'
     );
-    await volViewPage.open(
+    await volview.open(
       `?urls=[tmp/${first},tmp/${second},tmp/shortcut-segments.json]`
     );
-    await volViewPage.waitForViews();
-    await dropImageOnView(first, 0);
-    await dropImageOnView(second, 1);
-    await openAnnotationSegments();
-    await volViewPage.activatePaint();
+    await volview.waitForViews();
+    await segmentation.dropImageOnView(first, 0);
+    await segmentation.dropImageOnView(second, 1);
+    await segmentation.openAnnotationSegments();
+    await volview.activatePaint();
 
-    const firstCanvas = $$('.grid-item')[0].$('canvas');
-    const secondCanvas = $$('.grid-item')[1].$('canvas');
+    const firstCanvas = page.locator('.grid-item').nth(0).locator('canvas');
+    const secondCanvas = page.locator('.grid-item').nth(1).locator('canvas');
     await firstCanvas.click();
-    await expect(segmentImageName()).toHaveText(first);
-    await browser.keys('3');
-    await expect(selected()).toHaveAttribute('aria-label', 'Kidney');
+    await expect(segmentation.segmentImageName()).toHaveText(first);
+    await page.keyboard.press('3');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Kidney');
 
-    await secondCanvas.moveTo();
-    await expect(segmentImageName()).toHaveText(first);
-    await browser.keys('q');
-    await expect(selected()).toHaveAttribute('aria-label', 'Liver');
+    await utils.moveToElement(secondCanvas);
+    await expect(segmentation.segmentImageName()).toHaveText(first);
+    await page.keyboard.press('q');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Liver');
 
     await secondCanvas.click();
-    await expect(segmentImageName()).toHaveText(second);
-    await browser.keys('3');
-    await expect(selected()).toHaveAttribute('aria-label', 'Kidney');
-    await firstCanvas.moveTo();
-    await expect(segmentImageName()).toHaveText(second);
-    await browser.keys('w');
-    await expect(selected()).toHaveAttribute('aria-label', 'Tumor');
+    await expect(segmentation.segmentImageName()).toHaveText(second);
+    await page.keyboard.press('3');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Kidney');
+    await utils.moveToElement(firstCanvas);
+    await expect(segmentation.segmentImageName()).toHaveText(second);
+    await page.keyboard.press('w');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Tumor');
 
     await firstCanvas.click();
-    await expect(segmentImageName()).toHaveText(first);
-    await expect(selected()).toHaveAttribute('aria-label', 'Liver');
+    await expect(segmentation.segmentImageName()).toHaveText(first);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Liver');
     await secondCanvas.click();
-    await expect(selected()).toHaveAttribute('aria-label', 'Tumor');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Tumor');
   });
 
-  it('cycles forward and backward across segment boundaries for polygon and paint', async () => {
-    await volViewPage.open();
-    await openAnnotationSegments();
-    const create = createSegmentRow();
+  test('cycles forward and backward across segment boundaries for polygon and paint', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await volview.open();
+    await segmentation.openAnnotationSegments();
+    const create = segmentation.createSegmentRow();
     await expect(create).toBeDisabled();
-    await browser.keys('w');
-    await browser.keys('q');
+    await page.keyboard.press('w');
+    await page.keyboard.press('q');
     await expect(create).toBeDisabled();
-    expect(await segmentNames()).toEqual([]);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await segmentation.segmentNames()).toEqual([]);
+    expect(await volview.getNotificationsCount()).toBe(0);
 
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await openAnnotationSegments();
-    await browser.keys('w');
-    await browser.keys('q');
-    expect(await segmentNames()).toEqual([]);
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
+    await segmentation.openAnnotationSegments();
+    await page.keyboard.press('w');
+    await page.keyboard.press('q');
+    expect(await segmentation.segmentNames()).toEqual([]);
 
-    for (let index = 0; index < 3; index++) await addSegment();
+    for (let index = 0; index < 3; index++) await segmentation.addSegment();
     for (const icon of ['mdi-pentagon-outline', 'mdi-brush']) {
-      await volViewPage.selectTool(icon);
-      await selectSegment('Segment 1');
-      await browser.keys('q');
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 3');
-      await browser.keys('w');
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-      await browser.keys('w');
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
-      await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
+      await volview.selectTool(icon);
+      await segmentation.selectSegment('Segment 1');
+      await page.keyboard.press('q');
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 3');
+      await page.keyboard.press('w');
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+      await page.keyboard.press('w');
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
+      await expect(volview.saveSegmentsButtons.first()).toBeDisabled();
     }
   });
 
-  it('cycles from the first row when a restored session names no selection', async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await openAnnotationSegments();
-    for (let index = 0; index < 3; index++) await addSegment();
-    const saved = await volViewPage.saveSession();
-    const { zip } = await readSavedSessionWithoutSelection(saved);
+  test('cycles from the first row when a restored session names no selection', async ({
+    page,
+    scratch,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
+    await segmentation.openAnnotationSegments();
+    for (let index = 0; index < 3; index++) await segmentation.addSegment();
+    const saved = await volview.saveSession();
+    const { zip } = await utils.readSavedSessionWithoutSelection(saved);
     const name = 'segment-shortcuts-no-selection.volview.zip';
-    const filePath = path.join(TEMP_DIR, name);
-    fs.writeFileSync(filePath, await zip.generateAsync({ type: 'nodebuffer' }));
-    cleanuptotal.addCleanup(async () => fs.rmSync(filePath, { force: true }));
+    scratch.writeFile(name, await zip.generateAsync({ type: 'nodebuffer' }));
 
     for (const [key, expected] of [
       ['w', 'Segment 2'],
       ['q', 'Segment 3'],
     ]) {
-      await openVolViewPage(name);
-      await openAnnotationSegments();
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-      await browser.keys(key);
-      await expect(selected()).toHaveAttribute('aria-label', expected);
+      await utils.openVolViewPage(name);
+      await segmentation.openAnnotationSegments();
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+      await page.keyboard.press(key);
+      await expect(selected(page)).toHaveAttribute('aria-label', expected);
     }
   });
 
@@ -192,92 +182,115 @@ describe('Segment shortcuts and ordering', () => {
     ['Rectangle', 'mdi-vector-square'],
     ['Ruler', 'mdi-ruler'],
   ]) {
-    it(`keeps the selection when ${tool} is reactivated without creating painted content`, async () => {
-      await openUrls([ONE_CT_SLICE_DICOM]);
-      await volViewPage.selectTool(icon);
-      await openAnnotationSegments();
-      expect(await segmentNames()).toEqual([]);
-      await addSegment();
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-      expect(await segmentNames()).toEqual(['Segment 1']);
-      await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
-      await volViewPage.selectTool('mdi-cursor-default');
-      await volViewPage.selectTool(icon);
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-      expect(await segmentNames()).toEqual(['Segment 1']);
+    test(`keeps the selection when ${tool} is reactivated without creating painted content`, async ({
+      page,
+      volview,
+      utils,
+      segmentation,
+    }) => {
+      await utils.openUrls([ONE_CT_SLICE_DICOM]);
+      await volview.selectTool(icon);
+      await segmentation.openAnnotationSegments();
+      expect(await segmentation.segmentNames()).toEqual([]);
+      await segmentation.addSegment();
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+      expect(await segmentation.segmentNames()).toEqual(['Segment 1']);
+      await expect(volview.saveSegmentsButtons.first()).toBeDisabled();
+      await volview.selectTool('mdi-cursor-default');
+      await volview.selectTool(icon);
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+      expect(await segmentation.segmentNames()).toEqual(['Segment 1']);
 
-      await addSegment();
-      await volViewPage.selectTool('mdi-cursor-default');
-      await volViewPage.selectTool(icon);
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
-      expect(await segmentNames()).toEqual(['Segment 1', 'Segment 2']);
-      await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
+      await segmentation.addSegment();
+      await volview.selectTool('mdi-cursor-default');
+      await volview.selectTool(icon);
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
+      expect(await segmentation.segmentNames()).toEqual([
+        'Segment 1',
+        'Segment 2',
+      ]);
+      await expect(volview.saveSegmentsButtons.first()).toBeDisabled();
     });
   }
 
-  it('selects the first ten rows, follows reordered rows keeps typed digits in fields and restores saved order', async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await openAnnotationSegments();
+  test('selects the first ten rows, follows reordered rows keeps typed digits in fields and restores saved order', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
+    await segmentation.openAnnotationSegments();
     for (let i = 0; i < 11; i++) {
-      await createSegmentRow().click();
-      await expect(segmentRow(`Segment ${i + 1}`)).toExist();
+      await segmentation.createSegmentRow().click();
+      await expect(segmentRow(page, `Segment ${i + 1}`)).toBeAttached();
     }
 
     for (let i = 1; i <= 10; i++) {
-      await browser.keys(String(i % 10));
-      await expect(selected()).toHaveAttribute('aria-label', `Segment ${i}`);
-      await expect((await segmentRow(`Segment ${i}`)).$('kbd')).toHaveText(
+      await page.keyboard.press(String(i % 10));
+      await expect(selected(page)).toHaveAttribute(
+        'aria-label',
+        `Segment ${i}`
+      );
+      await expect(segmentRow(page, `Segment ${i}`).locator('kbd')).toHaveText(
         String(i % 10)
       );
     }
-    await expect((await segmentRow('Segment 11')).$('kbd')).not.toExist();
+    await expect(
+      segmentRow(page, 'Segment 11').locator('kbd')
+    ).not.toBeAttached();
 
-    await dragBefore('Segment 11', 'Segment 1');
-    await browser.waitUntil(async () => (await titles())[0] === 'Segment 11');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 10');
-    await browser.keys('1');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 11');
-    await browser.keys('0');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 9');
-    await expect((await segmentRow('Segment 10')).$('kbd')).not.toExist();
+    await dragBefore(page, 'Segment 11', 'Segment 1');
+    await expect.poll(async () => (await titles(page))[0]).toBe('Segment 11');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 10');
+    await page.keyboard.press('1');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 11');
+    await page.keyboard.press('0');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 9');
+    await expect(
+      segmentRow(page, 'Segment 10').locator('kbd')
+    ).not.toBeAttached();
 
-    const firstHandle = (await segmentRow('Segment 11')).$('.reorder-handle');
+    const firstHandle = segmentRow(page, 'Segment 11').locator(
+      '.reorder-handle'
+    );
     await firstHandle.click();
-    await browser.keys(['Alt', 'ArrowDown']);
-    await browser.waitUntil(async () => (await titles())[1] === 'Segment 11');
-    await browser.keys('1');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
+    await page.keyboard.press('Alt+ArrowDown');
+    await expect.poll(async () => (await titles(page))[1]).toBe('Segment 11');
+    await page.keyboard.press('1');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
 
-    await (await segmentRow('Segment 1'))
-      .$('[data-testid="edit-segment-button"]')
+    await segmentRow(page, 'Segment 1')
+      .locator('[data-testid="edit-segment-button"]')
       .click();
-    const input = $('div[role="dialog"] .v-text-field input');
+    const input = page
+      .locator('div[role="dialog"] .v-text-field input')
+      .first();
     await input.click();
-    await input.addValue('1234567890');
+    await input.pressSequentially('1234567890');
     await expect(input).toHaveValue('Segment 11234567890');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-    await volViewPage.editLabelModalDoneButton.click();
-    await expect(selected()).toHaveAttribute(
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+    await volview.editLabelModalDoneButton.click();
+    await expect(selected(page)).toHaveAttribute(
       'aria-label',
       'Segment 11234567890'
     );
-    const order = await titles();
-    const session = await volViewPage.saveSession();
-    await waitForDownload(path.join(TEMP_DIR, session), SESSION_SAVE_TIMEOUT);
-    await volViewPage.open(`?urls=[tmp/${session}]`);
-    await volViewPage.waitForViews();
-    await openAnnotationSegments();
-    await browser.waitUntil(
-      async () => (await titles()).length === order.length
-    );
-    expect(await titles()).toEqual(order);
-    await expect(selected()).toHaveAttribute(
+    const order = await titles(page);
+    const session = await volview.saveSession();
+    await volview.open(`?urls=[tmp/${session}]`);
+    await volview.waitForViews();
+    await segmentation.openAnnotationSegments();
+    await expect
+      .poll(async () => (await titles(page)).length)
+      .toBe(order.length);
+    expect(await titles(page)).toEqual(order);
+    await expect(selected(page)).toHaveAttribute(
       'aria-label',
       'Segment 11234567890'
     );
-    await browser.keys('2');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 11');
-    await browser.keys('0');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 9');
+    await page.keyboard.press('2');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 11');
+    await page.keyboard.press('0');
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 9');
   });
 });

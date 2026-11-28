@@ -1,7 +1,8 @@
-import { Key } from 'webdriverio';
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
 import { CINE_US_DATASET, COLOR3D_JPEG_BASELINE_DICOM } from '../datasets';
-import { openUrls, writeManifestToFile } from './utils';
+import type { Utils } from './utils';
 
 const PLAY_CONTROLS = '.play-controls';
 const FRAME_LABEL = '.view-annotations .frame-label';
@@ -16,56 +17,59 @@ function parseFrameLabel(text: string) {
   };
 }
 
-async function getCineFrameLabelText(index = 0) {
-  const labels = await $$(FRAME_LABEL);
-  if ((await labels.length) <= index) return null;
-  return (await labels[index].getText()).trim();
+async function getCineFrameLabelText(page: Page, index = 0) {
+  const labels = page.locator(FRAME_LABEL);
+  if ((await labels.count()) <= index) return null;
+  return (await labels.nth(index).innerText()).trim();
 }
 
-async function getCineFrame(index = 0) {
-  const text = await getCineFrameLabelText(index);
+async function getCineFrame(page: Page, index = 0) {
+  const text = await getCineFrameLabelText(page, index);
   return text ? parseFrameLabel(text) : null;
 }
 
-async function waitForCineFrameLabel(index = 0) {
-  await browser.waitUntil(
-    async () => {
-      const frame = await getCineFrame(index);
-      return !!frame;
-    },
-    {
-      timeout: 10000,
-      timeoutMsg: `Expected cine frame label ${index} to appear`,
-    }
-  );
+async function waitForCineFrameLabel(page: Page, index = 0) {
+  await expect
+    .poll(async () => !!(await getCineFrame(page, index)), {
+      message: `Expected cine frame label ${index} to appear`,
+    })
+    .toBe(true);
 }
 
-async function waitForCineFrameChange(index: number, previousText: string) {
-  await browser.waitUntil(
-    async () => {
-      const text = await getCineFrameLabelText(index);
-      return !!text && text !== previousText;
-    },
-    {
-      timeout: 5000,
-      timeoutMsg: `Expected cine frame counter ${index} to change`,
-    }
-  );
+async function waitForCineFrameChange(
+  page: Page,
+  index: number,
+  previousText: string
+) {
+  await expect
+    .poll(
+      async () => {
+        const text = await getCineFrameLabelText(page, index);
+        return !!text && text !== previousText;
+      },
+      { message: `Expected cine frame counter ${index} to change` }
+    )
+    .toBe(true);
 }
 
-async function openCineDatasetWithConfig(config: unknown, configName: string) {
+async function openCineDatasetWithConfig(
+  volview: VolViewPage,
+  utils: Utils,
+  config: unknown,
+  configName: string
+) {
   const configFileName = `${configName}-${Date.now()}.json`;
-  await writeManifestToFile(config, configFileName);
-  await volViewPage.open(
+  await utils.writeManifestToFile(config, configFileName);
+  await volview.open(
     `?urls=[tmp/${CINE_US_DATASET.name},tmp/${configFileName}]`
   );
-  await volViewPage.waitForViews();
-  const notifications = await volViewPage.getNotificationsCount();
+  await volview.waitForViews();
+  const notifications = await volview.getNotificationsCount();
   expect(notifications).toEqual(0);
 }
 
-async function getActiveCineViewIndex() {
-  return browser.execute((selector: string) => {
+async function getActiveCineViewIndex(page: Page) {
+  return page.evaluate((selector: string) => {
     const activeBorderColor = 'rgb(60, 179, 113)'; // CSS mediumseagreen
     const views = Array.from(document.querySelectorAll(selector));
 
@@ -82,23 +86,25 @@ async function getActiveCineViewIndex() {
   }, VIEW_SELECTOR);
 }
 
+// Steps the page clock between samples, so playback covers the whole window
+// however slowly the machine samples.
 async function sampleActiveCineViewIndexes(
+  page: Page,
   durationMs: number,
   intervalMs = 25
 ) {
   const samples: number[] = [];
-  const deadline = Date.now() + durationMs;
 
-  while (Date.now() < deadline) {
-    samples.push(await getActiveCineViewIndex());
-    await browser.pause(intervalMs);
+  for (let elapsed = 0; elapsed < durationMs; elapsed += intervalMs) {
+    samples.push(await getActiveCineViewIndex(page));
+    await page.clock.runFor(intervalMs);
   }
 
   return samples;
 }
 
-async function getFirstCineCanvasStats() {
-  return browser.execute((selector: string) => {
+async function getFirstCineCanvasStats(page: Page) {
+  return page.evaluate((selector: string) => {
     const views = Array.from(document.querySelectorAll(selector)).filter(
       (view) => {
         const rect = view.getBoundingClientRect();
@@ -130,107 +136,119 @@ async function getFirstCineCanvasStats() {
   }, VIEW_SELECTOR);
 }
 
-async function waitForFirstCineCanvasToRender(timeout = 5000) {
-  await browser.waitUntil(
-    async () => {
-      const stats = await getFirstCineCanvasStats();
-      return (
-        !!stats && stats.width > 10 && stats.height > 10 && stats.nonBlack > 0
-      );
-    },
-    {
-      timeout,
-      interval: 50,
-      timeoutMsg: 'Expected cine canvas to stay non-black',
-    }
-  );
+async function waitForFirstCineCanvasToRender(page: Page) {
+  await expect
+    .poll(
+      async () => {
+        const stats = await getFirstCineCanvasStats(page);
+        return (
+          !!stats && stats.width > 10 && stats.height > 10 && stats.nonBlack > 0
+        );
+      },
+      { message: 'Expected cine canvas to stay non-black' }
+    )
+    .toBe(true);
 }
 
-describe('VolView cine playback', () => {
-  it('shows a frame 0 thumbnail in the patient browser', async () => {
-    await openUrls([CINE_US_DATASET]);
+test.describe('VolView cine playback', () => {
+  test('shows a frame 0 thumbnail in the patient browser', async ({
+    page,
+    utils,
+  }) => {
+    await utils.openUrls([CINE_US_DATASET]);
 
-    const playControls = $(PLAY_CONTROLS);
-    await playControls.waitForDisplayed({ timeout: 10000 });
+    const playControls = page.locator(PLAY_CONTROLS).first();
+    await expect(playControls).toBeVisible();
 
-    const card = $('.volume-card');
-    await card.waitForExist({ timeout: 10000 });
+    const card = page.locator('.volume-card').first();
+    await expect(card).toBeAttached();
 
-    const thumbnail = card.$('img.v-img__img');
-    await browser.waitUntil(
-      async () => {
-        if (!(await thumbnail.isExisting())) return false;
-        const src = await thumbnail.getAttribute('src');
-        return !!src && src.startsWith('data:image/');
-      },
-      {
-        timeout: 10000,
-        timeoutMsg:
-          'Expected cine volume card to render a data-URL thumbnail instead of the modality fallback',
-      }
-    );
+    const thumbnail = card.locator('img.v-img__img').first();
+    await expect
+      .poll(
+        async () => {
+          if (!(await thumbnail.count())) return false;
+          const src = await thumbnail.getAttribute('src');
+          return !!src && src.startsWith('data:image/');
+        },
+        {
+          message:
+            'Expected cine volume card to render a data-URL thumbnail instead of the modality fallback',
+        }
+      )
+      .toBe(true);
   });
 
-  it('loads a multi-frame ultrasound and scrubs frames', async () => {
-    await openUrls([CINE_US_DATASET]);
+  test('loads a multi-frame ultrasound and scrubs frames', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await utils.openUrls([CINE_US_DATASET]);
 
-    const playControls = $(PLAY_CONTROLS);
-    await playControls.waitForDisplayed({ timeout: 10000 });
+    const playControls = page.locator(PLAY_CONTROLS).first();
+    await expect(playControls).toBeVisible();
 
-    const frameLabel = await $(FRAME_LABEL);
-    const initialText = (await frameLabel.getText()).trim();
+    const frameLabel = page.locator(FRAME_LABEL).first();
+    const initialText = (await frameLabel.innerText()).trim();
     // GDCM US-MONO2-8-8x-execho is 8 frames.
     expect(initialText).toBe('Frame: 1 / 8');
 
     // Scrub one frame forward via arrow key and verify the counter advances.
     // Cine starts at frame 1, so ArrowUp is the direction with headroom.
-    await volViewPage.focusFirst2DView();
-    await browser.keys([Key.ArrowUp]);
-    await browser.waitUntil(
-      async () => (await frameLabel.getText()).trim() !== initialText,
-      {
-        timeout: 5000,
-        timeoutMsg: 'Expected cine frame counter to change after arrow key',
-      }
-    );
+    await volview.focusFirst2DView();
+    await page.keyboard.press('ArrowUp');
+    await expect
+      .poll(async () => (await frameLabel.innerText()).trim(), {
+        message: 'Expected cine frame counter to change after arrow key',
+      })
+      .not.toBe(initialText);
 
     // The new label should still be "Frame: N / 8" with N in [1, 8].
-    const after = (await frameLabel.getText()).trim();
+    const after = (await frameLabel.innerText()).trim();
     expect(after).toMatch(/^Frame: [1-8] \/ 8$/);
     expect(after).not.toBe(initialText);
   });
 
-  it('advances the frame counter while playing and stops after pause', async () => {
-    await openUrls([CINE_US_DATASET]);
+  test('advances the frame counter while playing and stops after pause', async ({
+    page,
+    utils,
+  }) => {
+    await page.clock.install();
+    await utils.openUrls([CINE_US_DATASET]);
 
-    const playButton = $(`${PLAY_CONTROLS} .play-btn`);
-    await playButton.waitForDisplayed({ timeout: 10000 });
-    await waitForCineFrameLabel();
+    const playButton = page.locator(`${PLAY_CONTROLS} .play-btn`).first();
+    await expect(playButton).toBeVisible();
+    await waitForCineFrameLabel(page);
 
-    const initialText = (await getCineFrameLabelText())!;
+    const initialText = (await getCineFrameLabelText(page))!;
     await playButton.click();
-    await waitForCineFrameChange(0, initialText);
+    await waitForCineFrameChange(page, 0, initialText);
 
-    const changedText = (await getCineFrameLabelText())!;
+    const changedText = (await getCineFrameLabelText(page))!;
     expect(changedText).not.toBe(initialText);
     expect(parseFrameLabel(changedText)?.total).toBe(8);
 
     await playButton.click();
-    await browser.waitUntil(
-      async () => (await playButton.getAttribute('aria-pressed')) === 'false',
-      {
-        timeout: 1000,
-        timeoutMsg: 'Expected play button to enter paused state',
-      }
-    );
+    await expect(
+      playButton,
+      'Expected play button to enter paused state'
+    ).toHaveAttribute('aria-pressed', 'false');
 
-    const pausedText = (await getCineFrameLabelText())!;
-    await browser.pause(500);
-    expect(await getCineFrameLabelText()).toBe(pausedText);
+    const pausedText = (await getCineFrameLabelText(page))!;
+    await page.clock.runFor(500);
+    expect(await getCineFrameLabelText(page)).toBe(pausedText);
   });
 
-  it('keeps the active-view ring stable while two cine views play', async () => {
+  test('keeps the active-view ring stable while two cine views play', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await page.clock.install();
     await openCineDatasetWithConfig(
+      volview,
+      utils,
       {
         layouts: {
           'Two cine views': [['axial'], ['axial']],
@@ -238,55 +256,53 @@ describe('VolView cine playback', () => {
       },
       'two-cine-active-view'
     );
-    await volViewPage.waitForViewCounts(2, false);
+    await volview.waitForViewCounts(2, false);
 
-    const playButtons = await $$(`${PLAY_CONTROLS} .play-btn`);
-    expect(await playButtons.length).toBe(2);
-    await waitForCineFrameLabel(0);
-    await waitForCineFrameLabel(1);
-    const initialFirstFrame = (await getCineFrameLabelText(0))!;
-    const initialSecondFrame = (await getCineFrameLabelText(1))!;
+    const playButtons = page.locator(`${PLAY_CONTROLS} .play-btn`);
+    await expect(playButtons).toHaveCount(2);
+    await waitForCineFrameLabel(page, 0);
+    await waitForCineFrameLabel(page, 1);
+    const initialFirstFrame = (await getCineFrameLabelText(page, 0))!;
+    const initialSecondFrame = (await getCineFrameLabelText(page, 1))!;
 
-    await playButtons[0].click();
-    await playButtons[1].click();
-    await waitForCineFrameChange(0, initialFirstFrame);
-    await waitForCineFrameChange(1, initialSecondFrame);
+    await playButtons.nth(0).click();
+    await playButtons.nth(1).click();
+    await waitForCineFrameChange(page, 0, initialFirstFrame);
+    await waitForCineFrameChange(page, 1, initialSecondFrame);
 
-    const views = await $$(VIEW_SELECTOR);
-    const secondCanvas = await views[1].$('canvas');
-    await secondCanvas.click();
+    await page.locator(VIEW_SELECTOR).nth(1).locator('canvas').first().click();
 
-    await browser.waitUntil(
-      async () => (await getActiveCineViewIndex()) === 1,
-      {
-        timeout: 2000,
-        timeoutMsg: 'Expected second cine view to be active',
-      }
-    );
+    await expect
+      .poll(() => getActiveCineViewIndex(page), {
+        message: 'Expected second cine view to be active',
+      })
+      .toBe(1);
 
-    const samples = await sampleActiveCineViewIndexes(1200);
+    const samples = await sampleActiveCineViewIndexes(page, 1200);
     const unexpectedSamples = samples.filter((index) => index !== 1);
     expect(unexpectedSamples).toEqual([]);
   });
 
-  it('keeps rendering after repeated maximize toggles during playback', async () => {
-    await openUrls([COLOR3D_JPEG_BASELINE_DICOM]);
+  test('keeps rendering after repeated maximize toggles during playback', async ({
+    page,
+    utils,
+  }) => {
+    await page.clock.install();
+    await utils.openUrls([COLOR3D_JPEG_BASELINE_DICOM]);
 
-    const playButton = $(`${PLAY_CONTROLS} .play-btn`);
-    await playButton.waitForDisplayed({ timeout: 10000 });
+    const playButton = page.locator(`${PLAY_CONTROLS} .play-btn`).first();
+    await expect(playButton).toBeVisible();
     await playButton.click();
 
-    await $(VIEW_SELECTOR).waitForDisplayed({
-      timeout: 10000,
-    });
-    await waitForFirstCineCanvasToRender();
+    await expect(page.locator(VIEW_SELECTOR).first()).toBeVisible();
+    await waitForFirstCineCanvasToRender(page);
 
     for (let i = 0; i < 12; i++) {
-      const firstView = $(VIEW_SELECTOR);
-      await firstView.waitForDisplayed({ timeout: 5000 });
-      await firstView.doubleClick();
-      await browser.pause(50);
-      await waitForFirstCineCanvasToRender(1500);
+      const firstView = page.locator(VIEW_SELECTOR).first();
+      await expect(firstView).toBeVisible();
+      await firstView.dblclick();
+      await page.clock.runFor(50);
+      await waitForFirstCineCanvasToRender(page);
     }
   });
 });

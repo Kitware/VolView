@@ -1,4 +1,6 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import type { VolViewPage } from '../pageobjects/volview.page';
 import { startDicomWebServer } from '../server/dicomweb-server';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
 
@@ -43,72 +45,83 @@ const makeSeries = (studyUid = newUid()) => {
   };
 };
 
-const dicomWebMessage = () => $('#data-module p.error-message');
+const dicomWebMessage = (page: Page) =>
+  page.locator('#data-module p.error-message');
 
-describe('DICOMWeb metadata failures', () => {
+test.describe('DICOMWeb metadata failures', () => {
   let server: Awaited<ReturnType<typeof startDicomWebServer>>;
 
-  const linkTo = (...path: string[]) =>
-    volViewPage.open(`?dicomweb=${[server.root, ...path].join('/')}`);
-
-  const linkToSeries = ({
-    studyUid,
-    seriesUid,
-  }: ReturnType<typeof makeSeries>) =>
-    linkTo('studies', studyUid, 'series', seriesUid);
-
-  beforeEach(async () => {
+  test.beforeEach(async () => {
     server = await startDicomWebServer();
   });
 
-  afterEach(async () => {
+  test.afterEach(async () => {
     await server.stop();
   });
 
-  it('loads a linked series once its failed metadata request is retried', async () => {
+  const linkTo = (volview: VolViewPage, ...path: string[]) =>
+    volview.open(`?dicomweb=${[server.root, ...path].join('/')}`);
+
+  const linkToSeries = (
+    volview: VolViewPage,
+    { studyUid, seriesUid }: ReturnType<typeof makeSeries>
+  ) => linkTo(volview, 'studies', studyUid, 'series', seriesUid);
+
+  test('loads a linked series once its failed metadata request is retried', async ({
+    page,
+    volview,
+  }) => {
     const series = makeSeries();
     server.replies.seriesMetadata = { status: 500 };
-    await linkToSeries(series);
+    await linkToSeries(volview, series);
 
-    await expect(dicomWebMessage()).toHaveText(
-      expect.stringContaining('Error fetching DICOMWeb data')
+    await expect(dicomWebMessage(page)).toContainText(
+      'Error fetching DICOMWeb data'
     );
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
 
     server.replies.seriesSearch = { status: 200, json: series.search };
     server.replies.seriesMetadata = { status: 200, json: series.metadata };
     server.replies.seriesRetrieval = { status: 200, dicoms: series.dicoms };
     // Closing Settings unmounts the DICOMWeb fields, which retries a failed fetch.
-    await volViewPage.openSettings();
-    await volViewPage.closeSettings();
+    await volview.openSettings();
+    await volview.closeSettings();
 
-    await $('.volume-card .mdi-check').waitForDisplayed();
-    await volViewPage.waitForViews();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expect(page.locator('.volume-card .mdi-check')).toBeVisible();
+    await volview.waitForViews();
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('reports a linked series with no metadata without starting a download', async () => {
+  test('reports a linked series with no metadata without starting a download', async ({
+    page,
+    volview,
+  }) => {
     server.replies.seriesMetadata = { status: 200, json: [] };
-    await linkToSeries(makeSeries());
+    await linkToSeries(volview, makeSeries());
 
-    await expect(dicomWebMessage()).toHaveText('Found zero dicoms.');
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await expect(dicomWebMessage(page)).toHaveText('Found zero dicoms.');
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('reports a linked series that its metadata does not describe', async () => {
+  test('reports a linked series that its metadata does not describe', async ({
+    volview,
+  }) => {
     const linked = makeSeries();
     const other = makeSeries(linked.studyUid);
     server.replies.seriesSearch = { status: 200, json: other.search };
     server.replies.seriesMetadata = { status: 200, json: other.metadata };
-    await linkToSeries(linked);
+    await linkToSeries(volview, linked);
 
-    await volViewPage.waitForNotification();
-    expect(await volViewPage.getNotificationTitles()).toEqual([
+    await volview.waitForNotification();
+    expect(await volview.getNotificationTitles()).toEqual([
       'Failed to load DICOM',
     ]);
   });
 
-  it('lists the studies of a search that also returns a record without a study UID', async () => {
+  test('lists the studies of a search that also returns a record without a study UID', async ({
+    page,
+    volview,
+  }) => {
     const { studyUid, seriesUid } = makeSeries();
     server.replies.studySearch = {
       status: 200,
@@ -120,23 +133,26 @@ describe('DICOMWeb metadata failures', () => {
         },
       ],
     };
-    await linkTo();
+    await linkTo(volview);
 
-    await expect($('#data-module .patient-header-name')).toHaveText(
+    await expect(page.locator('#data-module .patient-header-name')).toHaveText(
       'DICOMWeb^Patient'
     );
   });
 
-  it('stops the series spinner when browsing a study whose series metadata fails', async () => {
+  test('stops the series spinner when browsing a study whose series metadata fails', async ({
+    page,
+    volview,
+  }) => {
     const series = makeSeries();
     server.replies.seriesSearch = { status: 200, json: series.search };
     server.replies.seriesMetadata = { status: 500 };
-    await linkTo('studies', series.studyUid);
+    await linkTo(volview, 'studies', series.studyUid);
 
-    await volViewPage.waitForNotification();
-    await expect($('.volume-list')).toExist();
-    await expect($('.volume-list .fetching')).not.toExist();
-    expect(await volViewPage.getNotificationTitles()).toEqual([
+    await volview.waitForNotification();
+    await expect(page.locator('.volume-list')).toBeAttached();
+    await expect(page.locator('.volume-list .fetching')).not.toBeAttached();
+    expect(await volview.getNotificationTitles()).toEqual([
       'Failed to fetch DICOMWeb metadata',
     ]);
   });

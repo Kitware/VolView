@@ -1,198 +1,211 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
-import { openUrls } from './utils';
-import {
-  addSegment,
-  allowOverlap,
-  deleteSegment,
-  openAnnotationSegments,
-} from './segmentationTestUtils';
-import { nudgeTo, pressAtPointer } from './annotationTestUtils';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Utils } from './utils';
+import type { SegmentationUtils } from './segmentationTestUtils';
 
-const row = (name: string) =>
-  $(`[data-testid="segment-list"] .item-row[aria-label="${name}"]`);
-const selected = () =>
-  $('[data-testid="segment-list"] .item-row[aria-current="true"]');
-const eyedropper = () => $('[data-testid="paint-eyedropper-button"]');
-const mouse = () => browser.action('pointer', { id: 'paint-mouse' });
-const keyboard = () => browser.action('key', { id: 'paint-keyboard' });
-const click = (x: number, y: number) =>
-  mouse().move({ x, y }).down().up().perform(true);
-
-const expectBackgroundUnpainted = async (x: number, y: number) => {
-  await row('Segment 3').click();
-  await eyedropper().click();
-  await click(x, y);
-  await expect(selected()).toHaveAttribute('aria-label', 'Segment 3');
+const row = (page: Page, name: string) =>
+  page.locator(`[data-testid="segment-list"] .item-row[aria-label="${name}"]`);
+const selected = (page: Page) =>
+  page.locator('[data-testid="segment-list"] .item-row[aria-current="true"]');
+const eyedropper = (page: Page) =>
+  page.locator('[data-testid="paint-eyedropper-button"]');
+const click = async (page: Page, x: number, y: number) => {
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.up();
 };
 
-const openPaintedScene = async () => {
-  await openUrls([ONE_CT_SLICE_DICOM]);
-  await volViewPage.activatePaint();
-  await openAnnotationSegments();
-  const view = (await volViewPage.getViews2D())[0];
-  const canvas = view.$('canvas');
-  const location = await canvas.getLocation();
-  const size = await canvas.getSize();
-  const x = Math.round(location.x + size.width / 2);
-  const y = Math.round(location.y + size.height / 2);
-  await click(x, y);
+const expectBackgroundUnpainted = async (page: Page, x: number, y: number) => {
+  await row(page, 'Segment 3').click();
+  await eyedropper(page).click();
+  await click(page, x, y);
+  await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 3');
+};
+
+const openPaintedScene = async ({
+  page,
+  volview,
+  utils,
+  segmentation,
+}: {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  segmentation: SegmentationUtils;
+}) => {
+  await utils.openUrls([ONE_CT_SLICE_DICOM]);
+  await volview.activatePaint();
+  await segmentation.openAnnotationSegments();
+  const view = volview.views2D.first();
+  const canvas = view.locator('canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('The view has no canvas on screen');
+  const x = Math.round(box.x + box.width / 2);
+  const y = Math.round(box.y + box.height / 2);
+  await click(page, x, y);
   await expect(
-    row('Segment 1').$('[data-testid="reveal-segment-button"]')
+    row(page, 'Segment 1').locator('[data-testid="reveal-segment-button"]')
   ).toBeEnabled();
   return { view, canvas, x, y };
 };
 
-describe('Paint eyedropper', () => {
-  afterEach(async () => {
-    await browser.releaseActions();
-  });
-
+test.describe('Paint eyedropper', () => {
   for (const [tool, icon] of [
     ['ruler', 'mdi-ruler'],
     ['rectangle', 'mdi-vector-square'],
   ]) {
-    it(`samples painted content after switching from a picked ${tool} handle`, async () => {
-      const { view, canvas, x, y } = await openPaintedScene();
-      await addSegment();
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
+    test(`samples painted content after switching from a picked ${tool} handle`, async ({
+      page,
+      volview,
+      utils,
+      annotation,
+      segmentation,
+    }) => {
+      const { view, canvas, x, y } = await openPaintedScene({
+        page,
+        volview,
+        utils,
+        segmentation,
+      });
+      await segmentation.addSegment();
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
       await expect(
-        row('Segment 2').$('[data-testid="reveal-segment-button"]')
+        row(page, 'Segment 2').locator('[data-testid="reveal-segment-button"]')
       ).toBeDisabled();
 
-      await volViewPage.selectTool(icon);
-      await nudgeTo(x + 60, y - 60);
-      await pressAtPointer();
-      await nudgeTo(x + 90, y - 30);
-      await pressAtPointer();
-      await volViewPage.selectTool('mdi-cursor-default');
-      await expect(view.$$('svg circle')).toBeElementsArrayOfSize(2);
-      await nudgeTo(x - 50, y + 50);
-      await browser.waitUntil(
-        async () => (await canvas.getCSSProperty('cursor')).value === 'default'
-      );
-      await nudgeTo(x + 60, y - 60);
-      await browser.waitUntil(
-        async () => (await canvas.getCSSProperty('cursor')).value === 'pointer'
-      );
+      await volview.selectTool(icon);
+      await annotation.nudgeTo(x + 60, y - 60);
+      await annotation.pressAtPointer();
+      await annotation.nudgeTo(x + 90, y - 30);
+      await annotation.pressAtPointer();
+      await volview.selectTool('mdi-cursor-default');
+      await expect(view.locator('svg circle')).toHaveCount(2);
+      await annotation.nudgeTo(x - 50, y + 50);
+      await expect(canvas).toHaveCSS('cursor', 'default');
+      await annotation.nudgeTo(x + 60, y - 60);
+      await expect(canvas).toHaveCSS('cursor', 'pointer');
 
-      await volViewPage.activatePaint();
-      await eyedropper().click();
-      await expect(eyedropper()).toHaveAttribute('aria-pressed', 'true');
-      await browser.waitUntil(async () =>
-        String((await canvas.getCSSProperty('cursor')).value).startsWith('url(')
-      );
-      await nudgeTo(x, y);
-      await pressAtPointer();
-      await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
+      await volview.activatePaint();
+      await eyedropper(page).click();
+      await expect(eyedropper(page)).toHaveAttribute('aria-pressed', 'true');
+      await expect(canvas).toHaveCSS('cursor', /^url\(/);
+      await annotation.nudgeTo(x, y);
+      await annotation.pressAtPointer();
+      await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
 
       // Removing the painted segment leaves only the annotation, with no mask to save.
-      await deleteSegment('Segment 1');
-      await expect(row('Segment 2')).toExist();
-      await expect(volViewPage.saveSegmentsButtons[0]).toBeDisabled();
+      await segmentation.deleteSegment('Segment 1');
+      await expect(row(page, 'Segment 2')).toBeAttached();
+      await expect(volview.saveSegmentsButtons.first()).toBeDisabled();
     });
   }
 
-  it('picks visible label maps without painting and restores the held mode', async () => {
-    const { canvas, x, y } = await openPaintedScene();
-    await allowOverlap();
-    await $('[data-testid="segment-list"] .create-row').click();
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
-    await click(x, y);
-    await $('[data-testid="segment-list"] .create-row').click();
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 3');
+  test('picks visible label maps without painting and restores the held mode', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    const { canvas, x, y } = await openPaintedScene({
+      page,
+      volview,
+      utils,
+      segmentation,
+    });
+    const { mouse, keyboard } = page;
+    await segmentation.allowOverlap();
+    await page.locator('[data-testid="segment-list"] .create-row').click();
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
+    await click(page, x, y);
+    await page.locator('[data-testid="segment-list"] .create-row').click();
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 3');
 
-    const list = $('[data-testid="segment-list"] .item-list-scroll');
-    await browser.execute(
-      (element) => {
-        element.style.maxHeight = '64px';
-        element.scrollTop = element.scrollHeight;
-      },
-      await list
-    );
-    const selectedRowInView = async () =>
-      browser.execute(
-        (element) => {
-          const selectedRow = element.querySelector('[aria-current="true"]')!;
-          const bounds = element.getBoundingClientRect();
-          const item = selectedRow.getBoundingClientRect();
-          return item.top >= bounds.top && item.bottom <= bounds.bottom;
-        },
-        await list
-      );
+    const list = page.locator('[data-testid="segment-list"] .item-list-scroll');
+    await list.evaluate((element) => {
+      element.style.maxHeight = '64px';
+      element.scrollTop = element.scrollHeight;
+    });
+    const selectedRowInView = () =>
+      list.evaluate((element) => {
+        const selectedRow = element.querySelector('[aria-current="true"]')!;
+        const bounds = element.getBoundingClientRect();
+        const item = selectedRow.getBoundingClientRect();
+        return item.top >= bounds.top && item.bottom <= bounds.bottom;
+      });
 
-    await eyedropper().click();
-    await expect(eyedropper()).toHaveAttribute('aria-pressed', 'true');
-    await click(x, y);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-    await browser.waitUntil(selectedRowInView);
-    await browser.execute(
-      (element) => {
-        element.scrollTop = element.scrollHeight;
-      },
-      await list
-    );
+    await eyedropper(page).click();
+    await expect(eyedropper(page)).toHaveAttribute('aria-pressed', 'true');
+    await click(page, x, y);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+    await expect.poll(selectedRowInView).toBe(true);
+    await list.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
     expect(await selectedRowInView()).toBe(false);
-    await click(x, y);
-    await browser.waitUntil(selectedRowInView);
-    await row('Segment 1').$('.reorder-handle').click();
-    await browser.keys(['Alt', 'ArrowDown']);
-    await expect(row('Segment 2').$('kbd')).toHaveText('1');
-    await click(x, y);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
-    await browser.waitUntil(selectedRowInView);
-    await row('Segment 2').$('button[aria-label="Hide Segment 2"]').click();
-    await click(x, y);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
-    await click(x + 70, y);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
+    await click(page, x, y);
+    await expect.poll(selectedRowInView).toBe(true);
+    await row(page, 'Segment 1').locator('.reorder-handle').click();
+    await keyboard.press('Alt+ArrowDown');
+    await expect(row(page, 'Segment 2').locator('kbd')).toHaveText('1');
+    await click(page, x, y);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
+    await expect.poll(selectedRowInView).toBe(true);
+    await row(page, 'Segment 2')
+      .locator('button[aria-label="Hide Segment 2"]')
+      .click();
+    await click(page, x, y);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
+    await click(page, x + 70, y);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 1');
 
-    await row('Segment 2').$('button[aria-label="Show Segment 2"]').click();
-    await browser.keys('e');
-    await row('Segment 3').click();
-    await keyboard().down('d').perform(true);
-    await expect(eyedropper()).toHaveAttribute('aria-pressed', 'true');
-    await browser.waitUntil(async () =>
-      String((await canvas.getCSSProperty('cursor')).value).startsWith('url(')
+    await row(page, 'Segment 2')
+      .locator('button[aria-label="Show Segment 2"]')
+      .click();
+    await keyboard.press('e');
+    await row(page, 'Segment 3').click();
+    await keyboard.down('d');
+    await expect(eyedropper(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(canvas).toHaveCSS('cursor', /^url\(/);
+    await mouse.move(x, y);
+    await mouse.down();
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
+    await keyboard.up('d');
+    await expect(eyedropper(page)).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('button.mode-button.selected')).toHaveText(
+      'Erase'
     );
-    await mouse().move({ x, y }).down().perform(true);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
-    await keyboard().up('d').perform(true);
-    await expect(eyedropper()).toHaveAttribute('aria-pressed', 'false');
-    await expect($('button.mode-button.selected')).toHaveText('Erase');
-    await mouse()
-      .move({ x: x + 70, y })
-      .up()
-      .perform(true);
+    await mouse.move(x + 70, y);
+    await mouse.up();
 
     // Sampling leaves background untouched and the painted segment pickable.
-    await expectBackgroundUnpainted(x + 70, y);
-    await click(x, y);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
+    await expectBackgroundUnpainted(page, x + 70, y);
+    await click(page, x, y);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 2');
 
-    await browser.keys('p');
-    await mouse().move({ x, y }).down().perform(true);
-    await keyboard().down('d').perform(true);
-    await expect(eyedropper()).toHaveAttribute('aria-pressed', 'true');
-    await mouse()
-      .move({ x: x + 70, y })
-      .perform(true);
-    await keyboard().up('d').perform(true);
-    await mouse()
-      .move({ x: x + 80, y })
-      .up()
-      .perform(true);
-    await expectBackgroundUnpainted(x + 70, y);
-    await click(x + 80, y);
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 3');
+    await keyboard.press('p');
+    await mouse.move(x, y);
+    await mouse.down();
+    await keyboard.down('d');
+    await expect(eyedropper(page)).toHaveAttribute('aria-pressed', 'true');
+    await mouse.move(x + 70, y);
+    await keyboard.up('d');
+    await mouse.move(x + 80, y);
+    await mouse.up();
+    await expectBackgroundUnpainted(page, x + 70, y);
+    await click(page, x + 80, y);
+    await expect(selected(page)).toHaveAttribute('aria-label', 'Segment 3');
 
-    await browser.keys('p');
-    await row('Segment 3').$('[data-testid="edit-segment-button"]').click();
-    const input = $('div[role="dialog"] .v-text-field input');
+    await keyboard.press('p');
+    await row(page, 'Segment 3')
+      .locator('[data-testid="edit-segment-button"]')
+      .click();
+    const input = page.locator('div[role="dialog"] .v-text-field input');
     await input.click();
-    await keyboard().down('d').perform(true);
+    await keyboard.down('d');
     await expect(input).toHaveValue('Segment 3d');
-    await expect(eyedropper()).toHaveAttribute('aria-pressed', 'false');
-    await keyboard().up('d').perform(true);
+    await expect(eyedropper(page)).toHaveAttribute('aria-pressed', 'false');
+    await keyboard.up('d');
   });
 });

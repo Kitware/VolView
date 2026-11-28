@@ -1,16 +1,20 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { openVolViewPage, writeManifestToFile, writeMetaImage } from './utils';
-import { dropImageOnView } from './segmentationTestUtils';
+import { test, expect } from '../fixtures';
+import { containsText } from '../pageobjects/volview.page';
 
 const LARGE_IMAGE = 'paint-brush-large.mha';
 const SMALL_IMAGE = 'paint-brush-small.mha';
 
-describe('Paint brush size', () => {
-  it('keeps the smaller image preview when increasing a brush already at its maximum', async () => {
-    writeMetaImage(LARGE_IMAGE, { size: 70 });
-    writeMetaImage(SMALL_IMAGE, { size: 21 });
+test.describe('Paint brush size', () => {
+  test('keeps the smaller image preview when increasing a brush already at its maximum', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+  }) => {
+    utils.writeMetaImage(LARGE_IMAGE, { size: 70 });
+    utils.writeMetaImage(SMALL_IMAGE, { size: 21 });
     const manifest = 'paint-brush-size.json';
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       {
         resources: [LARGE_IMAGE, SMALL_IMAGE].map((name) => ({
           url: `/tmp/${name}`,
@@ -18,51 +22,50 @@ describe('Paint brush size', () => {
       },
       manifest
     );
-    await openVolViewPage(manifest);
-    const largeCard = $(`.image-list-card*=${LARGE_IMAGE}`);
-    const smallCard = $(`.image-list-card*=${SMALL_IMAGE}`);
-    await largeCard.waitForClickable();
-    await smallCard.waitForClickable();
+    await utils.openVolViewPage(manifest);
+    const largeCard = page.locator('.image-list-card', {
+      hasText: containsText(LARGE_IMAGE),
+    });
+    const smallCard = page.locator('.image-list-card', {
+      hasText: containsText(SMALL_IMAGE),
+    });
+    await expect(largeCard).toBeVisible();
+    await expect(largeCard).toBeEnabled();
+    await expect(smallCard).toBeVisible();
+    await expect(smallCard).toBeEnabled();
     await largeCard.click();
-    await expect($$('.grid-item')).toBeElementsArrayOfSize(4);
-    const slots = await $$('.grid-item');
-    await dropImageOnView(`/tmp/${SMALL_IMAGE}`, 2);
-    await browser.waitUntil(async () =>
-      (await slots[2].getText()).includes(SMALL_IMAGE)
-    );
+    const slots = page.locator('.grid-item');
+    await expect(slots).toHaveCount(4);
+    await segmentation.dropImageOnView(`/tmp/${SMALL_IMAGE}`, 2);
+    await expect.poll(() => slots.nth(2).innerText()).toContain(SMALL_IMAGE);
 
-    const largeCanvas = await slots[0].$('canvas');
-    const smallCanvas = await slots[2].$('canvas');
+    const largeCanvas = slots.nth(0).locator('canvas');
+    const smallCanvas = slots.nth(2).locator('canvas');
     await largeCanvas.click();
-    await volViewPage.activatePaint();
-    await volViewPage.annotationsModuleTab.click();
-    const size = $('[role="slider"][aria-label="Brush size"]');
+    await volview.activatePaint();
+    await volview.annotationsModuleTab.click();
+    const size = page.locator('[role="slider"][aria-label="Brush size"]');
     await expect(size).toHaveAttribute('aria-valuemax', '7');
-    await browser.execute(
-      (element) => (element as HTMLElement).focus(),
-      await size
-    );
-    await browser.keys('End');
+    await size.focus();
+    await page.keyboard.press('End');
     await expect(size).toHaveAttribute('aria-valuenow', '7');
     await largeCanvas.click();
 
     const canvasImage = () =>
-      browser.execute(async (element) => {
+      smallCanvas.evaluate(async (element) => {
         // The next frame drains scheduled renders; the following frame captures them.
         await new Promise<void>((resolve) =>
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
         );
         return (element as HTMLCanvasElement).toDataURL();
-      }, smallCanvas);
+      });
     const withoutPreview = await canvasImage();
-    await smallCanvas.moveTo();
+    await utils.moveToElement(smallCanvas);
     await expect(size).toHaveAttribute('aria-valuemax', '7');
     await expect(size).toHaveAttribute('aria-valuenow', '7');
-    await browser.waitUntil(
-      async () => (await canvasImage()) !== withoutPreview
-    );
+    await expect.poll(canvasImage).not.toBe(withoutPreview);
     const preview = await canvasImage();
-    await browser.keys(']');
+    await page.keyboard.press(']');
     await expect(size).toHaveAttribute('aria-valuenow', '7');
     expect((await canvasImage()) === preview).toBe(true);
 

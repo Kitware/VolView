@@ -1,53 +1,59 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import JSZip from 'jszip';
 import type { z } from 'zod';
+import type { Page } from '@playwright/test';
 import type { ManifestSchema } from '@/src/io/state-file/schema';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { test, expect } from '../fixtures';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
 import {
-  capture2DViewScreenshotMetrics,
-  openThroughDialog,
-  openUrls,
-  selectLayout,
-  SESSION_SAVE_TIMEOUT,
-  waitForDownload,
-  waitForModuleTransitions,
-} from './utils';
+  containsText,
+  setValueVueInput,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import type { Utils } from './utils';
 
-const field = (endpoint: 'min' | 'max') =>
-  $(`[data-testid="base-image-range-${endpoint}"] input`);
-const visibility = () => $('[data-testid="base-image-visibility"]');
-const palette = () => $('[data-testid="base-image-colormap"]');
-const capture = () =>
-  capture2DViewScreenshotMetrics('legacy-window-appearance.png');
+type Fixtures = {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  scratch: Scratch;
+};
 
-const expectRange = async (min: number, max: number) => {
-  await expect(field('min')).toHaveAttribute('title', String(min));
-  await expect(field('max')).toHaveAttribute('title', String(max));
-  await expect((await volViewPage.getViews2D())[0]).toHaveText(
-    expect.stringContaining(
-      `W/L: ${(max - min).toFixed(2)} / ${((max + min) / 2).toFixed(2)}`
-    )
+const field = (page: Page, endpoint: 'min' | 'max') =>
+  page.locator(`[data-testid="base-image-range-${endpoint}"] input`);
+const visibility = (page: Page) =>
+  page.locator('[data-testid="base-image-visibility"]');
+const palette = (page: Page) =>
+  page.locator('[data-testid="base-image-colormap"]');
+const capture = (utils: Utils) =>
+  utils.capture2DViewScreenshotMetrics('legacy-window-appearance.png');
+
+const expectRange = async (
+  { page, volview }: Fixtures,
+  min: number,
+  max: number
+) => {
+  await expect(field(page, 'min')).toHaveAttribute('title', String(min));
+  await expect(field(page, 'max')).toHaveAttribute('title', String(max));
+  await expect(volview.views2D.first()).toContainText(
+    `W/L: ${(max - min).toFixed(2)} / ${((max + min) / 2).toFixed(2)}`,
+    { useInnerText: true }
   );
 };
 
-const setRange = async (min: number, max: number) => {
-  await setValueVueInput(field('min'), String(min));
-  await setValueVueInput(field('max'), String(max));
-  await browser.keys('Enter');
-  await expectRange(min, max);
+const setRange = async (fixtures: Fixtures, min: number, max: number) => {
+  const { page } = fixtures;
+  await setValueVueInput(field(page, 'min'), String(min));
+  await setValueVueInput(field(page, 'max'), String(max));
+  await page.keyboard.press('Enter');
+  await expectRange(fixtures, min, max);
 };
 
-const saveSession = async () => {
-  const filename = await volViewPage.saveSession();
-  const filePath = join(TEMP_DIR, filename);
-  await waitForDownload(filePath, SESSION_SAVE_TIMEOUT);
-  return filePath;
-};
+const saveSession = async ({ volview, scratch }: Fixtures) =>
+  scratch.path(await volview.saveSession());
 
-const omitSavedAppearance = async (filePath: string) => {
+const omitSavedAppearance = async (scratch: Scratch, filePath: string) => {
   const zip = await JSZip.loadAsync(readFileSync(filePath));
   const manifest = JSON.parse(
     await zip.file('manifest.json')!.async('string')
@@ -61,74 +67,101 @@ const omitSavedAppearance = async (filePath: string) => {
     delete window.preset;
   });
   zip.file('manifest.json', JSON.stringify(manifest));
-  const legacyPath = join(TEMP_DIR, 'legacy-window.volview.zip');
-  writeFileSync(legacyPath, await zip.generateAsync({ type: 'nodebuffer' }));
-  return legacyPath;
-};
-
-const clearTransientUI = async () => {
-  await $('header').moveTo();
-  await browser.waitUntil(
-    async () => (await $$('.Vue-Toastification__toast').length) === 0
+  return scratch.writeFile(
+    'legacy-window.volview.zip',
+    await zip.generateAsync({ type: 'nodebuffer' })
   );
 };
 
-const restoreLegacySession = async (filePath: string) => {
-  await openThroughDialog(filePath);
-  await expectRange(-100, 200);
-  await expect(palette()).toHaveText(expect.stringContaining('Grayscale'));
-  await expect(visibility()).toHaveText(expect.stringContaining('HIDE'));
-  await clearTransientUI();
+const clearTransientUI = async ({ page, utils }: Fixtures) => {
+  await utils.moveToElement(page.locator('header'));
+  await expect(page.locator('.Vue-Toastification__toast')).toHaveCount(0);
 };
 
-describe('Legacy saved base appearance', () => {
-  it('restores grayscale and visibility when reopening the same DICOM session', async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
-    await selectLayout('Axial Only', 1, false);
-    await volViewPage.renderingModuleTab.click();
-    await waitForModuleTransitions();
-    await field('min').scrollIntoView({ block: 'center', behavior: 'instant' });
-    await setRange(-100, 200);
-    const legacyPath = await omitSavedAppearance(await saveSession());
-    await setRange(-120, 180);
-    await restoreLegacySession(legacyPath);
-    await browser.waitUntil(async () => {
-      const [pixels] = await capture();
-      return pixels.colored === 0 && pixels.checksum > 1_000_000;
+const restoreLegacySession = async (fixtures: Fixtures, filePath: string) => {
+  const { page, utils } = fixtures;
+  await utils.openThroughDialog(filePath);
+  await expectRange(fixtures, -100, 200);
+  await expect(palette(page)).toContainText('Grayscale');
+  await expect(visibility(page)).toContainText('HIDE', { useInnerText: true });
+  await clearTransientUI(fixtures);
+};
+
+test.describe('Legacy saved base appearance', () => {
+  test('restores grayscale and visibility when reopening the same DICOM session', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+  }) => {
+    const fixtures = { page, volview, utils, scratch };
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
+    await utils.selectLayout('Axial Only', 1, false);
+    await volview.renderingModuleTab.click();
+    await utils.waitForModuleTransitions();
+    await field(page, 'min').evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await setRange(fixtures, -100, 200);
+    const legacyPath = await omitSavedAppearance(
+      scratch,
+      await saveSession(fixtures)
+    );
+    await setRange(fixtures, -120, 180);
+    await restoreLegacySession(fixtures, legacyPath);
+    await expect
+      .poll(async () => {
+        const [pixels] = await capture(utils);
+        return pixels.colored === 0 && pixels.checksum > 1_000_000;
+      })
+      .toBe(true);
+    const [original] = await capture(utils);
+
+    await palette(page).evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await palette(page).click();
+    const option = page.locator('[role="option"]', {
+      hasText: containsText('Viridis'),
     });
-    const [original] = await capture();
-
-    await palette().scrollIntoView({ block: 'center', behavior: 'instant' });
-    await palette().click();
-    const option = $('[role="option"]*=Viridis');
-    await option.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-    await option.waitForStable();
+    await option.evaluate((element) =>
+      element.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    );
     await option.click();
-    await setRange(-50, 150);
-    await clearTransientUI();
-    await browser.waitUntil(async () => (await capture())[0].colored > 1000);
-    await visibility().click();
-    await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
-    await browser.waitUntil(
-      async () => (await capture())[0].checksum < original.checksum / 4
-    );
-    const editedPath = await saveSession();
+    await setRange(fixtures, -50, 150);
+    await clearTransientUI(fixtures);
+    await expect
+      .poll(async () => (await capture(utils))[0].colored)
+      .toBeGreaterThan(1000);
+    await visibility(page).click();
+    await expect(visibility(page)).toContainText('SHOW', {
+      useInnerText: true,
+    });
+    await expect
+      .poll(async () => (await capture(utils))[0].checksum)
+      .toBeLessThan(original.checksum / 4);
+    const editedPath = await saveSession(fixtures);
 
-    await restoreLegacySession(legacyPath);
-    await browser.waitUntil(
-      async () => (await capture())[0].checksum === original.checksum,
-      { timeoutMsg: 'Expected the original visible grayscale DICOM slice' }
-    );
+    await restoreLegacySession(fixtures, legacyPath);
+    await expect
+      .poll(async () => (await capture(utils))[0].checksum, {
+        message: 'Expected the original visible grayscale DICOM slice',
+      })
+      .toBe(original.checksum);
 
-    await openThroughDialog(editedPath);
-    await expectRange(-50, 150);
-    await expect(palette()).toHaveText(expect.stringContaining('Viridis'));
-    await expect(visibility()).toHaveText(expect.stringContaining('SHOW'));
-    await clearTransientUI();
-    await browser.waitUntil(
-      async () => (await capture())[0].checksum < original.checksum / 4
-    );
-    await visibility().click();
-    await browser.waitUntil(async () => (await capture())[0].colored > 1000);
+    await utils.openThroughDialog(editedPath);
+    await expectRange(fixtures, -50, 150);
+    await expect(palette(page)).toContainText('Viridis');
+    await expect(visibility(page)).toContainText('SHOW', {
+      useInnerText: true,
+    });
+    await clearTransientUI(fixtures);
+    await expect
+      .poll(async () => (await capture(utils))[0].checksum)
+      .toBeLessThan(original.checksum / 4);
+    await visibility(page).click();
+    await expect
+      .poll(async () => (await capture(utils))[0].colored)
+      .toBeGreaterThan(1000);
   });
 });

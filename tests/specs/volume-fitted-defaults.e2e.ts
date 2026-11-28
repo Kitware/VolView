@@ -1,19 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { containsText } from '../pageobjects/volview.page';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
-import { makeTempDir, writeManifestToFile, writeMetaImage } from './utils';
-import {
-  differingFraction,
-  openRenderingModule,
-  openWith3DLayout,
-  selectedPreset,
-  showColorPresets,
-  stablePixels,
-  VIEW,
-  viewPixels,
-  waitForFittedColorRange,
-  writeFloatVolume,
-} from './volumeTestUtils';
+import { differingFraction, VIEW, type VolumeUtils } from './volumeTestUtils';
 
 const sliceValue = (index: number) => 100 * (index + 1);
 
@@ -46,53 +37,80 @@ function writeDicomSeries(
   });
 }
 
-async function expectSelectedPreset(label: string) {
-  await openRenderingModule();
-  await showColorPresets();
-  await expect(selectedPreset()).toHaveText(label);
+async function expectSelectedPreset(volume: VolumeUtils, label: string) {
+  await volume.openRenderingModule();
+  await volume.showColorPresets();
+  await expect(volume.selectedPreset()).toHaveText(label);
 }
 
-describe('default volume preset', () => {
-  it('selects Grayscale for untagged data that is not in Hounsfield units', async () => {
+const presetThumbnail = (page: Page, label: string) =>
+  page
+    .locator('.thumbnail-container', { hasText: containsText(label) })
+    .first();
+
+test.describe('default volume preset', () => {
+  test('selects Grayscale for untagged data that is not in Hounsfield units', async ({
+    utils,
+    volume,
+  }) => {
     const name = 'default-preset-untagged';
-    await openWith3DLayout(
-      `tmp/${writeMetaImage(`${name}.mha`, { size: 8 })}`,
+    await volume.openWith3DLayout(
+      `tmp/${utils.writeMetaImage(`${name}.mha`, { size: 8 })}`,
       name
     );
-    await expectSelectedPreset('Grayscale');
+    await expectSelectedPreset(volume, 'Grayscale');
   });
 
-  it('selects MR Default for an MR DICOM series', async () => {
+  test('selects MR Default for an MR DICOM series', async ({
+    utils,
+    volume,
+  }) => {
     const name = 'dicom-mr-preset';
-    const directory = makeTempDir(name);
+    const directory = utils.makeTempDir(name);
     const manifest = `${name}.json`;
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       { resources: writeDicomSeries(directory, 'MR') },
       manifest
     );
-    await openWith3DLayout(`tmp/${manifest}`, name);
-    await expectSelectedPreset('MR Default');
+    await volume.openWith3DLayout(`tmp/${manifest}`, name);
+    await expectSelectedPreset(volume, 'MR Default');
   });
 
-  it('fits Grayscale to a DICOM series of an unlisted modality', async () => {
+  test('fits Grayscale to a DICOM series of an unlisted modality', async ({
+    utils,
+    volume,
+  }) => {
     const name = 'dicom-pt-preset';
-    const directory = makeTempDir(name);
+    const directory = utils.makeTempDir(name);
     const manifest = `${name}.json`;
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       { resources: writeDicomSeries(directory, 'PT') },
       manifest
     );
-    await openWith3DLayout(`tmp/${manifest}`, name);
-    await expectVisibleVolume(name);
-    await expectSelectedPreset('Grayscale');
+    await volume.openWith3DLayout(`tmp/${manifest}`, name);
+    await expectVisibleVolume(volume, name);
+    await expectSelectedPreset(volume, 'Grayscale');
   });
 });
 
 // The inset keeps only the view center, where every test volume has signal.
 const CENTER_INSET = 280;
 
-async function brightCenterPixels(name: string, inset: number, level = 40) {
-  const data = await viewPixels(VIEW, inset, `${name}.png`);
+async function brightCenterPixels(
+  volume: VolumeUtils,
+  name: string,
+  inset: number,
+  level = 40
+) {
+  // The view has no size under the loading overlay, and expect.poll stops on a throw.
+  const data = await volume
+    .viewPixels(VIEW, inset, `${name}.png`)
+    .catch((error: Error) => {
+      if (!error.message.startsWith('Expected a nonempty view crop'))
+        throw error;
+      return Buffer.alloc(0);
+    });
+  if (data.length === 0) return { bright: 0, fraction: 0 };
   let bright = 0;
   for (let index = 0; index < data.length; index += 4)
     if (Math.max(data[index], data[index + 1], data[index + 2]) > level)
@@ -100,14 +118,16 @@ async function brightCenterPixels(name: string, inset: number, level = 40) {
   return { bright, fraction: bright / (data.length / 4) };
 }
 
-async function expectVisibleVolume(name: string) {
-  await browser.waitUntil(
-    async () => (await brightCenterPixels(name, CENTER_INSET)).bright > 50,
-    { timeoutMsg: `Expected ${name} to render visibly in the 3D view` }
-  );
+async function expectVisibleVolume(volume: VolumeUtils, name: string) {
+  await expect
+    .poll(
+      async () => (await brightCenterPixels(volume, name, CENTER_INSET)).bright,
+      { message: `Expected ${name} to render visibly in the 3D view` }
+    )
+    .toBeGreaterThan(50);
 }
 
-describe('grayscale default fitted to the data', () => {
+test.describe('grayscale default fitted to the data', () => {
   // Software-rendered 3D frames on CI cost time in proportion to volume depth.
   const SIZE = 32;
   const coordinates = (index: number) => [
@@ -116,60 +136,71 @@ describe('grayscale default fitted to the data', () => {
     Math.floor(index / SIZE ** 2),
   ];
 
-  it('guesses CT AAA for untagged data in Hounsfield units', async () => {
+  test('guesses CT AAA for untagged data in Hounsfield units', async ({
+    volume,
+  }) => {
     const name = 'fitted-untagged-hu';
-    const url = writeFloatVolume(name, SIZE, (index) => {
+    const url = volume.writeFloatVolume(name, SIZE, (index) => {
       const radius = Math.hypot(...coordinates(index).map((c) => c - SIZE / 2));
       if (radius < SIZE / 8) return 700;
       return radius < (3 * SIZE) / 8 ? 40 : -1024;
     });
-    await openWith3DLayout(url, name);
-    await expectVisibleVolume(name);
-    await expectSelectedPreset('CT AAA');
+    await volume.openWith3DLayout(url, name);
+    await expectVisibleVolume(volume, name);
+    await expectSelectedPreset(volume, 'CT AAA');
   });
 
-  it('shows a small block on a zero background with a bright outlier', async () => {
+  test('shows a small block on a zero background with a bright outlier', async ({
+    volume,
+  }) => {
     const name = 'fitted-sparse';
-    const url = writeFloatVolume(name, SIZE, (index) => {
+    const url = volume.writeFloatVolume(name, SIZE, (index) => {
       if (index === 0) return 1e6;
       const inBlock = coordinates(index).every(
         (c) => c >= SIZE / 2 - 4 && c < SIZE / 2 + 4
       );
       return inBlock ? 500 + (index % 7) : 0;
     });
-    await openWith3DLayout(url, name);
+    await volume.openWith3DLayout(url, name);
     // Before the fit the block is black against the outlier's range.
-    await openRenderingModule();
-    await waitForFittedColorRange(1e6);
-    await expectVisibleVolume(name);
-    await expectSelectedPreset('Grayscale');
+    await volume.openRenderingModule();
+    await volume.waitForFittedColorRange(1e6);
+    await expectVisibleVolume(volume, name);
+    await expectSelectedPreset(volume, 'Grayscale');
   });
 
-  it('renders the brightest voxels opaque, so a binary mask face is solid', async () => {
+  test('renders the brightest voxels opaque, so a binary mask face is solid', async ({
+    volume,
+  }) => {
     const name = 'fitted-binary';
-    const url = writeFloatVolume(name, SIZE, (index) =>
+    const url = volume.writeFloatVolume(name, SIZE, (index) =>
       coordinates(index).every((c) => c >= SIZE / 4 && c < (3 * SIZE) / 4)
         ? 1
         : 0
     );
-    await openWith3DLayout(url, name);
-    await expectSelectedPreset('Grayscale');
+    await volume.openWith3DLayout(url, name);
+    await expectSelectedPreset(volume, 'Grayscale');
     // A transparent top of range leaves only a speckled shell of interpolated samples.
-    await browser.waitUntil(
-      async () => (await brightCenterPixels(name, 320, 150)).fraction > 0.95,
-      { timeoutMsg: 'Expected the binary mask face to render solid' }
-    );
+    await expect
+      .poll(
+        async () => (await brightCenterPixels(volume, name, 320, 150)).fraction,
+        { message: 'Expected the binary mask face to render solid' }
+      )
+      .toBeGreaterThan(0.95);
   });
 
-  it('fits an MR preset to the intensity scale', async () => {
+  test('fits an MR preset to the intensity scale', async ({
+    utils,
+    volume,
+  }) => {
     const rendered = [];
     for (const scale of [1, 10]) {
       const name = `fitted-mr-x${scale}`;
       const manifest = `${name}.json`;
-      await writeManifestToFile(
+      await utils.writeManifestToFile(
         {
           resources: writeDicomSeries(
-            makeTempDir(name),
+            utils.makeTempDir(name),
             'MR',
             8,
             (index) => scale * sliceValue(index)
@@ -177,46 +208,56 @@ describe('grayscale default fitted to the data', () => {
         },
         manifest
       );
-      await openWith3DLayout(`tmp/${manifest}`, name);
-      await expectVisibleVolume(name);
-      rendered.push(await stablePixels(VIEW, 40));
+      await volume.openWith3DLayout(`tmp/${manifest}`, name);
+      await expectVisibleVolume(volume, name);
+      rendered.push(await volume.stablePixels(VIEW, 40));
     }
     // Ray jitter differs on a few percent of pixels; an unfit preset on most.
     expect(differingFraction(rendered[0], rendered[1])).toBeLessThan(0.05);
   });
 
-  it('refits a streamed MR series to its loaded intensities', async () => {
+  test('refits a streamed MR series to its loaded intensities', async ({
+    page,
+    utils,
+    volume,
+  }) => {
     // A bright first slice under 1% of the voxels widens the data range far
     // beyond the fitted range.
     const open = async (name: string) => {
       const manifest = `${name}.json`;
-      await writeManifestToFile(
+      await utils.writeManifestToFile(
         {
-          resources: writeDicomSeries(makeTempDir(name), 'MR', 120, (index) =>
-            index ? 100 + 5 * index : 30000
+          resources: writeDicomSeries(
+            utils.makeTempDir(name),
+            'MR',
+            120,
+            (index) => (index ? 100 + 5 * index : 30000)
           ),
         },
         manifest
       );
-      await openWith3DLayout(`tmp/${manifest}`, name);
-      await expectVisibleVolume(name);
+      await volume.openWith3DLayout(`tmp/${manifest}`, name);
+      await expectVisibleVolume(volume, name);
     };
 
     // Choosing the preset again fits it to the loaded image's statistics.
     await open('fitted-mr-reference');
-    await expectSelectedPreset('MR Default');
-    await $('.thumbnail-container*=Grayscale').click();
-    await expect(selectedPreset()).toHaveText('Grayscale');
-    await $('.thumbnail-container*=MR Default').click();
-    await expect(selectedPreset()).toHaveText('MR Default');
-    await showColorPresets(false);
-    const fitted = await stablePixels(VIEW, 40);
+    await expectSelectedPreset(volume, 'MR Default');
+    await presetThumbnail(page, 'Grayscale').click();
+    await expect(volume.selectedPreset()).toHaveText('Grayscale');
+    await presetThumbnail(page, 'MR Default').click();
+    await expect(volume.selectedPreset()).toHaveText('MR Default');
+    await volume.showColorPresets(false);
+    const fitted = await volume.stablePixels(VIEW, 40);
 
     await open('fitted-mr-streamed');
     // Ray jitter differs on a few percent of pixels; an unfit range on far more.
-    await browser.waitUntil(
-      async () => differingFraction(fitted, await stablePixels(VIEW, 40)) < 0.1,
-      { timeoutMsg: 'Expected the streamed series to match a fresh fit' }
-    );
+    await expect
+      .poll(
+        async () =>
+          differingFraction(fitted, await volume.stablePixels(VIEW, 40)),
+        { message: 'Expected the streamed series to match a fresh fit' }
+      )
+      .toBeLessThan(0.1);
   });
 });

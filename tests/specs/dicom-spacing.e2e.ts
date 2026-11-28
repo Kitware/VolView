@@ -1,25 +1,18 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
+import type { Scratch } from '../scratch';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
-import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
-import { writeManifestToFile } from './utils';
 
 const ROW_SPACING = 2.5;
 const COLUMN_SPACING = 0.75;
 const SPACING_BETWEEN_SLICES = 7.25;
 
-function writeSingleSliceDicom() {
+function writeSingleSliceDicom(scratch: Scratch) {
   const fileName = `single-slice-spacing-${Date.now()}.dcm`;
-  const filePath = path.join(TEMP_DIR, fileName);
   const studyUid = newUid();
   const seriesUid = newUid();
 
-  fs.writeFileSync(
-    filePath,
+  scratch.writeFile(
+    fileName,
     buildSyntheticDicom({
       studyUid,
       seriesUid,
@@ -35,27 +28,22 @@ function writeSingleSliceDicom() {
     })
   );
 
-  cleanuptotal.addCleanup(async () => {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  });
-
   return fileName;
 }
 
-describe('DICOM image spacing', () => {
-  it('matches ITK spacing for single-slice images with SpacingBetweenSlices', async () => {
-    const fileName = writeSingleSliceDicom();
-    const manifestName = `single-slice-spacing-${Date.now()}.json`;
-    await writeManifestToFile(
-      {
-        resources: [{ url: `/tmp/${fileName}`, name: fileName }],
-      },
-      manifestName
+test.describe('DICOM image spacing', () => {
+  test('matches ITK spacing for single-slice images with SpacingBetweenSlices', async ({
+    utils,
+    scratch,
+    imageCache,
+  }) => {
+    const fileName = writeSingleSliceDicom(scratch);
+    await utils.openFileThroughManifest(
+      fileName,
+      `single-slice-spacing-${Date.now()}.json`
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestName}]`);
-
-    expect(await waitForFirstCachedImageSpacing()).toEqual([
+    expect(await imageCache.waitForFirstCachedImageSpacing()).toEqual([
       COLUMN_SPACING,
       ROW_SPACING,
       SPACING_BETWEEN_SLICES,

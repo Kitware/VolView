@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test';
+
 /** Linear samples through a physical slab, including its two endpoints. */
 export function linearSlabSamples(
   values: readonly number[],
@@ -29,30 +31,42 @@ export function linearSlabSamples(
   ];
 }
 
-export async function projectionGrayscaleDistribution() {
-  const source = await $('[data-testid="enface-canvas"]').getElement();
-  return source.execute((element) => {
-    const canvas = element as HTMLCanvasElement;
-    const copy = document.createElement('canvas').getContext('2d')!;
-    copy.canvas.width = canvas.width;
-    copy.canvas.height = canvas.height;
-    copy.drawImage(canvas, 0, 0);
-    const pixels = copy.getImageData(0, 0, canvas.width, canvas.height).data;
-    const histogram = new Uint32Array(256);
-    let count = 0;
-    for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3] && pixels[i] > 0) {
-        histogram[pixels[i]]++;
-        count++;
-      }
-    }
-    const percentile = (fraction: number) => {
-      let total = 0;
-      return histogram.findIndex((frequency) => {
-        total += frequency;
-        return total >= count * fraction;
+export const createSlabSamplingUtils = (page: Page) => {
+  const projectionGrayscaleDistribution = () =>
+    page
+      .locator('[data-testid="enface-canvas"]')
+      .first()
+      .evaluate((element) => {
+        const canvas = element as HTMLCanvasElement;
+        const copy = document.createElement('canvas').getContext('2d')!;
+        copy.canvas.width = canvas.width;
+        copy.canvas.height = canvas.height;
+        copy.drawImage(canvas, 0, 0);
+        const pixels = copy.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        ).data;
+        const histogram = new Uint32Array(256);
+        let count = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          if (pixels[i + 3] && pixels[i] > 0) {
+            histogram[pixels[i]]++;
+            count++;
+          }
+        }
+        const percentile = (fraction: number) => {
+          let total = 0;
+          return histogram.findIndex((frequency) => {
+            total += frequency;
+            return total >= count * fraction;
+          });
+        };
+        return { count, low: percentile(0.05), high: percentile(0.95) };
       });
-    };
-    return { count, low: percentile(0.05), high: percentile(0.95) };
-  });
-}
+
+  return { projectionGrayscaleDistribution };
+};
+
+export type SlabSamplingUtils = ReturnType<typeof createSlabSamplingUtils>;

@@ -1,27 +1,29 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import { test } from '../fixtures';
 import { MINIMAL_DICOM } from '../datasets';
-import { writeManifestToFile, openVolViewPage } from './utils';
 
-describe('VolView loading of remoteManifest.json', () => {
-  it('should show error when there is no name and URL is malformed', async () => {
+test.describe('VolView loading of remoteManifest.json', () => {
+  test('should show error when there is no name and URL is malformed', async ({
+    volview,
+    utils,
+  }) => {
     const manifest = {
       resources: [{ url: 'foo' }],
     };
     const fileName = 'remoteFilesBadUrl.json';
-    await writeManifestToFile(manifest, fileName);
+    await utils.writeManifestToFile(manifest, fileName);
 
     const urlParams = `?urls=[tmp/${fileName}]`;
-    await volViewPage.open(urlParams);
+    await volview.open(urlParams);
 
-    await volViewPage.waitForNotification();
+    await volview.waitForNotification();
   });
 
-  it('should load relative URI with no name property', async () => {
+  test('should load relative URI with no name property', async ({ utils }) => {
     const manifest = {
       resources: [{ url: `/tmp/${MINIMAL_DICOM.name}` }],
     };
     const fileName = 'remoteFilesRelativeURI.json';
-    await writeManifestToFile(manifest, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToFile(manifest, fileName);
+    await utils.openVolViewPage(fileName);
   });
 });

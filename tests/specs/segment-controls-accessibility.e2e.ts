@@ -1,160 +1,163 @@
-import { Key } from 'webdriverio';
-import { CONTENT_VIEWPORT } from '../../wdio.shared.conf';
-import AppPage, { setValueVueInput } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
+import { CONTENT_VIEWPORT } from '../e2eRun';
+import { containsText, setValueVueInput } from '../pageobjects/volview.page';
 import { ONE_CT_SLICE_DICOM } from '../datasets';
-import {
-  openAnnotationSegments,
-  segmentColor,
-  segmentNames,
-  segmentRow,
-  tooltipOf,
-  waitForNamedSegments,
-} from './segmentationTestUtils';
-import { openUrls } from './utils';
 
-describe('Segment control accessibility', () => {
-  beforeEach(async () => {
-    await openUrls([ONE_CT_SLICE_DICOM]);
+test.describe('Segment control accessibility', () => {
+  test.beforeEach(async ({ utils }) => {
+    await utils.openUrls([ONE_CT_SLICE_DICOM]);
   });
 
-  afterEach(async () => {
-    await browser.setViewport({ ...CONTENT_VIEWPORT, devicePixelRatio: 1 });
-  });
-
-  it('names each interactive paint parameter', async () => {
+  test('names each interactive paint parameter', async ({ page, volview }) => {
     // Picking up the brush opens its controls without a click on the panel.
-    await AppPage.activatePaint();
+    await volview.activatePaint();
 
-    const brush = $('[role="slider"][aria-label="Brush size"]');
-    await brush.waitForDisplayed();
+    const brush = page.locator('[role="slider"][aria-label="Brush size"]');
+    await expect(brush).toBeVisible();
     const initialSize = await brush.getAttribute('aria-valuenow');
-    await brush.execute((element) => element.focus());
-    await browser.keys(Key.ArrowRight);
+    await brush.focus();
+    await page.keyboard.press('ArrowRight');
     expect(await brush.getAttribute('aria-valuenow')).not.toBe(initialSize);
 
-    const minimum = $('input[aria-label="Minimum threshold"]');
-    const maximum = $('input[aria-label="Maximum threshold"]');
-    await minimum.waitForDisplayed();
-    await expect(maximum).toBeDisplayed();
+    const minimum = page.locator('input[aria-label="Minimum threshold"]');
+    const maximum = page.locator('input[aria-label="Maximum threshold"]');
+    await expect(minimum).toBeVisible();
+    await expect(maximum).toBeVisible();
     await expect(
-      $('[role="slider"][aria-label="Minimum threshold"]')
-    ).toBeDisplayed();
+      page.locator('[role="slider"][aria-label="Minimum threshold"]')
+    ).toBeVisible();
     await expect(
-      $('[role="slider"][aria-label="Maximum threshold"]')
-    ).toBeDisplayed();
-    const sync = $('input[aria-label="Sync Views"]');
-    await expect(sync).toExist();
-    expect(await sync.getComputedRole()).toBe('checkbox');
-    const initiallySelected = await sync.isSelected();
-    await sync.execute((element) => element.focus());
-    await browser.keys(' ');
-    expect(await sync.isSelected()).toBe(!initiallySelected);
+      page.locator('[role="slider"][aria-label="Maximum threshold"]')
+    ).toBeVisible();
+    const sync = page.locator('input[aria-label="Sync Views"]');
+    await expect(sync).toBeAttached();
+    await expect(sync).toHaveRole('checkbox');
+    const initiallySelected = await sync.isChecked();
+    await sync.focus();
+    await page.keyboard.press('Space');
+    expect(await sync.isChecked()).toBe(!initiallySelected);
 
     // Each switch toggles from its label too.
-    await $('label*=Sync Views').click();
-    expect(await sync.isSelected()).toBe(initiallySelected);
-    const overlap = $('input[aria-label="Allow Overlap"]');
-    await $('label*=Allow Overlap').click();
-    await expect(overlap).toBeSelected();
+    await page
+      .locator('label', { hasText: containsText('Sync Views') })
+      .click();
+    expect(await sync.isChecked()).toBe(initiallySelected);
+    const overlap = page.locator('input[aria-label="Allow Overlap"]');
+    await page
+      .locator('label', { hasText: containsText('Allow Overlap') })
+      .click();
+    await expect(overlap).toBeChecked();
   });
 
-  it('disables the brush controls, saying why, until the Paint tool is picked', async () => {
-    await openAnnotationSegments();
-    await $('button.v-expansion-panel-title*=Paint').click();
-    const erase = $('button.mode-button*=Erase');
-    const sync = $('input[aria-label="Sync Views"]');
-    const overlap = $('input[aria-label="Allow Overlap"]');
+  test('disables the brush controls, saying why, until the Paint tool is picked', async ({
+    page,
+    volview,
+    segmentation,
+  }) => {
+    await segmentation.openAnnotationSegments();
+    await page
+      .locator('button.v-expansion-panel-title', {
+        hasText: containsText('Paint'),
+      })
+      .click();
+    const erase = page.locator('button.mode-button', {
+      hasText: containsText('Erase'),
+    });
+    const sync = page.locator('input[aria-label="Sync Views"]');
+    const overlap = page.locator('input[aria-label="Allow Overlap"]');
     await expect(erase).toBeDisabled();
     await expect(sync).toBeDisabled();
     await expect(overlap).toBeDisabled();
 
     // Reached by keyboard from the panel title, so no pointer position is
     // involved: the disabled modes first, then the brush parameters.
-    await browser.keys('Tab');
-    const modes = await $(() => document.activeElement as HTMLElement);
-    const modesReason = await tooltipOf(modes);
-    await expect(modesReason).toBeDisplayed();
+    await page.keyboard.press('Tab');
+    const modes = page.locator(':focus');
+    const modesReason = await segmentation.tooltipOf(modes);
+    await expect(modesReason).toBeVisible();
     await expect(modesReason).toHaveText(
       'Select the Paint tool to paint, erase or pick a segment'
     );
-    await browser.keys('Tab');
-    const parameters = $('[data-testid="paint-parameters"]');
+    await page.keyboard.press('Tab');
+    const parameters = page.locator('[data-testid="paint-parameters"]');
     await expect(parameters).toBeFocused();
-    const reason = await tooltipOf(parameters);
-    await expect(reason).toBeDisplayed();
+    const reason = await segmentation.tooltipOf(parameters);
+    await expect(reason).toBeVisible();
     await expect(reason).toHaveText(
       'Select the Paint tool to adjust the brush'
     );
-    await browser.keys('Tab');
-    const overlapControls = $('.paint-switches > div:first-child');
+    await page.keyboard.press('Tab');
+    const overlapControls = page.locator('.paint-switches > div:first-child');
     await expect(overlapControls).toBeFocused();
-    const overlapReason = await tooltipOf(overlapControls);
-    await expect(overlapReason).toBeDisplayed();
+    const overlapReason = await segmentation.tooltipOf(overlapControls);
+    await expect(overlapReason).toBeVisible();
     await expect(overlapReason).toHaveText(
       'Select the Paint tool to adjust the brush'
     );
 
-    await AppPage.activatePaint();
+    await volview.activatePaint();
     await expect(erase).toBeEnabled();
     await expect(sync).toBeEnabled();
     await expect(overlap).toBeEnabled();
-    await AppPage.activateRectangle();
+    await volview.activateRectangle();
     await expect(overlap).toBeDisabled();
   });
 
-  it('keeps the segment editor usable at 375px and side by side on desktop', async () => {
-    await AppPage.activatePaint();
-    const view = $('div[data-testid~="vtk-two-view"]');
-    await AppPage.paintStrokeOnView(view);
-    await openAnnotationSegments();
-    await waitForNamedSegments();
-    const row = await segmentRow('Segment 1');
-    const originalColor = await segmentColor('Segment 1');
-    await row.$('[data-testid="edit-segment-button"]').click();
+  test('keeps the segment editor usable at 375px and side by side on desktop', async ({
+    page,
+    volview,
+    segmentation,
+  }) => {
+    await volview.activatePaint();
+    const view = page.locator('div[data-testid~="vtk-two-view"]').first();
+    await volview.paintStrokeOnView(view);
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForNamedSegments();
+    const row = await segmentation.segmentRow('Segment 1');
+    const originalColor = await segmentation.segmentColor('Segment 1');
+    await row.locator('[data-testid="edit-segment-button"]').click();
 
-    const dialog = $('div[role="dialog"]');
-    await dialog.waitForDisplayed();
-    const layout = dialog.$('.segment-editor-layout');
-    const fields = dialog.$('.segment-editor-fields');
-    const picker = dialog.$('.segment-editor-color-picker');
-    const desktopLayout = await browser.execute(
-      (fieldsElement, pickerElement) => {
+    const dialog = page.locator('div[role="dialog"]').first();
+    await expect(dialog).toBeVisible();
+    const layout = dialog.locator('.segment-editor-layout');
+    const fields = dialog.locator('.segment-editor-fields');
+    const picker = dialog.locator('.segment-editor-color-picker');
+    const desktopLayout = await fields.evaluate(
+      (fieldsElement: HTMLElement, pickerElement) => {
         return {
           fieldsLeft: fieldsElement.offsetLeft,
           fieldsWidth: fieldsElement.clientWidth,
-          pickerLeft: pickerElement.offsetLeft,
+          pickerLeft: (pickerElement as HTMLElement).offsetLeft,
         };
       },
-      await fields,
-      await picker
+      await picker.elementHandle()
     );
     expect(desktopLayout.pickerLeft).toBeGreaterThanOrEqual(
       desktopLayout.fieldsLeft + desktopLayout.fieldsWidth
     );
 
-    await browser.setViewport({
+    await page.setViewportSize({
       width: 640,
       height: CONTENT_VIEWPORT.height,
-      devicePixelRatio: 1,
     });
-    await browser.setViewport({
+    await page.setViewportSize({
       width: 375,
       height: CONTENT_VIEWPORT.height,
-      devicePixelRatio: 1,
     });
-    expect(await browser.execute(() => window.innerWidth)).toBe(375);
-    const narrowLayout = await browser.execute(
-      (layoutElement, fieldsElement, pickerElement) => {
+    expect(await page.evaluate(() => window.innerWidth)).toBe(375);
+    const narrowLayout = await layout.evaluate(
+      (layoutElement, { fieldsElement, pickerElement }) => {
         return {
-          fieldsHeight: fieldsElement.clientHeight,
-          pickerOffsetTop: pickerElement.offsetTop,
-          pickerWidth: pickerElement.clientWidth,
+          fieldsHeight: (fieldsElement as HTMLElement).clientHeight,
+          pickerOffsetTop: (pickerElement as HTMLElement).offsetTop,
+          pickerWidth: (pickerElement as HTMLElement).clientWidth,
           layoutWidth: layoutElement.clientWidth,
         };
       },
-      await layout,
-      await fields,
-      await picker
+      {
+        fieldsElement: await fields.elementHandle(),
+        pickerElement: await picker.elementHandle(),
+      }
     );
     expect(narrowLayout.pickerWidth).toBeGreaterThan(250);
     expect(narrowLayout.pickerOffsetTop).toBeGreaterThanOrEqual(
@@ -163,16 +166,21 @@ describe('Segment control accessibility', () => {
     expect(narrowLayout.pickerWidth).toBeLessThanOrEqual(
       narrowLayout.layoutWidth
     );
-    await setValueVueInput(dialog.$('.v-color-picker-edit input'), '0');
-    const nameInput = dialog.$('input[type="text"]');
+    await setValueVueInput(
+      dialog.locator('.v-color-picker-edit input').first(),
+      '0'
+    );
+    const nameInput = dialog.locator('input[type="text"]').first();
     await setValueVueInput(nameInput, 'Narrow segment');
-    expect(await nameInput.getValue()).toBe('Narrow segment');
-    await AppPage.editLabelModalDoneButton.scrollIntoView();
-    await AppPage.editLabelModalDoneButton.click();
-    await dialog.waitForDisplayed({ reverse: true });
-    await browser.setViewport({ ...CONTENT_VIEWPORT, devicePixelRatio: 1 });
-    await openAnnotationSegments();
-    expect(await segmentNames()).toEqual(['Narrow segment']);
-    expect(await segmentColor('Narrow segment')).not.toBe(originalColor);
+    expect(await nameInput.inputValue()).toBe('Narrow segment');
+    await volview.editLabelModalDoneButton.scrollIntoViewIfNeeded();
+    await volview.editLabelModalDoneButton.click();
+    await expect(dialog).toBeHidden();
+    await page.setViewportSize(CONTENT_VIEWPORT);
+    await segmentation.openAnnotationSegments();
+    expect(await segmentation.segmentNames()).toEqual(['Narrow segment']);
+    expect(await segmentation.segmentColor('Narrow segment')).not.toBe(
+      originalColor
+    );
   });
 });

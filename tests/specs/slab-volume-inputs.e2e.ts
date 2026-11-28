@@ -1,49 +1,51 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { useReferenceLines } from './referenceLinesTestUtils';
-import { projectionGrayscaleDistribution } from './slabSamplingTestUtils';
+import { test, expect, useReferenceLines } from '../fixtures';
 import {
   CINE_US_DATASET,
   MRA_HEAD_NECK_DATASET,
   PROSTATEX_DATASET,
 } from '../datasets';
-import { volViewPage } from '../pageobjects/volview.page';
+import type { VolViewPage } from '../pageobjects/volview.page';
 import { buildSyntheticDicom } from './syntheticDicom';
-import { makeTempDir, useCachedSample, writeManifestToFile } from './utils';
-import {
-  chooseEnFaceProjection,
-  enFaceAppearance,
-  expectEnFaceUnavailable,
-  selectEnFace,
-  setEnFaceWindow,
-  waitForEnFaceReady,
-  setEnFaceSlab,
-} from './octTestUtils';
+import type { Utils } from './utils';
+import type { OctUtils } from './octTestUtils';
+import type { SlabSamplingUtils } from './slabSamplingTestUtils';
 import { createVtiVolume } from '../fixtures/oct/volumes';
 
 const STEM = 'slab-volume-inputs';
 
-async function expectVisibleVolume() {
-  await browser.waitUntil(async () => {
-    const { count, low, high } = await projectionGrayscaleDistribution();
-    return count > 1000 && high - low > 10;
-  });
-  return (await enFaceAppearance()).image;
+type Helpers = {
+  volview: VolViewPage;
+  oct: OctUtils;
+  slabSampling: SlabSamplingUtils;
+};
+
+async function expectVisibleVolume({ oct, slabSampling }: Helpers) {
+  await expect
+    .poll(async () => {
+      const { count, low, high } =
+        await slabSampling.projectionGrayscaleDistribution();
+      return count > 1000 && high - low > 10;
+    })
+    .toBe(true);
+  return (await oct.enFaceAppearance()).image;
 }
 
-async function expectMethodChangesImage() {
-  await waitForEnFaceReady();
-  const meanImage = await expectVisibleVolume();
-  await chooseEnFaceProjection('enface-projection-method', 'Maximum');
-  await waitForEnFaceReady();
-  await expectVisibleVolume();
-  expect((await enFaceAppearance()).image).not.toBe(meanImage);
-  expect(await volViewPage.getNotificationsCount()).toBe(0);
+async function expectMethodChangesImage(helpers: Helpers) {
+  const { volview, oct } = helpers;
+  await oct.waitForEnFaceReady();
+  const meanImage = await expectVisibleVolume(helpers);
+  await oct.chooseEnFaceProjection('enface-projection-method', 'Maximum');
+  await oct.waitForEnFaceReady();
+  await expectVisibleVolume(helpers);
+  expect((await oct.enFaceAppearance()).image).not.toBe(meanImage);
+  expect(await volview.getNotificationsCount()).toBe(0);
 }
 
-function stageColorVolume() {
+function stageColorVolume(utils: Utils) {
   fs.writeFileSync(
-    path.join(makeTempDir(STEM), 'color.vti'),
+    path.join(utils.makeTempDir(STEM), 'color.vti'),
     createVtiVolume({
       dimensions: [4, 4, 4],
       type: 'UInt8',
@@ -55,13 +57,11 @@ function stageColorVolume() {
   return `${STEM}/color.vti`;
 }
 
-describe('Scalar volume projection inputs', () => {
-  useReferenceLines();
-
-  before(async () => {
-    await useCachedSample(PROSTATEX_DATASET);
-    await useCachedSample(MRA_HEAD_NECK_DATASET);
-    await writeManifestToFile(
+test.describe('Scalar volume projection inputs', () => {
+  test.beforeEach(async ({ utils }) => {
+    await utils.useCachedSample(PROSTATEX_DATASET);
+    await utils.useCachedSample(MRA_HEAD_NECK_DATASET);
+    await utils.writeManifestToFile(
       {
         layouts: {
           'Volume projection': {
@@ -74,30 +74,44 @@ describe('Scalar volume projection inputs', () => {
     );
   });
 
-  it('projects the MRA sample slab despite rounded DICOM direction cosines', async () => {
-    await volViewPage.open(`?urls=[tmp/${STEM}.json]`);
-    await volViewPage.samplesList.$('div[title="MRA Head and Neck"]').click();
-    await waitForEnFaceReady();
-    await chooseEnFaceProjection('enface-projection-axis', 'Axial');
-    await setEnFaceWindow(128, 64);
-    await setEnFaceSlab(10, 60);
-    await expectMethodChangesImage();
+  useReferenceLines();
+
+  test('projects the MRA sample slab despite rounded DICOM direction cosines', async ({
+    volview,
+    oct,
+    slabSampling,
+  }) => {
+    await volview.open(`?urls=[tmp/${STEM}.json]`);
+    await volview.samplesList.locator('div[title="MRA Head and Neck"]').click();
+    await oct.waitForEnFaceReady();
+    await oct.chooseEnFaceProjection('enface-projection-axis', 'Axial');
+    await oct.setEnFaceWindow(128, 64);
+    await oct.setEnFaceSlab(10, 60);
+    await expectMethodChangesImage({ volview, oct, slabSampling });
   });
 
-  it('projects the oblique MRI PROSTATEx sample with source intensities', async () => {
-    await volViewPage.open();
-    await volViewPage.downloadProstateSample();
-    await volViewPage.waitForViews();
-    await selectEnFace(3);
-    await waitForEnFaceReady();
-    await chooseEnFaceProjection('enface-projection-axis', 'Axial');
-    await setEnFaceWindow(1200, 549);
-    await expectMethodChangesImage();
+  test('projects the oblique MRI PROSTATEx sample with source intensities', async ({
+    volview,
+    oct,
+    slabSampling,
+  }) => {
+    await volview.open();
+    await volview.downloadProstateSample();
+    await volview.waitForViews();
+    await oct.selectEnFace(3);
+    await oct.waitForEnFaceReady();
+    await oct.chooseEnFaceProjection('enface-projection-axis', 'Axial');
+    await oct.setEnFaceWindow(1200, 549);
+    await expectMethodChangesImage({ volview, oct, slabSampling });
   });
 
-  it('keeps a single DICOM image unavailable with a dimensionality reason', async () => {
+  test('keeps a single DICOM image unavailable with a dimensionality reason', async ({
+    volview,
+    utils,
+    oct,
+  }) => {
     fs.writeFileSync(
-      path.join(makeTempDir(STEM), 'single.dcm'),
+      path.join(utils.makeTempDir(STEM), 'single.dcm'),
       buildSyntheticDicom({
         studyUid: '1.2.3.1',
         seriesUid: '1.2.3.2',
@@ -108,22 +122,30 @@ describe('Scalar volume projection inputs', () => {
         pixelValue: 100,
       })
     );
-    await volViewPage.open(`?urls=[tmp/${STEM}.json,tmp/${STEM}/single.dcm]`);
-    await expectEnFaceUnavailable('three-dimensional volume');
+    await volview.open(`?urls=[tmp/${STEM}.json,tmp/${STEM}/single.dcm]`);
+    await oct.expectEnFaceUnavailable('three-dimensional volume');
   });
 
-  it('keeps a three-component volume unavailable with a grayscale reason', async () => {
-    await volViewPage.open(
-      `?urls=[tmp/${STEM}.json,tmp/${stageColorVolume()}]`
+  test('keeps a three-component volume unavailable with a grayscale reason', async ({
+    page,
+    volview,
+    utils,
+    oct,
+  }) => {
+    await volview.open(
+      `?urls=[tmp/${STEM}.json,tmp/${stageColorVolume(utils)}]`
     );
-    await expectEnFaceUnavailable('grayscale volume');
-    await expect($('.view-type-select input')).toHaveValue('Saved projection');
+    await oct.expectEnFaceUnavailable('grayscale volume');
+    await expect(page.locator('.view-type-select input')).toHaveValue(
+      'Saved projection'
+    );
   });
 
-  it('keeps a temporal cine unavailable as a spatial projection', async () => {
-    await volViewPage.open(
-      `?urls=[tmp/${STEM}.json,tmp/${CINE_US_DATASET.name}]`
-    );
-    await expectEnFaceUnavailable('three-dimensional volume');
+  test('keeps a temporal cine unavailable as a spatial projection', async ({
+    volview,
+    oct,
+  }) => {
+    await volview.open(`?urls=[tmp/${STEM}.json,tmp/${CINE_US_DATASET.name}]`);
+    await oct.expectEnFaceUnavailable('three-dimensional volume');
   });
 });

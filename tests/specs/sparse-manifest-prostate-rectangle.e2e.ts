@@ -1,9 +1,12 @@
+import { test, expect } from '../fixtures';
 import { PROSTATEX_DATASET } from '../datasets';
-import { openVolViewPage, writeManifestToZip } from './utils';
-import { openSegmentShapes } from './segmentationTestUtils';
 
-describe('Sparse manifest with prostate rectangle', () => {
-  it('loads prostate dataset with lesion rectangle annotation', async () => {
+test.describe('Sparse manifest with prostate rectangle', () => {
+  test('loads prostate dataset with lesion rectangle annotation', async ({
+    page,
+    utils,
+    segmentation,
+  }) => {
     const sparseManifest = {
       version: '6.1.0',
       dataSources: [
@@ -50,38 +53,31 @@ describe('Sparse manifest with prostate rectangle', () => {
     };
 
     const fileName = 'sparse-prostate-lesion-rectangle.volview.zip';
-    await writeManifestToZip(sparseManifest, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToZip(sparseManifest, fileName);
+    await utils.openVolViewPage(fileName);
 
-    await openSegmentShapes();
+    await segmentation.openSegmentShapes();
 
-    await browser.waitUntil(
-      async () => {
-        const rectangleEntries = await $$(
-          '[data-testid="segment-shape-row"] i.mdi-vector-square'
-        );
-        const count = await rectangleEntries.length;
-        return count >= 1;
-      },
-      {
-        timeout: 10000,
-        timeoutMsg: 'Rectangle tool not found in measurements list',
-      }
-    );
+    await expect
+      .poll(
+        () =>
+          page
+            .locator('[data-testid="segment-shape-row"] i.mdi-vector-square')
+            .count(),
+        { message: 'Rectangle tool not found in measurements list' }
+      )
+      .toBeGreaterThanOrEqual(1);
 
-    await browser.waitUntil(
-      async () => {
-        const listItemTitles = await $$('.v-list-item .v-list-item-title');
-        for (const title of listItemTitles) {
-          const text = await title.getText();
-          if (text.includes('lesion')) return true;
-        }
-        return false;
-      },
-      {
-        timeout: 5000,
-        timeoutMsg: 'Lesion label not found on rectangle annotation',
-      }
-    );
+    await expect
+      .poll(
+        async () =>
+          (
+            await page
+              .locator('.v-list-item .v-list-item-title')
+              .allInnerTexts()
+          ).some((text) => text.includes('lesion')),
+        { message: 'Lesion label not found on rectangle annotation' }
+      )
+      .toBe(true);
   });
 });

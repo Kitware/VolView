@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import { TEMP_DIR } from '../e2eRun';
 
 export const writeConfigImages = (stem: string) => {
   const header = [

@@ -1,29 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
+import { test, expect, registerOctTestHooks } from '../fixtures';
 import { createNrrdVolume, createVtiVolume } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { makeTempDir, SESSION_SAVE_TIMEOUT, waitForDownload } from './utils';
-import {
-  enFacePixel,
-  expandEnFaceSection,
-  openEnFaceControls,
-  openEnFaceSidebarControls,
-  PANEL,
-  segmentEye,
-  segmentThreshold,
-  setEnFaceWindow,
-  setSegmentShown,
-  setSegmentThreshold,
-  setSlabRange,
-  waitForEnFaceReady,
-} from './octTestUtils';
-import { registerOctTestHooks } from './octInteractionTestUtils';
-import {
-  openAnnotationSegments,
-  setSegmentVisible,
-} from './segmentationTestUtils';
+import type { VolViewPage } from '../pageobjects/volview.page';
+import type { Utils } from './utils';
+import { PANEL, type OctUtils } from './octTestUtils';
 
 const SIZE = 12;
 const STEM = 'enface-footprints-' + process.pid;
@@ -47,8 +29,12 @@ const maskValues = (inside: (x: number, y: number, z: number) => boolean) =>
     )
   );
 
-async function openFootprintScene() {
-  const directory = makeTempDir(STEM);
+async function openFootprintScene(
+  volview: VolViewPage,
+  utils: Utils,
+  oct: OctUtils
+) {
+  const directory = utils.makeTempDir(STEM);
   fs.writeFileSync(
     path.join(directory, 'parent.vti'),
     createVtiVolume({
@@ -143,10 +129,10 @@ async function openFootprintScene() {
     path.join(directory, 'columns.volview.zip'),
     await zip.generateAsync({ type: 'nodebuffer' })
   );
-  await volViewPage.open(`?urls=[tmp/${STEM}/columns.volview.zip]`);
-  await waitForEnFaceReady();
-  await setEnFaceWindow(200, 100);
-  await openEnFaceControls();
+  await volview.open(`?urls=[tmp/${STEM}/columns.volview.zip]`);
+  await oct.waitForEnFaceReady();
+  await oct.setEnFaceWindow(200, 100);
+  await oct.openEnFaceControls();
 }
 
 function pixelMatches([red, green, blue]: number[], kind: PixelKind) {
@@ -159,40 +145,48 @@ function pixelMatches([red, green, blue]: number[], kind: PixelKind) {
   return matches[kind];
 }
 
-async function expectPixels(samples: readonly Sample[]) {
-  await waitForEnFaceReady();
-  await browser.waitUntil(
-    async () => {
-      const matches = await Promise.all(
-        samples.map(async ([point, kind]) =>
-          pixelMatches(await enFacePixel(...point), kind)
-        )
-      );
-      return matches.every(Boolean);
-    },
-    {
-      timeoutMsg: `Expected projected segmentation pixels: ${JSON.stringify(samples)}`,
-    }
-  );
+async function expectPixels(oct: OctUtils, samples: readonly Sample[]) {
+  await oct.waitForEnFaceReady();
+  await expect
+    .poll(
+      async () => {
+        const matches = await Promise.all(
+          samples.map(async ([point, kind]) =>
+            pixelMatches(await oct.enFacePixel(...point), kind)
+          )
+        );
+        return matches.every(Boolean);
+      },
+      {
+        message: `Expected projected segmentation pixels: ${JSON.stringify(samples)}`,
+      }
+    )
+    .toBe(true);
 }
 
-describe('En face segmentation projections', () => {
+test.describe('En face segmentation projections', () => {
   registerOctTestHooks();
 
-  it('draws shown segments where they cross the slab, with overlaps', async () => {
-    await openFootprintScene();
-    await expectPixels([
+  test('draws shown segments where they cross the slab, with overlaps', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    segmentation,
+  }) => {
+    await openFootprintScene(volview, utils, oct);
+    await expectPixels(oct, [
       [RED, 'gray'],
       [BLUE, 'gray'],
       [OVERLAP, 'gray'],
     ]);
-    await setSegmentShown(RED_NAME, true);
-    await expectPixels([
+    await oct.setSegmentShown(RED_NAME, true);
+    await expectPixels(oct, [
       [RED, 'red'],
       [BLUE, 'gray'],
     ]);
-    await setSegmentShown(BLUE_NAME, true);
-    await expectPixels([
+    await oct.setSegmentShown(BLUE_NAME, true);
+    await expectPixels(oct, [
       [RED, 'red'],
       [BLUE, 'blue'],
       [OVERLAP, 'overlap'],
@@ -200,130 +194,140 @@ describe('En face segmentation projections', () => {
       [EMPTY, 'gray'],
     ]);
 
-    await expandEnFaceSection('projection');
-    await setSlabRange(6, 8);
-    await expectPixels([
+    await oct.expandEnFaceSection('projection');
+    await oct.setSlabRange(6, 8);
+    await expectPixels(oct, [
       [RED, 'gray'],
       [BLUE, 'blue'],
       [OVERLAP, 'blue'],
       [DEEP, 'gray'],
     ]);
-    await setSlabRange(0, 11);
+    await oct.setSlabRange(0, 11);
 
-    const all = $(PANEL).$('[data-testid="enface-segments-visible"]');
+    const all = page
+      .locator(PANEL)
+      .locator('[data-testid="enface-segments-visible"]');
     await expect(all).toHaveAttribute('aria-label', 'Hide every segment');
     await all.click();
-    await expectPixels([
+    await expectPixels(oct, [
       [RED, 'gray'],
       [BLUE, 'gray'],
     ]);
     await all.click();
-    await expectPixels([
+    await expectPixels(oct, [
       [RED, 'red'],
       [OVERLAP, 'overlap'],
     ]);
 
-    await browser.keys('Escape');
-    await openAnnotationSegments();
-    await setSegmentVisible(RED_NAME, false);
-    await expectPixels([
+    await page.keyboard.press('Escape');
+    await segmentation.openAnnotationSegments();
+    await segmentation.setSegmentVisible(RED_NAME, false);
+    await expectPixels(oct, [
       [RED, 'gray'],
       [OVERLAP, 'blue'],
       [BLUE, 'blue'],
     ]);
-    await setSegmentVisible(RED_NAME, true);
-    await expectPixels([
+    await segmentation.setSegmentVisible(RED_NAME, true);
+    await expectPixels(oct, [
       [RED, 'red'],
       [OVERLAP, 'overlap'],
     ]);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('highlights thin regions of two segments against their own thresholds', async () => {
-    await openFootprintScene();
-    await setSegmentShown(BLUE_NAME, true);
+  test('highlights thin regions of two segments against their own thresholds', async ({
+    volview,
+    utils,
+    oct,
+  }) => {
+    await openFootprintScene(volview, utils, oct);
+    await oct.setSegmentShown(BLUE_NAME, true);
     // Red is 5000 um deep; blue is 5000 um deep except its 2000 um corner.
-    await setSegmentThreshold(RED_NAME, 4000);
-    await expectPixels([
+    await oct.setSegmentThreshold(RED_NAME, 4000);
+    await expectPixels(oct, [
       [RED, 'gray'],
       [OVERLAP, 'blue'],
       [BLUE, 'blue'],
       [DEEP, 'blue'],
     ]);
-    await setSegmentThreshold(BLUE_NAME, 3000);
-    await expectPixels([
+    await oct.setSegmentThreshold(BLUE_NAME, 3000);
+    await expectPixels(oct, [
       [RED, 'gray'],
       [BLUE, 'gray'],
       [DEEP, 'blue'],
     ]);
-    await setSegmentThreshold(RED_NAME, 6000);
-    await expectPixels([
+    await oct.setSegmentThreshold(RED_NAME, 6000);
+    await expectPixels(oct, [
       [RED, 'red'],
       [OVERLAP, 'red'],
       [BLUE, 'gray'],
       [DEEP, 'blue'],
     ]);
-    await expect(segmentThreshold(RED_NAME)).toHaveValue('6000');
-    await expect(segmentThreshold(BLUE_NAME)).toHaveValue('3000');
-    await setSegmentThreshold(RED_NAME, 4000);
-    await expectPixels([[RED, 'gray']]);
-    await setSegmentThreshold(RED_NAME, null);
-    await expect(segmentThreshold(RED_NAME)).toHaveValue('');
-    await expectPixels([
+    await expect(oct.segmentThreshold(RED_NAME)).toHaveValue('6000');
+    await expect(oct.segmentThreshold(BLUE_NAME)).toHaveValue('3000');
+    await oct.setSegmentThreshold(RED_NAME, 4000);
+    await expectPixels(oct, [[RED, 'gray']]);
+    await oct.setSegmentThreshold(RED_NAME, null);
+    await expect(oct.segmentThreshold(RED_NAME)).toHaveValue('');
+    await expectPixels(oct, [
       [RED, 'red'],
       [BLUE, 'gray'],
       [DEEP, 'blue'],
     ]);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('shares segment settings with Rendering controls and restores them from a session', async () => {
-    await openFootprintScene();
-    await expandEnFaceSection('projection');
-    await setSlabRange(1, 8);
-    await setSegmentShown(BLUE_NAME, true);
-    await setSegmentThreshold(RED_NAME, 4000);
-    await expectPixels([
+  test('shares segment settings with Rendering controls and restores them from a session', async ({
+    page,
+    volview,
+    utils,
+    oct,
+  }) => {
+    await openFootprintScene(volview, utils, oct);
+    await oct.expandEnFaceSection('projection');
+    await oct.setSlabRange(1, 8);
+    await oct.setSegmentShown(BLUE_NAME, true);
+    await oct.setSegmentThreshold(RED_NAME, 4000);
+    await expectPixels(oct, [
       [RED, 'gray'],
       [BLUE, 'blue'],
       [DEEP, 'gray'],
     ]);
 
-    const sidebar = await openEnFaceSidebarControls();
-    await expandEnFaceSection('segments', sidebar);
+    const sidebar = await oct.openEnFaceSidebarControls();
+    await oct.expandEnFaceSection('segments', sidebar);
     const expectSettings = async (scope?: string) => {
       for (const name of [BLUE_NAME, RED_NAME])
-        await expect(segmentEye(name, scope)).toHaveAttribute(
+        await expect(oct.segmentEye(name, scope)).toHaveAttribute(
           'aria-pressed',
           'true'
         );
-      await expect(segmentThreshold(RED_NAME, scope)).toHaveValue('4000');
-      await expect(segmentThreshold(BLUE_NAME, scope)).toHaveValue('');
+      await expect(oct.segmentThreshold(RED_NAME, scope)).toHaveValue('4000');
+      await expect(oct.segmentThreshold(BLUE_NAME, scope)).toHaveValue('');
     };
     await expectSettings(sidebar);
-    await setSegmentShown(BLUE_NAME, false, sidebar);
-    await expectPixels([[BLUE, 'gray']]);
-    await openEnFaceControls();
-    await expect(segmentEye(BLUE_NAME)).toHaveAttribute(
+    await oct.setSegmentShown(BLUE_NAME, false, sidebar);
+    await expectPixels(oct, [[BLUE, 'gray']]);
+    await oct.openEnFaceControls();
+    await expect(oct.segmentEye(BLUE_NAME)).toHaveAttribute(
       'aria-pressed',
       'false'
     );
-    await setSegmentShown(BLUE_NAME, true);
-    await browser.keys('Escape');
+    await oct.setSegmentShown(BLUE_NAME, true);
+    await page.keyboard.press('Escape');
 
-    const saved = await volViewPage.saveSession();
-    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-    await volViewPage.open(`?urls=[tmp/${saved}]`);
-    await waitForEnFaceReady();
-    await expectPixels([
+    const saved = await volview.saveSession();
+    await volview.open(`?urls=[tmp/${saved}]`);
+    await oct.waitForEnFaceReady();
+    await expectPixels(oct, [
       [RED, 'gray'],
       [BLUE, 'blue'],
       [DEEP, 'gray'],
     ]);
-    await openEnFaceControls();
+    await oct.openEnFaceControls();
     await expectSettings();
-    await setSegmentShown(BLUE_NAME, false);
-    await expectPixels([[BLUE, 'gray']]);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await oct.setSegmentShown(BLUE_NAME, false);
+    await expectPixels(oct, [[BLUE, 'gray']]);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

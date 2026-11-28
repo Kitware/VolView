@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { inflateSync } from 'node:zlib';
 import { projectRoot } from '../e2eTestUtils';
-import { makeTempDir } from './utils';
+import { test, expect } from '../fixtures';
 
 const { build } = await import(createRequire(import.meta.url).resolve('vite'));
 
@@ -48,9 +48,12 @@ function floatValues(encoded: string) {
 
 // Scalar images retain their source file on session save. Exercise their actual
 // VTI reader/writer workers directly, including the public serialized output.
-describe('VTI worker state round trip', () => {
-  it('preserves signed multicomponent values and image geometry across export and reload', async () => {
-    const directory = makeTempDir('vtk-state-roundtrip');
+test.describe('VTI worker state round trip', () => {
+  test('preserves signed multicomponent values and image geometry across export and reload', async ({
+    page,
+    utils,
+  }) => {
+    const directory = utils.makeTempDir('vtk-state-roundtrip');
     writeFileSync(
       join(directory, 'index.html'),
       `<pre id="result"></pre><script type="module">
@@ -75,14 +78,15 @@ describe('VTI worker state round trip', () => {
       resolve: { alias: { '@': projectRoot() } },
       build: { outDir: join(directory, 'built') },
     });
-    await browser.url('/tmp/vtk-state-roundtrip/built/index.html');
-    await browser.waitUntil(async () => (await $('#result').getText()) !== '');
-    const result = JSON.parse(await $('#result').getText()) as {
+    await page.goto('/tmp/vtk-state-roundtrip/built/index.html');
+    const resultText = page.locator('#result');
+    await expect.poll(() => resultText.innerText()).not.toBe('');
+    const result = JSON.parse(await resultText.innerText()) as {
       files: string[];
       error?: string;
     };
     expect(result.error).toBeUndefined();
-    const outputs = await browser.execute((files) => {
+    const outputs = await page.evaluate((files) => {
       return files.map((xml) => {
         const document = new DOMParser().parseFromString(xml, 'text/xml');
         const image = document.querySelector('ImageData')!;

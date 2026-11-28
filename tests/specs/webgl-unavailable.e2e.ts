@@ -1,14 +1,8 @@
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 
-describe('Browser without a WebGL2 context', () => {
-  let noWebGL2: Awaited<ReturnType<typeof browser.addInitScript>> | undefined;
-
-  after(async () => {
-    await noWebGL2?.remove();
-  });
-
-  it('tells the user WebGL2 is unavailable', async () => {
-    noWebGL2 = await browser.addInitScript(() => {
+test.describe('Browser without a WebGL2 context', () => {
+  test('tells the user WebGL2 is unavailable', async ({ page, volview }) => {
+    await page.addInitScript(() => {
       const { getContext } = HTMLCanvasElement.prototype;
       HTMLCanvasElement.prototype.getContext = function refuseWebGL2(
         this: HTMLCanvasElement,
@@ -24,9 +18,9 @@ describe('Browser without a WebGL2 context', () => {
       } as typeof getContext;
     });
 
-    await volViewPage.open();
-    await volViewPage.waitForNotification();
-    expect(await volViewPage.getNotificationTitles()).toEqual([
+    await volview.open();
+    await volview.waitForNotification();
+    expect(await volview.getNotificationTitles()).toEqual([
       'WebGL2 is unavailable',
     ]);
   });

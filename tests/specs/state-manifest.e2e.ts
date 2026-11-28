@@ -1,33 +1,37 @@
 import * as path from 'path';
-import { FIXTURES, applyTestViewport } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import { openVolViewPage, writeManifestToZip } from './utils';
+import { test, expect } from '../fixtures';
+import { FIXTURES } from '../e2eRun';
 
-describe('State file manifest.json code', () => {
-  it('has no errors loading version 5.0.1 manifest.json file ', async () => {
+test.describe('State file manifest.json code', () => {
+  test('has no errors loading version 5.0.1 manifest.json file ', async ({
+    utils,
+  }) => {
     const manifestPath = path.join(
       FIXTURES,
       'pre-multi-4up.5-0-1.volview.json'
     );
     const fileName = 'temp-session.volview.zip';
-    await writeManifestToZip(manifestPath, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToZip(manifestPath, fileName);
+    await utils.openVolViewPage(fileName);
   });
 
-  it('loads 5.0.1 manifest with axial layer layout', async () => {
-    await browser.reloadSession();
-    await applyTestViewport(browser);
+  test('loads 5.0.1 manifest with axial layer layout', async ({
+    page,
+    volview,
+    utils,
+  }) => {
     const manifestPath = path.join(FIXTURES, 'layer-axial.5-0-1.volview.json');
     const fileName = 'temp-layer-axial.volview.zip';
-    await writeManifestToZip(manifestPath, fileName);
-    await openVolViewPage(fileName);
+    await utils.writeManifestToZip(manifestPath, fileName);
+    await utils.openVolViewPage(fileName);
 
-    const renderingTab = volViewPage.renderingModuleTab;
+    const renderingTab = volview.renderingModuleTab;
     await renderingTab.click();
 
-    const layerSlider = $('[data-testid="layer-opacity-slider"]');
-    await layerSlider.waitForDisplayed({
-      timeoutMsg: 'Layer opacity slider is not visible in the Rendering tab',
-    });
+    const layerSlider = page.locator('[data-testid="layer-opacity-slider"]');
+    await expect(
+      layerSlider,
+      'Layer opacity slider is not visible in the Rendering tab'
+    ).toBeVisible();
   });
 });

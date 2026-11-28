@@ -1,10 +1,10 @@
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { capture2DViewPixels, writeManifestToFile } from './utils';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { containsText, setValueVueInput } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import type { Utils } from './utils';
 
-function writeImages() {
+function writeImages(scratch: Scratch) {
   const header = [
     'NRRD0005',
     'type: float',
@@ -34,11 +34,12 @@ function writeImages() {
     const name = overlay
       ? 'transparent-base.layer.nrrd'
       : 'transparent-base.nrrd';
-    writeFileSync(join(TEMP_DIR, name), `${header}\n\n${values.join(' ')}`);
+    scratch.writeFile(name, `${header}\n\n${values.join(' ')}`);
   }
 }
 
-const captureViews = () => capture2DViewPixels(50, 'transparent-capture.png');
+const captureViews = (utils: Utils) =>
+  utils.capture2DViewPixels(50, 'transparent-capture.png');
 
 type ViewPixels = Awaited<ReturnType<typeof captureViews>>;
 
@@ -110,151 +111,181 @@ function matchesBlend(
   );
 }
 
-async function setOpacity(percent: number) {
-  const slider = $('[data-testid="layer-opacity-slider"] [role="slider"]');
-  await slider.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await slider.execute((element) => element.focus());
-  await browser.keys('Home');
+async function setOpacity(page: Page, utils: Utils, percent: number) {
+  const slider = page.locator(
+    '[data-testid="layer-opacity-slider"] [role="slider"]'
+  );
+  await slider.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
+  await slider.focus();
+  await page.keyboard.press('Home');
   for (let value = 0; value < percent; value += 10)
-    await browser.keys('PageUp');
+    await page.keyboard.press('PageUp');
   await expect(
-    $('[data-testid="layer-opacity-slider"] [role="slider"]')
+    page.locator('[data-testid="layer-opacity-slider"] [role="slider"]')
   ).toHaveAttribute('aria-valuenow', String(percent / 100));
-  await $('header').moveTo();
+  await utils.moveToElement(page.locator('header'));
 }
 
-describe('Transparent overlay background', () => {
-  it('preserves anatomy below Min and fades only the first 10% of a signed fractional range in every view', async () => {
-    writeImages();
-    await writeManifestToFile(
+test.describe('Transparent overlay background', () => {
+  test('preserves anatomy below Min and fades only the first 10% of a signed fractional range in every view', async ({
+    page,
+    volview,
+    utils,
+    scratch,
+  }) => {
+    writeImages(scratch);
+    await utils.writeManifestToFile(
       {
         io: { layerExtension: 'layer' },
         windowing: { width: 255, level: 127.5 },
       },
       'transparent-config.json'
     );
-    await volViewPage.open(
+    await volview.open(
       '?urls=[tmp/transparent-config.json,tmp/transparent-base.nrrd,tmp/transparent-base.layer.nrrd]'
     );
-    await volViewPage.waitForViews();
-    await volViewPage.waitForViewCounts(3, true);
-    await volViewPage.renderingModuleTab.click();
+    await volview.waitForViews();
+    await volview.waitForViewCounts(3, true);
+    await volview.renderingModuleTab.click();
     for (const title of ['Color Presets', 'Cinematic Rendering']) {
-      const section = $(`.v-expansion-panel-title*=${title}`);
+      const section = page.locator('.v-expansion-panel-title', {
+        hasText: containsText(title),
+      });
       if ((await section.getAttribute('aria-expanded')) === 'true')
         await section.click();
     }
-    const toggle = $('[data-testid="layer-transparent-background"] input');
+    const toggle = page.locator(
+      '[data-testid="layer-transparent-background"] input'
+    );
     await expect(toggle).toBeChecked();
-    await expect($('[data-testid="layer-colormap"]')).toHaveText(
-      expect.stringContaining('DICOM Hot Iron')
+    await expect(page.locator('[data-testid="layer-colormap"]')).toContainText(
+      'DICOM Hot Iron'
     );
-    await browser.waitUntil(
-      async () => (await $$('.Vue-Toastification__toast').length) === 0
+    await expect(page.locator('.Vue-Toastification__toast')).toHaveCount(0);
+    const rangeMin = page.locator('[data-testid="layer-range-min"] input');
+    await rangeMin.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
     );
-    await $('[data-testid="layer-range-min"] input').scrollIntoView({
-      block: 'center',
-      behavior: 'instant',
-    });
-    await setValueVueInput($('[data-testid="layer-range-min"] input'), '-2.75');
-    await setValueVueInput($('[data-testid="layer-range-max"] input'), '7.25');
-    await setOpacity(0);
+    await setValueVueInput(rangeMin, '-2.75');
+    await setValueVueInput(
+      page.locator('[data-testid="layer-range-max"] input'),
+      '7.25'
+    );
+    await setOpacity(page, utils, 0);
     let base: ViewPixels = [];
-    await browser.waitUntil(
-      async () => {
-        base = await captureViews();
-        return (
-          base.length === 3 &&
-          base.every(({ data }) =>
-            [80, 180].every(
-              (gray) =>
-                data.filter(
-                  (value, index) =>
-                    index % 4 === 0 &&
-                    Math.abs(value - gray) <= 1 &&
-                    data[index + 1] === value &&
-                    data[index + 2] === value
-                ).length > 500
+    await expect
+      .poll(
+        async () => {
+          base = await captureViews(utils);
+          return (
+            base.length === 3 &&
+            base.every(({ data }) =>
+              [80, 180].every(
+                (gray) =>
+                  data.filter(
+                    (value, index) =>
+                      index % 4 === 0 &&
+                      Math.abs(value - gray) <= 1 &&
+                      data[index + 1] === value &&
+                      data[index + 2] === value
+                  ).length > 500
+              )
             )
-          )
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected both gray anatomy regions in every view at zero overlay opacity',
-      }
-    );
-    await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
+          );
+        },
+        {
+          message:
+            'Expected both gray anatomy regions in every view at zero overlay opacity',
+        }
+      )
+      .toBe(true);
+    const scrollToggle = () =>
+      toggle.evaluate((element) =>
+        element.scrollIntoView({ block: 'center', behavior: 'instant' })
+      );
+    await scrollToggle();
     await toggle.click();
     await expect(toggle).not.toBeChecked();
-    await setOpacity(100);
+    await setOpacity(page, utils, 100);
     let opaque: ViewPixels = [];
     let groups: number[][][] = [];
-    await browser.waitUntil(
-      async () => {
-        opaque = await captureViews();
-        groups = matchingPixels(base, opaque);
-        return (
-          groups.length === 3 &&
-          groups.every((view) => view.every((indices) => indices.length > 100))
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected the below-Min, halfway-fade and above-fade regions in every view',
-      }
-    );
-    await setOpacity(50);
-    await browser.waitUntil(
-      async () =>
-        matchesBlend(
-          base,
-          opaque,
-          await captureViews(),
-          groups,
-          [0.5, 0.5, 0.5]
-        ),
-      {
-        timeoutMsg:
-          'Expected 50% straight blending while transparent background is off',
-      }
-    );
-    await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await expect
+      .poll(
+        async () => {
+          opaque = await captureViews(utils);
+          groups = matchingPixels(base, opaque);
+          return (
+            groups.length === 3 &&
+            groups.every((view) =>
+              view.every((indices) => indices.length > 100)
+            )
+          );
+        },
+        {
+          message:
+            'Expected the below-Min, halfway-fade and above-fade regions in every view',
+        }
+      )
+      .toBe(true);
+    await setOpacity(page, utils, 50);
+    await expect
+      .poll(
+        async () =>
+          matchesBlend(
+            base,
+            opaque,
+            await captureViews(utils),
+            groups,
+            [0.5, 0.5, 0.5]
+          ),
+        {
+          message:
+            'Expected 50% straight blending while transparent background is off',
+        }
+      )
+      .toBe(true);
+    await scrollToggle();
     await toggle.click();
     await expect(toggle).toBeChecked();
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () =>
-        matchesBlend(
-          base,
-          opaque,
-          await captureViews(),
-          groups,
-          [0, 0.25, 0.5]
-        ),
-      {
-        timeoutMsg:
-          'Expected unchanged anatomy below Min, half the selected opacity halfway through the fade, and selected opacity above it in all views',
-      }
-    );
-    await toggle.scrollIntoView({ block: 'center', behavior: 'instant' });
+    await utils.moveToElement(page.locator('header'));
+    await expect
+      .poll(
+        async () =>
+          matchesBlend(
+            base,
+            opaque,
+            await captureViews(utils),
+            groups,
+            [0, 0.25, 0.5]
+          ),
+        {
+          message:
+            'Expected unchanged anatomy below Min, half the selected opacity halfway through the fade, and selected opacity above it in all views',
+        }
+      )
+      .toBe(true);
+    await scrollToggle();
     await toggle.click();
     await expect(toggle).not.toBeChecked();
-    await $('header').moveTo();
-    await browser.waitUntil(
-      async () =>
-        matchesBlend(
-          base,
-          opaque,
-          await captureViews(),
-          groups,
-          [0.5, 0.5, 0.5]
-        ),
-      {
-        timeoutMsg:
-          'Expected switching transparent background off to restore straight blending in all views',
-      }
-    );
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await utils.moveToElement(page.locator('header'));
+    await expect
+      .poll(
+        async () =>
+          matchesBlend(
+            base,
+            opaque,
+            await captureViews(utils),
+            groups,
+            [0.5, 0.5, 0.5]
+          ),
+        {
+          message:
+            'Expected switching transparent background off to restore straight blending in all views',
+        }
+      )
+      .toBe(true);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

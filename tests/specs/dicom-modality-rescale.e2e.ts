@@ -1,10 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { buildSyntheticDicom, newUid } from './syntheticDicom';
-import { waitForFirstCompleteCachedImageScalars } from './imageCacheUtils';
-import { makeTempDir, writeManifestToFile } from './utils';
+import type { Utils } from './utils';
 
 const PUBLIC_DSC_SERIES_UID =
   '1.3.6.1.4.1.9590.100.1.2.284777661700890778225181143863199482857';
@@ -13,9 +12,9 @@ const STORED_VALUES = [0, 2, 65131];
 const ROWS = 4;
 const COLUMNS = 4;
 
-async function writeRescaledSeries() {
+async function writeRescaledSeries(utils: Utils) {
   const dirName = `modality-rescale-${Date.now()}`;
-  const dir = makeTempDir(dirName);
+  const dir = utils.makeTempDir(dirName);
 
   const studyUid = newUid();
   const resources = STORED_VALUES.map((pixelValue, index) => {
@@ -44,18 +43,22 @@ async function writeRescaledSeries() {
   });
 
   const manifestName = `modality-rescale-${Date.now()}.json`;
-  await writeManifestToFile({ resources }, manifestName);
+  await utils.writeManifestToFile({ resources }, manifestName);
   return manifestName;
 }
 
-describe('DICOM modality rescale', () => {
-  it('preserves the public DSC series Float64 output through volume loading', async () => {
-    const manifestName = await writeRescaledSeries();
-    await volViewPage.open(`?urls=[tmp/${manifestName}]`);
-    await volViewPage.waitForViews();
-    const scalars = await waitForFirstCompleteCachedImageScalars();
+test.describe('DICOM modality rescale', () => {
+  test('preserves the public DSC series Float64 output through volume loading', async ({
+    volview,
+    utils,
+    imageCache,
+  }) => {
+    const manifestName = await writeRescaledSeries(utils);
+    await volview.open(`?urls=[tmp/${manifestName}]`);
+    await volview.waitForViews();
+    const scalars = await imageCache.waitForFirstCompleteCachedImageScalars();
 
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
     expect(scalars.type).toBe('Float64Array');
     const expected = STORED_VALUES.flatMap((stored) =>
       Array(ROWS * COLUMNS).fill(stored * PUBLIC_DSC_SLOPE)

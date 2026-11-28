@@ -1,21 +1,8 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import JSZip from 'jszip';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-import { volViewPage } from '../pageobjects/volview.page';
-import { DOWNLOAD_TIMEOUT, TEMP_DIR } from '../../wdio.shared.conf';
-import { writeManifestToFile } from './utils';
-import { segmentNames } from './segmentationTestUtils';
-
-const writeBufferToFile = async (data: Buffer, fileName: string) => {
-  const filePath = path.join(TEMP_DIR, fileName);
-  await fs.promises.writeFile(filePath, data);
-  cleanuptotal.addCleanup(async () => {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  });
-  return filePath;
-};
+import type { ConsoleMessage } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import { expectWithinTest } from '../e2eRun';
 
 const createNiftiGz = (
   dimX: number,
@@ -142,77 +129,84 @@ const createSessionZip = async (
  *
  * Fix: resetWorker() before deserializing labelmaps clears the heap.
  */
-describe('Session with large URI base and nii.gz labelmap', function () {
-  this.timeout(180_000);
-
-  it('loads session with large Float32 base and embedded nii.gz labelmap', async () => {
+test.describe('Session with large URI base and nii.gz labelmap', () => {
+  test('loads session with large Float32 base and embedded nii.gz labelmap', async ({
+    page,
+    volview,
+    utils,
+    segmentation,
+    scratch,
+  }) => {
+    test.slow();
     const prefix = `session-large-${Date.now()}`;
     const baseFileName = `${prefix}-base-f32.nii.gz`;
     const sessionFileName = `${prefix}-session.volview.zip`;
 
     // Float32 1024×1024×256 = 1GB raw — pushes WASM heap past 2GB
-    await writeBufferToFile(
-      createNiftiGz(1024, 1024, 256, 16, 32),
-      baseFileName
-    );
+    scratch.writeFile(baseFileName, createNiftiGz(1024, 1024, 256, 16, 32));
 
     // UInt8 labelmap same dimensions = 256MB raw, embedded in session ZIP
     const labelmapNiftiGz = createNiftiGz(1024, 1024, 256, 2, 8, true);
     const sessionZip = await createSessionZip(baseFileName, labelmapNiftiGz);
-    await writeBufferToFile(sessionZip, sessionFileName);
+    scratch.writeFile(sessionFileName, sessionZip);
 
     // A 1 GB float volume texture is more than software GL can allocate, and
     // the heap is what this spec is about. Disabling the 3D view type is not
     // enough: the view that replaces it allocates the same texture.
     const configFileName = `${prefix}-config.json`;
-    await writeManifestToFile(
+    await utils.writeManifestToFile(
       { layouts: { 'Axial Only': [['axial']] } },
       configFileName
     );
 
     const rangeErrors: string[] = [];
-    const onLogEntry = (logEntry: { text: string | null }) => {
-      const text = logEntry.text ?? '';
+    const onLogEntry = (text: string) => {
       if (text.includes('RangeError')) {
         rangeErrors.push(text);
       }
     };
-    browser.on('log.entryAdded', onLogEntry);
+    const onConsole = (message: ConsoleMessage) => onLogEntry(message.text());
+    const onPageError = (error: Error) =>
+      onLogEntry(error.stack ?? String(error));
+    page.on('console', onConsole);
+    page.on('pageerror', onPageError);
 
     try {
-      await volViewPage.open(
+      await volview.open(
         `?urls=[tmp/${sessionFileName},tmp/${configFileName}]`
       );
-      await volViewPage.waitForViews(DOWNLOAD_TIMEOUT * 6);
+      await volview.waitForViews(expectWithinTest);
 
       // The restored layout renders its views before the base image loads,
       // and the segment list only appears once that image is shown.
-      await volViewPage.annotationsModuleTab.click();
+      await volview.annotationsModuleTab.click();
 
       // This session contains no shapes. Reveal can only become enabled once
       // the embedded labelmap has decoded and its foreground mask is attached.
-      const reveal = $(
+      const reveal = page.locator(
         '[data-testid="segment-list"] button[data-testid="reveal-segment-button"]'
       );
 
-      await browser.waitUntil(
-        async () => {
-          if (rangeErrors.length > 0) return true;
-          if ((await volViewPage.getNotificationsCount()) > 0) return true;
-          return (await reveal.isExisting()) && (await reveal.isEnabled());
-        },
-        {
-          timeout: DOWNLOAD_TIMEOUT * 3,
-          timeoutMsg: 'Labelmap load never completed or errored',
-        }
-      );
+      await expectWithinTest
+        .poll(
+          async () => {
+            if (rangeErrors.length > 0) return true;
+            if ((await volview.getNotificationsCount()) > 0) return true;
+            return (await reveal.count()) > 0 && (await reveal.isEnabled());
+          },
+          {
+            message: 'Labelmap load never completed or errored',
+          }
+        )
+        .toBe(true);
 
       expect(rangeErrors).toEqual([]);
-      expect(await volViewPage.getNotificationsCount()).toBe(0);
-      expect(await segmentNames()).toEqual(['Label 1']);
+      expect(await volview.getNotificationsCount()).toBe(0);
+      expect(await segmentation.segmentNames()).toEqual(['Label 1']);
       expect(await reveal.isEnabled()).toBe(true);
     } finally {
-      browser.off('log.entryAdded', onLogEntry);
+      page.off('console', onConsole);
+      page.off('pageerror', onPageError);
     }
   });
 });

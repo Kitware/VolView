@@ -1,24 +1,34 @@
-import { enterEnFaceWindow, getEnFaceWindow } from './octTestUtils';
+import { expect, type Locator, type Page } from '@playwright/test';
+import type { Scratch } from '../scratch';
+import { createOctUtils } from './octTestUtils';
 
-export async function requestEnFaceWindow(
-  width: number,
-  level: number,
-  view?: WebdriverIO.Element
-) {
-  const inputs = await enterEnFaceWindow(width, level, view);
-  // Leave the width field so the shared controls display the committed value.
-  await inputs[1].click();
-  await browser.keys('Escape');
-  await inputs[0].waitForDisplayed({ reverse: true });
-  return getEnFaceWindow(view);
-}
+export const createSlabContrastUtils = (page: Page, scratch: Scratch) => {
+  const oct = createOctUtils(page, scratch);
+
+  const requestEnFaceWindow = async (
+    width: number,
+    level: number,
+    view?: Locator
+  ) => {
+    const inputs = await oct.enterEnFaceWindow(width, level, view);
+    // Leave the width field so the shared controls display the committed value.
+    await inputs[1].click();
+    await page.keyboard.press('Escape');
+    await expect(inputs[0]).toBeHidden();
+    return oct.getEnFaceWindow(view);
+  };
+
+  return { requestEnFaceWindow };
+};
+
+export type SlabContrastUtils = ReturnType<typeof createSlabContrastUtils>;
 
 type ObservedProjection = HTMLElement & {
   finishRedrawObservation?: () => string[];
 };
 
-export async function observeProjectionRedraw(view: WebdriverIO.Element) {
-  await view.execute((element) => {
+export const observeProjectionRedraw = (view: Locator) =>
+  view.evaluate((element) => {
     const root = element as ObservedProjection;
     const history = new Set<string>();
     const inspectNode = (node: Node) => {
@@ -55,14 +65,13 @@ export async function observeProjectionRedraw(view: WebdriverIO.Element) {
       return [...history];
     };
   });
-}
 
-export async function expectNoRedrawInterruption(view: WebdriverIO.Element) {
-  const history = await view.execute((element) => {
+export const expectNoRedrawInterruption = async (view: Locator) => {
+  const history = await view.evaluate((element) => {
     const root = element as ObservedProjection;
     const observed = root.finishRedrawObservation!();
     delete root.finishRedrawObservation;
     return observed;
   });
   expect(history).toEqual([]);
-}
+};

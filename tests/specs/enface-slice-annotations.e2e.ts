@@ -1,47 +1,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { TEMP_DIR } from '../../wdio.shared.conf';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
 import {
-  clickAt,
-  dragPointerTo,
-  drawSquare,
-  nudgeTo,
-  pressAtPointer,
-} from './annotationTestUtils';
+  waitForTransitions,
+  type VolViewPage,
+} from '../pageobjects/volview.page';
+import type { AnnotationUtils } from './annotationTestUtils';
 import {
-  PANEL,
+  MENU_PANEL,
   VIEWER,
   canvasAppearance,
-  chooseEnFaceProjection,
-  enFacePixel,
-  enFaceScreenPoint,
-  expectEnFaceProjectionSettings,
-  openEnFaceControls,
-  setEnFaceSlab,
-  setSegmentShown,
-  toolButton,
-  waitForEnFaceReady,
+  type OctUtils,
 } from './octTestUtils';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
-import {
-  addSegment,
-  clickImageCard,
-  openAnnotationSegments,
-  openSegmentShapes,
-  revealSegment,
-  selectSegment,
-  shapeRowTexts,
-  waitForSegmentContent,
-} from './segmentationTestUtils';
-import {
-  makeTempDir,
-  SESSION_SAVE_TIMEOUT,
-  waitForDownload,
-  waitForModuleTransitions,
-  writeManifestToFile,
-} from './utils';
+import type { ReferenceLinesUtils } from './referenceLinesTestUtils';
+import type { SegmentationUtils } from './segmentationTestUtils';
+import type { Utils } from './utils';
+
+type Kit = {
+  page: Page;
+  volview: VolViewPage;
+  utils: Utils;
+  oct: OctUtils;
+  annotation: AnnotationUtils;
+  segmentation: SegmentationUtils;
+  referenceLines: ReferenceLinesUtils;
+};
 
 const STEM = 'enface-slice-annotations';
 const SIZE = [32, 20, 24];
@@ -53,9 +38,10 @@ const MARKS = [
   'svg polyline',
 ];
 
-async function scene(permuted = false, images = ['source.nrrd']) {
+async function scene(kit: Kit, permuted = false, images = ['source.nrrd']) {
+  const { volview, utils, oct, segmentation, referenceLines } = kit;
   const axis = permuted ? 'Axial' : 'Coronal';
-  const directory = makeTempDir(STEM);
+  const directory = utils.makeTempDir(STEM);
   const volume = createNrrdVolume({
     dimensions: SIZE,
     spacing: [0.4, 0.6, 0.7],
@@ -71,80 +57,85 @@ async function scene(permuted = false, images = ['source.nrrd']) {
   images.forEach((name) =>
     fs.writeFileSync(path.join(directory, name), volume)
   );
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     { layouts: { Annotations: [[axis.toLowerCase(), 'enface']] } },
     STEM + '.json'
   );
   const urls = images.map((name) => `tmp/${STEM}/${name}`).join(',');
-  await volViewPage.open(`?urls=[tmp/${STEM}.json,${urls}]`);
-  await waitForEnFaceReady();
-  await setReferenceLinesEnabled(true);
-  await setEnFaceSlab(4, 9);
-  await toolButton('Select').click();
-  await openAnnotationSegments();
-  await waitForModuleTransitions();
+  await volview.open(`?urls=[tmp/${STEM}.json,${urls}]`);
+  await oct.waitForEnFaceReady();
+  await referenceLines.setReferenceLinesEnabled(true);
+  await oct.setEnFaceSlab(4, 9);
+  await oct.toolButton('Select').click();
+  await segmentation.openAnnotationSegments();
+  await utils.waitForModuleTransitions();
   return axis;
 }
 
-async function clickPoint(x: number, y: number) {
-  const point = await enFaceScreenPoint(x, y);
-  await clickAt(point.x, point.y);
+async function clickPoint(kit: Kit, x: number, y: number) {
+  const point = await kit.oct.enFaceScreenPoint(x, y);
+  await kit.annotation.clickAt(point.x, point.y);
 }
 
-async function visibleMarks() {
-  return $(VIEWER).execute((viewer, selectors) => {
-    const visible = (mark: Element) => {
-      let ancestor: Element | null = mark;
-      while (ancestor && ancestor !== viewer.parentElement) {
-        const style = getComputedStyle(ancestor);
-        if (style.display === 'none' || style.visibility === 'hidden')
-          return false;
-        ancestor = ancestor.parentElement;
-      }
-      const bounds = mark.getBoundingClientRect();
-      return bounds.width > 0 || bounds.height > 0;
-    };
-    return (selectors as string[]).map(
-      (selector) =>
-        Array.from(viewer.querySelectorAll(selector)).filter(visible).length
-    );
-  }, MARKS);
+async function visibleMarks(page: Page) {
+  return page
+    .locator(VIEWER)
+    .first()
+    .evaluate((viewer, selectors) => {
+      const visible = (mark: Element) => {
+        let ancestor: Element | null = mark;
+        while (ancestor && ancestor !== viewer.parentElement) {
+          const style = getComputedStyle(ancestor);
+          if (style.display === 'none' || style.visibility === 'hidden')
+            return false;
+          ancestor = ancestor.parentElement;
+        }
+        const bounds = mark.getBoundingClientRect();
+        return bounds.width > 0 || bounds.height > 0;
+      };
+      return selectors.map(
+        (selector) =>
+          Array.from(viewer.querySelectorAll(selector)).filter(visible).length
+      );
+    }, MARKS);
 }
 
-async function expectMarks(expected: number[]) {
-  await browser
-    .waitUntil(
+async function expectMarks(page: Page, expected: number[]) {
+  await expect
+    .poll(
       async () =>
-        JSON.stringify(await visibleMarks()) === JSON.stringify(expected),
+        JSON.stringify(await visibleMarks(page)) === JSON.stringify(expected),
       {
-        timeoutMsg: 'Expected the saved annotations within the En face slab',
+        message: 'Expected the saved annotations within the En face slab',
       }
     )
+    .toBe(true)
     .catch(async (error: Error) => {
       error.message +=
-        '; actual visible marks: ' + JSON.stringify(await visibleMarks());
+        '; actual visible marks: ' + JSON.stringify(await visibleMarks(page));
       throw error;
     });
 }
 
-async function drawAnnotations() {
-  await toolButton('Ruler').click();
-  await clickPoint(8.5, 5.5);
-  await clickPoint(20.5, 5.5);
-  await toolButton('Rectangle').click();
-  await clickPoint(5.5, 10.5);
-  await clickPoint(12.5, 16.5);
-  await toolButton('Polygon').click();
-  const center = await enFaceScreenPoint(23.5, 14.5);
-  await drawSquare(center.x, center.y, 20);
-  await toolButton('Select').click();
-  await expectMarks([1, 1, 1]);
+async function drawAnnotations(kit: Kit) {
+  const { oct, annotation } = kit;
+  await oct.toolButton('Ruler').click();
+  await clickPoint(kit, 8.5, 5.5);
+  await clickPoint(kit, 20.5, 5.5);
+  await oct.toolButton('Rectangle').click();
+  await clickPoint(kit, 5.5, 10.5);
+  await clickPoint(kit, 12.5, 16.5);
+  await oct.toolButton('Polygon').click();
+  const center = await oct.enFaceScreenPoint(23.5, 14.5);
+  await annotation.drawSquare(center.x, center.y, 20);
+  await oct.toolButton('Select').click();
+  await expectMarks(kit.page, [1, 1, 1]);
 }
 
-async function expectPlacement(axis: string) {
-  await openSegmentShapes();
-  await expect($$(SHAPE_ROW)).toBeElementsArrayOfSize(3);
-  const rows = await shapeRowTexts();
+async function expectPlacement(kit: Kit, axis: string) {
+  await kit.segmentation.openSegmentShapes();
+  await expect(kit.page.locator(SHAPE_ROW)).toHaveCount(3);
+  const rows = await kit.segmentation.shapeRowTexts();
   expect(rows.every((text) => text.includes(axis + ' 8'))).toBe(true);
   const measurement = rows.flatMap((text) => {
     const match = text.match(/([\d.]+)mm/);
@@ -154,203 +145,288 @@ async function expectPlacement(axis: string) {
   expect(measurement[0]).toBeCloseTo(4.8, 1);
 }
 
-async function sourceSlice(index: number) {
-  const slider = $('.vtk-container-wrapper .slice-slider');
-  await slider.waitForStable();
-  const [position, size, handleSize] = await Promise.all([
-    slider.getLocation(),
-    slider.getSize(),
-    slider.$('.slice-slider-handle').getSize(),
+async function sourceSlice(kit: Kit, index: number) {
+  const slider = kit.page.locator('.vtk-container-wrapper .slice-slider');
+  await waitForTransitions(slider);
+  const [position, handle] = await Promise.all([
+    slider.boundingBox(),
+    slider.locator('.slice-slider-handle').boundingBox(),
   ]);
-  await clickAt(
-    position.x + size.width / 2,
+  if (!position || !handle) throw new Error('The slice slider is off screen');
+  await kit.annotation.clickAt(
+    position.x + position.width / 2,
     position.y +
-      handleSize.height / 2 +
-      (size.height - handleSize.height) * (1 - index / (SIZE[1] - 1))
+      handle.height / 2 +
+      (position.height - handle.height) * (1 - index / (SIZE[1] - 1))
   );
-  await expect($(SOURCE).$('.slice-label')).toHaveText(
+  await expect(kit.page.locator(SOURCE).locator('.slice-label')).toHaveText(
     `Slice: ${index + 1}/${SIZE[1]}`
   );
 }
 
-async function expectPaintedSource(present: boolean) {
-  const canvas = await $(SOURCE).$('canvas').getElement();
-  await browser.waitUntil(
-    async () => {
-      const { coloredPixels } = await canvasAppearance(canvas);
-      return present ? coloredPixels > 10 : coloredPixels === 0;
-    },
-    {
-      timeoutMsg: `Expected source paint to be ${present ? 'visible' : 'absent'}`,
-    }
-  );
+async function expectPaintedSource(page: Page, present: boolean) {
+  const canvas = page.locator(SOURCE).locator('canvas').first();
+  await expect
+    .poll(
+      async () => {
+        const { coloredPixels } = await canvasAppearance(canvas);
+        return present ? coloredPixels > 10 : coloredPixels === 0;
+      },
+      {
+        message: `Expected source paint to be ${present ? 'visible' : 'absent'}`,
+      }
+    )
+    .toBe(true);
 }
 
-async function expectPaintedProjection(present: boolean) {
-  await browser.waitUntil(
-    async () => {
-      const pixel = await enFacePixel(16, 12);
-      const colored =
-        Math.max(...pixel.slice(0, 3)) - Math.min(...pixel.slice(0, 3)) > 20;
-      return colored === present;
-    },
-    {
-      timeoutMsg: `Expected projected paint to be ${present ? 'visible' : 'absent'}`,
-    }
-  );
+async function expectPaintedProjection(oct: OctUtils, present: boolean) {
+  await expect
+    .poll(
+      async () => {
+        const pixel = await oct.enFacePixel(16, 12);
+        const colored =
+          Math.max(...pixel.slice(0, 3)) - Math.min(...pixel.slice(0, 3)) > 20;
+        return colored === present;
+      },
+      {
+        message: `Expected projected paint to be ${present ? 'visible' : 'absent'}`,
+      }
+    )
+    .toBe(true);
 }
 
-describe('En face annotations', () => {
-  after(async () => setReferenceLinesEnabled(false));
-
+test.describe('En face annotations', () => {
   for (const permuted of [false, true]) {
-    it(`draws shapes on the midpoint slice and shows them across the slab with ${permuted ? 'permuted' : 'identity'} source axes`, async () => {
-      const axis = await scene(permuted);
-      await drawAnnotations();
-      await expectPlacement(axis);
-      await setEnFaceSlab(2, 3);
-      await expectMarks([0, 0, 0]);
-      await $(SHAPE_ROW).$('[data-testid="reveal-shape-button"]').click();
-      await expectMarks([1, 1, 1]);
+    test(`draws shapes on the midpoint slice and shows them across the slab with ${permuted ? 'permuted' : 'identity'} source axes`, async ({
+      page,
+      volview,
+      utils,
+      oct,
+      annotation,
+      segmentation,
+      referenceLines,
+    }) => {
+      const kit = {
+        page,
+        volview,
+        utils,
+        oct,
+        annotation,
+        segmentation,
+        referenceLines,
+      };
+      const revealShape = page
+        .locator(SHAPE_ROW)
+        .first()
+        .locator('[data-testid="reveal-shape-button"]');
+      const axis = await scene(kit, permuted);
+      await drawAnnotations(kit);
+      await expectPlacement(kit, axis);
+      await oct.setEnFaceSlab(2, 3);
+      await expectMarks(page, [0, 0, 0]);
+      await revealShape.click();
+      await expectMarks(page, [1, 1, 1]);
       // A slab holding the shapes away from its midpoint still shows them,
       // and revealing one leaves that slab where it is.
-      await setEnFaceSlab(6, 15);
-      await expectMarks([1, 1, 1]);
-      await $(SHAPE_ROW).$('[data-testid="reveal-shape-button"]').click();
-      await openEnFaceControls();
-      await expectEnFaceProjectionSettings(axis, 6, 15);
-      await browser.keys('Escape');
-      await $(PANEL).waitForDisplayed({ reverse: true });
-      await setEnFaceSlab(4, 9);
-      await expectMarks([1, 1, 1]);
+      await oct.setEnFaceSlab(6, 15);
+      await expectMarks(page, [1, 1, 1]);
+      await revealShape.click();
+      await oct.openEnFaceControls();
+      await oct.expectEnFaceProjectionSettings(axis, 6, 15);
+      await page.keyboard.press('Escape');
+      await expect(page.locator(MENU_PANEL)).toBeHidden();
+      await oct.setEnFaceSlab(4, 9);
+      await expectMarks(page, [1, 1, 1]);
 
-      const saved = await volViewPage.saveSession();
-      await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-      await volViewPage.open('?urls=[tmp/' + saved + ']');
-      await waitForEnFaceReady();
-      await expectPlacement(axis);
-      await expectMarks([1, 1, 1]);
-      expect(await volViewPage.getNotificationsCount()).toBe(0);
+      const saved = await volview.saveSession();
+      await volview.open('?urls=[tmp/' + saved + ']');
+      await oct.waitForEnFaceReady();
+      await expectPlacement(kit, axis);
+      await expectMarks(page, [1, 1, 1]);
+      expect(await volview.getNotificationsCount()).toBe(0);
     });
   }
 
-  it('paints through the slab depth with permuted axes', async () => {
-    await scene(true);
-    await toolButton('Paint').click();
-    await openAnnotationSegments();
-    const point = await enFaceScreenPoint(16.5, 12.5);
-    await nudgeTo(point.x, point.y);
-    await pressAtPointer();
-    await toolButton('Select').click();
-    await waitForSegmentContent('Segment 1');
-    await expectPaintedProjection(true);
-    await expect($('[data-testid="save-segments-button"]')).toBeEnabled();
-    await setEnFaceSlab(0, 3);
-    await expectPaintedProjection(false);
-    await revealSegment('Segment 1');
-    await expectPaintedProjection(true);
-    await expect($(SOURCE).$('.slice-label')).toHaveText('Slice: 7/20');
-    await expectPaintedSource(true);
-    await sourceSlice(3);
-    await expectPaintedSource(false);
-    await sourceSlice(4);
-    await expectPaintedSource(true);
-    await sourceSlice(10);
-    await expectPaintedSource(false);
-    await sourceSlice(9);
-    await expectPaintedSource(true);
+  test('paints through the slab depth with permuted axes', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    annotation,
+    segmentation,
+    referenceLines,
+  }) => {
+    const kit = {
+      page,
+      volview,
+      utils,
+      oct,
+      annotation,
+      segmentation,
+      referenceLines,
+    };
+    await scene(kit, true);
+    await oct.toolButton('Paint').click();
+    await segmentation.openAnnotationSegments();
+    const point = await oct.enFaceScreenPoint(16.5, 12.5);
+    await annotation.nudgeTo(point.x, point.y);
+    await annotation.pressAtPointer();
+    await oct.toolButton('Select').click();
+    await segmentation.waitForSegmentContent('Segment 1');
+    await expectPaintedProjection(oct, true);
+    await expect(
+      page.locator('[data-testid="save-segments-button"]')
+    ).toBeEnabled();
+    await oct.setEnFaceSlab(0, 3);
+    await expectPaintedProjection(oct, false);
+    await segmentation.revealSegment('Segment 1');
+    await expectPaintedProjection(oct, true);
+    await expect(page.locator(SOURCE).locator('.slice-label')).toHaveText(
+      'Slice: 7/20'
+    );
+    await expectPaintedSource(page, true);
+    await sourceSlice(kit, 3);
+    await expectPaintedSource(page, false);
+    await sourceSlice(kit, 4);
+    await expectPaintedSource(page, true);
+    await sourceSlice(kit, 10);
+    await expectPaintedSource(page, false);
+    await sourceSlice(kit, 9);
+    await expectPaintedSource(page, true);
 
     // The slab still crosses the stroke, but its midpoint slice is unpainted.
-    await setEnFaceSlab(8, 15);
-    await expectPaintedProjection(true);
-    await toolButton('Paint').click();
-    await addSegment();
-    const selected = () =>
-      $('[data-testid="segment-list"] .item-row[aria-current="true"]');
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 2');
-    await $('[data-testid="paint-eyedropper-button"]').click();
-    await nudgeTo(point.x, point.y);
-    await pressAtPointer();
-    await expect(selected()).toHaveAttribute('aria-label', 'Segment 1');
+    await oct.setEnFaceSlab(8, 15);
+    await expectPaintedProjection(oct, true);
+    await oct.toolButton('Paint').click();
+    await segmentation.addSegment();
+    const selected = page.locator(
+      '[data-testid="segment-list"] .item-row[aria-current="true"]'
+    );
+    await expect(selected).toHaveAttribute('aria-label', 'Segment 2');
+    await page.locator('[data-testid="paint-eyedropper-button"]').click();
+    await annotation.nudgeTo(point.x, point.y);
+    await annotation.pressAtPointer();
+    await expect(selected).toHaveAttribute('aria-label', 'Segment 1');
 
     // It passes over a segment this view's own eye hides.
     const sampleWith = async (shown: boolean, picked: string) => {
-      await openEnFaceControls();
-      await setSegmentShown('Segment 1', shown);
-      await browser.keys('Escape');
-      await $(PANEL).waitForDisplayed({ reverse: true });
-      await selectSegment('Segment 2');
-      await nudgeTo(point.x, point.y);
-      await pressAtPointer();
-      await expect(selected()).toHaveAttribute('aria-label', picked);
+      await oct.openEnFaceControls();
+      await oct.setSegmentShown('Segment 1', shown);
+      await page.keyboard.press('Escape');
+      await expect(page.locator(MENU_PANEL)).toBeHidden();
+      await segmentation.selectSegment('Segment 2');
+      await annotation.nudgeTo(point.x, point.y);
+      await annotation.pressAtPointer();
+      await expect(selected).toHaveAttribute('aria-label', picked);
     };
     await sampleWith(false, 'Segment 2');
     await sampleWith(true, 'Segment 1');
-    await toolButton('Select').click();
+    await oct.toolButton('Select').click();
 
-    const saved = await volViewPage.saveSession();
-    await waitForDownload(path.join(TEMP_DIR, saved), SESSION_SAVE_TIMEOUT);
-    await volViewPage.open('?urls=[tmp/' + saved + ']');
-    await waitForEnFaceReady();
-    await openAnnotationSegments();
-    await waitForSegmentContent('Segment 1');
-    await expectPaintedProjection(true);
-    await revealSegment('Segment 1');
-    await expectPaintedSource(true);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    const saved = await volview.saveSession();
+    await volview.open('?urls=[tmp/' + saved + ']');
+    await oct.waitForEnFaceReady();
+    await segmentation.openAnnotationSegments();
+    await segmentation.waitForSegmentContent('Segment 1');
+    await expectPaintedProjection(oct, true);
+    await segmentation.revealSegment('Segment 1');
+    await expectPaintedSource(page, true);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('shows the segment minted by a stroke begun beside the image', async () => {
-    await scene();
-    await toolButton('Paint').click();
+  test('shows the segment minted by a stroke begun beside the image', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    annotation,
+    segmentation,
+    referenceLines,
+  }) => {
+    await scene({
+      page,
+      volview,
+      utils,
+      oct,
+      annotation,
+      segmentation,
+      referenceLines,
+    });
+    await oct.toolButton('Paint').click();
     // The image starts with no segment, so the stroke mints its own.
     // The smallest brush keeps the press clear of the image edge.
-    const size = $('[role="slider"][aria-label="Brush size"]');
-    await size.waitForDisplayed();
-    await browser.execute(
-      (element) => (element as HTMLElement).focus(),
-      await size
-    );
-    await browser.keys('Home');
+    const size = page.locator('[role="slider"][aria-label="Brush size"]');
+    await expect(size).toBeVisible();
+    await size.focus();
+    await page.keyboard.press('Home');
     await expect(size).toHaveAttribute('aria-valuenow', '1');
-    const outside = await enFaceScreenPoint(16.5, -3);
-    const inside = await enFaceScreenPoint(16.5, 12.5);
-    await nudgeTo(outside.x, outside.y);
-    await dragPointerTo(inside.x, inside.y);
-    await toolButton('Select').click();
-    await waitForSegmentContent('Segment 1');
-    await expectPaintedProjection(true);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    const outside = await oct.enFaceScreenPoint(16.5, -3);
+    const inside = await oct.enFaceScreenPoint(16.5, 12.5);
+    await annotation.nudgeTo(outside.x, outside.y);
+    await annotation.dragPointerTo(inside.x, inside.y);
+    await oct.toolButton('Select').click();
+    await segmentation.waitForSegmentContent('Segment 1');
+    await expectPaintedProjection(oct, true);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('keeps painting after the En face view switches images', async () => {
-    await scene(false, ['source.nrrd', 'second.nrrd']);
+  test('keeps painting after the En face view switches images', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    annotation,
+    segmentation,
+    referenceLines,
+  }) => {
+    await scene(
+      { page, volview, utils, oct, annotation, segmentation, referenceLines },
+      false,
+      ['source.nrrd', 'second.nrrd']
+    );
     // Either image may load first.
-    await clickImageCard('source.nrrd');
-    await waitForEnFaceReady();
-    await toolButton('Paint').click();
-    const point = await enFaceScreenPoint(16.5, 12.5);
-    await nudgeTo(point.x, point.y);
-    await pressAtPointer();
-    await expectPaintedProjection(true);
-    await clickImageCard('second.nrrd');
-    await waitForEnFaceReady();
-    await expectPaintedProjection(false);
-    await nudgeTo(point.x, point.y);
-    await pressAtPointer();
-    await expectPaintedProjection(true);
+    await segmentation.clickImageCard('source.nrrd');
+    await oct.waitForEnFaceReady();
+    await oct.toolButton('Paint').click();
+    const point = await oct.enFaceScreenPoint(16.5, 12.5);
+    await annotation.nudgeTo(point.x, point.y);
+    await annotation.pressAtPointer();
+    await expectPaintedProjection(oct, true);
+    await segmentation.clickImageCard('second.nrrd');
+    await oct.waitForEnFaceReady();
+    await expectPaintedProjection(oct, false);
+    await annotation.nudgeTo(point.x, point.y);
+    await annotation.pressAtPointer();
+    await expectPaintedProjection(oct, true);
   });
 
-  it('cancels unfinished placement when changing the projection axis at the same midpoint', async () => {
-    await scene(true);
-    await setEnFaceSlab(14, 18);
-    await toolButton('Ruler').click();
-    await clickPoint(8.5, 5.5);
-    await chooseEnFaceProjection('enface-projection-axis', 'Coronal');
-    await clickPoint(8.5, 5.5);
-    await toolButton('Select').click();
-    await expectMarks([0, 0, 0]);
-    await expect($$(SHAPE_ROW)).toBeElementsArrayOfSize(0);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+  test('cancels unfinished placement when changing the projection axis at the same midpoint', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    annotation,
+    segmentation,
+    referenceLines,
+  }) => {
+    const kit = {
+      page,
+      volview,
+      utils,
+      oct,
+      annotation,
+      segmentation,
+      referenceLines,
+    };
+    await scene(kit, true);
+    await oct.setEnFaceSlab(14, 18);
+    await oct.toolButton('Ruler').click();
+    await clickPoint(kit, 8.5, 5.5);
+    await oct.chooseEnFaceProjection('enface-projection-axis', 'Coronal');
+    await clickPoint(kit, 8.5, 5.5);
+    await oct.toolButton('Select').click();
+    await expectMarks(page, [0, 0, 0]);
+    await expect(page.locator(SHAPE_ROW)).toHaveCount(0);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 });

@@ -1,5 +1,11 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { waitForModuleTransitions } from './utils';
+import { expect, type Page } from '@playwright/test';
+import {
+  containsText,
+  createVolViewPage,
+  waitForTransitions,
+} from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import { createUtils } from './utils';
 
 export const layeredImageManifest = (base: string, overlay: string) => ({
   version: '7.0.0',
@@ -17,39 +23,50 @@ export const layeredImageManifest = (base: string, overlay: string) => ({
   parentToLayers: [{ selectionKey: 'base', sourceSelectionKeys: ['overlay'] }],
 });
 
-export async function openLayerDisplayControls() {
-  await volViewPage.renderingModuleTab.click();
-  const volume = $('[data-testid="volume-rendering-toggle"]');
-  if (
-    (await volume.isExisting()) &&
-    (await volume.getAttribute('aria-expanded')) === 'true'
-  )
-    await volume.click();
-  await waitForModuleTransitions();
-  await $('[data-testid="layer-colormap"]').waitForDisplayed();
-  await browser.waitUntil(
-    async () => (await $$('.Vue-Toastification__toast').length) === 0
-  );
-}
+export const createLayerDisplayUtils = (page: Page, scratch: Scratch) => {
+  const volview = createVolViewPage(page, scratch);
+  const utils = createUtils(page, scratch);
 
-export async function selectBasePalette(title: string) {
-  const palette = $('[data-testid="base-image-colormap"]');
-  await palette.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await palette.waitForDisplayed();
-  await palette.waitForStable();
-  await palette.waitForClickable();
-  await palette.click();
-  const menu = $('.v-menu.v-overlay--active .v-overlay__content');
-  await menu.waitForDisplayed();
-  await menu.waitForStable();
-  const option = $(`[role="option"]*=${title}`);
-  await option.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-  await option.waitForDisplayed();
-  await option.waitForStable();
-  await option.waitForClickable();
-  await option.click();
-  await $('.v-menu.v-overlay--active [role="option"]').waitForDisplayed({
-    reverse: true,
-  });
-  await expect(palette).toHaveText(expect.stringContaining(title));
-}
+  const openLayerDisplayControls = async () => {
+    await volview.renderingModuleTab.click();
+    const volume = page.locator('[data-testid="volume-rendering-toggle"]');
+    if (
+      (await volume.count()) > 0 &&
+      (await volume.getAttribute('aria-expanded')) === 'true'
+    )
+      await volume.click();
+    await utils.waitForModuleTransitions();
+    await expect(page.locator('[data-testid="layer-colormap"]')).toBeVisible();
+    await expect(page.locator('.Vue-Toastification__toast')).toHaveCount(0);
+  };
+
+  const selectBasePalette = async (title: string) => {
+    const palette = page.locator('[data-testid="base-image-colormap"]');
+    await palette.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', behavior: 'instant' })
+    );
+    await expect(palette).toBeVisible();
+    await waitForTransitions(palette);
+    await palette.click();
+    const menu = page.locator('.v-menu.v-overlay--active .v-overlay__content');
+    await expect(menu).toBeVisible();
+    await waitForTransitions(menu);
+    const option = page
+      .locator('[role="option"]', { hasText: containsText(title) })
+      .first();
+    await option.evaluate((element) =>
+      element.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+    );
+    await expect(option).toBeVisible();
+    await waitForTransitions(option);
+    // The menu loses its active class on close, so follow the option out.
+    const item = await option.elementHandle();
+    await option.click();
+    await item?.waitForElementState('hidden');
+    await expect(palette).toContainText(title);
+  };
+
+  return { openLayerDisplayControls, selectBasePalette };
+};
+
+export type LayerDisplayUtils = ReturnType<typeof createLayerDisplayUtils>;

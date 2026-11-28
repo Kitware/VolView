@@ -1,14 +1,31 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { setValueVueInput } from '../pageobjects/volview.page';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../fixtures';
+import {
+  containsText,
+  setValueVueInput,
+  waitForTransitions,
+} from '../pageobjects/volview.page';
 import {
   layeredImageManifest,
-  openLayerDisplayControls,
+  type LayerDisplayUtils,
 } from './layerDisplayTestUtils';
-import { makeTempDir, openVolViewPage, writeManifestToFile } from './utils';
+import type { Utils } from './utils';
 
-async function openRanges(overlayRange: [number, number]) {
-  const directory = makeTempDir('number-steppers');
+async function openRanges(
+  {
+    page,
+    utils,
+    layerDisplay,
+  }: {
+    page: Page;
+    utils: Utils;
+    layerDisplay: LayerDisplayUtils;
+  },
+  overlayRange: [number, number]
+) {
+  const directory = utils.makeTempDir('number-steppers');
   const files = [[-1000, 500], overlayRange].map((range, image) => {
     const name = `steppers-${image}.nrrd`;
     const header = [
@@ -27,7 +44,7 @@ async function openRanges(overlayRange: [number, number]) {
     writeFileSync(join(directory, name), `${header}\n\n${values}`);
     return `number-steppers/${name}`;
   });
-  await writeManifestToFile(
+  await utils.writeManifestToFile(
     {
       ...layeredImageManifest(files[0], files[1]),
       layerDisplay: {
@@ -41,148 +58,202 @@ async function openRanges(overlayRange: [number, number]) {
     },
     'number-steppers.json'
   );
-  await openVolViewPage('number-steppers.json');
-  await $('.image-list-card*=steppers-0.nrrd')
-    .$('[data-testid="dataset-menu-button"]')
+  await utils.openVolViewPage('number-steppers.json');
+  await page
+    .locator('.image-list-card', { hasText: containsText('steppers-0.nrrd') })
+    .locator('[data-testid="dataset-menu-button"]')
     .click();
-  const show = $('.v-list-item*=Show in all views');
-  await show.waitForClickable();
+  const show = page.locator('.v-list-item', {
+    hasText: containsText('Show in all views'),
+  });
   await show.click();
-  await browser.keys('Escape');
-  await openLayerDisplayControls();
+  await page.keyboard.press('Escape');
+  await layerDisplay.openLayerDisplayControls();
 }
 
-const control = (id: string) => $(`[data-testid="${id}"]`);
-const input = (prefix: string, endpoint: string) =>
-  control(`${prefix}-${endpoint}`).$('input');
+const control = (page: Page, id: string) =>
+  page.locator(`[data-testid="${id}"]`);
+const input = (page: Page, prefix: string, endpoint: string) =>
+  control(page, `${prefix}-${endpoint}`).locator('input');
+const opacityOf = async (page: Page, id: string) =>
+  Number(
+    await control(page, id)
+      .locator('..')
+      .evaluate((element) => getComputedStyle(element).opacity)
+  );
 
 async function expectEndpoint(
-  prefix: string,
-  endpoint: string,
+  page: Page,
+  [prefix, endpoint]: [string, string],
   expected: number,
   tolerance: number
 ) {
-  await browser.waitUntil(
-    async () =>
+  await expect
+    .poll(async () =>
       Math.abs(
-        Number(await input(prefix, endpoint).getAttribute('title')) - expected
-      ) < tolerance
-  );
+        Number(await input(page, prefix, endpoint).getAttribute('title')) -
+          expected
+      )
+    )
+    .toBeLessThan(tolerance);
 }
 
-async function reversibleStep(prefix: string, endpoint: string, step: number) {
-  const field = input(prefix, endpoint);
-  const other = input(prefix, endpoint === 'min' ? 'max' : 'min');
+async function reversibleStep(
+  { page, utils }: { page: Page; utils: Utils },
+  [prefix, endpoint]: [string, string],
+  step: number
+) {
+  const field = input(page, prefix, endpoint);
+  const other = input(page, prefix, endpoint === 'min' ? 'max' : 'min');
   const original = Number(await field.getAttribute('title'));
   const unchanged = await other.getAttribute('title');
-  await field.scrollIntoView({ block: 'center', behavior: 'instant' });
-  await control(`${prefix}-${endpoint}`).moveTo();
-  const increase = control(`${prefix}-${endpoint}-increase`);
-  const decrease = control(`${prefix}-${endpoint}-decrease`);
-  expect(
-    Number((await increase.parentElement().getCSSProperty('opacity')).value)
-  ).toBe(1);
+  await field.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', behavior: 'instant' })
+  );
+  await utils.moveToElement(control(page, `${prefix}-${endpoint}`));
+  const increase = control(page, `${prefix}-${endpoint}-increase`);
+  const decrease = control(page, `${prefix}-${endpoint}-decrease`);
+  expect(await opacityOf(page, `${prefix}-${endpoint}-increase`)).toBe(1);
   await increase.click();
-  await expectEndpoint(prefix, endpoint, original + step, step / 10000);
+  await expectEndpoint(page, [prefix, endpoint], original + step, step / 10000);
   await decrease.click();
-  await expectEndpoint(prefix, endpoint, original, step / 10000);
+  await expectEndpoint(page, [prefix, endpoint], original, step / 10000);
   await field.click();
-  await $('header').moveTo();
-  expect(
-    Number((await increase.parentElement().getCSSProperty('opacity')).value)
-  ).toBe(1);
-  await browser.keys('ArrowUp');
-  await expectEndpoint(prefix, endpoint, original + step, step / 10000);
-  await browser.keys('ArrowDown');
-  await expectEndpoint(prefix, endpoint, original, step / 10000);
+  await utils.moveToElement(page.locator('header'));
+  expect(await opacityOf(page, `${prefix}-${endpoint}-increase`)).toBe(1);
+  await page.keyboard.press('ArrowUp');
+  await expectEndpoint(page, [prefix, endpoint], original + step, step / 10000);
+  await page.keyboard.press('ArrowDown');
+  await expectEndpoint(page, [prefix, endpoint], original, step / 10000);
   expect(await other.getAttribute('title')).toBe(unchanged);
 }
 
-describe('Display range number steppers', () => {
-  it('uses underlined manual window fields and reversible negative and fractional endpoint steps', async () => {
-    await openRanges([0, 1]);
-    await control('base-image-contrast').click();
-    const manual = $('.v-menu.v-overlay--active .manual-inputs');
-    await manual.waitForDisplayed();
-    await manual.waitForStable();
-    const fields = await manual.$$('.v-field');
-    expect(fields).toHaveLength(2);
-    for (const field of fields) {
-      await expect(field).toHaveElementClass('v-field--variant-underlined');
-      expect((await field.getCSSProperty('background-color')).value).toBe(
-        'rgba(0,0,0,0)'
-      );
+test.describe('Display range number steppers', () => {
+  test('uses underlined manual window fields and reversible negative and fractional endpoint steps', async ({
+    page,
+    utils,
+    layerDisplay,
+  }) => {
+    await openRanges({ page, utils, layerDisplay }, [0, 1]);
+    await control(page, 'base-image-contrast').click();
+    const manual = page.locator('.v-menu.v-overlay--active .manual-inputs');
+    await expect(manual).toBeVisible();
+    await waitForTransitions(manual);
+    const fields = manual.locator('.v-field');
+    await expect(fields).toHaveCount(2);
+    for (const field of await fields.all()) {
+      await expect(field).toHaveClass(/\bv-field--variant-underlined\b/);
+      expect(
+        await field.evaluate(
+          (element) => getComputedStyle(element).backgroundColor
+        )
+      ).toBe('rgba(0, 0, 0, 0)');
     }
-    const values = await manual.$$('input');
-    await setValueVueInput(values[0], '600');
-    await setValueVueInput(values[1], '-200');
-    await browser.keys('Enter');
-    await browser.keys('Escape');
-    await expectEndpoint('base-image-range', 'min', -500, 1e-10);
-    await expectEndpoint('base-image-range', 'max', 100, 1e-10);
-    await reversibleStep('base-image-range', 'min', 1);
-    await reversibleStep('layer-range', 'max', 0.01);
+    const values = manual.locator('input');
+    await setValueVueInput(values.nth(0), '600');
+    await setValueVueInput(values.nth(1), '-200');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+    await expectEndpoint(page, ['base-image-range', 'min'], -500, 1e-10);
+    await expectEndpoint(page, ['base-image-range', 'max'], 100, 1e-10);
+    await reversibleStep({ page, utils }, ['base-image-range', 'min'], 1);
+    await reversibleStep({ page, utils }, ['layer-range', 'max'], 0.01);
   });
 
-  it('steps tiny floating image ranges without rounding their values or applying incomplete drafts', async () => {
-    await openRanges([1e-9, 9e-9]);
-    await reversibleStep('layer-range', 'min', 1e-11);
-    await reversibleStep('layer-range', 'max', 1e-11);
-    const minimum = input('layer-range', 'min');
+  test('steps tiny floating image ranges without rounding their values or applying incomplete drafts', async ({
+    page,
+    utils,
+    layerDisplay,
+  }) => {
+    await openRanges({ page, utils, layerDisplay }, [1e-9, 9e-9]);
+    await reversibleStep({ page, utils }, ['layer-range', 'min'], 1e-11);
+    await reversibleStep({ page, utils }, ['layer-range', 'max'], 1e-11);
+    const minimum = input(page, 'layer-range', 'min');
     const applied = await minimum.getAttribute('title');
-    const maximum = await input('layer-range', 'max').getAttribute('title');
+    const maximum = await input(page, 'layer-range', 'max').getAttribute(
+      'title'
+    );
     await setValueVueInput(minimum, '1e-');
-    await expect(control('layer-range-status')).toHaveText(
+    await expect(control(page, 'layer-range-status')).toHaveText(
       'Min and Max must be finite numbers.'
     );
-    await expect(control('layer-range-min-increase')).toBeDisabled();
-    await expect(control('layer-range-min-decrease')).toBeDisabled();
-    await browser.keys(['ArrowUp', 'ArrowDown']);
+    await expect(control(page, 'layer-range-min-increase')).toBeDisabled();
+    await expect(control(page, 'layer-range-min-decrease')).toBeDisabled();
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowDown');
     await expect(minimum).toHaveValue('1e-');
     expect(await minimum.getAttribute('title')).toBe(applied);
-    expect(await input('layer-range', 'max').getAttribute('title')).toBe(
+    expect(await input(page, 'layer-range', 'max').getAttribute('title')).toBe(
       maximum
     );
   });
 
-  it('steps large off-image endpoints with buttons and keyboard for base and overlay ranges', async () => {
-    await openRanges([0, 1]);
+  test('steps large off-image endpoints with buttons and keyboard for base and overlay ranges', async ({
+    page,
+    utils,
+    layerDisplay,
+  }) => {
+    await openRanges({ page, utils, layerDisplay }, [0, 1]);
     const minimum = 1e16;
     const maximum = minimum + 100;
     for (const prefix of ['base-image-range', 'layer-range']) {
       for (const endpoint of ['min', 'max']) {
-        await setValueVueInput(input(prefix, 'max'), String(maximum));
-        await setValueVueInput(input(prefix, 'min'), String(minimum));
-        await $('header').click();
-        await reversibleStep(prefix, endpoint, 4);
+        await setValueVueInput(input(page, prefix, 'max'), String(maximum));
+        await setValueVueInput(input(page, prefix, 'min'), String(minimum));
+        await page.locator('header').click();
+        await reversibleStep({ page, utils }, [prefix, endpoint], 4);
       }
     }
   });
 
-  it('shows tiny Contrast values and preserves full precision when editing the other manual field', async () => {
-    await openRanges([0, 1]);
-    await setValueVueInput(input('base-image-range', 'min'), '0');
-    await setValueVueInput(input('base-image-range', 'max'), '0.0001');
-    await control('base-image-contrast').click();
-    const manual = $('.v-menu.v-overlay--active .manual-inputs');
-    await manual.waitForDisplayed();
-    const fields = await manual.$$('input');
-    await expect(fields[0]).toHaveValue('0.0001');
-    await expect(fields[1]).toHaveValue('0.00005');
-    await setValueVueInput(fields[0], '1.23456789e-8');
-    await setValueVueInput(fields[1], '2.34567891e-8');
-    await browser.keys('Escape');
-    await expectEndpoint('base-image-range', 'min', 1.728394965e-8, 1e-22);
-    await expectEndpoint('base-image-range', 'max', 2.962962855e-8, 1e-22);
-    await control('base-image-contrast').click();
-    await expect(fields[0]).toHaveValue('1.235e-8');
-    await expect(fields[1]).toHaveValue('2.346e-8');
-    await fields[0].click();
-    await expect(fields[0]).toHaveValue('1.23456789e-8');
-    await fields[1].click();
-    await expect(fields[1]).toHaveValue('2.34567891e-8');
-    await browser.keys('Escape');
-    await expectEndpoint('base-image-range', 'min', 1.728394965e-8, 1e-22);
-    await expectEndpoint('base-image-range', 'max', 2.962962855e-8, 1e-22);
+  test('shows tiny Contrast values and preserves full precision when editing the other manual field', async ({
+    page,
+    utils,
+    layerDisplay,
+  }) => {
+    await openRanges({ page, utils, layerDisplay }, [0, 1]);
+    await setValueVueInput(input(page, 'base-image-range', 'min'), '0');
+    await setValueVueInput(input(page, 'base-image-range', 'max'), '0.0001');
+    await control(page, 'base-image-contrast').click();
+    const manual = page.locator('.v-menu.v-overlay--active .manual-inputs');
+    await expect(manual).toBeVisible();
+    const fields = manual.locator('input');
+    await expect(fields.nth(0)).toHaveValue('0.0001');
+    await expect(fields.nth(1)).toHaveValue('0.00005');
+    await setValueVueInput(fields.nth(0), '1.23456789e-8');
+    await setValueVueInput(fields.nth(1), '2.34567891e-8');
+    await page.keyboard.press('Escape');
+    await expectEndpoint(
+      page,
+      ['base-image-range', 'min'],
+      1.728394965e-8,
+      1e-22
+    );
+    await expectEndpoint(
+      page,
+      ['base-image-range', 'max'],
+      2.962962855e-8,
+      1e-22
+    );
+    await control(page, 'base-image-contrast').click();
+    await expect(fields.nth(0)).toHaveValue('1.235e-8');
+    await expect(fields.nth(1)).toHaveValue('2.346e-8');
+    await fields.nth(0).click();
+    await expect(fields.nth(0)).toHaveValue('1.23456789e-8');
+    await fields.nth(1).click();
+    await expect(fields.nth(1)).toHaveValue('2.34567891e-8');
+    await page.keyboard.press('Escape');
+    await expectEndpoint(
+      page,
+      ['base-image-range', 'min'],
+      1.728394965e-8,
+      1e-22
+    );
+    await expectEndpoint(
+      page,
+      ['base-image-range', 'max'],
+      2.962962855e-8,
+      1e-22
+    );
   });
 });

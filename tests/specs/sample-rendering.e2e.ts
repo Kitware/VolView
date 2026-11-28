@@ -1,33 +1,29 @@
-import AppPage from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
 import { PROSTATEX_DATASET } from '../datasets';
-import { useCachedSample } from './utils';
 
-const THRESHOLD = 12; // percent - handle pixel jitter in 3D view
-const RENDER_STABLE_TIMEOUT = 5000;
+// Measured: the 3D view alone differs in 0.8% of pixels between runs, and one
+// axial slice step changes 2.2%.
+const THRESHOLD = 0.015;
 
-describe('VolView', () => {
-  it('should load and render a sample dataset', async () => {
-    await useCachedSample(PROSTATEX_DATASET);
+test.describe('VolView', () => {
+  test('should load and render a sample dataset', async ({
+    page,
+    volview,
+    utils,
+  }) => {
+    await utils.useCachedSample(PROSTATEX_DATASET);
 
-    await AppPage.open();
-    await AppPage.downloadProstateSample();
-    await AppPage.waitForViews();
+    await volview.open();
+    await volview.downloadProstateSample();
+    await volview.waitForViews();
 
-    const layoutContainer = await $('.layout-container');
+    const layoutContainer = page.locator('.layout-container').first();
 
-    await browser.waitUntil(
-      async () => {
-        const result = await browser.checkElement(
-          layoutContainer,
-          'prostate_sample_views'
-        );
-        return (result as number) < THRESHOLD;
-      },
-      {
-        timeout: RENDER_STABLE_TIMEOUT,
-        interval: 500,
-        timeoutMsg: `Visual comparison exceeded ${THRESHOLD}% threshold after ${RENDER_STABLE_TIMEOUT}ms`,
-      }
-    );
+    await expect(
+      layoutContainer,
+      `Visual comparison exceeded ${THRESHOLD * 100}% threshold`
+    ).toHaveScreenshot('prostate_sample_views.png', {
+      maxDiffPixelRatio: THRESHOLD,
+    });
   });
 });

@@ -1,24 +1,26 @@
+import { test, expect } from '../fixtures';
 import { startVolumeTextureFixture } from '../fixtures/volume-texture/server.mjs';
 
-describe('Volume texture updates', () => {
+test.describe('Volume texture updates', () => {
   let fixture: Awaited<ReturnType<typeof startVolumeTextureFixture>>;
 
-  before(async () => {
+  test.beforeAll(async () => {
     fixture = await startVolumeTextureFixture();
   });
 
-  after(async () => {
+  test.afterAll(async () => {
     await fixture?.close();
   });
 
-  it('renders the complete first volume with queued updates and preserves later partial updates', async () => {
-    await browser.url(fixture.url);
-    const status = $('#render-status');
-    await browser.waitUntil(
-      async () => (await status.getText()) !== 'Preparing'
-    );
-    expect(await status.getText()).toBe('Rendered');
-    const initial = JSON.parse(await $('#render-pixels').getText());
+  test('renders the complete first volume with queued updates and preserves later partial updates', async ({
+    page,
+  }) => {
+    await page.goto(fixture.url);
+    const status = page.locator('#render-status');
+    await expect.poll(() => status.innerText()).not.toBe('Preparing');
+    expect(await status.innerText()).toBe('Rendered');
+    const pixels = page.locator('#render-pixels');
+    const initial = JSON.parse(await pixels.innerText());
     for (const pixel of [initial.center, initial.edge]) {
       expect(pixel[0]).toBeGreaterThan(240);
       expect(pixel[1]).toBeLessThan(5);
@@ -27,9 +29,9 @@ describe('Volume texture updates', () => {
     }
     expect(initial.outside).toEqual([0, 0, 0, 255]);
 
-    await $('#update-volume').click();
-    expect(await status.getText()).toBe('Rendered');
-    const updated = JSON.parse(await $('#render-pixels').getText());
+    await page.locator('#update-volume').click();
+    expect(await status.innerText()).toBe('Rendered');
+    const updated = JSON.parse(await pixels.innerText());
     expect(updated.center[0]).toBeLessThan(5);
     expect(updated.center[1]).toBeLessThan(5);
     expect(updated.center[2]).toBeGreaterThan(240);

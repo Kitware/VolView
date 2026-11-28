@@ -1,97 +1,117 @@
-import { type ChainablePromiseElement } from 'webdriverio';
-import AppPage from '../pageobjects/volview.page';
+import { expect, type Locator, type Page } from '@playwright/test';
+import { createVolViewPage } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
 import { MINIMAL_DICOM } from '../datasets';
-import { openUrls, openVolViewPage } from './utils';
+import { createUtils } from './utils';
 
-const pointerAt = (x: number, y: number) =>
-  browser.action('pointer').move({ x: Math.round(x), y: Math.round(y) });
-
-export const moveTo = (x: number, y: number) => pointerAt(x, y).perform();
-
-export const clickAt = (x: number, y: number) =>
-  pointerAt(x, y).down().up().perform();
-
-export const rightClickAt = (x: number, y: number) =>
-  pointerAt(x, y).down({ button: 2 }).up({ button: 2 }).perform();
-
-// One input source held across action chains, so a press can land exactly where
-// an earlier chain left the pointer. Chains that keep it perform without
-// releasing actions, as releasing resets the pointer to the viewport origin.
-const HOVERING_MOUSE = 'hovering-mouse';
-const hoveringMouse = () => browser.action('pointer', { id: HOVERING_MOUSE });
-
-// A zero-duration move avoids interpolating intermediate pointer positions.
-const INSTANT = 0;
+// Each page.mouse.move emits exactly one pointermove, as the WebdriverIO
+// actions this replaces did, so coordinates and move counts carry over 1:1.
 const NUDGE_PX = 2;
 
-// Approach the target through two nearby positions while retaining the pointer
-// for a subsequent press at the same coordinates.
-export const nudgeTo = (x: number, y: number) =>
-  hoveringMouse()
-    .move({
-      duration: INSTANT,
-      x: Math.round(x) + NUDGE_PX,
-      y: Math.round(y) + NUDGE_PX,
-    })
-    .move({ duration: INSTANT, x: Math.round(x), y: Math.round(y) })
-    .perform(true);
+export const createAnnotationUtils = (page: Page, scratch: Scratch) => {
+  const volview = createVolViewPage(page, scratch);
+  const utils = createUtils(page, scratch);
+  const { mouse } = page;
 
-export const pressAtPointer = () => hoveringMouse().down().up().perform(true);
+  const moveTo = (x: number, y: number) =>
+    mouse.move(Math.round(x), Math.round(y));
 
-export const dragPointerTo = (x: number, y: number) =>
-  hoveringMouse()
-    .down()
-    .move({ duration: INSTANT, x: Math.round(x), y: Math.round(y) })
-    .up()
-    .perform(true);
+  const clickAt = (x: number, y: number) =>
+    mouse.click(Math.round(x), Math.round(y));
 
-export const rightPressAtPointer = () =>
-  hoveringMouse().down({ button: 2 }).up({ button: 2 }).perform(true);
+  const rightClickAt = (x: number, y: number) =>
+    mouse.click(Math.round(x), Math.round(y), { button: 'right' });
 
-/**
- * Loads the minimal DICOM or a generated fixture and returns the axial view
- * with the center of its canvas in page coordinates.
- */
-export const setupTest = async (fileName?: string) => {
-  if (fileName) await openVolViewPage(fileName);
-  else await openUrls([MINIMAL_DICOM]);
+  // Approach the target through a nearby position, leaving the pointer there
+  // for a later press at the same coordinates.
+  const nudgeTo = async (x: number, y: number) => {
+    await mouse.move(Math.round(x) + NUDGE_PX, Math.round(y) + NUDGE_PX);
+    await mouse.move(Math.round(x), Math.round(y));
+  };
 
-  const views2D = await AppPage.getViews2D();
-  const axialView = views2D[0];
-  const canvas = await axialView.$('canvas');
-  const [location, size] = await Promise.all([
-    canvas.getLocation(),
-    canvas.getSize(),
-  ]);
+  const pressAtPointer = async () => {
+    await mouse.down();
+    await mouse.up();
+  };
+
+  const dragPointerTo = async (x: number, y: number) => {
+    await mouse.down();
+    await mouse.move(Math.round(x), Math.round(y));
+    await mouse.up();
+  };
+
+  const rightPressAtPointer = async () => {
+    await mouse.down({ button: 'right' });
+    await mouse.up({ button: 'right' });
+  };
+
+  /**
+   * Loads the minimal DICOM or a generated fixture and returns the axial view
+   * with the center of its canvas in page coordinates.
+   */
+  const setupTest = async (fileName?: string) => {
+    if (fileName) await utils.openVolViewPage(fileName);
+    else await utils.openUrls([MINIMAL_DICOM]);
+
+    const axialView = volview.views2D.first();
+    const box = await axialView.locator('canvas').boundingBox();
+    if (!box) throw new Error('The axial view has no canvas on screen');
+    return {
+      axialView,
+      centerX: box.x + box.width / 2,
+      centerY: box.y + box.height / 2,
+    };
+  };
+
+  /** Drags from the view's canvas center through offsets from that center. */
+  const dragFromViewCenter = async (
+    view: Locator,
+    offsets: ReadonlyArray<readonly [number, number]>
+  ) => {
+    const box = await view.locator('canvas').boundingBox();
+    if (!box) throw new Error('The view has no canvas on screen');
+    const centerX = box.x + box.width / 2;
+    const centerY = box.y + box.height / 2;
+    await moveTo(centerX, centerY);
+    await mouse.down();
+    for (const [dx, dy] of offsets) await moveTo(centerX + dx, centerY + dy);
+    await mouse.up();
+    return { centerX, centerY };
+  };
+
+  const drawSquare = async (cx: number, cy: number, half: number) => {
+    await clickAt(cx - half, cy - half);
+    await clickAt(cx + half, cy - half);
+    await clickAt(cx + half, cy + half);
+    await clickAt(cx - half, cy + half);
+    await clickAt(cx - half, cy - half); // close
+  };
+
+  // Handles of placed annotations
+  const getCircleCount = (axialView: Locator) =>
+    axialView.locator('svg circle').count();
+
+  const waitForCircleCount = (
+    axialView: Locator,
+    expected: number,
+    timeoutMsg: string
+  ) =>
+    expect(axialView.locator('svg circle'), timeoutMsg).toHaveCount(expected);
 
   return {
-    axialView,
-    centerX: location.x + size.width / 2,
-    centerY: location.y + size.height / 2,
+    moveTo,
+    clickAt,
+    rightClickAt,
+    nudgeTo,
+    pressAtPointer,
+    dragPointerTo,
+    rightPressAtPointer,
+    setupTest,
+    dragFromViewCenter,
+    drawSquare,
+    getCircleCount,
+    waitForCircleCount,
   };
 };
 
-export const drawSquare = async (cx: number, cy: number, half: number) => {
-  await clickAt(cx - half, cy - half);
-  await clickAt(cx + half, cy - half);
-  await clickAt(cx + half, cy + half);
-  await clickAt(cx - half, cy + half);
-  await clickAt(cx - half, cy - half); // close
-};
-
-// Handles of placed annotations
-export const getCircleCount = async (axialView: ChainablePromiseElement) => {
-  const circles = await axialView.$$('svg circle');
-  return circles.length;
-};
-
-export const waitForCircleCount = async (
-  axialView: ChainablePromiseElement,
-  expected: number,
-  timeoutMsg: string
-) => {
-  await browser.waitUntil(
-    async () => (await getCircleCount(axialView)) === expected,
-    { timeout: 5000, timeoutMsg }
-  );
-};
+export type AnnotationUtils = ReturnType<typeof createAnnotationUtils>;

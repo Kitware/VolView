@@ -1,22 +1,15 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { cleanuptotal } from 'wdio-cleanuptotal-service';
-
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
+import { test, expect } from '../fixtures';
+import type { Scratch } from '../scratch';
 import { buildSyntheticCineDicom, newUid } from './syntheticDicom';
-import { waitForFirstCachedImageSpacing } from './imageCacheUtils';
-import { writeManifestToFile } from './utils';
 
 const ROW_SPACING = 1.8;
 const COLUMN_SPACING = 0.45;
 
-function writeCineDicom() {
+function writeCineDicom(scratch: Scratch) {
   const fileName = `cine-pixel-spacing-${Date.now()}.dcm`;
-  const filePath = path.join(TEMP_DIR, fileName);
 
-  fs.writeFileSync(
-    filePath,
+  scratch.writeFile(
+    fileName,
     buildSyntheticCineDicom({
       studyUid: newUid(),
       seriesUid: newUid(),
@@ -28,27 +21,22 @@ function writeCineDicom() {
     })
   );
 
-  cleanuptotal.addCleanup(async () => {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  });
-
   return fileName;
 }
 
-describe('Cine DICOM PixelSpacing', () => {
-  it('falls back to PixelSpacing when ultrasound regions are unusable', async () => {
-    const fileName = writeCineDicom();
-    const manifestName = `cine-pixel-spacing-${Date.now()}.json`;
-    await writeManifestToFile(
-      {
-        resources: [{ url: `/tmp/${fileName}`, name: fileName }],
-      },
-      manifestName
+test.describe('Cine DICOM PixelSpacing', () => {
+  test('falls back to PixelSpacing when ultrasound regions are unusable', async ({
+    utils,
+    imageCache,
+    scratch,
+  }) => {
+    const fileName = writeCineDicom(scratch);
+    await utils.openFileThroughManifest(
+      fileName,
+      `cine-pixel-spacing-${Date.now()}.json`
     );
 
-    await volViewPage.open(`?urls=[tmp/${manifestName}]`);
-
-    expect(await waitForFirstCachedImageSpacing()).toEqual([
+    expect(await imageCache.waitForFirstCachedImageSpacing()).toEqual([
       COLUMN_SPACING,
       ROW_SPACING,
       1,

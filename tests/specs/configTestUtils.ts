@@ -1,5 +1,7 @@
-import { volViewPage } from '../pageobjects/volview.page';
-import { writeManifestToFile } from './utils';
+import type { Page } from '@playwright/test';
+import { createVolViewPage } from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import { createUtils } from './utils';
 import {
   ONE_CT_SLICE_DICOM,
   PROSTATEX_DATASET,
@@ -45,14 +47,22 @@ export const PROSTATE_610_LABELMAP_MANIFEST = {
   ],
 } as const;
 
-export const openConfigAndDataset = async (
-  config: unknown,
-  name: string,
-  dataset: TestDataset = ONE_CT_SLICE_DICOM
-) => {
-  const configFileName = `${name}-config.json`;
-  await writeManifestToFile(config, configFileName);
+export const createConfigUtils = (page: Page, scratch: Scratch) => {
+  const volview = createVolViewPage(page, scratch);
+  const utils = createUtils(page, scratch);
 
-  await volViewPage.open(`?urls=[tmp/${dataset.name},tmp/${configFileName}]`);
-  await volViewPage.waitForViews();
+  const openConfigAndDataset = async (
+    config: unknown,
+    name: string,
+    dataset: TestDataset = ONE_CT_SLICE_DICOM
+  ) => {
+    const configFileName = `${name}-config.json`;
+    await utils.writeManifestToFile(config, configFileName);
+    await volview.open(`?urls=[tmp/${dataset.name},tmp/${configFileName}]`);
+    await volview.waitForViews();
+  };
+
+  return { openConfigAndDataset };
 };
+
+export type ConfigUtils = ReturnType<typeof createConfigUtils>;

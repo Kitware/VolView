@@ -1,100 +1,67 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Key } from 'webdriverio';
-import {
-  setSegmentShown,
-  waitForEnFaceReady,
-  expectEnFaceDisabledInSwitcher,
-  setSlabRange,
-  setEnFaceWindow,
-  slabThumb,
-  selectEnFace,
-  CANVAS,
-  CONTROLS,
-  PANEL,
-  WINDOW_TOOL,
-  openEnFaceProjection,
-  openEnFaceControls,
-  expandEnFaceSection,
-  selectSetting,
-  segmentThreshold,
-  segmentThresholdSlider,
-  setSegmentThreshold,
-} from './octTestUtils';
-import { TEMP_DIR } from '../../wdio.shared.conf';
-import { volViewPage } from '../pageobjects/volview.page';
-import {
-  makeTempDir,
-  openVolViewPage,
-  openThroughDialog,
-  waitForModuleTransitions,
-} from './utils';
-import { selectBasePalette } from './layerDisplayTestUtils';
-import { setSegmentVisible } from './segmentationTestUtils';
+import { test, expect, registerOctTestHooks } from '../fixtures';
+import { waitForTransitions } from '../pageobjects/volview.page';
+import { CANVAS, CONTROLS, PANEL, WINDOW_TOOL } from './octTestUtils';
 import { deflatedExplicitVR, nonOCTDicom } from '../fixtures/oct/volumes';
 import { createSyntheticOCT } from '../fixtures/oct/dicom';
 import { paddedSyntheticOCT } from '../fixtures/oct/padding';
-import {
-  reference,
-  STEM,
-  stageFixture,
-  expectProjectionPixel,
-  observeSlabProjectionChanges,
-  expectCalibratedEnFace,
-  openRetina,
-  registerOctTestHooks,
-} from './octInteractionTestUtils';
+import { reference, STEM } from './octInteractionTestUtils';
 
-describe('Retinal OCT en-face', () => {
+test.describe('Retinal OCT en-face', () => {
   registerOctTestHooks();
-  it('keeps both stacked views visible when double-clicking rendering controls and the view selector', async () => {
-    await browser.setViewport({
-      width: 1400,
-      height: 1000,
-      devicePixelRatio: 1,
-    });
-    await openRetina(true, true);
-    const source = (await volViewPage.getViews2D())[0];
+  test('keeps both stacked views visible when double-clicking rendering controls and the view selector', async ({
+    page,
+    volview,
+    oct,
+    octInteraction,
+  }) => {
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await octInteraction.openRetina(true, true);
+    const source = volview.views2D.first();
     const expectBothViews = async () => {
-      await expect(source.$('canvas')).toBeDisplayed();
-      await expect($(CANVAS)).toBeDisplayed();
+      await expect(source.locator('canvas')).toBeVisible();
+      await expect(page.locator(CANVAS).first()).toBeVisible();
     };
-    await $(CONTROLS).doubleClick();
+    await page.locator(CONTROLS).first().dblclick();
     await expectBothViews();
-    await openEnFaceControls();
-    await setSegmentShown('Synthetic retinal layer', true);
+    await oct.openEnFaceControls();
+    await oct.setSegmentShown('Synthetic retinal layer', true);
     // The new threshold row grows the menu, which then repositions; a click
     // aimed before it settles lands on the view below.
-    await segmentThreshold('Synthetic retinal layer').waitForStable();
-    await segmentThreshold('Synthetic retinal layer').doubleClick();
+    await waitForTransitions(oct.segmentThreshold('Synthetic retinal layer'));
+    await oct.segmentThreshold('Synthetic retinal layer').dblclick();
     await expectBothViews();
-    await segmentThresholdSlider('Synthetic retinal layer').doubleClick();
+    await oct.segmentThresholdSlider('Synthetic retinal layer').dblclick();
     await expectBothViews();
-    await expandEnFaceSection('projection');
-    await slabThumb('start').doubleClick();
+    await oct.expandEnFaceSection('projection');
+    await oct.slabThumb('start').dblclick();
     await expectBothViews();
-    await browser.keys('Escape');
-    await $(
-      '[data-testid="enface-viewer"] .view-type-select .v-field'
-    ).doubleClick();
-    await browser.keys('Escape');
+    await page.keyboard.press('Escape');
+    await page
+      .locator('[data-testid="enface-viewer"] .view-type-select .v-field')
+      .first()
+      .dblclick();
+    await page.keyboard.press('Escape');
     await expectBothViews();
   });
 
-  it('changes projection, slab, axis and windowing through compact controls', async () => {
-    await browser.setViewport({
-      width: 1280,
-      height: 400,
-      devicePixelRatio: 1,
-    });
-    await openRetina();
-    expect(await $(WINDOW_TOOL).isEnabled()).toBe(true);
-    const compactPanel = await $(PANEL).getSize();
-    expect(compactPanel.width).toBe(450);
-    expect(compactPanel.height).toBeGreaterThan(0);
-    expect(compactPanel.height).toBeLessThanOrEqual(320);
-    const contained = await $(PANEL).execute((panel) => {
-      const bounds = panel.getBoundingClientRect();
+  test('changes projection, slab, axis and windowing through compact controls', async ({
+    page,
+    volview,
+    oct,
+    octInteraction,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 400 });
+    await octInteraction.openRetina();
+    expect(await page.locator(WINDOW_TOOL).isEnabled()).toBe(true);
+    const panel = page.locator(PANEL);
+    const compactPanel = await panel.boundingBox();
+    expect(compactPanel?.width).toBe(450);
+    expect(compactPanel?.height).toBeGreaterThan(0);
+    expect(compactPanel?.height).toBeLessThanOrEqual(320);
+    const contained = await panel.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
       return (
         bounds.left >= 0 &&
         bounds.top >= 0 &&
@@ -105,235 +72,275 @@ describe('Retinal OCT en-face', () => {
     expect(contained).toBe(true);
     for (const section of ['projection', 'segments'])
       await expect(
-        $(PANEL).$('[data-testid="enface-' + section + '-toggle"]')
+        panel.locator('[data-testid="enface-' + section + '-toggle"]')
       ).toHaveAttribute('aria-expanded', 'true');
-    await setEnFaceWindow(1000, 500);
+    await oct.setEnFaceWindow(1000, 500);
     // The standard physical slab has mean 317, maximum 538 and sampled sum 140431.
-    await expectProjectionPixel(81);
-    await openEnFaceProjection();
-    await selectSetting('enface-projection-method', 'Maximum');
-    await waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(81);
+    await oct.openEnFaceProjection();
+    await oct.selectSetting('enface-projection-method', 'Maximum');
+    await oct.waitForEnFaceReady();
     await expect(
-      $('.v-overlay--active [data-testid="enface-projection-method"] input')
+      page.locator(
+        '.v-overlay--active [data-testid="enface-projection-method"] input'
+      )
     ).toHaveValue('Maximum');
-    await setEnFaceWindow(1000, 500);
-    await expectProjectionPixel(137);
-    await openEnFaceControls();
-    await selectSetting('enface-projection-method', 'Sum');
-    await waitForEnFaceReady();
+    await oct.setEnFaceWindow(1000, 500);
+    await octInteraction.expectProjectionPixel(137);
+    await oct.openEnFaceControls();
+    await oct.selectSetting('enface-projection-method', 'Sum');
+    await oct.waitForEnFaceReady();
     await expect(
-      $('.v-overlay--active [data-testid="enface-projection-method"] input')
+      page.locator(
+        '.v-overlay--active [data-testid="enface-projection-method"] input'
+      )
     ).toHaveValue('Sum');
-    await setEnFaceWindow(200000, 100000);
-    await expectProjectionPixel(179);
-    await openEnFaceControls();
-    await selectSetting('enface-projection-method', 'Mean');
-    await setEnFaceWindow(1000, 500);
-    await openEnFaceControls();
-    await setSlabRange(reference.slab.start, reference.slab.end);
-    await waitForEnFaceReady();
-    await expectProjectionPixel(76);
-    await browser.keys('Escape');
-    await openEnFaceProjection();
-    await selectSetting('enface-projection-axis', 'Sagittal');
-    await waitForEnFaceReady();
+    await oct.setEnFaceWindow(200000, 100000);
+    await octInteraction.expectProjectionPixel(179);
+    await oct.openEnFaceControls();
+    await oct.selectSetting('enface-projection-method', 'Mean');
+    await oct.setEnFaceWindow(1000, 500);
+    await oct.openEnFaceControls();
+    await oct.setSlabRange(reference.slab.start, reference.slab.end);
+    await oct.waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(76);
+    await page.keyboard.press('Escape');
+    await oct.openEnFaceProjection();
+    await oct.selectSetting('enface-projection-axis', 'Sagittal');
+    await oct.waitForEnFaceReady();
     await expect(
-      $('.v-overlay--active [data-testid="enface-projection-axis"] input')
+      page.locator(
+        '.v-overlay--active [data-testid="enface-projection-axis"] input'
+      )
     ).toHaveValue('Sagittal');
-    await expect(slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
-    await expect(slabThumb('end')).toHaveAttribute('aria-valuenow', '127');
-    await expandEnFaceSection('segments');
+    await expect(oct.slabThumb('start')).toHaveAttribute('aria-valuenow', '0');
+    await expect(oct.slabThumb('end')).toHaveAttribute('aria-valuenow', '127');
+    await oct.expandEnFaceSection('segments');
     await expect(
-      $(PANEL).$('[data-testid="enface-segments-reason"]')
-    ).toHaveText(expect.stringContaining('Load or create a segmentation mask'));
+      panel.locator('[data-testid="enface-segments-reason"]')
+    ).toContainText('Load or create a segmentation mask');
     await expect(
-      $(PANEL).$('[data-testid="enface-segment-row"]')
-    ).not.toExist();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+      panel.locator('[data-testid="enface-segment-row"]')
+    ).not.toBeAttached();
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('shows slab values only during interaction and applies a drag on release', async () => {
+  test('shows slab values only during interaction and applies a drag on release', async ({
+    page,
+    oct,
+    octInteraction,
+    segmentation,
+  }) => {
     const band = 'Synthetic retinal band';
-    await openRetina(true);
-    await waitForEnFaceReady();
-    const labels = $$(
+    await octInteraction.openRetina(true);
+    await oct.waitForEnFaceReady();
+    const labels = page.locator(
       '.v-overlay--active [data-testid="enface-slab-range"] .v-slider-thumb__label'
     );
-    expect(await labels.length).toBe(2);
-    for (const label of await labels) await expect(label).not.toBeDisplayed();
-    await browser.keys(Key.Escape);
-    await setSegmentVisible('Alternative synthetic band', false);
-    await setEnFaceWindow(1000, 500);
-    await openEnFaceControls();
-    const threshold = segmentThresholdSlider(band);
-    await setSegmentShown(band, true);
-    await expect(segmentThreshold(band)).toBeEnabled();
+    await expect(labels).toHaveCount(2);
+    for (const label of await labels.all()) await expect(label).toBeHidden();
+    await page.keyboard.press('Escape');
+    await segmentation.setSegmentVisible('Alternative synthetic band', false);
+    await oct.setEnFaceWindow(1000, 500);
+    await oct.openEnFaceControls();
+    const threshold = oct.segmentThresholdSlider(band);
+    await oct.setSegmentShown(band, true);
+    await expect(oct.segmentThreshold(band)).toBeEnabled();
     // A zero threshold draws no region, leaving the projection gray to sample.
-    await setSegmentThreshold(band, 0);
-    await expectProjectionPixel(81);
+    await oct.setSegmentThreshold(band, 0);
+    await octInteraction.expectProjectionPixel(81);
     const thresholdMaximum = await threshold.getAttribute('aria-valuemax');
     expect(Number(thresholdMaximum)).toBeGreaterThan(1);
-    const thresholdValue = await segmentThreshold(band).getValue();
-    const start = slabThumb('start');
-    const end = slabThumb('end');
-    await start.scrollIntoView({ block: 'center', inline: 'nearest' });
-    await start.waitForStable();
-    const startBounds = await start.getLocation();
-    const startSize = await start.getSize();
-    const endBounds = await end.getLocation();
-    const endSize = await end.getSize();
-    const startX = Math.round(startBounds.x + startSize.width / 2);
-    const endX = Math.round(endBounds.x + endSize.width / 2);
-    const y = Math.round(startBounds.y + startSize.height / 2);
-    const readProjectionChanges = await observeSlabProjectionChanges();
+    const thresholdValue = await oct.segmentThreshold(band).inputValue();
+    const start = oct.slabThumb('start');
+    const end = oct.slabThumb('end');
+    await start.evaluate((element) =>
+      element.scrollIntoView({ block: 'center', inline: 'nearest' })
+    );
+    await waitForTransitions(start);
+    const startBox = await start.boundingBox();
+    const endBox = await end.boundingBox();
+    if (!startBox || !endBox) throw new Error('The slab thumbs are off screen');
+    const startX = Math.round(startBox.x + startBox.width / 2);
+    const endX = Math.round(endBox.x + endBox.width / 2);
+    const y = Math.round(startBox.y + startBox.height / 2);
+    const readProjectionChanges =
+      await octInteraction.observeSlabProjectionChanges();
     let draggedStart = 0;
     try {
-      await browser
-        .action('pointer', { id: 'oct-slab-drag' })
-        .move({ x: startX, y })
-        .down()
-        .move({ x: Math.round((startX + endX) / 2), y })
-        .perform(true);
+      await page.mouse.move(startX, y);
+      await page.mouse.down();
+      await page.mouse.move(Math.round((startX + endX) / 2), y);
       await expect(start).not.toHaveAttribute('aria-valuenow', '0');
       draggedStart = Number(await start.getAttribute('aria-valuenow'));
       expect(draggedStart).toBeGreaterThan(reference.slab.end);
       expect(draggedStart).toBeLessThan(130);
-      await expect(start.$('.v-slider-thumb__label')).toBeDisplayed();
+      await expect(start.locator('.v-slider-thumb__label')).toBeVisible();
       await expect(threshold).toHaveAttribute(
         'aria-valuemax',
         thresholdMaximum!
       );
-      await expect(segmentThreshold(band)).toHaveValue(thresholdValue);
-      await expectProjectionPixel(81);
+      await expect(oct.segmentThreshold(band)).toHaveValue(thresholdValue);
+      await octInteraction.expectProjectionPixel(81);
       expect(await readProjectionChanges()).toEqual([]);
     } finally {
-      await browser.action('pointer', { id: 'oct-slab-drag' }).up().perform();
+      await page.mouse.up();
       await readProjectionChanges();
     }
-    await waitForEnFaceReady();
-    await expectProjectionPixel(
+    await oct.waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(
       Math.round(((317 + draggedStart) * 255) / 1000)
     );
     await expect(threshold).toHaveAttribute('aria-valuemax', '0.1');
-    await expect(segmentThreshold(band)).toHaveValue(thresholdValue);
-    await browser.keys(Key.Home);
+    await expect(oct.segmentThreshold(band)).toHaveValue(thresholdValue);
+    await page.keyboard.press('Home');
     await expect(start).toHaveAttribute('aria-valuenow', '0');
-    await expectProjectionPixel(81);
+    await octInteraction.expectProjectionPixel(81);
   });
 
-  it('uses temporary Crosshairs in En face and restores the previous allowed tool', async () => {
-    await openRetina(false, true);
-    await browser.keys('Escape');
-    await $(CANVAS).click();
-    const pan = $('button[data-testid^="control-button-Pan "]');
-    const crosshairs = $('button[data-testid^="control-button-Crosshairs "]');
-    const ruler = $('button[data-testid^="control-button-Ruler "]');
-    const keyboard = () =>
-      browser.action('key', { id: 'oct-crosshairs-shortcut' });
-    const hold = () => keyboard().down(Key.Shift).down('c').perform(true);
-    const release = () => keyboard().up('c').up(Key.Shift).perform(true);
+  test('uses temporary Crosshairs in En face and restores the previous allowed tool', async ({
+    page,
+    volview,
+    oct,
+    octInteraction,
+  }) => {
+    await octInteraction.openRetina(false, true);
+    await page.keyboard.press('Escape');
+    await page.locator(CANVAS).first().click();
+    const pan = oct.toolButton('Pan');
+    const crosshairs = oct.toolButton('Crosshairs');
+    const ruler = oct.toolButton('Ruler');
+    // Playwright does not shift a letter, so the shifted key is named.
+    const hold = async () => {
+      await page.keyboard.down('Shift');
+      await page.keyboard.down('C');
+    };
+    const release = async () => {
+      await page.keyboard.up('C');
+      await page.keyboard.up('Shift');
+    };
+    const selected = /\btool-btn-selected\b/;
 
     await pan.click();
-    await expect(pan).toHaveElementClass('tool-btn-selected');
+    await expect(pan).toHaveClass(selected);
     await expect(crosshairs).toBeEnabled();
-    try {
-      await hold();
-      await expect(crosshairs).toHaveElementClass('tool-btn-selected');
-      await release();
-      await expect(pan).toHaveElementClass('tool-btn-selected');
+    await hold();
+    await expect(crosshairs).toHaveClass(selected);
+    await release();
+    await expect(pan).toHaveClass(selected);
 
-      await volViewPage.focusFirst2DView();
-      await expect(crosshairs).toBeEnabled();
-      await hold();
-      await expect(crosshairs).toHaveElementClass('tool-btn-selected');
-      await release();
-      await expect(pan).toHaveElementClass('tool-btn-selected');
+    await volview.focusFirst2DView();
+    await expect(crosshairs).toBeEnabled();
+    await hold();
+    await expect(crosshairs).toHaveClass(selected);
+    await release();
+    await expect(pan).toHaveClass(selected);
 
-      await ruler.click();
-      await expect(ruler).toHaveElementClass('tool-btn-selected');
-      await hold();
-      await expect(crosshairs).toHaveElementClass('tool-btn-selected');
-      await $(CANVAS).click();
-      await expect(crosshairs).toHaveElementClass('tool-btn-selected');
-      await expect(crosshairs).toBeEnabled();
-      await release();
-      await expect(ruler).toHaveElementClass('tool-btn-selected');
-    } finally {
-      await browser.releaseActions();
-    }
+    await ruler.click();
+    await expect(ruler).toHaveClass(selected);
+    await hold();
+    await expect(crosshairs).toHaveClass(selected);
+    await page.locator(CANVAS).first().click();
+    await expect(crosshairs).toHaveClass(selected);
+    await expect(crosshairs).toBeEnabled();
+    await release();
+    await expect(ruler).toHaveClass(selected);
   });
 
-  it('renders declared padding through the standard image contrast and palette', async () => {
+  test('renders declared padding through the standard image contrast and palette', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    octInteraction,
+    layerDisplay,
+  }) => {
     const name = STEM + '/retina-padding.dcm';
     const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(
-      path.join(makeTempDir(STEM), 'retina-padding.dcm'),
+      path.join(utils.makeTempDir(STEM), 'retina-padding.dcm'),
       padded.bytes
     );
-    await openVolViewPage(name);
-    await selectEnFace();
-    await setEnFaceWindow(1000, 500);
-    await expectCalibratedEnFace();
-    await expectProjectionPixel(255, 5, 12);
-    await expectProjectionPixel(81, 60, 12);
-    await $(CANVAS).click();
-    await volViewPage.renderingModuleTab.click();
-    await waitForModuleTransitions();
-    await selectBasePalette('Inverted grayscale');
-    await waitForEnFaceReady();
-    await expectProjectionPixel(0, 5, 12);
-    await expectProjectionPixel(174, 60, 12);
-    await selectBasePalette('Grayscale');
-    await waitForEnFaceReady();
-    await expectProjectionPixel(255, 5, 12);
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await utils.openVolViewPage(name);
+    await oct.selectEnFace();
+    await oct.setEnFaceWindow(1000, 500);
+    await octInteraction.expectCalibratedEnFace();
+    await octInteraction.expectProjectionPixel(255, 5, 12);
+    await octInteraction.expectProjectionPixel(81, 60, 12);
+    await page.locator(CANVAS).first().click();
+    await volview.renderingModuleTab.click();
+    await utils.waitForModuleTransitions();
+    await layerDisplay.selectBasePalette('Inverted grayscale');
+    await oct.waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(0, 5, 12);
+    await octInteraction.expectProjectionPixel(174, 60, 12);
+    await layerDisplay.selectBasePalette('Grayscale');
+    await oct.waitForEnFaceReady();
+    await octInteraction.expectProjectionPixel(255, 5, 12);
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('imports deflated OCT through the file dialog with calibrated geometry and padding', async () => {
-    const directory = makeTempDir(STEM);
+  test('imports deflated OCT through the file dialog with calibrated geometry and padding', async ({
+    volview,
+    utils,
+    oct,
+    octInteraction,
+  }) => {
+    const directory = utils.makeTempDir(STEM);
     const file = path.join(directory, 'retina-padding-deflated.dcm');
     const padded = paddedSyntheticOCT(createSyntheticOCT());
     fs.writeFileSync(file, deflatedExplicitVR(padded.bytes));
-    await volViewPage.open();
-    await openThroughDialog(file);
-    await volViewPage.waitForViews();
-    await selectEnFace();
-    await setEnFaceWindow(1000, 500);
-    await expectCalibratedEnFace();
-    await expectProjectionPixel(255, 5, 12);
-    await expectProjectionPixel(81, 60, 12);
+    await volview.open();
+    await utils.openThroughDialog(file);
+    await volview.waitForViews();
+    await oct.selectEnFace();
+    await oct.setEnFaceWindow(1000, 500);
+    await octInteraction.expectCalibratedEnFace();
+    await octInteraction.expectProjectionPixel(255, 5, 12);
+    await octInteraction.expectProjectionPixel(81, 60, 12);
   });
 
-  it('projects a complete grayscale non-ophthalmic DICOM volume with standard contrast', async () => {
+  test('projects a complete grayscale non-ophthalmic DICOM volume with standard contrast', async ({
+    page,
+    volview,
+    utils,
+    oct,
+    octInteraction,
+  }) => {
     const image = STEM + '/ordinary-volume.dcm';
     fs.writeFileSync(
-      path.join(makeTempDir(STEM), 'ordinary-volume.dcm'),
+      path.join(utils.makeTempDir(STEM), 'ordinary-volume.dcm'),
       nonOCTDicom(createSyntheticOCT())
     );
-    await openVolViewPage(image);
-    await selectEnFace();
-    await waitForEnFaceReady();
-    await setEnFaceWindow(1000, 500);
-    await expectProjectionPixel(81);
-    await openEnFaceControls();
-    await selectSetting('enface-projection-method', 'Maximum');
-    await volViewPage.closeMenu($(CONTROLS));
-    await waitForEnFaceReady();
-    await setEnFaceWindow(1000, 500);
-    await expectProjectionPixel(137);
-    await expect($(WINDOW_TOOL)).toBeEnabled();
-    expect(await volViewPage.getNotificationsCount()).toBe(0);
+    await utils.openVolViewPage(image);
+    await oct.selectEnFace();
+    await oct.waitForEnFaceReady();
+    await oct.setEnFaceWindow(1000, 500);
+    await octInteraction.expectProjectionPixel(81);
+    await oct.openEnFaceControls();
+    await oct.selectSetting('enface-projection-method', 'Maximum');
+    await volview.closeMenu(page.locator(CONTROLS).first());
+    await oct.waitForEnFaceReady();
+    await oct.setEnFaceWindow(1000, 500);
+    await octInteraction.expectProjectionPixel(137);
+    await expect(page.locator(WINDOW_TOOL)).toBeEnabled();
+    expect(await volview.getNotificationsCount()).toBe(0);
   });
 
-  it('declines an OCT radial acquisition that requires spatial reconstruction', async () => {
-    const source = stageFixture('synthetic-oct.dcm');
-    const raw = fs.readFileSync(path.join(TEMP_DIR, source));
+  test('declines an OCT radial acquisition that requires spatial reconstruction', async ({
+    utils,
+    scratch,
+    oct,
+    octInteraction,
+  }) => {
+    const source = octInteraction.stageFixture('synthetic-oct.dcm');
+    const raw = fs.readFileSync(scratch.path(source));
     const scanPatternOffset = raw.indexOf(Buffer.from('128280'));
     expect(scanPatternOffset).toBeGreaterThan(0);
     Buffer.from('128282').copy(raw, scanPatternOffset);
     const file = STEM + '/synthetic-oct-radial.dcm';
-    fs.writeFileSync(path.join(TEMP_DIR, file), raw);
-    await openVolViewPage(file);
-    await expectEnFaceDisabledInSwitcher('spatial reconstruction');
+    fs.writeFileSync(scratch.path(file), raw);
+    await utils.openVolViewPage(file);
+    await oct.expectEnFaceDisabledInSwitcher('spatial reconstruction');
   });
 });

@@ -1,14 +1,15 @@
+import type { Page } from '@playwright/test';
+import { test, expect, useSharedPage } from '../fixtures';
 import { PROSTATEX_DATASET } from '../datasets';
-import { openUrls } from './utils';
-import { volViewPage } from '../pageobjects/volview.page';
-import { setReferenceLinesEnabled } from './referenceLinesTestUtils';
+import { createVolViewPage } from '../pageobjects/volview.page';
+import { createUtils } from './utils';
 
 /**
  * The reference-line segments currently drawn, grouped by 2D view in layout
  * order. Each segment is [x1, y1, x2, y2].
  */
-const getReferenceLines = () =>
-  browser.execute(() => {
+const getReferenceLines = (page: Page) =>
+  page.evaluate(() => {
     const views = Array.from(
       document.querySelectorAll('div[data-testid~="vtk-two-view"]')
     );
@@ -27,19 +28,21 @@ const getReferenceLines = () =>
     );
   });
 
-const countReferenceLines = async () => {
-  const lines = await getReferenceLines();
+const countReferenceLines = async (page: Page) => {
+  const lines = await getReferenceLines(page);
   return lines.reduce((sum, viewLines) => sum + viewLines.length, 0);
 };
 
-const waitForReferenceLineCount = async (
+const waitForReferenceLineCount = (
+  page: Page,
   predicate: (count: number) => boolean,
   timeoutMsg: string
-) => {
-  await browser.waitUntil(async () => predicate(await countReferenceLines()), {
-    timeoutMsg,
-  });
-};
+) =>
+  expect
+    .poll(async () => predicate(await countReferenceLines(page)), {
+      message: timeoutMsg,
+    })
+    .toBe(true);
 
 // Must match CROSSING_GAP in src/referenceLines/ReferenceLineSegments.vue.
 const CROSSING_GAP = 16;
@@ -76,38 +79,33 @@ const collinearGaps = (viewLines: number[][]) => {
   return gaps;
 };
 
-const clickToolButton = async (iconClass: string) => {
-  const button = await $(`button span i[class~=${iconClass}]`);
-  await button.waitForClickable();
-  await button.click();
-};
+const clickToolButton = (page: Page, iconClass: string) =>
+  page.locator(`button span i[class~=${iconClass}]`).click();
 
-describe('Reference lines', () => {
-  before(async () => {
-    await openUrls([PROSTATEX_DATASET]);
-    await volViewPage.waitForViews();
+test.describe('Reference lines', () => {
+  useSharedPage(async (page, scratch) => {
+    await createUtils(page, scratch).openUrls([PROSTATEX_DATASET]);
+    await createVolViewPage(page, scratch).waitForViews();
   });
 
-  after(async () => {
-    // The setting is browser-level, so leave the profile as we found it.
-    await setReferenceLinesEnabled(false);
+  test('draws no lines by default', async ({ page }) => {
+    expect(await countReferenceLines(page)).toBe(0);
   });
 
-  it('draws no lines by default', async () => {
-    expect(await countReferenceLines()).toBe(0);
-  });
-
-  it('shows lines while Crosshairs is active and hides them afterwards', async () => {
-    await clickToolButton('mdi-crosshairs');
+  test('shows lines while Crosshairs is active and hides them afterwards', async ({
+    page,
+  }) => {
+    await clickToolButton(page, 'mdi-crosshairs');
 
     await waitForReferenceLineCount(
+      page,
       (count) => count > 0,
       'Expected reference lines once Crosshairs was activated'
     );
 
     // Each 2D view draws one line per cross-axis peer, and each of those two
     // lines is broken in half by the gap where they cross.
-    const lines = await getReferenceLines();
+    const lines = await getReferenceLines(page);
     expect(lines.length).toBe(3);
     lines.forEach((viewLines) => {
       expect(viewLines.length).toBe(4);
@@ -119,58 +117,70 @@ describe('Reference lines', () => {
       );
     });
 
-    await clickToolButton('mdi-cursor-move');
+    await clickToolButton(page, 'mdi-cursor-move');
 
     await waitForReferenceLineCount(
+      page,
       (count) => count === 0,
       'Expected reference lines to disappear when Crosshairs was deactivated'
     );
   });
 
-  it('keeps lines on independently of any tool when the setting is on', async () => {
-    await setReferenceLinesEnabled(true);
+  test('keeps lines on independently of any tool when the setting is on', async ({
+    page,
+    referenceLines,
+  }) => {
+    await referenceLines.setReferenceLinesEnabled(true);
 
     await waitForReferenceLineCount(
+      page,
       (count) => count > 0,
       'Expected reference lines from the setting alone'
     );
 
     // A Crosshairs session must not clear a user-enabled setting.
-    await clickToolButton('mdi-crosshairs');
+    await clickToolButton(page, 'mdi-crosshairs');
     await waitForReferenceLineCount(
+      page,
       (count) => count > 0,
       'Expected reference lines while Crosshairs was active'
     );
-    await clickToolButton('mdi-cursor-move');
+    await clickToolButton(page, 'mdi-cursor-move');
     await waitForReferenceLineCount(
+      page,
       (count) => count > 0,
       'Expected reference lines to survive Crosshairs deactivation'
     );
   });
 
-  it('moves the host plane line in the peer views when the slice changes', async () => {
-    const before = await getReferenceLines();
+  test('moves the host plane line in the peer views when the slice changes', async ({
+    page,
+    volview,
+  }) => {
+    const before = await getReferenceLines(page);
     expect(before.length).toBe(3);
 
-    await volViewPage.focusFirst2DView();
-    await volViewPage.advanceSliceAndWait();
+    await volview.focusFirst2DView();
+    await volview.advanceSliceAndWait();
 
-    await browser.waitUntil(
-      async () => {
-        const after = await getReferenceLines();
-        // The scrolled view's plane moved, so its line moved in both peers.
-        return [1, 2].every((viewIndex) =>
-          after[viewIndex].some(
-            (segment, lineIndex) =>
-              JSON.stringify(segment) !==
-              JSON.stringify(before[viewIndex][lineIndex])
-          )
-        );
-      },
-      {
-        timeoutMsg:
-          'Expected the scrolled view line to move in the other 2D views',
-      }
-    );
+    await expect
+      .poll(
+        async () => {
+          const after = await getReferenceLines(page);
+          // The scrolled view's plane moved, so its line moved in both peers.
+          return [1, 2].every((viewIndex) =>
+            after[viewIndex].some(
+              (segment, lineIndex) =>
+                JSON.stringify(segment) !==
+                JSON.stringify(before[viewIndex][lineIndex])
+            )
+          );
+        },
+        {
+          message:
+            'Expected the scrolled view line to move in the other 2D views',
+        }
+      )
+      .toBe(true);
   });
 });

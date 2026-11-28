@@ -1,12 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { test, expect } from '../fixtures';
 import { createNrrdVolume } from '../fixtures/oct/volumes';
-import { volViewPage } from '../pageobjects/volview.page';
-import { makeTempDir, writeManifestToFile, overlayOption } from './utils';
 import {
   canvasAppearance,
   displayedWindow,
-  dragContrast,
   stageGenericOCT,
   WINDOW_TOOL,
 } from './octTestUtils';
@@ -15,15 +13,20 @@ const OBLIQUE_CHILD =
   '.oblique-grid > .d-flex:first-child [data-testid="vtk-view"]';
 const SOURCE_PEER = '[data-testid~="vtk-two-view"]';
 
-describe('Oblique source windowing', () => {
-  it('synchronizes a live Oblique child drag with source peers and toolbar fields', async () => {
+test.describe('Oblique source windowing', () => {
+  test('synchronizes a live Oblique child drag with source peers and toolbar fields', async ({
+    page,
+    volview,
+    utils,
+    oct,
+  }) => {
     const directory = 'oblique-windowing';
-    const image = stageGenericOCT(makeTempDir(directory), 'nrrd');
-    await writeManifestToFile(
+    const image = stageGenericOCT(utils.makeTempDir(directory), 'nrrd');
+    await utils.writeManifestToFile(
       { windowing: { width: 1000, level: 500 } },
       directory + '-config.json'
     );
-    await volViewPage.open(
+    await volview.open(
       '?urls=[tmp/' +
         directory +
         '/' +
@@ -32,31 +35,31 @@ describe('Oblique source windowing', () => {
         directory +
         '-config.json]'
     );
-    await volViewPage.waitForViews();
-    await volViewPage.waitForViewCounts(3, true);
-    await (await $$('.view-type-select .v-field'))[0].click();
-    const option = overlayOption('Oblique');
-    await option.waitForClickable();
-    await option.click();
+    await volview.waitForViews();
+    await volview.waitForViewCounts(3, true);
+    await page.locator('.view-type-select .v-field').nth(0).click();
+    await utils.overlayOption('Oblique').click();
 
-    const child = await $(OBLIQUE_CHILD).getElement();
-    const canvas = await child.$('canvas').getElement();
-    await canvas.waitForClickable();
-    const peer = await $(SOURCE_PEER).getElement();
-    const peerCanvas = await peer.$('canvas').getElement();
-    await browser.waitUntil(
-      async () => (await canvasAppearance(peerCanvas)).visiblePixels > 100,
-      { timeoutMsg: 'The scalar source peer must render visible image pixels' }
-    );
+    const child = page.locator(OBLIQUE_CHILD).first();
+    const canvas = child.locator('canvas');
+    await expect(canvas).toBeVisible();
+    await expect(canvas).toBeEnabled();
+    const peer = page.locator(SOURCE_PEER).first();
+    const peerCanvas = peer.locator('canvas');
+    await expect
+      .poll(async () => (await canvasAppearance(peerCanvas)).visiblePixels, {
+        message: 'The scalar source peer must render visible image pixels',
+      })
+      .toBeGreaterThan(100);
     const before = await displayedWindow(child);
     expect(before).toEqual({ width: 1000, level: 500 });
     const beforeImage = (await canvasAppearance(peerCanvas)).image;
-    await volViewPage.openMenu($(WINDOW_TOOL));
-    await volViewPage.closeMenu($(WINDOW_TOOL));
-    await dragContrast(canvas, 35, 25, { position: { x: 0.25, y: 0.25 } });
+    await volview.openMenu(page.locator(WINDOW_TOOL));
+    await volview.closeMenu(page.locator(WINDOW_TOOL));
+    await oct.dragContrast(canvas, 35, 25, { position: { x: 0.25, y: 0.25 } });
     let observed = before;
-    await browser
-      .waitUntil(
+    await expect
+      .poll(
         async () => {
           observed = await displayedWindow(child);
           return (
@@ -64,10 +67,10 @@ describe('Oblique source windowing', () => {
           );
         },
         {
-          timeoutMsg:
-            'The live Oblique child must respond to the windowing drag',
+          message: 'The live Oblique child must respond to the windowing drag',
         }
       )
+      .toBe(true)
       .catch((error: Error) => {
         error.message +=
           '; initial ' +
@@ -77,41 +80,42 @@ describe('Oblique source windowing', () => {
         throw error;
       });
     const changed = await displayedWindow(child);
-    await browser.waitUntil(
-      async () => {
-        const synchronized = await displayedWindow(peer);
-        return (
-          synchronized.width === changed.width &&
-          synchronized.level === changed.level
-        );
-      },
-      {
-        timeoutMsg:
-          'The source peer must match the live Oblique child W/L ' +
-          JSON.stringify(changed),
-      }
-    );
-    await browser.waitUntil(
-      async () => (await canvasAppearance(peerCanvas)).image !== beforeImage,
-      {
-        timeoutMsg:
+    await expect
+      .poll(
+        async () => {
+          const synchronized = await displayedWindow(peer);
+          return (
+            synchronized.width === changed.width &&
+            synchronized.level === changed.level
+          );
+        },
+        {
+          message:
+            'The source peer must match the live Oblique child W/L ' +
+            JSON.stringify(changed),
+        }
+      )
+      .toBe(true);
+    await expect
+      .poll(async () => (await canvasAppearance(peerCanvas)).image, {
+        message:
           'Synchronized windowing must change the source image rendering',
-      }
-    );
+      })
+      .not.toBe(beforeImage);
 
-    await $(WINDOW_TOOL).click();
-    const inputs = $$('.v-overlay--active .manual-inputs input');
-    await inputs[0].waitForDisplayed();
-    expect(Number(await inputs[0].getValue())).toBe(
+    await page.locator(WINDOW_TOOL).click();
+    const inputs = page.locator('.v-overlay--active .manual-inputs input');
+    await expect(inputs.nth(0)).toBeVisible();
+    expect(Number(await inputs.nth(0).inputValue())).toBe(
       Number(changed.width.toPrecision(4))
     );
-    expect(Number(await inputs[1].getValue())).toBe(
+    expect(Number(await inputs.nth(1).inputValue())).toBe(
       Number(changed.level.toPrecision(4))
     );
   });
 });
 
-describe('Shared Oblique slab sampling', () => {
+test.describe('Shared Oblique slab sampling', () => {
   for (const scenario of [
     {
       name: 'coarse',
@@ -132,13 +136,13 @@ describe('Shared Oblique slab sampling', () => {
       expected: 40,
     },
   ]) {
-    it(
+    test(
       'keeps the existing 1 mm Maximum slab for ' + scenario.name + ' voxels',
-      async () => {
+      async ({ page, volview, utils }) => {
         const stem = 'oblique-slab-' + scenario.name;
         const name = 'source.nrrd';
         fs.writeFileSync(
-          path.join(makeTempDir(stem), name),
+          path.join(utils.makeTempDir(stem), name),
           createNrrdVolume({
             scalars: Uint16Array.from(
               { length: 5 * 9 * 5 },
@@ -148,42 +152,46 @@ describe('Shared Oblique slab sampling', () => {
             spacing: Array(3).fill(scenario.spacing),
           })
         );
-        await writeManifestToFile(
+        await utils.writeManifestToFile(
           {
             layouts: { 'Oblique sampling': [['oblique']] },
             windowing: { width: 255, level: 127.5 },
           },
           stem + '.json'
         );
-        await volViewPage.open(
+        await volview.open(
           '?urls=[tmp/' + stem + '.json,tmp/' + stem + '/' + name + ']'
         );
-        const canvas = await $(OBLIQUE_CHILD).$('canvas').getElement();
-        await canvas.waitForDisplayed();
-        await browser.waitUntil(async () => {
-          const pixel = await canvas.execute((element) => {
-            const source = element as HTMLCanvasElement;
-            const context = document.createElement('canvas').getContext('2d')!;
-            context.canvas.width = source.width;
-            context.canvas.height = source.height;
-            context.drawImage(source, 0, 0);
-            return Array.from(
-              context.getImageData(
-                Math.floor(source.width * 0.6),
-                Math.floor(source.height * 0.6),
-                1,
-                1
-              ).data
+        const canvas = page.locator(OBLIQUE_CHILD).first().locator('canvas');
+        await expect(canvas).toBeVisible();
+        await expect
+          .poll(async () => {
+            const pixel = await canvas.evaluate((element) => {
+              const source = element as HTMLCanvasElement;
+              const context = document
+                .createElement('canvas')
+                .getContext('2d')!;
+              context.canvas.width = source.width;
+              context.canvas.height = source.height;
+              context.drawImage(source, 0, 0);
+              return Array.from(
+                context.getImageData(
+                  Math.floor(source.width * 0.6),
+                  Math.floor(source.height * 0.6),
+                  1,
+                  1
+                ).data
+              );
+            });
+            return (
+              pixel[3] === 255 &&
+              pixel
+                .slice(0, 3)
+                .every((channel) => Math.abs(channel - scenario.expected) <= 1)
             );
-          });
-          return (
-            pixel[3] === 255 &&
-            pixel
-              .slice(0, 3)
-              .every((channel) => Math.abs(channel - scenario.expected) <= 1)
-          );
-        });
-        expect(await volViewPage.getNotificationsCount()).toBe(0);
+          })
+          .toBe(true);
+        expect(await volview.getNotificationsCount()).toBe(0);
       }
     );
   }

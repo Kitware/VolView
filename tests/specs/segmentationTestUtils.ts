@@ -1,306 +1,355 @@
 import { IMAGE_DRAG_MEDIA_TYPE } from '@/src/constants';
-import { Key, type ChainablePromiseElement } from 'webdriverio';
-import { setValueVueInput, volViewPage } from '../pageobjects/volview.page';
-import { waitForModuleTransitions } from './utils';
+import { expect, type Locator, type Page } from '@playwright/test';
+import {
+  createVolViewPage,
+  containsText,
+  exactText,
+  holdKey,
+  setValueVueInput,
+  waitForTransitions,
+} from '../pageobjects/volview.page';
+import type { Scratch } from '../scratch';
+import { createUtils } from './utils';
 
 const SEGMENT_LIST = '[data-testid="segment-list"]';
 const SHAPE_ROW = '[data-testid="segment-shape-row"]';
 
-// Only a row standing for a real item carries a title; the trailing "create"
-// row does not.
-export const segmentNames = () =>
-  $$(`${SEGMENT_LIST} .item-row .v-list-item-title`).map((title) =>
-    title.getText()
-  );
-
-const findRow = async (name: string) => {
-  const rows = await $$(`${SEGMENT_LIST} .item-row`);
-  for (const row of rows) {
-    const title = await row.$('.v-list-item-title');
-    if ((await title.isExisting()) && (await title.getText()) === name) {
-      return row;
-    }
-  }
-  return undefined;
-};
-
-// Rows arrive after the image renders: an import or restore mints its segments
-// once the labelmap is read, so a row is waited for rather than looked up once.
-export const segmentRow = async (name: string) => {
-  const row = await browser.waitUntil(() => findRow(name), {
-    timeoutMsg: `No segment named "${name}"`,
-  });
-  return row as NonNullable<typeof row>;
-};
-
 const eyeButton = (visible: boolean) =>
   'button:has(i.' + (visible ? 'mdi-eye' : 'mdi-eye-off') + ')';
 
-export const setSegmentVisible = async (name: string, visible: boolean) => {
-  const row = await segmentRow(name);
-  if (await row.$(eyeButton(!visible)).isExisting())
-    await row.$(eyeButton(!visible)).click();
-  await row.$(eyeButton(visible)).waitForExist();
+export const createSegmentationUtils = (page: Page, scratch: Scratch) => {
+  const volview = createVolViewPage(page, scratch);
+  const utils = createUtils(page, scratch);
+  const segmentList = page.locator(SEGMENT_LIST);
+
+  // Only a row standing for a real item carries a title; the trailing "create"
+  // row does not.
+  const segmentNames = () =>
+    page
+      .locator(`${SEGMENT_LIST} .item-row .v-list-item-title`)
+      .allInnerTexts();
+
+  // Rows arrive after the image renders: an import or restore mints its
+  // segments once the labelmap is read, so a row is waited for rather than
+  // looked up once.
+  const segmentRow = async (name: string) => {
+    const row = page
+      .locator(`${SEGMENT_LIST} .item-row`)
+      .filter({
+        has: page.locator('.v-list-item-title', { hasText: exactText(name) }),
+      })
+      .first();
+    await expect(row, `No segment named "${name}"`).toBeAttached();
+    return row;
+  };
+
+  const setSegmentVisible = async (name: string, visible: boolean) => {
+    const row = await segmentRow(name);
+    if (await row.locator(eyeButton(!visible)).count())
+      await row.locator(eyeButton(!visible)).click();
+    await expect(row.locator(eyeButton(visible))).toBeAttached();
+  };
+
+  /** The color dot's computed `background-color`, as an `rgb()` string. */
+  const segmentColor = async (name: string) => {
+    const row = await segmentRow(name);
+    return row
+      .locator('.color-dot')
+      .evaluate((dot) => getComputedStyle(dot).backgroundColor);
+  };
+
+  const createSegmentRow = () => page.locator(`${SEGMENT_LIST} .create-row`);
+
+  const copySegmentsRow = () =>
+    page.locator(`${SEGMENT_LIST} .copy-segments-row`);
+
+  /** A source in the open copy menu, titled by image name above its count. */
+  const copySource = (imageName: string) =>
+    page.locator('div.v-overlay--active div.v-list-item').filter({
+      has: page.locator('div.v-list-item-title', {
+        hasText: exactText(imageName),
+      }),
+    });
+
+  const openCopySegmentsMenu = async () => {
+    await copySegmentsRow().click();
+    const menu = page.locator('.v-menu.v-overlay--active .v-overlay__content');
+    await expect(menu).toBeVisible();
+    // The menu ignores the pointer until its opening transition ends.
+    await expect(menu).not.toHaveCSS('pointer-events', 'none');
+  };
+
+  const copySegmentsFrom = async (imageName: string) => {
+    await openCopySegmentsMenu();
+    const source = copySource(imageName);
+    // The active class leaves on close, so follow the element itself out.
+    const element = await source.elementHandle();
+    await source.click();
+    await element?.waitForElementState('hidden');
+  };
+
+  /** The image whose segments the panel lists: the active view's image. */
+  // The image name is the first span; orientation letters follow it.
+  const segmentImageName = () =>
+    page
+      .locator(
+        '.grid-item[style*="mediumseagreen"] .view-annotations .annotation-cell > span'
+      )
+      .first();
+
+  const addSegment = async () => {
+    const before = await segmentNames();
+    await createSegmentRow().click();
+    await expect
+      .poll(async () => (await segmentNames()).length, {
+        message: 'Expected the create row to add a segment',
+      })
+      .toBe(before.length + 1);
+  };
+
+  const editDialog = () => page.locator('div[role="dialog"]').first();
+
+  const renameInOpenDialog = async (to: string) => {
+    const dialog = editDialog();
+    await expect(dialog).toBeVisible();
+    // The segment editor puts its name field before the numeric fields.
+    await setValueVueInput(dialog.locator('.v-text-field input').first(), to);
+    await volview.editLabelModalDoneButton.click();
+    await expect(dialog).toBeHidden();
+  };
+
+  /**
+   * Waits for mask or shape content, which arrives after the catalog name: a
+   * restore lists its segments, then reads their masks. How long that takes is
+   * the load's business, so this waits for the list to say the load is over
+   * instead of giving the content a time of its own.
+   */
+  const waitForSegmentContent = async (name: string) => {
+    const row = await segmentRow(name);
+    await expect(
+      segmentList,
+      'Expected the scene to finish loading'
+    ).not.toHaveAttribute('aria-busy', 'true');
+    await expect(
+      row.locator('button[data-testid="reveal-segment-button"]')
+    ).toBeEnabled();
+  };
+
+  const selectSegment = async (name: string) => {
+    const row = await segmentRow(name);
+    // Clicking the title rather than the row keeps the hit away from the
+    // right-aligned controls on a narrow sidebar.
+    await row.locator('.v-list-item-title').click();
+  };
+
+  const selectedSegmentName = () =>
+    page
+      .locator(
+        `${SEGMENT_LIST} .item-row.v-list-item--active .v-list-item-title`
+      )
+      .innerText();
+
+  const imageCard = (name: string) =>
+    page.locator(`.image-list-card:has([title="${name}"])`);
+
+  /** Views an imported image by clicking its card in the Data tab. */
+  const clickImageCard = async (name: string) => {
+    await page.locator('button[data-testid="module-tab-Data"]').click();
+    await utils.waitForModuleTransitions();
+    const card = imageCard(name);
+    await card.click();
+    await expect(card).toHaveClass(/image-list-card-active/);
+  };
+
+  /** Drops an imported image's card onto a layout slot through its DOM handlers. */
+  const dropImageOnView = async (name: string, slotIndex: number) => {
+    await page.locator('button[data-testid="module-tab-Data"]').click();
+    const card = imageCard(name);
+    await expect(card).toBeVisible();
+    const destination = await page
+      .locator('.grid-item')
+      .nth(slotIndex)
+      .elementHandle();
+    await card.evaluate(
+      (source, { target, mediaType }) => {
+        const transfer = new DataTransfer();
+        const dispatch = (element: Element, type: string) =>
+          element.dispatchEvent(
+            new DragEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              dataTransfer: transfer,
+            })
+          );
+        dispatch(source, 'dragstart');
+        if (!transfer.getData(mediaType))
+          throw new Error('Image drag did not provide an image identifier');
+        dispatch(target!, 'dragenter');
+        dispatch(target!, 'drop');
+      },
+      { target: destination, mediaType: IMAGE_DRAG_MEDIA_TYPE }
+    );
+  };
+
+  /** Viewport top of the Segments list, for asserting it has not moved. */
+  const segmentListTop = async () => (await segmentList.boundingBox())?.y;
+
+  const deleteSegment = async (name: string) => {
+    const row = await segmentRow(name);
+    await row.locator('button i[class~="mdi-delete"]').click();
+    await expect
+      .poll(segmentNames, {
+        message: `Expected segment "${name}" to be removed`,
+      })
+      .not.toContain(name);
+  };
+
+  const revealSegment = async (name: string) => {
+    const row = await segmentRow(name);
+    await row.locator('button[data-testid="reveal-segment-button"]').click();
+  };
+
+  const renameSegment = async (from: string, to: string) => {
+    const row = await segmentRow(from);
+    await row.locator('button[data-testid="edit-segment-button"]').click();
+    await renameInOpenDialog(to);
+    await expect
+      .poll(segmentNames, { message: `Expected a segment named "${to}"` })
+      .toContain(to);
+  };
+
+  const recolorSegment = async (name: string, red: number) => {
+    const row = await segmentRow(name);
+    await row.locator('[data-testid="edit-segment-button"]').click();
+    const dialog = editDialog();
+    await expect(dialog).toBeVisible();
+    await setValueVueInput(
+      dialog.locator('.v-color-picker-edit input').first(),
+      String(red)
+    );
+    await volview.editLabelModalDoneButton.click();
+    await expect(dialog).toBeHidden();
+  };
+
+  /** The Segments list is pinned at the top of the Annotations panel. */
+  const openAnnotationSegments = async () => {
+    await volview.annotationsModuleTab.click();
+    await expect(segmentList).toBeVisible();
+    // Selecting a tool slides this panel in, and a click aimed at a row that is
+    // still moving lands on its neighbour.
+    await waitForTransitions(segmentList);
+  };
+
+  const openSegmentShapes = async () => {
+    await volview.annotationsModuleTab.click();
+    const section = page.locator('[data-testid="measurements-section"]');
+    await expect(section).toBeEnabled();
+    if ((await section.getAttribute('aria-expanded')) === 'false')
+      await section.click();
+    await expect(page.locator(SHAPE_ROW).first()).toBeVisible();
+  };
+
+  /** One line per shape: where it sits, and a ruler's length. */
+  const shapeRowTexts = () => page.locator(SHAPE_ROW).allInnerTexts();
+
+  const waitForNamedSegments = async () => {
+    await expect(segmentList).toBeVisible();
+    // A row renders before its title does, so a name-less row is not yet a
+    // segment the caller can read.
+    await expect
+      .poll(
+        async () => {
+          const names = await segmentNames();
+          return names.length >= 1 && names.every((name) => name.length > 0);
+        },
+        { message: 'Expected the viewed image to have a named segment' }
+      )
+      .toBe(true);
+  };
+
+  /** Locks a segment: a later stroke of another segment goes around it. */
+  const lockSegment = async (name: string) => {
+    const row = await segmentRow(name);
+    await row.locator('button i[class~="mdi-lock-open"]').click();
+    await expect(
+      row.locator('button i[class~="mdi-lock"]'),
+      `Expected "${name}" to show as locked`
+    ).toBeAttached();
+  };
+
+  /** Turns on Allow Overlap, opening the Paint panel it lives in if it was closed. */
+  const allowOverlap = async () => {
+    const panel = page.locator('button.v-expansion-panel-title', {
+      hasText: containsText('Paint'),
+    });
+    if ((await panel.getAttribute('aria-expanded')) !== 'true')
+      await panel.click();
+    const toggle = page.locator('input[aria-label="Allow Overlap"]');
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).toBeChecked();
+  };
+
+  /** The tooltip an element's hover or focus is showing. */
+  const tooltipOf = async (element: Locator) => {
+    const id = await element.getAttribute('aria-describedby');
+    expect(id).toBeTruthy();
+    return page.locator(`[id="${id}"]`);
+  };
+
+  const setSegmentationDisplaySlider = async (name: string, value: number) => {
+    const slider = page.locator(
+      `${SEGMENT_LIST} [role="slider"][aria-label="${name}"]`
+    );
+    await slider.evaluate((element) =>
+      element.scrollIntoView({ block: 'center' })
+    );
+    await slider.click();
+    const step = name === 'Outline Thickness' ? 1 : 0.01;
+    await page.keyboard.press('Home');
+    await holdKey(page, 'ArrowRight', Math.round(value / step));
+    await expect(slider).toHaveAttribute('aria-valuenow', String(value));
+  };
+
+  const openSegmentDisplay = async () => {
+    await openAnnotationSegments();
+    const display = page.locator('[data-testid="segment-display-section"]');
+    if ((await display.getAttribute('aria-expanded')) !== 'true')
+      await display.click();
+  };
+
+  return {
+    segmentNames,
+    segmentRow,
+    setSegmentVisible,
+    segmentColor,
+    createSegmentRow,
+    copySegmentsRow,
+    copySource,
+    openCopySegmentsMenu,
+    copySegmentsFrom,
+    segmentImageName,
+    addSegment,
+    waitForSegmentContent,
+    selectSegment,
+    selectedSegmentName,
+    clickImageCard,
+    dropImageOnView,
+    segmentListTop,
+    deleteSegment,
+    revealSegment,
+    renameSegment,
+    recolorSegment,
+    openAnnotationSegments,
+    openSegmentShapes,
+    shapeRowTexts,
+    waitForNamedSegments,
+    lockSegment,
+    allowOverlap,
+    tooltipOf,
+    setSegmentationDisplaySlider,
+    openSegmentDisplay,
+  };
 };
 
-export const segmentColor = async (name: string) => {
-  const row = await segmentRow(name);
-  const dot = await row.$('.color-dot');
-  return (await dot.getCSSProperty('background-color')).value;
-};
-
-export const createSegmentRow = () => $(`${SEGMENT_LIST} .create-row`);
-
-export const copySegmentsRow = () => $(`${SEGMENT_LIST} .copy-segments-row`);
-
-/** A source in the open copy menu, titled by image name above its count. */
-export const copySource = (imageName: string) =>
-  $(
-    '//div[contains(@class,"v-overlay--active")]//div[contains(@class,"v-list-item") and .//div[contains(@class,"v-list-item-title") and normalize-space(.)="' +
-      imageName +
-      '"]]'
-  );
-
-export const openCopySegmentsMenu = async () => {
-  await copySegmentsRow().click();
-  const menu = $('.v-menu.v-overlay--active .v-overlay__content');
-  await menu.waitForDisplayed();
-  // The menu ignores the pointer until its opening transition ends.
-  await browser.waitUntil(
-    async () => (await menu.getCSSProperty('pointer-events')).value !== 'none'
-  );
-};
-
-export const copySegmentsFrom = async (imageName: string) => {
-  await openCopySegmentsMenu();
-  const source = copySource(imageName);
-  await source.waitForClickable();
-  await source.click();
-  await source.waitForDisplayed({ reverse: true });
-};
-
-/** The image whose segments the panel lists: the active view's image. */
-export const segmentImageName = () =>
-  $(
-    '.grid-item[style*="mediumseagreen"] .view-annotations .annotation-cell > span'
-  );
-
-export const addSegment = async () => {
-  const before = await segmentNames();
-  await createSegmentRow().click();
-  await browser.waitUntil(
-    async () => (await segmentNames()).length === before.length + 1,
-    { timeoutMsg: 'Expected the create row to add a segment' }
-  );
-};
-
-const editDialog = () => $('div[role="dialog"]');
-
-const renameInOpenDialog = async (to: string) => {
-  const dialog = editDialog();
-  await dialog.waitForDisplayed();
-  // The segment editor puts its name field before the numeric fields.
-  await setValueVueInput(dialog.$('.v-text-field input'), to);
-  await volViewPage.editLabelModalDoneButton.click();
-  await dialog.waitForDisplayed({ reverse: true });
-};
-
-/**
- * Waits for mask or shape content, which arrives after the catalog name: a
- * restore lists its segments, then reads their masks. How long that takes is
- * the load's business, so this waits for the list to say the load is over
- * instead of giving the content a time of its own.
- */
-export const waitForSegmentContent = async (name: string) => {
-  const row = await segmentRow(name);
-  await browser.waitUntil(
-    async () => (await $(SEGMENT_LIST).getAttribute('aria-busy')) !== 'true',
-    { timeoutMsg: 'Expected the scene to finish loading' }
-  );
-  await row.$('button[data-testid="reveal-segment-button"]').waitForEnabled();
-};
-
-export const selectSegment = async (name: string) => {
-  const row = await segmentRow(name);
-  // Clicking the title rather than the row keeps the hit away from the
-  // right-aligned controls on a narrow sidebar.
-  await row.$('.v-list-item-title').click();
-};
-
-export const selectedSegmentName = () =>
-  $(
-    `${SEGMENT_LIST} .item-row.v-list-item--active .v-list-item-title`
-  ).getText();
-
-const imageCard = (name: string) =>
-  $(`.image-list-card:has([title="${name}"])`);
-
-/** Views an imported image by clicking its card in the Data tab. */
-export const clickImageCard = async (name: string) => {
-  await $('button[data-testid="module-tab-Data"]').click();
-  await waitForModuleTransitions();
-  const card = imageCard(name);
-  await card.waitForDisplayed();
-  await card.scrollIntoView();
-  await card.waitForClickable();
-  await card.click();
-  await browser.waitUntil(async () =>
-    ((await card.getAttribute('class')) ?? '').includes(
-      'image-list-card-active'
-    )
-  );
-};
-
-/** Drops an imported image's card onto a layout slot through its DOM handlers. */
-export const dropImageOnView = async (name: string, slotIndex: number) => {
-  await $('button[data-testid="module-tab-Data"]').click();
-  const card = imageCard(name);
-  await card.waitForDisplayed();
-  await browser.execute(
-    (source, destination, mediaType) => {
-      const transfer = new DataTransfer();
-      const dispatch = (element: HTMLElement, type: string) =>
-        element.dispatchEvent(
-          new DragEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            dataTransfer: transfer,
-          })
-        );
-      dispatch(source, 'dragstart');
-      if (!transfer.getData(mediaType))
-        throw new Error('Image drag did not provide an image identifier');
-      dispatch(destination, 'dragenter');
-      dispatch(destination, 'drop');
-    },
-    await card,
-    await $$('.grid-item')[slotIndex],
-    IMAGE_DRAG_MEDIA_TYPE
-  );
-};
-
-/** Page-coordinate top of the Segments list, for asserting it has not moved. */
-export const segmentListTop = async () =>
-  (await $(SEGMENT_LIST).getLocation()).y;
-
-export const deleteSegment = async (name: string) => {
-  const row = await segmentRow(name);
-  await row.$('button i[class~="mdi-delete"]').click();
-  await browser.waitUntil(async () => !(await segmentNames()).includes(name), {
-    timeoutMsg: `Expected segment "${name}" to be removed`,
-  });
-};
-
-export const revealSegment = async (name: string) => {
-  const row = await segmentRow(name);
-  const button = await row.$('button[data-testid="reveal-segment-button"]');
-  await button.waitForClickable();
-  await button.click();
-};
-
-export const renameSegment = async (from: string, to: string) => {
-  const row = await segmentRow(from);
-  await row.$('button[data-testid="edit-segment-button"]').click();
-  await renameInOpenDialog(to);
-  await browser.waitUntil(async () => (await segmentNames()).includes(to), {
-    timeoutMsg: `Expected a segment named "${to}"`,
-  });
-};
-
-export const recolorSegment = async (name: string, red: number) => {
-  const row = await segmentRow(name);
-  await row.$('[data-testid="edit-segment-button"]').click();
-  const dialog = editDialog();
-  await dialog.waitForDisplayed();
-  await setValueVueInput(dialog.$('.v-color-picker-edit input'), String(red));
-  await volViewPage.editLabelModalDoneButton.click();
-  await dialog.waitForDisplayed({ reverse: true });
-};
-
-/** The Segments list is pinned at the top of the Annotations panel. */
-export const openAnnotationSegments = async () => {
-  await volViewPage.annotationsModuleTab.click();
-  await $(SEGMENT_LIST).waitForDisplayed();
-  // Selecting a tool slides this panel in, and a click aimed at a row that is
-  // still moving lands on its neighbour.
-  await $(SEGMENT_LIST).waitForStable();
-};
-
-export const openSegmentShapes = async () => {
-  await volViewPage.annotationsModuleTab.click();
-  const section = $('[data-testid="measurements-section"]');
-  await section.waitForClickable();
-  if ((await section.getAttribute('aria-expanded')) === 'false') {
-    await section.click();
-  }
-  await $(SHAPE_ROW).waitForDisplayed();
-};
-
-/** One line per shape: where it sits, and a ruler's length. */
-export const shapeRowTexts = () => $$(SHAPE_ROW).map((row) => row.getText());
-
-export const waitForNamedSegments = async () => {
-  await $(SEGMENT_LIST).waitForDisplayed();
-  // A row renders before its title does, so a name-less row is not yet a
-  // segment the caller can read.
-  await browser.waitUntil(
-    async () => {
-      const names = await segmentNames();
-      return names.length >= 1 && names.every((name) => name.length > 0);
-    },
-    { timeoutMsg: 'Expected the viewed image to have a named segment' }
-  );
-};
-
-/** Locks a segment: a later stroke of another segment goes around it. */
-export const lockSegment = async (name: string) => {
-  const row = await segmentRow(name);
-  await row.$('button i[class~="mdi-lock-open"]').click();
-  await row.$('button i[class~="mdi-lock"]').waitForExist({
-    timeoutMsg: `Expected "${name}" to show as locked`,
-  });
-};
-
-/** Turns on Allow Overlap, opening the Paint panel it lives in if it was closed. */
-export const allowOverlap = async () => {
-  const panel = $('button.v-expansion-panel-title*=Paint');
-  if ((await panel.getAttribute('aria-expanded')) !== 'true')
-    await panel.click();
-  const toggle = $('input[aria-label="Allow Overlap"]');
-  await toggle.waitForExist();
-  await toggle.execute((element) => element.focus());
-  await browser.keys(' ');
-  await expect(toggle).toBeSelected();
-};
-
-/** The tooltip an element's hover or focus is showing. */
-export const tooltipOf = async (element: ChainablePromiseElement) => {
-  const id = await element.getAttribute('aria-describedby');
-  expect(id).toBeTruthy();
-  return $(`[id="${id}"]`);
-};
-
-export async function setSegmentationDisplaySlider(
-  name: string,
-  value: number
-) {
-  const slider = $(
-    '[data-testid="segment-list"] [role="slider"][aria-label="' + name + '"]'
-  );
-  await slider.scrollIntoView({ block: 'center' });
-  await slider.waitForStable();
-  await slider.click();
-  const step = name === 'Outline Thickness' ? 1 : 0.01;
-  const keys = browser.action('key').down(Key.Home).up(Key.Home);
-  for (let i = 0; i < Math.round(value / step); i++)
-    keys.down(Key.ArrowRight).up(Key.ArrowRight);
-  await keys.perform();
-  await expect(slider).toHaveAttribute('aria-valuenow', String(value));
-}
-
-export async function openSegmentDisplay() {
-  await openAnnotationSegments();
-  const display = $('[data-testid="segment-display-section"]');
-  if ((await display.getAttribute('aria-expanded')) !== 'true')
-    await display.click();
-}
+export type SegmentationUtils = ReturnType<typeof createSegmentationUtils>;
