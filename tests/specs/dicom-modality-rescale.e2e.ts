@@ -49,20 +49,40 @@ async function writeRescaledSeries(utils: Utils) {
 
 test.describe('DICOM modality rescale', () => {
   test('preserves the public DSC series Float64 output through volume loading', async ({
+    page,
     volview,
     utils,
-    imageCache,
+    probe,
   }) => {
     const manifestName = await writeRescaledSeries(utils);
     await volview.open(`?urls=[tmp/${manifestName}]`);
     await volview.waitForViews();
-    const scalars = await imageCache.waitForFirstCompleteCachedImageScalars();
+    const view = volview.views2D.first();
+    await volview.waitForLoadingIndicator(view);
 
     expect(await volview.getNotificationsCount()).toBe(0);
-    expect(scalars.type).toBe('Float64Array');
-    const expected = STORED_VALUES.flatMap((stored) =>
-      Array(ROWS * COLUMNS).fill(stored * PUBLIC_DSC_SLOPE)
-    );
-    expect(scalars.values).toEqual(expected);
+    await volview.focusFirst2DView();
+    for (let press = 0; press < STORED_VALUES.length; press++)
+      await page.keyboard.press('ArrowDown');
+    const shown = new Map<number, string>();
+    for (let slice = 1; slice <= STORED_VALUES.length; slice++) {
+      if (slice > 1) await page.keyboard.press('ArrowUp');
+      await expect(view).toContainText(
+        `Slice: ${slice}/${STORED_VALUES.length}`
+      );
+      const readout = await probe.probeAt(view, 0.5, 0.5);
+      shown.set(readout.position[2], readout.samples[0]);
+    }
+    // Two decimals tell Float64 from Float32 here: 2 * slope is 224135.7075.
+    STORED_VALUES.forEach((stored, index) => {
+      const text = shown.get(index);
+      if (text === undefined)
+        throw new Error(`No slice was probed at z = ${index}`);
+      const decimals = text.split('.')[1]?.length ?? 0;
+      expect(
+        Math.abs(Number(text) - stored * PUBLIC_DSC_SLOPE),
+        `Probed value ${text} at z = ${index}`
+      ).toBeLessThanOrEqual(0.5 * 10 ** -decimals);
+    });
   });
 });

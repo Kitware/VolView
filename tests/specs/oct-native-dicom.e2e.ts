@@ -8,7 +8,6 @@ import {
   type VolViewPage,
 } from '../pageobjects/volview.page';
 import native from '../fixtures/oct/heidelberg-reference.json' with { type: 'json' };
-import type { ImageCacheUtils } from './imageCacheUtils';
 import {
   canvasAppearance,
   displayedWindow,
@@ -20,14 +19,10 @@ async function canvasImage(view: Locator) {
   return canvasAppearance(view.locator('canvas').first());
 }
 
-async function openNativeDicom(
-  volview: VolViewPage,
-  oct: OctUtils,
-  imageCache: ImageCacheUtils
-) {
+async function openNativeDicom(volview: VolViewPage, oct: OctUtils) {
   await volview.open('?urls=[tmp/' + RETINAL_OCT_DICOM.name + ']');
   await volview.waitForViews();
-  await imageCache.waitForFirstCachedImageSpacing();
+  await volview.waitForLoadingIndicator(volview.views2D.first());
   await oct.selectTwoRowLayout();
   await volview.waitForViewCounts(2, false);
   await oct.selectEnFace(1);
@@ -245,9 +240,8 @@ test.describe('Public OCT exports', () => {
     volview,
     utils,
     oct,
-    imageCache,
   }) => {
-    await openNativeDicom(volview, oct, imageCache);
+    await openNativeDicom(volview, oct);
     if (
       ((await page.locator('#left-nav').getAttribute('class')) ?? '').includes(
         'v-navigation-drawer--active'
@@ -308,14 +302,33 @@ test.describe('Public OCT exports', () => {
     expect(await volview.getNotificationsCount()).toBe(0);
   });
   test('loads the native Heidelberg DICOM fixture with calibrated stacked views', async ({
+    page,
     volview,
     oct,
-    imageCache,
+    probe,
   }) => {
-    await openNativeDicom(volview, oct, imageCache);
-    const spacing = await imageCache.waitForFirstCachedImageSpacing();
-    spacing.forEach((value, axis) =>
-      expect(value).toBeCloseTo(native.spacing[axis], 6)
+    await openNativeDicom(volview, oct);
+    const view = volview.views2D.first();
+    const center = await probe.probeAt(view, 0.5, 0.5);
+    probe.expectProbedStep(
+      center,
+      await probe.probeAt(view, 0.8, 0.5),
+      native.spacing
+    );
+    probe.expectProbedStep(
+      center,
+      await probe.probeAt(view, 0.5, 0.75),
+      native.spacing
+    );
+    const slice = await volview.getFirst2DSlice();
+    await volview.focusFirst2DView();
+    for (let press = 0; press < 10; press++)
+      await page.keyboard.press('ArrowDown');
+    await expect.poll(volview.getFirst2DSlice).toBe(slice! - 10);
+    probe.expectProbedStep(
+      center,
+      await probe.probeAt(view, 0.5, 0.5),
+      native.spacing
     );
     const fullProjection = await oct.enFaceAppearance();
     await oct.openEnFaceProjection();
@@ -340,9 +353,9 @@ test.describe('Public OCT exports', () => {
   ] as const) {
     test(
       'matches independent native Heidelberg ' + scenario.name + ' pixels',
-      async ({ page, volview, oct, octInteraction, imageCache }) => {
+      async ({ page, volview, oct, octInteraction }) => {
         await page.setViewportSize({ width: 1280, height: 400 });
-        await openNativeDicom(volview, oct, imageCache);
+        await openNativeDicom(volview, oct);
         await oct.chooseEnFaceProjection(
           'enface-projection-method',
           scenario.method
@@ -371,7 +384,6 @@ test.describe('Public OCT exports', () => {
     page,
     volview,
     utils,
-    imageCache,
   }) => {
     for (const disabled of ['2D', 'EnFace']) {
       const configName = 'oct-disable-' + disabled + '.json';
@@ -388,7 +400,12 @@ test.describe('Public OCT exports', () => {
         'div[title="Retinal OCT layers"]'
       );
       await sample.click();
-      await imageCache.waitForFirstCachedImageSpacing();
+      await expect(
+        page.locator('.image-list-card:has([title="jhu-hc01.nrrd"])')
+      ).toHaveClass(/\bimage-list-card-active\b/);
+      await volview.waitForLoadingIndicator(
+        page.locator('div[data-testid="vtk-view vtk-volume-view"]')
+      );
       await volview.waitForViewCounts(0, true);
       expect(await page.locator(CANVAS).count()).toBe(0);
       expect(

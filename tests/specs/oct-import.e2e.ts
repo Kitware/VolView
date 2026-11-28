@@ -2,7 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect, registerOctTestHooks } from '../fixtures';
 import { stageIllustrativeMask, stageGenericOCT, CANVAS } from './octTestUtils';
-import { reference, STEM } from './octInteractionTestUtils';
+import {
+  reference,
+  STEM,
+  SYNTHETIC_OCT_GEOMETRY,
+  SYNTHETIC_OCT_PROBE_POINTS,
+} from './octInteractionTestUtils';
+import { syntheticOCTGrid } from '../fixtures/oct/volumes';
 
 test.describe('Retinal OCT import', () => {
   registerOctTestHooks();
@@ -13,7 +19,7 @@ test.describe('Retinal OCT import', () => {
     scratch,
     oct,
     octInteraction,
-    imageCache,
+    probe,
     segmentation,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -22,9 +28,10 @@ test.describe('Retinal OCT import', () => {
     await volview.open();
     await utils.openThroughDialog(scratch.path(image));
     await volview.waitForViews();
-    const spacing = await imageCache.waitForFirstCachedImageSpacing();
-    spacing.forEach((value, axis) =>
-      expect(value).toBeCloseTo(reference.spacing[axis], 6)
+    await probe.expectProbedPositions(
+      volview.views2D.first(),
+      SYNTHETIC_OCT_GEOMETRY,
+      SYNTHETIC_OCT_PROBE_POINTS
     );
     expect(await page.locator(CANVAS).count()).toBe(0);
 
@@ -93,15 +100,7 @@ test.describe('Retinal OCT import', () => {
       'manually projects generated OCT pixels from ' +
         format +
         ' with an explicit axis and restores its settings',
-      async ({
-        page,
-        volview,
-        utils,
-        scratch,
-        oct,
-        octInteraction,
-        imageCache,
-      }) => {
+      async ({ page, volview, utils, scratch, oct, octInteraction, probe }) => {
         const directory = utils.makeTempDir(STEM);
         const name = stageGenericOCT(directory, format);
         const projectionAxis = format === 'vti' ? 'Axial' : 'Coronal';
@@ -110,11 +109,19 @@ test.describe('Retinal OCT import', () => {
         await volview.waitForViews();
         expect(await page.locator(CANVAS).count()).toBe(0);
         const viewCount = await page.locator('.view-type-select').count();
-        const spacing = await imageCache.waitForFirstCachedImageSpacing();
-        expect(Math.abs(spacing[0])).toBeCloseTo(reference.spacing[0], 6);
-        expect(spacing[1]).toBeCloseTo(reference.spacing[2], 6);
-        expect(spacing[2]).toBeCloseTo(reference.spacing[1], 6);
-        if (format === 'vti') expect(spacing[0]).toBeLessThan(0);
+        const grid = syntheticOCTGrid();
+        const [sx, sz, sy] = grid.spacing;
+        await probe.expectProbedPositions(
+          volview.views2D.first(),
+          format === 'vti'
+            ? { origin: [0, 0, 0], spacing: [-sx, sz, sy] }
+            : {
+                origin: [0, 0, 0],
+                spacing: grid.spacing,
+                direction: grid.direction,
+              },
+          SYNTHETIC_OCT_PROBE_POINTS
+        );
         await oct.selectEnFace();
         await oct.waitForEnFaceReady();
         await expect(page.locator('.view-type-select')).toHaveCount(viewCount);
