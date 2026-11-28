@@ -660,8 +660,8 @@ const migrate700To800 = (inputManifest: any, migration: ManifestMigration) => {
   return manifest;
 };
 
-// Layout leaves name their view instead of indexing `layoutSlots`. Views the
-// layout does not show are dropped, since a layout now owns every view.
+// A 9.0.0 layout leaf names its view ID, and viewByID holds only the views
+// the layout shows.
 const migrate800To900 = (inputManifest: any) => {
   const manifest = JSON.parse(JSON.stringify(inputManifest));
   const slots: unknown[] = Array.isArray(manifest.layoutSlots)

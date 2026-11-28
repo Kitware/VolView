@@ -63,7 +63,7 @@ function withShares(tree: Layout, shares: readonly number[]): Layout {
 
 type Shared = [item: LayoutItem, share: number];
 
-const sharedGroup = (direction: LayoutDirection, entries: Shared[]): Layout =>
+const sharedGroup = (direction: LayoutDirection, entries: Shared[]) =>
   withShares(
     { direction, items: entries.map(([item]) => item) },
     entries.map(([, share]) => share)
@@ -89,7 +89,7 @@ function insertBeside(
   targetId: string,
   added: ViewLeaf,
   edge: DropEdge
-): Layout {
+) {
   const direction = edge === 'left' || edge === 'right' ? 'row' : 'column';
   const before = edge === 'left' || edge === 'top';
   const insertIn = (tree: Layout): Layout => {
@@ -170,7 +170,7 @@ function giveToNeighbor(groups: Shared[][], shares: readonly number[]) {
   );
 }
 
-export function removeLayoutView(layout: Layout, viewId: string): Layout {
+export function removeLayoutView(layout: Layout, viewId: string) {
   const removeIn = (tree: Layout): Layout => {
     const shares = groupShares(tree);
     const groups = tree.items.map((item, index): Shared[] => {
@@ -187,7 +187,7 @@ export function replaceLayoutView(
   layout: Layout,
   viewId: string,
   nextViewId: string
-): Layout {
+) {
   return mapLayoutLeaves(layout, (leaf) =>
     leaf.viewId === viewId ? viewLeaf(nextViewId) : leaf
   );
@@ -209,7 +209,7 @@ export function moveLayoutView(
   viewId: string,
   targetId: string,
   zone: DropZone
-): Layout {
+) {
   if (viewId === targetId) return layout;
   if (zone === 'center') return swapLayoutViews(layout, viewId, targetId);
   return insertBeside(
@@ -231,7 +231,7 @@ export function sameLayoutShape<A extends Leaf, B extends Leaf>(
   a: LayoutTree<A>,
   b: LayoutTree<B>,
   sameLeaf: (a: A, b: B) => boolean
-): boolean {
+) {
   const match = (x: LayoutNode<A>, y: LayoutNode<B>): boolean => {
     const left = unwrap(x);
     const right = unwrap(y);
@@ -304,7 +304,7 @@ export type LayoutDivider = {
   groupSize: number;
 };
 
-export function getLayoutDividers(layout: Layout): LayoutDivider[] {
+export function getLayoutDividers(layout: Layout) {
   const inGroup = (
     tree: Layout,
     bounds: Bounds,
@@ -479,7 +479,7 @@ export function moveLayoutDividers(
   dividers: readonly LayoutDivider[],
   position: number,
   container: Size
-): Layout {
+) {
   const ranges = dividers.map((divider) =>
     dividerRange(layout, divider, container)
   );
