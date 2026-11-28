@@ -15,7 +15,9 @@ test.describe('VolView', () => {
 
     await volview.open();
     await volview.downloadProstateSample();
-    await volview.waitForViews();
+
+    await volview.waitForViewCounts(3, true);
+    await volview.waitForViewsLoaded();
 
     const layoutContainer = page.locator('.layout-container').first();
 

@@ -1,0 +1,767 @@
+{
+  "reference": "tests/fixtures/dicom-pages/reference (highdicom 0.29.0, pydicom 3.0.2; versions pinned in its uv.lock)",
+  "about": "Slow tier: run with DICOM_CORPUS=extended. Unreachable sources are skipped and reported; a checksum mismatch fails. Conventions and pixel encoding as in dicomVolumeCorpus.json.",
+  "datasets": [
+    {
+      "id": "pydicom-rtdose",
+      "name": "dicom-corpus-pydicom-rtdose.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files/rtdose.dcm",
+      "sha256": "1d6cc092146d093e086a6bcccef4ebb7d097941343f5cd3b6395d157b64e37e4",
+      "bytes": 7568,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files",
+      "quirk": "RT Dose: 15 unpositioned frames, z from GridFrameOffsetVector, DoseGridScaling 1e-6, Implicit VR",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.481.2",
+        "modality": "RTDOSE",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 15,
+          "frameIncrementPointer": [
+            "3004000C"
+          ],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "GridFrameOffsetVector"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [10, 10, 15],
+          "range": [0.7949999999999999, 1.254],
+          "pixels": {
+            "kind": "hash",
+            "value": "7627ad7a8c9c3a59b67f6f70e33959b5f819e9c92c2e4dc5ad57fd6578da6812"
+          },
+          "spacing": [10.0, 10.0, 5.0],
+          "origin": [189.43125, 199.43125, -761.87],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: OperationalError: no such column: FrameLUT.ImagePositionPatient_0",
+        "derivation": "origin is ImagePositionPatient; the in-plane axes are the ImageOrientationPatient rows; the slice axis is their cross product, negated when GridFrameOffsetVector decreases; spacing is PixelSpacing (column, row) and the GridFrameOffsetVector step; values are stored samples times DoseGridScaling (PS3.3 C.8.8.3)",
+        "derivationTags": {
+          "ImagePositionPatient": [189.43125, 199.43125, -761.87],
+          "ImageOrientationPatient": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+          "PixelSpacing": [10.0, 10.0],
+          "GridFrameOffsetVector": [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 70.0],
+          "DoseGridScaling": 1e-06
+        }
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "idc-rtdose-vestibular-schwannoma",
+      "name": "dicom-corpus-idc-rtdose-vestibular-schwannoma.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/843a2c87-d711-41bf-911d-456adaebb9e6/be06a2b5-3680-4921-8454-d1dece3efbe6.dcm",
+      "sha256": "b6ee2ac028008a1be556de51128b84f638405894526ec8b3147339e19117cb9f",
+      "bytes": 8200242,
+      "license": "CC BY 4.0",
+      "attribution": "Vestibular-Schwannoma-SEG collection, The Cancer Imaging Archive, doi:10.7937/TCIA.9YTJ-5Q73",
+      "sourcePage": "https://doi.org/10.7937/tcia.9ytj-5q73",
+      "quirk": "Elekta RT Dose: 153 frames, negative GridFrameOffsetVector, DoseGridScaling",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.481.2",
+        "modality": "RTDOSE",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 153,
+          "frameIncrementPointer": [
+            "3004000C"
+          ],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "GridFrameOffsetVector"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [148, 181, 153],
+          "range": [0.0, 30.673048323059998],
+          "pixels": {
+            "kind": "hash",
+            "value": "ac6330fa4baf47228f43af9d2dd69c17bf649aa13cff6bf3ea584b7263293592"
+          },
+          "spacing": [1.0, 1.0, 1.0],
+          "origin": [-77.5918774, -116.703568, 81.5859436],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: OperationalError: no such column: FrameLUT.ImagePositionPatient_0",
+        "derivation": "origin is ImagePositionPatient; the in-plane axes are the ImageOrientationPatient rows; the slice axis is their cross product, negated when GridFrameOffsetVector decreases; spacing is PixelSpacing (column, row) and the GridFrameOffsetVector step; values are stored samples times DoseGridScaling (PS3.3 C.8.8.3)",
+        "derivationTags": {
+          "ImagePositionPatient": [-77.5918774, -116.703568, 81.5859436],
+          "ImageOrientationPatient": [1.0, -2.05103388e-10, 0.0, 2.05103388e-10, 1.0, 3.25260652e-19],
+          "PixelSpacing": [1.0, 1.0],
+          "GridFrameOffsetVector": [-0.0, -1.0, -2.0, -3.0, -4.0, -5.0, -6.0, -7.0, -8.0, -9.0, -10.0, -11.0, -12.0, -13.0, -14.0, -15.0, -16.0, -17.0, -18.0, -19.0, -20.0, -21.0, -22.0, -23.0, -24.0, -25.0, -26.0, -27.0, -28.0, -29.0, -30.0, -31.0, -32.0, -33.0, -34.0, -35.0, -36.0, -37.0, -38.0, -39.0, -40.0, -41.0, -42.0, -43.0, -44.0, -45.0, -46.0, -47.0, -48.0, -49.0, -50.0, -51.0, -52.0, -53.0, -54.0, -55.0, -56.0, -57.0, -58.0, -59.0, -60.0, -61.0, -62.0, -63.0, -64.0, -65.0, -66.0, -67.0, -68.0, -69.0, -70.0, -71.0, -72.0, -73.0, -74.0, -75.0, -76.0, -77.0, -78.0, -79.0, -80.0, -81.0, -82.0, -83.0, -84.0, -85.0, -86.0, -87.0, -88.0, -89.0, -90.0, -91.0, -92.0, -93.0, -94.0, -95.0, -96.0, -97.0, -98.0, -99.0, -100.0, -101.0, -102.0, -103.0, -104.0, -105.0, -106.0, -107.0, -108.0, -109.0, -110.0, -111.0, -112.0, -113.0, -114.0, -115.0, -116.0, -117.0, -118.0, -119.0, -120.0, -121.0, -122.0, -123.0, -124.0, -125.0, -126.0, -127.0, -128.0, -129.0, -130.0, -131.0, -132.0, -133.0, -134.0, -135.0, -136.0, -137.0, -138.0, -139.0, -140.0, -141.0, -142.0, -143.0, -144.0, -145.0, -146.0, -147.0, -148.0, -149.0, -150.0, -151.0, -152.0],
+          "DoseGridScaling": 0.000468040716
+        }
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-US-YBR_FULL_422-EVRLE",
+      "name": "dicom-corpus-gdcm-US-YBR_FULL_422-EVRLE.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/US-YBR_FULL_422-EVRLE.dcm?format=raw",
+      "sha256": "8482c22d7980e5b74a813cfc4bdaf22783b1ece412aa65867116727b8cca1f0d",
+      "bytes": 889554,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Ultrasound, uncompressed YBR_FULL_422, one calibrated region",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "YBR_FULL_422",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 1,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [800, 555, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [15.5275, 15.6644, 15.7571]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [0.0616, 0.0616]
+      }
+    },
+    {
+      "id": "gdcm-US-GE-4AICL142",
+      "name": "dicom-corpus-gdcm-US-GE-4AICL142.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/US-GE-4AICL142.dcm?format=raw",
+      "sha256": "9e6e5d026c2f8ac6f6b30bbf2385641dfbf827b280030671dc2aaa1a0dcfa574",
+      "bytes": 1424300,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Ultrasound, JPEG Baseline YBR_FULL_422, two regions",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.50",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "YBR_FULL_422",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 2,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [636, 434, 1],
+          "pixels": {
+            "kind": "stats",
+            "min": [0.0, 0.0, 0.0],
+            "max": [255.0, 255.0, 255.0],
+            "mean": [18.5144, 17.2599, 24.7385]
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [0.560000002, 0.560000002]
+      }
+    },
+    {
+      "id": "gdcm-XA-MONO2-8-12x-catheter",
+      "name": "dicom-corpus-gdcm-XA-MONO2-8-12x-catheter.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/XA-MONO2-8-12x-catheter.dcm?format=raw",
+      "sha256": "abba54b308ef8f606285b744572ab708b125f33acf726b58530879e0dc4edf42",
+      "bytes": 921078,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "X-ray angiography cine, 12 frames, JPEG Lossless",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.12.1",
+        "modality": "XA",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.70",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 12,
+          "frameIncrementPointer": [
+            "00181063"
+          ],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "time",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 12],
+          "range": [2.0, 163.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "9015728bc114f137e4d324e63230648080e1c3ce9c2dd4e54713eb4371e9d00f"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system."
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "idc-rf-varepop-apollo",
+      "name": "dicom-corpus-idc-rf-varepop-apollo.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/585cfdb0-412c-4738-baa2-384c51f7056d/69b694a5-9ed5-4da4-84f4-2bb0c4f862aa.dcm",
+      "sha256": "1e77d4263416e80c11d564eb4b8e7b9aba8da0f97f7be55833bc2cdbfc8a4751",
+      "bytes": 2363224,
+      "license": "CC BY 4.0",
+      "attribution": "VAREPOP-APOLLO collection, The Cancer Imaging Archive, doi:10.7937/GHKN-MD15",
+      "sourcePage": "https://doi.org/10.7937/ghkn-md15",
+      "quirk": "Fluoroscopy, 2 frames of 768 x 768",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.12.2",
+        "modality": "RF",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 2,
+          "frameIncrementPointer": [
+            "00181063"
+          ],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "time",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [768, 768, 2],
+          "range": [0.0, 4095.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "eaff494e8bcccc82c7c2859a41aa19d6079cb762a97a9b3700bc5b3263c69e86"
+          },
+          "spacing": [0.1691, 0.1691]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: RuntimeError: Image does not exist within a frame-of-reference coordinate system.",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [0.1691, 0.1691]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
+    },
+    {
+      "id": "pydicom-liver_1frame",
+      "name": "dicom-corpus-pydicom-liver_1frame.dcm",
+      "url": "https://raw.githubusercontent.com/pydicom/pydicom/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files/liver_1frame.dcm",
+      "sha256": "8ac3546185d0c18c193438b47b16c4ef323f0ebe0e8fd071ee1e6d43edef1978",
+      "bytes": 37084,
+      "license": "MIT",
+      "attribution": "pydicom contributors; test file provenance in the pydicom data README",
+      "sourcePage": "https://github.com/pydicom/pydicom/tree/242ac1975e49c08212d541f3b8f47ad416d5c9ce/src/pydicom/data/test_files",
+      "quirk": "DICOM SEG, 1-bit, one frame",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.66.4",
+        "modality": "SEG",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "perFrame",
+          "imageOrientation": "shared",
+          "pixelSpacing": "shared",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.810547, 0.810547],
+          "origin": [-235.2, -226.8, -128.69],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [0.0, 1.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "0c01d1aacfddf462d8c1d22a6d33c1dfc893bce3bd43f7d0cd22df9ee7591e27"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "idc-ko-qin-breast",
+      "name": "dicom-corpus-idc-ko-qin-breast.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/4cd771b1-8d5d-4134-8739-c930995ecc41/c5f54aec-7058-4b4d-a096-ca4c2dcc2ef2.dcm",
+      "sha256": "ae9079d621ffb60ec4ffc1d88cbbbb85b736e366335a16a99922a2106ae53d10",
+      "bytes": 1115424,
+      "license": "CC BY 3.0",
+      "attribution": "QIN-Breast-DCE-MRI collection, The Cancer Imaging Archive, doi:10.7937/K9/TCIA.2014.A2N1IXOX",
+      "sourcePage": "https://doi.org/10.7937/k9/tcia.2014.a2n1ixox",
+      "quirk": "Key Object Selection, no pixels",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.88.59",
+        "modality": "KO",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": false,
+        "photometricInterpretation": null,
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "reference": "tags"
+      },
+      "module": {
+        "outcome": "error",
+        "error": "No instance declares Bits Stored and a finite modality rescale range"
+      }
+    },
+    {
+      "id": "idc-cr-varepop-apollo",
+      "name": "dicom-corpus-idc-cr-varepop-apollo.dcm",
+      "url": "https://idc-open-data.s3.amazonaws.com/c2efd3d1-07fc-4240-84f7-dbd255c61d04/a2a8ee80-03ad-42e7-8cb4-62a741b9a1fb.dcm",
+      "sha256": "133f35686b3ac2b50e2d1c116c55a0aa8c91e6d2bb5e57ed9450dfba986bdc5e",
+      "bytes": 8013970,
+      "license": "CC BY 4.0",
+      "attribution": "VAREPOP-APOLLO collection, The Cancer Imaging Archive, doi:10.7937/GHKN-MD15",
+      "sourcePage": "https://doi.org/10.7937/ghkn-md15",
+      "quirk": "Computed radiograph larger than 2048 pixels",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.1",
+        "modality": "CR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1788, 2240, 1],
+          "range": [0.0, 3468.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "c5e06d7f1a079fae27e97e65d9e56e0f54590ad3ab569224a7ce73b912e6a86b"
+          },
+          "spacing": [0.148, 0.148]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom: TypeError: 'NoneType' object is not iterable",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [0.148, 0.148]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
+    },
+    {
+      "id": "dcm-qa-siemens-mosaic",
+      "name": "dicom-corpus-dcm-qa-siemens-mosaic.dcm",
+      "url": "https://raw.githubusercontent.com/neurolabusc/dcm_qa/8215e3e991c699b4b14f8114087d6f9c52dad428/In/Orientation/ax/axasc35/MR.1.3.12.2.1107.5.2.32.35131.2014031012493950715786673",
+      "sha256": "15122565799ad4d38b4af8a07fcfb5dd7f9e6428b152c7d7a0839471fa955ccd",
+      "bytes": 383472,
+      "license": "BSD-2-Clause",
+      "attribution": "dcm_qa, Chris Rorden",
+      "sourcePage": "https://github.com/neurolabusc/dcm_qa",
+      "quirk": "Siemens mosaic: 35 slices tiled in one frame",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.1",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [384, 384, 1],
+          "spacing": [3.25, 3.25],
+          "origin": [-624.0, -661.826589, -6.525502],
+          "direction": [1.0, 0.0, 0.0, 0.0, 0.994150964, -0.107999355, 0.0, 0.107999355, 0.994150964],
+          "range": [0.0, 2362.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "e949f9b812b196b9a427ba88603cb714b41d0c592122ef6924d4a427c581c6bd"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-MR-MONO2-12-shoulder",
+      "name": "dicom-corpus-gdcm-MR-MONO2-12-shoulder.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/MR-MONO2-12-shoulder.dcm?format=raw",
+      "sha256": "8733d36f1937e3b58fe016c51eab2e098e89e4ba5854384bdede6c2844686225",
+      "bytes": 720528,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG Lossless, Non-Hierarchical (Process 14), 12 bit MR with a fractional rescale",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.4",
+        "modality": "MR",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.57",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SpacingBetweenSlices",
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1024, 1024, 1],
+          "spacing": [0.195313, 0.195313],
+          "origin": [-180.058222, -97.147766, 112.82799],
+          "direction": [0.569486015, 0.822001021, 0.0, 0.0, 0.0, -1.0, -0.822001021, 0.569486015, 0.0],
+          "range": [6.0999998822808266e-05, 2245.597900390625],
+          "pixels": {
+            "kind": "hash",
+            "value": "f85cc47a901eab537a4ddcc3ff9b6825cddbf40b7153453a23c9d44bf2a31a2c"
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume",
+        "storage": "float32"
+      }
+    },
+    {
+      "id": "gdcm-JPEG-Extended",
+      "name": "dicom-corpus-gdcm-JPEG-Extended.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/gdcm-JPEG-Extended.dcm?format=raw",
+      "sha256": "44921d0df18be8ae1374d2008cdfef33a805889f36c205fd67cdba29045d1c97",
+      "bytes": 195164,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "JPEG Extended, 12 bit lossy CT",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.2",
+        "modality": "CT",
+        "transferSyntaxUID": "1.2.840.10008.1.2.4.51",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME2",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": true,
+          "imagePosition": "root",
+          "imageOrientation": "root",
+          "pixelSpacing": "root",
+          "sliceSpacing": [
+            "SliceThickness"
+          ],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [512, 512, 1],
+          "spacing": [0.255859, 0.255859],
+          "origin": [-85.37207, -202.37207, -47.6],
+          "direction": [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+          "range": [-1024.0, 2663.0],
+          "pixels": {
+            "kind": "stats",
+            "min": [-1024.0],
+            "max": [2663.0],
+            "mean": [-860.1923]
+          }
+        },
+        "reference": "highdicom"
+      },
+      "module": {
+        "outcome": "volume"
+      }
+    },
+    {
+      "id": "gdcm-US-RGB-8-epicard",
+      "name": "dicom-corpus-gdcm-US-RGB-8-epicard.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/US-RGB-8-epicard.dcm?format=raw",
+      "sha256": "10204a2cb948fe1841f5787f56a17f79d5197c582428d28e93b19cfc26806971",
+      "bytes": 922612,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "Ultrasound, Explicit VR Big Endian, 8 bit RGB, no geometry",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.6.1",
+        "modality": "US",
+        "transferSyntaxUID": "1.2.840.10008.1.2.2",
+        "filePreamble": true,
+        "pixels": true,
+        "photometricInterpretation": "RGB",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": null,
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [640, 480, 1],
+          "pixels": {
+            "kind": "hash",
+            "value": "b9f00387faa1de25814a5d6d966568f8df034c516511219140fcb6b722396bf0"
+          }
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only"
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true,
+        "spacing": [1.0, 1.0]
+      }
+    },
+    {
+      "id": "gdcm-KODAK-12-MONO1-Odd_Terminated_Sequence",
+      "name": "dicom-corpus-gdcm-KODAK-12-MONO1-Odd_Terminated_Sequence.dcm",
+      "url": "https://sourceforge.net/p/gdcm/gdcmdata/ci/9b38ac7a8baee4e943505ab3c56fb7d19d54754f/tree/KODAK-12-MONO1-Odd_Terminated_Sequence.dcm?format=raw",
+      "sha256": "d72140a44d75d10a325488e602bbf5a3f9c0f68b09a943d13644fd2a6544f79a",
+      "bytes": 8582062,
+      "license": "BSD-3-Clause (GDCM); the gdcmData repository has no license file of its own",
+      "attribution": "GDCM project test data (gdcmData), Mathieu Malaterre and contributors; many files originate from David Clunie and Sebastien Barre sample sets",
+      "sourcePage": "https://sourceforge.net/p/gdcm/gdcmdata/",
+      "quirk": "CR, MONOCHROME1, bare implicit VR data set whose Modality LUT Sequence maps stored values to optical density",
+      "facts": {
+        "sopClassUID": "1.2.840.10008.5.1.4.1.1.1",
+        "modality": "CR",
+        "transferSyntaxUID": "1.2.840.10008.1.2",
+        "filePreamble": false,
+        "pixels": true,
+        "photometricInterpretation": "MONOCHROME1",
+        "frames": {
+          "numberOfFrames": 1,
+          "frameIncrementPointer": [],
+          "numberOfSlices": null,
+          "numberOfTimeSlots": null,
+          "temporalDimension": false
+        },
+        "frameAxis": "space",
+        "geometryTags": {
+          "frameOfReference": false,
+          "imagePosition": null,
+          "imageOrientation": null,
+          "pixelSpacing": "root",
+          "sliceSpacing": [],
+          "ultrasoundRegions": 0,
+          "ophthalmicFrameLocation": false
+        },
+        "volume": {
+          "dimensions": [1792, 2392, 1],
+          "range": [0.0, 4095.0],
+          "pixels": {
+            "kind": "hash",
+            "value": "5d5f1fc0f6bc994b8c5f503568e35e7e3429378ef13babe0bd86c6ba2ed14b40"
+          },
+          "spacing": [0.097, 0.097]
+        },
+        "reference": "manual",
+        "referenceNote": "highdicom reads Part 10 little endian files only",
+        "derivation": "spacing is PixelSpacing (column, row); the file does not place the image",
+        "derivationTags": {
+          "PixelSpacing": [0.097, 0.097]
+        }
+      },
+      "module": {
+        "outcome": "volume",
+        "fallbackGeometry": true
+      }
+    }
+  ]
+}

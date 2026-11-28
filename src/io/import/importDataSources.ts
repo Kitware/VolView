@@ -1,6 +1,6 @@
 import {
-  ImportContext,
   ImportHandler,
+  type ImportContext,
   ImportResult,
   asErrorResult,
   asLoadableResult,
@@ -16,13 +16,12 @@ import {
 } from '@/src/io/import/common';
 import {
   DataSource,
-  ChunkSource,
+  DicomInstanceSource,
   findStateFileLeaves,
   getDataSourceName,
 } from '@/src/io/import/dataSource';
-import handleDicomFile from '@/src/io/import/processors/handleDicomFile';
+import handleDicom from '@/src/io/import/processors/handleDicom';
 import extractArchive from '@/src/io/import/processors/extractArchive';
-import extractArchiveTarget from '@/src/io/import/processors/extractArchiveTarget';
 import handleAmazonS3 from '@/src/io/import/processors/handleAmazonS3';
 import handleGoogleCloudStorage from '@/src/io/import/processors/handleGoogleCloudStorage';
 import importSingleFile from '@/src/io/import/processors/importSingleFile';
@@ -41,14 +40,16 @@ import {
 import updateUriType from '@/src/io/import/processors/updateUriType';
 import openUriStream from '@/src/io/import/processors/openUriStream';
 import downloadStream from '@/src/io/import/processors/downloadStream';
-import handleDicomStream from '@/src/io/import/processors/handleDicomStream';
-import { FILE_EXT_TO_MIME } from '@/src/io/mimeTypes';
 import { asyncSelect } from '@/src/utils/asyncSelect';
 import { evaluateChain, Skip } from '@/src/utils/evaluateChain';
-import { ensureError, partition } from '@/src/utils';
-import { Chunk } from '@/src/core/streaming/chunk';
+import { ensureError } from '@/src/utils';
+import { groupBy } from '@/src/dicom/core/collections/groupBy';
+import type { Instance } from '@/src/dicom/core/instance/readInstance';
 import { useDatasetStore } from '@/src/store/datasets';
-import { useDICOMStore } from '@/src/store/datasets-dicom';
+import {
+  useDICOMStore,
+  type ImportInstancesDeps,
+} from '@/src/store/datasets-dicom';
 import { useMessageStore } from '@/src/store/messages';
 import { shouldSkipImportSource } from '@/src/io/import/shouldSkipImportSource';
 
@@ -80,44 +81,143 @@ const applyConfigsPostState = (
     }
   });
 
+const compareSourceOrder = (a: number[], b: number[]) => {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return a.length - b.length;
+};
+
 // The restore-time stateID -> storeID map: every state-file leaf a loadable
-// covers maps to its ONE store id. Many-to-one is the normal shape — a merged
-// multi-file DICOM volume covers every member file's per-file dataset id.
+// covers maps to its ONE store id. Many-to-one is the normal shape: a merged
+// multi-file DICOM volume covers every member file's per-file dataset id. A
+// dataset whose leaves now load as SEVERAL volumes (a series since split into
+// acquisitions) has a different grid than its saved state; it is left
+// unmapped so restore reports it instead of binding annotations, layers, and
+// views to the wrong slices.
 export function buildStateIDToStoreID(
   loadables: readonly LoadableResult[]
 ): Record<string, string> {
-  const stateIDToStoreID: Record<string, string> = {};
-  loadables.forEach((loadable) => {
-    findStateFileLeaves(loadable.dataSource).forEach((leaf) => {
-      stateIDToStoreID[leaf.stateID] = loadable.dataID;
-    });
-  });
-  return stateIDToStoreID;
+  return Object.fromEntries(
+    [...storeIDsByStateID(loadables)]
+      .filter(([, storeIDs]) => storeIDs.size === 1)
+      .map(([stateID, storeIDs]) => [stateID, [...storeIDs][0]])
+  );
 }
 
-async function importDicomChunkSources(sources: ChunkSource[]) {
-  if (sources.length === 0) return [];
-
-  const volumeChunks = await useDICOMStore().importChunks(
-    sources.map((src) => src.chunk)
+/**
+ * The state-file datasets the map above leaves out because their leaves now
+ * load as several volumes, with those volumes. The restore names them as
+ * split rather than as missing: every one of them is on screen.
+ */
+export function findSplitStateDatasets(
+  loadables: readonly LoadableResult[]
+): Record<string, string[]> {
+  return Object.fromEntries(
+    [...storeIDsByStateID(loadables)]
+      .filter(([, storeIDs]) => storeIDs.size > 1)
+      .map(([stateID, storeIDs]) => [stateID, [...storeIDs]])
   );
+}
 
-  // this is used to reconstruct the ChunkSource list
-  const chunkToDataSource = new Map<Chunk, ChunkSource>();
-  sources.forEach((src) => {
-    chunkToDataSource.set(src.chunk, src);
-  });
-
-  return Object.entries(volumeChunks).map(([id, chunks]) =>
-    asLoadableResult(
-      id,
-      {
-        type: 'collection',
-        sources: chunks.map((chunk) => chunkToDataSource.get(chunk)!),
-      },
-      'image'
+const stateLeavesOf = (loadables: readonly LoadableResult[]) =>
+  loadables.flatMap((loadable) =>
+    findStateFileLeaves(loadable.dataSource).map(
+      (leaf) => [leaf.stateID, loadable.dataID] as const
     )
   );
+
+const storeIDsByStateID = (loadables: readonly LoadableResult[]) =>
+  new Map(
+    [...groupBy(stateLeavesOf(loadables), ([stateID]) => stateID)].map(
+      ([stateID, pairs]) => [
+        stateID,
+        new Set(pairs.map(([, storeID]) => storeID)),
+      ]
+    )
+  );
+
+// An instance outlives the batch that brought it: a replan can move a member
+// into another collection, whose provenance must still name where its bytes
+// came from.
+const instanceToDataSource = new WeakMap<Instance, DicomInstanceSource>();
+
+const sourcesOf = (instances: Instance[]) =>
+  instances
+    .map((instance) => instanceToDataSource.get(instance))
+    .filter((src): src is DicomInstanceSource => src !== undefined);
+
+/** What the import needs of its caller: how to remove a dissolved dataset. */
+type ImportInstancesHooks = Required<
+  Pick<ImportInstancesDeps, 'removeDissolved'>
+>;
+
+const loadableOf = (id: string, sources: DicomInstanceSource[]) =>
+  asLoadableResult(id, { type: 'collection', sources }, 'image');
+
+/**
+ * Commits the instances series by series. The series that committed are
+ * loaded, so their datasets are reported beside the failures of the others.
+ */
+export function importDicomInstanceSources(
+  sources: DicomInstanceSource[],
+  importInstances = (instances: Instance[], hooks: ImportInstancesHooks) =>
+    useDICOMStore().importInstances(instances, hooks)
+) {
+  if (sources.length === 0) return { loadables: [], failures: [] };
+
+  sources.forEach((src) => instanceToDataSource.set(src.instance, src));
+
+  const supplied = new Set<DataSource>(sources);
+  const datasetStore = useDatasetStore();
+  // The dataset store's removal clears every store that names a dissolved
+  // dataset, in the order eviction needs.
+  const { volumes, failures } = importInstances(
+    sources.map((src) => src.instance),
+    { removeDissolved: (id: string) => datasetStore.remove(id) }
+  );
+  const entries = Object.entries(volumes);
+  // Every member reports back, so a collection that gained a member from a
+  // dissolved one saves its provenance too. The result names only this
+  // import's own sources, and no volume it brought none for.
+  datasetStore.addDataSources(
+    entries.map(([id, instances]) => loadableOf(id, sourcesOf(instances)))
+  );
+  return {
+    loadables: entries
+      .map(
+        ([id, instances]) =>
+          [
+            id,
+            sourcesOf(instances).filter((source) => supplied.has(source)),
+          ] as const
+      )
+      .filter(([, own]) => own.length > 0)
+      .sort(([a], [b]) => (a < b ? -1 : Number(a > b)))
+      .map(([id, own]) => loadableOf(id, own)),
+    failures: failures.map(({ error, instances }) => ({
+      error,
+      sources: sourcesOf(instances),
+    })),
+  };
+}
+
+/** Only the sources of a series that failed are blamed for its failure. */
+function importDicomResults(
+  sources: DicomInstanceSource[]
+): ImportDataSourcesResult[] {
+  const { loadables, failures } = importDicomInstanceSources(sources);
+  return [
+    ...loadables,
+    ...failures.map(({ error, sources: failed }) =>
+      asErrorResult(
+        error,
+        failed.length === 1
+          ? failed[0]
+          : { type: 'collection', sources: failed }
+      )
+    ),
+  ];
 }
 
 type ImportPolicy = 'application' | 'volume-data';
@@ -142,33 +242,29 @@ async function processImportQueue(
   handlers: ImportHandler[],
   importContext: ImportContext
 ) {
-  const chunkSources: DataSource[] = [];
+  const instanceSources: Array<{
+    source: DicomInstanceSource;
+    order: number[];
+  }> = [];
   const configResults: ConfigResult[] = [];
   const stateFileSetups: StateFileSetupResult[] = [];
   const results: ImportDataSourcesResult[] = [];
 
+  const queuedSource = (src: DataSource, order: number[]) => ({
+    promise: evaluateChain(src, handlers, importContext),
+    source: src,
+    order,
+  });
   const enqueue = (sources: DataSource[]) =>
     sources
       .filter((src) => !shouldSkipImportSource(src))
-      .map((src) => ({
-        promise: evaluateChain(src, handlers, importContext),
-        source: src,
-      }));
+      .map((src, index) => queuedSource(src, [index]));
 
   let queue = enqueue(dataSources);
 
-  const enqueueChildren = (sources: DataSource[]) => {
-    const [chunks, otherSources] = partition(
-      (source) => source.type === 'chunk',
-      sources
-    );
-    chunkSources.push(...chunks);
-    queue.push(...enqueue(otherSources));
-  };
-
   while (queue.length) {
     const { index } = await asyncSelect(queue.map((item) => item.promise));
-    const { promise, source } = queue[index];
+    const { promise, source, order } = queue[index];
     const result = await promise.catch((err) => asErrorResult(err, source));
     queue = queue.filter((_, i) => i !== index);
 
@@ -176,9 +272,16 @@ async function processImportQueue(
       case 'stateFileSetup':
         stateFileSetups.push(result);
       // fallthrough to handle dataSources
-      case 'intermediate':
-        enqueueChildren(result.dataSources);
+      case 'intermediate': {
+        result.dataSources.forEach((src, childIndex) => {
+          if (shouldSkipImportSource(src)) return;
+          const childOrder = [...order, childIndex];
+          if (src.type === 'dicom')
+            instanceSources.push({ source: src, order: childOrder });
+          else queue.push(queuedSource(src, childOrder));
+        });
         break;
+      }
       case 'config':
         configResults.push(result);
         try {
@@ -197,7 +300,7 @@ async function processImportQueue(
     }
   }
 
-  return { chunkSources, configResults, stateFileSetups, results };
+  return { instanceSources, configResults, stateFileSetups, results };
 }
 
 async function completeStateFileSetups(
@@ -207,6 +310,7 @@ async function completeStateFileSetups(
   failedLeaves: RestoreOptions['failedLeaves']
 ) {
   const stateIDToStoreID = buildStateIDToStoreID(loadableResults);
+  const splitDatasets = findSplitStateDatasets(loadableResults);
   // Leaf stateIDs covered by a consolidated notice that actually ran: only
   // their errors may be suppressed by the import pipeline.
   const reportedStateIDs = new Set<string>();
@@ -220,6 +324,7 @@ async function completeStateFileSetups(
           missingFiles: setup.missingFiles,
           failedLeaves,
           migration: setup.migration,
+          splitDatasets,
         }
       );
       setup.dataSources.forEach((src) => {
@@ -259,8 +364,9 @@ async function importDataSourcesWithPolicy(
     while (cleanupHandlers.length) cleanupHandlers.pop()!();
   };
 
-  const importContext = {
-    fetchFileCache: new Map<string, File>(),
+  const importContext: ImportContext = {
+    fetchFileCache: new Map(),
+    archiveCache: new Map(),
     onCleanup,
     importDataSources: (sources: DataSource[]) =>
       importDataSourcesWithPolicy(sources, policy, restore),
@@ -286,44 +392,40 @@ async function importDataSourcesWithPolicy(
     handleAmazonS3,
 
     // stream handling
-    handleDicomStream,
+    // before downloadStream and extractArchive: a DICOM source reads its own
+    // header, whether it is a file or a uri
+    handleDicom,
     downloadStream,
 
     extractArchive,
-    extractArchiveTarget,
-    // should be before importSingleFile, since DICOM is more specific
-    handleDicomFile, // collect DICOM files to import later
     importSingleFile,
     // catch any unhandled resource
     unhandledResource,
   ];
 
-  const { chunkSources, configResults, stateFileSetups, results } =
+  const { instanceSources, configResults, stateFileSetups, results } =
     await processImportQueue(dataSources, handlers, importContext);
 
   cleanup();
 
-  const dicomChunkSources = chunkSources.filter(
-    (src): src is ChunkSource =>
-      src.type === 'chunk' && src.mime === FILE_EXT_TO_MIME.dcm
-  );
+  const dicomInstanceSources = instanceSources
+    .sort((a, b) => compareSourceOrder(a.order, b.order))
+    .map(({ source }) => source);
 
-  try {
-    const dicomResults = await importDicomChunkSources(dicomChunkSources);
-    results.push(...dicomResults);
-  } catch (err) {
-    const errorSource =
-      dicomChunkSources.length === 1
-        ? dicomChunkSources[0]
-        : ({ type: 'collection', sources: dicomChunkSources } as DataSource);
-    results.push(asErrorResult(ensureError(err), errorSource));
-  }
+  const dicomResults = importDicomResults(dicomInstanceSources);
+  results.push(...dicomResults);
 
   const loadableResults = results.filter(
     (r): r is LoadableResult => r.type === 'data'
   );
 
-  useDatasetStore().addDataSources(loadableResults);
+  // A DICOM dataset was published with its series commit, so adding it
+  // again here would restore the membership that import saw rather than the
+  // membership the series now holds.
+  const published = new Set<ImportDataSourcesResult>(dicomResults);
+  useDatasetStore().addDataSources(
+    loadableResults.filter((result) => !published.has(result))
+  );
 
   // Failed leaves (e.g. a 404'd uri member of a multi-leaf dataset) feed the
   // restore's consolidated notice: a dataset that still resolves from its

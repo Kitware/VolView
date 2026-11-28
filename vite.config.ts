@@ -131,6 +131,9 @@ function woff2IconFont(): Plugin {
 
 export default defineConfig({
   base: './',
+  // Workers are module workers, and as ES modules they can load a chunk on
+  // demand, as the codec worker does for its 12 bit JPEG build.
+  worker: { format: 'es' },
   build: {
     outDir: distDir,
     // An inlined font is downloaded with the render blocking stylesheet. As a
@@ -243,13 +246,6 @@ export default defineConfig({
               '@itk-wasm/morphological-contour-interpolation'
             ),
             'dist/pipelines/*{.wasm,.js,.zst}'
-          ),
-          dest: 'itk/pipelines',
-        },
-        {
-          src: resolvePath(
-            rootDir,
-            'src/io/itk-dicom/emscripten-build/**/dicom*'
           ),
           dest: 'itk/pipelines',
         },

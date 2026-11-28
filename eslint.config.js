@@ -139,7 +139,6 @@ const featureBoundaries = (features) => {
 export default tseslint.config(
   {
     ignores: [
-      'src/io/itk-dicom/emscripten-build/**',
       'src/io/resample/emscripten-build/**',
       '**/*.d.ts',
       'dist/**',
@@ -281,7 +280,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/vtk/**/*.{js,ts}'],
+    files: ['src/vtk/**/*.{js,ts}', 'src/dicom/vtk/**/*.{js,ts}'],
     rules: {
       'no-param-reassign': [
         'error',
@@ -374,7 +373,7 @@ export default tseslint.config(
   {
     files: ['src/**/*.{js,ts,vue}'],
     ignores: [
-      'src/**/__tests__/**',
+      '**/__tests__/**',
       'src/**/*.{spec,test}.{js,ts}',
       'src/**/*.d.ts',
       '**/emscripten-build/**',
@@ -386,6 +385,46 @@ export default tseslint.config(
       'max-lines': [
         'warn',
         { max: 600, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  // ESLint matches specifiers, not resolved paths. Core and vtk files sit at
+  // most one directory deep, so climbing two levels always leaves them.
+  {
+    files: ['src/dicom/core/**/*.{js,ts}'],
+    ignores: ['**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|@kitware/vtk\\.js(?:/|$)|itk-wasm(?:/|$)|@itk-wasm/|(\\.\\./){2}|\\.\\./vtk(?:/|$))',
+              message:
+                'DICOM core cannot depend on application code, UI frameworks, vtk.js, itk-wasm or the DICOM vtk directory.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/dicom/vtk/**/*.{js,ts}'],
+    ignores: ['**/__tests__/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex:
+                '^(@/|@src/|vue(?:/|$)|pinia(?:/|$)|@vueuse/|itk-wasm(?:/|$)|@itk-wasm/|(\\.\\./){2})',
+              message:
+                'DICOM vtk cannot depend on application code, application state, UI frameworks or itk-wasm.',
+            },
+          ],
+        },
       ],
     },
   },

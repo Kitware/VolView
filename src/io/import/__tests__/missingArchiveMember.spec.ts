@@ -8,6 +8,7 @@ import {
 import type { StateFileSetupResult } from '@/src/io/import/common';
 import { ManifestSchema } from '@/src/io/state-file/schema';
 import { useMessageStore } from '@/src/store/messages';
+import { Skip } from '@/src/utils/evaluateChain';
 
 // ---------------------------------------------------------------------------
 // Regression: a state file whose archive is missing SOME of a dataset's files
@@ -59,6 +60,19 @@ describe('restore with a partially missing dataset archive', () => {
     ]);
   });
 
+  it('leaves a saved dataset archive to extraction, even when the archive holds a manifest', async () => {
+    const file = await stateZipMissingOneMember();
+
+    const result = await restoreStateFile({
+      type: 'file',
+      file,
+      fileType: 'application/zip',
+      stateFileLeaf: { stateID: 'ds-ct', archivePaths: ['data/10/a.dcm'] },
+    });
+
+    expect(result).toBe(Skip);
+  });
+
   it('the consolidated notice names a member missing from a dataset that still restored', async () => {
     await completeStateFileRestore(
       ManifestSchema.parse(manifest),
@@ -71,6 +85,24 @@ describe('restore with a partially missing dataset archive', () => {
       (message) => message.title === 'Some scene content could not be restored'
     );
     expect(warning?.options.details).toContain('b.dcm');
+  });
+
+  it('names a dataset whose files now load as several volumes as split, not missing', async () => {
+    await completeStateFileRestore(
+      ManifestSchema.parse(manifest),
+      [],
+      {},
+      { splitDatasets: { 'ds-ct': ['store-acq1', 'store-acq2'] } }
+    );
+
+    const warning = useMessageStore().messages.find(
+      (message) => message.title === 'Some scene content could not be restored'
+    );
+    expect(warning?.options.details).toContain(
+      'image: a.dcm, b.dcm (loaded as 2 volumes'
+    );
+    expect(warning?.options.details).toContain('not restored');
+    expect(warning?.options.details).not.toMatch(/image: a\.dcm, b\.dcm\n/);
   });
 
   it('names the files in a collection that failed to resolve entirely', async () => {

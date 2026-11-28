@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Tags } from '@/src/core/dicomTags';
+import { Tags } from '@/src/dicom/core/metadata/dicomTags';
 import { getConsistentDicomWindowRange } from '@/src/utils/dicomWindowRange';
 
 function windowTags(center: string, width: string, voiFunction?: string) {
@@ -16,6 +16,7 @@ describe('DICOM window display range', () => {
   it.each([
     ['unsigned identity', '2048', '4096', undefined, [0, 4095]],
     ['signed window', '0', '100', 'LINEAR', [-50, 49]],
+    ['NUL padded values', '7758\0', '13964\0', undefined, [776, 14739]],
     ['fractional exact window', '0.5', '1', 'LINEAR_EXACT', [0, 1]],
     ['sub-unit exact width', '0', '0.25', 'LINEAR_EXACT', [-0.125, 0.125]],
   ] as const)(
@@ -27,7 +28,7 @@ describe('DICOM window display range', () => {
     }
   );
 
-  it('compares parsed values across chunks and defaults an absent function to LINEAR', () => {
+  it('compares parsed values across instances and defaults an absent function to LINEAR', () => {
     expect(
       getConsistentDicomWindowRange([
         windowTags('1000', '2000'),
@@ -47,7 +48,7 @@ describe('DICOM window display range', () => {
   });
 
   it.each([
-    ['no chunks', []],
+    ['no instances', []],
     ['missing first metadata', [undefined, windowTags('50', '100')]],
     ['missing later metadata', [windowTags('50', '100'), null]],
     ['missing center', [[[Tags.WindowWidth, '100']]]],

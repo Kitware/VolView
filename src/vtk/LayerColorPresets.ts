@@ -3,6 +3,9 @@ import './ColorMaps';
 
 export const DEFAULT_LAYER_PRESET = 'DICOM Hot Iron';
 
+/** MONOCHROME1 images display their low values white. */
+export const MONOCHROME1_PRESET = 'Inverted-Grayscale';
+
 export const LAYER_PRESET_OPTIONS = [
   { title: 'Grayscale', value: 'Grayscale' },
   { title: 'Inverted grayscale', value: 'Inverted-Grayscale' },

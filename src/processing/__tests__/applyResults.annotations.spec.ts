@@ -768,6 +768,7 @@ describe('applyIntent — add-annotations', () => {
         SeriesDescription: 'clip',
         WindowLevel: '128',
         WindowWidth: '256',
+        PhotometricInterpretation: 'MONOCHROME2',
         kind: 'cine',
       };
     };

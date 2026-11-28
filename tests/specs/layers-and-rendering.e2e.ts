@@ -40,8 +40,11 @@ test.describe('Layers and Rendering', () => {
     await renderTab.click();
 
     const view3D = await volview.getView3D();
+    await volview.waitForLoadingIndicator(
+      page.locator('[data-testid~="vtk-volume-view"]')
+    );
 
-    const volumeRenderingSection = (await volview.getVolumeRenderingSection())!;
+    const volumeRenderingSection = volview.getVolumeRenderingSection();
     await expect(volumeRenderingSection).toBeAttached();
     await expect(volumeRenderingSection).toBeVisible();
 

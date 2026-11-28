@@ -1,6 +1,21 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
-import { leafStateId } from '@/src/io/import/dataSource';
+import JSZip from 'jszip';
+import openUriStream from '@/src/io/import/processors/openUriStream';
+import extractArchive from '@/src/io/import/processors/extractArchive';
+import { restoreStateFile } from '@/src/io/import/processors/restoreStateFile';
+import { buildStateIDToStoreID } from '@/src/io/import/importDataSources';
+import {
+  asLoadableResult,
+  type ImportContext,
+  type IntermediateResult,
+  type StateFileSetupResult,
+} from '@/src/io/import/common';
+import {
+  findStateFileLeaves,
+  leafStateId,
+  type DataSource,
+} from '@/src/io/import/dataSource';
 import { readSessionSetup } from '@/src/io/import/__tests__/restoreProcessorFixtures';
 import { MANIFEST_VERSION } from '@/src/io/state-file/serialize';
 
@@ -80,4 +95,126 @@ describe('prepareLeafDataSources: composed-manifest artifacts', () => {
     expect(leaves.some((leaf) => leaf.uri === ARTIFACT_URI)).toBe(false);
     expect(leaves.some((leaf) => leaf.uri === BASE_URI)).toBe(true);
   });
+});
+
+/** The one archive member extracted for a saved leaf. */
+const extractedMember = async (source: DataSource, context?: ImportContext) => {
+  const { dataSources } = (await extractArchive(
+    source,
+    context
+  )) as IntermediateResult;
+  expect(dataSources).toHaveLength(1);
+  const [member] = dataSources;
+  if (member.type !== 'file') throw new Error('Expected a file');
+  return member;
+};
+
+describe('saved archive member leaves', () => {
+  beforeEach(() => setActivePinia(createPinia()));
+  it.each([
+    ['nested', 'series-a/slice.dcm', 'series-b/slice.dcm'],
+    ['flat', 'a.dcm', 'b.dcm'],
+    ['root-relative', '/a.dcm', '/b.dcm'],
+  ])(
+    'restores each dataset from its recorded %s member of a shared archive',
+    async (_kind, pathA, pathB) => {
+      const inner = new JSZip();
+      inner.file(pathA.replace(/^\/+/, ''), 'series A');
+      inner.file(pathB.replace(/^\/+/, ''), 'series B');
+      const manifest = {
+        version: MANIFEST_VERSION,
+        dataSources: [
+          { id: 1, type: 'file', fileId: 10, fileType: 'application/zip' },
+          { id: 2, type: 'archive', parent: 1, path: pathA },
+          { id: 3, type: 'archive', parent: 1, path: pathB },
+        ],
+        datasetFilePath: { '10': 'data/series.zip' },
+        datasets: [
+          { id: 'saved-a', dataSourceId: 2 },
+          { id: 'saved-b', dataSourceId: 3 },
+        ],
+      };
+      const outer = new JSZip();
+      outer.file('manifest.json', JSON.stringify(manifest));
+      outer.file(
+        'data/series.zip',
+        await inner.generateAsync({ type: 'blob' })
+      );
+      const file = new File(
+        [await outer.generateAsync({ type: 'blob' })],
+        'session.volview.zip'
+      );
+      const setup = (await restoreStateFile({
+        type: 'file',
+        file,
+        fileType: 'application/zip',
+      })) as StateFileSetupResult;
+      const loadables = await Promise.all(
+        setup.dataSources.map(async (source, index) => {
+          const member = await extractedMember(source);
+          expect(await member.file.text()).toBe(
+            index === 0 ? 'series A' : 'series B'
+          );
+          expect(findStateFileLeaves(member)).toEqual([
+            { stateID: index === 0 ? 'saved-a' : 'saved-b' },
+          ]);
+          return asLoadableResult('loaded-' + index, member, 'image');
+        })
+      );
+      expect(buildStateIDToStoreID(loadables)).toEqual({
+        'saved-a': 'loaded-0',
+        'saved-b': 'loaded-1',
+      });
+    }
+  );
+});
+
+it('downloads a saved source archive once and reuses extracted members', async () => {
+  const zip = new JSZip();
+  zip.file('a.dcm', 'A');
+  zip.file('b.dcm', 'B');
+  const bytes = await zip.generateAsync({ type: 'uint8array' });
+  const request = vi.spyOn(globalThis, 'fetch').mockImplementation(
+    async () =>
+      new Response(new Uint8Array(bytes), {
+        headers: { 'content-type': 'application/zip' },
+      })
+  );
+  const context: ImportContext = {
+    fetchFileCache: new Map(),
+    archiveCache: new Map(),
+  };
+  try {
+    const opened = await Promise.all(
+      ['a', 'b'].map((name) =>
+        openUriStream(
+          {
+            type: 'uri',
+            uri: 'https://example.test/series.zip',
+            name: 'series.zip',
+            mime: 'application/zip',
+            stateFileLeaf: { stateID: name, archivePaths: [name + '.dcm'] },
+          },
+          context
+        )
+      )
+    );
+    const sources = opened.map(
+      (result) => (result as IntermediateResult).dataSources[0]
+    );
+    expect(request).toHaveBeenCalledOnce();
+    if (sources[0].type !== 'file' || sources[1].type !== 'file')
+      throw new Error('Expected archive files');
+    expect(sources[0].file).toBe(sources[1].file);
+    const a = await extractedMember(sources[0], context);
+    const b = await extractedMember(sources[1], context);
+    const again = await extractedMember(sources[0], context);
+    expect(await a.file.text()).toBe('A');
+    expect(await b.file.text()).toBe('B');
+    expect(again.file).toBe(a.file);
+    expect(findStateFileLeaves(a)).toEqual([{ stateID: 'a' }]);
+    expect(findStateFileLeaves(b)).toEqual([{ stateID: 'b' }]);
+  } finally {
+    request.mockRestore();
+  }
 });
