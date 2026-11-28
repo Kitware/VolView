@@ -660,6 +660,46 @@ const migrate700To800 = (inputManifest: any, migration: ManifestMigration) => {
   return manifest;
 };
 
+// A 9.0.0 layout leaf names its view ID, and viewByID holds only the views
+// the layout shows.
+const migrate800To900 = (inputManifest: any) => {
+  const manifest = JSON.parse(JSON.stringify(inputManifest));
+  const slots: unknown[] = Array.isArray(manifest.layoutSlots)
+    ? manifest.layoutSlots
+    : [];
+  const convertItem = (item: any): any => {
+    if (item?.type !== 'slot')
+      return Array.isArray(item?.items)
+        ? { ...item, items: item.items.map(convertItem) }
+        : item;
+    return { type: 'view', viewId: slots[item.slotIndex] };
+  };
+  const leafIds = (item: any): unknown[] => {
+    if (item?.type === 'view') return [item.viewId];
+    return Array.isArray(item?.items) ? item.items.flatMap(leafIds) : [];
+  };
+  if (Array.isArray(manifest.layout?.items)) {
+    manifest.layout.items = manifest.layout.items.map(convertItem);
+    const ids = manifest.layout.items.flatMap(leafIds);
+    // A slot no saved view fills leaves a layout that cannot be restored.
+    if (!ids.every((id: unknown) => typeof id === 'string'))
+      delete manifest.layout;
+    const shown = new Set(manifest.layout ? ids : []);
+    if (manifest.viewByID) {
+      manifest.viewByID = Object.fromEntries(
+        Object.entries(manifest.viewByID).filter(([id]) => shown.has(id))
+      );
+    }
+    if (manifest.activeView && !shown.has(manifest.activeView)) {
+      delete manifest.activeView;
+      delete manifest.isActiveViewMaximized;
+    }
+  }
+  delete manifest.layoutSlots;
+  manifest.version = '9.0.0';
+  return manifest;
+};
+
 export const migrateManifest = (manifestString: string) => {
   const inputManifest = JSON.parse(manifestString);
   const migration: ManifestMigration = { droppedMasks: [] };
@@ -671,7 +711,8 @@ export const migrateManifest = (manifestString: string) => {
     migrateOrPass(['6.3.0'], migrate630To640),
     // No 6.2.0 -> 6.3.0 step exists, so a 6.2 manifest arrives here directly.
     migrateOrPass(['6.2.0', '6.4.0'], migrate640To700),
-    migrateOrPass(['7.0.0'], (legacy) => migrate700To800(legacy, migration))
+    migrateOrPass(['7.0.0'], (legacy) => migrate700To800(legacy, migration)),
+    migrateOrPass(['8.0.0'], migrate800To900)
   );
   return { manifest, migration };
 };

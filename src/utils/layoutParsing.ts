@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Layout, LayoutItem } from '@/src/types/layout';
+import type { LayoutTemplate } from '@/src/types/layout';
 import type { ViewInfoInit } from '@/src/types/views';
 
 const viewString = z.enum([
@@ -158,33 +158,21 @@ const viewSpecToViewInfoInit = (spec: ViewSpec): ViewInfoInit => {
   throw new Error(`Unknown view spec type`);
 };
 
-const parseGridLayout = (grid: ViewString[][]) => {
-  let slotIndex = 0;
+type TemplateItem = LayoutTemplate['items'][number];
 
-  const items = grid.map((row) => {
-    const rowItems = row.map(() => {
-      const currentSlot = slotIndex;
-      slotIndex += 1;
-      return { type: 'slot' as const, slotIndex: currentSlot };
-    });
+const templateLeaf = (view: ViewInfoInit): TemplateItem => ({
+  type: 'view',
+  view,
+});
 
-    return {
-      type: 'layout' as const,
-      direction: 'row' as const,
-      items: rowItems,
-    };
-  });
-
-  const views = grid.flat().map((viewStr) => stringToViewInfoInit(viewStr));
-
-  return {
-    layout: {
-      direction: 'column' as const,
-      items,
-    },
-    views,
-  };
-};
+const parseGridLayout = (grid: ViewString[][]): LayoutTemplate => ({
+  direction: 'column',
+  items: grid.map((row) => ({
+    type: 'layout',
+    direction: 'row',
+    items: row.map((viewStr) => templateLeaf(stringToViewInfoInit(viewStr))),
+  })),
+});
 
 const parseGridSizeLayout = (gridSize: [number, number]) => {
   const cols = gridSize[0];
@@ -195,45 +183,29 @@ const parseGridSizeLayout = (gridSize: [number, number]) => {
   return parseGridLayout(grid);
 };
 
-const parseNestedLayout = (layoutItem: LayoutConfigItem) => {
-  const views: ViewInfoInit[] = [];
-  let slotIndex = 0;
+const isViewSpec = (item: LayoutConfigItem): item is ViewSpec =>
+  typeof item === 'string' || 'type' in item;
 
-  const isViewSpec = (item: LayoutConfigItem): item is ViewSpec =>
-    typeof item === 'string' || 'type' in item;
+const parseNestedItem = (item: LayoutConfigItem): TemplateItem =>
+  isViewSpec(item)
+    ? templateLeaf(viewSpecToViewInfoInit(item))
+    : {
+        type: 'layout',
+        direction: item.direction,
+        items: item.items.map(parseNestedItem),
+      };
 
-  const processItem = (item: LayoutConfigItem): LayoutItem => {
-    if (isViewSpec(item)) {
-      const viewInfo = viewSpecToViewInfoInit(item);
-      views.push(viewInfo);
-      const currentSlot = slotIndex;
-      slotIndex += 1;
-      return { type: 'slot' as const, slotIndex: currentSlot };
-    }
-
-    return {
-      type: 'layout' as const,
-      direction: item.direction,
-      items: item.items.map(processItem),
-    };
-  };
-
+const parseNestedLayout = (layoutItem: LayoutConfigItem): LayoutTemplate => {
   const rootLayout = isViewSpec(layoutItem)
     ? { direction: 'column' as const, items: [layoutItem] }
     : layoutItem;
-
   return {
-    layout: {
-      direction: rootLayout.direction,
-      items: rootLayout.items.map(processItem),
-    },
-    views,
+    direction: rootLayout.direction,
+    items: rootLayout.items.map(parseNestedItem),
   };
 };
 
-export const parseLayoutConfig = (
-  layoutDef: LayoutConfig
-): { layout: Layout; views: ViewInfoInit[] } => {
+export const parseLayoutConfig = (layoutDef: LayoutConfig): LayoutTemplate => {
   if (Array.isArray(layoutDef)) {
     return parseGridLayout(layoutDef);
   }
@@ -245,7 +217,7 @@ export const parseLayoutConfig = (
 
 export const parseNamedLayouts = (
   layouts: Record<string, LayoutConfig>
-): Record<string, { layout: Layout; views: ViewInfoInit[] }> => {
+): Record<string, LayoutTemplate> => {
   const entries = Object.entries(layouts);
 
   entries.forEach(([name]) => {

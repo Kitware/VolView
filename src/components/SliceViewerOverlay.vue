@@ -10,6 +10,7 @@ import DicomQuickInfoButton from '@/src/components/DicomQuickInfoButton.vue';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
 import { useImage } from '@/src/composables/useCurrentImage';
 import { computed } from 'vue';
+import { OBLIQUE_SUB_VIEWS } from '@/src/constants';
 
 type Props = {
   viewId: string;
@@ -36,14 +37,10 @@ const {
 } = useWindowingConfig(viewId, imageId);
 const { metadata } = useImage(imageId);
 
-const LOCKED_ORIENTATION_SUFFIXES = [
-  '-coronal',
-  '-sagittal',
-  '-axial',
-  '-multi-oblique',
-];
 const isLockedOrientationView = computed(() =>
-  LOCKED_ORIENTATION_SUFFIXES.some((suffix) => viewId.value.includes(suffix))
+  Object.values(OBLIQUE_SUB_VIEWS).some((suffix) =>
+    viewId.value.includes(suffix)
+  )
 );
 </script>
 

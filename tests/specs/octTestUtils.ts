@@ -177,24 +177,28 @@ export const createOctUtils = (page: Page, scratch: Scratch) => {
     const bounds = await page.evaluate(() => {
       const viewer = document.querySelector('[data-testid="enface-viewer"]');
       const button = viewer?.querySelector('[data-testid="enface-controls"]');
+      const split = viewer?.querySelector('button[aria-label="View actions"]');
       const selector = viewer?.querySelector('.view-type-select');
       const canvas = viewer?.querySelector('canvas');
       const panel = document.querySelector(
         '.v-overlay--active [data-testid="enface-rendering-panel"]'
       );
-      if (!button || !selector || !canvas || !panel)
+      if (!button || !split || !selector || !canvas || !panel)
         throw new Error('En face controls or image are missing');
       const tune = button.getBoundingClientRect();
+      const splitBounds = split.getBoundingClientRect();
       const select = selector.getBoundingClientRect();
       return {
-        gap: select.left - tune.right,
+        gaps: [select.left - tune.right, splitBounds.left - select.right],
         panelLeft: panel.getBoundingClientRect().left,
         panelRight: panel.getBoundingClientRect().right,
         viewportWidth: innerWidth,
       };
     });
-    expect(bounds.gap).toBeGreaterThanOrEqual(0);
-    expect(bounds.gap).toBeLessThan(12);
+    bounds.gaps.forEach((gap) => {
+      expect(gap).toBeGreaterThanOrEqual(0);
+      expect(gap).toBeLessThan(12);
+    });
     expect(bounds.panelLeft).toBeGreaterThanOrEqual(0);
     expect(bounds.panelRight).toBeLessThanOrEqual(bounds.viewportWidth);
   };

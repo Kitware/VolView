@@ -14,6 +14,7 @@ import {
 import type { Utils } from './utils';
 
 const baseName = 'slice-lifecycle-base.mha';
+const overlayName = 'slice-lifecycle-overlay.mha';
 const obliqueSlices =
   '.oblique-grid > .d-flex:not(:nth-child(2)) [data-testid="vtk-view"]';
 
@@ -53,13 +54,11 @@ const createLifecycleHelpers = ({
     utils.captureViewPixels(obliqueSlices, 40, fileName);
   const moveToHeader = () => utils.moveToElement(page.locator('header'));
 
-  async function showBaseInAllViews() {
+  async function showInAllViews(name = baseName) {
     await page.locator('[data-testid="module-tab-Data"]').click();
     await utils.waitForModuleTransitions();
     await utils.showInAllViews(
-      page
-        .locator('.image-list-card', { hasText: containsText(baseName) })
-        .first()
+      page.locator('.image-list-card', { hasText: containsText(name) }).first()
     );
   }
 
@@ -121,9 +120,7 @@ const createLifecycleHelpers = ({
 
   async function openDisplay(layout: 'Four Up' | 'flat' | 'grid' = 'Four Up') {
     const base = utils.writeMetaImage(baseName);
-    const overlay = utils.writeMetaImage('slice-lifecycle-overlay.mha', {
-      step: 29,
-    });
+    const overlay = utils.writeMetaImage(overlayName, { step: 29 });
     await utils.writeManifestToFile(
       {
         ...layeredImageManifest(base, overlay),
@@ -164,7 +161,7 @@ const createLifecycleHelpers = ({
     if (layout === 'flat') await volview.waitForViewCounts(2, false);
     else await utils.selectLayout('Four Up', 3, true);
     if (layout === 'grid') await utils.selectGrid(4, 4);
-    await showBaseInAllViews();
+    await showInAllViews();
     await layerDisplay.openLayerDisplayControls();
     const palette = page.locator('[data-testid="base-image-colormap"]');
     await palette.evaluate((element) =>
@@ -180,7 +177,7 @@ const createLifecycleHelpers = ({
     await option.click();
     await setBaseRange(20, 200);
     await expectBaseSettings();
-    await expectColoredSlices(layout === 'flat' ? 2 : 3);
+    await expectColoredSlices({ flat: 2, 'Four Up': 3, grid: 4 }[layout]);
   }
 
   async function toggleVisibility(image: 'base-image' | 'layer') {
@@ -197,7 +194,7 @@ const createLifecycleHelpers = ({
     captureSlicePixels,
     captureOblique,
     moveToHeader,
-    showBaseInAllViews,
+    showInAllViews,
     setBaseRange,
     expectBaseSettings,
     expectColoredSlices,
@@ -303,7 +300,7 @@ test.describe('Slice display lifecycle', () => {
       visibility,
       captureSlices,
       moveToHeader,
-      showBaseInAllViews,
+      showInAllViews,
       expectBaseSettings,
       expectColoredSlices,
       openDisplay,
@@ -311,14 +308,14 @@ test.describe('Slice display lifecycle', () => {
     } = createLifecycleHelpers({ page, volview, utils, layerDisplay });
     await openDisplay('grid');
     await toggleVisibility('layer');
-    await expectColoredSlices(3);
+    await expectColoredSlices(4);
     await toggleVisibility('base-image');
     await expect(visibility('base-image')).toContainText('SHOW', {
       useInnerText: true,
     });
     await utils.selectGrid(7, 6);
-    await showBaseInAllViews();
-    await volview.waitForViewCounts(5, true);
+    await showInAllViews();
+    await volview.waitForViewCounts(6, false);
     await layerDisplay.openLayerDisplayControls();
     await expectBaseSettings();
     await expect(visibility('base-image')).toContainText('SHOW', {
@@ -329,12 +326,28 @@ test.describe('Slice display lifecycle', () => {
       .poll(async () => {
         const pixels = await captureSlices();
         return (
-          pixels.length === 5 && pixels.every(({ colored }) => colored < 100)
+          pixels.length === 6 && pixels.every(({ colored }) => colored < 100)
         );
       })
       .toBe(true);
     await toggleVisibility('base-image');
-    await expectColoredSlices(5);
+    await expectColoredSlices(6);
+    await expectBaseSettings();
+  });
+
+  test('keeps base palette and window through a grid picked while another image shows', async ({
+    page,
+    volview,
+    utils,
+    layerDisplay,
+  }) => {
+    const { showInAllViews, expectBaseSettings, openDisplay } =
+      createLifecycleHelpers({ page, volview, utils, layerDisplay });
+    await openDisplay();
+    await showInAllViews(overlayName);
+    await utils.selectGrid(4, 4);
+    await showInAllViews();
+    await layerDisplay.openLayerDisplayControls();
     await expectBaseSettings();
   });
 

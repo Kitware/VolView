@@ -14,6 +14,7 @@ import { defineStore } from 'pinia';
 import { reactive, watch } from 'vue';
 import {
   DoubleKeyRecord,
+  cloneEntries,
   deleteEntry,
   deleteFirstKey,
   deleteSecondKey,
@@ -247,6 +248,15 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     deleteFirstKey(awaitingFit, viewID);
   };
 
+  const copyView = (sourceID: string, targetID: string) => {
+    cloneEntries(configs, sourceID).forEach(([imageID, config]) =>
+      updateConfig(targetID, imageID, config)
+    );
+    cloneEntries(awaitingFit, sourceID).forEach(([imageID, applied]) =>
+      patchDoubleKeyRecord(awaitingFit, targetID, imageID, applied)
+    );
+  };
+
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
       delete configs[viewID]?.[dataID];
@@ -281,6 +291,7 @@ export const useVolumeColoringStore = defineStore('volumeColoring', () => {
     getPresetColorRange,
     getFitRange,
     removeView,
+    copyView,
     removeData,
     serialize,
     deserialize,

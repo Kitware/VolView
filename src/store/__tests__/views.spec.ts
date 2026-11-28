@@ -87,9 +87,8 @@ describe('View store', () => {
       activeView: null,
       layout: {
         direction: 'column',
-        items: [{ type: 'slot', slotIndex: 0 }],
+        items: [{ type: 'view', viewId: 'view-1' }],
       },
-      layoutSlots: ['view-1'],
       viewByID: {
         'view-1': {
           id: 'view-1',
@@ -144,8 +143,9 @@ describe('View store', () => {
         },
       };
       const manifest: Manifest = {
-        version: '7.0.0',
+        version: '9.0.0',
         dataSources: [],
+        layout: { direction: 'row', items: [{ type: 'view', viewId: id }] },
         viewByID: {
           [id]: {
             id,
@@ -222,19 +222,19 @@ describe('View store layoutViews', () => {
     ]);
   });
 
-  it('drops views the layout no longer has a slot for', () => {
+  it('replaces every view when a grid is picked', () => {
     const store = useViewStore();
     const allIds = store.layoutViews.map((view) => view.id);
 
     store.setLayoutFromGrid([1, 1]);
-
-    expect(store.layoutViews.map((view) => view.id)).toEqual([allIds[0]]);
-    // The orphaned views survive so a later layout switch can reuse them.
-    expect(store.viewIDs).toEqual(expect.arrayContaining(allIds));
+    const single = store.layoutViews.map((view) => view.id);
+    expect(store.viewIDs).toEqual(single);
+    expect(single).toHaveLength(1);
+    expect(allIds).not.toContain(single[0]);
 
     store.setLayoutFromGrid([2, 2]);
-
-    expect(store.layoutViews.map((view) => view.id)).toEqual(allIds);
+    expect(store.viewIDs).toHaveLength(4);
+    expect(store.viewIDs).not.toContain(single[0]);
   });
 
   it('keeps hidden layout peers while a view is maximized', () => {

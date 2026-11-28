@@ -4,6 +4,7 @@ import { Maybe } from '@/src/types';
 import { clampValue } from '@/src/utils';
 import {
   DoubleKeyRecord,
+  cloneEntries,
   deleteSecondKey,
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
@@ -89,6 +90,11 @@ export const useCinePlaybackStore = defineStore('cinePlayback', () => {
     delete configs[viewID];
   };
 
+  const copyView = (sourceID: string, targetID: string) =>
+    cloneEntries(configs, sourceID).forEach(([dataID, config]) =>
+      updateConfig(targetID, dataID, { ...config, playing: false })
+    );
+
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
       delete configs[viewID]?.[dataID];
@@ -121,6 +127,7 @@ export const useCinePlaybackStore = defineStore('cinePlayback', () => {
     getConfig,
     updateConfig,
     removeView,
+    copyView,
     removeData,
     serialize,
     deserialize,

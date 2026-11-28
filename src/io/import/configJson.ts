@@ -226,7 +226,7 @@ const reportUnparseableColors = (
   if (message) addError(message);
 };
 
-const applyLayout = (manifest: Config) => {
+const applyLayout = (manifest: Config, keepLayout: boolean) => {
   if (!manifest.layouts) return;
 
   const viewStore = useViewStore();
@@ -236,8 +236,7 @@ const applyLayout = (manifest: Config) => {
 
   viewStore.setNamedLayoutsFromConfig(manifest.layouts);
 
-  const firstLayoutName = layoutEntries[0][0];
-  viewStore.switchToNamedLayout(firstLayoutName);
+  if (!keepLayout) viewStore.switchToNamedLayout(layoutEntries[0][0]);
 };
 
 /**
@@ -309,9 +308,12 @@ const applyRegisteredSections = (manifest: Config) =>
     )
   );
 
-export const applyPreStateConfig = async (manifest: Config) => {
+export const applyPreStateConfig = async (
+  manifest: Config,
+  { keepLayout = false } = {}
+) => {
   applyDisabledViewTypes(manifest);
-  applyLayout(manifest);
+  applyLayout(manifest, keepLayout);
   applyShortcuts(manifest);
   applyIo(manifest);
   applyWindowing(manifest);

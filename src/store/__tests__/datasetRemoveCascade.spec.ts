@@ -213,7 +213,10 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
     const refs = collectManifestRefs({
       viewByID: { 'view-1': { dataID: 'ghost-img' } },
       activeView: 'ghost-view',
-      layoutSlots: ['ghost-slot'],
+      layout: {
+        direction: 'row',
+        items: [{ type: 'view', viewId: 'ghost-slot' }],
+      },
       tools: {
         rulers: { tools: [{ imageID: 'ghost-ruler-img' }] },
         rectangles: { tools: [{ imageID: 'ghost-rect-img' }] },
@@ -232,7 +235,7 @@ describe('manifest-ref declarations (cascade-owned save backstop coverage)', () 
     const found = refs.map((ref) => `${ref.where} -> ${ref.kind} ${ref.id}`);
     expect(found).toContain('viewByID[view-1].dataID -> dataset ghost-img');
     expect(found).toContain('activeView -> view ghost-view');
-    expect(found).toContain('layoutSlots -> view ghost-slot');
+    expect(found).toContain('layout -> view ghost-slot');
     expect(found).toContain(
       'tools.rulers[0].imageID -> dataset ghost-ruler-img'
     );

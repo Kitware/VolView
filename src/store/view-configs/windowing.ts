@@ -5,6 +5,7 @@ import { createEventHook } from '@vueuse/core';
 import deepEqual from 'fast-deep-equal';
 import {
   DoubleKeyRecord,
+  cloneEntries,
   deleteSecondKey,
   getDoubleKeyRecord,
   patchDoubleKeyRecord,
@@ -253,6 +254,11 @@ export const useWindowingStore = defineStore('windowing', () => {
     delete autoRangeSources[viewID];
   };
 
+  const copyView = (sourceID: string, targetID: string) =>
+    cloneEntries(configs, sourceID).forEach(([dataID, config]) =>
+      updateConfig(targetID, dataID, config)
+    );
+
   const resetConfig = (viewID: Maybe<string>, dataID: Maybe<string>) => {
     if (!viewID || !dataID) return;
     delete configs[viewID]?.[dataID];
@@ -313,6 +319,7 @@ export const useWindowingStore = defineStore('windowing', () => {
     resetConfig,
     resetContrast,
     removeView,
+    copyView,
     removeData,
     serialize,
     deserialize,

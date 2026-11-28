@@ -123,6 +123,8 @@ export type ImportContext = {
   fetchFileCache?: FetchCache<File>;
   archiveCache?: ArchiveCache;
   dicomDataSources?: DataSource[];
+  /** Set once a state file in this import has restored its layout. */
+  restoredLayout?: boolean;
   onCleanup?: (fn: () => void) => void;
   importDataSources?: (
     dataSources: DataSource[]

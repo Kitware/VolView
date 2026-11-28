@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { getLayerId } from '@/src/utils/layers';
+import { OBLIQUE_SUB_VIEWS } from '@/src/constants';
 
 import useViewSliceStore from './view-configs/slicing';
 import { useWindowingStore } from './view-configs/windowing';
@@ -10,6 +11,22 @@ import useCinePlaybackStore from './view-configs/cine-playback';
 import { useEnFaceViewStore } from '@/src/enface/store';
 import { StateFile, ViewConfig } from '../io/state-file/schema';
 import type { SegmentResolver } from '@/src/segmentation/segments';
+
+// Oblique viewers own these synthetic view IDs for their four renderers.
+const ownedViewIDs = (viewID: string) =>
+  ['', ...Object.values(OBLIQUE_SUB_VIEWS)].map((suffix) => viewID + suffix);
+
+type PerViewConfigs = {
+  removeView: (viewID: string) => void;
+  copyView: (sourceID: string, targetID: string) => void;
+  removeData: (dataID: string, viewID?: string) => void;
+  serialize: (stateFile: StateFile) => void;
+  deserialize: (
+    viewID: string,
+    config: Record<string, ViewConfig>,
+    resolveSegment: SegmentResolver
+  ) => void;
+};
 
 /**
  * This store saves view configuration that is associated with a specific
@@ -24,34 +41,29 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
   const cinePlaybackStore = useCinePlaybackStore();
   const enFaceViewStore = useEnFaceViewStore();
 
+  // Every per-view store, so copy, remove and save cannot miss one.
+  const perViewStores: PerViewConfigs[] = [
+    viewSliceStore,
+    windowingStore,
+    layerColoringStore,
+    viewCameraStore,
+    volumeColoringStore,
+    cinePlaybackStore,
+    enFaceViewStore,
+  ];
+
   const removeView = (viewID: string) => {
-    viewSliceStore.removeView(viewID);
-    windowingStore.removeView(viewID);
-    layerColoringStore.removeView(viewID);
-    viewCameraStore.removeView(viewID);
-    volumeColoringStore.removeView(viewID);
-    cinePlaybackStore.removeView(viewID);
-    enFaceViewStore.removeView(viewID);
+    ownedViewIDs(viewID).forEach((id) =>
+      perViewStores.forEach((store) => store.removeView(id))
+    );
   };
 
   const removeData = (dataID: string, viewID?: string) => {
-    viewSliceStore.removeData(dataID, viewID);
-    windowingStore.removeData(dataID, viewID);
-    layerColoringStore.removeData(dataID, viewID);
-    viewCameraStore.removeData(dataID, viewID);
-    volumeColoringStore.removeData(dataID, viewID);
-    cinePlaybackStore.removeData(dataID, viewID);
-    enFaceViewStore.removeData(dataID, viewID);
+    perViewStores.forEach((store) => store.removeData(dataID, viewID));
   };
 
   const serialize = (stateFile: StateFile) => {
-    viewSliceStore.serialize(stateFile);
-    windowingStore.serialize(stateFile);
-    layerColoringStore.serialize(stateFile);
-    viewCameraStore.serialize(stateFile);
-    volumeColoringStore.serialize(stateFile);
-    cinePlaybackStore.serialize(stateFile);
-    enFaceViewStore.serialize(stateFile);
+    perViewStores.forEach((store) => store.serialize(stateFile));
   };
 
   const deserialize = (
@@ -60,21 +72,15 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     dataIDMap: Record<string, string>,
     resolveSegment: SegmentResolver
   ) => {
-    // First update the view config map to use the new dataIDs
     const updatedConfig: Record<string, ViewConfig> = {};
     Object.entries(config).forEach(([dataID, viewConfig]) => {
       const newDataID = dataIDMap[dataID];
       // A dataset that failed to restore has no new id to carry its config.
       if (newDataID) updatedConfig[newDataID] = viewConfig;
     });
-
-    viewSliceStore.deserialize(viewID, updatedConfig);
-    windowingStore.deserialize(viewID, updatedConfig);
-    layerColoringStore.deserialize(viewID, updatedConfig);
-    viewCameraStore.deserialize(viewID, updatedConfig);
-    volumeColoringStore.deserialize(viewID, updatedConfig);
-    cinePlaybackStore.deserialize(viewID, updatedConfig);
-    enFaceViewStore.deserialize(viewID, updatedConfig, resolveSegment);
+    perViewStores.forEach((store) =>
+      store.deserialize(viewID, updatedConfig, resolveSegment)
+    );
   };
 
   const deserializeAll = (
@@ -111,8 +117,16 @@ export const useViewConfigStore = defineStore('viewConfig', () => {
     });
   };
 
+  const copyView = (sourceID: string, targetID: string) => {
+    const sourceIDs = ownedViewIDs(sourceID);
+    ownedViewIDs(targetID).forEach((id, index) =>
+      perViewStores.forEach((store) => store.copyView(sourceIDs[index], id))
+    );
+  };
+
   return {
     removeView,
+    copyView,
     removeData,
     serialize,
     deserialize,

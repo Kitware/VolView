@@ -40,6 +40,13 @@ async function loadImages(base: string, overlay: string) {
   seatStatistics(getLayerId(base, overlay));
 }
 
+// Maximizing the first view hides the retained one.
+const maximizeFirstView = () => {
+  const views = useViewStore();
+  views.setActiveView(views.layoutViews[0].id);
+  views.toggleActiveViewMaximized();
+};
+
 const views2D = () =>
   useViewStore()
     .getAllViews()
@@ -79,7 +86,7 @@ async function restoreManifest(manifest: Manifest) {
     'restoredBase',
     'restoredOverlay'
   ))!;
-  views.switchToNamedLayout('Four Up');
+  if (views.maximizedView) views.toggleActiveViewMaximized();
   views.visibleViews
     .filter((view) => view.type === '2D')
     .forEach((view) => useLayerColoringStore().getConfig(view.id, layerID));
@@ -91,15 +98,17 @@ it.each([false, true])(
   async (readd) => {
     const { layerID, retainedView } = await prepareScene();
     await exportManifest();
-    const views = useViewStore();
-    views.switchToNamedLayout('Axial Only');
+    maximizeFirstView();
     const layers = useLayersStore();
     layers.deleteLayer('base', 'overlay');
     await nextTick();
     if (readd) {
       seatStatistics(layerID);
       await layers._addLayer('base', 'overlay');
-      useLayerColoringStore().getConfig(views.visibleViews[0].id, layerID);
+      useLayerColoringStore().getConfig(
+        useViewStore().visibleViews[0].id,
+        layerID
+      );
     }
 
     const saved = await exportManifest();
@@ -114,7 +123,7 @@ it.each([false, true])(
 
     const restoredLayerID = await restoreManifest(saved);
     const reexported = await exportManifest();
-    expect(reexported.layoutSlots).toContain(retainedView.id);
+    expect(reexported.viewByID).toHaveProperty(retainedView.id);
     expect(
       Object.values(reexported.viewByID!)
         .filter((view) => view.type === '2D')
@@ -142,7 +151,7 @@ it('preserves current per-view appearance and other view settings across repeate
     },
   });
   await exportManifest();
-  useViewStore().switchToNamedLayout('Axial Only');
+  maximizeFirstView();
   const saved = await exportManifest();
   const restoredLayerID = await restoreManifest(saved);
   const reexported = await exportManifest();
@@ -164,9 +173,14 @@ it('saves reset base appearance without losing retained slice and camera setting
   useSyncWindowing();
   const views = useViewStore();
   views.setDataForAllViews('base');
-  views.switchToNamedLayout('Oblique');
-  const obliqueView = views.visibleViews[0];
-  const retainedView = views2D()[0];
+  views.replaceView(views.layoutViews[3].id, {
+    name: 'Oblique',
+    type: 'Oblique',
+    dataID: 'base',
+    options: {},
+  });
+  const obliqueView = views.layoutViews[3];
+  const retainedView = views2D()[1];
   useViewSliceStore().updateConfig(retainedView.id, 'base', { slice: 0 });
   useViewCameraStore().updateConfig(retainedView.id, 'base', {
     parallelScale: 2,

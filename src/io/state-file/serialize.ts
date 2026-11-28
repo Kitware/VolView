@@ -41,7 +41,7 @@ declareManifestRefs('primarySelection', (manifest) =>
 );
 
 export const MANIFEST = 'manifest.json';
-export const MANIFEST_VERSION = '8.0.0';
+export const MANIFEST_VERSION = '9.0.0';
 
 type ManifestCandidate = Record<string, unknown>;
 
@@ -228,16 +228,15 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
       );
   }
 
-  // These fields jointly describe the view layout. In particular, layoutSlots
-  // and activeView only make sense when their IDs can be resolved through
-  // viewByID. If that root is invalid, omit the complete cluster rather than
-  // saving slots that cannot be restored.
+  // These fields jointly describe the view layout. In particular, layout
+  // leaves and activeView only make sense when their IDs can be resolved
+  // through viewByID. If that root is invalid, omit the complete cluster
+  // rather than saving panes that cannot be restored.
   const viewLayoutRoots = new Set([
     'activeView',
     'isActiveViewMaximized',
     'viewByID',
     'layout',
-    'layoutSlots',
   ]);
   const invalidViewByID =
     candidate.viewByID !== undefined &&
@@ -259,7 +258,6 @@ export function normalizeManifest(manifest: Manifest, zip: JSZip) {
     'viewByID',
     'primarySelection',
     'layout',
-    'layoutSlots',
   ] as const;
   const optionalEntries = optionalRoots.flatMap((key) => {
     if (invalidViewByID && viewLayoutRoots.has(key)) return [];
@@ -333,7 +331,6 @@ export async function serialize(
       direction: 'column',
       items: [],
     },
-    layoutSlots: [],
     viewByID: {},
     isActiveViewMaximized: false,
     parentToLayers: [],

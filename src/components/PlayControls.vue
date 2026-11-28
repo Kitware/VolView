@@ -14,6 +14,8 @@ import {
 type Props = {
   viewId: string;
   imageId: Maybe<string>;
+  /** Drops the FPS label so the row fits a narrow pane. */
+  compact?: boolean;
 };
 
 const props = defineProps<Props>();
@@ -126,7 +128,7 @@ function togglePlay() {
         @input="clampFpsInput"
         @blur="commitFpsInput"
       />
-      <span class="fps-suffix">FPS</span>
+      <span v-if="!compact" class="fps-suffix">FPS</span>
     </span>
   </div>
 </template>

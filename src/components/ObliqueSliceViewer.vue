@@ -138,7 +138,9 @@ const widgetViewType = computed(() => mapAxisToViewType(viewAxis.value));
 
 watchEffect(() => {
   if (currentImageData.value) {
-    resliceCursor.setImage(currentImageData.value);
+    if (resliceCursorState.getImage() !== currentImageData.value) {
+      resliceCursor.setImage(currentImageData.value);
+    }
   }
 });
 

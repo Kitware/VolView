@@ -53,8 +53,8 @@ export const useCrosshairsToolStore = defineStore('crosshairs', () => {
    * whichever view happens to be active, so images sharing a layout keep their
    * own slicing.
    *
-   * All registered views of the image are sliced, not just those in the
-   * current layout, so views hidden by a layout switch come back consistent.
+   * All views of the image are sliced, including peers hidden behind a
+   * maximized view, so they come back consistent.
    * An en face pick leaves the peer slices along its projection axis
    * unchanged: it selects an in-plane location without choosing depth.
    */

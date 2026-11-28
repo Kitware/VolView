@@ -173,9 +173,8 @@ describe('state-file serialization resilience', () => {
       isActiveViewMaximized: true,
       layout: {
         direction: 'column',
-        items: [{ type: 'slot', slotIndex: 0 }],
+        items: [{ type: 'view', viewId: 'view-1' }],
       },
-      layoutSlots: ['view-1'],
       viewByID: {
         'view-1': {
           id: 'view-1',
@@ -193,7 +192,6 @@ describe('state-file serialization resilience', () => {
     expect(normalized.manifest).not.toHaveProperty('activeView');
     expect(normalized.manifest).not.toHaveProperty('isActiveViewMaximized');
     expect(normalized.manifest).not.toHaveProperty('layout');
-    expect(normalized.manifest).not.toHaveProperty('layoutSlots');
     expect(normalized.omitted).toContain('view/layout: invalid viewByID state');
   });
 

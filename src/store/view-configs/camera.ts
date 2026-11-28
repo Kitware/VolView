@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import {
   DoubleKeyRecord,
+  cloneEntries,
   deleteEntry,
   deleteFirstKey,
   deleteSecondKey,
@@ -63,6 +64,13 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     deleteFirstKey(configs, viewID);
     deleteFirstKey(initializedCameras, viewID);
   };
+
+  const copyView = (sourceID: string, targetID: string) =>
+    cloneEntries(configs, sourceID).forEach(([dataID, config]) => {
+      updateConfig(targetID, dataID, config);
+      if (isCameraInitialized(sourceID, dataID))
+        markCameraAsInitialized(targetID, dataID);
+    });
 
   const removeData = (dataID: string, viewID?: string) => {
     if (viewID) {
@@ -133,6 +141,7 @@ export const useViewCameraStore = defineStore('viewCamera', () => {
     disableCameraAutoReset,
     toggleCameraAutoReset,
     removeView,
+    copyView,
     removeData,
     toggleSyncCameras,
     updateSyncConfigs,

@@ -2,7 +2,7 @@
   <div class="oblique-grid">
     <div class="d-flex">
       <ObliqueSliceViewer
-        :view-id="`${viewId}-coronal`"
+        :view-id="`${viewId}${OBLIQUE_SUB_VIEWS.coronal}`"
         outline-type="ObliqueCoronal"
         view-direction="Posterior"
         view-up="Superior"
@@ -10,20 +10,20 @@
     </div>
     <div class="d-flex">
       <MultiObliqueSliceViewer
-        :view-id="`${viewId}-multi-oblique`"
+        :view-id="`${viewId}${OBLIQUE_SUB_VIEWS.multi}`"
         view-direction="Posterior"
         view-up="Superior"
         :slices="[
           {
-            viewID: `${viewId}-coronal`,
+            viewID: `${viewId}${OBLIQUE_SUB_VIEWS.coronal}`,
             axis: 'Coronal',
           },
           {
-            viewID: `${viewId}-sagittal`,
+            viewID: `${viewId}${OBLIQUE_SUB_VIEWS.sagittal}`,
             axis: 'Sagittal',
           },
           {
-            viewID: `${viewId}-axial`,
+            viewID: `${viewId}${OBLIQUE_SUB_VIEWS.axial}`,
             axis: 'Axial',
           },
         ]"
@@ -31,7 +31,7 @@
     </div>
     <div class="d-flex">
       <ObliqueSliceViewer
-        :view-id="`${viewId}-sagittal`"
+        :view-id="`${viewId}${OBLIQUE_SUB_VIEWS.sagittal}`"
         outline-type="ObliqueSagittal"
         view-direction="Right"
         view-up="Superior"
@@ -39,7 +39,7 @@
     </div>
     <div class="d-flex">
       <ObliqueSliceViewer
-        :view-id="`${viewId}-axial`"
+        :view-id="`${viewId}${OBLIQUE_SUB_VIEWS.axial}`"
         outline-type="ObliqueAxial"
         view-direction="Superior"
         view-up="Anterior"
@@ -64,6 +64,7 @@ import useResliceCursorStore from '@/src/store/reslice-cursor';
 import ViewOverlayGrid from '@/src/components/ViewOverlayGrid.vue';
 import { useCurrentImage } from '@/src/composables/useCurrentImage';
 import ViewTypeSwitcher from '@/src/components/ViewTypeSwitcher.vue';
+import { OBLIQUE_SUB_VIEWS } from '@/src/constants';
 
 type Props = {
   viewId: string;

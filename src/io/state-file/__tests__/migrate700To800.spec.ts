@@ -83,7 +83,7 @@ describe('7.0.0 to 8.0.0 migration', () => {
       ),
     });
 
-    expect(migrated.version).toBe('8.0.0');
+    expect(migrated.version).toBe('9.0.0');
     expect(migrated).not.toHaveProperty('selectedSegment');
     expect(migrated).not.toHaveProperty('segments');
     expect(migrated).not.toHaveProperty('segmentations');

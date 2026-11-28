@@ -10,7 +10,7 @@ import {
   StateFileSetupResult,
 } from '@/src/io/import/common';
 import { MANIFEST, isStateFile } from '@/src/io/state-file/serialize';
-import { partition, getURLBasename } from '@/src/utils';
+import { omit, partition, getURLBasename } from '@/src/utils';
 import { basename } from '@/src/utils/path';
 import { planLabelmapSources } from '@/src/io/import/labelmapImports';
 import { deserializeSegmentation } from '@/src/segmentation/io/stateFile';
@@ -20,7 +20,8 @@ import { useLayersStore } from '@/src/store/datasets-layers';
 import { extractFilesFromZip } from '@/src/io/zip';
 import type { FileEntry } from '@/src/io/types';
 import { Skip } from '@/src/utils/evaluateChain';
-import { useViewStore } from '@/src/store/views';
+import { isRestorableLayout, useViewStore } from '@/src/store/views';
+import { layoutViewIds } from '@/src/utils/layoutEditing';
 import { useViewConfigStore } from '@/src/store/view-configs';
 import {
   migrateManifest,
@@ -338,7 +339,23 @@ async function parseManifestFromJson(file: File) {
   return { manifestString, stateFiles: [] as FileEntry[] };
 }
 
-export const restoreStateFile: ImportHandler = async (dataSource) => {
+// Only the panes of a restored layout get views, so other saved views must not
+// bind data or settings. A rejected layout keeps the current views instead.
+const withLayoutViews = (manifest: Manifest) => {
+  const saved = manifest.viewByID;
+  if (!saved) return manifest;
+  if (!isRestorableLayout(manifest.layout, saved))
+    return omit(manifest, ['viewByID', 'activeView', 'isActiveViewMaximized']);
+  const shown = new Set(layoutViewIds(manifest.layout));
+  return {
+    ...manifest,
+    viewByID: Object.fromEntries(
+      Object.entries(saved).filter(([id]) => shown.has(id))
+    ),
+  };
+};
+
+export const restoreStateFile: ImportHandler = async (dataSource, context) => {
   if (dataSource.type === 'file' && (await isStateFile(dataSource.file))) {
     const isJson = dataSource.fileType === 'application/json';
     const { manifestString, stateFiles } = isJson
@@ -351,7 +368,7 @@ export const restoreStateFile: ImportHandler = async (dataSource) => {
     let migration: ManifestMigration;
     try {
       const migrated = migrateManifest(manifestString);
-      manifest = ManifestSchema.parse(migrated.manifest);
+      manifest = withLayoutViews(ManifestSchema.parse(migrated.manifest));
       migration = migrated.migration;
     } catch (e) {
       return asErrorResult(
@@ -360,7 +377,8 @@ export const restoreStateFile: ImportHandler = async (dataSource) => {
       );
     }
 
-    useViewStore().deserializeLayout(manifest);
+    if (useViewStore().deserializeLayout(manifest) && context)
+      context.restoredLayout = true;
 
     const { dataSources, missingFiles } = prepareLeafDataSources(
       manifest,

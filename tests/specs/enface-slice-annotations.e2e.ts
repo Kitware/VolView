@@ -360,7 +360,8 @@ test.describe('En face annotations', () => {
     await size.focus();
     await page.keyboard.press('Home');
     await expect(size).toHaveAttribute('aria-valuenow', '1');
-    const outside = await oct.enFaceScreenPoint(16.5, -3);
+    // Above the image, since the view controls sit beside its bottom edge.
+    const outside = await oct.enFaceScreenPoint(16.5, 25.5);
     const inside = await oct.enFaceScreenPoint(16.5, 12.5);
     await annotation.nudgeTo(outside.x, outside.y);
     await annotation.dragPointerTo(inside.x, inside.y);

@@ -49,7 +49,9 @@ it('uses a source slice for Layers controls when the active En face cannot proje
   expect(windowing.getConfig(sourceID, 'image').visibility).toBe(false);
   expect(windowing.getConfig(enFaceID, 'image').visibility).toBe(true);
 
-  views.setLayoutFromGrid([1, 1]);
+  views.layoutViews
+    .filter(({ id }) => id !== enFaceID)
+    .forEach(({ id }) => views.closeView(id));
   await nextTick();
   expect(controls().props('unavailableReason')).toMatch(/three-dimensional/);
   expect(controls().props('visibilityUnavailableReason')).toMatch(

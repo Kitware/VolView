@@ -20,7 +20,7 @@ https://volview.kitware.com/?urls=[https://example.com/data.nrrd,https://example
 
 ## View Layouts
 
-Define one or more named layouts using the `layouts` key. VolView will use the first layout as the default. Each named layout will be in the layout selector menu. Layout are specified in three formats:
+Define one or more named layouts using the `layouts` key. VolView will use the first layout as the default, unless a session file opened alongside the config restores its own layout. Each named layout will be in the layout selector menu. Layout are specified in three formats:
 
 ### 1. Grid with View Types (2D String Array)
 
