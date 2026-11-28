@@ -111,6 +111,56 @@ diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Renderer.js b/node_mo
  			const background = model.renderable.getBackgroundByReference();
  			gl.clearColor(background[0], background[1], background[2], background[3]);
  			clearMask |= gl.COLOR_BUFFER_BIT;
+diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
+--- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
++++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/Texture.js
+@@ -384,7 +384,7 @@
+ 	* @param {number} outOffset
+ 	* @returns
+ 	*/
+-	function readExtentIntoArray(data, dataDims, extent, outArray, outOffset) {
++	function readExtentIntoArray(data, dataDims, numComps, extent, outArray, outOffset) {
+ 		const [xmin, xmax, ymin, ymax, zmin, zmax] = extent;
+ 		const [dx, dy] = dataDims;
+ 		const sxy = dx * dy;
+@@ -393,7 +393,7 @@
+ 			const zOffset = zi * sxy;
+ 			for (let yi = ymin; yi <= ymax; yi++) {
+ 				const zyOffset = zOffset + yi * dx;
+-				for (let readOffset = zyOffset + xmin, end = zyOffset + xmax; readOffset <= end; readOffset++, writeOffset++) outArray[writeOffset] = data[readOffset];
++				for (let readOffset = (zyOffset + xmin) * numComps, end = (zyOffset + xmax + 1) * numComps; readOffset < end; readOffset++, writeOffset++) outArray[writeOffset] = data[readOffset];
+ 			}
+ 		}
+ 	}
+@@ -406,7 +406,7 @@
+ 	* @returns
+ 	*/
+ 	function readExtents(data, extents, typedArrayConstructor = null) {
+-		const extentPixels = new (typedArrayConstructor || data.constructor)(extents.reduce((count, extent) => count + getExtentPixelCount(extent), 0));
++		const extentPixels = new (typedArrayConstructor || data.constructor)(extents.reduce((count, extent) => count + getExtentPixelCount(extent), 0) * model.components);
+ 		const dataDims = [
+ 			model.width,
+ 			model.height,
+@@ -414,8 +414,8 @@
+ 		];
+ 		let writeOffset = 0;
+ 		extents.forEach((extent) => {
+-			readExtentIntoArray(data, dataDims, extent, extentPixels, writeOffset);
+-			writeOffset += getExtentPixelCount(extent);
++			readExtentIntoArray(data, dataDims, model.components, extent, extentPixels, writeOffset);
++			writeOffset += getExtentPixelCount(extent) * model.components;
+ 		});
+ 		return extentPixels;
+ 	}
+@@ -797,7 +797,7 @@
+ 				const extent = updatedExtents[i];
+ 				const extentSize = getExtentSize(extent);
+ 				const extentPixelCount = getExtentPixelCount(extent);
+-				const textureData = new extentPixels.constructor(extentPixels.buffer, readOffset, extentPixelCount);
++				const textureData = new extentPixels.constructor(extentPixels.buffer, readOffset, extentPixelCount * model.components);
+ 				readOffset += textureData.byteLength;
+ 				model.context.texSubImage3D(model.target, 0, extent[0], extent[2], extent[4], extentSize[0], extentSize[1], extentSize[2], model.format, model.openGLDataType, textureData);
+ 			}
 diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js b/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js
 --- a/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js
 +++ b/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js
@@ -123,3 +173,11 @@ diff --git a/node_modules/@kitware/vtk.js/Rendering/OpenGL/VolumeMapper.js b/nod
  				const newScalarTexture = Texture_default.newInstance();
  				newScalarTexture.setOpenGLRenderWindow(model._openGLRenderWindow);
  				const dims = imageData.getDimensions();
+@@ -894,6 +894,7 @@
+ 					dataArray: scalars,
+ 					updatedExtents
+ 				});
++				model._openGLRenderWindow.getGraphicsResourceForObject(scalars).hash = scalarsHash;
+ 			}
+ 			replaceGraphicsResource(model._openGLRenderWindow, model._scalarTexturesCore[component], scalars);
+ 			model._scalarTexturesCore[component] = scalars;

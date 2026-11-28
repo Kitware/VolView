@@ -122,6 +122,20 @@ const frameBytes16 = (sampleCount: number, value: number) => {
   return bytes;
 };
 
+const toPart10 = (sopClassUid: string, sopUid: string, dataset: Uint8Array) => {
+  const fileMetaBody = combine(
+    elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
+    ui(0x0002, 0x0002, sopClassUid),
+    ui(0x0002, 0x0003, sopUid),
+    ui(0x0002, 0x0010, TS_EXPLICIT_VR_LE)
+  );
+  const fileMeta = combine(
+    elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
+    fileMetaBody
+  );
+  return combine(new Uint8Array(128), enc.encode('DICM'), fileMeta, dataset);
+};
+
 export type SyntheticSliceOptions = {
   studyUid: string;
   seriesUid: string;
@@ -239,18 +253,7 @@ export function buildSyntheticDicom(opts: SyntheticSliceOptions): Uint8Array {
       : elemLong(0x7fe0, 0x0010, 'OW', frameBytes16(rows * cols, pixelValue))
   );
 
-  const fileMetaBody = combine(
-    elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
-    ui(0x0002, 0x0002, SOP_CLASS_MR),
-    ui(0x0002, 0x0003, sopUid),
-    ui(0x0002, 0x0010, TS_EXPLICIT_VR_LE)
-  );
-  const fileMeta = combine(
-    elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
-    fileMetaBody
-  );
-
-  return combine(new Uint8Array(128), enc.encode('DICM'), fileMeta, dataset);
+  return toPart10(SOP_CLASS_MR, sopUid, dataset);
 }
 
 export type SyntheticCineOptions = {
@@ -265,6 +268,8 @@ export type SyntheticCineOptions = {
   patientId?: string;
   seriesNumber?: number;
   studyDate?: string;
+  // Another multi-frame class loads the frames as a volume instead of a cine.
+  sopClassUid?: string;
 };
 
 export function buildSyntheticCineDicom(
@@ -282,13 +287,14 @@ export function buildSyntheticCineDicom(
     patientId = 'TEST001',
     seriesNumber = 1,
     studyDate = '20260101',
+    sopClassUid = SOP_CLASS_ULTRASOUND_MULTIFRAME,
   } = opts;
 
   const pixelData = new Uint8Array(numberOfFrames * rows * cols);
   for (let i = 0; i < pixelData.length; i++) pixelData[i] = i % 251;
 
   const dataset = combine(
-    ui(0x0008, 0x0016, SOP_CLASS_ULTRASOUND_MULTIFRAME),
+    ui(0x0008, 0x0016, sopClassUid),
     ui(0x0008, 0x0018, sopUid),
     da(0x0008, 0x0020, studyDate),
     da(0x0008, 0x0021, studyDate),
@@ -315,18 +321,7 @@ export function buildSyntheticCineDicom(
     elemLong(0x7fe0, 0x0010, 'OB', pixelData)
   );
 
-  const fileMetaBody = combine(
-    elemLong(0x0002, 0x0001, 'OB', new Uint8Array([0x00, 0x01])),
-    ui(0x0002, 0x0002, SOP_CLASS_ULTRASOUND_MULTIFRAME),
-    ui(0x0002, 0x0003, sopUid),
-    ui(0x0002, 0x0010, TS_EXPLICIT_VR_LE)
-  );
-  const fileMeta = combine(
-    elemShort(0x0002, 0x0000, 'UL', writeLong(fileMetaBody.length)),
-    fileMetaBody
-  );
-
-  return combine(new Uint8Array(128), enc.encode('DICM'), fileMeta, dataset);
+  return toPart10(sopClassUid, sopUid, dataset);
 }
 
 // Pseudo-UID unique per call within a test process. All-numeric so it

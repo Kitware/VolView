@@ -596,9 +596,18 @@ export default class DicomChunkImage
     chunk.setUserData(DATA_RANGE_KEY, chunkDataRange);
 
     this.chunkStatus[sliceIndex] = ChunkStatus.Loaded;
+    // A multi-frame file fills every slice from its offset on.
+    const frames = chunkData.length / (dims[0] * dims[1] * componentCount);
     this.events.emit('chunkLoad', {
       chunk,
-      updatedExtent: [0, dims[0] - 1, 0, dims[1] - 1, sliceIndex, sliceIndex],
+      updatedExtent: [
+        0,
+        dims[0] - 1,
+        0,
+        dims[1] - 1,
+        sliceIndex,
+        sliceIndex + frames - 1,
+      ],
     });
     this.onChunksUpdated();
 
