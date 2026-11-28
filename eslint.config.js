@@ -252,9 +252,6 @@ export default tseslint.config(
   },
   {
     files: ['**/__tests__/*.{js,ts}', '**/tests/unit/**/*.spec.{js,ts}'],
-    languageOptions: {
-      globals: globals.mocha,
-    },
     rules: {
       'no-unused-expressions': 'off',
       '@typescript-eslint/no-unused-expressions': 'off',

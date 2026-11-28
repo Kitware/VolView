@@ -50,7 +50,6 @@ async function dragOpacityCurve(page: Page, steps: number) {
   );
   const box = await editor.boundingBox();
   if (!box) throw new Error('The opacity editor is not on screen');
-  // WebdriverIO measured the start from the canvas center.
   let x = Math.round(box.x + box.width / 2) - 60;
   const y = Math.round(box.y + box.height / 2);
   await page.mouse.move(x, y);

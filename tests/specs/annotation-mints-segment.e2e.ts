@@ -3,7 +3,7 @@ import { test, expect } from '../fixtures';
 import { expectDisplayed } from '../pageobjects/volview.page';
 import type { SegmentationUtils } from './segmentationTestUtils';
 
-// WebdriverIO's parsed `hex`: the computed color as #rrggbb, alpha dropped.
+// The computed color as #rrggbb, alpha dropped.
 const hexOf = (element: Locator, property: string) =>
   element.evaluate(
     (node, name) =>

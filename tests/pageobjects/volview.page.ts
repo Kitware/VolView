@@ -12,11 +12,11 @@ export const HIDE_VIEW_ANNOTATIONS = fileURLToPath(
 const escapeRegExp = (text: string) =>
   text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Whole text equal to `text`, as WebdriverIO's `selector=text` matched. */
+/** Whole text equal to `text`, ignoring surrounding whitespace. */
 export const exactText = (text: string) =>
   new RegExp(`^\\s*${escapeRegExp(text)}\\s*$`);
 
-/** Case-sensitive substring, as WebdriverIO's `selector*=text` matched. */
+/** Case-sensitive substring. */
 export const containsText = (text: string) => new RegExp(escapeRegExp(text));
 
 const VIEWS_2D =
@@ -50,8 +50,8 @@ export const waitForTransitions = (locator: Locator, message?: string) =>
     .toBe(false);
 
 /**
- * WebdriverIO's `toBeDisplayed`: rendered and not transparent, whatever its
- * size. `toBeVisible` rejects a zero-height box such as a horizontal SVG line.
+ * Rendered and not transparent, whatever its size. `toBeVisible` rejects a
+ * zero-height box such as a horizontal SVG line.
  */
 export const expectDisplayed = async (locator: Locator, message?: string) => {
   await expect(locator, message).toBeAttached();

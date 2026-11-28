@@ -274,7 +274,7 @@ export default defineConfig({
     configureSentryPlugin(),
   ],
   server: {
-    // so `npm run test:e2e:dev` can access the webdriver static server temp directory
+    // so `npm run test:e2e:dev` reaches the run directory the e2e static server serves at /tmp
     proxy: {
       '/tmp': BASE_URL,
       // Local Girder stack, so girder-launched sessions (urls=/api/v1/...)

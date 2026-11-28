@@ -4,8 +4,7 @@ import type { Scratch } from '../scratch';
 import { MINIMAL_DICOM } from '../datasets';
 import { createUtils } from './utils';
 
-// Each page.mouse.move emits exactly one pointermove, as the WebdriverIO
-// actions this replaces did, so coordinates and move counts carry over 1:1.
+// Each page.mouse.move emits exactly one pointermove.
 const NUDGE_PX = 2;
 
 export const createAnnotationUtils = (page: Page, scratch: Scratch) => {
